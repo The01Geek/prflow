@@ -1,0 +1,240 @@
+{
+  "pr": 1920,
+  "issue": 1897,
+  "run_id": "local-20260824T215005Z-1",
+  "iteration": 5,
+  "iteration_is_cap": true,
+  "head_override": "local",
+  "head_sha": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+  "base_sha": "084b47a4b0bfb3b711866ae0fb94828cd08acc27",
+  "base_sha_note": "head_override=local resolves the base as the PR base ref's current fetched tip (origin/main), per Phase 0.2; the PR's run-start baseRefOid was a7f45239f3f0d1fdd3cd63fde4ed87c06010b4e1.",
+  "pr_api_head_sha": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+  "progress_surface": "workpad",
+  "dispatch_mode": "available",
+  "prompt_extension_status": "content-present",
+  "extension_load_states": {
+    "review": "content-present (vendored literal .prflow/vendor/prflow/scripts/load-prompt-extension.sh returned rc 127 / no such file; the documented fallback rung scripts/load-prompt-extension.sh review resolved and printed PROMPT-EXTENSION-STATUS: content-present)"
+  },
+  "engine_identity": {
+    "skill_dir": "skills/review",
+    "root_hash": "13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e",
+    "references_hashed": 9,
+    "boundary_contract": "cleared for every reference read this run (phase-0-setup, phase-3-agents, phase-4-verdict); start marker is the literal first line and end marker the literal last line, each unique"
+  },
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "announced": "Diff classification: detect_all_audit (+ engine_self_modifying) -> full checklist, AND forcing the Phase 3.1.5 completeness-critic pass.",
+    "diff_cache": ".prflow/tmp/review/pr-1920/local-20260824T215005Z-1/diff.patch",
+    "cache_equations": "step2a rows 7 + step2b T-rows 0 = step3 raw 7; step5 published 7 = 7 - step4 logs 0; step6 file count 7 = step5 7 — all three equations balanced, cache published",
+    "changed_files": [
+      ".changeset/issue-1897-skill-body-load-probe-binding.md",
+      ".github/workflows/matcher-probe.yml",
+      "docs/internal/skill-body-load-delivery.md",
+      "lib/test/fixtures/skill-body-load-transcript.observed.txt",
+      "lib/test/modules/coverage-map.json",
+      "lib/test/run.sh",
+      "scripts/skill-body-load-probe-verdict.py"
+    ]
+  },
+  "acceptance_criteria_source": "workpad",
+  "acceptance_criteria_divergence": "none",
+  "checklist_skipped": null,
+  "checklist_results": {
+    "total": 24,
+    "passed": 23,
+    "failed": 1,
+    "inconclusive": 0,
+    "reused_from_iter_4": 24,
+    "reuse_note": "Phase 2.0.5 narrow reuse: the fix delta since iteration 4 is the four fix_files, and iteration 4's own return carried per-failure entries for its three FAILs. The 21 prior PASS items were reused unchanged (no fix touched their claims); the three prior FAILs were re-verified fresh against HEAD.",
+    "revalidated_prior_failures": [
+      {
+        "id": "VC-18",
+        "prior": "FAIL",
+        "now": "PASS",
+        "evidence": "The sbl_run comment's universal is now scoped — 'Route every helper spawn IN THIS FILE through this one point' — so the matcher-probe.yml workflow spawns are no longer counter-examples, and the stderr absolute now carries its own exception clause ('A caller measuring the exit status ALONE may discard both')."
+      },
+      {
+        "id": "VC-19",
+        "prior": "FAIL",
+        "now": "PASS",
+        "evidence": "The coverage-map claim is now scoped to the asserted forms — 'dirs_match resolves identically under both stdlib path modules for the absolute-runner-directory, backslash-bearing and boundary forms the probe asserts' — so the falsifier dirs_match('review\\\\.', 'skills/review'), which is not one of those forms, no longer contradicts it."
+      },
+      {
+        "id": "VC-6",
+        "prior": "FAIL",
+        "now": "FAIL",
+        "evidence": "AC6's own population ('each runner in the suite that spawns this helper as a child process') IS satisfied: every helper spawn in lib/test/run.sh routes through sbl_run, and the four other python3 children in the block (sbl_build's PY_SBL, PY_SBL_ONE, PY_SBL_NT, PY_SBL_COUPLED) each carry NO_COLOR=1 PYTHON_COLORS=0 inline. What still fails is the WIDER prose universal above sbl_build — 'Every child spawned below carries NO_COLOR/PYTHON_COLORS' — and its two coverage-map mirrors, which the git child at lib/test/run.sh:25300 falsifies. Behavior-inert prose, capped at Suggestion by Phase 4.1.5; recorded as finding K1.",
+        "verdict_gating": false
+      }
+    ]
+  },
+  "cap_drops": [
+    {
+      "agent": "prflow:code-reviewer",
+      "reason": "resolved override carries iterations: \"first-only\"; this is fix-loop iteration 5 (N>=2), so the agent is dropped from the Phase-3 roster per the engine's iterations exclusion rule. No override was requested for it after the drop."
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_gated_out": [
+    {
+      "agent": "prflow:type-design-analyzer",
+      "reason": "has_new_types is false — the diff adds no class/interface/type/enum/struct/trait declaration in a code file"
+    }
+  ],
+  "phase3_failed_agents": [],
+  "phase3_agents_returning": 4,
+  "phase3_findings": [
+    {
+      "id": "K1",
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "file": "lib/test/run.sh",
+      "anchor": "the comment above sbl_build in the #1618/#1897 block; mirrored in lib/test/modules/coverage-map.json under keys 'scripts/skill-body-load-probe-verdict.py' and '1618'",
+      "description": "The diff-added comment states the universal 'Every child spawned below carries NO_COLOR/PYTHON_COLORS', and the two coverage-map notes mirror it as 'Every child the block spawns neutralises terminal colour'. The AC8 re-derivation assertion spawns a bare `git -C \"$LIB/..\" show 668a7899...:skills/review/SKILL.md` with no such prefix, and that child's output IS selection-determining — it becomes the on-disk control file read_controls compares the delivered body against. Orchestrator-confirmed against HEAD at lib/test/run.sh:25300.",
+      "impact": "No live fail-open. `git show <commit>:<path>` emits raw blob bytes with no colouring, and its output is redirected to a file rather than a terminal, so no escape sequence can reach the control file; a corrupted capture would fail the assertion closed in any case. The cost is a coupled comment/coverage-map trio that misdescribes what the block enforces, which a maintainer adding the next child would read as an already-enforced invariant.",
+      "remedy": "Scope the claim in all three copies to what is enforced (e.g. 'every helper and fixture-builder child below'), or add the prefix to the git invocation so the universal becomes true.",
+      "verdict_gating": false,
+      "defect_signature": {
+        "kind": "documented_falsehood",
+        "location": "lib/test/run.sh, #1618/#1897 block comment above sbl_build (mirrored in lib/test/modules/coverage-map.json keys 'scripts/skill-body-load-probe-verdict.py' and '1618')",
+        "claim": "The comment and its two coverage-map mirrors assert that every child the block spawns carries NO_COLOR/PYTHON_COLORS, but the AC8 re-derivation assertion spawns a bare `git -C ... show` whose output supplies the verdict's on-disk controls."
+      }
+    },
+    {
+      "id": "K2",
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "file": "lib/test/run.sh",
+      "anchor": "assert_eq \"#1618/#1897 skill-body: that reason no longer names the SKILL.md file path\"",
+      "description": "The absent-string half of the boundary_dir reason pair is entailed by the present half. The preceding assertion pins that the reason contains `directory ('skills/review')`; this one asserts, from a second fixture build and a second helper spawn of the identical fixture with the identical repo-relative --root, that it does NOT contain `directory ('skills/review/SKILL.md')`. The helper emits exactly one `directory (%r)` occurrence per root from a single operand, and the asserted-present literal terminates in `')`, so it mechanically excludes the asserted-absent one.",
+      "impact": "The assertion can never go RED while its pair is GREEN, so it buys no discriminating power over the operand change it is meant to pin, at the cost of an extra fixture build and helper spawn. Against this repo's fewer-tests-by-default preference.",
+      "remedy": "Drop the absent-form assertion, or re-target it at a shape the present-form assertion does not entail.",
+      "verdict_gating": false,
+      "defect_signature": {
+        "kind": "test_gap",
+        "location": "lib/test/run.sh, \"#1618/#1897 skill-body: that reason no longer names the SKILL.md file path\"",
+        "claim": "The absence assertion is entailed by the paired presence assertion over the same deterministic capture, so it can never fail independently."
+      }
+    },
+    {
+      "id": "K3",
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "file": "lib/test/run.sh",
+      "anchor": "assert_eq \"#1618/#1897 skill-body: the $_sbl_order fixture records both Skill loads\", inside the for _sbl_order loop",
+      "description": "The two contains_name_* positive controls guard a positive-expectation assertion. Each order pays a second fixture build and helper spawn to assert `recorded Skill tool_use pairs: 2`. A positive control earns its cost when the assertion it backs is a NEGATIVE expectation a broken fixture or crashed helper would satisfy — as with late_body, whose main assertion expects 0. Here the main assertion expects 2 delivered-whole verdicts, which already goes RED for any fixture that failed to record both loads.",
+      "impact": "Diagnostic messaging rather than coverage; doubles this loop's process count.",
+      "remedy": "Optional — drop the two controls, or keep them explicitly as diagnostics rather than as coverage.",
+      "verdict_gating": false,
+      "defect_signature": {
+        "kind": "test_gap",
+        "location": "lib/test/run.sh, \"#1618/#1897 skill-body: the $_sbl_order fixture records both Skill loads\"",
+        "claim": "A positive control is paired with a positive-expectation assertion that already fails on the fixture defect the control exists to distinguish, so it adds no discriminating power."
+      }
+    }
+  ],
+  "prior_findings_disposition": {
+    "iterations_1_to_4_total": 43,
+    "handling": "All 43 prior findings were supplied to every dispatched Phase-3 agent as PRIOR ART with an instruction not to re-derive them. No agent re-raised any of them. Iteration 4's nine (J1-J9) were independently confirmed applied at HEAD by the orchestrator: sbl_build now rm -f's its output file before writing (J1); the AC8 coincidence clause is gone (J2); ambiguous_among_three pins the ambiguity count digit as 2 against a 3-load total (J3); the sbl_run, coverage-map dirs_match and stderr-discard claims are each scoped (J4/J5/J6); the empty-selection site is now a present-and-absent check over one capture (J7); the orphaned prohibition sits with its subject (J8); the fixture is lib/test/fixtures/skill-body-load-transcript.observed.txt with all four references repointed (J9).",
+    "new_findings_this_iteration": 3,
+    "all_new_findings_below_threshold": true
+  },
+  "phase_3_1_5_completeness_critic": {
+    "forced_by": "detect_all_audit",
+    "target_population": "the early-return arms of verdict_for_root in scripts/skill-body-load-probe-verdict.py, re-enumerated by reading the function's control flow directly rather than by the audit's own pattern",
+    "independently_enumerated": [
+      "note_top (transcript unreadable/unparseable/partly parseable)",
+      "no matching load (len(matches) == 0)",
+      "ambiguous binding (len(matches) > 1)",
+      "not pair['has_result']",
+      "pair['is_error']",
+      "body_rec is None",
+      "tail is None (controls unreadable)",
+      "truncation/cap marker in body",
+      "tail not in body",
+      "mid is not None and mid not in body",
+      "delivered-whole with mid",
+      "delivered-whole with no mid (one-control reason)"
+    ],
+    "result": "SUPERSET SATISFIED — every enumerated arm has at least one driving assertion in the #1618/#1897 block (12 of 12). No arm is asserted only by prose. The docstring's 'exactly these six arms' and the docs page's matching six-item list are consistent with the code once the two-cause arm-2 folding is applied, which both surfaces state explicitly.",
+    "finding": null
+  },
+  "over_grade_annotation": "None. All three findings are graded Suggestion by their reporting agents and the orchestrator concurs: K1's claim is behavior-inert prose (no tool reads the comment or the coverage-map notes), which Phase 4.1.5 limb one caps at Suggestion; K2 and K3 are test-economy observations with no correctness consequence.",
+  "truthfulness_sweep": {
+    "run": true,
+    "result": "One diff-added claim found untrue against HEAD — the 'Every child spawned below' universal and its two coverage-map mirrors (finding K1). Every other diff-added or diff-modified doc line, comment and command form checked true: the module docstring's six-arm enumeration matches the code's control flow and evaluation order; the docs page's 'exactly these six arms' list is item-for-item identical; the matcher-probe.yml comments now correctly name the following body record rather than the tool_result as the operand; the dirs_match docstring's 'normalise after normpath' and 'test emptiness before normalising' claims both hold against the code; the AC8 re-derivation recipe was executed as documented by two independent agents and printed VERDICT: delivered-whole; the pinned commit 668a78990c810b0318d7fdbf5de8a95c043eda71 is reachable on origin/main, so CI's fetch-depth: 0 checkout resolves the blob and the GIT_OBJECT_MISSING arm fails loudly if it ever does not."
+  },
+  "intra_diff_contradiction_scan": {
+    "run": true,
+    "self_contradicting_diff_findings": [],
+    "note": "K1 is a diff-added comment whose universal is falsified by a line the SAME diff adds (the git child at lib/test/run.sh:25300), so it was tested against the self-contradicting-diff carve-out. It is excluded by that carve-out's own scope exclusion: prose the Phase 4.1.5 behavior-inert cap covers is outside the carve-out, and nothing reads this comment or the coverage-map notes. It therefore stays a non-demotable-but-non-gating Suggestion rather than driving a REJECT."
+  },
+  "prompt_surface_edit_routing_gate": {
+    "applicable": false,
+    "reason": "The reviewed diff touches none of the trigger globs (skills/*/SKILL.md, skills/implement/phases/*.md, skills/implement/references/*.md, skills/review/phases/*.md, skills/review-and-fix/references/*.md, .prflow/prompt-extensions/*.md). Per the extension, a diff touching none of them draws no finding.",
+    "finding": null
+  },
+  "verification_evidence_marker_advisory": {
+    "tier_classification": "local/interactive",
+    "tier_evidence": "The issue-1897 workpad carries no <!-- prflow:checkpoint gha:... --> or <!-- devflow:checkpoint gha:... --> row in its ## Progress section.",
+    "marker_present": true,
+    "marker_count": 2,
+    "surface": "issue #1897 workpad",
+    "finding": null
+  },
+  "shipped_prose_cost_audit": {
+    "applicable": false,
+    "reason": "The reviewed diff adds and grows no prose under skills/** or agents/**."
+  },
+  "wording_only_pin_policy": {
+    "new_wording_only_pins": 0,
+    "note": "The block's new assertions grep the HELPER'S RENDERED STDOUT (an executable surface), not source text. The single raw text-presence guard, sbl_rel_denies at lib/test/run.sh, carries an explicit `# raw-guard-ok:` declaration whose rationale states that it greps rendered stdout rather than a SKILL file's text. No new static source-presence pin was added, so the extension's Important-grade flag does not fire.",
+    "finding": null
+  },
+  "deferrals": {
+    "block_present": false,
+    "honored": [],
+    "rejected": []
+  },
+  "dirty_tree_backstop": {
+    "enabled": true,
+    "before_oid": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "after_oid": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "agent_introduced_changes": 0,
+    "restored": []
+  },
+  "phase_0_6_stale_prose": {
+    "gated_out": true,
+    "reason": "prflow_review.stale_prose.enabled resolves to false in .prflow/config.json (scaffolded off in issue #1749), so the phase was neither loaded nor run."
+  },
+  "phase_4_1_7": {
+    "run": false,
+    "reason": "No STALE findings exist to adjudicate — Phase 0.6 did not run."
+  },
+  "phase_4_4": {
+    "run": false,
+    "reason": "Fix-loop path (/prflow:review-and-fix); Phase 4.4 is standalone-only and was skipped as the caller instructed."
+  },
+  "verdict": "APPROVE",
+  "verdict_threshold": "Important",
+  "verdict_reason": "Zero Critical and zero Important findings at or above the resolved severity threshold of Important. Three Suggestion-grade findings remain (K1 an over-broad comment universal mirrored into two coverage-map notes, behavior-inert and with no live fail-open; K2 and K3 two redundant assertions). All ten acceptance criteria were independently checked against the shipped code — the final-pass reviewer executed the helper rather than reading it alone, reproducing both load orders, the ambiguity count operand, the ntpath/posixpath equivalence and the AC8 re-derivation recipe end to end. The Phase 3.1.5 completeness critic re-enumerated the helper's twelve verdict arms by a signal other than the audit's own pattern and found the driving assertions a superset. The working tree was clean before and after dispatch.",
+  "remaining_critical_findings": [],
+  "cap_statement": "This is iteration 5, the configured cap. NO remaining finding is a genuine Critical. The orchestrator can demonstrate no correctness break with a concrete failing input: every degraded arm of scripts/skill-body-load-probe-verdict.py returns `unestablished` rather than a verdict, no reachable path returns `delivered-whole` without a bound single load, a directory-matched body and readable controls, and every new lib/test/run.sh helper gates on the helper's exit status before its grep so a crash cannot read as a green assertion. All three residual findings are advisory/Suggestion-grade: one is behavior-inert comment prose with no live fail-open, and two are test-economy redundancies. This PR is mergeable as it stands.",
+  "verification_evidence_this_run": {
+    "channel": "caller-supplied",
+    "local_shard": "lib/test/run-shard.sh monolith -> 9927 passed, 0 failed, 1 skipped (the expected dirty-tree #434 blocking-gate skip), rc 0",
+    "lint": "shellcheck 0.11.0 clean; ruff clean",
+    "ci": "the required check `lib + python tests` passed on the parent commit; no CI reading was established for 5a370f187bb40c1d28eb262b2e7bb20ae15e148a by this engine entry",
+    "note": "This engine entry launched no suite of its own. The whole-suite completion gate for this local-tier run belongs to the caller, not to the review engine."
+  },
+  "report_path": ".prflow/tmp/review/pr-1920/local-20260824T215005Z-1/engine-return-step1-iter-5.json"
+}

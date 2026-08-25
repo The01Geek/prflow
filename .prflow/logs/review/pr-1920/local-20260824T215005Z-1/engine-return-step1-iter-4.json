@@ -1,0 +1,255 @@
+{
+  "pr": 1920,
+  "issue": 1897,
+  "run_id": "local-20260824T215005Z-1",
+  "iteration": 4,
+  "head_override": "local",
+  "head_sha": "cfa52fa9c82a7f36034e4aeea174e736ad50f7ed",
+  "base_sha": "084b47a4b0bfb3b711866ae0fb94828cd08acc27",
+  "base_sha_note": "the resolved HEAD_OVERRIDE_BASE (origin/main tip at run start), pinned to an immutable commit id before the cache producer ran; the PR's run-start baseRefOid was a7f45239f3f0d1fdd3cd63fde4ed87c06010b4e1",
+  "pr_api_head_sha": "cfa52fa9c82a7f36034e4aeea174e736ad50f7ed",
+  "progress_surface": "workpad",
+  "dispatch_mode": "available",
+  "prompt_extension_status": "content-present",
+  "acceptance_criteria_source": "workpad",
+  "acceptance_criteria_divergence": "none",
+  "verdict": "REJECT",
+  "verdict_threshold": "critical",
+  "verdict_reason": "Phase 4.2 rule 1: three verification-checklist items returned FAIL (VC-6, VC-18, VC-19). No finding at or above the `critical` threshold; the three Important findings (F1, F2, F3) do not reach rule 3 at this threshold.",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "announced": "Diff classification: engine_self_modifying (overrides other flags' checklist) -> running full checklist. Phase 3 roster gated by Phase 3.1 applicability (has_new_types / test-relevance predicate) on every profile.",
+    "files_changed": 7,
+    "diff_sections": 7,
+    "detect_all_audit_reason": "unchanged from iteration 3 — the diff adds no scanner that both enumerates a population and asserts a completeness property over it; the 'complete by construction' statements are prose enumerations, and the matcher-probe coupling assertion is over a fixed hand-listed pair"
+  },
+  "checklist_skipped": null,
+  "cap_drops": {"count": 0, "by_category": {}},
+  "checklist_results": {
+    "total": 24,
+    "passed": 21,
+    "failed": 3,
+    "inconclusive": 0,
+    "lite": 1,
+    "agent": 23,
+    "normalized": 0,
+    "field_defect_fail_count": 0,
+    "reused_from_iter_3": 0,
+    "reuse_note": "Phase 2.0.5 narrow reuse produced 0 reuses: the iteration-3 engine return retained only a checklist SUMMARY plus its four failure entries, no per-item claim_signature array, so precondition 1 of the reuse rule could not be established for any item. Every item verified fresh. Same limitation as iteration 3 reported against iteration 2.",
+    "normalizer": "scripts/normalize-verdicts.py ran over a 23-pair pairs file and returned results with normalized_count 0, field_defect_fail_count 0, needs_retry empty. VC-6 was normalization-INELIGIBLE ('property not proven') despite its generated_claim_text scope, so its raw FAIL stands; VC-18 and VC-19 are source_authored_text and were never eligible.",
+    "failures": [
+      {
+        "id": "VC-6",
+        "claim": "AC6: every runner in the suite that spawns this helper as a child process renders colour-free output.",
+        "evidence": "Inside lib/test/run.sh's #1618/#1897 block every python3 spawn now carries NO_COLOR=1 PYTHON_COLORS=0 (sbl_build 24912, sbl_run 25069, PY_SBL_ONE 25293, PY_SBL_NT 25323, PY_SBL_COUPLED 25388) — iteration 3's fix to PY_SBL_ONE landed. The FAIL is on the wider population: .github/workflows/matcher-probe.yml:2697 and :2751 spawn the SAME helper (scripts/skill-body-load-probe-verdict.py) with neither variable, and this diff touched that file (comment rewrites) without adding them.",
+        "inaccuracy_scope": "generated_claim_text",
+        "disposition_note": "The generated claim's verify_against widened AC6's stated population ('each runner in the suite') to include the two workflow jobs. Whether a workflow job is 'a runner in the suite' is genuinely open: docs/internal/test-suite-probe-conventions.md scopes the convention to a rendered-output PROBE (a test that matches against rendered text), and the workflow jobs render for a human maintainer rather than matching. The engine did NOT resolve this in the PR's favour — the normalizer refused to normalize it (property not proven) and the raw FAIL stands. The cheapest reconciliation closes both readings: add `NO_COLOR: 1` / `PYTHON_COLORS: 0` to those two workflow steps, which also makes F5's absolute true."
+      },
+      {
+        "id": "VC-18",
+        "claim": "The diff-added sbl_run comment asserts that every helper spawn is routed through that one point, so no audit site can omit the colour neutralisation.",
+        "evidence": "lib/test/run.sh:25065-25069 (diff-added) states 'Route every helper spawn through this one point, or an audit site added later omits the colour neutralisation.' THE HELPER it names is $SBL = scripts/skill-body-load-probe-verdict.py, and that identical script is spawned as a second, independent audit site at .github/workflows/matcher-probe.yml:2697 and :2751 with no neutralisation — the omission the comment says cannot happen. Those jobs cannot route through a bash-local function. The same comment's second absolute, 'Do not discard stderr in a caller either', is contradicted by the diff's own neighbouring caller at lib/test/run.sh:25377, a deliberate exit-status-only test that does `>/dev/null 2>&1`.",
+        "inaccuracy_scope": "source_authored_text"
+      },
+      {
+        "id": "VC-19",
+        "claim": "The diff-added coverage-map note asserts dirs_match 'resolves identically under each of the two stdlib path modules os.path can resolve to while its component-boundary guard holds under both' — a universal over inputs.",
+        "evidence": "Falsified and independently re-derived by the orchestrator: dirs_match('review\\\\.', 'skills/review') is False under posixpath and True under ntpath. Under posixpath a backslash is not a separator so normpath leaves it, and 'review\\\\.' suffix-matches nothing; under ntpath the backslash IS a separator and '.' is dropped, yielding 'review', which suffix-matches 'skills/review'. The four probed fixtures do not reach this input, so the code's tested behaviour is unaffected — the universal as written is what is false.",
+        "inaccuracy_scope": "source_authored_text"
+      }
+    ]
+  },
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_gated_out": [
+    {"agent": "prflow:type-design-analyzer", "reason": "has_new_types is false (no class/interface/type/enum/struct/trait added in a code file)"},
+    {"agent": "prflow:code-reviewer", "reason": "iterations: \"first-only\" roster exclusion — this is fix-loop iteration 4 (N>=2); resolve-review-overrides.py returned {\"model\":\"opus\",\"effort\":\"low\",\"iterations\":\"first-only\"} for it"}
+  ],
+  "phase3_failed_agents": [],
+  "phase3_agents_returning": 4,
+  "phase3_findings": [
+    {
+      "id": "F1",
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "corroboration_count": 1,
+      "description": "lib/test/run.sh:25217-25221 (and the same shape at 25182, 25184, 25191, 25193, 25199, 25204, 25235, 25263, 25267, 25365): an assertion that calls the fixture builder inline as `sbl_build \"$scenario\" >/dev/null 2>&1; sbl_run ...` uses `;` not `&&`, with the builder's stdout AND stderr discarded. sbl_build writes $SBL_TMP/exec.jsonl in place and never truncates it on failure, so a failed build leaves the PREVIOUS scenario's fixture on disk and the helper measures that instead. The #1897 name-binding order loop is the demonstrable fail-open: contains_name_first and contains_name_second are the same two loads in opposite order and both yield exactly 2 delivered-whole, so a builder failure on the second iteration re-measures the first's fixture, prints 2, and passes green — the ordering half of the very regression the loop exists to close goes unexercised. Swallowed causes: an absent python3, an OSError/UnicodeDecodeError reading SBL_REVIEW/SBL_IMPLEMENT/SBL_RAF, a KeyError from an unrecognised scenario key, a full or read-only $SBL_TMP. Iteration 4's fix hardened the HELPER spawn (sbl_run/sbl_says/sbl_rel_denies all gate on exit status) but left the BUILDER ungated at these call sites. Remedy: either an `sbl_count` helper mirroring sbl_says's guard, or — the cheaper partial — have sbl_build `rm -f \"$SBL_TMP/exec.jsonl\"` before writing, which closes the stale-fixture channel for every call site at once.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25217, 25221], "kind": "api_misuse"},
+      "over_grade_annotation": "[suspected over-grade: shape 3 — uncorroborated single-source finding from silent-failure-hunter at Important, with no other Phase-3 agent and no Phase-2 checklist FAIL covering the same defect]. Advisory only; the annotation does not change the severity or the verdict. Shape 1 does NOT fire: the defect is fail-OPEN (the assertion passes green while measuring the wrong fixture), which shape 1 explicitly excludes.",
+      "contributed_to_verdict": false,
+      "verdict_gating": false,
+      "note": "Highest-value fix item this iteration. It is the same defect CLASS as iteration 3's F1, one layer up: F1 closed the helper-spawn channel, this is the fixture-builder channel."
+    },
+    {
+      "id": "F2",
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "corroboration_count": 1,
+      "description": "docs/internal/skill-body-load-delivery.md (the diff-added AC8 re-derivation section, ~lines 641-645) now reads 'the file is unchanged since, so today the two coincide, and the recipe names the head so that it keeps re-deriving the recorded reading once it does change'. That is true at THIS branch's HEAD and false against origin/main. Independently re-derived by the orchestrator: git rev-parse 668a7899...:skills/review/SKILL.md = 13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e; HEAD:skills/review/SKILL.md = 13c46f4e... (coincide); origin/main:skills/review/SKILL.md = 7086d699928f70bca8b64fb472c2692aa896d63f (do NOT coincide). Commit 394563876 ('feat: implement issue #1489') changed that path after the measured head and is already on origin/main, merely absent from this branch. So the sentence becomes false the moment this PR merges — on a page whose whole premise is that unre-derivable testimony must be marked as such. The run.sh assertion is safe (it pins `git show 668a7899:...`, not HEAD); only the prose is wrong. This is the SECOND iteration this one sentence has been wrong: iteration 3 flagged it as false in the opposite direction and the reword traded one transient claim for another. Remedy: drop the coincidence clause entirely and keep only the head-pinned recipe — a claim about what two blobs happen to be today does not belong in a durable record.",
+      "defect_signature": {"file": "docs/internal/skill-body-load-delivery.md", "line_range": [641, 645], "kind": "documented_falsehood"},
+      "routing_note": "Phase 4.1.6 does NOT route this into the Phase 4.2 self-contradicting-diff carve-out, because the sweep's test is 'demonstrably false against HEAD' and at HEAD the sentence is true. Filed at Important on its own merits; at the resolved `critical` threshold it drives no REJECT.",
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F3",
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "corroboration_count": 1,
+      "description": "The ambiguity arm's load-count operand is undriven — the same defect shape iteration 3's F4 fixed in the sibling never-loaded arm, in the arm F4 did not cover. scripts/skill-body-load-probe-verdict.py's verdict_for_root renders the ambiguity reason with `% (len(matches), skill_name)`. The only fixture reaching that arm is retry_after_error, which records exactly two loads BOTH of which match, so len(matches) == len(pairs) == 2 and the two operands are indistinguishable; and the only assertion reading that sentence greps 'recorded Skill loads name prflow:review', a pattern beginning AFTER the %d, so the digit is never compared at all. The agent confirmed by mutating a scratch copy: swapping the operand to len(pairs) renders a byte-identical string on this fixture. The count is load-bearing in exactly the way F4 argued: it tells a maintainer reading a red row whether two distinct loads collided or a transcript merely holds two loads of which two happen to match. Closing it costs one fixture and one assertion — a transcript with two prflow:review loads plus one unrelated prflow:implement load (three pairs, two matches), asserted to report '2 recorded Skill loads name prflow:review', which goes RED on a len(pairs) swap (it would render 3) and pins the digit.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25239, 25245], "kind": "test_gap"},
+      "over_grade_annotation": "[suspected over-grade: shape 3 — uncorroborated single-source finding from pr-test-analyzer at Important, no corroborating agent and no Phase-2 checklist FAIL covering the same defect]. Advisory only.",
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F4",
+      "agent": "prflow:comment-analyzer (corroborated by the engine's Phase 4.1.6 intra-diff contradiction scan)",
+      "severity": "Suggestion",
+      "severity_origin": "capped from documented_falsehood by the Phase 4.1.5 behavior-inert prose cap",
+      "corroboration_count": 1,
+      "description": "The diff-added comment at lib/test/run.sh:25341-25343 states that a backslash-bearing base dir 'is the only input that reaches the separator normalisation on the ntpath side; a forward-slash probe alone leaves the changed line unexercised for the host it was changed for.' That is false, and the orchestrator re-derived it independently: dirs_match normalises AFTER normpath, and ntpath.normpath('/home/runner/work/prflow/prflow/skills/review') returns '\\\\home\\\\runner\\\\work\\\\prflow\\\\prflow\\\\skills\\\\review' — so the forward-slash probe on the preceding line already produces backslashes on both operands under ntpath and reaches the .replace(\"\\\\\", \"/\") line. Indeed that forward-slash-under-ntpath case IS the bug the helper's own docstring describes. The comment is actively misleading in a measurable way: prflow:pr-test-analyzer, reviewing this same tree, repeated the false claim verbatim in its own summary. A maintainer trusting it could delete the forward-slash ntpath assertion as redundant, or keep only the backslash probe believing it uniquely guards the changed line. Remedy: restate what the backslash case ADDS rather than asserting exclusivity — e.g. 'A backslash-bearing base dir is the form a real Windows runner records; the forward-slash probe reaches the same normalisation via ntpath.normpath, so keep both — this one pins the input shape production actually sees.'",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25341, 25343], "kind": "documented_falsehood"},
+      "cap_evidence": {
+        "subject": "the sentence, not a functional coverage gap — both probes are present and both pass; no mechanism's audited population, exception net or type coverage is under discussion, and making the sentence true would change no output and no branch taken",
+        "limb_one": "holds — the literal is line-wrapped across two comment lines, and a search of lib/, scripts/ and docs/ finds no pin, lint, parser, codegen sentinel or declaration marker reading it; nothing parses this comment to decide program behaviour",
+        "limb_two": "holds — install.sh copies no lib/test path (grep -c 'lib/test' install.sh returns nothing) and there is no vendor-slice.sh in this tree; lib/test/run.sh reaches no consumer checkout and no published surface",
+        "routing": "Phase 4.1.6's diff-scan directs a contradicting pair confined to prose the two limbs cover to be filed capped at Suggestion with this evidence, not routed into the Phase 4.2 self-contradicting-diff carve-out. It therefore carries no carve-out marker and drives no REJECT at the `critical` threshold."
+      },
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F5",
+      "agent": "engine (Phase 2 VC-18) + prflow:silent-failure-hunter (secondary note on its Finding 2)",
+      "severity": "Suggestion",
+      "severity_origin": "capped from documented_falsehood by the Phase 4.1.5 behavior-inert prose cap",
+      "corroboration_count": 2,
+      "corroboration_note": "Two independent sources reached the same diff-added comment from opposite directions — VC-18 falsified 'Route every helper spawn through this one point' against the workflow audit sites, silent-failure-hunter falsified 'Do not discard stderr in a caller either' against the neighbouring caller. Counted via the text-based agreement fallback (same file, same comment block) and flagged as such.",
+      "description": "The diff-added sbl_run contract comment at lib/test/run.sh:25065-25069 carries two absolutes, and each is contradicted. (a) 'Route every helper spawn through this one point, or an audit site added later omits the colour neutralisation' — THE HELPER it names is $SBL = scripts/skill-body-load-probe-verdict.py, and that same script is spawned as a second, independent audit site at .github/workflows/matcher-probe.yml:2697 and :2751 with neither NO_COLOR nor PYTHON_COLORS. Those jobs cannot route through a bash-local function, so the guarantee holds only of the audit sites inside lib/test/run.sh — the file the comment lives in — not of the helper's audit-site population. (b) 'Do not discard stderr in a caller either: callers capture stdout alone, so a helper traceback would vanish' — the diff's own neighbouring caller at lib/test/run.sh:25377 does `sbl_run \"$SBL_TMP/exec.jsonl\" >/dev/null 2>&1`, deliberately, because it measures the exit status only. The rule as written is contradicted by its own nearest exception. Remedy: scope (a) to 'every helper spawn IN THIS FILE' (or add the two variables to the two workflow steps, which makes the wider claim true and also discharges VC-6), and carve out the exit-status-only caller in (b).",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25065, 25069], "kind": "documented_falsehood"},
+      "cap_evidence": {
+        "subject": "the sentences themselves — the routing discipline they describe is real and correctly applied inside lib/test/run.sh; no mechanism's coverage is disputed as a functional gap, and making the wording true changes no output and no branch taken",
+        "limb_one": "holds — no pin, lint, parser or declaration marker reads this comment block to decide program behaviour",
+        "limb_two": "holds — lib/test/run.sh ships to no consumer (install.sh copies no lib/test path; no vendor-slice.sh in this tree)",
+        "routing": "capped at Suggestion per Phase 4.1.6's instruction for a contradicting pair confined to prose the two limbs cover; no carve-out marker, no REJECT contribution"
+      },
+      "contributed_to_verdict": false,
+      "note": "This finding and checklist item VC-18 are the same underlying observation; VC-18's FAIL is what drives the REJECT, not this Suggestion."
+    },
+    {
+      "id": "F6",
+      "agent": "engine (Phase 2 VC-19 + Phase 4.1.6 truthfulness sweep)",
+      "severity": "Suggestion",
+      "severity_origin": "capped from documented_falsehood by the Phase 4.1.5 behavior-inert prose cap",
+      "corroboration_count": 1,
+      "description": "The diff-added coverage-map note (lib/test/modules/coverage-map.json, the '1897' entry) claims 'dirs_match resolves identically under each of the two stdlib path modules os.path can resolve to while its component-boundary guard holds under both'. Stated as an unqualified universal over inputs, it is false, and the orchestrator re-derived the falsifying input independently: dirs_match('review\\\\.', 'skills/review') returns False under posixpath and True under ntpath. Under posixpath a backslash is not a separator, so normpath leaves it and the result suffix-matches nothing; under ntpath the backslash IS a separator and the '.' segment is dropped, yielding 'review', which suffix-matches 'skills/review'. The input is contrived and the code's behaviour on the paths production actually records is unaffected — what is false is the note's scope. Remedy: qualify the note to the property the assertions actually drive ('resolves identically under both path modules for the absolute-runner-directory and boundary forms the probe asserts'), rather than over all inputs.",
+      "defect_signature": {"file": "lib/test/modules/coverage-map.json", "line_range": [1506, 1509], "kind": "documented_falsehood"},
+      "cap_evidence": {
+        "subject": "the note's scope, not a functional coverage gap — the falsifying input is not one dirs_match receives in production (a recorded runner base directory), and making the note true changes no output and no branch taken",
+        "limb_one": "holds — the only tool parsing the coverage-map `note` field is lib/test/coverage-map-retention-check.py (CONTENT_FIELDS = (\"note\", \"owner\")), which reads the prose only to assert the prose itself; Phase 4.1.5 limb one states such a check does not make a comment non-inert. lib/test/coverage_map_guard.py reconciles ids, not note text",
+        "limb_two": "holds — install.sh copies no lib/test path; the coverage map reaches no consumer checkout",
+        "routing": "capped at Suggestion, outside the Phase 4.2 self-contradicting-diff carve-out, carrying no carve-out marker"
+      },
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F7",
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "lib/test/run.sh:25380-25381 — the empty-selection assertion still expects grep's FAILURE arm: `sbl_run \"$SBL_TMP/exec.jsonl\" | grep -q 'VERDICT: delivered-whole' && echo no || echo yes` with expected value `yes`. This is the exact shape iteration 3's F1 filed and iteration 4 fixed elsewhere via sbl_rel_denies; this site was missed. A traceback from sbl_run produces no stdout, grep misses, and the assertion prints the expected `yes`. Exit-status gating is not available here (the no-roots path deliberately exits 2), so the fix is to assert a positive property instead: capture once, then require the 'AUDIT: NO-ROOTS' line present AND the 'VERDICT: delivered-whole' line absent from that same capture. The companion assertion one line above already greps a positive ('AUDIT: NO-ROOTS'), which is what keeps this from being higher severity — but it proves only that the header printed, not that no verdict line followed.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25380, 25381], "kind": "test_gap"},
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F8",
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "lib/test/run.sh:25276-25278 — the comment block 'Do not point this at a path outside the matching directory: the controls arm is reached only after the name binding and the directory selection both resolve, so a root elsewhere would be refused upstream and prove neither' describes the DEFINITELY-NOT-HERE.md / 'could not be read for controls' assertion, but iteration 3's F3 fix inserted the AC8 re-derivation assertion between them. The block now sits above a comment block and an assertion it does not govern — one that asserts delivered-whole and involves no controls arm at all. A reader edits the re-derivation assertion under a prohibition that does not apply, and the assertion the prohibition does govern is left unguarded. Remedy: move the block to directly precede the controls assertion.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25276, 25278], "kind": "comment_drift"},
+      "contributed_to_verdict": false,
+      "note": "Introduced by iteration 3's own fix — a fix-ordering artefact, not a pre-existing defect."
+    },
+    {
+      "id": "F9",
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "lib/test/fixtures/skill-body-load-transcript.observed.json carries a .json extension on a file whose first bytes are a '#'-commented header, so a plain json.load() of the path fails. It parses today only because parse_execution_file strips the leading '#' run first. No current lint validates tracked .json files, so nothing catches it now, but an editor, a jq sweep, or any future repo-wide JSON-validity gate reads the name and chokes. DISPUTED DETAIL, recorded rather than resolved: the final-pass reviewer reports the post-header body as JSONL, while the VC-12 verifier reports it as a whole-file JSON array that json.loads accepts after the header strip. The naming concern stands under either reading; the remedy differs (.jsonl vs a header-free .json). The fixture path is referenced from run.sh, the two coverage-map notes and the docs page, so a rename touches four sites.",
+      "defect_signature": {"file": "lib/test/fixtures/skill-body-load-transcript.observed.json", "line_range": [1, 1], "kind": "api_misuse"},
+      "contributed_to_verdict": false
+    }
+  ],
+  "prior_findings_disposition": {
+    "iteration_3_applied": "F1-F8 confirmed present and effective in this tree: sbl_rel_denies gates on the helper's exit status (F1); the _pairs_for_root docstring is trimmed to its specification statement (F2); the AC8 re-derivation assertion drives the documented recipe and fails loudly via GIT_OBJECT_MISSING (F3, verified by VC-14's short-circuit trace); two assertions now pin the never-loaded arm's recorded-load count (F4); the one-control tail is non-degenerate (F5); the no-following-body reason is reworded and the pinned substring 'no following body record naming its own' survives (F6, verified by VC-10); PY_SBL_ONE carries NO_COLOR/PYTHON_COLORS (F7); the AC8 constraint sentence was reworded (F8 — but see F2 above: the reword traded one transient claim for another).",
+    "iteration_3_pushed_back": "F9 (the session-B lines equating the tool_result with the rendered body) was re-examined this iteration as VC-9 and the push-back HOLDS. The verifier independently reached the same reading: the two lines are narrative documentation prose inside the frozen 'Observation — session B' record explicitly marked 'Superseded in part', and are neither a code comment nor an assertion message — AC9's stated population. VC-9 PASSES. No agent re-raised it. Considered closed.",
+    "regressions_introduced_by_iteration_3_fixes": "F8 (comment drift from the inserted AC8 assertion) and F2 (the reworded AC8 constraint sentence)."
+  },
+  "phase_3_1_5_completeness_critic": "not run — detect_all_audit is false",
+  "over_grade_annotation": "two findings flagged, both shape 3 (uncorroborated single-source Important from silent-failure-hunter / pr-test-analyzer): F1 and F3. Advisory only — neither annotation changes a severity or the verdict. Shape 1 does not fire on F1 (the defect is fail-OPEN, which shape 1 excludes) and shape 2 does not fire on either. F4, F5 and F6 are covered by the behavior-inert prose cap, which IS a verdict-affecting classification and is recorded on each finding's cap_evidence.",
+  "truthfulness_sweep": "three diff-added claims demonstrated false against HEAD and all three covered by the Phase 4.1.5 behavior-inert prose cap under the recorded limb evidence, so none is promoted into the Phase 4.2 self-contradicting-diff carve-out: F4 ('the only input that reaches the separator normalisation'), F5 (the sbl_run comment's two absolutes) and F6 (the coverage-map dirs_match universal). F2 was NOT promoted for a different reason: its claim is true against HEAD and false only against origin/main, so the sweep's demonstrated-false-against-HEAD test does not fire — it is filed at Important on its own merits. Claims checked and verified TRUE against HEAD: the six-arm enumeration in both the module docstring and the delivery page (VC-7, VC-17); the AC8 re-derivation recipe, executed end to end (VC-8); the quoted-JSON binding rationale (VC-11); the observed-fixture parse claim (VC-12); the ntpath monkeypatch import-shape rationale (VC-13); the empty-operand-guard-before-normpath comment; the short-file mid-control reason wording (VC-20); the retention-days: 7 citation; the matcher-probe coupling (VC-24).",
+  "intra_diff_contradiction_scan": "three contradicting pairs found, all filed capped at Suggestion with the cap's recorded evidence per Phase 4.1.6's own instruction for pairs confined to prose the two limbs cover: F4, F5, F6. Each pairs a diff-added universal against a same-symbol counterexample the diff itself carries or leaves standing.",
+  "prompt_surface_edit_routing_gate": {
+    "triggered": false,
+    "reason": "the reviewed diff touches none of the trigger globs (skills/*/SKILL.md, skills/implement/phases/*.md, skills/implement/references/*.md, skills/review/phases/*.md, skills/review-and-fix/references/*.md, .prflow/prompt-extensions/*.md). No discharge required, no finding."
+  },
+  "verification_evidence_marker_advisory": {
+    "marker_present": true,
+    "surface": "issue #1897 workpad (2 occurrences of the `Verification evidence:` literal)",
+    "tier_classification": "local/interactive (the workpad carries no prflow:checkpoint gha: or devflow:checkpoint gha: row)",
+    "finding": "none — the clause is silent"
+  },
+  "shipped_prose_cost_audit": "not triggered — the diff adds and grows no prose under skills/** or agents/**",
+  "wording_only_pin_policy": "no finding. Every assertion this diff adds probes a spawned process's RENDERED STDOUT, not file text, so none is a wording-only, secondary-prose, documentation-presence, advisory-heading or comment-presence pin. The `# raw-guard-ok:` declaration at lib/test/run.sh:25267 marks a raw grep whose operand is that same rendered stdout and carries a nonempty rationale.",
+  "deferrals": {
+    "block_present": false,
+    "note": "the PR body carries no Scope-Acknowledged Findings block; Phase 4.0 made no demotions and the report omits the Deferrals section"
+  },
+  "dirty_tree_backstop": {
+    "before_oid": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "after_compare": "identical",
+    "finding": "none — the Phase 3.1 dispatch left the working tree unchanged"
+  },
+  "phase_0_6_stale_prose": "not loaded — prflow_review.stale_prose.enabled resolves to false",
+  "phase_4_1_7": "not loaded — gated on STALE findings from Phase 0.6, which did not run",
+  "phase_4_4": "skipped — caller is /prflow:review-and-fix",
+  "extension_load_states": {
+    "review": "content-present (the vendored-literal leading token exited 127 — .prflow/vendor/ is absent on this local tier — and the repo-relative fallback `scripts/load-prompt-extension.sh review` printed the extension with `PROMPT-EXTENSION-STATUS: content-present`; re-invoked at each phase entry)",
+    "requesting-code-review": "loaded-empty resolved-root=unset — a success token, so no notice and no reflection-sink record; the resolved-root cross-check writes nothing because this orchestrator resolved no trusted root either (local tier, no extension-root variable set)"
+  },
+  "engine_identity": {
+    "canonical_root": "skills/review/SKILL.md",
+    "root_hash": "13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e",
+    "re_derived_at": ["phase-0", "phase-1", "phase-2", "phase-3", "phase-4"],
+    "boundary_contract": "cleared on every reference read; no identity or boundary row fired. The manifest at root-identity.json matched all ten paths."
+  },
+  "verification_evidence_this_run": {
+    "command": "lib/test/run-shard.sh monolith (observed by the caller on this exact tree)",
+    "outcome": "9925 passed, 0 failed, 1 skipped (the expected dirty-tree #434 blocking-gate skip), rc 0",
+    "lint": "shellcheck 0.11.0 clean; ruff check clean",
+    "note": "skipped_checks is non-empty (one #434 blocking-gate skip), so this is not reported as a clean pass. Per CLAUDE.md's local-tier rung 1 the whole-suite COMPLETION gate here is a CI reading for the pushed commit; this engine records the caller's in-env observation as the evidence it was handed and asserts no completion on it."
+  },
+  "fix_route": {
+    "recommended_order": [
+      "F1 — add `rm -f \"$SBL_TMP/exec.jsonl\"` at the top of sbl_build (one line, closes the stale-fixture channel at every ungated call site at once), or add the sbl_count guard helper. This is the only finding with a demonstrated fail-open and it clears no checklist FAIL, but it is the highest-value fix.",
+      "VC-18 + VC-6 + F5 — add `NO_COLOR: 1` / `PYTHON_COLORS: 0` to the two matcher-probe.yml helper steps AND scope the sbl_run comment's first absolute to this file, plus carve out the exit-status-only caller in its second. This is the single edit that clears TWO of the three checklist FAILs.",
+      "VC-19 + F6 — qualify the coverage-map note's dirs_match sentence to the forms the assertions actually drive. Clears the third checklist FAIL.",
+      "F2 — drop the 'the file is unchanged since / today the two coincide' clause from the AC8 constraint and keep only the head-pinned recipe. Do NOT replace it with another present-tense claim about the two blobs: this sentence has now been wrong in two successive iterations for opposite reasons.",
+      "F4 — restate the ntpath comment as what the backslash probe ADDS rather than as exclusivity.",
+      "F3 — add the three-pair ambiguity fixture and the '2 recorded Skill loads name prflow:review' assertion.",
+      "F7 — convert the empty-selection assertion to a positive single-capture observation.",
+      "F8 — move the misplaced comment block down to the controls assertion.",
+      "F9 — the fixture extension; cheapest to defer, and its remedy depends on resolving the array-vs-JSONL dispute first."
+    ],
+    "note": "Clearing all three checklist FAILs takes two edits (the matcher-probe.yml env addition plus the two prose qualifications). F1, F3, F7 and F8 all live in lib/test/run.sh, so one commit covers them with F4; F2 is the only docs/internal edit."
+  },
+  "phase_4_5_telemetry": "not written. prflow_review_and_fix.efficiency_telemetry_enabled is true, but Phase 4.5's record path is the fixed iter-1.json in this run-scoped directory, which on the fix-loop path is the WRAPPER's iteration-1 record — writing there would destroy it. The engine record is withheld and its content is carried in this return instead; the wrapper owns the per-iteration telemetry on this path.",
+  "report_path": ".prflow/tmp/review/pr-1920/local-20260824T215005Z-1/engine-return-step1-iter-4.json"
+}

@@ -1,0 +1,144 @@
+{
+  "iter": 3,
+  "started_at": "2026-08-24T22:50:00Z",
+  "fix_commit_sha": "cfa52fa9c82a7f36034e4aeea174e736ad50f7ed",
+  "fix_files": [
+    "lib/test/run.sh",
+    "scripts/skill-body-load-probe-verdict.py",
+    "docs/internal/skill-body-load-delivery.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "checklist_summary": {
+    "total": 20,
+    "passed": 16,
+    "failed": 4,
+    "inconclusive": 0
+  },
+  "fix_decisions": [
+    {
+      "finding_id": "H-1",
+      "decision": "applied",
+      "commit": "cfa52fa9c82a7f36034e4aeea174e736ad50f7ed",
+      "evidence": "the negative assertion expected grep's FAILURE arm while discarding stderr, so a helper crash passed it green — the same class iteration 2 closed in sbl_says, reopened in the assertion iteration 2 itself edited. Routed through a new sbl_rel_denies that gates on the helper's exit status and prints HELPER_FAILED."
+    },
+    {
+      "finding_id": "H-2",
+      "decision": "applied",
+      "commit": "cfa52fa9c82a7f36034e4aeea174e736ad50f7ed",
+      "evidence": "the _pairs_for_root docstring carried derivation and provenance past its specification statement; trimmed to the specification plus the one prohibition"
+    },
+    {
+      "finding_id": "H-3",
+      "decision": "applied",
+      "commit": "cfa52fa9c82a7f36034e4aeea174e736ad50f7ed",
+      "evidence": "AC8's re-derivability promise had no driving assertion; added one that runs the documented recipe against the review body at the measured head and asserts delivered-whole, printing GIT_OBJECT_MISSING rather than passing silently on a shallow clone"
+    },
+    {
+      "finding_id": "H-4",
+      "decision": "applied",
+      "commit": "cfa52fa9c82a7f36034e4aeea174e736ad50f7ed",
+      "evidence": "the never-loaded reason's total-recorded-load-count operand was undriven; two assertions now pin it at 1 for null_input and 0 for no_skill, so swapping it for the match count goes RED"
+    },
+    {
+      "finding_id": "H-5",
+      "decision": "applied",
+      "commit": "cfa52fa9c82a7f36034e4aeea174e736ad50f7ed",
+      "evidence": "the one-control fixture's tail was a single character, so its positive control proved little; the tail is now a distinctive line while the interior lines stay short"
+    },
+    {
+      "finding_id": "H-6",
+      "decision": "applied",
+      "commit": "cfa52fa9c82a7f36034e4aeea174e736ad50f7ed",
+      "evidence": "the no-following-body reason claimed a load of that root 'was recorded' in exactly the residue case where the bound load named another root; reworded to the load bound to it, preserving the pinned 'no following body record naming its own' literal AC10 protects"
+    },
+    {
+      "finding_id": "H-7",
+      "decision": "applied",
+      "commit": "cfa52fa9c82a7f36034e4aeea174e736ad50f7ed",
+      "evidence": "the every-child colour universal was falsified by the diff's own PY_SBL_ONE spawn, the one child carrying neither variable; it now carries both, making the run.sh comment and the two coverage-map notes true"
+    },
+    {
+      "finding_id": "H-8",
+      "decision": "applied",
+      "commit": "cfa52fa9c82a7f36034e4aeea174e736ad50f7ed",
+      "evidence": "the AC8 section said the current file is a different body; skills/review/SKILL.md hashes identically to the blob at the measured head, so the sentence now says the two coincide today and why the recipe still names the head"
+    },
+    {
+      "finding_id": "H-9",
+      "decision": "pushed_back",
+      "source_file": "docs/internal/skill-body-load-delivery.md",
+      "claim_text": "lines 468 and 490-492 still equate the Skill tool_result with the rendered body itself",
+      "skip_category": "out-of-scope",
+      "evidence": "AC9's population is comments and assertion messages in the files this change edits; these are documentation prose inside session B's explicitly frozen record, which the page's own rule says to supersede with a new session rather than edit — session C already does. The reviewing engine's own final pass concurred AC9 is not violated on its stated population.",
+      "parking_evidence": {
+        "basis": "outside AC9's stated population, and inside a frozen past-time record the page forbids editing",
+        "failing_input": "the session-B sentences describing the operand as the tool_result",
+        "source": "docs/internal/skill-body-load-delivery.md, the Status: past-time snapshot rule and session C's correction",
+        "finding_ref": {
+          "iter": 3,
+          "index": 8
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 8,
+    "fix_diff_lines": 74,
+    "new_corroborated_critical_count": 0
+  },
+  "verification_evidence": {
+    "focused_selection": "lib/test/run-shard.sh monolith: 9925 passed, 0 failed, 1 skipped (the expected dirty-tree #434 skip), rc 0 — three assertions more than iteration 2, matching the three added. shellcheck 0.11.0 and ruff clean."
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "prompt_addenda": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": "REJECT verdict — the loop was still fixing, so no convergence-time shadow was triggered",
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

@@ -1,0 +1,134 @@
+{
+  "iter": 4,
+  "started_at": "2026-08-24T23:20:00Z",
+  "fix_commit_sha": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+  "fix_files": [
+    "docs/internal/skill-body-load-delivery.md",
+    "lib/test/fixtures/skill-body-load-transcript.observed.txt",
+    "lib/test/modules/coverage-map.json",
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "checklist_summary": {
+    "total": 24,
+    "passed": 21,
+    "failed": 3,
+    "inconclusive": 0
+  },
+  "fix_decisions": [
+    {
+      "finding_id": "J-1",
+      "decision": "applied",
+      "commit": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+      "evidence": "sbl_build never truncated exec.jsonl, so a failed build left the previous scenario's fixture and the next assertion measured it — and since both name-binding order fixtures yield 2 delivered-whole, a build failure on the second passed green, leaving this issue's own ordering regression unexercised. One rm -f at the top of the builder closes every call site."
+    },
+    {
+      "finding_id": "J-2",
+      "decision": "applied",
+      "commit": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+      "evidence": "the AC8 coincidence clause was true at this branch head and false against origin/main — independently re-derived: the blob is 13c46f4e here and 7086d699 there, so the sentence would be false on merge. Dropped rather than reworded a third time; the recipe pins the commit, which is what makes it durable."
+    },
+    {
+      "finding_id": "J-3",
+      "decision": "applied",
+      "commit": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+      "evidence": "the ambiguity arm's count operand was indistinguishable from the transcript total on every fixture; a three-load two-match fixture now pins the digit, so swapping it for len(pairs) renders 3 and goes RED"
+    },
+    {
+      "finding_id": "J-4",
+      "decision": "applied",
+      "commit": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+      "evidence": "the comment claimed the backslash probe was the only input reaching the ntpath normalisation; ntpath.normpath re-inserts backslashes, so the forward-slash probe reaches the same line. Restated as what the backslash case adds."
+    },
+    {
+      "finding_id": "J-5",
+      "decision": "applied",
+      "commit": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+      "evidence": "both absolutes in the sbl_run contract were contradicted — the matcher-probe jobs spawn the same helper outside this file, and the diff's own exit-status-only caller discards stderr deliberately. Scoped to this file, with the exit-status-only carve-out stated."
+    },
+    {
+      "finding_id": "J-6",
+      "decision": "applied",
+      "commit": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+      "evidence": "the coverage-map note stated the path-module parity as a universal over all inputs, which a contrived input falsifies; qualified to the forms the assertions actually drive"
+    },
+    {
+      "finding_id": "J-7",
+      "decision": "applied",
+      "commit": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+      "evidence": "the last grep-failure-arm site; exit-status gating is unavailable there (the no-roots path exits 2 deliberately), so it now requires the header PRESENT and the verdict line ABSENT from one capture — a traceback fails the present half"
+    },
+    {
+      "finding_id": "J-8",
+      "decision": "applied",
+      "commit": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+      "evidence": "iteration 3's own inserted assertion had orphaned this prohibition from the assertion it governs; moved back to directly precede it"
+    },
+    {
+      "finding_id": "J-9",
+      "decision": "applied",
+      "commit": "5a370f187bb40c1d28eb262b2e7bb20ae15e148a",
+      "evidence": "the fixture carried a .json extension on a file whose leading # header makes a plain json.load fail; renamed to .txt, the convention its sibling execution-file-shape.observed.txt already uses, with all four references repointed and the reason recorded in the header"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 9,
+    "fix_diff_lines": 88,
+    "new_corroborated_critical_count": 0
+  },
+  "verification_evidence": {
+    "focused_selection": "lib/test/run-shard.sh monolith: 9927 passed, 0 failed, 1 skipped (the expected dirty-tree #434 skip), rc 0 — two assertions more than iteration 3, matching the two added. shellcheck 0.11.0 and ruff clean."
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "prompt_addenda": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": "REJECT verdict — the loop was still fixing, so no convergence-time shadow was triggered",
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

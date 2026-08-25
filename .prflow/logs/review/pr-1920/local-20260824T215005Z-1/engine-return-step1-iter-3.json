@@ -1,0 +1,237 @@
+{
+  "pr": 1920,
+  "issue": 1897,
+  "run_id": "local-20260824T215005Z-1",
+  "iteration": 3,
+  "head_override": "local",
+  "head_sha": "213e137f17695f7a08240c894c2255dfbf17a504",
+  "base_sha": "ea0d4a17098f3088b2fd6e3db821518a7e1faaf4",
+  "pr_api_head_sha": "213e137f17695f7a08240c894c2255dfbf17a504",
+  "progress_surface": "workpad",
+  "dispatch_mode": "available",
+  "prompt_extension_status": "content-present",
+  "acceptance_criteria_source": "workpad",
+  "acceptance_criteria_divergence": "none",
+  "verdict": "REJECT",
+  "verdict_threshold": "critical",
+  "verdict_reason": "Phase 4.2 rule 1: four verification-checklist items returned FAIL (VC-3, VC-8, VC-18, VC-19). No finding at or above the `critical` threshold; the one Important finding (F1) does not itself reach rule 3 at this threshold.",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "announced": "Diff classification: engine_self_modifying (overrides other flags' checklist) -> running full checklist. Phase 3 roster gated by Phase 3.1 applicability (has_new_types / test-relevance predicate) on every profile.",
+    "files_changed": 7,
+    "diff_sections": 7
+  },
+  "checklist_skipped": null,
+  "cap_drops": {"count": 0, "by_category": {}},
+  "checklist_results": {
+    "total": 20,
+    "passed": 16,
+    "failed": 4,
+    "inconclusive": 0,
+    "lite": 0,
+    "agent": 20,
+    "normalized": 0,
+    "field_defect_fail_count": 0,
+    "reused_from_iter_2": 0,
+    "reuse_note": "Phase 2.0.5 narrow reuse produced 0 reuses: the iteration-2 engine return retained only a checklist SUMMARY (counts), no per-item claim_signature array, so precondition 1 of the reuse rule could not be established for any item. Every item verified fresh.",
+    "failures": [
+      {
+        "id": "VC-3",
+        "claim": "The coverage-map note and the sbl_run-region comment assert that EVERY child the #1618 block spawns neutralises terminal colour.",
+        "evidence": "lib/test/run.sh:25270 spawns `python3 - \"$SBL_TMP\" <<'PY_SBL_ONE'` (the one-control fixture builder) with no NO_COLOR/PYTHON_COLORS prefix, while every other python3 spawn in the block carries it. The universal is false as written at three sites: the run.sh comment near the top of the block, and lib/test/modules/coverage-map.json lines 751 and 1331.",
+        "inaccuracy_scope": "source_authored_text"
+      },
+      {
+        "id": "VC-8",
+        "claim": "The docs page asserts session C's delivered-whole cell is re-derivable from repository bytes alone via the printed command sequence.",
+        "evidence": "The re-derivation itself PASSES — the documented sequence was executed and printed `VERDICT: delivered-whole`. The FAIL is on the adjacent stated constraint at docs/internal/skill-body-load-delivery.md: 'the current file is a different body and would measure a different thing'. `git hash-object skills/review/SKILL.md` = 13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e, identical to the blob extracted from 668a78990c810b0318d7fdbf5de8a95c043eda71, so that sentence is false at this commit.",
+        "inaccuracy_scope": "source_authored_text"
+      },
+      {
+        "id": "VC-18",
+        "claim": "AC8: the recorded delivered-whole measurement is re-derivable from bytes committed to this repository after its source artifact expired.",
+        "evidence": "Same underlying reading as VC-8: the AC's own claim is satisfied (re-derivation reproduces delivered-whole); the FAIL is the adjacent false constraint sentence.",
+        "inaccuracy_scope": "source_authored_text"
+      },
+      {
+        "id": "VC-19",
+        "claim": "AC9: no comment and no assertion message in the files this change edits states that the verdict is read from the Skill tool result.",
+        "evidence": "docs/internal/skill-body-load-delivery.md line 468 ('deriving a per-root verdict from the Skill `tool_result` in the execution file') and lines 490-492 ('the verdict is derived from the Skill `tool_result` recorded in the execution file — the rendered body itself —') still read the wrong way. DISPUTED SCOPE: both sit inside session B's explicitly frozen record ('The table above is session B's own frozen record'; 'Superseded in part'), are not diff-touched, and are documentation prose rather than a comment or an assertion message — the AC's stated population. The Phase-3 final-pass reviewer independently judged AC9 satisfied on that reading.",
+        "inaccuracy_scope": "source_authored_text"
+      }
+    ]
+  },
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_gated_out": [
+    {"agent": "prflow:type-design-analyzer", "reason": "has_new_types is false (no class/interface/type/enum/struct/trait added in a code file)"},
+    {"agent": "prflow:code-reviewer", "reason": "iterations: \"first-only\" roster exclusion — this is fix-loop iteration 3 (N>=2)"}
+  ],
+  "phase3_failed_agents": [],
+  "phase3_agents_returning": 4,
+  "phase3_findings": [
+    {
+      "id": "F1",
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "corroboration_count": 2,
+      "corroboration_note": "prflow:comment-analyzer raised the same site independently (kind comment_drift vs api_misuse), so mechanical corroboration by identical defect_signature.kind does not fire; counted via the text-based agreement fallback (same file, same defect) and flagged as such.",
+      "description": "lib/test/run.sh:25252 — the assertion `#1618/#1897 skill-body: that reason no longer names the SKILL.md file path` pipes `sbl_run ... 2>/dev/null` into `grep -q ... && echo no || echo yes`, and its expected value is `yes`. `yes` is produced by grep's FAILURE arm, so a helper crash (traceback, argparse change, unreadable fixture, python3 resolution failure) yields empty stdout, greps as a plain miss, and the assertion passes GREEN while measuring nothing — and the `2>/dev/null` removes the one channel that would have made the crash visible. This is the only sbl_run call site in the file that discards stderr while consuming stdout (line 25445's `>/dev/null 2>&1` is a legitimate exit-status test), and its sibling one line above at 25250 correctly omits the redirect. It also contradicts the contract comment `sbl_run` itself adds in this same diff: 'Do not discard stderr in a caller either: callers capture stdout alone, so a helper traceback would vanish and a crash would read as a plain grep miss.' Remedy: drop the `2>/dev/null` and make the pass value a positive observation (e.g. extract the rendered directory operand and assert it equals `skills/review`), so the assertion goes RED both on a regression to the file path and on a helper that produces no output at all.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25251, 25252], "kind": "api_misuse"},
+      "contributed_to_verdict": false,
+      "verdict_gating": false,
+      "note": "Important, but the resolved verdict_severity_threshold is `critical`, so rule 3 does not fire on it. It is the highest-value fix item this iteration."
+    },
+    {
+      "id": "F7",
+      "agent": "engine (Phase 2 VC-3 + Phase 4.1.6 intra-diff contradiction scan)",
+      "severity": "Suggestion",
+      "severity_origin": "capped from documented_falsehood by the Phase 4.1.5 behavior-inert prose cap",
+      "corroboration_count": 1,
+      "description": "A diff-added absolute claim is falsified by the same diff, at three sites: the comment near the top of the #1618 block in lib/test/run.sh ('Every child spawned below carries NO_COLOR/PYTHON_COLORS') and the two coverage-map notes in lib/test/modules/coverage-map.json (lines 751 and 1331: 'Every child the block spawns neutralises terminal colour (NO_COLOR/PYTHON_COLORS)'). The `PY_SBL_ONE` heredoc spawn at lib/test/run.sh:25270 — added by this same diff, building the one-control fixture — carries neither variable. Every other python3 spawn in the block does. Remedy: add the `NO_COLOR=1 PYTHON_COLORS=0` prefix to that spawn (one token, and the cheaper fix), or qualify the three sentences to the spawns the convention actually binds.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25270, 25270], "kind": "documented_falsehood"},
+      "cap_evidence": {
+        "subject": "the sentence, not a functional coverage gap — docs/internal/test-suite-probe-conventions.md binds RENDERED-OUTPUT probes, and PY_SBL_ONE's stdout is consumed by nothing (it writes a fixture file), so no assertion, output or branch changes whether the sentence is true or false",
+        "limb_one": "holds — the only tool that parses the coverage-map `note` field is lib/test/coverage-map-retention-check.py (CONTENT_FIELDS = (\"note\", \"owner\")), which reads the prose only to assert the prose itself; 4.1.5 limb one states such a check does not make a comment non-inert. No lint, parser, codegen sentinel or declaration marker reads either surface to decide program behavior.",
+        "limb_two": "holds — install.sh copies no `lib/test/` path and vendor-slice.sh ships none; the run.sh comment and coverage-map.json reach no consumer checkout and no published surface.",
+        "routing": "Phase 4.1.6's diff-scan explicitly directs a contradicting pair confined to prose the two limbs cover to be filed capped at Suggestion with this evidence, instead of routed into the Phase 4.2 self-contradicting-diff carve-out. It therefore carries no `[self-contradicting-diff carve-out]` marker and drives no REJECT at the `critical` threshold."
+      },
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F8",
+      "agent": "engine (Phase 2 VC-8/VC-18 + Phase 4.1.6 truthfulness sweep)",
+      "severity": "Suggestion",
+      "severity_origin": "capped from documented_falsehood by the Phase 4.1.5 behavior-inert prose cap",
+      "corroboration_count": 1,
+      "description": "docs/internal/skill-body-load-delivery.md, in the diff-added section 'Re-deriving session C's measurement (AC8)', states as a load-bearing constraint: 'The controls must come from skills/review/SKILL.md at that head — the current file is a different body and would measure a different thing.' At this commit the two are byte-identical: `git hash-object skills/review/SKILL.md` and `git hash-object` of the blob from `git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md` both print 13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e, and no commit has touched that path since. The sentence is false as written. The AC8 claim it sits beside is SATISFIED — the documented sequence was executed and reproduced `VERDICT: delivered-whole`. Remedy: restate the constraint in the forward-looking form it actually means ('the controls must come from that head, because the current file may since have changed'), or drop the second clause.",
+      "defect_signature": {"file": "docs/internal/skill-body-load-delivery.md", "line_range": [639, 642], "kind": "documented_falsehood"},
+      "cap_evidence": {
+        "subject": "the sentence itself — no mechanism's audited population, exception net or type coverage is under discussion; making the sentence true would change no output and no branch taken",
+        "limb_one": "holds — grep over lib/ and scripts/ finds no pin, lint, parser or declaration marker reading this literal; nothing parses the page to decide program behavior",
+        "limb_two": "holds — install.sh and vendor-slice.sh copy no docs/internal path; it is an internal engineering record, not a README, published doc page, release note or user-facing string",
+        "routing": "capped at Suggestion, outside the Phase 4.2 self-contradicting-diff carve-out, carrying no carve-out marker"
+      },
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F9",
+      "agent": "engine (Phase 2 VC-19)",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "docs/internal/skill-body-load-delivery.md still carries two sentences describing the verdict as derived from the Skill tool_result: line 468 ('deriving a per-root verdict from the Skill `tool_result` in the execution file through scripts/skill-body-load-probe-verdict.py') and lines 490-492 ('the verdict is derived from the Skill `tool_result` recorded in the execution file — the rendered body itself — checked against controls read from disk'). The same page's own session-C section later states the opposite ('the tool_result is a launch stub ... and the rendered body arrives in the next record'). Graded Suggestion, not a carve-out: neither line is diff-added or diff-modified (so Phase 4.1.6's promote-only sweep does not reach them), both sit inside session B's explicitly frozen and 'Superseded in part' record, which this repository's past-time-snapshot convention says not to rewrite, and both are documentation prose rather than a comment or an assertion message — the population AC9 names. If left as-is, consider one pointer sentence at the top of the session-B block naming the operand correction, rather than editing the frozen text.",
+      "defect_signature": {"file": "docs/internal/skill-body-load-delivery.md", "line_range": [468, 492], "kind": "comment_drift"},
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F2",
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "The `_pairs_for_root` docstring in scripts/skill-body-load-probe-verdict.py carries roughly seven lines of derivation and provenance beyond its specification statement (why collect_skill_pairs serialises the whole input, what 'a dated observation of one runner version' means, how the divergence would be unfalsifiable from inside the suite). It is a function docstring, not a module docstring or contract header, so the prevention-only comment standard's specification carve-out does not cover it. The clause worth keeping inline is the prohibition plus its one consequence: do not narrow this to a named field — a field-keyed read would answer `unestablished` on every real transcript while every fixture stayed green. The rest already has a home in docs/internal/skill-body-load-delivery.md.",
+      "defect_signature": {"file": "scripts/skill-body-load-probe-verdict.py", "line_range": [254, 267], "kind": "style"},
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F3",
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "The AC8 're-derivable from repository bytes alone' promise has no driving assertion. The two committed-transcript assertions drive `recorded Skill tool_use pairs: 1` and the controls arm being reached via a deliberately absent --root; neither asserts a `delivered-whole` verdict against the real transcript's bytes. Both docs/internal/skill-body-load-delivery.md and the fixture header state the cell is now re-derivable — true today, verified by execution, but nothing in the suite keeps it true, so it can silently become a documented falsehood. The ingredients are already present: extract `git show 668a7899...:skills/review/SKILL.md` into a `$SBL_TMP/rederive/skills/review/` layout and assert `sbl_run \"$SBL_OBS\" --tier review --root prflow:review=skills/review/SKILL.md | grep -c 'VERDICT: delivered-whole'` equals 1. This is the one assertion that would exercise the whole binding -> directory-selection -> controls -> verdict chain on production bytes rather than on the instrument's own assumptions — the very rationale the fixture header gives for committing it.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25256, 25262], "kind": "test_gap"},
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F4",
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "The new load-count operand in the never-loaded reason is undriven. `verdict_for_root` renders '... %d Skill load(s) were recorded in total' % (skill_name, len(pairs)); swapping `len(pairs)` for `len(matches)` — provably 0 on that arm — leaves every assertion green, because the only test touching the arm (`sbl_says null_input 'no recorded Skill tool_use names prflow:review'`) greps the prefix and stops before the count. The `null_input` fixture records exactly one pair, so extending that grep to '1 Skill load(s) were recorded in total' pins it at no extra cost. Alternatively drop the operand: `audit()` already prints `recorded Skill tool_use pairs: N` on its own line.",
+      "defect_signature": {"file": "scripts/skill-body-load-probe-verdict.py", "line_range": [291, 296], "kind": "test_gap"},
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F5",
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "The one-control fixture's tail control is degenerate. `printf 'a\\nb\\nc\\n'` gives tail == 'c', a single character present in essentially any delivered body — including the `Base directory for this skill: ...` prefix line — so the `tail not in body` branch cannot fire for this fixture and its positive control (delivered-whole count 1) proves less than it appears. Not a false green: the assertion it guards (the mid-is-None wording) does discriminate. A distinctive short tail such as `zzq` would make the control mean what it claims.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25264, 25288], "kind": "test_gap"},
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "F6",
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "The no-following-body reason asserts a load of the root 'was recorded' in exactly the disclosed residue case where none was. For `arg_equals_other_root` — a `prflow:implement` load whose serialised input carries `\"prflow:review\"` as an argument — `_pairs_for_root` binds it, the directory selection then refuses it, and the printed reason reads 'the Skill load of prflow:review was recorded but no following body record naming its own directory ('skills/review') was found'. No Skill load of prflow:review was recorded. The verdict (`unestablished`) is correctly fail-closed and the arm is deliberately pinned, but the reason is the sentence a maintainer transcribes into the durable record, so a false 'was recorded' clause is the same silently-wrong-testimony class this PR exists to close. A phrasing naming what was actually matched (e.g. 'a recorded Skill load naming %s in its input') keeps the arm and the pinned substring `no following body record naming its own` intact.",
+      "defect_signature": {"file": "scripts/skill-body-load-probe-verdict.py", "line_range": [315, 321], "kind": "other"},
+      "contributed_to_verdict": false
+    }
+  ],
+  "phase_3_1_5_completeness_critic": "not run — detect_all_audit is false (the diff adds no scanner that both enumerates a population and asserts a completeness property over it; the 'complete by construction' statements are prose enumerations, and the matcher-probe coupling assertion is over a fixed hand-listed pair that predates this diff)",
+  "over_grade_annotation": "no finding flagged. F1 is Important and originates with silent-failure-hunter, but shape 3 does not fire (prflow:comment-analyzer independently raised the same site) and shape 1 does not fire either (the defect is fail-OPEN — the assertion passes green while measuring nothing — which shape 1 explicitly excludes).",
+  "truthfulness_sweep": "no finding promoted. Two diff-added claims were demonstrated false against HEAD (F7's 'Every child ... neutralises terminal colour', F8's 'the current file is a different body'), and both are covered by the Phase 4.1.5 behavior-inert prose cap under the recorded limb evidence, so neither is promoted into the Phase 4.2 self-contradicting-diff carve-out. No other flagged claim could be demonstrated false: the AC8 re-derivation command form, the six-arm enumeration, the quoted-JSON binding rationale, the null-input serialisation claim, the normpath-ordering rationale, the argparse-append claim and the retention-days: 7 citation were each verified true against HEAD.",
+  "intra_diff_contradiction_scan": "one contradicting pair found: the diff-added universal 'Every child the block spawns neutralises terminal colour' against the diff-added PY_SBL_ONE spawn that carries neither variable. Filed as F7, capped at Suggestion with the cap's recorded evidence per Phase 4.1.6's own instruction for a pair confined to prose the two limbs cover.",
+  "prompt_surface_edit_routing_gate": {
+    "triggered": false,
+    "reason": "the reviewed diff touches none of the trigger globs (skills/*/SKILL.md, skills/implement/phases/*.md, skills/implement/references/*.md, skills/review/phases/*.md, skills/review-and-fix/references/*.md, .prflow/prompt-extensions/*.md). No discharge required, no finding."
+  },
+  "verification_evidence_marker_advisory": {
+    "marker_present": true,
+    "surface": "issue #1897 workpad",
+    "tier_classification": "local/interactive (the workpad carries no prflow:checkpoint gha: or devflow:checkpoint gha: row)",
+    "finding": "none — the clause is silent"
+  },
+  "shipped_prose_cost_audit": "not triggered — the diff adds and grows no prose under skills/** or agents/**",
+  "wording_only_pin_policy": "no finding. The assertions this diff adds probe the helper's RENDERED STDOUT (a spawned process's output), not file text, so none is a wording-only, secondary-prose, documentation-presence, advisory-heading or comment-presence pin. The one `# raw-guard-ok:` declaration at lib/test/run.sh:25252 marks a raw grep whose operand is that same rendered stdout and carries a nonempty rationale.",
+  "deferrals": {
+    "block_present": false,
+    "note": "the PR body carries no Scope-Acknowledged Findings block; Phase 4.0 made no demotions and the report omits the Deferrals section"
+  },
+  "dirty_tree_backstop": {
+    "before_oid": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "after_compare": "identical",
+    "finding": "none — the Phase 3.1 dispatch left the working tree unchanged"
+  },
+  "phase_0_6_stale_prose": "not loaded — prflow_review.stale_prose.enabled resolves to false",
+  "phase_4_1_7": "not loaded — gated on STALE findings from Phase 0.6, which did not run",
+  "phase_4_4": "skipped — caller is /prflow:review-and-fix",
+  "extension_load_states": {
+    "review": "content-present (re-invoked at every phase entry: run start, Phase 2, Phase 3, Phase 4)",
+    "requesting-code-review": "loaded-empty resolved-root=unset — a success token, so no notice and no reflection-sink record; the resolved-root cross-check writes nothing because this orchestrator resolved no trusted root either (local tier, no extension-root variable set)"
+  },
+  "engine_identity": {
+    "canonical_root": "skills/review/SKILL.md",
+    "root_hash": "13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e",
+    "re_derived_at": ["phase-0", "phase-2", "phase-3", "phase-4"],
+    "boundary_contract": "cleared on every reference read; no identity or boundary row fired"
+  },
+  "verification_evidence_this_run": {
+    "command": "lib/test/run-shard.sh monolith (observed by the caller on this exact tree)",
+    "outcome": "9922 passed, 0 failed, 1 skipped (the expected dirty-tree #434 blocking-gate skip), rc 0",
+    "lint": "shellcheck --severity=warning -e SC1091 --extended-analysis=false lib/test/run.sh clean; ruff check clean (both re-run by this engine)",
+    "ci": "the required `lib + python tests` check passed on the parent commit",
+    "note": "skipped_checks is non-empty (one #434 blocking-gate skip on a dirty tree), so this is not reported as a clean pass"
+  },
+  "fix_route": {
+    "recommended_order": [
+      "F1 — remove the 2>/dev/null at lib/test/run.sh:25252 and convert the assertion's pass value to a positive observation (Important; the only finding with a behavioural fail-open)",
+      "F7 — add NO_COLOR=1 PYTHON_COLORS=0 to the PY_SBL_ONE spawn (the cheaper of the two remedies; it also makes all three 'Every child' sentences true)",
+      "F8 — restate the AC8 constraint sentence in its forward-looking form",
+      "F3, F4, F5 — the three test-coverage suggestions, all cheap and all in the same block",
+      "F6, F2, F9 — wording"
+    ],
+    "note": "F1, F7, F8, F3, F4 and F5 all live in lib/test/run.sh or scripts/skill-body-load-probe-verdict.py, so a single fix commit covers them; F8 and F9 are both in docs/internal/skill-body-load-delivery.md."
+  },
+  "phase_4_5_telemetry": "not written. prflow_review_and_fix.efficiency_telemetry_enabled is true, but Phase 4.5's record path is the fixed `iter-1.json` in this run-scoped directory, which on the fix-loop path is the WRAPPER's iteration-1 record — writing there would destroy it. The engine record is therefore withheld and its content is carried in this return instead; the wrapper owns the per-iteration telemetry on this path.",
+  "report_path": ".prflow/tmp/review/pr-1920/local-20260824T215005Z-1/engine-return-step1-iter-3.json"
+}

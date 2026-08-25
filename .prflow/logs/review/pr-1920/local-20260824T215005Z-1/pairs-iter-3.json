@@ -1,0 +1,224 @@
+{
+ "pairs": [
+  {
+   "item": {
+    "id": "VC-1",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "scripts/skill-body-load-probe-verdict.py:248-264",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-1-n7k2.json",
+   "response_text": "{\"id\": \"VC-1\", \"verdict\": \"PASS\", \"evidence\": \"scripts/skill-body-load-probe-verdict.py:263 sets needle = json.dumps(skill_name) (quote-delimited) and _pairs_for_root (line 264) checks `needle in p['input_text']` against the WHOLE serialised input. Confirmed by direct execution: json.dumps({'prflow:review':'x'}) == '{\\\"prflow:review\\\": \\\"x\\\"}', which contains needle '\\\"prflow:review\\\"' as a substring, so a recorded input where the skill name appears as an OBJECT KEY (not a value) also matches and would bind that root. The docstring at lines 248-260 only discusses/discloses two residues: (1) a value inside a differently-named field ('a complete string value inside it is quote-delimited whatever its field is called') and (2) longer names containing the target name as a substring (guarded against by quote-boundary matching). Neither the docstring nor any fixture in lib/test/run.sh's #1618/#1897 block addresses or tests the name-as-key case. The only related fixture, 'arg_equals_other_root' (lib/test/run.sh:25014-25017), uses input_obj={'skill':'prflow:implement','args':'prflow:review'} -- the target name is a VALUE under the 'args' field, not a KEY -- which is the already-disclosed 'any field' residue, not the key-position case. Therefore the claimed false-positive direction (name as object key) genuinely exists in the code and is undisclosed/unaccounted for by any comment or driving test.\", \"file_checked\": \"scripts/skill-body-load-probe-verdict.py:248-264\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-10",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "lib/test/run.sh:25065-25070,25354-25358; scripts/skill-body-load-probe-verdict.py:356-377,392-424",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-10-d3f6.json",
+   "response_text": "{\"id\": \"VC-10\", \"verdict\": \"PASS\", \"evidence\": \"lib/test/run.sh:25065-25070 defines sbl_run() as `NO_COLOR=1 PYTHON_COLORS=0 python3 \\\"$SBL\\\" \\\"$@\\\"` with an explicit comment stating callers must not discard stderr because a traceback would otherwise vanish and read as a plain grep miss -- stderr is left connected to the shell's inherited stderr, not merged into stdout. The two empty-selection assertions at lines 25354 and 25356-25358 are `sbl_run \\\"$SBL_TMP/exec.jsonl\\\" >/dev/null 2>&1 && echo zero || echo nonzero` and `sbl_run \\\"$SBL_TMP/exec.jsonl\\\" | grep -q 'AUDIT: NO-ROOTS' && echo yes || echo no` / `... | grep -q 'VERDICT: delivered-whole' && echo no || echo yes`. In scripts/skill-body-load-probe-verdict.py, audit() (lines 356-377) on the no-roots path appends 'AUDIT: NO-ROOTS' and a REASON line to `lines`, returning exit code 2; main() (392-424) prints every line via `print()` (stdout only) and returns that exit code, with no sys.stderr writes anywhere on this path (the only sys.stderr reference in the file, line 62, is in _force_utf8_streams, an unrelated stream-reconfiguration helper). Therefore: (1) the helper's exit code 2 flows through the pipeline via the final grep's own exit status in the second/third assertions (a >0 exit from grep -q, or its success, drives the && / || branch), matching bash pipeline semantics where pipestatus of the last command (grep) governs the compound command's success; (2) since the helper writes nothing to stderr on the NO-ROOTS path, there is no stderr content to bleed into the piped stdout stream that grep reads, so the captured/matched tokens ('AUDIT: NO-ROOTS', 'VERDICT: delivered-whole' absence) cannot be corrupted. The claim is accurate on both counts.\", \"file_checked\": \"lib/test/run.sh:25065-25070,25354-25358; scripts/skill-body-load-probe-verdict.py:356-377,392-424\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-11",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "scripts/skill-body-load-probe-verdict.py:248-264",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-11-p8s1.json",
+   "response_text": "{\"id\": \"VC-11\", \"verdict\": \"PASS\", \"evidence\": \"Built a transcript with two Skill loads for 'prflow:review-and-fix' and 'prflow:review' in both orders (first: review-and-fix then review; second: review then review-and-fix) and ran scripts/skill-body-load-probe-verdict.py --root 'prflow:review=skills/review/SKILL.md' --root 'prflow:review-and-fix=skills/review-and-fix/SKILL.md' from the repo root. In both orders both roots read VERDICT: delivered-whole, each with its own body. This matches _pairs_for_root's quote-delimited JSON-string match (scripts/skill-body-load-probe-verdict.py:248-264), which binds each root only to loads whose JSON-serialized input contains needle=json.dumps(skill_name) -- 'prflow:review-and-fix' does not match the needle '\\\"prflow:review\\\"' since the quoted needle requires the exact quoted substring, so the longer name's load is correctly excluded from the shorter root. Order-independence is confirmed directly by running both fixture orders. Cross-checked against lib/test/run.sh:25207-25214's contains_name_first/contains_name_second loop, which asserts the same '2 delivered-whole' outcome for both orders.\", \"file_checked\": \"scripts/skill-body-load-probe-verdict.py:248-264\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-12",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "scripts/skill-body-load-probe-verdict.py:297-302",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-12-k0g5.json",
+   "response_text": "{\"id\": \"VC-12\", \"verdict\": \"PASS\", \"evidence\": \"Built a transcript recording two separate Skill loads both naming 'prflow:review' (each with its own tool_result and full delivered body) and ran the helper with --root 'prflow:review=skills/review/SKILL.md'. Output: VERDICT: unestablished, REASON: '2 recorded Skill loads name prflow:review, so this root resolves to no single load -- the ambiguity is what could not be measured, not any one of those loads (a retried load, or an argument string equal to this root's name)'. This matches verdict_for_root's len(matches) > 1 arm at scripts/skill-body-load-probe-verdict.py:297-302, which returns 'unestablished' and a reason naming the match count and the root name explicitly, rather than falling through to matches[0] (which only happens when len(matches) == 1, line 303).\", \"file_checked\": \"scripts/skill-body-load-probe-verdict.py:297-302\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-13",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "scripts/skill-body-load-probe-verdict.py:285-313",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-13-y4n2.json",
+   "response_text": "{\"id\": \"VC-13\", \"verdict\": \"PASS\", \"evidence\": \"Built a transcript with a root recorded twice: first load errored (is_error=True, content='permission denied'), second load delivered the whole body. Ran the helper with --root 'prflow:review=skills/review/SKILL.md'. Output: VERDICT: unestablished, REASON: '2 recorded Skill loads name prflow:review, so this root resolves to no single load -- the ambiguity is what could not be measured, not any one of those loads (a retried load, or an argument string equal to this root's name)'. The reason is the len(matches) > 1 ambiguity arm (scripts/skill-body-load-probe-verdict.py:297-302), NOT the is_error arm's 'returned an error tool_result' text (line 309-313) -- confirmed the reason string does not contain that phrase. This is because _pairs_for_root (line 264) returns ALL matching pairs before verdict_for_root ever inspects is_error/has_result of any single match, so with 2 matches the len(matches)>1 branch fires first and matches[0] (line 303, which would read only the first/errored load) is never reached. Matches the intent of lib/test/run.sh's retry_after_error fixture (line 25020-25022) and the 'root recorded twice -> unestablished' assertion at line 25229.\", \"file_checked\": \"scripts/skill-body-load-probe-verdict.py:285-313\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-14",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "scripts/skill-body-load-probe-verdict.py:267-321",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-14-t2m5.json",
+   "response_text": "{\"id\": \"VC-14\", \"verdict\": \"PASS\", \"evidence\": \"scripts/skill-body-load-probe-verdict.py:267-269 defines root_dir_for(path) as os.path.dirname(path) or '.', with its docstring stating it is 'the value the no-body reason reports'. The no-following-body reason at lines 316-321 interpolates root_dir_for(path) (the directory), not the SKILL.md path. Ran the helper against a constructed transcript with --root 'prflow:review=skills/review/SKILL.md' and a body record naming a mismatched directory: output REASON line was 'the Skill load of prflow:review was recorded but no following body record naming its own directory (\\\\'skills/review\\\\') was found, so no delivered body could be located to measure \\u2014 the paired tool_result is a launch stub, not the body' \\u2014 the quoted value is the directory 'skills/review', not the file path 'skills/review/SKILL.md'.\", \"file_checked\": \"scripts/skill-body-load-probe-verdict.py:267-321\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-15",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "scripts/skill-body-load-probe-verdict.py:120-135 (dirs_match)",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-15-r9d0.json",
+   "response_text": "{\"id\": \"VC-15\", \"verdict\": \"PASS\", \"evidence\": \"Loaded scripts/skill-body-load-probe-verdict.py as a module and, for each of ntpath and posixpath, bound m.os.path to that module and called dirs_match. Results (identical under both modules): (a) '/home/runner/work/prflow/prflow/skills/review' vs 'skills/review' -> True/True; (b) 'C:\\\\\\\\runners\\\\\\\\work\\\\\\\\prflow\\\\\\\\prflow\\\\\\\\skills\\\\\\\\review' vs 'skills/review' -> True/True; (c) '/home/runner/work/prflow/prflow/myskills/review' vs 'skills/review' -> False/False; (d) '' vs '.' -> False/False. This matches dirs_match's own docstring at scripts/skill-body-load-probe-verdict.py:120-131, which states the ntpath separator-normalisation-after-normpath fix is what makes the suffix comparison work identically on a host whose os.path is ntpath.\", \"file_checked\": \"scripts/skill-body-load-probe-verdict.py:120-135 (dirs_match)\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-16",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "lib/test/run.sh:24893-25400",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-16-x3q7.json",
+   "response_text": "{\"id\": \"VC-16\", \"verdict\": \"PASS\", \"evidence\": \"Enumerated every python3 spawn in the #1618 block in lib/test/run.sh (approx lines 24893-25400). Two spawns run THE HELPER (scripts/skill-body-load-probe-verdict.py, $SBL): (1) sbl_run() at line ~25069, 'NO_COLOR=1 PYTHON_COLORS=0 python3 \\\"$SBL\\\" \\\"$@\\\"' -- the single invocation point, documented as spawning the helper as a subprocess, carries the prefix; (2) sbl_dirs_match_both_modules() at line ~25293, 'NO_COLOR=1 PYTHON_COLORS=0 python3 - \\\"$SBL\\\" ...' which spawns a python3 child that dynamically loads the helper module ($SBL) via importlib and executes its dirs_match function inside that child process -- carries the prefix. All other python3 spawns in the block (the sbl_build() fixture builder at line ~24912, the one-control fixture writer at line ~25270, and the matcher-probe.yml coupling check at line ~25364) only construct fixtures or read unrelated YAML and do not spawn/exec the helper. Non-helper observation: the fixture-building spawn 'python3 - \\\"$SBL_TMP\\\" <<PY_SBL_ONE' at lib/test/run.sh line ~25270 (the one-control-arm fixture writer) lacks the NO_COLOR=1 PYTHON_COLORS=0 prefix, in tension with the block's own stated convention ('Every child spawned below carries NO_COLOR/PYTHON_COLORS') even though it is out of the AC's helper-spawn scope.\", \"file_checked\": \"lib/test/run.sh:24893-25400\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-17",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "scripts/skill-body-load-probe-verdict.py:285-350, docs/internal/skill-body-load-delivery.md:530-540",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-17-c8b4.json",
+   "response_text": "{\"id\": \"VC-17\", \"verdict\": \"PASS\", \"evidence\": \"scripts/skill-body-load-probe-verdict.py's verdict_for_root (lines 285-350) has exactly six `return \\\"unestablished\\\", ...` sites: (1) line 288 note_top (execution file unreadable/unparseable), (2) line 291 no matches (`_pairs_for_root` empty), (3) line 298 len(matches) > 1 (ambiguous \\u2014 same arm, two causes, per the docstring's own framing), (4) line 304 `not pair[\\\"has_result\\\"]` (no paired tool_result), (5) line 309 `pair[\\\"is_error\\\"]` (errored load), (6) line 315 `body_rec is None` (no following body record naming its own directory), (7) line 324 `tail is None` (controls unreadable). docs/internal/skill-body-load-delivery.md lines 530-540 lists exactly six numbered arms, and arm 2 explicitly states it covers both 'none matched' and 'several did' as 'one arm, two causes' \\u2014 matching the code's collapsing of the no-match and ambiguous-match cases into a single conceptual arm. Each of the doc's six sentences maps one-to-one onto a code branch, and every code branch is covered by a doc sentence.\", \"file_checked\": \"scripts/skill-body-load-probe-verdict.py:285-350, docs/internal/skill-body-load-delivery.md:530-540\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-18",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "docs/internal/skill-body-load-delivery.md:585-648",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-18-o6i8.json",
+   "response_text": "{\"id\": \"VC-18\", \"verdict\": \"FAIL\", \"evidence\": \"Same underlying claim as VC-8. Re-running docs/internal/skill-body-load-delivery.md's printed session-C re-derivation command sequence (lines 622-645) reproduced 'VERDICT: delivered-whole' exactly as the doc asserts. But the doc's second stated constraint, 'the current file is a different body and would measure a different thing' (line 641), is false as written right now: git hash-object skills/review/SKILL.md in the working tree (13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e) equals git hash-object of the file extracted via git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md (also 13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e). git log -- skills/review/SKILL.md confirms no commits have touched that path since 803217be7 (which is an ancestor containing 668a789...'s content), so the current file IS the same body, contradicting the doc's own sentence.\", \"file_checked\": \"docs/internal/skill-body-load-delivery.md:585-648\", \"property_proven\": true, \"inaccuracy_scope\": \"source_authored_text\"}"
+  },
+  {
+   "item": {
+    "id": "VC-19",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "docs/internal/skill-body-load-delivery.md:468,490-492",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-19-v5z1.json",
+   "response_text": "{\"id\": \"VC-19\", \"verdict\": \"FAIL\", \"evidence\": \"docs/internal/skill-body-load-delivery.md is one of the seven files this change edits, and it currently contains two mentions that describe the verdict as read from the Skill tool_result rather than from the body record following it. Line 468: 'deriving a per-root verdict from the Skill `tool_result` in the execution file through scripts/skill-body-load-probe-verdict.py (never model text)'. Lines 490-492: '**Operand, and why it will be observation not testimony (AC).** When a job runs, the verdict is derived from the Skill `tool_result` recorded in the execution file \\u2014 the rendered body itself \\u2014 checked against controls read **from disk** at verdict time.' The second quote literally equates the tool_result with 'the rendered body itself', which the same document's own session-C 'defect' section (lines 592-596) explicitly says is wrong: 'the `tool_result` is a launch stub ... and the rendered body arrives in the next record'. The changeset (.changeset/issue-1897-skill-body-load-probe-binding.md line 17) confirms the fix scope was limited to 'the module docstring and the matcher-probe.yml comments' \\u2014 it does not claim to have corrected this doc file's session-B prose, so these two doc mentions remain unfixed and still read the wrong way. All other checked files (scripts/skill-body-load-probe-verdict.py, lib/test/run.sh, .github/workflows/matcher-probe.yml, lib/test/modules/coverage-map.json, lib/test/fixtures/skill-body-load-transcript.observed.json) correctly describe tool_result only as a launch stub / presence-and-error operand, never as the verdict's content source.\", \"file_checked\": \"docs/internal/skill-body-load-delivery.md:468,490-492\", \"property_proven\": false, \"inaccuracy_scope\": \"source_authored_text\"}"
+  },
+  {
+   "item": {
+    "id": "VC-2",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "scripts/skill-body-load-probe-verdict.py:285-353",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-2-q4m9.json",
+   "response_text": "{\"id\": \"VC-2\", \"verdict\": \"PASS\", \"evidence\": \"Enumerated every `return \\\"unestablished\\\"` in verdict_for_root (scripts/skill-body-load-probe-verdict.py lines 288, 291, 298, 305, 310, 316, 325) and mapped each to the docstring's six sentences (lines 45-49): (1) execution-file note_top -> line 288; (2) no matches / multiple matches -> lines 291 & 298, docstring explicitly states 'one arm, two causes'; (3) no paired result -> line 305; (4) is_error -> line 310; (5) no body record for root's directory -> line 316; (6) on-disk controls unreadable -> line 325. That accounts for all seven return sites under six sentences, matching the docstring's own count. Attempted falsification per the hint: constructed a blank (zero-byte) SKILL.md file, which makes read_controls hit `if not nonempty: return None, None` with no OSError (scripts/skill-body-load-probe-verdict.py:230-232). Ran the helper against a synthetic execution-file fixture reproducing a matched Skill load and body record for that root; the printed verdict was `unestablished` with REASON 'the on-disk file ... could not be read for controls, so the delivered body cannot be checked against it' -- i.e. it still lands on the same sixth ('on-disk controls unreadable') arm, not a new seventh path. No other unestablished-producing code path exists outside verdict_for_root (audit()'s only other exit is the non-zero no-roots usage error, which is not part of this per-root enumeration).\", \"file_checked\": \"scripts/skill-body-load-probe-verdict.py:285-353\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-20",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "scripts/skill-body-load-probe-verdict.py:317,326,360,372; lib/test/run.sh:25174,25198,25202,25213,25221,25258,25263,25342,25356",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-20-a0h6.json",
+   "response_text": "{\"id\": \"VC-20\", \"verdict\": \"PASS\", \"evidence\": \"All four literals are present byte-identically both in the helper's own emitted output strings (scripts/skill-body-load-probe-verdict.py) and in the lib/test/run.sh assertions that pin them: (1) 'no following body record naming its own' \\u2014 helper line 317 ('...no following body record naming its own directory...'), asserted at run.sh:25198, 25221, 25342. (2) 'could not be read for controls' \\u2014 helper line 326 ('...could not be read for controls, so...'), asserted at run.sh:25174, 25263. (3) 'recorded Skill tool_use pairs: ' \\u2014 helper line 372 ('recorded Skill tool_use pairs: %d' % len(pairs)), asserted at run.sh:25202, 25213, 25258 (with the count literal appended, e.g. 'recorded Skill tool_use pairs: 2'). (4) 'AUDIT: NO-ROOTS' \\u2014 helper line 360, asserted at run.sh:25356. No literal has drifted or been reworded.\", \"file_checked\": \"scripts/skill-body-load-probe-verdict.py:317,326,360,372; lib/test/run.sh:25174,25198,25202,25213,25221,25258,25263,25342,25356\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-3",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "lib/test/run.sh:25270",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-3-z1x8.json",
+   "response_text": "{\"id\": \"VC-3\", \"verdict\": \"FAIL\", \"evidence\": \"The coverage-map.json note (lines 751 and 1331) asserts 'Every child the block spawns neutralises terminal colour (NO_COLOR/PYTHON_COLORS)'. This is falsified by lib/test/run.sh:25270, inside the #1618 block, which spawns `python3 - \\\"$SBL_TMP\\\" <<'PY_SBL_ONE'` (building the one-control.jsonl fixture) with NO NO_COLOR/PYTHON_COLORS prefix, unlike every other python3 spawn in the block (e.g. lines 24912, 25069, 25300, 25365 all carry `NO_COLOR=1 PYTHON_COLORS=0`). The second half of the claim, that the helper spawns through one sbl_run invocation point (lib/test/run.sh:25065-25069), holds: every invocation of the actual helper script $SBL goes through sbl_run(); the other unprefixed/prefixed python3 spawns build fixtures, not the helper itself.\", \"file_checked\": \"lib/test/run.sh:25270\", \"property_proven\": false, \"inaccuracy_scope\": \"source_authored_text\"}"
+  },
+  {
+   "item": {
+    "id": "VC-4",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "lib/test/run.sh:25295-25311, scripts/skill-body-load-probe-verdict.py:55-154",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-4-b6t3.json",
+   "response_text": "{\"id\": \"VC-4\", \"verdict\": \"PASS\", \"evidence\": \"Confirmed by direct probe: m.os is os -> True, so `m.os.path = mod` in sbl_dirs_match_both_modules (lib/test/run.sh:25307) rebinds the .path attribute on the real shared stdlib os module object (the same one scripts/skill-body-load-probe-verdict.py imports via plain `import os` at line 57 and uses in dirs_match at lines 152-154), not a helper-local alias, and this mutation persists for the remainder of that subprocess. However this does not produce a wrong measurement: each loop iteration (lib/test/run.sh:25306-25309) sets os.path=mod immediately before calling m.dirs_match and appends the result immediately after, so both the posixpath and ntpath readings are each taken under the correct module at the moment of mutation; the subprocess exits right after print() with no later stdlib os.path use to contaminate. This is intentional, harmless confinement inside a short-lived child interpreter (one python3 -c per assert_eq call), not a source of measurement error.\", \"file_checked\": \"lib/test/run.sh:25295-25311, scripts/skill-body-load-probe-verdict.py:55-154\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-5",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "scripts/skill-body-load-probe-verdict.py:248-262",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-5-w5r0.json",
+   "response_text": "{\"id\": \"VC-5\", \"verdict\": \"PASS\", \"evidence\": \"The new fixture lib/test/fixtures/skill-body-load-transcript.observed.json records the Skill tool_use input as {\\\"skill\\\": \\\"prflow:review\\\", \\\"args\\\": \\\"1780\\\"} (lines ~30-38), i.e. an object with a `skill` key naming the loaded skill \\u2014 matching the docstring's premise that 'one committed transcript records one'. The older lib/test/fixtures/execution-file-shape.observed.txt, however, lists only `skills: array` (line 106) in its structural key-path enumeration and has no `skill:` key at all recorded anywhere. This confirms the docstring's rationale in scripts/skill-body-load-probe-verdict.py's _pairs_for_root (lines 248-262): the two committed artifacts, from different runner/action versions, disagree on whether/how a named field carries the skill name, so a field-keyed read would silently stop measuring on the older shape while a fixture built on the assumed field name would stay green \\u2014 exactly the divergence the docstring describes. The docstring's factual claims about the committed evidence are accurate.\", \"file_checked\": \"scripts/skill-body-load-probe-verdict.py:248-262\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-6",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "lib/test/run.sh:17,25256",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-6-e7l9.json",
+   "response_text": "{\"id\": \"VC-6\", \"verdict\": \"PASS\", \"evidence\": \"lib/test/run.sh:17 defines LIB=\\\"$(cd \\\"$(dirname \\\"$0\\\")/..\\\" && pwd)\\\" which for lib/test/run.sh resolves to the repository's lib/ directory. Line 25256 sets SBL_OBS=\\\"$LIB/test/fixtures/skill-body-load-transcript.observed.json\\\", i.e. lib/test/fixtures/skill-body-load-transcript.observed.json, which exists as a committed fixture (62565 bytes, confirmed via ls -la). This is consistent with the block's other $LIB/../scripts and $LIB/../skills uses, which likewise resolve to the repo's scripts/ and skills/ directories.\", \"file_checked\": \"lib/test/run.sh:17,25256\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-7",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "scripts/skill-body-load-probe-verdict.py:132-155,267-282",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-7-h2v7.json",
+   "response_text": "{\"id\": \"VC-7\", \"verdict\": \"PASS\", \"evidence\": \"Confirmed mechanism: dirs_match (scripts/skill-body-load-probe-verdict.py:137-155) checks `if not a.strip() or not b.strip(): return False` then normalizes the original unstripped a/b with os.path.normpath, so a padded operand like ' skills/review ' fails to match 'skills/review' (verified: dirs_match(' skills/review ', 'skills/review') -> False, dirs_match('skills/review','skills/review') -> True). Reachability: the only production caller is _body_for_root (line 273-282), which calls dirs_match(b['base_dir'], root_dir_for(path)). b['base_dir'] comes from body_base_dir() (line 132-134) which already applies .strip() before storage, and root_dir is os.path.dirname(path) where path is a --root CLI arg run through _parse_root -- dirname does not introduce whitespace padding. So no production caller can supply an unstripped, non-empty operand; the claim's mechanism is accurate but the claimed reachability consequence does not occur in practice.\", \"file_checked\": \"scripts/skill-body-load-probe-verdict.py:132-155,267-282\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-8",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "docs/internal/skill-body-load-delivery.md:585-648",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-8-u1a3.json",
+   "response_text": "{\"id\": \"VC-8\", \"verdict\": \"FAIL\", \"evidence\": \"Ran the doc's own re-derivation procedure exactly as printed in docs/internal/skill-body-load-delivery.md lines 622-645: extracted git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md into a scratch dir and ran scripts/skill-body-load-probe-verdict.py against lib/test/fixtures/skill-body-load-transcript.observed.json with --tier review --root prflow:review=skills/review/SKILL.md. Output: 'VERDICT: delivered-whole', matching the doc's claimed observation -- that part of the claim holds. However the doc also states (line 641) 'the current file is a different body and would measure a different thing' as a load-bearing constraint. Testing this AS WRITTEN at this commit: git hash-object skills/review/SKILL.md (working tree) = 13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e, and git hash-object of the extracted commit 668a789...'s skills/review/SKILL.md = 13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e -- IDENTICAL. skills/review/SKILL.md has not changed since commit 668a78990c810b0318d7fdbf5de8a95c043eda71 (git log shows no commits touching that path since then). So the sentence 'the current file is a different body and would measure a different thing' is FALSE as written at this commit -- the current file is the SAME body. This is a false source-authored assertion in the doc, not merely an imprecise paraphrase.\", \"file_checked\": \"docs/internal/skill-body-load-delivery.md:585-648\", \"property_proven\": true, \"inaccuracy_scope\": \"source_authored_text\"}"
+  },
+  {
+   "item": {
+    "id": "VC-9",
+    "category": "unknown",
+    "claim": "see verdict",
+    "source_file": "lib/test/run.sh:25080-25096",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/isssue-1897/.prflow/tmp/review/pr-1920/local-20260824T215005Z-1/verdicts/iter-3/VC-9-j9c4.json",
+   "response_text": "{\"id\": \"VC-9\", \"verdict\": \"PASS\", \"evidence\": \"lib/test/run.sh:25092-25096 defines sbl_denies() as: _r=\\\"$(sbl_says \\\"$1\\\" \\\"$2\\\")\\\"; case \\\"$_r\\\" in yes) printf 'no' ;; no) printf 'yes' ;; *) printf '%s' \\\"$_r\\\" ;; esac. sbl_says (lines 25080-25089) returns FIXTURE_BUILD_FAILED when sbl_build fails, or HELPER_FAILED when sbl_run fails (both before the grep check), and only returns yes/no from the grep otherwise. Since sbl_denies's case statement only explicitly inverts the literal strings 'yes' and 'no', any other value (including the two sentinels) falls into the '*' catch-all and passes through unchanged/uninverted -- confirming the claim that a fixture-build failure or helper crash cannot masquerade as the expected 'yes' from sbl_denies.\", \"file_checked\": \"lib/test/run.sh:25080-25096\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  }
+ ]
+}

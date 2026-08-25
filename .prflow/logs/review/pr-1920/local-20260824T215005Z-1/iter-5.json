@@ -1,0 +1,118 @@
+{
+  "iter": 5,
+  "started_at": "2026-08-24T23:45:00Z",
+  "fix_commit_sha": "66a71e40c8c6eae913fe34835439bc1287897942",
+  "fix_files": [
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "checklist_summary": {
+    "total": 24,
+    "passed": 23,
+    "failed": 1,
+    "inconclusive": 0
+  },
+  "engine_verdict": "APPROVE",
+  "fix_decisions": [
+    {
+      "finding_id": "K-1",
+      "decision": "applied",
+      "commit": "66a71e40c8c6eae913fe34835439bc1287897942",
+      "evidence": "the bare git show child was the one spawn the colour universal missed, and its stdout becomes the on-disk control file the delivered body is compared against; it now carries both variables, making the run.sh comment and the two coverage-map notes true"
+    },
+    {
+      "finding_id": "K-2",
+      "decision": "pushed_back",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "the absent-string half of the boundary_dir reason pair is entailed by the present half",
+      "skip_category": "claim-quality",
+      "evidence": "the entailment reasoning is sound — the asserted-present literal terminates in ') and mechanically excludes the asserted-absent one — but the remedy is to DELETE an assertion, and removing coverage at the end of a five-iteration review is the riskier direction for a cost of one fixture build and one helper spawn. Surfaced for the human merger rather than acted on.",
+      "parking_evidence": {
+        "basis": "the finding proposes removing an assertion as redundant rather than repairing a defect; the cost it saves is one build and one spawn",
+        "failing_input": "none — the assertion cannot fail independently of its pair, which is the finding's point",
+        "source": "lib/test/run.sh, the boundary_dir reason pair",
+        "finding_ref": {
+          "iter": 5,
+          "index": 1
+        }
+      }
+    },
+    {
+      "finding_id": "K-3",
+      "decision": "pushed_back",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "the two contains_name_* positive controls guard a positive-expectation assertion",
+      "skip_category": "claim-quality",
+      "evidence": "same shape as K-2: the reasoning that a positive control earns its cost on a NEGATIVE expectation is correct, but the remedy is deletion. These two controls are what distinguish this issue's own reported defect from an unreadable fixture, which is exactly the confusion the issue was filed about, so they are kept deliberately. Surfaced rather than acted on.",
+      "parking_evidence": {
+        "basis": "the finding proposes removing the positive controls that distinguish the reported binding defect from an unreadable fixture",
+        "failing_input": "none — the main assertion already goes RED for a fixture that failed to record both loads",
+        "source": "lib/test/run.sh, the contains_name_* order loop",
+        "finding_ref": {
+          "iter": 5,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 2,
+    "new_corroborated_critical_count": 0
+  },
+  "verification_evidence": {
+    "focused_selection": "lib/test/run-shard.sh monolith: 9927 passed, 0 failed, 1 skipped (the expected dirty-tree #434 skip), rc 0. shellcheck 0.11.0 and ruff clean."
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "prompt_addenda": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": "not yet dispatched at the time this record was written; the convergence-time shadow follows",
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
