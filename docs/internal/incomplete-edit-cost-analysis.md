@@ -47,14 +47,15 @@ the issue's stated "~175/489".)
 |---|---|---|---|
 | `incomplete-edit` cohort | 45 | **2.31** | 2 |
 | non-`incomplete-edit` entries | 130 | **2.33** | 2 |
-| all covered entries | 175 | 2.33 | 2 |
+| entries with the metric | 175 | 2.33 | 2 |
 
 Using the durable metric the issue specifies, the `incomplete-edit` cohort is **not** more
 expensive than the baseline — the +1-iteration gap the issue's premise rests on does not
 reproduce. That premise came from a diff-size-quintile-stratified proxy that is not carried in
 durable form and that the issue itself forbids reconstructing from `post_bot_commits`; the
 newly-added `additions`/`deletions`/`changed_files` fields (this PR) will let a future run
-re-stratify by size durably, but they are absent from every entry in the current store.
+re-stratify by size durably, but a grep for those three keys returns zero hits across all 489
+entries in this snapshot.
 
 ## Finding 3 — the §2.3 records carry no category-specific signal
 
@@ -89,8 +90,8 @@ over the covered subset there is no cohort rework effect at all to explain (2.31
 rather than a completeness measure, and the only associations extractable from them are weak,
 small-n (cells of 10–20), and equally present in the non-cohort control.
 
-**What would let a future pass decide it.** The three diff-size fields this PR adds to the Stage
-A schema make size a durable control going forward, so once enough new entries accumulate the
+**What would let a future pass decide it.** The diff-size fields (`additions`, `deletions`,
+`changed_files`) this PR adds to the Stage A schema make size a durable control going forward, so once enough new entries accumulate the
 size-stratified comparison the issue's premise used can be reproduced from the tree. Deciding
 the §2.3-selection correlation additionally needs the sweep-selection commitment recorded as a
 **structured field** (diff-shape classified, sweeps run, exemptions declared) rather than a
