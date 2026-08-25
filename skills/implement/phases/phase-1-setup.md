@@ -395,7 +395,11 @@ Read every `ISSUE-CLAIM-AUDIT RECORD` field: `outcome` (`proceed` / `blocked-spe
 
 #### Act on the record (the decision is yours, not the auditor's)
 
-- `outcome: proceed` → write the two projection fields to `<scratch-dir>/issue-claim-projection-$ISSUE_NUMBER.json`, preserving the unmatched JSON array, then invoke the shared gate:
+- `outcome: proceed` → first validate every chartered pass's disposition, then the projection. Author the auditor's returned ISSUE-CLAIM-AUDIT RECORD verbatim to `<scratch-dir>/issue-claim-audit-record-$ISSUE_NUMBER.md` with the Write tool (no shell redirect — the cloud tier refuses redirect authoring), then run the validator:
+  ```bash
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/validate-issue-claim-audit.py --record-file <scratch-dir>/issue-claim-audit-record-$ISSUE_NUMBER.md
+  ```
+  Read its exit code from the tool result: only exit 0 (every chartered pass dispositioned `ran`) continues. A non-zero result — exit 2 (a chartered pass absent/`skipped`/malformed/outside the charter, named on stderr), exit 3 (unreadable/empty record), or a refused/no-output invocation — means the issue-claim audit is not clean, so take the inline-audit fallback below and never enter Phase 2 on it. Then write the two projection fields to `<scratch-dir>/issue-claim-projection-$ISSUE_NUMBER.json`, preserving the unmatched JSON array, and invoke the shared gate:
   ```bash
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -e -f "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/projection-gate.jq <scratch-dir>/issue-claim-projection-$ISSUE_NUMBER.json
   ```

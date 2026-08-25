@@ -53269,7 +53269,8 @@ for helper in ("workpad.py", "preflight.py", "parse-acs.py", "run-jq.sh", "confi
                "branch-for-issue.py", "update-branch-checkpoint.sh",
                "phase2-durability-checkpoint.sh", "react-to-trigger.sh",
                "load-prompt-extension.sh", "ensure-label.sh", "apply-labels.sh",
-               "apply-pr-triggerer.sh", "check-verified-premises.py", "refresh-pr-run-link.py"):
+               "apply-pr-triggerer.sh", "check-verified-premises.py", "refresh-pr-run-link.py",
+               "validate-issue-claim-audit.py"):
     stub(os.path.join(scripts, helper))
 stub(os.path.join(libdir, "efficiency-trace.sh"))
 ambient = {

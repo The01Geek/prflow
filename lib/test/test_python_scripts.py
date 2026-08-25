@@ -35831,6 +35831,163 @@ assert_eq("#1027 decide: stale-advisory with no checkpoint -> stale-advisory", "
 assert_eq("#1027 decide: stale-advisory with no checkpoint omits the checkpoint clause",
           True, "last checkpoint" not in _dnc1027.message)
 
+# ── issue #1740: issue-claim-auditor per-pass disposition validator ──────────────
+# The deterministic consumer that turns a silently-skipped issue-claim pass into a visible
+# §1.6 refusal instead of a wasted implement run. Contract in the module docstring.
+validate_ica = _load('validate_issue_claim_audit', SCRIPTS / 'validate-issue-claim-audit.py')
+
+def _ica_record(overrides=None, drop=()):
+    """Build an ISSUE-CLAIM-AUDIT RECORD text with every chartered pass dispositioned
+    `ran (…)`, applying per-pass `overrides` (N -> raw value) and dropping `drop` passes."""
+    overrides = overrides or {}
+    lines = ["ISSUE-CLAIM-AUDIT RECORD", "outcome: proceed"]
+    for _n in validate_ica.CHARTERED_PASSES:
+        if _n in drop:
+            continue
+        _val = overrides.get(_n, f"ran (pass {_n} completed)")
+        lines.append(f"pass{_n}_disposition: {_val}")
+    return "\n".join(lines) + "\n"
+
+# Conforming: every chartered pass dispositioned `ran (<reason>)`.
+_ica_ok, _ica_res = validate_ica.validate_record(_ica_record())
+assert_eq("#1740 fully-dispositioned record is conforming", True, _ica_ok)
+assert_eq("#1740 conforming record has no offending passes", [], _ica_res["offending"])
+
+# A record missing one pass: refused, and the missing pass is named.
+_miss_ok, _miss_res = validate_ica.validate_record(_ica_record(drop=(2,)))
+assert_eq("#1740 record missing a pass is non-conforming", False, _miss_ok)
+assert_eq("#1740 the absent pass is treated as not run", "absent",
+          _miss_res["passes"][2])
+assert_eq("#1740 refusal names the missing pass",
+          True, any("pass 2" in _o for _o in _miss_res["offending"]))
+
+# A `skipped` disposition is a stated disposition but still blocks, and is named.
+_skip_ok, _skip_res = validate_ica.validate_record(
+    _ica_record(overrides={3: "skipped (nothing to check)"}))
+assert_eq("#1740 a skipped pass is non-conforming", False, _skip_ok)
+assert_eq("#1740 a skipped pass classifies as skipped", "skipped",
+          _skip_res["passes"][3])
+assert_eq("#1740 refusal names the skipped pass",
+          True, any("pass 3" in _o and "skipped" in _o for _o in _skip_res["offending"]))
+
+# A malformed disposition (no verdict, or a verdict with no substantive reason) refuses.
+_mal_ok, _mal_res = validate_ica.validate_record(
+    _ica_record(overrides={5: "done maybe"}))
+assert_eq("#1740 an unparseable disposition is non-conforming", False, _mal_ok)
+assert_eq("#1740 an unparseable disposition classifies as malformed", "malformed",
+          _mal_res["passes"][5])
+_bare_ok, _bare_res = validate_ica.validate_record(_ica_record(overrides={0: "ran"}))
+assert_eq("#1740 a verdict with no reason is malformed (undischarged)", "malformed",
+          _bare_res["passes"][0])
+
+# An unknown pass (a disposition for a pass outside the charter, e.g. the renumbered-away
+# Pass 4) is refused and named.
+_unk_ok, _unk_res = validate_ica.validate_record(
+    _ica_record() + "pass4_disposition: ran (bogus)\n")
+assert_eq("#1740 an unknown pass number is non-conforming", False, _unk_ok)
+assert_eq("#1740 the unknown pass is listed", [4], _unk_res["unknown"])
+assert_eq("#1740 refusal names the unknown pass",
+          True, any("pass 4" in _o for _o in _unk_res["offending"]))
+
+# Cardinality (2.3.7): multiple absent passes are all named, in charter order; multiple
+# unknown passes are sorted; a duplicated pass line fails closed (see the duplicate case below).
+_multi_ok, _multi_res = validate_ica.validate_record(_ica_record(drop=(1, 5)))
+assert_eq("#1740 two absent passes are both non-conforming", False, _multi_ok)
+assert_eq("#1740 both absent passes classify absent", ("absent", "absent"),
+          (_multi_res["passes"][1], _multi_res["passes"][5]))
+assert_eq("#1740 both absent passes are named",
+          True, any("pass 1" in _o for _o in _multi_res["offending"])
+          and any("pass 5" in _o for _o in _multi_res["offending"]))
+_unk2_ok, _unk2_res = validate_ica.validate_record(
+    _ica_record() + "pass9_disposition: ran (x)\npass4_disposition: ran (y)\n")
+assert_eq("#1740 multiple unknown passes are sorted", [4, 9], _unk2_res["unknown"])
+# A pass stated more than once is ambiguous and fails CLOSED (no last-writer-wins fail-open):
+# a later `ran` must not mask an earlier `skipped`/malformed line for the same pass.
+_dup_ok, _dup_res = validate_ica.validate_record(
+    _ica_record(overrides={2: "skipped (x)"}) + "pass2_disposition: ran (again)\n")
+assert_eq("#1740 a duplicated pass line is non-conforming (masking direction)",
+          (False, "duplicate"), (_dup_ok, _dup_res["passes"][2]))
+assert_eq("#1740 the duplicated pass is named",
+          True, any("pass 2" in _o for _o in _dup_res["offending"]))
+
+# `parse_disposition` accepts `ran`/`skipped` with a substantive reason and rejects the rest.
+assert_eq("#1740 parse_disposition ran", ("ran", "did it"),
+          validate_ica.parse_disposition("ran (did it)"))
+assert_eq("#1740 parse_disposition skipped", ("skipped", "nothing"),
+          validate_ica.parse_disposition("skipped (nothing)"))
+assert_eq("#1740 parse_disposition rejects an empty reason", (None, ""),
+          validate_ica.parse_disposition("ran ()"))
+assert_eq("#1740 parse_disposition rejects a non-verdict", (None, ""),
+          validate_ica.parse_disposition("maybe (later)"))
+# IGNORECASE verdict normalizes to lowercase.
+assert_eq("#1740 parse_disposition is case-insensitive on the verdict", ("ran", "x"),
+          validate_ica.parse_disposition("RAN (x)"))
+# The lookahead requires a boundary char after the verdict, so a longer word starting with a
+# verdict token (e.g. "randomly") does NOT match ran.
+assert_eq("#1740 parse_disposition rejects a verdict-prefixed longer word", (None, ""),
+          validate_ica.parse_disposition("randomly (x)"))
+# The paren-unwrap only strips a clause the OUTER parens actually enclose; a nested "((a))"
+# is left as-is rather than reshaped to "a".
+assert_eq("#1740 parse_disposition does not unwrap nested parens", ("ran", "((a))"),
+          validate_ica.parse_disposition("ran ((a))"))
+assert_eq("#1740 parse_disposition rejects an empty skipped reason", (None, ""),
+          validate_ica.parse_disposition("skipped ()"))
+# A non-paren boundary char (comma/semicolon/colon/period) after the verdict is accepted.
+assert_eq("#1740 parse_disposition accepts a comma-boundary reason", ("ran", ", done"),
+          validate_ica.parse_disposition("ran, done"))
+assert_eq("#1740 parse_disposition accepts a colon-boundary reason", ("skipped", ": nothing"),
+          validate_ica.parse_disposition("skipped: nothing"))
+# Absent-operand shapes fail CLOSED at both entry points: a non-string disposition value must
+# not reach the regex, and a None/empty record must classify every chartered pass absent rather
+# than vacuously conforming.
+assert_eq("#1740 parse_disposition rejects a non-string value", (None, ""),
+          validate_ica.parse_disposition(None))
+assert_eq("#1740 validate_record(None) is non-conforming", False,
+          validate_ica.validate_record(None)[0])
+assert_eq("#1740 validate_record(None) classifies every chartered pass absent",
+          ["absent"] * len(validate_ica.CHARTERED_PASSES),
+          [validate_ica.validate_record(None)[1]["passes"][_n]
+           for _n in validate_ica.CHARTERED_PASSES])
+assert_eq("#1740 validate_record('') is non-conforming", False,
+          validate_ica.validate_record("")[0])
+
+# Cross-file coupling (cross-file-phase-contract): the validator's CHARTERED_PASSES must equal the
+# pass<N>_disposition fields agents/issue-claim-auditor.md's record schema declares — a coupled
+# pair, so this guard goes RED if either drifts.
+_ica_agent_body = (SCRIPTS.parent / "agents" / "issue-claim-auditor.md").read_text(encoding="utf-8")
+_ica_agent_passes = sorted(int(_m) for _m in re.findall(r"pass(\d+)_disposition:", _ica_agent_body))
+assert_eq("#1740 agent-body record schema declares exactly the validator's chartered passes",  # structural-pin-ok: cross-file-phase-contract -- the validator reads these agent-authored slots; drift silently checks a pass the charter never asks for or misses one
+          sorted(validate_ica.CHARTERED_PASSES), _ica_agent_passes)
+
+# CLI exit-code contract via a real temp file, driving main().
+import tempfile as _tf1740  # noqa: E402
+with _tf1740.TemporaryDirectory() as _d1740:
+    _p_ok = Path(_d1740) / "ok.md"
+    _p_ok.write_text(_ica_record(), encoding="utf-8")
+    assert_eq("#1740 main() exits 0 on a conforming record",
+              0, validate_ica.main(["--record-file", str(_p_ok)]))
+
+    _p_bad = Path(_d1740) / "bad.md"
+    _p_bad.write_text(_ica_record(drop=(6,)), encoding="utf-8")
+    assert_eq("#1740 main() exits 2 on a non-conforming record",
+              2, validate_ica.main(["--record-file", str(_p_bad)]))
+
+    _p_empty = Path(_d1740) / "empty.md"
+    _p_empty.write_text("   \n", encoding="utf-8")
+    assert_eq("#1740 main() exits 3 on an empty record (fail closed)",
+              3, validate_ica.main(["--record-file", str(_p_empty)]))
+
+    assert_eq("#1740 main() exits 3 on an unreadable record (fail closed)",
+              3, validate_ica.main(["--record-file", str(Path(_d1740) / "nope.md")]))
+
+    # A non-UTF-8 (binary) record fails closed to exit 3 rather than detonating with a
+    # UnicodeDecodeError traceback — the record is agent-authored, so a bad shape must refuse.
+    _p_bin = Path(_d1740) / "binary.md"
+    _p_bin.write_bytes(b"\xff\xfe\x00\x01 not utf-8 \x80")
+    assert_eq("#1740 main() exits 3 on a non-UTF-8 record (fail closed, no traceback)",
+              3, validate_ica.main(["--record-file", str(_p_bin)]))
+
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
