@@ -1,0 +1,28 @@
+{
+  "dispatch_mode": "full",
+  "verdict": "APPROVE",
+  "phase3_findings": {
+    "critical": 0,
+    "important": 0,
+    "suggestion": 6,
+    "items": [
+      {"severity": "suggestion", "agent": "code-reviewer", "file": "lib/test/modules/retrospective-lifecycle.sh", "line": 19, "summary": "Doc comment above rl_cp() misnames it 'cp_run'; a distinct cp_run() exists at line 580. Searchability nit, no behavioral effect."},
+      {"severity": "suggestion", "agent": "silent-failure-hunter", "file": "lib/actionable-patterns.sh", "line": 131, "summary": "Parse-validation discards jq stderr (2>&1 to /dev/null), so the ::warning:: cannot name the offending line/syntax error. Diagnosability nit; warning still names file + remedy."},
+      {"severity": "suggestion", "agent": "silent-failure-hunter", "file": "lib/compute-patterns.jq", "line": 227, "summary": "Whole-file jq '.' gate drops cost coverage for every pattern on one corrupt JSONL line (coarser than per-record guards imply), but surfaced by the ::warning:: and consistent with the reorder-only best-effort contract."},
+      {"severity": "suggestion", "agent": "pr-test-analyzer", "file": "lib/test/modules/retrospective-lifecycle.sh", "line": 0, "summary": "CP_UNCOV null-assertion uses object indexing (would also pass on absent key), but non-vacuous because sibling covered_occurrence_count/occurrence_count assertions pin pattern existence."},
+      {"severity": "suggestion", "agent": "pr-test-analyzer", "file": "lib/actionable-patterns.sh", "line": 128, "summary": "Absent/empty experiment-records file branch exercised only incidentally by pre-existing tests; no dedicated #1828 assertion pins 'absent file -> all uncovered, null cost'."},
+      {"severity": "suggestion", "agent": "comment-analyzer", "file": "lib/actionable-patterns.sh", "line": 116, "summary": "Experiment-records header (10 lines) and compute-patterns.jq cost-aggregate comment (8 lines) carry design narrative beyond the ~3-line comment-discipline cap; accurate, verbosity-only."}
+    ]
+  },
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:pr-test-analyzer", "prflow:comment-analyzer"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:pr-test-analyzer", "prflow:comment-analyzer"],
+  "diff_profile": {
+    "surfaces": ["shell", "jq", "tests", "changeset", "config-json"],
+    "files": ["lib/actionable-patterns.sh", "lib/compute-patterns.jq", "lib/test/modules/retrospective-lifecycle.sh", "lib/test/run.sh", "lib/test/modules/coverage-map.json", ".changeset/issue-1828-cost-weighted-pattern-ranking.md"],
+    "type_design_gated_out": true,
+    "reason_type_design_gated": "no new types introduced",
+    "docs_reviewer_gated_out": true
+  },
+  "cap_drops": [],
+  "report": "Iteration 4 inline review of PR #1949 (issue #1828, cost-weighted retrospective pattern ranking). Focused module retrospective-lifecycle: 691 passed, 0 failed. The iter-3 Important (cost-index type-guards for non-object row / non-number pr / non-array & non-object efficiency_runs, plus multi-run averaging) is CONFIRMED RESOLVED: the cp_guard_intact helper pins occurrence_count==2 (filter ran to completion) alongside covered==1/cost==4 so an aborted filter fails RED, and each of the four malformed shapes has a dedicated load-bearing assertion; CP_MULTI pins efficiency_runs [2,6]->mean 4. All prior findings (iters 1-3) resolved. Phase 3 roster (code-reviewer, silent-failure-hunter, pr-test-analyzer, comment-analyzer; type-design and docs reviewers gated out) returned zero Critical/Important. jq type guards are fail-closed (objects/numbers/arrays each skip rather than coerce to 0); null cost for uncovered patterns is never a fabricated 0; the two // 0 sort-key sites are safe because the covered/uncovered partition key sorts first; the eager --slurpfile read is protected by an upfront parse gate that degrades to no-coverage with a specific breadcrumb. Six Suggestion-tier notes, all below the fix threshold. Verdict: APPROVE."
+}

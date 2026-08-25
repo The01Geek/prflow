@@ -1,0 +1,89 @@
+{
+  "dispatch_mode": "full",
+  "verdict": "REJECT",
+  "diff_profile": {
+    "profile": "standard-code-diff",
+    "engine_self_modifying": false,
+    "config_only": false,
+    "has_new_types": false,
+    "detect_all_audit": false,
+    "test_relevant": true,
+    "note": "Retrospective-loop tooling change: lib/compute-patterns.jq (cost join + cost-weighted sort), lib/actionable-patterns.sh (experiment-records.jsonl cost source + parse-validation guard), tests, changeset, coverage-map entry. No skill/agent bodies; no new types."
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": [],
+  "iteration2_important_resolved": true,
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Three of the four enumerated jq type-guard branches in the per-PR cost index (compute-patterns.jq ~lines 229-234) are untested. The comment states the guards protect against 'a non-object row, a non-number pr, a non-array efficiency_runs, a non-number iterations'; only the last (non-number iterations) is exercised (CP_UNCOV's \"iterations\":\"oops\"). Untested: non-number pr ((.pr|numbers)); non-array efficiency_runs (the `arrays` guard — CP_UNCOV pr:21 tests ABSENT efficiency_runs via `// []`, not a present-but-non-array value); non-object run element (`objects` in the inner comprehension). These guards exist specifically to keep a hand-/agent-authored malformed record from aborting the WHOLE weekly jq derivation (the exact iter-2 failure class), so a regression would leave the suite green while re-introducing a whole-filter abort. Add a fixture per shape asserting the pattern still emits with the filter intact (occurrence_count correct, cost null).",
+      "defect_signature": {"file": "lib/test/modules/retrospective-lifecycle.sh", "line_range": null, "kind": "test_gap"},
+      "fix_decision": "fix",
+      "new_this_iteration": true
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Multi-run averaging within a single PR's efficiency_runs passes vacuously: every fixture gives each PR exactly one run, so ($iters|add)/($iters|length) is only ever divided by 1. A bug that summed without dividing, or took only the first run, would not be caught. Add a fixture like {\"pr\":N,\"efficiency_runs\":[{\"iterations\":2},{\"iterations\":6}]} asserting cost 4.",
+      "defect_signature": {"file": "lib/test/modules/retrospective-lifecycle.sh", "line_range": null, "kind": "test_gap"},
+      "fix_decision": "optional"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "A valid-but-non-object top-level row within a PARSEABLE experiments corpus (e.g. a bare 5 or \"x\" line) exercises the `objects` guard at the jq layer directly and is untested; rank3 tests a non-JSON line which is caught upstream at the shell parse-validation stage and never reaches the jq guard.",
+      "defect_signature": {"file": "lib/test/modules/retrospective-lifecycle.sh", "line_range": null, "kind": "test_gap"},
+      "fix_decision": "optional"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter / prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Valid-JSON-but-wrong-shape experiment file degrades silently with no warning: a present, non-empty file that parses (e.g. a single JSON [...] array, or JSONL rows that are non-objects) passes the `jq '.'` guard, then the per-record `objects`/type guards drop every row, yielding empty cost coverage with NO ::warning::. To an operator this looks identical to 'cost source absent' — a silently-disabled cost source. Within the stated best-effort/fail-safe contract for ranking, but consider emitting an advisory ::warning:: when a non-empty, parseable experiments file yields zero cost entries.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [126, 135], "kind": "logic_error"},
+      "fix_decision": "optional"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter / prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Duplicate-PR experiment records: from_entries over the per-PR index keeps only the LAST record for a given pr, silently discarding earlier ones. Low impact (one record per PR is expected), matches design, flagged for a future reader.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [227, 232], "kind": "logic_error"},
+      "fix_decision": "wontfix"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter / prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Per-occurrence cost weighting counts a shared PR multiple times: covered_occurrence_count and the cost mean weight a PR appearing in N occurrences N times. Matches the literal AC1 wording ('mean over covered occurrences') — deliberate, not a bug; flagged so covered_occurrence_count is not mistaken for a distinct-PR count.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [156, 163], "kind": "logic_error"},
+      "fix_decision": "wontfix"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Experiment file is parsed twice (validation jq '.' + --slurpfile). Minor redundant work; acceptable given the file is small and the guard buys the fail-safe.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [131, 142], "kind": "efficiency"},
+      "fix_decision": "wontfix"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Prevention-standard length notes on four multi-line explanatory comment blocks (actionable-patterns.sh experiment-records header ~116-125 and sort comment ~305-315; compute-patterns.jq cost-aggregate ~151-158 and per-PR cost-index ~222-229): each exceeds three physical source lines with derivation/provenance/worked-example rationale beyond the specific wrong change to prevent. All are accurate against HEAD (no documented_falsehood) and arguably load-bearing for a maintainer — demotable.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [151, 158], "kind": "style"},
+      "fix_decision": "optional"
+    }
+  ],
+  "report": "Review engine (Phases 0-4.3) inline for /prflow:review-and-fix iteration 3, PR #1949 (issue #1828 cost-weighted retrospective pattern ranking). head_override=local, HEAD 54db0fba3, progress_surface=workpad. Diff: lib/compute-patterns.jq, lib/actionable-patterns.sh, two test files, coverage-map.json, changeset. Phase 0.5: standard code diff (not engine_self_modifying/config_only/detect_all_audit; no new types; test-relevant). Phase 3 roster dispatched full: code-reviewer, silent-failure-hunter, comment-analyzer, pr-test-analyzer, requesting-code-review (type-design-analyzer gated out: has_new_types=false). ITERATION-2 IMPORTANT RESOLVED: all reviewers independently confirmed the new malformed-experiment-records guard fails safe. The guard `\"$DEVFLOW_JQ\" '.' \"$FILE\" >/dev/null 2>&1` uses jq's default streaming parser, which is parser-equivalent to the downstream `--slurpfile experiments` read (same libjq top-level-value parser), so there is no malformed-JSONL case where the pre-check passes but --slurpfile aborts, or vice versa; on parse failure it emits a specific ::warning:: naming the file+remedy and degrades to the empty stub (empty $cost_by_pr -> all patterns uncovered -> rank by occurrence count), never taking the weekly derivation down. Discarded stderr hides nothing load-bearing (the ::warning:: replaces it). The cost join is fully type-guarded (objects/.pr|numbers/efficiency_runs|arrays/.iterations|numbers) and null (not fabricated 0) encodes absence; the sort's `// 0` fold on the cost key is harmless because the covered/uncovered partition key dominates. rank3 test exercises the degrade end-to-end (rc 0 + null-cost emission + breadcrumb). NEW finding: one Important test_gap (pr-test-analyzer) — three of the four documented jq type-guard branches (non-number pr, non-array efficiency_runs, non-object run element) have no fixture, so a regression of an abort-prevention guard into a whole-filter abort would keep the suite green; add one fixture per shape. Remaining findings are Suggestions below the fix threshold (multi-run-averaging vacuous test, non-object-row jq-layer gap, valid-but-wrong-shape silent degrade, duplicate-PR last-wins, double-parse, per-occurrence weighting, four prevention-standard comment-length notes). VERDICT: REJECT to drive iteration 4 to close the Important test_gap (the three missing type-guard fixtures; optionally the multi-run averaging fixture)."
+}

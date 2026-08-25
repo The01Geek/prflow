@@ -1,0 +1,97 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 1,
+    "by_category": {
+      "over-grade-shape-1-fail-closed": 1
+    }
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC2 covered-pattern tie-break is untested: the rank fixture uses distinct costs (1 vs 5), so the -(.occurrence_count) tie-break key for covered patterns is never exercised. Dropping or sign-flipping that third sort key would leave every current assertion passing. Needs two covered patterns with equal cost_mean_iterations and different occurrence counts.",
+      "defect_signature": {"file": "lib/test/modules/retrospective-lifecycle.sh", "line_range": [3348, 3372], "kind": "test_gap"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Zero-coverage ordering with >=2 zero-coverage patterns is untested: the rank fixture has exactly one zero-coverage pattern, so 'ordered by occurrence count' among uncovered patterns is unverified (descending vs ascending undetermined by any assertion).",
+      "defect_signature": {"file": "lib/test/modules/retrospective-lifecycle.sh", "line_range": [3370, 3372], "kind": "test_gap"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The PATTERN_VIEW jq command substitution is the only jq call in actionable-patterns.sh with no in-script ::error:: breadcrumb; a malformed experiment-records.jsonl (or retrospectives) line makes --slurpfile abort jq before the per-field type-guards can run. Recharacterized from the agent's Important/documented_falsehood grade: the added comment's 'never aborting the derivation' clause is scoped to the ABSENT/EMPTY artifact (which is correctly stubbed to empty) and is true against HEAD, so it is NOT a documented_falsehood; and the abort is fail-CLOSED (exits non-zero, surfaced with ::error:: + captured stderr by the retrospective SKILL.md Step 6 caller). Over-grade shape 1 (fail-closed) applies. Adding the missing in-script breadcrumb, and/or a validate-then-stub prepass, would improve observability.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [116, 145], "kind": "logic_error"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Malformed experiment records are silently dropped by the jq type-guards with no drop-count or warning, unlike the file's own slug-drift counter. A field rename in build-experiment-records.py (e.g. efficiency_runs -> runs) would make every record fail the guards, silently reverting ranking to pre-#1828 frequency-only order with no signal. Mirror the slug-drift ::warning:: to surface schema drift.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [229, 234], "kind": "test_gap"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Duplicate PR rows in the experiment corpus are coalesced last-wins by from_entries, silently discarding an earlier record's efficiency_runs. Inert if build-experiment-records.py guarantees one row per PR, but the precondition is unstated; a re-run appending rather than rewriting would silently drop cost data.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [233, 234], "kind": "logic_error"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The actionable-patterns.sh absent-experiment-file stub branch (physical sibling experiment-records.jsonl missing) is never exercised end-to-end through the real script; the rank test always writes the file. jq-level no-coverage is covered via empty-string slurp.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [116, 127], "kind": "test_gap"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC3 (min_occurrences unchanged) is only shown in the passing direction (a 2-occurrence zero-coverage pattern is admitted); nothing in the new block proves a sub-threshold covered pattern is still excluded after the cost changes. May be covered by pre-existing gate tests elsewhere.",
+      "defect_signature": {"file": "lib/test/modules/retrospective-lifecycle.sh", "line_range": [3375, 3376], "kind": "test_gap"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The cost aggregate is a mean-of-means (per-PR mean of efficiency_runs[].iterations, then averaged across covered occurrences), which per-occurrence-weights a multi-run PR rather than pooling all iterations. Defensible reading of AC1 'mean ... over its occurrences' and identical to pooled under the single-run fixtures, but the multi-run path is untested and the intended semantics is worth a one-line confirmation.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [161, 163], "kind": "logic_error"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Four added inline comment blocks in lib/compute-patterns.jq and lib/actionable-patterns.sh exceed the three-physical-line prevention-only cap and are largely derivation/mechanics narrative rather than naming a specific wrong change. Behavior-inert prose (Phase 4.1.5 cap: Suggestion); the type-guard-rationale blocks plausibly fall under the undecidable-load-bearing carve-out, so advisory. All comment claims verified accurate against HEAD (no documented_falsehood).",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [155, 160], "kind": "comment_drift"},
+      "corroboration_count": 1
+    }
+  ],
+  "report": "## Verdict: APPROVE with notes (cost-weighted pattern ranking is correct and covered against all five acceptance criteria; residual findings are test-coverage gaps and observability suggestions, all below the `critical` verdict threshold)\n\n## Issue Compliance\nReviewed against issue #1828: cost-weighted retrospective pattern ranking — criteria from the issue body's `## Acceptance Criteria` section; scope unchanged. All five acceptance criteria are satisfied against HEAD:\n- AC1 (per-pattern cost aggregate + covered count): `entry_of` emits `cost_mean_iterations` (mean over covered occurrences) and `covered_occurrence_count` — compute-patterns.jq:161-163, 193-194.\n- AC2 (rank covered by descending cost, tie by occurrence count, zero-coverage last by occurrence count): actionable-patterns.sh sort_by((covered?0:1), -(cost//0), -(occurrence_count)) — the ranked OUTPUT order is preserved into the `to_act` partition (select-only, no re-sort) in the retrospective skill.\n- AC3 (min_occurrences unchanged): the `select(... occurrence_count >= $min)` gate is untouched; the sort runs after selection.\n- AC4 (from efficiency_runs[].iterations, never post_bot_commits): the cost index reads only `.efficiency_runs[].iterations`; a dedicated test drives a PR carrying post_bot_commits:99 and confirms the mean is unaffected.\n- AC5 (uncovered records null, not 0): `if $covered_n > 0 then mean else null`; type-guards keep a malformed efficiency_runs from aborting the filter or coercing to 0.\n\n## Verification Checklist Results\nInline engine pass (local, head_override=local). Manual verification of the ranking, cost-derivation, null-vs-zero, empty/absent-artifact stub, and downstream order-preservation paths all pass. No FAIL, no INCONCLUSIVE.\n\n## Code Review Findings\n\n### 🟠 Important / Major\n1. AC2 covered-pattern tie-break is untested — the rank fixture uses distinct costs (1 vs 5), so the `-(.occurrence_count)` tie-break key for covered patterns is dead in the tests; dropping or sign-flipping it would leave every assertion passing. Needs two covered patterns with equal `cost_mean_iterations` and different occurrence counts. (raised by 2/5 agents)\n2. Zero-coverage ordering with ≥2 zero-coverage patterns is untested — the fixture has exactly one uncovered pattern, so the descending-occurrence-count order among uncovered patterns is unverified. (raised by 2/5 agents)\n\nNote: the shipped sort implements both clauses correctly; these are test-coverage gaps, not code defects. At the `critical` verdict threshold they do not drive REJECT.\n\n### 🟡 Suggestion / Minor\n1. actionable-patterns.sh: the PATTERN_VIEW jq substitution is the only jq call in the file with no in-script `::error::` breadcrumb; a malformed slurpfile line aborts jq before the type-guards run. Fail-CLOSED (exits non-zero, surfaced with `::error::` + captured stderr by the retrospective SKILL.md Step 6 caller), and the added \"never aborting the derivation\" comment is scoped to the absent/empty case (true against HEAD) — so not a documented_falsehood. Recharacterized from the hunter's Important grade via the Phase 4.1.5 shape-1 (fail-closed) over-grade cap. (raised by 1/5 agents) [suspected over-grade: shape 1 — observable fail-direction is fail-closed abort, milder than the Important label]\n2. compute-patterns.jq: malformed experiment records are silently dropped with no count/warning; a field rename in build-experiment-records.py would silently revert to frequency-only ranking. Mirror the file's slug-drift `::warning::`. (raised by 1/5 agents)\n3. compute-patterns.jq: duplicate PR rows are coalesced last-wins by from_entries; the one-row-per-PR precondition is unstated. (raised by 1/5 agents)\n4. actionable-patterns.sh: the absent-experiment-file stub branch is not exercised end-to-end through the real script. (raised by 1/5 agents)\n5. AC3 is only shown in the admit direction; a sub-threshold covered pattern's exclusion is not re-proved in the new block (may be covered elsewhere). (raised by 1/5 agents)\n6. compute-patterns.jq: the cost aggregate is a mean-of-means; the multi-run-per-PR path is untested and the intended per-occurrence weighting is worth a one-line confirmation. (raised by 1/5 agents)\n7. Four added inline comment blocks exceed the three-line prevention-only cap and are derivation narrative (behavior-inert prose, capped Suggestion; type-guard rationale plausibly load-bearing → advisory). All comment claims verified accurate against HEAD. (raised by 1/5 agents)\n\nover-grade annotation: 1 finding flagged (silent-failure-hunter I1, shape 1 fail-closed) and capped to Suggestion.\ntruthfulness sweep: no finding promoted — the \"never aborting\" comment is scoped to the absent/empty artifact and is true against HEAD.\nintra-diff contradiction scan: no contradiction found.\n\n## Verdict Criteria\n- No verification FAIL/INCONCLUSIVE.\n- No self-contradicting-diff carve-out survives verification (the one documented_falsehood claim fails the truthfulness check).\n- No Critical findings; the two Important findings are test_gap and do not drive REJECT at the `critical` threshold.\n- Only findings below the verdict threshold present → APPROVE with notes.\n\nRecommendation to the fix loop: the two Important test-gap findings (tie-break coverage and multi zero-coverage ordering) are the highest-value fixes — cheap fixtures that would guard the ranking feature's core sort keys against silent regression."
+}

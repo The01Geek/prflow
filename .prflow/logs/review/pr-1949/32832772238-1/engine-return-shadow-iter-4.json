@@ -1,0 +1,97 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": "engine_self_modifying",
+  "cap_drops": [],
+  "checklist_skipped": null,
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "compute-patterns.jq per-PR cost index (lines 229-234) type-guard-drops any malformed experiment record silently — no counter, no ::warning:: — unlike the sibling _DROPPED_COUNT/::warning:: defense in actionable-patterns.sh. A producer schema regression (e.g. build-experiment-records.py emitting pr as a string or renaming efficiency_runs) still parses as JSON, passes the shell parse-check, then has every record dropped inside jq, silently collapsing cost coverage to zero for every pattern and degrading ranking to occurrence-count-only. Indistinguishable from the benign 'no experiment-records file yet' case. Recommends a 'records present but zero coverage yielded' heartbeat.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [229, 234], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "actionable-patterns.sh parse-check `! jq '.' \"$EXPERIMENTS_FILE\" >/dev/null 2>&1` (line 131) discards jq's stderr, which for a JSONL parse failure names the offending line/token — the single most useful debugging fact for a hand-editable/agent-authored corpus. Consider capturing jq's stderr into the degrade breadcrumb.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [131, 132], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The new tail sort_by(...) runs unconditionally, including in --full mode, re-ordering the full run-report view (all lifecycle statuses) by cost where it previously carried compute-patterns.jq insertion order. Not an AC2 defect (AC2 concerns selection), but a report-presentation change wider than the ACs, not called out in the changeset. Consider gating the sort to the actionable view or documenting the --full reorder.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [313, 317], "kind": "other"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "AC1 says 'mean of efficiency_runs[].iterations over covered occurrences'; the implementation is a mean-of-means (each PR reduced to its own run-mean first, then averaged across occurrences). For a PR with multiple efficiency_runs this differs from a flat mean and differs across occurrences with unequal run counts. Internally consistent and codified by the CP_MULTI test (2,6->4), defensible, but the spec wording is ambiguous — confirm intended semantics.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [229, 234], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Oversized explanatory comment block (10 lines) in actionable-patterns.sh experiment-records source (lines 29-38): derivation/rationale exceeding the three-line prevention-only cap.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [29, 38], "kind": "style"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Oversized sort-key comment (6 lines) in actionable-patterns.sh (lines 78-83): worked-example/derivation beyond the three-line cap.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [78, 83], "kind": "style"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Oversized cost-aggregate comment (6 lines) in compute-patterns.jq entry_of (lines 106-111): accurate but derivation exceeding the cap.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [106, 111], "kind": "style"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Oversized per-PR cost-index comment (7 lines) in compute-patterns.jq (lines 133-139): guard enumeration/rationale beyond the cap (adjacent code is a machine contract, so a trimmed guard-contract note would qualify under the contract-header carve-out).",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [133, 139], "kind": "style"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC3 (min_occurrences gate unchanged) is asserted only at the admit side (a 2-occurrence at-threshold pattern is present); the exclude side (a below-min non-regressed pattern absent under the new code path) is never demonstrated. Gate select lines are untouched and sort runs after them so risk is low; consider one assertion that a 1-occurrence non-regressed pattern is absent.",
+      "defect_signature": {"file": "lib/test/modules/retrospective-lifecycle.sh", "line_range": [3410, 3411], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The covered/uncovered partition key (first sort_by key) has no test distinguishing it from a plain -cost sort. It only becomes load-bearing for a covered pattern whose cost_mean_iterations is exactly 0 (all covered occurrences had iterations:0), which would share the 0 cost key with uncovered patterns. No fixture exercises iterations:0, so deleting the partition key fails no test. Add a covered iterations:0 fixture.",
+      "defect_signature": {"file": "lib/test/modules/retrospective-lifecycle.sh", "line_range": [3383, 3387], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The tiebreak 'alphabetical opposition' guard depends silently on compute-patterns.jq emitting corpus categories in unique-sorted (alphabetical) order feeding a stable sort. A future refactor of the pre-sort emit order could make the fixtures stop opposing the default, so the -(.occurrence_count) key would quietly stop being exercised. Comment documents the dependency but nothing pins the emit order. Low priority fragility note.",
+      "defect_signature": {"file": "lib/test/modules/retrospective-lifecycle.sh", "line_range": [345, 387], "kind": "test_gap"}
+    }
+  ],
+  "report": "Shadow independent review (blinded, iteration 4) of PR #1949 (issue #1828: cost-weighted pattern ranking for the weekly retrospective) at converged local HEAD.\n\nDiff profile: engine_self_modifying (touches lib/**), full Phase 1+2 checklist. Roster: 4 always-on (code-reviewer, silent-failure-hunter, comment-analyzer, requesting-code-review) + pr-test-analyzer (test files and new testable logic present). type-design-analyzer gated out (no new types). All 5 dispatched; all 5 returned; 0 failed.\n\nVERDICT: APPROVE.\n\nThe change satisfies all five acceptance criteria, independently corroborated across reviewers:\n- AC1: entry_of computes cost_mean_iterations as the mean over covered occurrences plus covered_occurrence_count.\n- AC2: sort_by((covered?0:1), -(cost//0), -(occurrence_count)) ranks covered patterns by descending cost with occurrence-count tiebreak and places uncovered patterns last by occurrence count. Tiebreak tests genuinely oppose the alphabetical stable-sort default (verified as real regression guards).\n- AC3: the two min_occurrences select gates are untouched; sort runs after admission.\n- AC4: cost index reads only efficiency_runs[].iterations; post_bot_commits never referenced (pinned by CP_AC4 with post_bot_commits:99 beside iterations 5).\n- AC5: zero-coverage patterns yield null cost, never a fabricated 0 (numbers folds a missing lookup to empty; covered_n>0?mean:null).\n\nThe schema join was verified against the real producer scripts/build-experiment-records.py (pr + efficiency_runs[].iterations). Type guards on every experiment-record field, the shell-side best-effort validate/degrade-with-::warning:: (avoiding the eager --slurpfile abort), and the null-vs-zero unknown-is-not-zero discipline are all sound and well tested (partial coverage, multi-run means, each malformed-record guard shape, end-to-end unparseable-file degradation).\n\nNo Critical and no blocking findings. One Important was raised (silent-failure-hunter): the per-PR cost index drops malformed experiment records silently with no count/breadcrumb, so a future producer schema regression could silently collapse all cost coverage while looking like the benign 'no file yet' case. This is an observability/robustness enhancement for a hypothetical future producer drift, not a defect in the shipped behavior (the current producer schema matches, the feature is best-effort by design and only reorders — never admits or excludes a pattern — and all ACs are met), so it is surfaced as a recommended non-blocking follow-up rather than a merge blocker. The remaining findings are Suggestions: discarded jq parse diagnostics (2>/dev/null), unconditional --full view reorder not called out, mean-of-means semantics vs the AC's ambiguous wording, four oversized explanatory comment blocks (prevention-only cap), and three narrow test-gap notes (below-threshold exclusion for AC3, a covered iterations:0 fixture for the partition key, and the emit-order fragility of the tiebreak guard).\n\nCorroboration: two findings share defect_signature (lib/compute-patterns.jq lines 229-234, kind logic_error) — silent-failure-hunter's silent-drop concern and requesting-code-review's mean-of-means note — mechanically corroborated by signature though describing distinct concerns."
+}

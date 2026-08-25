@@ -1,0 +1,82 @@
+{
+  "iter": 1,
+  "loop_role": "fix",
+  "fix_commit_sha": "068aa290ea28cdaa906094143833e9aeebb57873",
+  "fix_files": [
+    "lib/test/modules/retrospective-lifecycle.sh"
+  ],
+  "dispatch_mode": "fanned-out",
+  "current_step": "3",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 1,
+    "by_category": {
+      "over-grade-shape-1-fail-closed": 1
+    }
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC2 covered-pattern tie-break (-(.occurrence_count)) untested — distinct-cost fixture leaves the key dead",
+      "defect_signature": {
+        "file": "lib/test/modules/retrospective-lifecycle.sh",
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Zero-coverage ordering with >=2 zero-coverage patterns untested — single uncovered pattern in fixture",
+      "defect_signature": {
+        "file": "lib/test/modules/retrospective-lifecycle.sh",
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "068aa290ea28cdaa906094143833e9aeebb57873"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "068aa290ea28cdaa906094143833e9aeebb57873"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

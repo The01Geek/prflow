@@ -1,0 +1,65 @@
+{
+  "iter": 2,
+  "loop_role": "fix",
+  "fix_commit_sha": "54db0fba335bf59e53b5a074e763476952a73df9",
+  "fix_files": [
+    "lib/actionable-patterns.sh",
+    "lib/test/modules/retrospective-lifecycle.sh"
+  ],
+  "dispatch_mode": "fanned-out",
+  "current_step": "3",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "A malformed experiment-records.jsonl line aborts the whole weekly derivation at the eager --slurpfile read with no breadcrumb",
+      "defect_signature": {
+        "file": "lib/actionable-patterns.sh",
+        "kind": "silent_failure"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "54db0fba335bf59e53b5a074e763476952a73df9"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

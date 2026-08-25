@@ -1,0 +1,94 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "run_id": "32832772238-1",
+  "pr": 1949,
+  "head": "4072be8c1a84f6e0fb950ceafa36780bf64a32c1",
+  "base": "66eec8a8a2aee14677cd27359929722760691fe3",
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "gated_out": ["prflow:type-design-analyzer"],
+  "diff_profile": {
+    "scope": "lib-retrospective-helpers",
+    "engine_self_modifying": false,
+    "has_new_types": false,
+    "detect_all_audit": false,
+    "test_relevance": "matched (adds/modifies test files and non-config code logic)",
+    "files_changed": 6,
+    "insertions": 331,
+    "deletions": 8
+  },
+  "cap_drops": [],
+  "checklist_skipped": false,
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Producer-drift heartbeat (actionable-patterns.sh ~164-170) fires whenever a present/parseable experiment file yields zero covered patterns, but benign disjoint-PR-set states and an empty/absent RETRO_FILE also trigger it, pointing the reader at build-experiment-records.py when nothing is wrong. Advisory only; never changes output.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [164, 170], "kind": "logic_error"},
+      "corroborated_by": ["prflow:requesting-code-review"]
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Heartbeat false-positive on empty retrospectives / disjoint PR sets: PATTERN_VIEW={} yields covered-count 0 and emits the producer-drift warning even with no schema regression. Harmless stderr advisory; gating on a non-empty pattern view would avoid the misdirected signal.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [164, 169], "kind": "logic_error"},
+      "corroborated_by": ["prflow:silent-failure-hunter"]
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Parse-validation probe (actionable-patterns.sh ~131) treats any non-zero jq exit as 'does not parse as JSON', so an unrelated jq failure (OOM, unrunnable binary) degrades the cost source while asserting a parse cause it did not establish. Small blast radius (reorder-only, run still succeeds).",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [131, 135], "kind": "other"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "min_occurrences gate asserted unchanged only in the pass direction on the cost path; no fixture proves a covered high-cost 1-occurrence pattern is still excluded. Gate is textually unchanged and runs before the sort, so risk is low. (Reported by the agent as Important; orchestrator calibrates to Suggestion — no shipped-behavior defect, gate untouched.)",
+      "defect_signature": {"file": "lib/test/modules/retrospective-lifecycle.sh", "line_range": [3356, 3364], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Absent-experiment-file branch (actionable-patterns.sh 128-135, the common first-run case) not integration-tested end-to-end (rc 0, patterns uncovered, heartbeat suppressed). Covered at the compute-patterns unit layer via an empty slurp string. (Reported as Important; orchestrator calibrates to Suggestion.)",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [128, 170], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "A genuine covered cost of 0 (real iterations:0) vs null-uncovered is untested; numbers admits 0, so iterations:0 is covered and the partition key (not the cost key) keeps it above a null-uncovered pattern. Exactly the AC5 boundary.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [133, 135], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Non-integer (fractional) cost means never exercised; every fixture yields an integer mean, so jq -r formatting and ordering of a fractional cost carry no guard.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [133, 135], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "An occurrence whose own .pr is missing/non-numeric is not exercised on the join side (the mirror of the tested experiment-side non-number-pr guard).",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [133, 133], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Four added multi-line explanatory comment blocks (actionable-patterns.sh experiment-records header and heartbeat; compute-patterns.jq cost-aggregate and per-PR cost-index) exceed three physical lines and carry derivation/rationale under the prevention-only standard. Agent notes they are accurate against HEAD and match the two files' pre-existing house style.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [116, 125], "kind": "style"}
+    }
+  ],
+  "report": "Shadow review of PR #1949 (issue #1828, cost-weighted retrospective pattern ranking) at HEAD 4072be8. Full roster fanned out (4 always-on + pr-test-analyzer; type-design-analyzer gated out, no new types). VERDICT: APPROVE. No Critical or genuine Important findings. All five acceptance criteria verified against shipped code: (AC1) entry_of emits cost_mean_iterations as the mean over covered occurrences plus covered_occurrence_count; (AC2) sort_by((covered?0:1), -(cost//0), -(occurrence_count)) ranks covered-first by descending cost, occurrence-count tiebreak, zero-coverage last; (AC3) min_occurrences select gate textually unchanged and runs before the sort; (AC4) cost index reads only efficiency_runs[].iterations, post_bot_commits never referenced (decoy-tested by CP_AC4); (AC5) null recorded for zero coverage, //0 folding confined to the sort key. Per-record jq type guards (objects/numbers/arrays) drop malformed records without aborting the weekly derivation, each with a RED-on-removal regression test; the best-effort source handling (absent/empty stub, unparseable-file validation with a specific ::warning:: degrading to rc 0, and a producer-drift heartbeat with a matched silent-control) is sound and tested. run.sh #626 call site and coverage-map.json updated in lockstep. Findings are all quality/test-completeness Suggestions; the sole corroborated finding (2 agents) is a cosmetic false-positive in the advisory zero-coverage heartbeat that never changes output. The two items pr-test-analyzer graded Important are incremental test coverage on paths already covered at the unit layer or left textually unchanged — worth a follow-up but not merge-blocking."
+}

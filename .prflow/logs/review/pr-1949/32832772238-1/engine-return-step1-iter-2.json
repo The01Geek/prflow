@@ -1,0 +1,122 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "verdict_note": "APPROVE-with-notes: both iteration-1 Important test-gap findings are resolved by the new rank2 fixture (adversarially confirmed: removing the production -(.occurrence_count) tiebreak key turns the suite RED via the zero-coverage pair). No Critical. One single-source Important robustness finding and several Suggestions surfaced as actionable notes; all five ACs satisfied with thorough type-guarding.",
+  "prior_findings_resolved": true,
+  "prior_findings_resolution_detail": "Iteration-1 Important #1 (covered-pattern tiebreak -(.occurrence_count) untested) and #2 (zero-coverage ordering with >=2 uncovered patterns untested) are both exercised by the rank2 fixture. pr-test-analyzer and requesting-code-review independently traced the fixture: the zero-coverage pair (lenient-verdict 3-occ, doc-accuracy 2-occ) opposes jq's alphabetical stable-sort order, so removing the shared -(.occurrence_count) key flips it and fails the assertion — a genuine regression guard. Residual noted below.",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": [
+    {"agent": "prflow:type-design-analyzer", "reason": "has_new_types=false (jq/shell change, no new types introduced)"}
+  ],
+  "diff_profile": {
+    "classification": "ordinary",
+    "engine_self_modifying": false,
+    "has_new_types": false,
+    "detect_all_audit": false,
+    "pr_test_analyzer_dispatched": true,
+    "pr_test_relevance": "test files modified (lib/test/modules/retrospective-lifecycle.sh, lib/test/run.sh)",
+    "prompt_surface_touched": false,
+    "config_only": false,
+    "files": [
+      ".changeset/issue-1828-cost-weighted-pattern-ranking.md",
+      "lib/actionable-patterns.sh",
+      "lib/compute-patterns.jq",
+      "lib/test/modules/coverage-map.json",
+      "lib/test/modules/retrospective-lifecycle.sh",
+      "lib/test/run.sh"
+    ]
+  },
+  "prompt_extension": {"status": "content-present", "resolved_root": "repo-local .prflow/prompt-extensions/review.md"},
+  "prompt_surface_gate": "not-triggered (no changed path matches a prompt-surface trigger glob)",
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "corroboration": 1,
+      "single_source": true,
+      "description": "The new experiment-records.jsonl operand is stubbed only for the absent/empty case; a file that exists and is non-empty but contains one syntactically malformed JSON line (truncated build-experiment-records.py write, or a hand-edit) flows straight into the --slurpfile experiments read, which parses the whole file eagerly and exits non-zero, aborting the script under set -euo pipefail. Unlike every other jq stage in actionable-patterns.sh, the PATTERN_VIEW computation has no `|| { echo ::error:: }` breadcrumb, so the operator sees a raw jq parser error naming neither experiment-records.jsonl nor the cost join. This extends a pre-existing exposure (the retrospectives/overrides slurps on the same breadcrumb-less stage share it) to a third, machine-written, independently-truncatable operand under an explicit resilience claim.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [132, 145], "kind": "unhandled_exception"},
+      "engine_note": "Legitimate and actionable, but a pre-existing failure class the PR extends rather than newly introduces (the two older operands on this same stage already abort on a malformed line, and the missing breadcrumb pre-dates this change). Single-source; code-reviewer and requesting-code-review both examined the same stubbing and judged it resilient. Below the REJECT bar; recorded as an actionable non-blocking note (add a specific breadcrumb, or guard/quarantine the experiment file before the slurp)."
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "corroboration": 1,
+      "description": "Duplicate PR rows in experiment-records.jsonl silently last-write-win via from_entries; a PR's cost then depends on file ordering with no diagnostic. Benign today; latent data-quality hazard on the agent-authored input the surrounding comment defends.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [229, 234], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "corroboration": 1,
+      "description": "The PR-key join is a string join over `(.pr | numbers) | tostring`; a record authoring pr as 12.0 on one side and 12 on the other would tostring to \"12.0\" vs \"12\" and silently drop that PR to uncovered. Edge-only (PR numbers are integers); a `| floor` on both sides removes the latent fragility.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [161, 233], "kind": "api_misuse"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "corroboration": 1,
+      "description": "The rank2 fixture's COVERED equal-cost pair is guarded only coincidentally: with overrides.patterns={}, corpus categories are inserted in `unique`-sorted (alphabetical) order and jq sort_by is stable, so `incomplete-edit` (idx1) < `unverified-assumption` (idx3) already matches the asserted covered order even if -(.occurrence_count) were removed. The zero-coverage pair DOES catch key removal (its alphabetical order opposes the required order), so the tiebreak key cannot be silently deleted without a RED test and the prior finding is resolved — but the inline comment ('exercises the -(.occurrence_count) covered tiebreak key, which distinct-cost fixtures leave dead') overstates what the covered pair independently proves. Cheap fix: swap the covered categories so the 3-occ pattern sorts alphabetically after the 2-occ one, making the covered pair an independent guard like the uncovered pair.",
+      "defect_signature": {"file": "lib/test/modules/retrospective-lifecycle.sh", "line_range": [3380, 3413], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration": 1,
+      "description": "6-line comment block narrating what the experiment-records artifact is and how compute-patterns.jq consumes it (provenance/derivation) rather than naming the wrong change it prevents; only the stub-behavior clause is load-bearing. Exceeds the 3-line prevention-only cap.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [29, 34], "kind": "style"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration": 1,
+      "description": "6-line sort-key comment: the negation-for-descending clause prevents a real wrong change, but the `// 0` folding explanation and covered/uncovered partition restatement are worked-example derivation over the 3-line cap.",
+      "defect_signature": {"file": "lib/actionable-patterns.sh", "line_range": [70, 75], "kind": "style"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration": 1,
+      "description": "6-line inline block: 'never from post_bot_commits' is prevention, but 'unknown is not zero' and the covered-occurrence restatement are narration over the cap. (The separate 2-line entry_of contract-header addition at 93-94 is within the spec carve-out and is fine.)",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [98, 103], "kind": "style"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration": 1,
+      "description": "7-line block enumerating each type-guarded field; the type-guard-or-skip rule prevents a real wrong change but the per-field enumeration and 'reads as uncovered' restatement exceed three lines.",
+      "defect_signature": {"file": "lib/compute-patterns.jq", "line_range": [125, 131], "kind": "style"}
+    }
+  ],
+  "findings_by_severity": {"Critical": 0, "Important": 1, "Suggestion": 7},
+  "failed_agents": [],
+  "documented_falsehoods": [],
+  "report": {
+    "verdict": "APPROVE (with notes)",
+    "summary": "PR #1949 (issue #1828, cost-weighted retrospective pattern ranking), fix-loop iteration 2. The two iteration-1 Important test-gap findings are RESOLVED: the new rank2 fixture exercises both the covered equal-cost tiebreak path and multi-pattern zero-coverage ordering, and adversarial tracing confirms removing the production -(.occurrence_count) key turns the suite RED via the zero-coverage pair. The focused module passes 682/0. All five acceptance criteria (AC1 cost_mean_iterations + covered_occurrence_count, AC2 cost-descending ranking with occurrence-count tiebreak and zero-coverage-last, AC3 unchanged min_occurrences gate, AC4 cost from efficiency_runs[].iterations not post_bot_commits, AC5 null cost never fabricated 0) are satisfied. The jq cost-join is thoroughly type-guarded against the hand-edited/agent-authored threat model and preserves the unknown-is-not-zero invariant end to end.",
+    "no_critical": true,
+    "prior_important_findings_resolved": true,
+    "actionable_notes": [
+      "Important (single-source, non-blocking): the new experiment-records.jsonl slurp aborts the whole weekly derivation on a single syntactically malformed line, on the one jq stage lacking a diagnostic breadcrumb — a pre-existing class the PR extends to a third machine-written operand. Add a specific breadcrumb or guard/quarantine the file before the slurp.",
+      "Suggestion: duplicate-PR last-write-win in the cost index; document or aggregate deterministically.",
+      "Suggestion: tostring PR-key join is fragile to a 12.0-vs-12 authoring; a `| floor` on both sides removes it.",
+      "Suggestion: rank2's covered equal-cost pair is only coincidentally guarded (alphabetical stable-sort order); swap the covered categories to make it an independent guard, and soften the overstated inline comment.",
+      "Suggestion x4 (comment-analyzer): four added lib/ comment blocks exceed the 3-line prevention-only cap with derivation/provenance narration; trim to the load-bearing prevention clause."
+    ],
+    "single_source_flag": "All eight findings are single-source (no cross-agent defect_signature corroboration); flagged for human scrutiny per the engine's N=1 rule.",
+    "final_pass_extension_status": "EXTENSION-STATUS: loaded-empty resolved-root=unset (local tier; final-pass reviewer returned APPROVE)"
+  }
+}

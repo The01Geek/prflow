@@ -1,0 +1,91 @@
+{
+  "iter": 4,
+  "loop_role": "fix",
+  "fix_commit_sha": "58b8ac7692ab83c8981ed7b06449228556644d1e",
+  "fix_files": [],
+  "dispatch_mode": "fanned-out",
+  "current_step": "2.6",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "reviewed_sha": "58b8ac7692ab83c8981ed7b06449228556644d1e",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "compute-patterns.jq per-record cost-index type-guard drops a malformed experiment record silently — a producer-schema regression would collapse cost coverage to zero with no heartbeat",
+        "defect_signature": {
+          "file": "lib/compute-patterns.jq",
+          "line_range": [
+            229,
+            234
+          ],
+          "kind": "silent_failure"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 11,
+      "overlap_with_iter_N": 10,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": true
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

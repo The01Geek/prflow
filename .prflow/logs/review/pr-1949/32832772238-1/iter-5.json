@@ -1,0 +1,69 @@
+{
+  "iter": 5,
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "fix_commit_sha": "4072be8c1a84f6e0fb950ceafa36780bf64a32c1",
+  "fix_files": [
+    "lib/actionable-patterns.sh",
+    "lib/test/modules/retrospective-lifecycle.sh"
+  ],
+  "dispatch_mode": null,
+  "current_step": "3",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "silent per-record cost-index drop (promoted from iter-4 shadow)",
+      "defect_signature": {
+        "file": "lib/compute-patterns.jq",
+        "line_range": [
+          229,
+          234
+        ],
+        "kind": "silent_failure"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "SHADOW-1",
+      "decision": "applied",
+      "commit": "4072be8c1a84f6e0fb950ceafa36780bf64a32c1"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
