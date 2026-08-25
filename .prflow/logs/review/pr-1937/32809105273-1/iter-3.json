@@ -1,0 +1,112 @@
+{
+  "iter": 3,
+  "fix_commit_sha": "d62e210f6",
+  "fix_files": [
+    "scripts/schedulewakeup-probe-verdict.py",
+    ".github/workflows/matcher-probe.yml",
+    "lib/test/modules/review-stall-backstop.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 2,
+    "by_category": {
+      "code-reviewer": "iterations first-only (iter>=2)",
+      "type-design-analyzer": "no new types"
+    }
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "CLAUDE_CODE_DISABLE_CRON set at job env could be shadowed by step env; sibling sets at step level",
+      "defect_signature": {
+        "file": ".github/workflows/matcher-probe.yml",
+        "line_range": [
+          1427,
+          1428
+        ],
+        "kind": "env_shadow"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "multi-key denial-name lookup exercised only via tool key",
+      "defect_signature": {
+        "file": "scripts/schedulewakeup-probe-verdict.py",
+        "line_range": [
+          131,
+          131
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "docstring 'never a false one' claim overgeneralized the non-dict fallback (capped documented_falsehood)",
+      "defect_signature": {
+        "file": "scripts/schedulewakeup-probe-verdict.py",
+        "line_range": [
+          42,
+          42
+        ],
+        "kind": "doc_imprecision"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "d62e210f6"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "applied",
+      "commit": "d62e210f6"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "applied",
+      "commit": "d62e210f6"
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 19,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

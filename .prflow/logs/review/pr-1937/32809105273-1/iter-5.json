@@ -1,0 +1,124 @@
+{
+  "iter": 5,
+  "fix_commit_sha": "ee99aff1e",
+  "fix_files": [
+    "scripts/schedulewakeup-probe-verdict.py",
+    "lib/test/modules/review-stall-backstop.sh",
+    ".github/workflows/matcher-probe.yml"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "park-calibration-post-shadow",
+  "current_step": "loop-exit",
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 1,
+    "by_category": {
+      "type-design-analyzer": "no new types"
+    }
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "denial-name str() flatten of a non-scalar field could re-admit a nested token on the ship-gating side (fail-open in this PR's own new guard)",
+      "defect_signature": {
+        "file": "scripts/schedulewakeup-probe-verdict.py",
+        "line_range": [
+          131,
+          137
+        ],
+        "kind": "fail_open_guard"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied",
+      "promotion_provenance": "park-calibration-post-shadow"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-10",
+      "decision": "applied",
+      "commit": "ee99aff1e"
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 26,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "reviewed_sha": "ee99aff1e",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "code-reviewer",
+      "silent-failure-hunter",
+      "comment-analyzer",
+      "pr-test-analyzer",
+      "requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "code-reviewer",
+      "silent-failure-hunter",
+      "comment-analyzer",
+      "pr-test-analyzer",
+      "requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 3,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 4,
+          "index": 0
+        },
+        "parked_finding_id": "iter4-sug-denial-substring",
+        "shadow_finding_index": 0,
+        "relation": "strengthened",
+        "rationale": "the iter-4 shadow strengthened the parked denial-match Suggestion with a new failing input (a non-scalar denial name field flattened by str()), matching fail-open shape 1 in this PR's own new guard",
+        "operands_present": true,
+        "disposition": "promoted"
+      }
+    ]
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

@@ -1,0 +1,67 @@
+{
+  "dispatch_mode": "full-roster-focused",
+  "verdict": "REJECT",
+  "phase3_dispatched": ["code-reviewer", "silent-failure-hunter", "pr-test-analyzer", "comment-analyzer"],
+  "expected_reviewers": ["code-reviewer", "silent-failure-hunter", "pr-test-analyzer", "comment-analyzer", "type-design-analyzer"],
+  "diff_profile": "code+tests+docs+workflow (Python verdict helper, shell test module, matcher-probe workflow, internal docs, changeset); non-engine-self-modifying; no prompt-surface trigger glob touched",
+  "cap_drops": ["type-design-analyzer omitted — no meaningful type design in diff (pure-function verdict helper, no new types)"],
+  "extension_status": "PROMPT-EXTENSION-STATUS: content-present",
+  "iter1_fix_verification": "CONFIRMED landed in 06a46ff6c — render() intro now reads 'a permission_denials with no recorded attempt (REMOVED, presumptive)'; no stale 'tool absence with both controls run' text remains in render(). Parked iter-1 Suggestion (changeset prose vs bullet) not re-raised.",
+  "phase3_findings": [
+    {
+      "severity": "Important",
+      "verdict_confidence": "PLAUSIBLE",
+      "category": "fail-open-asymmetry",
+      "file": "scripts/schedulewakeup-probe-verdict.py",
+      "line": 151,
+      "summary": "The #1527 fix name-scopes sw_attempted (keys on tool_use NAME) but leaves sw_denied keying on the whole serialized denial record — the identical input-JSON false-positive vector on the side that actually gates shipping.",
+      "detail": "collect() does denials.append(json.dumps(d)) (full record), and compute_verdict does sw_denied = 'schedulewakeup' in denial_text. If any tool's permission_denials record carries the token 'ScheduleWakeup' in a nested input/query field (e.g. a denied ToolSearch 'select:ScheduleWakeup'), sw_denied fires falsely -> REMOVED (no attempt) or DENIED (attempt) -> flag ships though the tool was available. This is the exact false-positive class #1527 hardened on the attempt side. Pre-existing (present before this PR; ship outcome unchanged vs old DENIED path), so not introduced/worsened, and depends on the unknown denial-record shape carrying input — hence PLAUSIBLE — but the fix is asymmetric relative to its own stated hardening goal. Remedy: collect the denied tool's name field and match on that, mirroring tool_use_names."
+    },
+    {
+      "severity": "Important",
+      "verdict_confidence": "CONFIRMED",
+      "category": "comment-rot",
+      "file": "scripts/schedulewakeup-probe-verdict.py",
+      "line": 246,
+      "summary": "Stale comment at the raw-tool_use dump contradicts the now name-scoped match: 'the name-agnostic ... match above trusts that the token only appears via the real attempt' describes exactly the pre-#1527 vulnerable assumption the PR removed.",
+      "detail": "After the fix sw_attempted keys on the recorded tool_use name (names_text), so the match no longer 'trusts that the token only appears via the real attempt' — that trust is what allowed the ToolSearch false positive. Diff-untouched but adjacent to the changed logic; behavior-inert prose, but it actively misdescribes the security-relevant match. Reword to state the match keys on the tool_use name and the dump lets an operator confirm the harness's actual ScheduleWakeup name."
+    },
+    {
+      "severity": "Important",
+      "verdict_confidence": "CONFIRMED",
+      "category": "comment-rot",
+      "file": ".github/workflows/matcher-probe.yml",
+      "line": 1280,
+      "summary": "Stale header block contradicts the verdict logic this same PR ships: 'an absence of any ScheduleWakeup tool_use reads as REMOVED-from-context only when both controls ran — otherwise INCONCLUSIVE', and line 1275's '(... / tool absence)' REMOVED trigger.",
+      "detail": "The shipped compute_verdict deleted the control_before AND control_after REMOVED branch: absence-of-attempt with both controls now yields INCONCLUSIVE, and REMOVED requires a permission_denials record with no attempt. Lines 1275 and 1280-1282 still describe the removed both-controls-run definition. Diff-untouched but in the same PR's changed file; genuine rot contradicting shipped code. Update to: REMOVED = a permission_denials record naming ScheduleWakeup with no registered tool_use attempt; no-attempt-no-denial = INCONCLUSIVE; controls only confirm progress past Action 2."
+    },
+    {
+      "severity": "Suggestion",
+      "verdict_confidence": "CONFIRMED",
+      "category": "test-coverage",
+      "file": "scripts/schedulewakeup-probe-verdict.py",
+      "line": 203,
+      "summary": "No test arm asserts a DENIED verdict does NOT emit the presumptive [!NOTE] caveat; a mutation broadening 'if verdict == REMOVED' to 'if ship' would mislabel a definitive denial as presumptive while every pin stays green.",
+      "detail": "Optional: add one swv_has negative arm on the DENIED fixture. Low severity."
+    },
+    {
+      "severity": "Suggestion",
+      "verdict_confidence": "CONFIRMED",
+      "category": "test-coverage",
+      "file": "lib/test/modules/review-stall-backstop.sh",
+      "line": 292,
+      "summary": "DENIED's own AC4 SHIP decision string is not pinned (REMOVED/AVAILABLE/INCONCLUSIVE are); covered transitively via the shared 'if ship' branch, residual risk only under a future DENIED special-case.",
+      "detail": "Low severity; largely covered transitively."
+    }
+  ],
+  "phase4_1_report": {
+    "verdict": "REJECT",
+    "rationale": "Three Important findings tied to the shipped change: (1) the fail-open hardening #1527 targets is left asymmetric — sw_denied still substring-matches the whole denial JSON, the exact vector fixed on the attempt side, and it gates shipping; (2) a stale Python comment at the raw-dump now describes the removed vulnerable assumption; (3) a stale matcher-probe.yml header contradicts the verdict logic this PR ships. Core logic change is otherwise sound: verdict precedence is correct, ship now requires a positive permission_denials record (strictly safer than the old presumptive both-controls REMOVED), parse layer fails closed, and the covering module is GREEN (465 passed, 0 failed). iter-1 fix confirmed landed. Two Suggestions on DENIED-rendering test gaps.",
+    "gate_findings": {
+      "prompt_surface_edit_routing_gate": "no-op — diff touches no trigger glob (scripts/, lib/test/, .github/workflows/, docs/internal/, .changeset/ only)",
+      "shipped_prose_cost_audit": "no-op — no added prose under skills/** or agents/**",
+      "wording_only_pin_policy": "clean — test changes are executable assertions (swv_has/swv_has_row over rendered output), no new static presence pins",
+      "verification_evidence_advisory": "not evaluated as blocking (advisory, non-blocking)"
+    }
+  }
+}

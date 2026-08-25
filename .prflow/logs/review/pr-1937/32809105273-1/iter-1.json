@@ -1,0 +1,94 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "06a46ff6c",
+  "fix_files": [
+    "scripts/schedulewakeup-probe-verdict.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 1,
+    "by_category": {
+      "type-design-analyzer": "no new types introduced"
+    }
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "render() intro summary carried the pre-#1527 REMOVED definition, contradicting the shipped code",
+      "defect_signature": {
+        "file": "scripts/schedulewakeup-probe-verdict.py",
+        "line_range": [
+          199,
+          199
+        ],
+        "kind": "stale_rendered_prose"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "changeset body is a prose paragraph rather than the documented bullet form",
+      "defect_signature": {
+        "file": ".changeset/issue-1527-schedulewakeup-probe-name-scope.md",
+        "line_range": [
+          6,
+          6
+        ],
+        "kind": "style_nit"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "06a46ff6c"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "below-threshold",
+      "source_file": ".changeset/issue-1527-schedulewakeup-probe-name-scope.md",
+      "claim_text": "changeset body style paragraph vs bullet",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 8,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

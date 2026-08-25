@@ -1,0 +1,56 @@
+{
+  "dispatch_mode": "independent-blinded",
+  "verdict": "APPROVE",
+  "coverage": "full",
+  "reviewers_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "gated_out": ["type-design-analyzer (no new types; has_new_types=false)"],
+  "per_reviewer_assessment": {
+    "code-reviewer": "no findings; verified helper logic AC1-3, stale-wording sweep AC4 (all 4 sites reframed), workflow arms AC5/6, changeset AC7; no residual pins or stale AVAILABLE claim",
+    "silent-failure-hunter": "no findings; fail-open direction closed (REMOVED requires positive denial record), denial predicate scalar-string-only, note_top precedence + always-exit-0 preserved, probe arms report-only with if:always()",
+    "comment-analyzer": "no correctness/rot findings; two low non-blocking notes (provenance narrative duplicated across 3 surfaces - pre-existing pattern; one muddled rationale clause in matcher-probe.yml step-env comment)",
+    "pr-test-analyzer": "no findings >=sev5; four-way truth table fully covered, no vacuous arms; two optional low notes (RED-against-old asserted in comment only; no attempt-present+different-tool-denial variant)",
+    "requesting-code-review": "APPROVE; all 7 ACs satisfied and verified against fixtures; three prose surfaces consistent; no stale active AVAILABLE citation; walrus needs py3.8 (repo mandates 3.11+, fine)"
+  },
+  "phase3_findings": [],
+  "phase2_fails": [],
+  "prompt_addenda": {
+    "acceptance_criteria_source": "issue-body",
+    "acceptance_criteria_issue": 1527,
+    "extension_status": "content-present",
+    "extension_policy_applied": "review extension (wording-only-pin gate, declaration-marker non-inertness, shipped-prose cost audit) - no skills/** or agents/** prose touched, so cost audit inert; no new presence pins added"
+  },
+  "diff_profile": {
+    "classification": "engine_self_modifying",
+    "reason": "lib/test/modules/review-stall-backstop.sh under lib/**; full Phase 1+2 checklist",
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "files_changed": 6,
+    "files": [
+      ".changeset/issue-1527-schedulewakeup-probe-name-scope.md",
+      ".github/workflows/matcher-probe.yml",
+      "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+      "docs/internal/implement-skill.md",
+      "lib/test/modules/review-stall-backstop.sh",
+      "scripts/schedulewakeup-probe-verdict.py"
+    ]
+  },
+  "head": "ee99aff1e",
+  "head_override": "local",
+  "engine_self_modifying_run": false
+}

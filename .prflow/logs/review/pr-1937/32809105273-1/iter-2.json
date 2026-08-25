@@ -1,0 +1,136 @@
+{
+  "iter": 2,
+  "fix_commit_sha": "bc3889356",
+  "fix_files": [
+    "scripts/schedulewakeup-probe-verdict.py",
+    "lib/test/modules/review-stall-backstop.sh",
+    ".github/workflows/matcher-probe.yml"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 1,
+    "by_category": {
+      "type-design-analyzer": "no new types introduced"
+    }
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "sw_denied substring-matched the whole denial record — same false-positive vector on the ship-gating side",
+      "defect_signature": {
+        "file": "scripts/schedulewakeup-probe-verdict.py",
+        "line_range": [
+          149,
+          149
+        ],
+        "kind": "fail_open_denial_match"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "raw-dump comment (line 246) carried the pre-#1527 name-agnostic assumption",
+      "defect_signature": {
+        "file": "scripts/schedulewakeup-probe-verdict.py",
+        "line_range": [
+          246,
+          249
+        ],
+        "kind": "comment_rot"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "matcher-probe.yml header comment described the deleted tool-absence->REMOVED definition",
+      "defect_signature": {
+        "file": ".github/workflows/matcher-probe.yml",
+        "line_range": [
+          1274,
+          1282
+        ],
+        "kind": "comment_rot"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "no test pins DENIED does not emit the presumptive [!NOTE]; DENIED SHIP string not directly pinned",
+      "defect_signature": {
+        "file": "lib/test/modules/review-stall-backstop.sh",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "bc3889356"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "bc3889356"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "bc3889356"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "below-threshold",
+      "source_file": "lib/test/modules/review-stall-backstop.sh",
+      "claim_text": "DENIED no-[!NOTE] test arm",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 52,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

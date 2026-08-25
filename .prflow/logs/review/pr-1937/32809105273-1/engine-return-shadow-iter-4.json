@@ -1,0 +1,91 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "coverage": "Full shadow audit of PR #1937 (issue #1527), Phases 0-4.3 (4.4 skipped). All 7 acceptance criteria independently verified satisfied by the fanned-out roster reading source. No Critical or blocking findings; findings are hardening/quality Suggestions only.",
+  "reviewers_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review (final-pass)"
+  ],
+  "expected_reviewers": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review (final-pass)"
+  ],
+  "type-design-analyzer": "gated OUT (no new types introduced)",
+  "per_reviewer_assessment": {
+    "code-reviewer": "No issues. Verified each AC: name-scoped attempt predicate (collect() records tool_use_names from o.get('name')), denial predicate keyed on denial-entry name field, REMOVED/DENIED both require sw_denied, ToolSearch fixture is RED-against-old, fail-open fixtures retained, citations withdrawn in all three surfaces, both new probe jobs and changeset present. SPDX header and 'always exits 0' contract intact.",
+    "silent-failure-hunter": "Change is well-hardened; degraded reads route to INCONCLUSIVE, SHIP requires positive denial evidence. Raised one MEDIUM defensive-hardening gap (denial_names built via str(d.get(k)) over tool/tool_name/name flattens a non-scalar value, which could re-admit a nested token on the ship-gating side, partially contradicting the docstring's absolute claim). Realistic denial shapes are scalar and handled correctly (the AC's own ToolSearch-denial negative-control passes), so low realizability, non-blocking. Also one LOW advisory: the two new live-probe report steps print an empty 'execution_file:' with no distinct breadcrumb when the claude step produced no output (intended-by-design, gates nothing).",
+    "comment-analyzer": "Core rewritten comments accurate (docstring DENIED/AVAILABLE/REMOVED/INCONCLUSIVE match compute_verdict; matcher-probe.yml 'both controls no longer evidence of removal' matches the else-INCONCLUSIVE fall-through). Four accuracy/clarity notes, all non-blocking: (1) stale docstring line calling REMOVED a 'single-control fall-through' though REMOVED is now denial-only; (2) the disable-cron job comment's 'so a step-level env cannot shadow it inert' rationale is garbled and mis-attributed to the background-tasks probe; (3) header job inventory not updated for the two new jobs; (4) withdrawn-run forensics is narrative-heavy per CLAUDE.md comment discipline (live 'no flag shipped/awaiting re-measurement' statement should stay).",
+    "pr-test-analyzer": "Coverage adequate for all three testable ACs; every diff-changed behavior has a revert-flip regression test (verified by construction, including the ToolSearch negative control and the DIFFERENT-tool-denial negative control). One Suggestion: the third denial-name key 'name' in the ('tool','tool_name','name') lookup has no fixture (only tool and tool_name are exercised). RED-first for AC1 is revert-flip equivalence rather than old-binary execution, which is the only feasible in-suite mechanism.",
+    "requesting-code-review": "APPROVE. Ran the covering module (467 passed, 0 failed) and ruff (clean). All 7 ACs SATISFIED. Logic change internally consistent, docstring/comment updates match new behavior, citations honestly corrected to 'unresolved/awaiting re-measurement' rather than a new unverified claim, both new probe jobs correctly gated (same-repo/workflow_dispatch if:) and repo-internal. No correctness, silent-failure, or type-design findings."
+  },
+  "phase3_findings": [
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "denial_names is built with str(d.get(k,'')) over ('tool','tool_name','name'); if one of those fields holds a non-scalar value containing the token, str() flattens it and re-admits a nested-token false SHIP on the ship-gating (denial) side, partially contradicting the docstring's absolute claim that 'the token nested in a denial's input never falsely gates a SHIP verdict'. Realistic denial shapes keep these fields scalar (the AC's ToolSearch-input-under-'input'-key negative control is handled), so low realizability and non-blocking. Optional hardening: contribute a name only for scalar (str/number) field values.",
+      "defect_signature": "denial-name-field-str-flatten-fail-open"
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The third denial-name lookup key 'name' in collect()'s ('tool','tool_name','name') tuple is untested; only 'tool' and 'tool_name' have fixtures. Dropping 'name' from the tuple would leave the suite green. A one-line {\"name\":\"ScheduleWakeup\"} -> REMOVED fixture would close it.",
+      "defect_signature": "denial-name-field-name-key-untested"
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Docstring 'Why a helper' paragraph still lists 'the REMOVED single-control fall-through' as a regressable arm; under this change REMOVED is denial-only (elif sw_denied) with no control involvement, so the description is now stale comment-rot.",
+      "defect_signature": "stale-removed-control-fallthrough-docstring"
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "New schedulewakeup-disable-cron-probe comment's rationale 'set at STEP level ... so a step-level env cannot shadow it inert' is garbled (no coherent same-step shadowing hazard) and mis-attributed to the background-tasks probe, whose own comment gives a different (inertness) rationale. State the real reason (env reaches the claude-code-action process) or align with the sibling.",
+      "defect_signature": "disable-cron-shadow-rationale-garbled"
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "matcher-probe.yml top-of-file job inventory comment was not updated to list the two added jobs (schedulewakeup-reinvoke-probe, schedulewakeup-disable-cron-probe). Not false (list is non-exhaustive) but incomplete as a job map.",
+      "defect_signature": "matcher-probe-header-inventory-omits-new-jobs"
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The 'AWAITING RE-MEASUREMENT' block and new-job parentheticals are narrative-heavy (withdrawn run-IDs, false-positive forensics, 'only ever observed locally on 2.1.226') per CLAUDE.md §2.3 comment discipline; run-ID forensics could be trimmed to a pointer while the live 'no flag shipped / awaiting re-measurement' statement stays.",
+      "defect_signature": "schedulewakeup-withdrawn-verdict-narrative-in-workflow"
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Both new live-probe 'Report execution file' steps print 'execution_file: ' with no distinct breadcrumb when the upstream claude step produced no output, so an operator cannot tell a failed probe from an empty transcript. Advisory only (intended-by-design, gates nothing).",
+      "defect_signature": "reinvoke-probe-empty-execfile-unsignaled"
+    }
+  ],
+  "extension_gates": {
+    "prompt_surface_edit_routing_evidence_gate": "NOT TRIGGERED — the diff touches none of the trigger globs (skills/*/SKILL.md, skills/implement/phases/*.md, skills/implement/references/*.md, skills/review/phases/*.md, skills/review-and-fix/references/*.md, .prflow/prompt-extensions/*.md). It touches only scripts/, lib/test/, .github/workflows/, docs/internal/, .changeset/. No finding.",
+    "verification_evidence_marker_advisory": "Non-blocking advisory; not evaluated in this blinded shadow (no workpad/PR-body fetch performed). Does not affect verdict.",
+    "shipped_prose_cost_audit": "No prose added/grown under skills/** or agents/**. No finding.",
+    "wording_only_pin_review_policy": "No new static presence pins introduced; the test module adds executable fixtures over the rendered verdict surface, not wording-only pins. No finding."
+  },
+  "phase2_fails": [],
+  "prompt_addenda": "none",
+  "diff_profile": "Small, non-engine-self-modifying bugfix + test + workflow + docs. Files: scripts/schedulewakeup-probe-verdict.py, lib/test/modules/review-stall-backstop.sh, .github/workflows/matcher-probe.yml, docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, docs/internal/implement-skill.md, .changeset/issue-1527-schedulewakeup-probe-name-scope.md. A test file is present (pr-test-analyzer gated in); no new types (type-design-analyzer gated out).",
+  "checklist_skipped": false,
+  "acceptance_criteria_status": {
+    "AC1_name_scoped_attempt_toolsearch_no_attempt": "satisfied",
+    "AC2_fail_open_fixtures_retained": "satisfied",
+    "AC3_no_ship_from_absence_removed_requires_denial": "satisfied",
+    "AC4_citations_withdrawn": "satisfied",
+    "AC5_reinvoke_arm_no_disallowedTools": "satisfied",
+    "AC6_disable_cron_arm": "satisfied",
+    "AC7_changeset_bump_patch": "satisfied"
+  },
+  "extension_status": "content-present"
+}

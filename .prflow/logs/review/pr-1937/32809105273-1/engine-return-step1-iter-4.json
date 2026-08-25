@@ -1,0 +1,77 @@
+{
+  "dispatch_mode": "full",
+  "verdict": "APPROVE",
+  "diff_profile": "standard",
+  "cap_drops": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "sw_denied uses substring match on the denial tool-name field (line 168). For the SHIP-gating denial predicate the permissive direction leans dangerous: a hypothetical sibling tool whose name contains 'schedulewakeup' (e.g. ScheduleWakeupV2) would gate DENIED/REMOVED. Small blast radius (no such tool known; outcome only adds a --disallowedTools flag). Consider exact/word-boundary match on the denial side while keeping the attempt predicate permissive.",
+      "defect_signature": {"file": "scripts/schedulewakeup-probe-verdict.py", "line_range": [168, 169], "kind": "logic_error"},
+      "corroboration": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "denial_names collected only when permission_denials is a list (line 133). A single-dict shape would miss the denial name -> fails in the SAFE direction (INCONCLUSIVE/AVAILABLE, never a false ship). Note-only; harness record shape still unconfirmed.",
+      "defect_signature": {"file": "scripts/schedulewakeup-probe-verdict.py", "line_range": [132, 145], "kind": "api_misuse"},
+      "corroboration": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "matcher-probe.yml verdict-rationale + AWAITING RE-MEASUREMENT comment block (~30 lines) exceeds the three-line prevention-only comment cap and is largely provenance/derivation. Plausibly covered by the load-bearing-undecidable carve-out (probe-of-record documenting a withdrawn measurement + RE-PROBE instruction). All claims accurate against HEAD.",
+      "defect_signature": {"file": ".github/workflows/matcher-probe.yml", "line_range": [1276, 1306], "kind": "other"},
+      "corroboration": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Several reworded test-arm rationale comments in review-stall-backstop.sh sit at or slightly over the three-line cap with worked-example/fixture-narration prose. Most name a concrete regression the arm guards (compliant shape). Accuracy verified.",
+      "defect_signature": {"file": "lib/test/modules/review-stall-backstop.sh", "line_range": [235, 238], "kind": "other"},
+      "corroboration": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Denial-name lookup honors ('tool','tool_name','name') but only 'tool' and 'tool_name' have fixtures. Dropping 'name' from the tuple leaves every arm green (a partial fail-open), and the arm comment claims dropping 'tool_name'/'name' would regress the arm. Add a REMOVED fixture whose denial entry is {\"name\":\"ScheduleWakeup\"}. Low severity (3/10) — real harness field still unmeasured.",
+      "defect_signature": {"file": "lib/test/modules/review-stall-backstop.sh", "line_range": [352, 357], "kind": "test_gap"},
+      "corroboration": 1
+    }
+  ],
+  "phase4_1_report": {
+    "verdict": "APPROVE",
+    "critical_count": 0,
+    "important_count": 0,
+    "suggestion_count": 5,
+    "failed_agents": 0,
+    "extension_status": "content-present (review); final-pass requesting-code-review reported loaded-empty resolved-root=unset (local tier, no trusted-root propagation to cross-check)",
+    "extension_gates": {
+      "prompt_surface_edit_routing": "no trigger glob touched by diff -> no finding",
+      "wording_only_pin_policy": "no new wording-only/presence pins added -> no finding",
+      "shipped_prose_cost_audit": "no skills/** or agents/** prose added or grown -> not applicable",
+      "verification_evidence_advisory": "non-blocking; not raised at engine level"
+    },
+    "prior_iteration_fixes_confirmed": [
+      "CLAUDE_CODE_DISABLE_CRON set at the claude STEP env (mirrors background-tasks probe)",
+      "denial-name extraction yields '' for non-dict OR name-field-less entry (fails safe = no ship)",
+      "new test arm pins a ScheduleWakeup denial recorded under tool_name reads REMOVED"
+    ],
+    "summary": "Fix-loop iteration 4. Behavioral change (name-scoped attempt/denial predicates + positive-evidence ship gate, issue #1527) is correct and well-tested; all degraded/error parse paths funnel to INCONCLUSIVE (Unknown is not zero). All diff-added docs/comments accurate against HEAD (no documented_falsehood). No Critical or Important findings; 5 low-severity Suggestions, all fail-safe or carve-out-covered. Verdict APPROVE."
+  }
+}
