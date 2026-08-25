@@ -7,36 +7,46 @@ Why a helper rather than inline Python in matcher-probe.yml: this verdict is a
 branch-selecting core (a four-way DENIED/AVAILABLE/REMOVED/INCONCLUSIVE selection
 plus a ship/no-ship decision and an "Unknown is not zero" INCONCLUSIVE floor) that
 gates a real `claude_args` change. Inline-in-YAML it cannot be unit-tested, so a
-regressed arm — the `note_top`-precedence INCONCLUSIVE floor, the REMOVED
-single-control fall-through, or the name match — would silently misfire while the
+regressed arm — the `note_top`-precedence INCONCLUSIVE floor, the positive-denial
+gate on REMOVED, or the name match — would silently misfire while the
 workflow still "runs". Extracting it lets lib/test/run.sh drive every arm and the
 adversarial fail-open matrix directly (issue #415 review, finding #1; same rationale
 as scripts/describe-denial-count.sh, PR #367). The sibling per-shape probe verdict in
 the same workflow remains inline pending its own extraction (out of #415 scope).
 
-Deterministic four-way verdict, execution-file only (the model's text is never read):
+A ship verdict (DENIED/REMOVED) requires POSITIVE execution-file evidence — a
+`permission_denials` record naming ScheduleWakeup — never presumptive absence (issue
+#1527). Deterministic four-way verdict, execution-file only (the model's text is never
+read):
 
-  DENIED       permission_denials names ScheduleWakeup (present, refused). Since
-               ScheduleWakeup is GRANTED in --allowed-tools, only --disallowedTools
-               can deny it -> attributable to the flag under test.
+  DENIED       permission_denials names ScheduleWakeup AND a ScheduleWakeup tool_use
+               was recorded (present, refused). Since ScheduleWakeup is GRANTED in
+               --allowed-tools, only --disallowedTools can deny it -> attributable to
+               the flag under test. Ships.
   AVAILABLE    a ScheduleWakeup tool_use was recorded and NOT denied (the flag did
                NOT remove the tool in this environment).
-  REMOVED      neither, AND both controls bracketed the attempt (the model reached
-               and passed Action 2), so the tool was PRESUMPTIVELY absent from
-               context. Presumptive, not proven: a compliant model that silently
-               skipped Action 2 while still running Action 3 cannot be fully excluded.
-  INCONCLUSIVE nothing was measured (note_top), the BEFORE control did not run, or the
-               AFTER control did not run. Ships nothing: an unestablished measurement
-               is never collapsed onto the shippable REMOVED (CLAUDE.md: "Unknown is
-               not zero").
+  REMOVED      a ScheduleWakeup denial was recorded with NO registered tool_use
+               attempt — positive evidence the flag removed the tool from context,
+               distinct from a model that simply never attempted the call (which
+               records no denial). Presumptive, not proven: the harness may record a
+               denial without a tool_use node. Ships.
+  INCONCLUSIVE nothing was measured (note_top), OR no positive ScheduleWakeup signal
+               at all (no denial, no attempt). Ships nothing: presumptive absence is
+               never collapsed onto the shippable REMOVED — both controls running is
+               not evidence of removal, only that the model progressed (issue #1527;
+               CLAUDE.md: "Unknown is not zero").
 
-Fail-open hardening (issue #415 review, finding #2): the ScheduleWakeup token match is
-case-INSENSITIVE, and a tool_use node is recorded even when it carries no `input` key.
-A tool recorded under a lower-cased / decorated / input-less name must still read as
-present (-> AVAILABLE, do NOT ship) rather than absent (-> REMOVED, ship) — the latter
-is a fail-open in the dangerous direction. Raw tool_use names are dumped in the table
-so an operator can confirm the harness's actual ScheduleWakeup name on the first live
-run.
+Fail-open hardening (issue #415 review, finding #2; tightened for issue #1527): the
+ScheduleWakeup attempt match is case-INSENSITIVE and keyed on the recorded tool_use
+NAME, never the `input` JSON — so a `ToolSearch` query naming ScheduleWakeup is NOT a
+false attempt. The denial match is likewise keyed on the `permission_denials` entry's
+tool-name field, so the token nested in a denial's input never falsely gates a SHIP
+verdict; an unrecognized denial shape yields no name and fails safe (no ship). A tool_use
+node is recorded even when it carries no `input` key, so a
+tool recorded under a lower-cased / decorated / input-less NAME still reads as present
+(-> AVAILABLE, do NOT ship) rather than absent — the fail-open in the dangerous
+direction. Raw tool_use names are dumped in the table so an operator can confirm the
+harness's actual ScheduleWakeup name on the first live run.
 
 Usage: schedulewakeup-probe-verdict.py [EXECUTION_FILE]
   EXECUTION_FILE  path to the action's execution file; if omitted, read from the
@@ -100,23 +110,41 @@ def parse_execution_file(exec_file):
 
 
 def collect(parsed):
-    """Walk the parsed structure and return (denials, tool_uses) as text lists.
+    """Walk the parsed structure and return (denials, tool_uses, tool_use_names,
+    denial_names) as text lists. tool_use_names is the recorded `name` of each tool_use
+    and denial_names the tool-name field of the recorded `permission_denials` entries,
+    collected separately so the attempt and denial predicates key on the name (issue #1527)
+    rather than substring-matching the serialized input/record.
 
     A tool_use node is recorded even when it carries no `input` key, so an
     input-less ScheduleWakeup call is not silently dropped (issue #415 finding #2)."""
     denials = []
     tool_uses = []
+    tool_use_names = []
+    denial_names = []
 
     def walk(o):
         if isinstance(o, dict):
             if o.get("type") == "tool_use":
-                tool_uses.append(
-                    json.dumps(o.get("input")) + " NAME=" + str(o.get("name", ""))
-                )
+                name = str(o.get("name", ""))
+                tool_uses.append(json.dumps(o.get("input")) + " NAME=" + name)
+                tool_use_names.append(name)
             pd = o.get("permission_denials")
             if isinstance(pd, list):
                 for d in pd:
                     denials.append(json.dumps(d))
+                    # Key the denial predicate (which gates SHIP) on scalar string NAME
+                    # fields only — the token elsewhere in the record (a nested input, a
+                    # non-scalar value) must not admit a false ship (issue #1527).
+                    if isinstance(d, dict):
+                        denial_names.append(
+                            " ".join(
+                                v for k in ("tool", "tool_name", "name")
+                                if isinstance((v := d.get(k)), str)
+                            )
+                        )
+                    else:
+                        denial_names.append("")
             for v in o.values():
                 walk(v)
         elif isinstance(o, list):
@@ -125,34 +153,37 @@ def collect(parsed):
 
     if parsed is not None:
         walk(parsed)
-    return denials, tool_uses
+    return denials, tool_uses, tool_use_names, denial_names
 
 
-def compute_verdict(denials, tool_uses, note_top):
+def compute_verdict(tool_uses, tool_use_names, denial_names, note_top):
     """Return (verdict, ship, sw_denied, sw_attempted, control_before,
-    control_after). The ScheduleWakeup token match is case-insensitive so a
-    lower-cased / decorated tool name still reads as present (issue #415 finding #2)."""
-    denial_text = "\n".join(denials).lower()
+    control_after)."""
     tooluse_text = "\n".join(tool_uses).lower()
+    names_text = "\n".join(tool_use_names).lower()
+    denial_names_text = "\n".join(denial_names).lower()
 
-    sw_denied = "schedulewakeup" in denial_text
-    sw_attempted = "schedulewakeup" in tooluse_text
+    # Key both signals on the recorded NAME field, never the token appearing anywhere in
+    # the serialized input/record — a ToolSearch query "select:ScheduleWakeup" or a denial
+    # record with the token nested in its input is not a real ScheduleWakeup call (issue
+    # #1527). Case-insensitive keeps a lower-cased/input-less name present (issue #415 #2).
+    sw_denied = "schedulewakeup" in denial_names_text
+    sw_attempted = "schedulewakeup" in names_text
     control_before = "/etc/hosts" in tooluse_text       # Action 1 ran
     control_after = "/etc/os-release" in tooluse_text    # Action 3 ran -> passed Action 2
 
     if note_top:
         verdict = "INCONCLUSIVE"
-    elif sw_denied:
+    elif sw_denied and sw_attempted:
         verdict = "DENIED"
+    elif sw_denied:
+        verdict = "REMOVED"
     elif sw_attempted:
         verdict = "AVAILABLE"
-    elif control_before and control_after:
-        # Neither denied nor attempted, and the model demonstrably progressed past
-        # Action 2 (both controls ran) — the tool was absent from its context.
-        verdict = "REMOVED"
     else:
-        # No ScheduleWakeup signal AND the model did not provably reach/pass Action 2
-        # — cannot distinguish tool-absence from a skipped attempt.
+        # No positive signal: a ship verdict requires a permission_denials record, never
+        # presumptive absence — both controls running is not evidence of removal, only
+        # that the model progressed (issue #1527; CLAUDE.md "Unknown is not zero").
         verdict = "INCONCLUSIVE"
 
     ship = verdict in ("DENIED", "REMOVED")
@@ -161,9 +192,10 @@ def compute_verdict(denials, tool_uses, note_top):
 
 def render(exec_file):
     parsed, note_top = parse_execution_file(exec_file)
-    denials, tool_uses = collect(parsed)
+    denials, tool_uses, tool_use_names, denial_names = collect(parsed)
     (verdict, ship, sw_denied, sw_attempted,
-     control_before, control_after) = compute_verdict(denials, tool_uses, note_top)
+     control_before, control_after) = compute_verdict(
+         tool_uses, tool_use_names, denial_names, note_top)
 
     inconclusive = verdict == "INCONCLUSIVE"
     if ship:
@@ -180,26 +212,28 @@ def render(exec_file):
     out.append("## ScheduleWakeup `--disallowedTools` probe (issue #415)")
     out.append("")
     out.append("Deterministic verdict from the execution file's "
-               "`permission_denials` (DENIED), recorded `tool_use` (AVAILABLE), "
-               "tool absence with both controls run (REMOVED, presumptive), or "
-               "no conclusive measurement (INCONCLUSIVE). The model's text is "
-               "never the measurement.")
+               "`permission_denials` with a recorded `tool_use` (DENIED), a recorded "
+               "`tool_use` not denied (AVAILABLE), a `permission_denials` with no "
+               "recorded attempt (REMOVED, presumptive), or no positive signal "
+               "(INCONCLUSIVE). The model's text is never the measurement.")
     out.append("")
     if verdict == "REMOVED":
         out.append("> [!NOTE]")
-        out.append("> REMOVED is **presumptive**: both controls bracketed the "
-                   "ScheduleWakeup attempt, but a compliant model that silently "
-                   "skipped Action 2 cannot be fully excluded. Confirm the recorded "
-                   "tool-use names below and re-run to corroborate before shipping.")
+        out.append("> REMOVED is **presumptive**: a ScheduleWakeup denial was recorded "
+                   "with no registered tool_use attempt, which reads as the flag removing "
+                   "the tool from context — but the harness may record a denial without a "
+                   "tool_use node, so confirm the recorded names below and re-run to "
+                   "corroborate before shipping.")
         out.append("")
     if inconclusive:
         out.append("> [!WARNING]")
         if note_top:
             out.append("> %s — verdict INCONCLUSIVE; re-run the probe." % note_top)
         else:
-            out.append("> The controls did not both run (before=%s, after=%s), so a "
-                       "tool-absence reading cannot be distinguished from the model "
-                       "skipping Action 2 — verdict INCONCLUSIVE; re-run the probe." % (
+            out.append("> No positive ScheduleWakeup signal (denial=no, attempt=no), so "
+                       "tool removal cannot be distinguished from the model not attempting "
+                       "the call (controls: before=%s, after=%s) — verdict INCONCLUSIVE; "
+                       "re-run the probe." % (
                            "yes" if control_before else "no",
                            "yes" if control_after else "no"))
         out.append("")
@@ -227,9 +261,9 @@ def render(exec_file):
         out.append("_No permission_denials entries found in the execution file._")
 
     # Dump the recorded tool_use entries so the operator can confirm the harness's
-    # actual ScheduleWakeup tool name on the first live run — the name-agnostic,
-    # case-insensitive match above trusts that the token only appears via the real
-    # attempt, and this is how that assumption is checked rather than assumed.
+    # actual ScheduleWakeup tool name on the first live run — the name-scoped match above
+    # keys on the recorded name field, so this dump is how that field's real spelling is
+    # confirmed rather than assumed.
     out.append("")
     out.append("### Raw tool_use entries (%d)" % len(tool_uses))
     out.append("")
