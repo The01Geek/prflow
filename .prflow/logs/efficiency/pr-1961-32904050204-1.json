@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1961",
+  "generated_at": "2026-08-25T22:10:34Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.29",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.197842999999997,
+    "tokens": {
+      "input_tokens": 34,
+      "output_tokens": 21447,
+      "cache_read_input_tokens": 2285667,
+      "cache_creation_input_tokens": 178099,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 84,
+        "outputTokens": 43069,
+        "cacheReadInputTokens": 3647991,
+        "cacheCreationInputTokens": 420613,
+        "webSearchRequests": 0,
+        "costUSD": 6.197842999999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 30,
+    "duration_ms": 458520
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-EMPTY}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-EMPTY}\"; echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-EMPTY}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-EMPTY}\"",
+      "RID=\"${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"run-id=$RID\"; mkdir -p \".prflow/tmp/review/pr-1961/$RID\"; echo \"$RID\" | tee .prflow/tmp/review/pr-1961/current-run-id.txt",
+      "for f in skills/implement/phases/phase-2-implement.md skills/implement/phases/phase-2-sweeps-quality.md skills/implement/phases/phase-3-fix-loop.md skills/implement/phases/phase-3-review.md skills/review-and-fix/references/shadow-review.md; do wc -c \"$f\"; done",
+      "tmp=$(mktemp -d); cp -r skills \"$tmp/skills\"; cd \"$tmp\" 2>/dev/null; cp /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1961/run/diff.patch d.patch; git init -q .; git apply --include='skills/*' d.patch 2>&1 | head; wc -c skills/review-and-fix/references/shadow-review.md skills/implement/phases/phase-2-implement.md skills/implement/phases/phase-3-review.md",
+      "cd /tmp && rm -rf pr1961 && mkdir pr1961 && cp -r /home/runner/work/prflow/prflow/skills pr1961/skills && cp /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1961/run/diff.patch pr1961/d.patch && cd pr1961 && patch -p1 --no-backup-if-mismatch < d.patch >/tmp/patchlog 2>&1; tail -5 /tmp/patchlog; wc -c skills/review-and-fix/references/shadow-review.md",
+      "rm -rf /tmp/pr1961; mkdir -p /tmp/pr1961; cp -r /home/runner/work/prflow/prflow/skills /tmp/pr1961/skills; patch -d /tmp/pr1961 -p1 --no-backup-if-mismatch < /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1961/run/diff.patch > /tmp/patchlog 2>&1; grep -i -E \"fail|reject|hunk\" /tmp/patchlog | head; wc -c /tmp/pr1961/skills/review-and-fix/references/shadow-review.md"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
