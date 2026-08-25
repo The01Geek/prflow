@@ -47,16 +47,25 @@ fi
 # been taken`) as defense-in-depth, but `already_exists` is the load-bearing one for
 # the REST body. It deliberately does NOT match a bare `HTTP 422`: a 422 for a
 # *different* validation reason (e.g. a malformed label name) must route to the
-# failure breadcrumb, not be silently swallowed as "already exists".
+# failure breadcrumb, not be silently swallowed as "already exists". The match is a
+# bash `case` (no `grep`): `grep` is not a preflight-guaranteed tool, so a grep-less
+# host must not misreport a benign already-exists as a failure. `nocasematch` keeps the
+# match case-insensitive, matching the retired `grep -qiE` — without it a differently-cased
+# error body (`Already Exists`) would fall through to the failure breadcrumb.
 ERR_OUT="$("$DEVFLOW_GH" api --method POST "repos/{owner}/{repo}/labels" -f "name=$NAME" -f "description=Created by PRFlow automation" 2>&1)"
 RC=$?
 
 if [ "$RC" -eq 0 ]; then
     echo "devflow: created label '$NAME'" >&2
-elif printf '%s' "$ERR_OUT" | grep -qiE 'already exists|already been taken|already_exists'; then
-    echo "devflow: label '$NAME' already exists" >&2
 else
-    echo "devflow: warning: could not ensure label '$NAME' (best-effort, continuing): ${ERR_OUT}" >&2
+    shopt -s nocasematch
+    case "$ERR_OUT" in
+        *already_exists*|*"already exists"*|*"already been taken"*)
+            echo "devflow: label '$NAME' already exists" >&2 ;;
+        *)
+            echo "devflow: warning: could not ensure label '$NAME' (best-effort, continuing): ${ERR_OUT}" >&2 ;;
+    esac
+    shopt -u nocasematch
 fi
 
 exit 0

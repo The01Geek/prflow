@@ -195,11 +195,12 @@ EXEC_EDGES = {
     "scripts/apply-labels.sh": [
         ExecSpec("dirname", _EXT, _PROFILE_GRANT),
         ExecSpec("gh", _EXT),
+        ExecSpec("scripts/config-get.sh", _REPO),
+        ExecSpec("scripts/ensure-label.sh", _REPO),
     ],
     "scripts/ensure-label.sh": [
         ExecSpec("dirname", _EXT, _PROFILE_GRANT),
         ExecSpec("gh", _EXT),
-        ExecSpec("grep", _EXT, _PROFILE_GRANT),
     ],
     "scripts/dismiss-stale-rejections.sh": [
         ExecSpec("dirname", _EXT, _PROFILE_GRANT),

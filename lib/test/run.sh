@@ -1087,34 +1087,28 @@ assert_eq "deferred.labels: missing config file → resolver default DevFlow,Def
   "$("$CG" .deferred.labels DevFlow,Deferred /no/such/config.json)"
 rm -f "$DEF_CFG"
 
-# The SKILL's inline normalization, applied to the resolver output above. Mirrors the
-# exact idiom in the implement skill's Phase 4.0/4.0.5 (phases/phase-4-documentation.md;
-# and Phase 4.1 docs.labels)
-# so the trim / drop-empties / empty-value ACs are exercised, not just asserted in
-# prose. Keep byte-aligned with the SKILL block.
-deferred_labels_normalize() {
-  echo "$1" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' | tr '\n' ',' | sed 's/,$//'
-}
-assert_eq "deferred.labels normalize: default passed through"        "DevFlow,Deferred" "$(deferred_labels_normalize 'DevFlow,Deferred')"
-assert_eq "deferred.labels normalize: trims interior spaces"         "DevFlow,Deferred" "$(deferred_labels_normalize 'DevFlow, Deferred')"
-assert_eq "deferred.labels normalize: single label"                  "DevFlow"          "$(deferred_labels_normalize 'DevFlow')"
-assert_eq "deferred.labels normalize: drops empty entries"           "A,B"              "$(deferred_labels_normalize 'A, ,B,')"
-assert_eq "deferred.labels normalize: whitespace-only → empty (no labels)" ""           "$(deferred_labels_normalize ' , ')"
-assert_eq "deferred.labels normalize: empty string → empty (no labels)"    ""           "$(deferred_labels_normalize '')"
+# Normalization semantics (split / trim / drop-empties, empty-string→fallback,
+# whitespace/separator-only→no-labels) now live INSIDE scripts/apply-labels.sh's config-driven
+# mode (issue #1855) and are exercised behaviorally in the "#1855 apply-labels" block far BELOW
+# this one in this same file (not above); the hand-copied SKILL-mirror normalizer that used to sit
+# here is retired with the SKILL pipeline it mirrored.
 
-# Drift guards: the label-resolution/apply bash is prompt markdown (not a script), so a
-# SKILL edit could silently drop it. Pin the load-bearing tokens in the real SKILL so a
-# regression fails here instead of shipping deferred issues unlabeled.
+# Drift guards: the label-apply bash is prompt markdown (not a script), so a SKILL edit could
+# silently drop it. Pin the load-bearing token in the real SKILL so a regression fails here
+# instead of shipping deferred issues unlabeled.
 # issue #218: search the whole implement-skill bundle (orchestrator + phase files), not
 # a single file — the deferred.labels idiom these guards pin lives in the Phase 4.0/4.0.5
 # detail that relocated to phases/phase-4-documentation.md.
+# issue #1855: the deferral channels collapsed to a single apply-labels.sh call that names the
+# config key + fallback; the helper reads config and creates each label itself, so the separate
+# config-get read, the per-label ensure-label.sh call, and the tr|sed|grep normalizer are GONE.
 DEF_SKILL="$IMPL_SKILL_BUNDLE"
-assert_eq "deferred.labels: SKILL reads via config-get with the PRFlow,Deferred default" "yes" \
-  "$(grep -qF 'config-get.sh .deferred.labels PRFlow,Deferred' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: non-unique: token appears in BOTH deferral channels (4.0+4.0.5)
-assert_eq "deferred.labels: SKILL ensures each label exists before applying (agent-level per-label call, #455)" "yes" \
-  "$(grep -qF 'ensure-label.sh "<label>"' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: non-unique: token appears in BOTH deferral channels (4.0+4.0.5); #455 reworked the piped-while loop into an agent-level single-leading-token call. #480: the label arg is QUOTED — the retired loop passed "$lbl", and dropping the quotes made a multi-word configured label (docs.labels: "Needs Docs") create the WRONG label ('Needs') while breadcrumbing SUCCESS.
-assert_eq "deferred.labels: SKILL applies labels via best-effort REST apply-labels.sh helper (agent-level per-issue call, #455)" "yes" \
-  "$(grep -qF 'apply-labels.sh <filed-issue-number> "<deferred-labels>"' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: non-unique: token appears in BOTH deferral channels (4.0+4.0.5); #455 reworked the for/while loop + VAR="$(…)" capture into an agent-level single-leading-token call
+assert_eq "deferred.labels: SKILL applies configured labels via one collapsed apply-labels.sh call naming the config key + fallback (#1855, both channels)" "yes" \
+  "$([ "$(grep -cF 'apply-labels.sh <filed-issue-number> --config-key .deferred.labels --config-fallback PRFlow,Deferred' "$DEF_SKILL")" -ge 2 ] && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: count-based (>=2, one per deferral channel) — the granted leading-token helper-invocation shape the implement matcher grants
+assert_eq "deferred.labels: SKILL no longer carries a separate config-get read in the deferral channels (#1855, helper reads config)" "no" \
+  "$(grep -qF 'config-get.sh .deferred.labels PRFlow,Deferred' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: absence pin: the separate config read is GONE (expected no)
+assert_eq "deferred.labels: the label call sites no longer carry a separate per-label ensure-label.sh call (#1855, helper folds creation)" "0" \
+  "$(cat "$LIB/../skills/implement/phases/phase-4-documentation.md" "$LIB/../skills/implement/references/deferred-ac-followups.md" "$LIB/../skills/implement/references/deferred-review-findings.md" | grep -cF 'ensure-label.sh "<label>"' || true)"  # raw-guard-ok: absence pin scoped to the label CALL-SITE files: the per-label ensure call is GONE (expected 0). #1855 also retired the quoted shape example from SKILL.md's Cloud-command-shape section, so no per-label ensure form remains in the bundle at all.
 # issue #1011: Phase 4.0 registers the parent as a GitHub-native blocked-by dependency of each
 # filed follow-up, immediately after the label stamp — one single-statement, leading-token,
 # per-issue helper call (the same emission discipline the label helpers carry).
@@ -1122,28 +1116,15 @@ assert_eq "#1011: Phase 4.0 stamps native blocked-by deps via apply-issue-depend
   "$(grep -qF 'apply-issue-dependencies.py <filed-issue-number>' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: the cloud-emitted leading-token helper-invocation shape the implement matcher grants; a for/while wrap or VAR="$(…)" capture is a denied shape
 # Both deferral channels must label: Phase 4.0 (no longer "add no --label") and Phase
 # 4.0.5. Require the resolution token to appear at least twice (once per channel).
-assert_eq "deferred.labels: SKILL resolves the labels in BOTH deferral channels (4.0 + 4.0.5)" "yes" \
-  "$([ "$(grep -cF 'config-get.sh .deferred.labels PRFlow,Deferred' "$DEF_SKILL")" -ge 2 ] && echo yes || echo no)"  # raw-guard-ok: count-based: asserts >=2 occurrences (both channels), not single-presence
 assert_eq "deferred.labels: SKILL Phase 4.0 no longer instructs 'add no --label' as a maintainer task" "no" \
   "$(grep -qF 'add **no** `--label` (labeling is handled separately by maintainers)' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: absence pin: asserts the removed 'add no --label' instruction is GONE (expected no)
-# Pin the normalization pipeline itself (not just the read/ensure/apply tokens): the
-# deferred_labels_normalize() helper above is a hand-copied replica, so without this pin a
-# SKILL edit to the trim/drop-empties pipeline would drift silently while the replica
-# keeps passing. Scope the count to the DEFERRED assignment (`CLEAN_DEFERRED_LABELS=$(echo
-# "$DEFERRED_LABELS" | …`) so it is deferred-unique — the identical pipeline also appears on
-# the Phase 4.1 docs.labels line (CLEAN_LABELS / DOCS_LABELS), so a bare pipeline count would
-# read 3 and a `>= 2` threshold would still pass if ONE deferred channel lost it. Both
-# channels (4.0 + 4.0.5) must carry the exact deferred pipeline → require EXACTLY 2.
-assert_eq "deferred.labels: SKILL keeps the exact normalization pipeline in BOTH channels" "yes" \
-  "$([ "$(grep -cF 'CLEAN_DEFERRED_LABELS=$(echo "$DEFERRED_LABELS" | tr '"'"','"'"' '"'"'\n'"'"' | sed '"'"'s/^[[:space:]]*//; s/[[:space:]]*$//'"'"' | grep -v '"'"'^$'"'"' | tr '"'"'\n'"'"' '"'"','"'"' | sed '"'"'s/,$//'"'"')' "$DEF_SKILL")" -eq 2 ] && echo yes || echo no)"  # raw-guard-ok: count-based: asserts ==2 occurrences (both channels), not single-presence. #480: the tail is `tr | sed`, NOT `paste` — paste is granted in NO allowlist, so a paste tail refuses the whole pipeline and the capture comes back silently empty.
-# Pin the read-failure discrimination: a hard config-get read failure must be attributable,
-# not silently collapsed into the deliberately-empty-value path. Issue #284 moved this to a
-# single-statement `if !` that reads config-get's OWN exit status inline (no captured rc read
-# in a later statement — the inline-bash cross-statement-variable-stripping hazard) and is
-# also `set -e`-exempt. Pin the new idiom in BOTH deferral channels (4.0 + 4.0.5).
-assert_eq "deferred.labels: SKILL discriminates config-get read failure via single-statement if! (both channels)" "yes" \
-  "$([ "$(grep -cF 'if ! DEFERRED_LABELS=$(' "$DEF_SKILL")" -eq 2 ] && echo yes || echo no)"  # raw-guard-ok: count-based: asserts ==2 occurrences (both channels)
-# The old captured-rc recipe must be GONE (its reintroduction is the #284 hazard):
+# issue #1855: the tr|sed|grep normalizer, the `if ! DEFERRED_LABELS=$(…)` config capture, and the
+# captured-rc recipe all moved INTO apply-labels.sh (config-driven mode). Pin each removed idiom
+# absent from the deferral channels so a re-introduction fails here.
+assert_eq "deferred.labels: SKILL no longer carries the tr|sed|grep normalization pipeline (#1855, helper normalizes)" "no" \
+  "$(grep -qF 'CLEAN_DEFERRED_LABELS=$(echo' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: absence pin: the SKILL-side normalizer is GONE (expected no)
+assert_eq "deferred.labels: SKILL no longer carries the single-statement if! DEFERRED_LABELS config capture (#1855)" "no" \
+  "$(grep -qF 'if ! DEFERRED_LABELS=$(' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: absence pin: the SKILL-side config capture is GONE (expected no)
 assert_eq "deferred.labels: SKILL no longer carries the old DEFERRED_LABELS_RC capture-then-read recipe" "no" \
   "$(grep -qF 'DEFERRED_LABELS_RC' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: absence pin: the captured-rc var is GONE (expected no)
 
@@ -4814,9 +4795,9 @@ fi
 # reads any header numeral — it counts the shipped bullets directly, keeping the population
 # guard while the shipped prose carries no count. The region is the routing list between the
 # exits header and the label-apply prose.
-_P4_ROUTING_BULLETS="$(awk '/exits before any label is applied/,/^If the printed/' "$P405_REF" | grep -c '^- \*\*')"
-assert_eq "#555 the §4.0.5 reader-routing list still carries exactly 7 routing bullets (5 exits + 2 qualifiers) — pinned mechanically, not against any shipped header numeral (#1415)" \
-  "7" "$_P4_ROUTING_BULLETS"
+_P4_ROUTING_BULLETS="$(awk '/exits before any label is applied/,/^For each filed issue number/' "$P405_REF" | grep -c '^- \*\*')"
+assert_eq "#555 the §4.0.5 reader-routing list still carries exactly 6 routing bullets (4 exits + 2 qualifiers) — pinned mechanically, not against any shipped header numeral (#1415)" \
+  "6" "$_P4_ROUTING_BULLETS"
 
 # Issue #1188: the docs-rationale/overview MIRROR presence pins that used to sit here
 # (sweep 2.3.6 / 2.3.0a / 2.3.0b keeps-the-rationale-row, and the 2.3.0b overview
@@ -14564,6 +14545,133 @@ assert_eq "apply-labels: no porcelain fallback on the FAILURE path (no gh issue/
   "$(! grep -qE 'issue edit|pr edit' "$AL_TMP/fail-args" && echo yes || echo no)"
 rm -rf "$AL_TMP"
 
+# ── #1855: apply-labels.sh outcome token (stdout), config-driven mode, folded ensure ──
+# The helper prints exactly ONE outcome token to stdout on every path it runs — from the closed
+# set {applied, nothing-to-apply, arg-slip, api-failure, config-unreadable}, none of which
+# contains "already exists" — so a call site routes on the token, not on English stderr sentences.
+# `--config-key`/`--config-fallback` mode makes the helper resolve the label list itself through
+# config-get.sh, and both modes fold in label creation (a call site needs no separate
+# ensure-label.sh call). Drive both against a stubbed gh; 2>/dev/null keeps only the stdout token.
+I1855_TMP="$(mktemp -d)"
+cat > "$I1855_TMP/gh_ok" <<'STUB'
+#!/usr/bin/env bash
+echo '[]'; exit 0
+STUB
+chmod +x "$I1855_TMP/gh_ok"
+cat > "$I1855_TMP/gh_fail" <<'STUB'
+#!/usr/bin/env bash
+echo "HTTP 500: server error" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_fail"
+assert_eq "#1855 apply-labels: positional success emits the 'applied' token on stdout" "applied" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 DevFlow 2>/dev/null)"
+assert_eq "#1855 apply-labels: an empty/whitespace label set emits the 'nothing-to-apply' token" "nothing-to-apply" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 "  " 2>/dev/null)"
+assert_eq "#1855 apply-labels: a non-numeric number emits the 'arg-slip' token" "arg-slip" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" abc DevFlow 2>/dev/null)"
+assert_eq "#1855 apply-labels: an apply POST failure emits the 'api-failure' token" "api-failure" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_fail" bash "$LIB/../scripts/apply-labels.sh" 42 DevFlow 2>/dev/null)"
+# STDOUT carries ONLY the token (nothing else) on a successful multi-label apply.
+assert_eq "#1855 apply-labels: stdout on success is exactly the single token" "applied" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 "DevFlow,Deferred" 2>/dev/null)"
+# No token value contains "already exists" (that phrase is ensure-label.sh's stderr breadcrumb).
+assert_eq "#1855 apply-labels: no stdout outcome carries the 'already exists' phrase" "no" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 DevFlow 2>/dev/null | grep -qiF 'already exists' && echo yes || echo no)"
+# Config-driven mode: the helper resolves the list itself via config-get.sh. Use a throwaway git
+# repo so config-get resolves ITS root .prflow/config.json (the SHARED REPO-ROOT CONFIG CONTRACT).
+I1855_CFG="$(mktemp -d)"
+( cd "$I1855_CFG" && git init -q && mkdir -p .prflow )
+printf '%s' '{"docs":{"labels":"Documented,Reviewed"}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: config mode resolves labels from config and emits 'applied'" "applied" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+printf '%s' '{"docs":{"labels":""}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: an empty configured value resolves to the caller's fallback (applied)" "applied" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+printf '%s' '{"docs":{"labels":" , , "}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: a whitespace/separator-only configured value emits 'nothing-to-apply'" "nothing-to-apply" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+printf '%s' '{bad json' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: a corrupt config (config-get rc!=0) emits 'config-unreadable'" "config-unreadable" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+# Six-shape config adversarial matrix (CLAUDE.md best-effort-parser gotcha + the config-derivation
+# mandate in .prflow/prompt-extensions/{review-and-fix,receiving-code-review}.md): the four rows above
+# cover scalar (applied), valid-falsy empty-string (→fallback), whitespace-only (nothing-to-apply),
+# and corrupt-JSON (config-unreadable). The remaining rows:
+#   * OBJECT (wrong-type) — config-get.sh coerces a dict to the "[object Object]" sentinel and exits 0;
+#     applying it verbatim would create a garbage label reported 'applied', so the helper's wrong-type
+#     guard maps it to config-unreadable instead.
+printf '%s' '{"docs":{"labels":{"a":"b"}}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: an object-typed configured value (wrong-type) emits 'config-unreadable', not a garbage label" "config-unreadable" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+#   * ARRAY — config-get.sh comma-joins the elements, which IS a valid label list, so it applies.
+printf '%s' '{"docs":{"labels":["Documented","Reviewed"]}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: an array-typed configured value comma-joins into a valid label list and applies" "applied" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+# A MIXED array containing a non-scalar (object) element coerces element-wise to
+# "Documented,[object Object]" — not the bare sentinel — so the guard must match the sentinel
+# as a SUBSTRING, else the garbage element slips through and is applied as a label reported 'applied'.
+printf '%s' '{"docs":{"labels":["Documented",{"foo":"bar"}]}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: a mixed array with a non-scalar (object) element emits 'config-unreadable' (substring guard)" "config-unreadable" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+#   * MISSING key — config-get.sh exits 0 with empty stdout, so the caller's fallback is applied.
+printf '%s' '{"other":"x"}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: a missing config key resolves to the caller's fallback and applies" "applied" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+# WRITTEN REASON (the sixth matrix row, number/bool scalar): config-get.sh coerces a number to its
+# digits and a bool to lowercase "true"/"false" — each a well-formed single label string, not a
+# garbage sentinel — so a wrong-scalar-type value applies a (oddly-named but valid) label rather
+# than mishandling; no separate guard or assertion is owed for it beyond the scalar row above.
+rm -rf "$I1855_CFG"
+# Interior-space trim (preserves coverage the retired deferred_labels_normalize() helper carried):
+# a comma-separated value with interior spaces normalizes to trimmed labels and applies.
+assert_eq "#1855 apply-labels: interior spaces around a comma-separated positional label list are trimmed and applied" "applied" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 "DevFlow, Deferred" 2>/dev/null)"
+# ensure-label.sh classifies already-exists WITHOUT grep (the folded creation path benefits too),
+# so a grep-less host reports the benign already-exists as success. Shadow `grep` with an unusable
+# stub on PATH; the case-match must not depend on it.
+cat > "$I1855_TMP/gh_ae" <<'STUB'
+#!/usr/bin/env bash
+echo '{"message":"Validation Failed","errors":[{"resource":"Label","code":"already_exists","field":"name"}],"status":"422"}' >&2
+echo "gh: Validation Failed (HTTP 422)" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_ae"
+mkdir -p "$I1855_TMP/nogrep"
+printf '#!/usr/bin/env bash\nexit 127\n' > "$I1855_TMP/nogrep/grep"; chmod +x "$I1855_TMP/nogrep/grep"
+I1855_ELE="$(PATH="$I1855_TMP/nogrep:$PATH" DEVFLOW_GH="$I1855_TMP/gh_ae" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
+assert_eq "#1855 ensure-label: an already-exists response is reported as success on a grep-less host" "yes" \
+  "$(printf '%s' "$I1855_ELE" | grep -qiF 'already exists' && echo yes || echo no)"
+assert_eq "#1855 ensure-label: a grep-less host does NOT misreport already-exists as a failure" "no" \
+  "$(printf '%s' "$I1855_ELE" | grep -qiF 'could not ensure label' && echo yes || echo no)"
+# The case-match has three arms; the JSON stub above exercises only the `already_exists` code arm.
+# Exercise the other two literal arms so a regression narrowing the case to one pattern is caught.
+cat > "$I1855_TMP/gh_ae_text" <<'STUB'
+#!/usr/bin/env bash
+echo "gh: Validation Failed: Label already exists (HTTP 422)" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_ae_text"
+I1855_ELE_TEXT="$(DEVFLOW_GH="$I1855_TMP/gh_ae_text" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
+assert_eq "#1855 ensure-label: the plain-text 'already exists' arm is classified as success" "yes" \
+  "$(printf '%s' "$I1855_ELE_TEXT" | grep -qiF 'already exists' && echo yes || echo no)"
+cat > "$I1855_TMP/gh_ae_taken" <<'STUB'
+#!/usr/bin/env bash
+echo "gh: name has already been taken (HTTP 422)" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_ae_taken"
+I1855_ELE_TAKEN="$(DEVFLOW_GH="$I1855_TMP/gh_ae_taken" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
+assert_eq "#1855 ensure-label: the 'already been taken' arm is classified as success (not a failure)" "no" \
+  "$(printf '%s' "$I1855_ELE_TAKEN" | grep -qiF 'could not ensure label' && echo yes || echo no)"
+# Case-insensitivity (matches the retired `grep -qiE`): a differently-cased already-exists body
+# must still classify as success, via `shopt -s nocasematch`, not fall through to the failure arm.
+cat > "$I1855_TMP/gh_ae_cased" <<'STUB'
+#!/usr/bin/env bash
+echo "gh: Validation Failed: Label Already Exists (HTTP 422)" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_ae_cased"
+I1855_ELE_CASED="$(DEVFLOW_GH="$I1855_TMP/gh_ae_cased" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
+assert_eq "#1855 ensure-label: a differently-cased 'Already Exists' body is still classified as success (case-insensitive match)" "no" \
+  "$(printf '%s' "$I1855_ELE_CASED" | grep -qiF 'could not ensure label' && echo yes || echo no)"
+rm -rf "$I1855_TMP"
+
 # ── apply-pr-triggerer.sh: best-effort PR assignment to the triggerer (#1165) ──
 # Closed outcome contract: prints exactly ONE `assignment: applied <login>` /
 # `assignment: skipped <reason>` token to STDOUT, ALWAYS exits 0, breadcrumbs to
@@ -16341,8 +16449,8 @@ assert_eq "#275 docs: install.md documents the PowerShell UTF-16LE write pitfall
   "$(grep -q 'UTF-16LE' "$LIB/../docs/internal/install.md" && grep -q 'utf8NoBOM' "$LIB/../docs/internal/install.md" && echo yes || echo no)"  # raw-guard-ok: compound doc presence pin (two coupled fragments of one gotcha)
 assert_pin_unique "#275 docs: install.md documents the inline-bash variable-stripping constraint" \
   "reads **empty** in a later statement of the same command" "$LIB/../docs/internal/install.md"  # structural-pin-ok: cross-file-phase-contract -- boundary-adjudicated (literal:1316523, runner_scope_contract): install.md forbids the assign-then-use command shape that erases helper-path variables on the supported runner; the docs/internal move (issue #1188) re-scoped this site into the #810 diff, so the recorded boundary now needs the co-located site tag
-assert_eq "#97 pin: implement applies DevFlow label at PR create via REST helper" "yes" \
-  "$(grep -q 'ensure-label.sh PRFlow' "$IMPL_SKILL_BUNDLE" && grep -qF 'apply-labels.sh <draft-pr-number> PRFlow' "$IMPL_SKILL_BUNDLE" && echo yes || echo no)"  # raw-guard-ok: compound: two greps && on one line (provenance: ensure-label + REST apply-labels); issue #218: bundle (label idiom in phases/phase-3-review.md). #480: the PR number is a substituted LITERAL, not "$PR_NUM" — that variable is set in a previous fence and does not survive into this separate command on the cloud runner, so the old form passed an empty number and the helper refused at its arg-slip guard (the label never landed on the PR).
+assert_eq "#97 pin: implement applies PRFlow label at PR create via REST helper" "yes" \
+  "$(grep -qF 'apply-labels.sh <draft-pr-number> PRFlow' "$IMPL_SKILL_BUNDLE" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: the granted leading-token apply-labels invocation phase-3 §3.1 stamps the provenance label with; issue #218: bundle (label idiom in phases/phase-3-review.md). #1855: the call collapsed to ONE apply-labels.sh invocation — the helper creates the label itself, so the separate ensure-label.sh PRFlow call is gone. #480: the PR number is a substituted LITERAL, not "$PR_NUM".
 assert_eq "#152 pin: meta-issue.sh ensures+applies DevFlow and Retrospective labels via REST helper" "yes" \
   "$(grep -q 'ensure-label.sh' "$LIB/meta-issue.sh" && grep -qF 'apply-labels.sh' "$LIB/meta-issue.sh" && grep -qF 'PRFlow Retrospective' "$LIB/meta-issue.sh" && echo yes || echo no)"
 assert_eq "#97 pin: init creates the reserved DevFlow provenance label" "yes" \
@@ -16366,7 +16474,7 @@ assert_eq "#228: phase-4 removed the gh issue edit --add-label deferred command"
 assert_eq "#228: phase-4 removed the gh pr edit --add-label docs-label command" "yes" \
   "$(! grep -qF 'gh pr edit --add-label "$CLEAN_LABELS"' "$IMPL_SKILL_BUNDLE" && echo yes || echo no)"  # raw-guard-ok: absence pin — asserts the removed porcelain command literal is GONE (negated grep, not a presence pin)
 assert_eq "#228: phase-4 docs-label routes through apply-labels.sh (symmetric presence pin)" "yes" \
-  "$(grep -qF 'apply-labels.sh <docs-pr-number> "<docs-labels>"' "$IMPL_SKILL_BUNDLE" && echo yes || echo no)"  # raw-guard-ok: presence pin pairs with the docs-label absence pin above so a typo'd new invocation can't pass all phase-4 pins. #480: the PR number and label list are substituted LITERALS, not "$DOCS_PR_NUM"/"$CLEAN_LABELS" — the reworked 4.1 emits a single leading-token call (the old form nested it inside two `if` compounds, a shape no probe row measured).
+  "$(grep -qF 'apply-labels.sh <docs-pr-number> --config-key .docs.labels --config-fallback Documented' "$IMPL_SKILL_BUNDLE" && echo yes || echo no)"  # raw-guard-ok: presence pin pairs with the docs-label absence pin above so a typo'd new invocation can't pass all phase-4 pins. #1855: the reworked 4.1 emits a single leading-token apply-labels.sh call that names the config key + fallback — the helper reads .docs.labels and creates each label itself, so the separate config read and per-label ensure call are gone. The PR number is a substituted LITERAL, not "$DOCS_PR_NUM".
 assert_eq "#228: pr-description edits the body via REST gh api PATCH, not gh pr edit --body" "yes" \
   "$(grep -qF 'api --method PATCH' "$LIB/../skills/pr-description/SKILL.md" && ! grep -qF 'gh pr edit $PR_NUMBER --body' "$LIB/../skills/pr-description/SKILL.md" && echo yes || echo no)"  # raw-guard-ok: compound presence+absence pin (REST PATCH present AND old porcelain gone), not a single target-unique pin
 # Positively pin the migrated body-write SHAPE: `-F body=@-` reads the field literally
@@ -36082,10 +36190,11 @@ assert_eq "#455 AC4: all four label call sites carry a co-located Cloud-emission
   "$(grep -cF 'Cloud-emission discipline (label helpers)' "$IMPL_SKILL_BUNDLE" || true)"  # raw-guard-ok: count-based: asserts ==4 co-located notes (one per label call site), not single-presence
 # BEHAVIORAL (not a source grep — a grep stays green if the echo is moved into a branch that
 # never fires). Drive the helper against a stubbed gh and assert each outcome is what the four
-# call sites' new routing rule reads: success line / failure line / SILENCE on an empty set.
-# The silence case is what makes "no output at all ⇒ the harness refused" a SOUND inference —
-# if an empty label set ever printed a success line, every channel would read a fabricated
-# success; if it printed anything at all, a real denial would be indistinguishable from it.
+# call sites' new routing rule reads: success line / failure line / a breadcrumb on an empty set.
+# The helper WRITES a breadcrumb for an empty label set (it is NOT silent) — see the
+# "NOT a harness denial" assertion below — so a harness refusal, which prints nothing at all, is
+# the ONLY silent outcome and stays distinguishable: "no output at all ⇒ the harness refused" is a
+# SOUND inference precisely because the empty-set path breadcrumbs rather than exiting silently.
 I455_STUB="$E363/ghstub"; mkdir -p "$I455_STUB"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$I455_STUB/gh_ok"; chmod +x "$I455_STUB/gh_ok"
 printf '#!/usr/bin/env bash\necho "HTTP 403" >&2\nexit 1\n' > "$I455_STUB/gh_fail"; chmod +x "$I455_STUB/gh_fail"
@@ -36305,20 +36414,13 @@ assert_eq "#480 phase 3.1 prints the draft PR number sentinel (the comparand its
 # recorded decision that such prose carries no automated regression coverage by design,
 # retirement owes no replacement coverage; the compensating control is the review pass. The
 # two literals above are unchanged legacy sites and stay.
-# The ensure-label quoting pin must be a COUNT, not an existential: `grep -qF` over the bundle is
-# satisfied by ANY one of the three call sites, so unquoting just the docs-label site (whose
-# default `Documented` is one word, but whose configured value need not be) slipped through
-# GREEN — the same vacuity class the arg-slip pins were re-attributed to close (#480 review).
-# #815 split the three sites across two files (4.0 moved to the gated reference; 4.0.5
-# and 4.1 stayed). Kept as a COUNT PER FILE rather than relaxed to an existential or
-# summed over the bundle: either relaxation restores the exact vacuity this pin closed —
-# unquoting one site while another satisfies the check.
-assert_eq "#480/#1374 the phase file's remaining ensure-label call site (4.1) quotes the label arg (a count pin — an existential one missed a single-site regression)" "1" \
-  "$(grep -cF 'ensure-label.sh "<label>"' "$I480_P4" || true)"
-assert_eq "#480/#1374 the relocated phase-4.0.5 ensure-label call site quotes the label arg" "1" \
-  "$(grep -cF 'ensure-label.sh "<label>"' "$I480_REF405" || true)"
-assert_eq "#480/#815 the relocated phase-4.0 ensure-label call site quotes the label arg" "1" \
-  "$(grep -cF 'ensure-label.sh "<label>"' "$I815_REF" || true)"
+# issue #1855: the three per-label `ensure-label.sh "<label>"` call sites (4.0, 4.0.5, 4.1) are
+# RETIRED — apply-labels.sh now creates each label itself, so the deferral/docs channels collapse
+# to a single apply-labels.sh call with no separate per-label ensure. Their quoting-count pins are
+# removed with the idiom; the collapsed-form and per-file absence pins live in the deferred.labels
+# block above (#1855). The unquoted-absence pin stays as a plain absence pin: no
+# `ensure-label.sh <label>` may survive anywhere in the bundle — no quoted or unquoted per-label
+# ensure-label call form remains in the implement bundle at all after the #1855 collapse.
 assert_eq "#480 no UNQUOTED 'ensure-label.sh <label>' survives anywhere in the implement skill bundle" "0" \
   "$(grep -cF 'ensure-label.sh <label>' "$IMPL_SKILL_BUNDLE" || true)"
 
