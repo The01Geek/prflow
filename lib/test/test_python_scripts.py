@@ -12370,6 +12370,91 @@ assert_eq("#1510 AC3: the stored record claims nothing about a later review's he
           (True, False),
           (_rc_head in _rc_gap_payload, _rc_later_head in _rc_gap_payload))
 
+# --- issue #1510 fix-loop additions: drive the gate over an anchored record, cover the new
+#     write-time refusal and the anchor's malformed/absent arms, and strengthen AC3. ---
+
+# The Complete gate is driven over a real 6-field ANCHORED record that reports gaps and carries
+# dispositions (the production path) — it passes exactly as the axis dict dictates, the anchor
+# being metadata the gate ignores.
+_rc_anchored_gate = apply_mut(_RC_BASE, make_args(
+    record_review_coverage=["not-verified", "attempted", "short", "skipped"],
+    record_review_coverage_head=_rc_head,
+    review_coverage_disposition=[
+        ["shadow-coverage", _RC_REASONS["shadow-coverage"]],
+        ["roster", _RC_REASONS["roster"]],
+        ["checklist", _RC_REASONS["checklist"]]]))
+assert_eq("#1510: the Complete gate passes over an anchored 6-field record with dispositioned gaps",
+          None, _rc_complete(_rc_anchored_gate))
+
+# A malformed head at write time is a structural refusal — no half-anchored record is written.
+_rc_bad_head_err = None
+try:
+    apply_mut(_CP_BODY, make_args(
+        record_review_coverage=["full", "attempted", "complete", "complete"],
+        record_review_coverage_head="NOTHEX-XYZ"), [])
+except workpad._UpdateError as _e:
+    _rc_bad_head_err = str(_e)
+assert_eq("#1510: a malformed --record-review-coverage-head is refused at write time (no PATCH)",
+          True, _rc_bad_head_err is not None
+          and "record-review-coverage-head" in _rc_bad_head_err
+          and "No PATCH was made" in _rc_bad_head_err)
+
+# An omitted head defaults to 'unestablished', round-trips, and the visible row shows it un-truncated.
+_rc_noh = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=["full", "attempted", "complete", "complete"]))
+_rc_noh_anchor = workpad._parse_review_coverage_anchor(
+    workpad._review_coverage_payloads(_rc_noh)[0])
+assert_eq("#1510: an omitted head records the anchor head as 'unestablished'",
+          "unestablished", (_rc_noh_anchor or {}).get("head"))
+assert_eq("#1510: the visible row shows an 'unestablished' head un-truncated (not sliced to 12)",
+          True, "as of head unestablished at " in _rc_noh)
+
+# A 6-field payload whose anchor is malformed reads as absent (None), never a partial anchor,
+# while its four axes still parse — the deliberate 'unreadable anchor is absent' divergence.
+_rc_mal6 = "full:attempted:complete:complete:NOThex:20260101T000000Z"
+assert_eq("#1510: a 6-field payload with a bad head yields no anchor (None)",
+          None, workpad._parse_review_coverage_anchor(_rc_mal6))
+assert_eq("#1510: ...yet its four axes still parse (anchor malformation never corrupts the axes)",
+          {"coverage": "full", "dispatch": "attempted", "roster": "complete",
+           "checklist": "complete"},
+          workpad._parse_review_coverage_payload(_rc_mal6))
+# A colon-bearing asof inflates the field count past n+2, so BOTH parsers reject the record —
+# the concrete failure the colon-free basic-ISO write-time spelling exists to avoid.
+_rc_colon_asof = "full:attempted:complete:complete:" + _rc_head + ":2026-01-01T00:00:00Z"
+assert_eq("#1510: a colon-bearing asof breaks the record (field-count blowup → axes unparseable)",
+          (None, None),
+          (workpad._parse_review_coverage_payload(_rc_colon_asof),
+           workpad._parse_review_coverage_anchor(_rc_colon_asof)))
+
+# AC3 strengthened: re-recording at a DIFFERENT reviewed head rebinds the anchor to that head, so
+# each stored record is bounded to its own head — a later review at head B produces a record naming
+# head B and never rewrites the earlier head-A record's anchor-bounded claim.
+_rc_headA = "a" * 40
+_rc_headB = "c" * 40
+_rc_recA = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=["not-verified", "attempted", "short", "skipped"],
+    record_review_coverage_head=_rc_headA))
+_rc_recB = apply_mut(_rc_recA, make_args(
+    record_review_coverage=["full", "attempted", "complete", "complete"],
+    record_review_coverage_head=_rc_headB))
+assert_eq("#1510 AC3: re-recording at a later reviewed head rebinds the anchor to that head (one record)",
+          (_rc_headB, 1),
+          ((workpad._parse_review_coverage_anchor(
+              workpad._review_coverage_payloads(_rc_recB)[0]) or {}).get("head"),
+           len(workpad._review_coverage_payloads(_rc_recB))))
+
+# The strip reads BOTH the current and the superseded reflection-bullet wording, so a bullet a
+# pre-#1510 code version wrote ("carried forward") is cleaned when a fresh record supersedes it —
+# otherwise a stale friction bullet would survive an upgrade and keep tripping the retrospective gate.
+_rc_old_bullet = _RC_BASE.replace(
+    "<summary>Devflow Reflection (click to expand)</summary>",
+    "<summary>Devflow Reflection (click to expand)</summary>\n"
+    "- 🔴 review coverage gap carried forward — gap=roster: a stale reason from prior code")
+_rc_stripped_old = apply_mut(_rc_old_bullet, make_args(
+    record_review_coverage=["full", "attempted", "complete", "complete"]))
+assert_eq("#1510: a fresh record strips a superseded ('carried forward') reflection bullet too",
+          False, "carried forward" in _rc_stripped_old)
+
 # Restore the module-load bypass so any later Complete tests are not gated on the record.
 workpad._review_coverage_verdict = lambda prog_content: None
 

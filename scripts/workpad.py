@@ -4244,9 +4244,8 @@ _REVIEW_COVERAGE_AXIS_GAP = {s['name']: s['gap'] for s in _REVIEW_COVERAGE_AXIS_
 _REVIEW_COVERAGE_GAPS = tuple(
     dict.fromkeys(s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS))
 # issue #1510: the record's optional as-of anchor — the trailing `<head>:<asof>` fields
-# appended after the axes. Both are colon-free so they round-trip the payload split and
-# the `[A-Za-z0-9._:-]` checkpoint-key grammar; a colon-bearing ISO time here would be
-# re-read as an axis field and break the record.
+# appended after the axes. Both are colon-free because the payload is re-split on `:`, so a
+# colon-bearing ISO time here would be re-read as an axis field and break the record.
 _REVIEW_COVERAGE_ANCHOR_FIELDS = 2
 _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED = 'unestablished'
 _REVIEW_COVERAGE_ANCHOR_HEAD_RE = re.compile(
@@ -4482,6 +4481,11 @@ def _render_review_coverage_disposition(gap: str, reason: str) -> str:
 
 _REVIEW_COVERAGE_REFLECTION_PREFIX = (
     "review coverage gap in this run's own review pass — gap=")
+# The pre-#1510 spelling (issue #1510 reworded the prefix). The strip below reads BOTH, so a
+# bullet a prior code version wrote is cleaned when a fresh record supersedes it across an
+# upgrade — otherwise a stale friction bullet survives and keeps tripping the retrospective gate.
+_REVIEW_COVERAGE_REFLECTION_PREFIX_SUPERSEDED = (
+    'review coverage gap carried forward — gap=')
 
 
 def _strip_review_coverage_reflection_bullets(content: str) -> str:
@@ -4490,11 +4494,12 @@ def _strip_review_coverage_reflection_bullets(content: str) -> str:
     Runs wherever the rows those bullets accompany are stripped, so a superseded or
     inherited disposition does not leave a permanent `### ⚠️ Action required` bullet
     that keeps tripping the retrospective friction gate after the gap it named is
-    gone. Matches on `_REVIEW_COVERAGE_REFLECTION_PREFIX`, the same constant the
-    disposition's reflection writer in `_apply_mutations` emits, so the two move
-    together."""
+    gone. Matches on `_REVIEW_COVERAGE_REFLECTION_PREFIX` (the constant the disposition's
+    reflection writer in `_apply_mutations` emits, so the two move together) and on its
+    superseded spelling, so a bullet a prior code version wrote is cleaned across an upgrade."""
     kept = [ln for ln in content.splitlines(keepends=True)
-            if _REVIEW_COVERAGE_REFLECTION_PREFIX not in ln]
+            if _REVIEW_COVERAGE_REFLECTION_PREFIX not in ln
+            and _REVIEW_COVERAGE_REFLECTION_PREFIX_SUPERSEDED not in ln]
     return ''.join(kept)
 
 
