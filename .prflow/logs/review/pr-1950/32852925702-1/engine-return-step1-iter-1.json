@@ -1,0 +1,52 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "phase3_findings": [
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "lib/clean-entry.jq:34 `bundle_issue_comments_present: ((.issue.comments // []) | length > 0)` — the `//` fallback guards a null `.issue` (jq indexes null.comments -> null -> []), but a non-null, non-object `.issue` (scalar/array) makes `.comments` a hard jq error that aborts the whole entry. The retrospective-weekly caller redirects only stdout and does not check run-jq.sh's exit, so an errored entry is silently dropped (that PR vanishes from the weekly retrospective with no breadcrumb). Mitigating fact: the bundle producer lib/fetch-pr-context.sh always emits `.issue` as `$issue[0]` which is either null or a well-formed object `{title,body,labels,comments}`, so a non-object `.issue` only arises from an upstream schema regression. Defensive fix suggested: `(((.issue | objects).comments // []) | length > 0)`.",
+      "defect_signature": {"file": "lib/clean-entry.jq", "line_range": [34, 34], "kind": "unhandled_exception"},
+      "fix_decision": "advisory — not fixed this iteration; producer guarantees object-or-null, so the failure shape is not reachable from the current bundle source. Defensive hardening optional."
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The `#1829 clean-entry: diff suppressed (diff_byte_cap)` fixture (CE_AP_SUPPRESSED) sets diff:null AND diff_truncated:true, so the first conjunct (.diff != null) short-circuits to false and the assertion passes regardless of the `(.diff_truncated // false) != true` clause. Deleting the truncation guard from clean-entry.jq would not fail this test. A fixture with a NON-null diff plus diff_truncated:true would pin the clause in isolation. Mitigating fact: fetch-pr-context.sh emits diff:null together with diff_truncated:true (never a non-null truncated diff), so the truncation conjunct is defensive dead code against the real producer and the gap has no production consequence.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [17108, 17110], "kind": "test_gap"},
+      "fix_decision": "advisory — not fixed; the untested clause is defensive against a shape the producer does not emit."
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The three-boolean derivation is maintained as two copies: the executable lib/clean-entry.jq and the documented jq in skills/retrospective/SKILL.md 'Example construction'. Nothing mechanically pins them equivalent; a future edit to one could drift silently. The SKILL.md block is agent-executed guidance (per CLAUDE.md #843/#876 such prose carries no mandated coverage), so this is a coupled-mirror observation, not a required pin. An extract-and-execute test (idiom already used at run.sh:3935/30684) could close it.",
+      "defect_signature": {"file": "skills/retrospective/SKILL.md", "line_range": [163, 167], "kind": "test_gap"},
+      "fix_decision": "advisory — the SKILL.md derivation is agent-guidance, not a machine-consumed contract; no drift-guard pin required."
+    },
+    {
+      "agent": "requesting-code-review,silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Asymmetric analysis_provenance handling between the two writers: lib/clean-entry.jq preserves an incoming analysis_provenance via the `// {…}` fallback (AC3), while the SKILL.md LLM-judged construction always builds a fresh object with no fallback. Harmless today — live bundles from fetch-pr-context.sh never carry analysis_provenance and AC3 scopes 'survives intact' to the clean path — but a latent trap if a future bundle source pre-populates the field on the non-clean path. Corroborated by two agents; both grade it informational/harmless.",
+      "defect_signature": {"file": "skills/retrospective/SKILL.md", "line_range": [351, 355], "kind": "other"},
+      "fix_decision": "advisory — divergence is intentional and documented by the inline comment on the clean path; no change required."
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "bundle_diff_present / bundle_workpad_body_present test non-null only, so a diff:\"\" or workpad_body:\"\" empty string counts as present. Matches the documented 'non-null' contract, but if the backfill cohort derived presence on non-empty rather than non-null the two populations would be subtly miscomparable. No change if the backfill derivation is also non-null-based.",
+      "defect_signature": {"file": "lib/clean-entry.jq", "line_range": [32, 33], "kind": "logic_error"},
+      "fix_decision": "advisory — matches documented non-null contract; no change."
+    }
+  ],
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": true
+  },
+  "cap_drops": {"count": 0, "by_category": {}},
+  "report": "# Review — PR #1950 (issue #1829): retrospective entries record `analysis_provenance`\n\n**Verdict: APPROVE with notes.** All findings are advisory Suggestions; none blocks merge.\n\n## Change under review\nAdds an `analysis_provenance` object (booleans `bundle_diff_present`, `bundle_workpad_body_present`, `bundle_issue_comments_present`) to retrospective entries in `lib/clean-entry.jq` and the LLM-judged construction documented in `skills/retrospective/SKILL.md`, bumps `schema_version` 2→3, adds fixtures in `lib/test/run.sh`, a coverage-map entry, and a changeset.\n\n## Verification performed\n- **schema_version bump is safe.** No retrospective-entry consumer validates `schema_version == 2`; the `!= 3` checks in `select-findings.sh`/`meta-issue.sh`/`pattern-state.sh` belong to the unrelated `overrides.json` schema. Existing entries are left byte-unchanged (no migration).\n- **Derivation reads real bundle fields.** `lib/fetch-pr-context.sh` emits top-level `.diff`, `.diff_truncated`, `.workpad_body`, and `.issue` (with `.comments`), matching the jq derivation exactly.\n- **Field names join the backfill cohort** (`.prflow/learnings/retrospectives.jsonl`), enabling population segmentation.\n- **Coupled prose/code/test sites are consistent** (code-reviewer confirmed byte-equivalent derivation logic across clean-entry.jq and SKILL.md example).\n- **Comment discipline satisfied:** the added `//`-fallback comment names a specific wrong change (collapsing the fallback would drop a bundle's own object) and its consequence, within 3 lines.\n- **Tests** cover all-absent, all-present, incoming-preserved (AC3), diff-suppressed (AC2), and empty-comments cases.\n\n## Findings (all Suggestion / advisory)\n1. **[silent-failure-hunter] `.issue.comments` on a non-object `.issue` errors and is silently dropped by the caller.** Real robustness gap, but the bundle producer guarantees `.issue` is object-or-null, so the shape is not reachable from the current source. Optional defensive fix: `(((.issue | objects).comments // []) | length > 0)`.\n2. **[pr-test-analyzer] The diff-suppressed fixture does not pin the `diff_truncated` clause in isolation** (diff:null short-circuits it). Harmless: the producer never emits a non-null truncated diff, so the clause is defensive dead code against real input.\n3. **[pr-test-analyzer] No mechanical drift guard between the two jq derivations.** The SKILL.md copy is agent-executed guidance (CLAUDE.md #843/#876), not a machine-consumed contract, so no pin is required.\n4. **[requesting-code-review + silent-failure-hunter, corroborated] Asymmetric passthrough:** clean path preserves an incoming object; LLM path always re-derives. Intentional and documented; harmless today.\n5. **[silent-failure-hunter] Empty-string diff/workpad counts as present** (non-null semantics) — matches the documented contract.\n\n## Notes\n- Prompt-surface edit routing: the diff touches `skills/retrospective/SKILL.md` (a trigger glob); the `Writing-skills evidence:` marker is present on the issue #1829 workpad per the caller.\n- The final-pass reviewer reported `EXTENSION-STATUS: loaded-empty resolved-root=unset` (consumer prompt extension present-empty) — no consumer policy to apply.\n\nThe change is additive, correct for the in-contract bundle shapes, well-tested, and consistent across its coupled sites. Approve; the advisory items above are optional hardening for a follow-up."
+}

@@ -1,0 +1,65 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "phase2_fails": [],
+  "reviewers_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Minor",
+      "description": "lib/clean-entry.jq:34 `(.issue.comments // [])` aborts the whole jq filter (non-zero, no entry emitted) if `.issue` is a non-object scalar/array, since `//` does not catch an index-type error. Latent only: the sole producer (lib/fetch-pr-context.sh) sets `.issue: $issue[0]`, which is object-or-null and never a scalar, so this is not reachable in production. Defensive hardening (`(.issue | objects | .comments) // []`) would fail-closed to false per the documented intent. Same for the SKILL.md mirror.",
+      "defect_signature": "clean-entry-issue-index-abort-on-scalar"
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Minor",
+      "description": "lib/clean-entry.jq:31 `.analysis_provenance // {…}` preserves a truthy incoming value verbatim (including a malformed non-object) and replaces a valid-falsy incoming value. No current producer injects analysis_provenance into the bundle, so purely latent. Could guard with `(.analysis_provenance | objects) // {…}`.",
+      "defect_signature": "clean-entry-provenance-alt-masks-nonobject"
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Minor",
+      "description": "The `diff_truncated` conjunct of bundle_diff_present is not independently exercised: CE_AP_SUPPRESSED sets both diff:null AND diff_truncated:true, so the `.diff != null` conjunct alone yields false. A regression dropping `and (.diff_truncated // false) != true` would leave all assertions green. Add a fixture with a non-null diff plus diff_truncated:true asserting bundle_diff_present:false.",
+      "defect_signature": "diff-truncated-branch-not-isolated"
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Several added lib/test/run.sh #1829 block comments are design-narrative / mirror-fact restatement of the fixtures and assertions beside them (CLAUDE.md §2.3). Behavior-inert prose, capped at Suggestion. The AC2 `diff_byte_cap` provenance comment is worth keeping; trim the rest.",
+      "defect_signature": "comment_discipline_narrative"
+    },
+    {
+      "agent": "code-reviewer",
+      "severity": "Minor",
+      "description": "skills/retrospective/SKILL.md added paragraph says the two populations 'segment on the field's presence' — imprecise, since live and backfill entries now both carry the three booleans and thus cannot be told apart by presence. The changeset's framing (segment on boolean values / diff-present vs diff-absent) is accurate. Behavior-inert prose read only by the runtime analyst.",
+      "defect_signature": "skill-prose-segment-wording-imprecise"
+    }
+  ],
+  "assessments": {
+    "code-reviewer": "Change is correct and well-targeted. analysis_provenance derivations verified against the real bundle shape from lib/fetch-pr-context.sh (diff/diff_truncated line 886, workpad_body line 894, issue.comments line 118); all three booleans read real fields and the diff_byte_cap suppression path correctly yields bundle_diff_present:false. jq in clean-entry.jq and the SKILL.md example are byte-consistent. The // fallback satisfies AC3 both ways. schema_version bumped consistently; no downstream reader gates on retrospective-entry schema_version==2, so 2→3 is non-breaking. coverage-map '1829' key inserted in correct lexicographic position; learnings untouched. Inline jq comment names a concrete wrong change (comment discipline satisfied). One Minor prose wording nit. No Critical/Important defects.",
+    "silent-failure-hunter": "The two jq constructions are byte-mirrored (coupled sites correctly edited together) and the diff-present derivation is the well-behaved part — `!= true` avoids valid-falsy coercion, so explicit diff_truncated:false still yields present. Happy path sound (no producer injects analysis_provenance; .issue is always $issue[0] object-or-null). Two malformed-input-axis surfaces flagged (CLAUDE.md adversarial-input matrix): a non-object .issue aborts the filter, and the // fallback passes a malformed/valid-falsy incoming provenance unvalidated. Both latent given the current machine producer.",
+    "comment-analyzer": "New comments are factually accurate against the code. The clean-entry.jq // fallback comment correctly names a real wrong change it prevents (discipline-compliant). The run.sh #1829 comments accurately describe the fixtures. Only concern is §2.3 comment discipline: several run.sh comments are design-narrative/restatement rather than naming a wrong change — behavior-inert, capped at Suggestion. Keep the AC2 diff_byte_cap 'why' comment.",
+    "pr-test-analyzer": "Fixtures cover the ACs well on happy and principal edge paths — AC1 both directions, AC2 suppression, AC3 both halves (incoming object survives; no-object still cleans), and the empty-comments edge. schema_version pin updated not left to rot; coverage is behavioral not source-grep. Two real gaps: the diff_truncated conjunct is never isolated (Medium), and the scalar-.issue abort is untested (Low-Medium, latent on producer guarantee). SKILL example jq is agent prose, correctly uncovered per #843/#876; both derivations stayed byte-semantically aligned. AC5 byte-unchanged is a property of the diff, no fixture owed.",
+    "requesting-code-review": "APPROVE. All five ACs met and verified by exercising shipped clean-entry.jq against synthetic bundles. The two jq derivations agree byte-for-byte in logic; field names match the real bundle producer (verified fetch-pr-context.sh lines 178-198, 846-894), so booleans carry real signal not always-false. Schema bump collides with no consumer (the other schema_version checks are the unrelated overrides.json lifecycle record). Changeset well-formed (bump:patch, type:Added, #1950 cited). coverage-map entry consistent. Existing learnings untouched. Small, self-consistent, complete, merge-ready. No findings."
+  }
+}

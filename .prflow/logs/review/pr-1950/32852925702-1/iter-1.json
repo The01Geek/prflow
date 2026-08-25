@@ -1,0 +1,333 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T13:30:00Z",
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "tentative_verdict": "APPROVE WITH CAVEAT",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": "intentional"
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "non-object .issue would raise an uncaught jq error; producer guarantees object-or-null so unreachable",
+      "defect_signature": {
+        "file": "lib/clean-entry.jq",
+        "line_range": [
+          34,
+          34
+        ],
+        "kind": "unhandled_exception"
+      },
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "CE_AP_SUPPRESSED short-circuits on diff:null so it does not pin the diff_truncated clause in isolation; defensive dead code vs the real producer",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          17108,
+          17110
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "two jq copies of the derivation with no mechanical drift pin; SKILL.md copy is agent-guidance (CLAUDE.md #843/#876), no mandated pin",
+      "defect_signature": {
+        "file": "skills/retrospective/SKILL.md",
+        "line_range": [
+          163,
+          167
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:requesting-code-review,prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "asymmetric analysis_provenance handling between the clean path (preserves) and the LLM path (rebuilds); intentional, documented, harmless today",
+      "defect_signature": {
+        "file": "skills/retrospective/SKILL.md",
+        "line_range": [
+          351,
+          355
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "empty-string diff/workpad_body counts as present (non-null test); matches documented non-null contract",
+      "defect_signature": {
+        "file": "lib/clean-entry.jq",
+        "line_range": [
+          32,
+          33
+        ],
+        "kind": "logic_error"
+      },
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "below-threshold",
+      "source_file": "lib/clean-entry.jq",
+      "claim_text": "non-object .issue jq error",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "below-threshold",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "diff-suppressed fixture short-circuits",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "below-threshold",
+      "source_file": "skills/retrospective/SKILL.md",
+      "claim_text": "two jq copies no drift pin",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "below-threshold",
+      "source_file": "skills/retrospective/SKILL.md",
+      "claim_text": "asymmetric handling",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "below-threshold",
+      "source_file": "lib/clean-entry.jq",
+      "claim_text": "empty string counts as present",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "parked_class_sweep": {
+    "classes": [
+      {
+        "source_finding_ids": [
+          "F-1"
+        ],
+        "kind_literal": "unhandled_exception",
+        "sites_examined": [
+          "lib/clean-entry.jq:26-35",
+          "skills/retrospective/SKILL.md:348-355"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F-2",
+          "F-3"
+        ],
+        "kind_literal": "test_gap",
+        "sites_examined": [
+          "lib/test/run.sh:17092-17116"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F-5"
+        ],
+        "kind_literal": "logic_error",
+        "sites_examined": [
+          "lib/clean-entry.jq:26-35"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F-4"
+        ],
+        "kind_literal": "other",
+        "sites_examined": [
+          "skills/retrospective/SKILL.md:296-355"
+        ],
+        "new_siblings": []
+      }
+    ],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 1,
+          "index": 0
+        },
+        "parked_finding_id": "F-1",
+        "shadow_finding_index": 0,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the same non-object .issue jq-abort observation on the same producer-guarantees-object-or-null basis; no new failing input",
+        "operands_present": true,
+        "disposition": "preserved"
+      },
+      {
+        "parked_finding_ref": {
+          "iter": 1,
+          "index": 1
+        },
+        "parked_finding_id": "F-2",
+        "shadow_finding_index": 1,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the same diff_truncated-clause-not-isolated test observation on the same basis; no new failing input",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-25T13:40:00Z",
+    "reviewed_sha": "aaf42858b87ea61b09a66aa6df0a5e342a15579b",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": "intentional",
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Minor",
+        "description": ".issue.comments aborts jq on non-object scalar .issue (object-or-null in practice)",
+        "defect_signature": {
+          "file": "lib/clean-entry.jq",
+          "line_range": [
+            34,
+            34
+          ],
+          "kind": "unhandled_exception"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Minor",
+        "description": "diff_truncated conjunct not isolated in a test fixture",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            17108,
+            17110
+          ],
+          "kind": "test_gap"
+        }
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Minor",
+        "description": "some run.sh block comments are narrative/restatement",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            17092,
+            17096
+          ],
+          "kind": "comment_quality"
+        }
+      },
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Suggestion",
+        "description": "one imprecise 'segment on the field presence' prose phrase in SKILL.md",
+        "defect_signature": {
+          "file": "skills/retrospective/SKILL.md",
+          "line_range": [
+            307,
+            312
+          ],
+          "kind": "other"
+        }
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Minor",
+        "description": "empty-string counts as present (non-null contract)",
+        "defect_signature": {
+          "file": "lib/clean-entry.jq",
+          "line_range": [
+            32,
+            33
+          ],
+          "kind": "logic_error"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 5,
+      "overlap_with_iter_N": 3,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
