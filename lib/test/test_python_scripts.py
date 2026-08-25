@@ -12425,6 +12425,19 @@ assert_eq("#1510: a colon-bearing asof breaks the record (field-count blowup →
           (None, None),
           (workpad._parse_review_coverage_payload(_rc_colon_asof),
            workpad._parse_review_coverage_anchor(_rc_colon_asof)))
+# The asof-regex rejection arm specifically: a 6-field payload with a VALID head but a malformed
+# (colon-free) asof reads as no anchor — so deleting _REVIEW_COVERAGE_ANCHOR_ASOF_RE goes RED here.
+_rc_bad_asof = "full:attempted:complete:complete:" + _rc_head + ":2026JUNK0T000000Z"
+assert_eq("#1510: a 6-field payload with a valid head but a malformed asof yields no anchor (None)",
+          None, workpad._parse_review_coverage_anchor(_rc_bad_asof))
+
+# Negative control: the Complete gate REFUSES an anchored 6-field record reporting a gap with no
+# disposition — the anchor is stripped before the axes are read, so the gap refusal fires exactly
+# as it does for a legacy record.
+assert_eq("#1510: the Complete gate refuses an anchored record with an undispositioned gap",
+          True, "[review-coverage-gap]" in (_rc_complete(_rc_row(
+              "not-verified:attempted:short:skipped:" + _rc_head
+              + ":20260101T000000Z")) or ""))
 
 # AC3 strengthened: re-recording at a DIFFERENT reviewed head rebinds the anchor to that head, so
 # each stored record is bounded to its own head — a later review at head B produces a record naming
