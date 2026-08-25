@@ -154,37 +154,22 @@ Route the token and its paired exit status by the Shared read contract stated in
 
    Undeliverable-path terminal. Collect every absent path the reference did not return an explicit repaired-and-verified outcome for, or reported any evidence the repair did not land for — whichever occurs, and including a path it reported nothing about (an absent report is not a delivered file). When the last absent path has been attempted, do not tick `Documentation` — route to the Blocked path, issuing this write once per collected path with that path substituted for `<path>`: `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "Phase 4.1: Documentation Needed file content cannot be determined for <path> — the docs subagent did not update this file and the correct content cannot be derived from the issue body; update manually and re-run Phase 4.1"`, then emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference) once and stop — stopping at the first such path would under-report the missing deliverables.
 
-Once every named path is satisfied (or Stage 1 found no paths), apply the deferred post-docs labels — only when the docs pass succeeded per the Stage-1 decision above. `docs.labels` is a comma-separated list (default `Documented`); normalize it (split on commas, trim each entry, drop empties) and apply through the shared REST label-apply helper. The REST path needs the PR number explicitly, so resolve it first from the current branch:
+Once every named path is satisfied (or Stage 1 found no paths), apply the deferred post-docs labels — only when the docs pass succeeded per the Stage-1 decision above. The REST label path needs the PR number explicitly, so resolve it first from the current branch:
 
-**Cloud-emission discipline (label helpers): iterate at the agent level, never in a shell loop or a capture — see the *Cloud command-shape discipline* section in `skills/implement/SKILL.md`.** The `apply-labels.sh` call must be a single leading-token statement, not nested inside an `if` compound, and the config read must fail closed on no output rather than reading a possible denial as "no labels configured". Resolve the label list and the PR number as two separate single-statement commands, reading each result from the tool output (a shell variable does not survive into a later separate command):
+**Cloud-emission discipline (label helpers): emit the call as a single leading-token statement, never a shell loop or a capture — see the *Cloud command-shape discipline* section in `skills/implement/SKILL.md`.** The `apply-labels.sh` call must be a single leading-token statement, not nested inside an `if` compound. Resolve the PR number as its own single-statement command, reading the result from the tool output (a shell variable does not survive into a later separate command):
 
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.labels Documented
-```
 ```bash
 gh pr view --json number --jq '.number'
 ```
 
-Normalize the resolved `docs.labels` value at the agent level — split on commas, trim each entry, drop empties — never through a `tr`/`sed`/`grep` pipeline (`paste` is granted in no allowlist, and a piped tail refuses the whole command and empties the read).
+One exit before the apply: if the PR-number command produced empty output — a `gh` error or warning-corrupted output — do not skip silently and tick Documentation complete: record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not resolve the PR number to apply docs labels; the PR carries none of the configured docs labels."`
 
-Four exits before any label is applied — the same fail-closed set the deferral channels carry, routed on the two tool results and their exit statuses, never a captured variable:
+Otherwise apply the configured docs labels with one call — the helper resolves `.docs.labels` (fallback `Documented`) itself by running `config-get.sh .docs.labels Documented` internally, creates each label, and applies them, so no agent-side config read, normalization, or per-label ensure call is owed. Substitute the digits of the PR number printed above for `<docs-pr-number>` (a literal, never `$DOCS_PR_NUM`):
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/apply-labels.sh <docs-pr-number> --config-key .docs.labels --config-fallback Documented
+```
 
-- config-get produced no output at all. The command was refused, not answered. Do not read it as "no labels": record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not resolve docs.labels — the config-get command produced no output at all (likely a harness denial, not an empty config); the PR carries none of the configured docs labels."`
-- config-get exited non-zero. A hard read failure (config-get rc≠0 — corrupt config.json or python3 missing): record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not read docs.labels (config-get rc≠0 — corrupt config.json or python3 missing); the PR carries none of the configured docs labels."`
-- the PR-number command produced empty output. An empty value (a `gh` error, warning-corrupted output) is a real failure point, not a reason to skip silently and tick Documentation complete: record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not resolve the PR number to apply docs labels; the PR carries none of the configured docs labels."`
-- config-get exit 0 whose value is empty or trims to no entries. The config genuinely resolved to no labels: apply nothing — the clean no-op.
-
-Otherwise, read the resolved PR number and the normalized label list and apply the labels with single granted-literal leading-token calls, iterating at the agent level:
-
-- For each label in the printed comma-list (skip blanks), ensure it exists with one call — the helper path is the leading token, and `ensure-label.sh` is best-effort (always exits 0). `ensure-label.sh` always breadcrumbs to stderr, so no output at all means the command was refused by the harness — record it (`--reflection-kind dropped-failed`) and continue to the apply, which reports separately whether the label landed.
-  ```bash
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/ensure-label.sh "<label>"
-  ```
-- Apply the whole comma-list to the PR with one call — the helper path is the leading token, the PR number and resolved label list substituted as literals (not `$DOCS_PR_NUM`/`$CLEAN_LABELS` shell variables):
-  ```bash
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/apply-labels.sh <docs-pr-number> "<docs-labels>"
-  ```
-  `apply-labels.sh` is best-effort and always prints a breadcrumb to stderr — a harness refusal is its ONLY silent outcome. Read that stderr from the tool result and route on it — all four outcomes, not just the failure one: a `devflow: applied label(s) '…' to #N` line means the labels landed; a `devflow: warning: could not apply …` line is an API failure; a `devflow: warning: apply-labels.sh got no label content …` or `… got a non-numeric issue/PR number …` line is a caller arg-slip — re-emit the call once with the printed literal values before recording anything; and no output at all means the command was refused by the harness. Record any surviving non-success durably, naming which outcome it was: `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not apply the configured docs labels (<docs-labels>) to PR #<docs-pr-number> — the apply reported an API failure or a caller arg-slip, or produced no output at all (a harness denial); the PR carries none of the configured docs labels."`
+`apply-labels.sh` always exits 0 and prints exactly one stdout outcome token — `applied | nothing-to-apply | arg-slip | api-failure | config-unreadable`. `applied` means the labels landed and `nothing-to-apply` is the clean no-op (the config resolved to no labels); the run continues regardless. Any other token, or no output at all — a harness refusal, its only silent outcome — must not vanish: record it durably naming the token and continue — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not apply the configured docs labels to PR #<docs-pr-number> — apply-labels.sh reported <token> (or produced no output at all, a harness denial); the PR carries none of the configured docs labels."` An invocation that failed because the helper path does not exist (`No such file`, exit 127) is an anchor-resolution failure, not a label outcome.
 
 Then tick the Documentation phase in the workpad: `workpad.py update $ISSUE_NUMBER --tick-progress "Documentation"`.
 
