@@ -199,9 +199,10 @@ An incomplete return — one that succeeds but omits or malforms its duty status
 bearing observation for a duty it reported `judged-not-engaged` — records that duty unestablished
 with a breadcrumb naming the missing field, never a discharged floor.
 The dispatch also instructs each peer to state, in its return, the `--search-space` operand it
-actually ran under; a return that does not confirm the leg's operand records that leg unestablished
-with a breadcrumb — escalating shallow→deep like any unestablished duty — rather than an established
-result, so a peer that silently defaulted the operand is detected, not trusted.
+actually ran under; the orchestrator compares that returned operand against the pathspec that leg
+dispatched, and records the leg unestablished with a breadcrumb — escalating shallow→deep like any
+unestablished duty — when the return omits the operand or its stated value does not match, rather
+than an established result, so a peer that silently defaulted the operand is detected, not trusted.
 
 Escalation shallow→deep is the only entry to the deep arm. Escalate
 on `UNRELIABLE` or `ABSENT`, on an unestablished duty, and on any judged-not-engaged duty whose returned
