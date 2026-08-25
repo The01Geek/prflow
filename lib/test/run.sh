@@ -32143,16 +32143,15 @@ assert_eq "#247 preflight: jq genuinely absent → \"not installed\" wording (no
 #    longer carries inline SHELL normalization mirrors: Copilot CLI's inline-bash
 #    marshaling drops same-command variable assignments, so the multi-statement
 #    mirror blocks were removed and normalization moved to PROMPT time — the agent
-#    converts a Windows-form runner-reported base directory (one standalone
-#    wslpath/cygpath probe, or the textual drive-letter rules) BEFORE substituting
-#    it into the single-statement invocation. The preamble paraphrases
-#    lib/normalize-path.sh's rules; pin the operative paraphrase fragments so a
-#    trim of the normalization guidance (or of its lib lockstep reference) goes RED.
+#    converts a Windows-form runner-reported base directory with one standalone
+#    wslpath/cygpath probe BEFORE substituting it into the single-statement
+#    invocation (issue #1856 removed the tool-less drive-letter paraphrase, whose
+#    T5b pin retired with it). The preamble's probe mirrors lib/normalize-path.sh's
+#    tool-first tier; pin the probe fragment and that lib lockstep reference so a
+#    trim of either goes RED.
 CI_SKILL="$LIB/../skills/create-issue/SKILL.md"
 assert_pin_unique "#247/#275 T5: create-issue preamble carries the prompt-time wslpath probe guidance" \
   "wslpath -u '<path>'" "$CI_SKILL"
-assert_pin_unique "#247/#275 T5b: create-issue preamble carries the tool-less drive-letter mapping rule" \
-  'map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2' "$CI_SKILL"
 assert_pin_unique "#247/#275 T5c: create-issue preamble names lib/normalize-path.sh as the rules' source (lockstep reference)" \
   'lib/normalize-path.sh' "$CI_SKILL"
 
@@ -32352,8 +32351,10 @@ assert_eq "#247 preflight partial copy: degraded remedy names the override value
 # ── T5d (reshaped by #275) — the SKILL.md shell mirrors are gone (normalization is
 #    prompt-time prose now), so behavioral SKILL↔lib parity is no longer executable.
 #    lib/normalize-path.sh remains the canonical rules source (its own T4* behavioral
-#    tests above still exercise every arm); the prose paraphrase is pinned by
-#    T5/T5b/T5c. Keep the lib-side detection-regex pin so the helper's operative
+#    tests above still exercise every arm); the surviving prompt-time wslpath/cygpath
+#    probe fragment and its lib lockstep reference are pinned by T5/T5c (issue #1856
+#    removed T5b with the tool-less drive-letter paraphrase it guarded). Keep the
+#    lib-side detection-regex pin so the helper's operative
 #    detection line cannot be trimmed while its callers still rely on it. ──
 assert_eq "#247 lockstep: detection regex literal present in lib/normalize-path.sh" "yes" \
   "$(grep -qF '=~ ^[A-Za-z]:[\\/] ]]' "$NORMALIZE_PATH_SH" && echo yes || echo no)"
@@ -34809,7 +34810,7 @@ echo "#408 cloud review no-verdict auto-resume backstop + #414 post-and-annotate
 # module re-derives REPO_ROOT and rebuilds the review-engine bundle itself;
 # see its .inventory.md for the coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-stall-backstop.sh" \
-  "review-stall-backstop" 462; then
+  "review-stall-backstop" 469; then
   printf 'ERROR: review-stall-backstop boundary could not record its result\n'
   exit 1
 fi

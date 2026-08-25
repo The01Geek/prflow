@@ -333,12 +333,9 @@ Otherwise substitute the base directory this runner reports in context — e.g. 
 this skill:` line. Never capture the anchor into a shell variable that a later statement reads:
 some runners' inline-bash marshaling drops a variable assigned in an earlier statement of the same command.
 
-Normalize a Windows-form base directory before substituting it. Run one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) and
-use its output only if the command succeeds and prints a non-empty path — otherwise fall through to
-the drive-letter rules exactly as if the tool were absent.
-With neither tool: lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and
-turn backslashes into `/`. Neither WSL nor MSYS2: use the path unchanged and report that it could
-not be normalized. These are `lib/normalize-path.sh`'s rules restated as prompt-time prose.
+Normalize a Windows-form base directory before substituting it: run one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2), in that order, and
+use its output only if the command succeeds and prints a non-empty path — otherwise substitute the
+runner-reported path unchanged. This `wslpath`/`cygpath` probe mirrors the tool-first tier of `lib/normalize-path.sh`.
 
 An unresolvable anchor degrades; it never stops the run — an anchor failure must never block issue creation.
 Proceed and let the underlying "No such file" error surface: a `/prflow:docs-verify` pass whose
