@@ -55,21 +55,10 @@
 #                      Any future `fix_decision` value also defaults to `null`
 #                      unless `verdict_for` is updated.
 #
-# Narrowed `null` class (issue #1849). `null` is a DERIVED residual, so a bare
-# `null` verdict still collapses opposite states: an agent genuinely silent, one
-# whose real findings were all deferred / severity-calibrated / foreclosed, and
-# one that failed or returned an unusable result. Additive per-agent fields —
-# `disposition` and `fix_decisions` — beside the verdict decompose it; they add
-# NO new verdict and change no derivation: `disposition` (returned | failed | silent | unestablished — see
-# `agent_disposition`) separates a failed return from silence and marks the split
-# unestablished when the roster or failed set was never established (unknown is
-# not zero); and `fix_decisions` (the per-agent roll-up of `fix_decision` values)
-# separates an all-deferred/calibrated agent from one that raised nothing.
-# Denominator confound (read the rates with it): a per-agent rate's denominator
-# is the defects that existed to be found, not the agent's quality — a `null` or
-# low-yield rate on a config-only / out-of-domain diff is correct silence, so raw
-# per-agent rates are NOT reviewer quality until that shipped-defect denominator
-# is characterised (see docs/internal/efficiency-trace.md).
+# Narrowed `null` class (issue #1849). Do not add a verdict value or change this
+# derivation to express agent silence or failure — the additive per-agent
+# `disposition` and `fix_decisions` fields decompose that residual instead, and
+# the denominator confound governs reading the rates (docs/internal/efficiency-trace.md).
 #
 # The four buckets above are written in `fix_decision` (review-and-fix) terms.
 # `verdict_for` has a SECOND derivation for standalone-/devflow:review records
@@ -123,12 +112,9 @@ def finding_kind:
 #                   roster is absent (a non-returning agent cannot be enumerated
 #                   at all) or the failed set is absent/malformed (a silent agent
 #                   cannot be told from a failed one). Never mapped onto silent.
-# A returning agent is establishable from findings alone, so it reads `returned`
-# even when the roster or failed set is absent. `$failed_established` is
-# per-AGENT, not per-iteration: the authoritative `phase3_failed_agents` sink
-# covers every dispatched agent, but the shadow `per_reviewer_assessment` covers
-# only the reviewers it lists, so an agent that neither sink establishes reads
-# `unestablished` even when the other sink is present for other agents.
+# `$failed_established` is per-AGENT, not per-iteration — do not hoist it to an
+# iteration-level flag: an agent no sink covers would then read `silent` on the
+# strength of another agent's coverage (see the operand block below).
 def agent_disposition($returned; $roster_established; $failed_established; $is_failed):
   if $returned then "returned"
   elif ($roster_established | not) then "unestablished"
@@ -347,14 +333,9 @@ def iter_view:
             fallback_reason: $entry.fallback_reason
           }
       ],
-      # Per-agent effectiveness view. `verdict` is UNCHANGED (issue #1849 adds no
-      # new verdict and perturbs no derivation); `disposition` decomposes the
-      # `null` residual and `fix_decisions` rolls up the per-finding decisions so
-      # an all-deferred/calibrated agent (verdict null, non-empty roll-up) is
-      # distinguishable from one that raised nothing (verdict null, empty roll-up).
-      # `fix_decisions` is the sorted-unique set of string `fix_decision` values
-      # this agent's findings carry (type-guarded via `strings`; empty in
-      # review-mode records, which carry no fix_decision).
+      # Per-agent effectiveness view. Keep the `strings` type-guard on
+      # `fix_decisions`: an agent-mutable non-string `fix_decision` would otherwise
+      # reach `unique` and abort the whole filter.
       agent_verdicts: [
         $roster[] as $agent
         | ([$findings[] | select(finding_agent == $agent)]) as $af

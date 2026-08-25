@@ -271,6 +271,33 @@ cat > "$ET_DISP/iter-10.json" <<'EOF'
 "phase3_findings":[{"agent":"a","corroboration_count":1,"fix_decision":"applied"}],
 "convergence_inputs":{"fixes_applied":1},"telemetry":null}
 EOF
+# iter-11: the fix_decisions roll-up is sorted-unique over STRING values only. An
+# agent-mutable non-string fix_decision must be dropped by the `strings` guard rather
+# than reaching `unique` and aborting the whole filter.
+cat > "$ET_DISP/iter-11.json" <<'EOF'
+{"iter":11,"phase3_dispatched":["r"],"phase3_failed_agents":[],
+"phase3_findings":[
+  {"agent":"r","corroboration_count":1,"fix_decision":"deferred"},
+  {"agent":"r","corroboration_count":1,"fix_decision":"applied"},
+  {"agent":"r","corroboration_count":1,"fix_decision":7}
+],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+# iter-12: the shadow channel is gated on `coverage == "full"`, so a block with NO
+# coverage key decides nothing — s reads unestablished, never failed.
+cat > "$ET_DISP/iter-12.json" <<'EOF'
+{"iter":12,"phase3_dispatched":["a","s"],"phase3_failed_agents":{},
+"phase3_findings":[{"agent":"a","corroboration_count":1,"fix_decision":"applied"}],
+"shadow":{"per_reviewer_assessment":[{"agent":"s","returned":false}]},
+"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+# iter-13: the whole shadow block is agent-mutable — a scalar must not abort the
+# filter and must establish nothing.
+cat > "$ET_DISP/iter-13.json" <<'EOF'
+{"iter":13,"phase3_dispatched":["a","t"],"phase3_failed_agents":{},
+"phase3_findings":[{"agent":"a","corroboration_count":1,"fix_decision":"applied"}],
+"shadow":"nope",
+"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
 ET_DISP_REC="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_DISP" --slug pr-1849 --mode record)"
 ET_disp() { echo "$ET_DISP_REC" | jq -r --argjson i "$1" --arg a "$2" '.per_iteration[] | select(.iter==$i) | .agent_verdicts[] | select(.agent==$a) | .disposition'; }
 ET_roll() { echo "$ET_DISP_REC" | jq -c --argjson i "$1" --arg a "$2" '.per_iteration[] | select(.iter==$i) | .agent_verdicts[] | select(.agent==$a) | .fix_decisions'; }
@@ -314,6 +341,17 @@ assert_eq "et(#1849/AC7): phase3_failed_agents_present false on historical iter"
 assert_eq "et(#1849): empty [] failed-set with roster present → silent agent silent" "silent" "$(ET_disp 10 'q')"
 assert_eq "et(#1849): empty [] failed-set establishes → phase3_failed_agents_present true" "true" \
   "$(echo "$ET_DISP_REC" | jq -r '.per_iteration[] | select(.iter==10) | .phase3_failed_agents_present')"
+# The presence flag reports the direct sink only. iter-4 carries a full-coverage shadow
+# assessment and NO phase3_failed_agents, so a regression wiring the flag to shadow
+# coverage would read true here and misreport a historical record as establishing.
+assert_eq "et(#1849): phase3_failed_agents_present is shadow-independent (assessment present, sink absent)" "false" \
+  "$(echo "$ET_DISP_REC" | jq -r '.per_iteration[] | select(.iter==4) | .phase3_failed_agents_present')"
+# fix_decisions roll-up: sorted-unique across multiple values, non-string dropped.
+assert_eq "et(#1849): fix_decisions roll-up is sorted-unique across multiple values" '["applied","deferred"]' "$(ET_roll 11 'r')"
+assert_eq "et(#1849): non-string fix_decision dropped by the strings guard (filter does not abort)" "returned" "$(ET_disp 11 'r')"
+# Shadow-block shape adversarials: missing coverage key, and a scalar shadow block.
+assert_eq "et(#1849): shadow block with no coverage key → assessment decides nothing" "unestablished" "$(ET_disp 12 's')"
+assert_eq "et(#1849): scalar shadow block → silent agent unestablished (no abort)" "unestablished" "$(ET_disp 13 't')"
 
 # Adversarial phase3_failed_agents shapes (agent-mutable input): the filter must
 # never abort, and a non-array value must not establish the failed set — a silent
