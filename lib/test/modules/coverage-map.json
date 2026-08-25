@@ -1451,6 +1451,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1826": {
+      "note": "",
+      "owner": "efficiency-trace-telemetry"
+    },
     "183": {
       "note": "",
       "owner": "unmodularized"
@@ -1510,6 +1514,10 @@
     "190": {
       "note": "",
       "owner": "unmodularized"
+    },
+    "1903": {
+      "note": "",
+      "owner": "efficiency-trace-telemetry"
     },
     "191": {
       "note": "",

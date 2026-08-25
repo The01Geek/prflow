@@ -238,6 +238,121 @@ assert_eq "et: absent diff_profile → posture from raw counts (agent-only)" "ag
   "$(echo "$ET_NOPROF_REC" | jq -r '.per_iteration[0].verification_posture')"
 rm -rf "$ET_PROF" "$ET_NOPROF"
 
+# ── Recurring defect kinds across iterations (issue #1903) ───────────────────
+# A recurring kind is a defect_signature.kind appearing in the phase3_findings
+# of three separate iterations. Each expected value is written literally, never
+# derived from the filter's own logic.
+ET_REC1903="$(mktemp -d)"
+cat > "$ET_REC1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[
+  {"agent":"a","fix_decision":"applied","defect_signature":{"kind":"text-matching"}},
+  {"agent":"a","fix_decision":"applied","defect_signature":{"kind":"pair-in-two"}}
+],"convergence_inputs":{"fixes_applied":2},"telemetry":null}
+EOF
+cat > "$ET_REC1903/iter-2.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a"],"phase3_findings":[
+  {"agent":"a","fix_decision":"pushed_back","defect_signature":{"kind":"text-matching"}},
+  {"agent":"a","fix_decision":"applied","defect_signature":{"kind":"pair-in-two"}}
+],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_REC1903/iter-3.json" <<'EOF'
+{"iter":3,"phase3_dispatched":["a"],"phase3_findings":[
+  {"agent":"a","fix_decision":"applied","defect_signature":{"kind":"text-matching"}},
+  {"agent":"a","fix_decision":"applied","defect_signature":{"kind":"appears-once"}}
+],"convergence_inputs":{"fixes_applied":2},"telemetry":null}
+EOF
+ET_REC1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_REC1903" --slug pr-1903 --mode record)"
+# text-matching recurs across all three iterations; pair-in-two appears in only
+# two (the boundary that pins <3 as NOT recurring); appears-once appears in one.
+assert_eq "et(#1903): exactly the kind recurring across 3 iterations is reported, with its iterations" \
+  '[{"kind":"text-matching","iterations":[1,2,3]}]' \
+  "$(echo "$ET_REC1903_OUT" | jq -c '.recurring_defect_kinds')"
+rm -rf "$ET_REC1903"
+
+# No defect_signature anywhere → the field is the explicit "unestablished"
+# sentinel, never an empty set (the producer emitted no operand to read).
+ET_NOSIG1903="$(mktemp -d)"
+cat > "$ET_NOSIG1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied"}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_NOSIG1903/iter-2.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"pushed_back"}],"convergence_inputs":{"fixes_applied":0},"telemetry":null}
+EOF
+cat > "$ET_NOSIG1903/iter-3.json" <<'EOF'
+{"iter":3,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied"}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_NOSIG1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_NOSIG1903" --slug pr-1903 --mode record)"
+assert_eq "et(#1903): no defect_signature at all → unestablished (not an empty set)" \
+  '"unestablished"' \
+  "$(echo "$ET_NOSIG1903_OUT" | jq -c '.recurring_defect_kinds')"
+rm -rf "$ET_NOSIG1903"
+
+# A malformed defect_signature (present but non-object / kind-less / non-string
+# kind) is rendered under the explicit "unknown" label rather than dropped.
+ET_MAL1903="$(mktemp -d)"
+cat > "$ET_MAL1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":"oops"}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_MAL1903/iter-2.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_MAL1903/iter-3.json" <<'EOF'
+{"iter":3,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":123}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_MAL1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_MAL1903" --slug pr-1903 --mode record)"
+assert_eq "et(#1903): malformed defect_signature rendered under the explicit unknown-kind label" \
+  '[{"kind":"unknown","iterations":[1,2,3]}]' \
+  "$(echo "$ET_MAL1903_OUT" | jq -c '.recurring_defect_kinds')"
+rm -rf "$ET_MAL1903"
+
+# Distinctness keys on the iteration RECORD (element position), not the `.iter`
+# value: three separate records carrying a duplicate/null `.iter` still count as
+# three iterations. Keying on `.iter` value would collapse them and undercount —
+# the exact run this feature exists to surface. iter-1/iter-2 share iter value 1,
+# iter-3 is value 2; the kind is present in all three records, so it is recurring
+# with the value-deduped iterations list [1,2].
+ET_POS1903="$(mktemp -d)"
+cat > "$ET_POS1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"dup-iter"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_POS1903/iter-2.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"dup-iter"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_POS1903/iter-3.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"dup-iter"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_POS1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_POS1903" --slug pr-1903 --mode record)"
+assert_eq "et(#1903): recurrence counts distinct iteration RECORDS, not distinct .iter values (no undercount)" \
+  '[{"kind":"dup-iter","iterations":[1,2]}]' \
+  "$(echo "$ET_POS1903_OUT" | jq -c '.recurring_defect_kinds')"
+rm -rf "$ET_POS1903"
+
+# The trace (Markdown) render surface, not just the --mode record JSON above: a
+# recurring kind renders one bullet naming the kind and its iterations, and a
+# no-signature run renders the explicit unestablished line rather than nothing.
+ET_TR1903="$(mktemp -d)"
+cat > "$ET_TR1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"text-matching"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_TR1903/iter-2.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"text-matching"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_TR1903/iter-3.json" <<'EOF'
+{"iter":3,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"text-matching"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_TR1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_TR1903" --slug pr-1903 --mode trace)"
+assert_eq "et(#1903): trace renders the recurring-kind bullet with its iterations" "true" \
+  "$(echo "$ET_TR1903_OUT" | grep -qF 'text-matching - iterations 1, 2, 3' && echo true || echo false)"
+rm -rf "$ET_TR1903"
+ET_TRU1903="$(mktemp -d)"
+cat > "$ET_TRU1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied"}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_TRU1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_TRU1903" --slug pr-1903 --mode trace)"
+assert_eq "et(#1903): trace renders the explicit unestablished recurring-kinds line" "true" \
+  "$(echo "$ET_TRU1903_OUT" | grep -q 'Unestablished — no iteration record carried a defect_signature' && echo true || echo false)"
+rm -rf "$ET_TRU1903"
+
 # Engine-PR analyzer gating (issue #52): the gating change is prose in
 # skills/review/SKILL.md; its observable contract is the phase3_dispatched
 # roster the orchestrator writes. Assert the roster flows through the trace so
@@ -4814,20 +4929,18 @@ assert_eq "tb(#442 Imp-1): the reader still degrades to the legacy archive (best
 rm -rf "$TB_GX_REPO"
 rm -rf "$TB_MB_REPO"
 
-# ── #1003: the UNMIGRATED-telemetry-branch detection arm ─────────────────────
-# The branch renamed devflow-telemetry -> prflow-telemetry and, unlike the state
-# directory, is NOT migrated automatically and is NOT dual-read: a repo that still
-# carries only the superseded ref is told so loudly, because the alternative is a
-# measured-looking absence that silently drops every cost row on it. That arm is
-# the second `rev-parse` probe, and its comparand (`rc_s == 0`) is reachable only
-# when the FIRST probe returned exactly 1 — so a fail-open in either probe ships
-# green. Drive all three combinations of the two refs against one fixture shape.
-tb_unmigrated_warn() {   # $1 = repo root -> yes|no
+# #1826 stranded-superseded-branch detection: fires whether the canonical branch is present or
+# absent, keyed on records under the superseded branch's pre-rename `.devflow/logs/efficiency/`
+# path. Cases below: (a) absent-canonical (rename remedy), (b/c) no report, (d) both-present.
+# $1 = repo root, $2 = grep needle selecting which report to detect -> yes|no. Callers pass
+# 'is absent but the superseded' for the absent-canonical report, or 'superseded
+# devflow-telemetry branch is present' for any stranded-record report.
+tb_report_warn() {
   DEVFLOW_CONFIG_FILE="$1/no-such-config.json" python3 -c 'import importlib.util,sys
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 m._index_efficiency(sys.argv[2]+"/.prflow/logs/efficiency", sys.argv[2])' \
     "$LIB/../scripts/build-experiment-records.py" "$1" 2>&1 >/dev/null \
-    | grep -qF 'is absent but the superseded' && echo yes || echo no
+    | grep -qF "$2" && echo yes || echo no
 }
 tb_seed_telemetry_repo() {   # $1 = repo root; seeds a committed repo + a legacy record
   git init -q "$1"
@@ -4836,13 +4949,26 @@ tb_seed_telemetry_repo() {   # $1 = repo root; seeds a committed repo + a legacy
   mkdir -p "$1/.prflow/logs/efficiency"
   printf '{"slug":"pr-9","iterations":4}' > "$1/.prflow/logs/efficiency/pr-9-legacy.json"
 }
+# Commit ONE .devflow/logs/efficiency/ record onto the superseded ref, without touching
+# the working tree (plumbing on an isolated index), so the count-based detection fires.
+tb_seed_superseded() {   # $1 = repo root
+  local blob idx tree commit
+  blob="$(printf '{"slug":"pr-old","iterations":2}' | git -C "$1" hash-object -w --stdin)"
+  idx="$1/.git/tb-sup-idx"; rm -f "$idx"
+  GIT_INDEX_FILE="$idx" git -C "$1" update-index --add --cacheinfo "100644,${blob},.devflow/logs/efficiency/pr-old-run.json"
+  tree="$(GIT_INDEX_FILE="$idx" git -C "$1" write-tree)"
+  commit="$(git -C "$1" commit-tree "$tree" -m superseded)"
+  git -C "$1" update-ref refs/heads/devflow-telemetry "$commit"
+  rm -f "$idx"
+}
 
-# (a) POSITIVE: only the superseded ref exists -> the operator is warned.
+# (a) POSITIVE: only the superseded ref exists, carrying a .devflow/ record -> the
+#     operator is warned with the fast-forward rename remedy.
 TB_UM_A="$(git_sandbox "tb unmigrated telemetry branch")"
 tb_seed_telemetry_repo "$TB_UM_A"
-git -C "$TB_UM_A" update-ref refs/heads/devflow-telemetry "$(git -C "$TB_UM_A" rev-parse HEAD)"
+tb_seed_superseded "$TB_UM_A"
 assert_eq "tb(#1003): superseded-only telemetry branch is reported, never read as a measured absence" "yes" \
-  "$(tb_unmigrated_warn "$TB_UM_A")"
+  "$(tb_report_warn "$TB_UM_A" 'is absent but the superseded')"
 # The warning has to be actionable, so it carries the exact one-shot rename.
 TB_UM_A_ERR="$(DEVFLOW_CONFIG_FILE="$TB_UM_A/no-such-config.json" python3 -c 'import importlib.util,sys
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
@@ -4860,23 +4986,40 @@ print(sorted((e["run_id"],e["iterations"]) for v in idx.values() for e in v))' \
 assert_eq "tb(#1003): detection is not a read-through (superseded rows stay unread)" "[('legacy', 4)]" "$TB_UM_A_OUT"
 rm -rf "$TB_UM_A"
 
-# (b) NEGATIVE: the current ref exists too -> nothing to migrate, no warning.
-#     This is the arm that would fail open if the FIRST probe stopped returning 1
-#     for a present branch, so it is what makes (a) a measurement.
+# (b) NEGATIVE: both refs present but the superseded ref carries NO stranded record
+#     under .devflow/logs/efficiency/ -> nothing stranded, no report. (The both-present
+#     case WITH stranded records is (d) below.)
 TB_UM_B="$(git_sandbox "tb migrated telemetry branch")"
 tb_seed_telemetry_repo "$TB_UM_B"
 git -C "$TB_UM_B" update-ref refs/heads/devflow-telemetry "$(git -C "$TB_UM_B" rev-parse HEAD)"
 git -C "$TB_UM_B" update-ref refs/heads/prflow-telemetry "$(git -C "$TB_UM_B" rev-parse HEAD)"
-assert_eq "tb(#1003): a repo carrying BOTH refs is already migrated → no warning" "no" \
-  "$(tb_unmigrated_warn "$TB_UM_B")"
+assert_eq "tb(#1826): both refs present but superseded carries no .devflow/ record → no report" "no" \
+  "$(tb_report_warn "$TB_UM_B" 'superseded devflow-telemetry branch is present')"
 rm -rf "$TB_UM_B"
 
-# (c) NEGATIVE: neither ref exists -> a genuine absence, not an unmigrated store.
+# (c) NEGATIVE: neither ref exists -> a genuine absence, no report.
 TB_UM_C="$(git_sandbox "tb no telemetry branch")"
 tb_seed_telemetry_repo "$TB_UM_C"
-assert_eq "tb(#1003): no telemetry ref at all is a genuine absence → no unmigrated warning" "no" \
-  "$(tb_unmigrated_warn "$TB_UM_C")"
+assert_eq "tb(#1003): no telemetry ref at all is a genuine absence → no report" "no" \
+  "$(tb_report_warn "$TB_UM_C" 'superseded devflow-telemetry branch is present')"
 rm -rf "$TB_UM_C"
+
+# (d) POSITIVE (#1826): both refs present AND the superseded ref carries stranded
+#     .devflow/ records -> warn with the divergent-safe copy-across remedy, never a
+#     destructive force-push of the superseded ref onto the canonical one.
+TB_UM_D="$(git_sandbox "tb both refs stranded records")"
+tb_seed_telemetry_repo "$TB_UM_D"
+tb_seed_superseded "$TB_UM_D"
+git -C "$TB_UM_D" update-ref refs/heads/prflow-telemetry "$(git -C "$TB_UM_D" rev-parse HEAD)"
+assert_eq "tb(#1826): both refs present, superseded carries a stranded record → warned" "yes" \
+  "$(tb_report_warn "$TB_UM_D" 'superseded devflow-telemetry branch is present')"
+TB_UM_D_ERR="$(DEVFLOW_CONFIG_FILE="$TB_UM_D/no-such-config.json" python3 -c 'import importlib.util,sys
+s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+m._index_efficiency(sys.argv[2]+"/.prflow/logs/efficiency", sys.argv[2])' \
+  "$LIB/../scripts/build-experiment-records.py" "$TB_UM_D" 2>&1 >/dev/null)"
+assert_eq "tb(#1826): the both-present remedy is divergent-safe (copy across, not a force-push)" "yes" \
+  "$(printf '%s' "$TB_UM_D_ERR" | grep -qF 'Do NOT force-push' && echo yes || echo no)"
+rm -rf "$TB_UM_D"
 
 # Grep pins (AC1/AC19/AC22): the SKILL mirrors + workflows + docs carry the new
 # telemetry-branch contract; a revert turns the suite RED.

@@ -242,6 +242,22 @@ For every absent, empty, or unrecognized `$PROGRESS_SURFACE`, retain the existin
 
 Phase 0.3.6 runs at this seam — after 0.3.5, before 0.4 — when its gate is met; on a hit it ends the run, so 0.4/0.5 never run.
 
+### 0.3.7 Record the working-tree commit against the reviewed head (standalone PR-number mode)
+
+In standalone PR-number mode (a `$PR_NUMBER` resolved and no `head_override`), establish which commit the working tree holds and record it against the reviewed head — the tree is never moved, this step only reads:
+
+```bash
+git rev-parse HEAD
+```
+
+Compare the printed commit to `$PR_API_HEAD_SHA` (the API-resolved pushed head from Phase 0.2) and record exactly one of three results in this run's progress record (the run-keyed review-progress comment seeded in Phase 0.3.5, or the issue workpad when `$PROGRESS_SURFACE` is `workpad`):
+
+- equal — the tree commit equals `$PR_API_HEAD_SHA`;
+- divergent — naming both commit ids (tree and head); this is the expected shape on the shipped cloud tier, whose checkout is pinned to the default branch;
+- unestablished — `git rev-parse HEAD` could not be read (refused, empty, or non-zero).
+
+This recorded divergence fact does not by itself change any verdict — verdicts change only through the diff-touched / displaced-path read channel (Phase 2 / 3 / 4). Unlike the fix loop's Step 0.5 tree-identity check, a divergence here never stops the run: a standalone review's tree is expected to sit on the default branch, and the routing reads head bytes through `git show` regardless.
+
 ### 0.4 Discover related GitHub issue and resolve its acceptance criteria
 
 Resolve the issue number in this precedence: a caller-supplied `--issue N` value (bound as `$ISSUE_OVERRIDE` by the two skill roots), then the PR body's `Resolves`/`Fixes`/`Closes` reference, then the `issue-{N}` branch-name pattern. A caller-supplied value suppresses both derivations — it is not run alongside them and never compared against them:
