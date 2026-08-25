@@ -1,0 +1,301 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1945",
+  "generated_at": "2026-08-25T16:02:28Z",
+  "config_fingerprint": {
+    "sha256": "c2dd346fdf78eacf9e402b333f46db8770aa0afa8742a7dc4ac5d1139ba96283",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "recurring_defect_kinds": [],
+  "iterations": 3,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:code-reviewer",
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "prflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "detect_all_audit": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 9,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 2,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 4,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "detect_all_audit": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 1,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": null
+        }
+      ]
+    },
+    {
+      "iter": 3,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 2,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 3,
+      "phases": "unavailable"
+    }
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 38.26362394999999,
+    "tokens": {
+      "input_tokens": 186,
+      "output_tokens": 80730,
+      "cache_read_input_tokens": 25666760,
+      "cache_creation_input_tokens": 379347,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 448,
+        "outputTokens": 222048,
+        "cacheReadInputTokens": 36141668,
+        "cacheCreationInputTokens": 2006240,
+        "webSearchRequests": 0,
+        "costUSD": 37.58582524999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 52,
+        "outputTokens": 7836,
+        "cacheReadInputTokens": 1547036,
+        "cacheCreationInputTokens": 115971,
+        "webSearchRequests": 0,
+        "costUSD": 0.6777987,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 108,
+    "duration_ms": 3750642
+  },
+  "permission_denials": {
+    "count": 18,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/config-get.sh .base_branch 2>/dev/null; echo \"RUNID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT ACTIONS=$GITHUB_ACTIONS\"",
+      "WP_BRANCH=\"issue-1512-a-shadow-pass-narrower-than-the-expected-roster-20260825\"; PR_JSON=$(gh pr list --head \"$WP_BRANCH\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''; echo \"$PR_JSON\"",
+      "CO_ERR=$( { git fetch origin \"issue-1512-a-shadow-pass-narrower-than-the-expected-roster-20260825\" && git checkout \"issue-1512-a-shadow-pass-narrower-than-the-expected-roster-20260825\"; } 2>&1 1>/dev/null ) || true\necho \"CO_ERR=$CO_ERR\"\nLANDED=no; [ \"$(git rev-parse --abbrev-ref HEAD 2>/dev/null)\" = \"issue-1512-a-shadow-pass-narrower-than-the-expected-roster-20260825\" ] && LANDED=yes\necho \"LANDED=$LANDED\"",
+      "RUN_URL=\"https://github.com/The01Geek/prflow/actions/runs/32862810429\"\nPR_NUMBER=1945\nPR_BODY=$(gh api \"repos/The01Geek/prflow/pulls/1945\" --jq '.body' 2>/dev/null)\nRC=$?\necho \"RC=$RC\"\necho \"$PR_BODY\" | grep -c '\\[View run\\]('",
+      "gh api repos/The01Geek/prflow/pulls/1945 --jq .body > /tmp/pr_body.txt 2>/tmp/pr_body.err; echo \"rc=$?\"; cat /tmp/pr_body.err; grep -c '\\[View run\\](' /tmp/pr_body.txt",
+      "gh api repos/The01Geek/prflow/pulls/1945 --jq .body > /tmp/pr_body.txt 2>/tmp/pr_body.err",
+      "mkdir -p .prflow/tmp && gh api repos/The01Geek/prflow/pulls/1945 --jq .body > .prflow/tmp/pr_body.txt 2>.prflow/tmp/pr_body.err; echo \"rc=$?\"",
+      "cd /home/runner/work/prflow/prflow\n\"$PWD/.prflow/vendor/prflow/scripts/workpad.py\" update 1512 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" 2>&1\n\"$PWD/.prflow/vendor/prflow/scripts/workpad.py\" update 1512 --note \"issue-claim audit (count): no count or enumeration claims found — pass complete\" 2>&1\n\"$PWD/.prflow/vendor/prflow/scripts/workpad.py\" update 1512 --note \"issue-claim audit (negative-scope):  …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1945/32862810429-1 && git diff 66eec8a8a2aee14677cd27359929722760691fe3..HEAD > .prflow/tmp/review/pr-1945/32862810429-1/diff.patch && wc -l .prflow/tmp/review/pr-1945/32862810429-1/diff.patch && echo \"---FILES---\" && git diff --name-status 66eec8a8a2aee14677cd27359929722760691fe3..HEAD",
+      "git diff 66eec8a8a2aee14677cd27359929722760691fe3..HEAD | cat > /dev/null; cp /home/runner/.claude/projects/-home-runner-work-prflow-prflow/42a37f9d-9d22-4620-86c7-d618ca878c50/tool-results/b7ynr633t.txt .prflow/tmp/review/pr-1945/32862810429-1/diff.patch && grep -c '^diff --git' .prflow/tmp/review/pr-1945/32862810429-1/diff.patch && head -1 .prflow/tmp/review/pr-1945/32862810429-1/diff.patch",
+      "cp /home/runner/.claude/projects/-home-runner-work-prflow-prflow/42a37f9d-9d22-4620-86c7-d618ca878c50/tool-results/b7ynr633t.txt /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1945/32862810429-1/diff.patch",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"EXIT: $?\"",
+      "for t in \"Classify diff\" \"Generate verification checklist\" \"Verify checklist\" \"Review agents\" \"Aggregate & verdict\"; do scripts/workpad.py update 1512 --tick-progress \"$t\" 2>&1 | tail -1; done",
+      "git diff 66eec8a8a2aee14677cd27359929722760691fe3..HEAD | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1945/32862810429-1/diff.patch && grep -c '^diff --git' .prflow/tmp/review/pr-1945/32862810429-1/diff.patch",
+      "for t in \"Classify diff\" \"Generate verification checklist\" \"Verify checklist\" \"Review agents\" \"Aggregate & verdict\"; do scripts/workpad.py update 1512 --tick-progress \"$t\" 2>&1 | tail -1; done",
+      "git rev-parse HEAD && git merge-base origin/main HEAD 2>/dev/null && echo \"---files---\" && git diff --name-status $(git merge-base origin/main HEAD) HEAD",
+      "mkdir -p .prflow/tmp/review/pr-1945/32862810429-1/ && git diff 66eec8a8a2aee14677cd27359929722760691fe3 b441a9daf00bbdcbb94aac2c5e34241acb128fb7 > .prflow/tmp/review/pr-1945/32862810429-1/full.diff; wc -l .prflow/tmp/review/pr-1945/32862810429-1/full.diff",
+      "for s in \"Classify diff\" \"Review agents\" \"Aggregate & verdict\"; do scripts/workpad.py update 1512 --tick-progress \"$s\" 2>&1 | tail -2; done"
+    ],
+    "total": 18,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}

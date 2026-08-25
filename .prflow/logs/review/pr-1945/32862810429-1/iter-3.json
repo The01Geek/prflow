@@ -1,0 +1,17 @@
+{
+  "iter": 3,
+  "started_at": "2026-08-25T15:20:00Z",
+  "loop_role": "fix",
+  "current_step": "loop-control",
+  "current_substep": "run_engine_step1",
+  "pending_dispatch": {
+    "kind": "engine_step1",
+    "roster": [
+      "general-purpose:/prflow:review"
+    ],
+    "dispatched_at": "2026-08-25T15:20:00Z",
+    "issued_by": "loop-control"
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

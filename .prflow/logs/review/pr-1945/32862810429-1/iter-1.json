@@ -1,0 +1,217 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T15:05:00Z",
+  "fix_commit_sha": "5031e66c9",
+  "fix_files": [
+    "scripts/workpad.py",
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": {
+    "count": 1,
+    "by_category": {
+      "type-design-analyzer": "gated-off: has_new_types false"
+    }
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "read-time fail-closed branches untested",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          4418,
+          4429
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "roster-row stripping on re-record unverified",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          4407,
+          4412
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "gated tier remains self-report",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          4437,
+          4446
+        ],
+        "kind": "logic_error"
+      },
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "short branch never rejects always-on gated-off",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          371,
+          373
+        ],
+        "kind": "logic_error"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "always-on-gated-off-blocks-complete untested",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          4437,
+          4440
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "malformed-payload skip untested",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          4394,
+          4396
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "comment overage 268-273",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          268,
+          273
+        ],
+        "kind": "style"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "comment overage 445-449",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          445,
+          449
+        ],
+        "kind": "style"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "comment overage test 128-132",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          128,
+          132
+        ],
+        "kind": "style"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "docstring conflates duplicate vs malformed",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          4383,
+          4390
+        ],
+        "kind": "comment_drift"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-3",
+      "decision": "pushed_back",
+      "source_file": "scripts/workpad.py",
+      "claim_text": "gated tier remains a self-report",
+      "skip_category": "out-of-scope",
+      "evidence": "issue #1512 AC3 deliberately scopes the enumeration guarantee to always-on members; a gated member omitted reads gated-off by design. Adding a prose note would churn a prompt-surface file near the reference-size ceiling for a documented design residual.",
+      "parking_evidence": {
+        "basis": "deliberate design scope per AC3",
+        "failing_input": "an owed gated member omitted from the enumeration",
+        "source": "issue #1512 AC3",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 9,
+    "fix_diff_lines": 60,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

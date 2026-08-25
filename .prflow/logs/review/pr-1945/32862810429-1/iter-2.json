@@ -1,0 +1,77 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-25T15:12:00Z",
+  "fix_commit_sha": "b441a9daf",
+  "fix_files": [
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "4.5",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": {
+    "count": 2,
+    "by_category": {
+      "type-design-analyzer": "gated-off: has_new_types false",
+      "code-reviewer": "iterations: first-only (iteration 2)"
+    }
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "free-text smuggling guard widened to review-roster markers is untested",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          2717,
+          2717
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F2-1",
+      "decision": "applied",
+      "commit": "b441a9daf"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 11,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
