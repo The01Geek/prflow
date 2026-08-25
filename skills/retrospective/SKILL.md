@@ -274,7 +274,7 @@ newlines that break naive serialization).
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "kind": "implementation",
   "pr": <bundle.pr>,
   "issue": <bundle.issue_number>,
@@ -286,6 +286,9 @@ newlines that break naive serialization).
   "categories": ["...", "..."],
   "descriptors": ["...", "..."],
   "signals": <bundle.signals verbatim>,
+  "additions": <bundle.additions>,
+  "deletions": <bundle.deletions>,
+  "changed_files": <bundle.changed_files verbatim>,
   "summary": "...",
   "suggested_interventions": [{"summary":"...","candidate_targets":[...],"change_type":"...","confidence":"..."}]
 }
@@ -299,7 +302,8 @@ stdout. Omit the key entirely in every other case.
 
 `categories` must be drawn from the fixed vocabulary above; `descriptors` is
 free text. Echo `pr`, `issue`, `branch`, `head_sha`, `merge_commit_sha`,
-`merged_at`, and `signals` straight from the bundle — do not recompute them.
+`merged_at`, `signals`, `additions`, `deletions`, and `changed_files` straight
+from the bundle — do not recompute them.
 
 An analyst-graded `clean` entry is a fully analyzed entry: it populates
 `categories`, `descriptors`, `summary`, and `suggested_interventions` exactly as
@@ -320,7 +324,7 @@ Example construction:
   --arg summary "$SUMMARY" \
   --argjson suggested_interventions "$SUGGESTED_INTERVENTIONS_JSON" \
   '{
-    schema_version: 2,
+    schema_version: 3,
     kind: "implementation",
     pr: $bundle.pr,
     issue: $bundle.issue_number,
@@ -332,6 +336,9 @@ Example construction:
     categories: $categories,
     descriptors: $descriptors,
     signals: $bundle.signals,
+    additions: $bundle.additions,
+    deletions: $bundle.deletions,
+    changed_files: $bundle.changed_files,
     summary: $summary,
     suggested_interventions: $suggested_interventions
   }'
