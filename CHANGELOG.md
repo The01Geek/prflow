@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.23] — 2026-08-25
+
+### Added
+- **`lib/test/run-parallel.sh` now reports its own elapsed wall-clock time.** The parallel full-suite coordinator prints a `run-parallel: elapsed Ns` line to standard output, placed before its clean/failed branch so it appears whether the aggregate is clean or failed, using only the bash `SECONDS` builtin. This makes the coordinator's runtime visible in a run's own records instead of recoverable only by hand from execution transcripts, so the drift that motivated this change is caught from the repository itself. (#1939)
+
 ## [2.34.22] — 2026-08-25
 
 ### Fixed

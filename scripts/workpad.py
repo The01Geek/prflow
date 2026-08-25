@@ -4751,6 +4751,62 @@ def _review_coverage_verdict(progress_content: str) -> None:
             )
 
 
+def _extension_row_verdict(progress_content: str) -> None:
+    """The extension-row half of the terminal gate (issue #1817): a terminal
+    `--status Complete` is refused while any `_EXTENSION_ROWS` `prompt extension
+    resolved:` row is BOTH unticked AND unaccompanied by that row's sanctioned
+    `state not established` note — the same fail-open the unticked-AC hard-fail
+    closes, applied to the extension rows so an unticked row on a Complete workpad
+    means the deliberate "state not established" record issue #1462 intended rather
+    than a silent bookkeeping miss.
+
+    Each row is located in the ## Progress content by its stable substring via
+    `_CHECKBOX_ROW_RE` (the same detector `_reconcile_extension_rows` uses). A row
+    that is absent entirely is tolerated, not refused: a workpad created before the
+    rows existed (pre-#1462, never `--reconcile-extension-rows`'d) carries none of
+    them, matching the gate's existing tolerance for older workpads (an absent AC or
+    Plan section contributes nothing). A ticked row passes. An unticked row passes
+    only when ## Progress carries a note line naming that row's substring together
+    with the phrase `state not established` — keyed on the row name plus that phrase,
+    not a byte-exact match of the free-prose note.
+
+    A PURE READ, structured like `_required_artifact_verdict`: it raises a structural
+    `_UpdateError` (no PATCH — `cmd_update` aborts before the temp-file/PATCH block)
+    and mutates nothing on any path. Returns None on a clean pass."""
+    lines = progress_content.split('\n')
+    offending = []
+    for _phase, text, substr in _EXTENSION_ROWS:
+        row = next(
+            (
+                m for ln in lines
+                if (m := _CHECKBOX_ROW_RE.match(ln))
+                and substr.lower() in m.group(4).lower()
+            ),
+            None,
+        )
+        if row is None:
+            continue  # wholly-absent row → legacy workpad tolerance, never refused
+        if row.group(2) != '[ ]':
+            continue  # ticked → satisfied
+        note_present = any(
+            not _CHECKBOX_ROW_RE.match(ln)
+            and substr.lower() in ln.lower()
+            and 'state not established' in ln.lower()
+            for ln in lines
+        )
+        if not note_present:
+            offending.append(text)
+    if offending:
+        rows = '\n'.join(f'    - [ ] {t}' for t in offending)
+        raise _UpdateError(
+            "refusing to finalize Status: Complete — "
+            f"{len(offending)} prompt-extension row(s) resolved-but-unrecorded: each "
+            "is unticked and carries no `state not established` note (tick it once the "
+            "extension's state was observed, or record that note, before finalizing) "
+            f"[extension-row-unrecorded]:\n{rows}"
+        )
+
+
 def _terminal_complete_gate(sections, args) -> list[str]:
     """Reconcile the workpad self-record on a terminal `--status Complete` write.
 
@@ -4785,7 +4841,13 @@ def _terminal_complete_gate(sections, args) -> list[str]:
     pass ran in full, or a disposition for each gap it records, over a fan-out that
     was actually dispatched. An unestablished record, an undispositioned gap, an
     undispatched pass, or a boilerplate reason is a structural `_UpdateError` (no
-    PATCH), like every other member here."""
+    PATCH), like every other member here.
+
+    Also enforces the extension-row gate (issue #1817): every `_EXTENSION_ROWS`
+    `prompt extension resolved:` row present in ## Progress must be ticked or carry a
+    `state not established` note, so a resolved-but-unrecorded row cannot pass
+    silently. A wholly-absent row set (a pre-#1462 workpad) is tolerated. A violation
+    is a structural `_UpdateError` (no PATCH), like every other member here."""
     # Completion-evidence gate first: it is the strictest precondition and its
     # failure is the one issue #1087 exists to enforce. `args` is REQUIRED (never
     # defaulted) so the gate can never be silently skipped by an argument omission —
@@ -4796,6 +4858,7 @@ def _terminal_complete_gate(sections, args) -> list[str]:
     _completion_evidence_verdict(args, prog_content)
     _required_artifact_verdict(prog_content)
     _review_coverage_verdict(prog_content)
+    _extension_row_verdict(prog_content)
     ac_idx = _find_section(sections, 'Acceptance Criteria')
     if ac_idx is not None:
         ac_content = sections[ac_idx][1]
