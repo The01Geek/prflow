@@ -3476,5 +3476,30 @@ assert_eq "#1828: a malformed experiment-records.jsonl still emits the pattern (
 assert_eq "#1828: a malformed experiment-records.jsonl emits the specific breadcrumb naming the file" "true" \
   "$(grep -q 'experiment-records.jsonl.*does not parse as JSON' "$RL_TMP/rank3.err" && echo true || echo false)"
 
+# Producer-drift heartbeat: a PRESENT, PARSEABLE experiment-records whose records all fail
+# the per-record type guards (here a non-number pr) yields zero cost coverage — the silent
+# collapse a producer-schema regression would cause. The run must still succeed (rc 0,
+# patterns emitted uncovered) AND emit the advisory zero-coverage heartbeat. The control
+# below (a covered file) must stay silent, so the heartbeat pins the drift signal, not an
+# inert fixture.
+mkdir -p "$RL_TMP/drift"
+printf '%s\n' \
+  '{"schema_version":2,"kind":"implementation","pr":1,"merged_at":"2026-04-01T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":2,"merged_at":"2026-04-02T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  > "$RL_TMP/drift/retrospectives.jsonl"
+# valid JSON, parses, but the non-number pr drops every record inside the jq cost index.
+printf '%s\n' '{"pr":"abc","efficiency_runs":[{"iterations":4}]}' '{"pr":"def","efficiency_runs":[{"iterations":6}]}' > "$RL_TMP/drift/experiment-records.jsonl"
+printf '%s' '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$RL_TMP/drift/ov.json"
+RL_DRIFT="$(DEVFLOW_GH="$RL_TMP/gh-ap.sh" DEVFLOW_CONFIG_FILE="$REPO_ROOT/lib/test/fixtures/config.json" \
+  bash "$RL_AP" "$RL_TMP/drift/retrospectives.jsonl" "$RL_TMP/drift/ov.json" 2>"$RL_TMP/drift.err")"; RL_DRIFT_RC=$?
+assert_eq "#1828 heartbeat: producer drift (all records dropped) still succeeds (rc 0)" "0" "$RL_DRIFT_RC"
+assert_eq "#1828 heartbeat: producer drift emits the zero-cost-coverage advisory" "true" \
+  "$(grep -q 'yielded zero cost coverage for every pattern' "$RL_TMP/drift.err" && echo true || echo false)"
+# Control: the rank2 fixture (covered patterns) must NOT emit the heartbeat.
+DEVFLOW_GH="$RL_TMP/gh-ap.sh" DEVFLOW_CONFIG_FILE="$REPO_ROOT/lib/test/fixtures/config.json" \
+  bash "$RL_AP" "$RL_TMP/rank2/retrospectives.jsonl" "$RL_TMP/rank2/ov.json" 2>"$RL_TMP/covered.err" >/dev/null
+assert_eq "#1828 heartbeat: a covered file stays silent (no false drift heartbeat)" "false" \
+  "$(grep -q 'yielded zero cost coverage for every pattern' "$RL_TMP/covered.err" && echo true || echo false)"
+
 rm -rf "$RL_TMP"
 trap - RETURN

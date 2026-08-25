@@ -152,6 +152,23 @@ else
   )"
 fi
 
+# Producer-drift heartbeat (issue #1828): compute-patterns.jq's per-record cost-index type
+# guards drop a malformed experiment record silently (fail-safe — the pattern reads
+# uncovered), so a producer-schema regression that still parses as JSON — a non-number `pr`,
+# a renamed `efficiency_runs` — would collapse cost coverage to zero with no signal,
+# indistinguishably from the benign no-records case. When the real experiment file was used
+# (the `_EXPERIMENTS_ACTUAL == EXPERIMENTS_FILE` arm, i.e. present, non-empty, and parseable)
+# yet NO pattern came out covered, emit one advisory ::warning:: so that silent collapse is
+# observable. `|| true` + the non-numeric arm keep an unestablished count from fabricating a
+# zero heartbeat (unknown is not zero); the warning never changes the emitted output.
+if [ "$_EXPERIMENTS_ACTUAL" = "$EXPERIMENTS_FILE" ]; then
+  _COVERED_ANY="$(printf '%s' "$PATTERN_VIEW" | "$DEVFLOW_JQ" '[to_entries[] | select((.value.covered_occurrence_count // 0) > 0)] | length' 2>/dev/null || true)"
+  case "$_COVERED_ANY" in
+    ''|*[!0-9]*) : ;;
+    0) echo "::warning::actionable-patterns: experiment-records.jsonl at '$EXPERIMENTS_FILE' is present and parses but yielded zero cost coverage for every pattern — cost-weighted ranking has degraded to occurrence-count-only; if unexpected, check scripts/build-experiment-records.py for producer-schema drift (a non-number 'pr' or a renamed 'efficiency_runs' the per-record type guards drop silently)" >&2 ;;
+  esac
+fi
+
 # ── Fetch open filed retrospective issues and build slug→createdAt map ───────
 # Each pattern the loop files becomes an open issue titled
 # "[devflow-retrospective] meta: <slug> — <title>" (see lib/meta-issue.sh). A
