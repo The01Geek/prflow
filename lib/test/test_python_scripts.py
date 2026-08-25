@@ -36310,8 +36310,8 @@ _hard_idx = _dr1388.find("Harden setup-project-env onto trusted base-ref bytes")
 _prov_idx = _dr1388.find("Provision project environment (opt-in)")
 assert_eq("#1388 review-isolation: hardening precedes the provision step", True,  # structural-pin-ok: cross-file-phase-contract -- ordering: trusted bytes materialized before use
           0 <= _hard_idx < _prov_idx)
-assert_eq("#1388 review-isolation: hardening overwrites the PR-head action dir from FETCH_HEAD", True,  # structural-pin-ok: security-credential-boundary -- base-ref overwrite of the PR-head copy
-          'git show "FETCH_HEAD:$dir/$f"' in _dr1388)
+assert_eq("#1388 review-isolation: hardening materializes every base-ref action file from FETCH_HEAD", True,  # structural-pin-ok: security-credential-boundary -- whole-dir base-ref materialization
+          'git ls-tree -r --name-only FETCH_HEAD -- "$dir"' in _dr1388 and 'git show "FETCH_HEAD:$f"' in _dr1388)
 
 
 # ── issue #1388: the tracked marker ships, validates, and stays in sync ──

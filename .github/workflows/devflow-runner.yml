@@ -1415,19 +1415,28 @@ jobs:
           git fetch --depth=1 origin "$BASE_REF" >/dev/null 2>&1 \
             || { echo "::error::could not fetch base ref '$BASE_REF' to harden setup-project-env"; exit 1; }
           dir=".github/actions/setup-project-env"
-          mkdir -p "$dir"
-          # Overwrite the listed action files with their base-ref content. A file ABSENT on
-          # the base ref (e.g. provision-lint-tools.sh on a base that predates this
-          # change) is REMOVED from the PR-head copy so no PR-authored version can
-          # survive. action.yml must exist on the base ref or the action cannot run.
-          for f in action.yml resolve-node-cache.sh provision-lint-tools.sh; do
-            if git show "FETCH_HEAD:$dir/$f" > "$dir/$f.trusted" 2>/dev/null; then
-              mv "$dir/$f.trusted" "$dir/$f"
+          # Enumerate the action's files as they exist on the TRUSTED base ref and
+          # materialize EVERY one over the PR-head copy, so a file the action gains
+          # later is covered with no edit to this step (a hardcoded file list would
+          # silently leave a new PR-head helper executable in the review job). Then
+          # prune any PR-head file NOT present on the base ref, so no PR-authored
+          # addition survives. action.yml must exist on the base ref or the action
+          # cannot run.
+          mapfile -t base_files < <(git ls-tree -r --name-only FETCH_HEAD -- "$dir")
+          [ "${#base_files[@]}" -gt 0 ] || { echo "::error::base ref '$BASE_REF' carries no $dir; refusing to run a PR-head action body"; exit 1; }
+          for f in "${base_files[@]}"; do
+            mkdir -p "$(dirname "$f")"
+            if git show "FETCH_HEAD:$f" > "$f.trusted" 2>/dev/null; then
+              mv "$f.trusted" "$f"
             else
-              rm -f "$dir/$f.trusted" "$dir/$f"
+              rm -f "$f.trusted"
+              echo "::error::could not materialize trusted $f from base ref '$BASE_REF'"; exit 1
             fi
           done
-          [ -f "$dir/action.yml" ] || { echo "::error::base ref '$BASE_REF' carries no setup-project-env/action.yml; refusing to run a PR-head action body"; exit 1; }
+          while IFS= read -r head_f; do
+            printf '%s\n' "${base_files[@]}" | grep -qxF "$head_f" || rm -f "$head_f"
+          done < <(git ls-files -- "$dir")
+          [ -f "$dir/action.yml" ] || { echo "::error::base ref '$BASE_REF' carries no $dir/action.yml; refusing to run a PR-head action body"; exit 1; }
           chmod +x "$dir"/*.sh 2>/dev/null || true
           echo "hardened setup-project-env from trusted base ref '$BASE_REF'"
 

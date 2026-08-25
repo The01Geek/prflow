@@ -161,9 +161,10 @@ _provision_one() {
     || _die "$tool" "unwritable target: cannot install into $DEST_BIN"
   chmod 0755 "$dest" 2>/dev/null || _die "$tool" "unwritable target: cannot chmod $dest"
 
-  # Verify the installed executable reports the manifest's exact version.
-  "$dest" --version >/dev/null 2>&1 || _die "$tool" "installed executable is not runnable"
-  "$dest" --version 2>&1 | grep -qF "$version" \
+  # Verify the installed executable reports the manifest's exact version (one exec).
+  local reported
+  reported="$("$dest" --version 2>&1)" || _die "$tool" "installed executable is not runnable"
+  printf '%s' "$reported" | grep -qF "$version" \
     || _die "$tool" "wrong version: $dest does not report $version"
 
   printf 'provision-lint-tools: %s: installed %s (%s), version-verified (key %s)\n' \

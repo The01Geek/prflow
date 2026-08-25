@@ -196,7 +196,7 @@ def main(argv=None) -> int:
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
-        raise SystemExit(1 if exc.code else exc.code) from None
+        raise SystemExit(1 if exc.code else 0) from None
 
     plan = build_plan(args.manifest, args.tool, args.os_name, args.arch)
     if plan.status == "unestablished":
