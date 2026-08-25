@@ -12379,6 +12379,39 @@ _ext_noted = apply_mut(_EXT_UNTICKED, make_args(
 assert_eq("#1817 AC2: an unticked row + its state-not-established note finalizes Complete",
           True, "🎉 Complete" in _statusline(_ext_noted))
 
+# AC1 (multi-row plural path): two unticked, un-noted rows are BOTH named, exercising
+# len(offending) pluralization and the multi-row join that a single-row test never reaches.
+_EXT_TWO_UNTICKED = _EXT_BODY.replace(
+    "  - [x] prompt extension resolved: review engine",
+    "  - [ ] prompt extension resolved: review engine").replace(
+    "  - [x] prompt extension resolved: fix loop",
+    "  - [ ] prompt extension resolved: fix loop")
+_ext_two_err = None
+try:
+    apply_mut(_EXT_TWO_UNTICKED, make_args(status="Complete"), [])
+except workpad._UpdateError as e:
+    _ext_two_err = str(e)
+assert_eq("#1817 AC1: two unticked rows both refuse Complete and are BOTH named",
+          True, _ext_two_err is not None
+          and "prompt extension resolved: review engine" in _ext_two_err
+          and "prompt extension resolved: fix loop" in _ext_two_err
+          and "2 prompt-extension row(s)" in _ext_two_err)
+
+# AC1 (note keying is load-bearing): an unticked row whose only note names a DIFFERENT row
+# is still refused — proving the note's row-substring conjunct is not vacuous (a note for
+# 'review engine' does not satisfy the unticked 'fix loop' row).
+_ext_wrongnote_err = None
+try:
+    apply_mut(_EXT_UNTICKED, make_args(
+        status="Complete",
+        note=["extension resolved: review engine — state not established (loader refused)"]),
+        [])
+except workpad._UpdateError as e:
+    _ext_wrongnote_err = str(e)
+assert_eq("#1817 AC1: a state-not-established note for a DIFFERENT row does not satisfy the unticked row",
+          True, _ext_wrongnote_err is not None
+          and "prompt extension resolved: fix loop" in _ext_wrongnote_err)
+
 # AC3: Blocked and Failed are accepted with an unticked, un-noted extension row.
 for _terminal in ("Blocked", "Failed"):
     _res = None
