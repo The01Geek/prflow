@@ -25,6 +25,14 @@ inputs:
   config_json:
     description: '.prflow/config.json contents, as emitted by the read-project-config action (steps.<id>.outputs.json). The automated reviewer (devflow-runner.yml, provision_env path) instead passes the TRUSTED base-ref config it reads directly via git show + `jq -c` — a different provenance but the same shape (a JSON object with a `.setup` block), so this action consumes it identically.'
     required: true
+  lint_mode:
+    description: >-
+      Lint-tool provisioning mode. Closed set: "provision" installs the
+      manifest's bounded ShellCheck/Ruff toolchain (run-local, no sudo, digest
+      and version verified) before the Claude action; "none" does no lint-tool
+      work and validates no manifest. Any other value is refused.
+    required: false
+    default: 'none'
 
 outputs:
   health_summary:
@@ -222,6 +230,54 @@ runs:
             printf '%s\n' "$delim"
           } >> "$GITHUB_OUTPUT"
         fi
+
+    # Provision the bounded lint toolchain BEFORE the model runs, from the
+    # digest-bound compatibility marker (issue #1388). `lint_mode: none` does no
+    # lint-tool work and validates no manifest; `provision` installs the
+    # manifest's ShellCheck/Ruff set run-local (no sudo), digest and version
+    # verified, and fails CLOSED before the model runs on any readiness or
+    # verification failure. An unknown lint_mode is refused. The closed-ID
+    # mapping (os/arch → artifact, trusted download URL) lives in the trusted
+    # Python helpers, never in manifest-supplied strings.
+    - name: Provision lint toolchain (before model)
+      shell: bash
+      env:
+        LINT_MODE: ${{ inputs.lint_mode }}
+      run: |
+        set -euo pipefail
+        case "$LINT_MODE" in
+          none)
+            echo "lint_mode=none: no lint-tool provisioning and no manifest validation."
+            exit 0
+            ;;
+          provision) ;;
+          *)
+            echo "::error::setup-project-env: unknown lint_mode '$LINT_MODE' (closed set: provision | none)."
+            exit 1
+            ;;
+        esac
+        # Resolve the trusted bundled helpers: this repo's own scripts/ (self /
+        # committed), else the vendored slice a thin consumer materializes.
+        SCRIPTS_DIR="scripts"
+        if [ ! -f "$SCRIPTS_DIR/lint_provision.py" ]; then
+          SCRIPTS_DIR=".prflow/vendor/prflow/scripts"
+        fi
+        case "${RUNNER_OS:-}" in
+          Linux) TARGET_OS=linux ;;
+          macOS) TARGET_OS=macos ;;
+          Windows) TARGET_OS=windows ;;
+          *) echo "::error::setup-project-env: unsupported RUNNER_OS '${RUNNER_OS:-}'"; exit 1 ;;
+        esac
+        case "${RUNNER_ARCH:-}" in
+          X64) TARGET_ARCH=x86_64 ;;
+          ARM64) TARGET_ARCH=arm64 ;;
+          *) echo "::error::setup-project-env: unsupported RUNNER_ARCH '${RUNNER_ARCH:-}'"; exit 1 ;;
+        esac
+        export LINT_MANIFEST=".prflow/lint-manifest.json"
+        export INSTALL_STATE=".prflow/install-state.json"
+        export DEST_BIN="${RUNNER_TEMP:-/tmp}/prflow-lint-bin"
+        export TARGET_OS TARGET_ARCH SCRIPTS_DIR
+        bash "$GITHUB_ACTION_PATH/provision-lint-tools.sh"
 
     - name: Provision project dependencies
       shell: bash

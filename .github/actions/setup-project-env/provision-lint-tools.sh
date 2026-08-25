@@ -20,12 +20,13 @@
 # Required environment:
 #   LINT_MANIFEST      path to .prflow/lint-manifest.json
 #   INSTALL_STATE      path to .prflow/install-state.json (the compatibility marker)
-#   INSTALLER_VERSION  the installer version (the marker's field; cache-key component)
 #   DEST_BIN           directory to install the tool executables into (added to PATH)
 #   TARGET_OS          linux | macos | windows
 #   TARGET_ARCH        x86_64 | arm64
 #   SCRIPTS_DIR        directory holding lint_provision.py + install_state.py
 # Optional (overridable so lib/test can drive each fail-closed arm offline):
+#   INSTALLER_VERSION  overrides the marker's installer_version (cache-key component);
+#                      derived from the marker after the readiness gate when unset
 #   TOOLS              space-separated tool list (default "shellcheck ruff")
 #   LINTPROV_PYTHON    python3 interpreter (default python3)
 #   LINTPROV_CURL      downloader; called as "$LINTPROV_CURL" -fsSL -o OUT URL (default curl)
@@ -59,7 +60,7 @@ with open(sys.argv[1], "rb") as fh:
 PY
 }
 
-for v in LINT_MANIFEST INSTALL_STATE INSTALLER_VERSION DEST_BIN TARGET_OS TARGET_ARCH SCRIPTS_DIR; do
+for v in LINT_MANIFEST INSTALL_STATE DEST_BIN TARGET_OS TARGET_ARCH SCRIPTS_DIR; do
   eval "val=\${$v:-}"
   [ -n "$val" ] || _die - "missing required environment variable $v"
 done
@@ -72,6 +73,14 @@ _have "$PY" || _die - "installer primitive not found: python3 ($PY)"
 # manifest is missing/invalid.
 if ! ready="$("$PY" "$SCRIPTS_DIR/install_state.py" verify --state "$INSTALL_STATE" --manifest "$LINT_MANIFEST" 2>&1)"; then
   _die - "install-state readiness refused: ${ready#NOT-READY }"
+fi
+
+# The marker validated above, so its installer_version is present and typed. An
+# explicit INSTALLER_VERSION env overrides it (tests); otherwise derive it here.
+INSTALLER_VERSION="${INSTALLER_VERSION:-}"
+if [ -z "$INSTALLER_VERSION" ]; then
+  INSTALLER_VERSION="$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["installer_version"])' "$INSTALL_STATE")" \
+    || _die - "could not read installer_version from the validated marker"
 fi
 
 mkdir -p "$DEST_BIN" 2>/dev/null || _die - "unwritable target: cannot create $DEST_BIN"

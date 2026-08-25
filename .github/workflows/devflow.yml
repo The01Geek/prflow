@@ -1041,6 +1041,9 @@ jobs:
       - uses: ./.github/actions/setup-project-env
         with:
           config_json: ${{ steps.cfg.outputs.json }}
+          # The command tier does no linting itself; lint provisioning is the
+          # implement tier's concern (issue #1388).
+          lint_mode: none
 
       # Optional, opt-in: for the `/devflow:review` command ONLY, mint a
       # DEDICATED DevFlow-Reviewer installation token DOWNSCOPED to the review

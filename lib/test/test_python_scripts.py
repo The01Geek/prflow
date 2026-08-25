@@ -35852,7 +35852,6 @@ def _run_helper_1388(root, *, tools="shellcheck", os_name="linux", arch="x86_64"
     env.update({
         "LINT_MANIFEST": ".prflow/lint-manifest.json",
         "INSTALL_STATE": ".prflow/install-state.json",
-        "INSTALLER_VERSION": "v0",
         "DEST_BIN": str(dest_bin if dest_bin else (root / "bin")),
         "TARGET_OS": os_name, "TARGET_ARCH": arch,
         "SCRIPTS_DIR": str(SCRIPTS),
@@ -35948,6 +35947,46 @@ try:
         _ro.chmod(0o755)
 finally:
     shutil.rmtree(_d1388b, ignore_errors=True)
+
+
+# ── issue #1388: workflow + composite-action wiring pins (cross-file contract) ──
+_WF_1388 = SCRIPTS.parent / '.github' / 'workflows'
+_ACTION_1388 = (SCRIPTS.parent / '.github' / 'actions' / 'setup-project-env' / 'action.yml').read_text(encoding='utf-8')
+_dv1388 = (_WF_1388 / 'devflow.yml').read_text(encoding='utf-8')
+_di1388 = (_WF_1388 / 'devflow-implement.yml').read_text(encoding='utf-8')
+_dr1388 = (_WF_1388 / 'devflow-runner.yml').read_text(encoding='utf-8')
+
+# AC4/AC6: the composite action declares a closed lint_mode input and refuses an unknown value.
+assert_eq("#1388 action: declares a lint_mode input", True,  # structural-pin-ok: schema-config-vocabulary -- the closed lint_mode input is the action's typed contract
+          "lint_mode:" in _ACTION_1388)
+assert_eq("#1388 action: refuses an unknown lint_mode (closed set)", True,  # structural-pin-ok: schema-config-vocabulary -- fail-closed refusal of an out-of-set value
+          "unknown lint_mode" in _ACTION_1388)
+assert_eq("#1388 action: none mode does no lint work / no manifest validation", True,  # structural-pin-ok: routing-dispatch-contract -- the none-mode no-op branch
+          "no lint-tool provisioning and no manifest validation" in _ACTION_1388)
+assert_eq("#1388 action: provision invokes the provisioning helper", True,  # structural-pin-ok: routing-dispatch-contract -- provision dispatches the bundled helper
+          "provision-lint-tools.sh" in _ACTION_1388)
+
+# AC7: the three callers pass tested lint modes none / provision / none.
+assert_eq("#1388 wiring: devflow.yml passes lint_mode: none", 1,  # structural-pin-ok: routing-dispatch-contract -- command tier lint mode
+          _dv1388.count("lint_mode: none"))
+assert_eq("#1388 wiring: devflow-implement.yml passes lint_mode: provision", 1,  # structural-pin-ok: routing-dispatch-contract -- implement tier lint mode
+          _di1388.count("lint_mode: provision"))
+assert_eq("#1388 wiring: devflow-runner.yml passes lint_mode: none", 1,  # structural-pin-ok: routing-dispatch-contract -- review tier lint mode
+          _dr1388.count("lint_mode: none"))
+# The implement tier is the ONLY provision caller; the review tier must never provision.
+assert_eq("#1388 wiring: only implement provisions (review never does)", 0,  # structural-pin-ok: security-credential-boundary -- no manifest-derived bytes in the review job
+          _dr1388.count("lint_mode: provision"))
+
+# AC8: the review runner hardens the setup action onto trusted base-ref bytes and
+# never executes the PR-head action body. The hardening step must precede the use.
+assert_eq("#1388 review-isolation: runner hardens setup-project-env onto base-ref bytes", True,  # structural-pin-ok: security-credential-boundary -- trusted-base materialization of the action body
+          "Harden setup-project-env onto trusted base-ref bytes" in _dr1388)
+_hard_idx = _dr1388.find("Harden setup-project-env onto trusted base-ref bytes")
+_prov_idx = _dr1388.find("Provision project environment (opt-in)")
+assert_eq("#1388 review-isolation: hardening precedes the provision step", True,  # structural-pin-ok: cross-file-phase-contract -- ordering: trusted bytes materialized before use
+          0 <= _hard_idx < _prov_idx)
+assert_eq("#1388 review-isolation: hardening overwrites the PR-head action dir from FETCH_HEAD", True,  # structural-pin-ok: security-credential-boundary -- base-ref overwrite of the PR-head copy
+          'git show "FETCH_HEAD:$dir/$f"' in _dr1388)
 
 
 print()

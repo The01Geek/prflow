@@ -1390,21 +1390,64 @@ jobs:
           adelim="OUT_EOF_$(date +%s%N)_$$"
           { printf 'args<<%s\n' "$adelim"; printf '%s\n' "$ARGS"; printf '%s\n' "$adelim"; } >> "$GITHUB_OUTPUT"
 
+      # Harden the setup-project-env composite action onto TRUSTED base-ref bytes
+      # before it runs (issue #1388). The review job checks out the PR HEAD, so
+      # ./.github/actions/setup-project-env would otherwise execute the PR's own
+      # copy of the action body — a PR editing that action could run its edit in
+      # the read-only review job. Overwrite the workspace copy with the base ref's
+      # bytes (fetched with the same trusted BASE_REF derivation baseprovision
+      # uses); a local `uses: ./…` action is loaded from the workspace when its
+      # step runs, so the subsequent step executes these trusted bytes. Fail
+      # CLOSED: if the trusted bytes cannot be materialized, do NOT fall back to
+      # the PR-head copy — the whole job aborts. Gated on the same opt-in as the
+      # provision step it protects.
+      - name: Harden setup-project-env onto trusted base-ref bytes
+        id: hardensetup
+        if: steps.baseprovision.outputs.provision_env == 'true'
+        shell: bash
+        env:
+          # Same trusted derivation as baseprovision's BASE_REF — the PR's target
+          # branch, never a PR-controlled value.
+          BASE_REF: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          [ -n "$BASE_REF" ] || { echo "::error::no BASE_REF to harden setup-project-env against"; exit 1; }
+          git fetch --depth=1 origin "$BASE_REF" >/dev/null 2>&1 \
+            || { echo "::error::could not fetch base ref '$BASE_REF' to harden setup-project-env"; exit 1; }
+          dir=".github/actions/setup-project-env"
+          mkdir -p "$dir"
+          # Overwrite each action file with its base-ref content. A file ABSENT on
+          # the base ref (e.g. provision-lint-tools.sh on a base that predates this
+          # change) is REMOVED from the PR-head copy so no PR-authored version can
+          # survive. action.yml must exist on the base ref or the action cannot run.
+          for f in action.yml resolve-node-cache.sh provision-lint-tools.sh; do
+            if git show "FETCH_HEAD:$dir/$f" > "$dir/$f.trusted" 2>/dev/null; then
+              mv "$dir/$f.trusted" "$dir/$f"
+            else
+              rm -f "$dir/$f.trusted" "$dir/$f"
+            fi
+          done
+          [ -f "$dir/action.yml" ] || { echo "::error::base ref '$BASE_REF' carries no setup-project-env/action.yml; refusing to run a PR-head action body"; exit 1; }
+          chmod +x "$dir"/*.sh 2>/dev/null || true
+          echo "hardened setup-project-env from trusted base ref '$BASE_REF'"
+
       # Provision the runtime BEFORE Claude runs, but ONLY when the trusted base
       # config opted in via prflow_runner.provision_env. config_json is the
       # BASE ref's config (steps.baseprovision), never the PR head, so PR edits
       # to `setup.install` cannot inject commands here — the same trust boundary
-      # setup-project-env already documents for `services`. (The action body and
-      # the install commands still execute from / against the PR checkout once
-      # enabled; that residual vector is the documented opt-in — see
-      # docs/internal/cloud-setup.md.) When the flag is absent/false this step is skipped
-      # and the runner behaves exactly as before: read-only, no build tools.
+      # setup-project-env already documents for `services`. The action BODY is now
+      # the trusted base-ref copy too (hardensetup above), closing the residual
+      # PR-head-action-body vector for the review job. lint_mode is `none`: no
+      # manifest-derived bytes may enter the read-only review job (issue #1388).
+      # When the flag is absent/false this step is skipped and the runner behaves
+      # exactly as before: read-only, no build tools.
       - name: Provision project environment (opt-in)
         id: provision
         if: steps.baseprovision.outputs.provision_env == 'true'
         uses: ./.github/actions/setup-project-env
         with:
           config_json: ${{ steps.baseprovision.outputs.config_json }}
+          lint_mode: none
 
       # Provisioning is best-effort: a service container that never becomes
       # healthy emits a `::warning::` and the job continues (see
