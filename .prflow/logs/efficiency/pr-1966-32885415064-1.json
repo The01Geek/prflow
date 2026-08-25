@@ -131,5 +131,81 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.25",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 66.94000989999999,
+    "tokens": {
+      "input_tokens": 380,
+      "output_tokens": 212092,
+      "cache_read_input_tokens": 77957104,
+      "cache_creation_input_tokens": 621155,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 624,
+        "outputTokens": 304817,
+        "cacheReadInputTokens": 85881052,
+        "cacheCreationInputTokens": 1722535,
+        "webSearchRequests": 0,
+        "costUSD": 63.659246000000024,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 236,
+        "outputTokens": 49209,
+        "cacheReadInputTokens": 8611047,
+        "cacheCreationInputTokens": 426397,
+        "webSearchRequests": 0,
+        "costUSD": 3.2807639,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 249,
+    "duration_ms": 7571139
+  },
+  "permission_denials": {
+    "count": 16,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"; echo \"GITHUB_RUN_ID=$GITHUB_RUN_ID\"; echo \"GITHUB_REPOSITORY=$GITHUB_REPOSITORY\"; echo \"BASE_default:\"; git rev-parse --abbrev-ref HEAD; git status --porcelain; ls .prflow/vendor/prflow/scripts/workpad.py 2>&1 | head -1",
+      "python3 -c \"\nimport scripts.workpad as w\n# Today: the ONLY coherence check on a review-coverage record is the not-applicable rule.\n# A 'skipped-intentional' checklist claim is accepted with no look at the diff at all.\nrec = {'coverage':'full','dispatch':'attempted','roster':'complete','checklist':'skipped-intentional'}\nprint('incoherence for skipped-intentional over an arbitrary (unmeasured) diff:', repr(w._review_coverage_incoherence(rec)))\nprint('skipped-intentional in checklist clean set:', ' …[per-command-truncated]",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1509-review-coverage-checklist-skip.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"spl_exit=$?\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1509-review-coverage-checklist-skip.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree",
+      "python3 - <<'EOF'\nimport subprocess, json\nsha = subprocess.check_output(['git','rev-parse','HEAD']).decode().strip()\ndecl = {\n  \"command\": \"lib/test/test_python_scripts.py\",\n  \"tree_sha\": sha,\n  \"candidate_identity\": \"ac-verifier-1509\"\n}\nwith open('/tmp/flight-input.json','w') as f:\n    json.dump(decl, f)\nprint(sha)\nEOF\ncat /tmp/flight-input.json",
+      "SHA=$(git rev-parse HEAD)\nprintf '{\"command\": \"lib/test/test_python_scripts.py\", \"tree_sha\": \"%s\", \"candidate_identity\": \"ac-verifier-1509\"}' \"$SHA\" > /tmp/flight-input.json\ncat /tmp/flight-input.json",
+      "echo '{\"command\": \"lib/test/test_python_scripts.py\", \"tree_sha\": \"6eb7c461da58a1ba538b665668a40a0a8ae4f49f\", \"candidate_identity\": \"ac-verifier-1509\"}' > /tmp/flight-input.json\ncat /tmp/flight-input.json",
+      "echo '{\"command\": \"lib/test/test_python_scripts.py\", \"tree_sha\": \"6eb7c461da58a1ba538b665668a40a0a8ae4f49f\", \"candidate_identity\": \"ac-verifier-1509\"}' > /tmp/flight-input.json",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp\necho '{\"command\": \"lib/test/test_python_scripts.py\", \"tree_sha\": \"6eb7c461da58a1ba538b665668a40a0a8ae4f49f\", \"candidate_identity\": \"ac-verifier-1509\"}' > /home/runner/work/prflow/prflow/.prflow/tmp/flight-input-1509.json",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > /home/runner/work/prflow/prflow/.prflow/tmp/fp-1509.json\ncat /home/runner/work/prflow/prflow/.prflow/tmp/fp-1509.json",
+      "cd /home/runner/work/prflow/prflow\necho \"=== growth helper ===\"\nscripts/prompt-surface-growth.py 2>&1 | head -40\necho \"=== workpad post-merge check ===\"\nWID=$(scripts/workpad.py id 1509 2>/dev/null || true); echo \"wid=$WID\"\nscripts/workpad.py body \"$WID\" 2>/dev/null | grep -iE '\\(post-merge\\)' || echo \"(no post-merge items)\"\necho \"=== deferrals ===\"\nls .prflow/tmp/review/pr-1966/deferrals.json 2>/dev/null || echo \"(no deferrals file)\"",
+      "scripts/prompt-surface-growth.py 2>&1",
+      "scripts/prompt-surface-growth.py 2>&1",
+      "cd /home/runner/work/prflow/prflow\nPR=$(gh pr view --json number --jq '.number' 2>/dev/null)\nif [ -z \"$PR\" ]; then echo \"ERROR: could not resolve PR number\"; exit 1; fi\necho \"PR=$PR\"\ngh api --method PATCH \"repos/{owner}/{repo}/pulls/$PR\" -F body=@.prflow/tmp/pr-1966-body.md --jq '.number' && echo \"PATCH ok\"",
+      ".prflow/vendor/prflow/scripts/reception_identity.py 2>&1 | head; echo \"ri_exit=$?\"",
+      "lib/test/run-parallel.sh 2>&1 | tail -30; echo \"suite_exit=${PIPESTATUS[0]}\""
+    ],
+    "total": 16,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
