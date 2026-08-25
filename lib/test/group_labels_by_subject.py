@@ -265,13 +265,15 @@ def main(argv: "list[str] | None" = None) -> int:
         print(f"group_labels_by_subject: cannot read {RUN_SH_REL}: {exc}", file=sys.stderr)
         return 2
 
-    # Fail closed on a coverage-map that lacks the run_sh_blocks key entirely — a schema
-    # rename would otherwise make `restrict` empty and emit a silent, empty grouping that
-    # reads identically to the legitimate "nothing is unmodularized" result.
-    if "run_sh_blocks" not in coverage_map:
+    # Fail closed on a coverage-map that lacks a usable run_sh_blocks dict — a schema rename
+    # or a corrupted file would otherwise make `restrict` empty and emit a silent, empty
+    # grouping that reads identically to the legitimate "nothing is unmodularized" result.
+    if not isinstance(coverage_map, dict) or not isinstance(
+        coverage_map.get("run_sh_blocks"), dict
+    ):
         print(
-            f"group_labels_by_subject: {MAP_REL} has no 'run_sh_blocks' key (schema drift?); "
-            "refusing to emit an empty grouping",
+            f"group_labels_by_subject: {MAP_REL} has no usable 'run_sh_blocks' dict "
+            "(schema drift?); refusing to emit an empty grouping",
             file=sys.stderr,
         )
         return 2

@@ -154,14 +154,18 @@ assert_eq "#202 review claim" "checks skills/review/SKILL.md"
 assert_eq "#303 mixed claim" "a" "b"
 grep scripts/workpad.py "$LIB/g"
 assert_eq "#404 a claim naming no repository path at all" "x" "y"
+assert_eq "#505 already-modularized claim" "checks skills/review/SKILL.md"
 """
 
+# #505 names a path but its owner is a real module, not "unmodularized", so main()'s restrict
+# filter must exclude it from the grouping.
 MAIN_COVERAGE_MAP = {
     "run_sh_blocks": {
         "101": {"owner": "unmodularized"},
         "202": {"owner": "unmodularized"},
         "303": {"owner": "unmodularized"},
         "404": {"owner": "unmodularized"},
+        "505": {"owner": "review-contract"},
     }
 }
 
@@ -210,8 +214,22 @@ class MainCli(unittest.TestCase):
             self.assertEqual(rc, 0)
             payload = json.loads(out.getvalue())
             self.assertEqual(payload["scripts/workpad.py"], ["101", "303"])
+            # #505 is a non-unmodularized owner, so main()'s restrict filter drops it and
+            # skills/review stays a singleton — pinning the "marks unmodularized" clause of AC1
+            # at the main() integration level, not only in unmodularized_labels() in isolation.
             self.assertEqual(payload["skills/review"], ["202"])
             self.assertEqual(payload[g.NO_PATH_KEY], ["404"])
+
+    def test_non_unmodularized_label_excluded_by_main(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _build_repo(root, coverage_map=MAIN_COVERAGE_MAP, run_sh=MAIN_RUN_SH)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = g.main([str(root), "--json"])
+            self.assertEqual(rc, 0)
+            all_labels = [lbl for labels in json.loads(out.getvalue()).values() for lbl in labels]
+            self.assertNotIn("505", all_labels)
 
     def test_missing_run_sh_blocks_key_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
@@ -221,7 +239,17 @@ class MainCli(unittest.TestCase):
             with contextlib.redirect_stderr(err):
                 rc = g.main([str(root)])
             self.assertEqual(rc, 2)
-            self.assertIn("no 'run_sh_blocks' key", err.getvalue())
+            self.assertIn("run_sh_blocks", err.getvalue())
+
+    def test_non_dict_run_sh_blocks_fails_closed(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _build_repo(root, coverage_map={"run_sh_blocks": []}, run_sh=MAIN_RUN_SH)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = g.main([str(root)])
+            self.assertEqual(rc, 2)
+            self.assertIn("run_sh_blocks", err.getvalue())
 
     def test_unreadable_coverage_map_returns_2(self):
         with tempfile.TemporaryDirectory() as d:
