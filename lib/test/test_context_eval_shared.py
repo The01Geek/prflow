@@ -183,6 +183,7 @@ class IterSessionFilesTest(unittest.TestCase):
                 got = SHARED._iter_session_files(root, skipped)
                 self.assertEqual([os.path.basename(p) for p in got], ["real.jsonl"])
                 self.assertEqual(skipped["escaped_path"], 1)
+                self.assertEqual(skipped["walk_error"], 0)
 
 
 if __name__ == "__main__":
