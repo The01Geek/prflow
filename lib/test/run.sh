@@ -48242,6 +48242,8 @@ _refresher_scratch_guard() {
   return "$_rsg_rc"
 }
 _stop_sh_guarded() {
+  # These defaults MIRROR scripts/stop-refresher.sh's own; if that helper's default
+  # pidfile/log/reap-glob paths change, update these or the guard checks stale paths.
   _ssg_pid="${DEVFLOW_REFRESH_PIDFILE:-${RUNNER_TEMP:-/tmp}/devflow-refresh.pid}"
   _ssg_log="${DEVFLOW_REFRESH_LOG:-${RUNNER_TEMP:-/tmp}/devflow-refresh.log}"
   _ssg_reap="${DEVFLOW_REFRESH_REAP_GLOB:-${RUNNER_TEMP:-/tmp}/devflow-refresh-*.pid}"

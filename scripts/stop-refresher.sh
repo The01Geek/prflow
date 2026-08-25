@@ -104,9 +104,10 @@ else
   case "$_reap_base" in
     "") REAP_GLOB="" ;;
     # A drive-letter path with no WSL/MSYS signal, or a UNC path, survives
-    # normalization still carrying a colon-drive or backslashes an unquoted glob
-    # cannot express — refuse it rather than sweep nothing silently.
-    [A-Za-z]:/*|[A-Za-z]:\\*|*\\*)
+    # normalization still carrying a forward-slash drive (C:/…) or backslashes an
+    # unquoted glob cannot express — refuse it rather than sweep nothing silently.
+    # (C:\… is caught by the backslash catch-all; only the forward-slash drive needs its own arm.)
+    [A-Za-z]:/*|*\\*)
       echo "skipped cross-job orphan reap: RUNNER_TEMP '${RUNNER_TEMP:-/tmp}' could not be normalized into a POSIX glob root (resolved to '$_reap_base') — nothing signalled (fail-safe)"
       REAP_GLOB="" ;;
     *) REAP_GLOB="$_reap_base/devflow-refresh-*.pid" ;;
