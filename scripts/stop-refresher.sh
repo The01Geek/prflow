@@ -49,8 +49,11 @@
 #                               self-test (issue #1882). When present, the job's
 #                               failure is attributed to the signing fault rather
 #                               than a never-started / stale-credential defeat.
-#   DEVFLOW_REFRESH_REAP_GLOB   glob of job-scoped pidfiles for the cross-job reaper
-#                               (default $RUNNER_TEMP/devflow-refresh-*.pid).
+#   DEVFLOW_REFRESH_REAP_GLOB   glob of job-scoped pidfiles for the cross-job reaper.
+#                               When set, used VERBATIM (no conversion). When unset,
+#                               derived from RUNNER_TEMP normalized to the running
+#                               shell's POSIX form (issue #1925), reaping nothing when
+#                               that value cannot be expressed as a POSIX glob root.
 #   DEVFLOW_REFRESH_IDENTITY_SOURCE  reaper identity source: `auto` (default: /proc,
 #                               then ps), `ps` (force the portable fallback), or
 #                               `none` (force the unverifiable-pid skip). Test seam —
@@ -77,7 +80,36 @@ SELFTEST_FAILED="${DEVFLOW_REFRESH_SELFTEST_FAILED:-}"
 # in the glob that is not this job's own is another job's by construction, so the
 # reap decision is that name inequality plus the liveness and identity checks
 # below — never a read of the orphan's job pointer.
-REAP_GLOB="${DEVFLOW_REFRESH_REAP_GLOB:-${RUNNER_TEMP:-/tmp}/devflow-refresh-*.pid}"
+if [ -n "${DEVFLOW_REFRESH_REAP_GLOB:-}" ]; then
+  # An explicit pattern is authoritative and used exactly as given, with NO
+  # conversion (issue #1925): the caller already chose the form its shell expresses.
+  REAP_GLOB="$DEVFLOW_REFRESH_REAP_GLOB"
+else
+  # Normalize the derived temp dir to the running shell's POSIX form first (issue #1925):
+  # an unquoted glob eats a Windows-form $RUNNER_TEMP's backslashes and sweeps zero files;
+  # reap nothing (empty pattern) rather than sweep the wrong directory when it cannot.
+  _reap_base="${RUNNER_TEMP:-/tmp}"
+  _reap_lib="$(dirname "${BASH_SOURCE[0]}")/../lib/normalize-path.sh"
+  # shellcheck source=../lib/normalize-path.sh
+  if [ -r "$_reap_lib" ] && . "$_reap_lib" 2>/dev/null && command -v devflow_normalize_path >/dev/null 2>&1; then
+    _reap_base="$(devflow_normalize_path "$_reap_base")"
+  else
+    # The normalizer decides which directory is swept, so its absence is not a value
+    # to guess past — reap nothing rather than sweep from an unnormalized value.
+    echo "::warning::skipped cross-job orphan reap: could not source the path normalizer ($_reap_lib) to establish the reap directory from RUNNER_TEMP '${RUNNER_TEMP:-/tmp}' — nothing signalled (fail-safe)"
+    _reap_base=""
+  fi
+  case "$_reap_base" in
+    "") REAP_GLOB="" ;;
+    # A Windows-form value (any drive-letter path, or a UNC path) survives normalization
+    # carrying a colon-drive or backslashes an unquoted glob cannot express — refuse it
+    # rather than sweep nothing silently.
+    [A-Za-z]:*|*\\*)
+      echo "::warning::skipped cross-job orphan reap: RUNNER_TEMP '${RUNNER_TEMP:-/tmp}' could not be normalized into a POSIX glob root (resolved to '$_reap_base') — nothing signalled (fail-safe)"
+      REAP_GLOB="" ;;
+    *) REAP_GLOB="$_reap_base/devflow-refresh-*.pid" ;;
+  esac
+fi
 # Intentional glob + word-split of the reap pattern.
 # shellcheck disable=SC2086
 for _rpf in $REAP_GLOB; do
