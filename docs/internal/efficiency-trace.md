@@ -70,6 +70,29 @@ also defaults to `null` until `verdict_for` is taught about it.
 (single-source / unique). The verdict reads `fix_decision` directly off each finding, so the
 classification needs no join into `fix_decisions`.
 
+### Decomposing the `null` residual (issue #1849)
+
+`null` is a **derived residual**, so a bare `null` verdict still collapses three opposite states: an
+agent genuinely **silent**, an agent whose real findings were all **deferred / severity-calibrated /
+foreclosed**, and an agent that **failed** or returned an unusable result. Two additive per-agent
+fields beside the verdict decompose it — they add no new verdict and change no derivation above:
+
+| Field (per `agent_verdicts[]` entry) | Value set | Separates |
+|---|---|---|
+| `disposition` | `returned` \| `failed` \| `silent` \| `unestablished` | a failed return from silence; `returned` = the agent is in `phase3_findings`; `failed` = the agent is in the established failed set (the `phase3_failed_agents` sink, or a shadow `per_reviewer_assessment` entry with `returned: false`); `silent` = dispatched, absent from findings, and the failed set is established without it; `unestablished` = the split cannot be read (roster absent, or the failed set absent/malformed) — never mapped onto `silent` (unknown is not zero). |
+| `fix_decisions` | sorted-unique set of the agent's `fix_decision` values (`[]` in review-mode) | an all-deferred/calibrated agent (verdict `null`, non-empty roll-up) from one that raised nothing (verdict `null`, empty roll-up). |
+
+The residual is decomposed only over an **established roster** (`phase3_dispatched_present`): a
+roster-absent iteration is reported as `unestablished` per non-returning agent rather than silently
+shrinking the null denominator, and each `per_iteration[]` entry carries a `phase3_failed_agents_present`
+flag so a historical record (which lacks the field) reads as disposition-unestablished, never silent.
+
+**Denominator confound — read the per-agent rates with it.** A per-agent rate's denominator is *the
+defects that existed to be found*, not the agent's quality. A `null` or low-yield rate on a
+config-only or out-of-domain diff is correct silence (see the diff-profile confound below), so **raw
+per-agent rates are not reviewer quality until that shipped-defect denominator is characterised** —
+the prerequisite for any cross-run cut-candidate analysis.
+
 ## The diff profile and verification posture
 
 A `null` verdict means different things on different diffs. On an app-code change with real bugs, a
@@ -168,7 +191,9 @@ the tree-equality guard, and every OTHER path stays strictly per-run-immutable. 
   `fallback_reason`, populated over `phase3_dispatched` ∪ the iter workpad's `dispatched_effort`
   roster, so a Phase-1/1.5/2 checklist agent's effort decision is carried too; an agent with no
   entry records an all-null `session-inheritance` block; additive and nullable, `schema_version`
-  stays 1), the `agent_verdicts` roster, `synthesized`
+  stays 1), the `agent_verdicts` roster (issue #1849 adds a per-agent `disposition` and `fix_decisions`
+roll-up beside the derived `verdict`, decomposing the `null` residual — see *Decomposing the `null`
+residual* above) and its `phase3_failed_agents_present` flag, `synthesized`
   (whether *this* iteration was reconstructed by the synthesis floor — a strict `== true` of the
   workpad field, so an absent field reads `false`), and `loop_role`
   (`fix` | `promoted`) — each iteration's role in the fix loop, **derived here** from the prior
