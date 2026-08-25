@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1963",
+  "generated_at": "2026-08-25T20:46:42Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.27",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 27.533190350000012,
+    "tokens": {
+      "input_tokens": 84,
+      "output_tokens": 91344,
+      "cache_read_input_tokens": 8508876,
+      "cache_creation_input_tokens": 333211,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 151,
+        "outputTokens": 152980,
+        "cacheReadInputTokens": 10397566,
+        "cacheCreationInputTokens": 1112314,
+        "webSearchRequests": 0,
+        "costUSD": 17.22554175000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 659,
+        "outputTokens": 104045,
+        "cacheReadInputTokens": 14770653,
+        "cacheCreationInputTokens": 2524700,
+        "webSearchRequests": 0,
+        "costUSD": 10.307648600000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 117,
+    "duration_ms": 1611830
+  },
+  "permission_denials": {
+    "count": 39,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"; echo \"---HEAD---\"; git rev-parse HEAD",
+      "mkdir -p \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32894555219-1/verdicts/iter-1\"\ncat > \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32894555219-1/verdicts/iter-1/VC-2-k2b8.json\" <<'EOF'\n{\n  \"id\": \"VC-2\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"In .github/actions/setup-project-env/action.yml (PR head 9d522ea8f55f9e84144ba098c3c8e9078d99bd40): the lint_mode input is declared with description 'Closed set: \\\"provision\\\" ... \\\"none\\\" ... Any other value is refused' (defa …[per-command-truncated]",
+      "for f in devflow.yml devflow-implement.yml devflow-runner.yml; do echo \"== $f ==\"; git show 9d522ea8f55f9e84144ba098c3c8e9078d99bd4:.github/workflows/$f | grep -n \"lint_mode\" -A1 -B5; done",
+      "git show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:lint_provision.py 2>/dev/null | head -50\nfind / -iname \"lint_provision.py\" 2>/dev/null",
+      "for p in .prflow/lint-manifest.json scripts/lint_manifest.py scripts/lint_provision.py scripts/install_state.py .github/actions/setup-project-env/action.yml .github/actions/setup-project-env/provision-lint-tools.sh .github/workflows/devflow-implement.yml; do\n  h=$(git show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:\"$p\" | sha256sum | cut -d' ' -f1)\n  echo \"$p -> $h\"\ndone",
+      "find / -name \"provision-lint-tools.sh\" 2>/dev/null; git show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:.github/actions/setup-project-env/provision-lint-tools.sh 2>/dev/null | grep -n \"SCRIPTS_DIR\" ",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32894555219-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32894555219-1/verdicts/iter-1/VC-33.json << 'EOF'\n{\n  \"id\": \"VC-33\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"lib/test/test_python_scripts.py contains no import of or reference to scripts/install_state.py — grepping the file for 'install_state' finds zero matches, and grepping for the specific names in the claim (StateResult, Readiness, .es …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32894555219-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32894555219-1/verdicts/iter-1/VC-32.json << 'EOF'\n{\n  \"id\": \"VC-32\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"lib/test/test_python_scripts.py:35995-36000 asserts build_plan('shellcheck','linux','x86_64') yields digest 'sha256:6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbea39c' and url 'https://github.com/koalaman/shellcheck/re …[per-command-truncated]",
+      "git ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only | grep -E \"prflow/lint-manifest.json|prflow/install-state.json\"\necho \"---test---\"\ngit show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:lib/test/test_python_scripts.py | grep -n \"install-state\\|lint-manifest\\|ls-files\" ",
+      "git ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only | grep -E \"prflow/lint-manifest.json|prflow/install-state.json\"",
+      "git ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only > /tmp/tree.txt; grep -E \"prflow/lint-manifest.json|prflow/install-state.json\" /tmp/tree.txt",
+      "git ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only",
+      "cd /tmp && rm -rf checkhead && git -C /home/runner/work/prflow/prflow worktree add --detach /tmp/checkhead 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 2>&1 | tail -5",
+      "git ls-tree 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 -- .prflow/lint-manifest.json .prflow/install-state.json",
+      "rm -rf /tmp/checkhead && git -C /home/runner/work/prflow/prflow worktree add --detach /tmp/checkhead 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 2>&1 | tail -5 && cd /tmp/checkhead && python3 lib/generate-install-state.py --check; echo \"exit:$?\"",
+      "rm -rf /tmp/checkhead && git -C /home/runner/work/prflow/prflow worktree add --detach /tmp/checkhead 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 2>&1 | tail -5 && cd /tmp/checkhead && python3 lib/generate-install-state.py --check; echo \"exit:$?\"",
+      "rm -rf /tmp/checkhead; git -C /home/runner/work/prflow/prflow worktree add --detach /tmp/checkhead 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 2>&1 | tail -5",
+      "rm -rf /tmp/checkhead",
+      "git show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:lib/test/test_python_scripts.py > /tmp/tps.py 2>&1; wc -l /tmp/tps.py",
+      "git show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:lib/test/test_python_scripts.py > /tmp/tps.py",
+      "git -C /home/runner/work/prflow/prflow worktree add --detach /home/runner/work/prflow/prflow/.checkhead-tmp 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 2>&1 | tail -10",
+      "git show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:lib/test/test_python_scripts.py > /home/runner/work/prflow/prflow/.prflow/tmp/tps_check.py",
+      "git -C /home/runner/work/prflow/prflow worktree add --detach /home/runner/work/prflow/prflow/.checkhead-tmp 9d522ea8f55f9e84144ba098c3c8e9078d99bd40",
+      "git -C /home/runner/work/prflow/prflow show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:scripts/install_state.py",
+      "git -C /home/runner/work/prflow/prflow show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:scripts/install_state.py 2>&1 | head -100",
+      "git -C /home/runner/work/prflow/prflow show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:scripts/install_state.py",
+      "cd /home/runner/work/prflow/prflow\nfor f in .prflow/lint-manifest.json scripts/lint_manifest.py scripts/lint_provision.py scripts/install_state.py .github/actions/setup-project-env/action.yml .github/actions/setup-project-env/provision-lint-tools.sh .github/workflows/devflow-implement.yml; do\n  echo \"$f: $(git show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:$f | sha256sum | cut -d' ' -f1)\"\ndone",
+      "python3 - <<'EOF'\nimport subprocess, json, hashlib\nhead = \"9d522ea8f55f9e84144ba098c3c8e9078d99bd40\"\ncomponents = {\n    \"manifest\": \".prflow/lint-manifest.json\",\n    \"manifest-reader\": \"scripts/lint_manifest.py\",\n    \"lint-provision\": \"scripts/lint_provision.py\",\n    \"install-state-reader\": \"scripts/install_state.py\",\n    \"setup-action\": \".github/actions/setup-project-env/action.yml\",\n    \"provision-helper\": \".github/actions/setup-project-env/provision-lint-tools.sh\",\n    \"implement-workflow\": \" …[per-command-truncated]",
+      "git show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:scripts/workflow-flight-recorder-registry.json | head -60\necho ---\ngit show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40:lib/test/modules/coverage-map.json | head -30\necho ---find consumer---\ngrep -rn \"coverage-map.json\" --include=*.py --include=*.sh -l 2>/dev/null || true\ngit -C /home/runner/work/prflow/prflow show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --stat | head -30",
+      "git show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --stat | grep -i manifest\ngit ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only | grep -i lint-manifest",
+      "git ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only | grep -i manifest",
+      "git ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only > /tmp/tree.txt; grep -i manifest /tmp/tree.txt",
+      "git ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only | grep -i manifest",
+      "git ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only",
+      "git show 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 -- . 2>&1 | grep -n \"generate-install-state\\|install_state\" | head -20\ngit ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only | grep -i install",
+      "git ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only | grep -i install",
+      "git ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only | grep -i install",
+      "git ls-tree -r 9d522ea8f55f9e84144ba098c3c8e9078d99bd40 --name-only > /tmp/files.txt; grep -i install /tmp/files.txt",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && [ -f .prflow/tmp/review-dirty-tree-before ] && [ ! -L .prflow/tmp/review-dirty-tree-before ] && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 39,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
