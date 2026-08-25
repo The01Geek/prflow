@@ -77,7 +77,7 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 | `diffstat` | string | Summary: `"N files changed, +A -D"` |
 | `diff` | string\|null | Full unified diff (null when over byte cap) |
 | `diff_truncated` | boolean | True when diff was over the byte cap |
-| `human_postbot_diff` | string\|null | Combined patch of commits AFTER the bot's last commit |
+| `human_postbot_diff` | string\|null | Combined patch of the non-merge, positively human-attributable commits AFTER the last bot/PR-author commit — the commits `post_bot_commits` counts, best-effort: a commit whose patch the API omits is skipped, and the field is null when none is available |
 | `issue_number` | number\|null | Linked issue number (from branch name or body) |
 | `issue` | object\|null | `{title, body, labels[], comments[{author,body,createdAt}]}` |
 | `review_comments` | array | Inline diff comments: `[{author,body,path,line,createdAt}]` |
@@ -97,7 +97,7 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 | Key | Type | Description |
 |-----|------|-------------|
 | `review_comments_count` | number | Total inline review comments |
-| `post_bot_commits` | number | Substantive commits by a human AFTER the bot's last commit — pure merge commits (`Merge branch 'main'` etc.) are not counted |
+| `post_bot_commits` | number | Commits AFTER the last bot/PR-author commit whose author or committer login is positively human — excluded: a `[bot]`-suffixed login, the PR author's own, an unresolvable (blank) login, and a merge commit (`Merge branch 'main'` etc.) |
 | `ci_failures_during_pr` | number | Check-runs on the head SHA, across every page, whose conclusion is a real red signal — `failure`, `timed_out`, `action_required`, or any unrecognised conclusion (a denylist, so an unknown future one counts). Superseded runs (`cancelled`, `stale`) and `success`/`neutral`/`skipped`/still-running do not count. |
 | `ci_status_unknown` | boolean | True when the check-runs read failed or yielded no usable count, so `ci_failures_during_pr` is not trustworthy — CI status could not be established, which is never spotless. |
 | `workpad_final_status` | string | Parsed Status line from the workpad, e.g. `"Complete"`, `"Blocked"`, `"Cancelled"`, or one of the absent/corrupt sentinels `"Unparsed"` / `"Absent"` / `"NoIssue"`. |
