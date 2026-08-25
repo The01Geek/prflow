@@ -1,0 +1,164 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-25T13:55:00Z",
+  "fix_commit_sha": "e2cfdbe33",
+  "fix_files": [
+    "scripts/cleanup-create-issue-run.sh",
+    "lib/test/test_python_scripts.py",
+    "lib/test/modules/issue-audit-state.sh",
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Critical",
+      "description": "registered module lib/test/modules/issue-audit-state.sh composed the old flat .prflow/tmp/issue-audit-state/draft paths in ~33 sites and went RED after the state_path relocation",
+      "defect_signature": {
+        "file": "lib/test/modules/issue-audit-state.sh",
+        "line_range": [
+          225,
+          2511
+        ],
+        "kind": "coupled_site_incomplete_migration"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Minor",
+      "description": "cleanup reaper blanks a newline-less slug pointer (read returns non-zero at EOF, || ptr_slug=\"\" wiped it)",
+      "defect_signature": {
+        "file": "scripts/cleanup-create-issue-run.sh",
+        "line_range": [
+          55,
+          55
+        ],
+        "kind": "silent_failure"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "reaper/test comments misattribute the arg-loop spin cause to set -u (real cause: shift count exceeds $#)",
+      "defect_signature": {
+        "file": "scripts/cleanup-create-issue-run.sh",
+        "line_range": [
+          16,
+          18
+        ],
+        "kind": "comment_accuracy"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "changeset final-step wording (sub-step 6 follows the reap)",
+      "defect_signature": {
+        "file": ".changeset/issue-1811-create-issue-per-run-scratch.md",
+        "line_range": [
+          7,
+          7
+        ],
+        "kind": "prose_precision"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "untested reaper branches (pointer-without-dir, empty --root, unexpected-arg)",
+      "defect_signature": {
+        "file": "scripts/cleanup-create-issue-run.sh",
+        "line_range": [
+          37,
+          40
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-2-1",
+      "decision": "applied",
+      "commit": "3aec51d28"
+    },
+    {
+      "finding_id": "F-2-2",
+      "decision": "applied",
+      "commit": "146eb4ed1"
+    },
+    {
+      "finding_id": "F-2-3",
+      "decision": "applied",
+      "commit": "146eb4ed1"
+    },
+    {
+      "finding_id": "F-2-4",
+      "decision": "advisory",
+      "source_file": ".changeset/issue-1811-create-issue-per-run-scratch.md",
+      "claim_text": "final step wording",
+      "skip_category": "advisory-parked",
+      "evidence": "behavior-inert; echoes the issue's own Desired Behavior wording; Suggestion"
+    },
+    {
+      "finding_id": "F-2-5",
+      "decision": "advisory",
+      "source_file": "scripts/cleanup-create-issue-run.sh",
+      "claim_text": "untested reaper branches",
+      "skip_category": "advisory-parked",
+      "evidence": "empty --root and unexpected-arg arms are trivial; the mixed-root and pointer cases are now covered; Suggestion"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 90,
+    "new_corroborated_critical_count": 1
+  },
+  "dispatch_mode": "fanned-out",
+  "note": "orchestrator re-swept the whole tree for surviving flat create-issue path literals after the Critical; found and fixed run.sh:16706 (a monolith-shard pin the create-issue-contract module does not cover); only correct absence pins and unrelated issue-body/ + deferred docs/internal remain.",
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

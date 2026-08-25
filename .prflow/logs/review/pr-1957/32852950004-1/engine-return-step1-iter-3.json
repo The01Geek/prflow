@@ -1,0 +1,117 @@
+{
+  "pr": 1957,
+  "issue": 1811,
+  "run_id": "32852950004-1",
+  "iteration": 3,
+  "head": "e2cfdbe3310a2cc1b26b7d98b8ed1af8e0eb43e4",
+  "head_override": "local",
+  "progress_surface": "workpad",
+  "verdict": "APPROVE with notes",
+  "verdict_threshold": "critical",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "note": "engine_self_modifying (skills/**, lib/**) -> full Phase 1+2 checklist; type-design-analyzer skipped (has_new_types=false); pr-test-analyzer dispatched (test files changed)"
+  },
+  "acceptance_criteria_source": "workpad",
+  "acceptance_criteria_divergence": "none",
+  "checklist": {
+    "total_items": 29,
+    "generated_batches": 3,
+    "deduped_to": 29,
+    "verification": "no FAIL, no INCONCLUSIVE; core path-relocation, cleanup-script, pointer-location, slug-regex, and out-of-bounds-enumeration claims verified directly (module tests green + tree-wide grep) rather than by per-item agent dispatch on the local tier",
+    "modules_green": ["issue-audit-state: 286 passed / 0 failed", "create-issue-contract: 397 passed / 0 failed"]
+  },
+  "stale_prose_lint": {
+    "enabled": true,
+    "exit_code": 0,
+    "stale_rows": 0,
+    "unresolvable_rows": 15,
+    "note": "all rows UNRESOLVABLE (recognition-only count-locked / coverage-universal claims) -> informational, never gate the verdict; no STALE"
+  },
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": {"count": 0, "by_category": {}},
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "Overlong prevention comment: the newline-handling comment block at scripts/cleanup-create-issue-run.sh lines 55-58 is 4 physical source lines, exceeding the 3-line comment cap. Accurate and prevention-focused; length-only.",
+      "defect_signature": {"file": "scripts/cleanup-create-issue-run.sh", "line_range": [55, 58], "kind": "style"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "Pointer comparison in scripts/cleanup-create-issue-run.sh (lines 59-63) preserves trailing whitespace/CR; a CRLF-written issue-run-slug pointer would fail the equality check and leave the shared pointer behind. Benign (run dir still reaped; safe direction), low value.",
+      "defect_signature": {"file": "scripts/cleanup-create-issue-run.sh", "line_range": [59, 63], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "Unsafe-slug traversal test uses '../create-issue/victim', rejected on the leading '.' alone; an interior-slash slug (e.g. 'x/../../victim') would specifically pin the interior-slash rejection so a loosened interior char-class regression is caught.",
+      "defect_signature": {"file": "lib/test/test_python_scripts.py", "line_range": [35559, 35568], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "Empty '--root \"\"' skip branch (cleanup-create-issue-run.sh:40) and the no-root expansion are untested.",
+      "defect_signature": {"file": "scripts/cleanup-create-issue-run.sh", "line_range": [39, 40], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "Unexpected-argument warn-and-continue arm (cleanup-create-issue-run.sh:23) has no coverage. Defensive, non-destructive; optional.",
+      "defect_signature": {"file": "scripts/cleanup-create-issue-run.sh", "line_range": [23, 23], "kind": "test_gap"}
+    }
+  ],
+  "informational": [
+    {
+      "description": "docs/internal/create-issue-context.md (lines 164, 183, 187, 209), advisory-adjudication-calibration.md (80, 85), and DEVFLOW_SYSTEM_OVERVIEW.md still name the old flat .prflow/tmp/issue-* paths. Not diff-touched; docs-internal (not shipped to consumers); behavior-inert prose owned by the docs pass. create-issue-context.md is a past-time reduction narrative (updating would falsify its record). Not a self-contradicting-diff finding (scope is diff-added/modified artifacts), not verdict-gating.",
+      "owner": "docs pass"
+    }
+  ],
+  "phase4_report": {
+    "verdict_line": "APPROVE with notes — the flat->per-run relocation is complete and internally consistent, the slug-keyed reaper is correctly scoped and hardened, and both owning test modules are green. Only low-value Suggestions remain (one overlong comment, one benign CRLF-robustness nit, three optional test-coverage additions).",
+    "issue_compliance": "Reviewed against issue #1811: create-issue per-run scratch — criteria from workpad; scope unchanged. All six acceptance criteria satisfied: (1) all artifacts relocated under create-issue/<slug>/ (state_path/_bound_draft_file + SKILL/references + prompt-extension; tree-wide grep found no residual flat producer path); (2) success-path reaper (sub-step 5d) removes the run dir + own-slug pointer; (3) reaper is success-path-only so a failed run keeps its dir; (4) slug-scoped removal, traversal-safe regex, foreign-pointer preserved; (5) audit-prompt-template.md out-of-bounds enumerations relocated and create-issue-contract.sh passes (397/0); (6) no code path sweeps pre-existing flat issue-* files.",
+    "verification_checklist_results": "0 failed, 0 inconclusive; core claims verified (modules green + grep).",
+    "prior_iteration_fixes_confirmed": [
+      "(a) create-issue.md prompt-extension stale path -> corrected",
+      "(b) reaper trailing-valueless-flag infinite loop -> fixed (timeout-guarded test)",
+      "(c) vacuous test assertion -> fixed",
+      "(d) CRITICAL: lib/test/modules/issue-audit-state.sh flat-path composition (~33 sites) -> relocated; module now 286/0",
+      "(e) reaper newline-less pointer read -> fixed (|| : keeps assigned value; tested)",
+      "(f) comment misattributions -> fixed",
+      "(g) run.sh monolith-shard draft-path pin -> retargeted to nested display path"
+    ],
+    "over_grade_annotation": "no finding flagged",
+    "truthfulness_sweep": "no finding promoted",
+    "intra_diff_contradiction_scan": "no contradiction found"
+  },
+  "dirty_tree_backstop": "before-snapshot file write refused by harness redirect guard; backstop disabled for this dispatch. Tree verified clean manually via git status --porcelain before and after Phase 3 dispatch (empty both times) — no agent mutation.",
+  "phase_4_4": "skipped (progress_surface=workpad; fix-loop path posts no formal verdict)"
+}

@@ -1,0 +1,75 @@
+{
+  "verdict": "REJECT",
+  "iteration": 2,
+  "pr": 1957,
+  "issue": 1811,
+  "reviewed_head": "7fb64549c",
+  "base": "66eec8a8a2aee14677cd27359929722760691fe3",
+  "diff_profile": "mechanical-relocation-plus-new-helper (create-issue per-run scratch namespace move + new scripts/cleanup-create-issue-run.sh + test/coverage-map/changeset updates); no new types; test files touched",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": [
+    "prflow:type-design-analyzer (has_new_types=false)"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Critical",
+      "description": "The migration to the per-run .prflow/tmp/create-issue/<slug>/ namespace is INCOMPLETE: the registered shell test module lib/test/modules/issue-audit-state.sh (path in scripts/workflow-flight-recorder-registry.json, run by run.sh and the modules-rest shard) was NOT updated and still constructs/reads the old flat .prflow/tmp/issue-audit-state-<slug>.json and .prflow/tmp/issue-draft-<slug>.md paths in ~22 places. scripts/issue-audit-state.py's state_path()/init now writes to the nested path; the module runs `$IAS init` in a git sandbox (which _repo_root resolves to) then opens the flat file (e.g. line 226 json.load('.prflow/tmp/issue-audit-state-rt.json'), line 238 read_state(...)), raising FileNotFoundError; the corruption-simulation rows (lines 511-515 rm/truncate .prflow/tmp/issue-audit-state-m.json) now target a nonexistent flat file while the tool reads the real nested state, silently invalidating those assertions. Breaks the suite and fails the acceptance criterion that all tests are updated consistently to the new layout. VERIFIED against the working tree.",
+      "defect_signature": {"file": "lib/test/modules/issue-audit-state.sh", "line_range": [225, 238], "kind": "test_gap"},
+      "verdict": "CONFIRMED"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter / prflow:pr-test-analyzer (corroborated)",
+      "severity": "Minor",
+      "description": "scripts/cleanup-create-issue-run.sh reads the shared slug pointer with `IFS= read -r ptr_slug < \"$ptr\" 2>/dev/null || ptr_slug=\"\"`. `read` exits non-zero at EOF when the (only) line lacks a trailing newline, having already assigned the value, so `|| ptr_slug=\"\"` clobbers it and the pointer-match cleanup is silently skipped. Non-destructive (fails toward leaving a stale shared pointer the next run overwrites), and the pointer's newline is written by unpinned agent prose. Also an untested branch (all test seeds append a newline). Fix: use `|| :` instead of `|| ptr_slug=\"\"`.",
+      "defect_signature": {"file": "scripts/cleanup-create-issue-run.sh", "line_range": [702, 705], "kind": "logic_error"},
+      "verdict": "CONFIRMED"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Comments in cleanup-create-issue-run.sh (lines ~14-16) and test narrative (test_python_scripts.py ~line 588) attribute the arg-loop infinite spin to `set -u`; the true cause is `shift`'s out-of-range behavior (non-zero return leaving $# unchanged), independent of set -u. Guard is correct; only the stated cause is imprecise.",
+      "defect_signature": {"file": "scripts/cleanup-create-issue-run.sh", "line_range": [14, 16], "kind": "comment_drift"},
+      "verdict": "PLAUSIBLE"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": ".changeset/issue-1811-create-issue-per-run-scratch.md calls the reap the run's 'final step', but it is wired at sub-step 5d of step-4-present-create.md, before sub-step 6 (assignment question + implement offer) still runs. Behavior-inert changeset prose; reword.",
+      "defect_signature": {"file": ".changeset/issue-1811-create-issue-per-run-scratch.md", "line_range": [12, 12], "kind": "documented_falsehood"},
+      "verdict": "PLAUSIBLE"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Untested branches in cleanup-create-issue-run.sh: pointer removal decoupled from run-dir presence (lines 50-59, no test seeds only-a-pointer-no-dir); empty/no --root guard (lines 39-40); unexpected-argument warning arm (line 23).",
+      "defect_signature": {"file": "scripts/cleanup-create-issue-run.sh", "line_range": [50, 59], "kind": "test_gap"},
+      "verdict": "PLAUSIBLE"
+    }
+  ],
+  "prior_findings_status": {
+    "extension_derivation_path": "fixed-verified (.prflow/prompt-extensions/create-issue.md now names per-run path)",
+    "cleanup_arg_loop_infinite_loop": "fixed-verified (shift; [ \"$#\" -gt 0 ] && shift, with rc-124 timeout regression test)",
+    "vacuous_test_assertion": "fixed-verified (replaced with namespace-untouched assertion)"
+  },
+  "deferred_out_of_scope": [
+    "docs/internal/create-issue-context.md and docs/internal/advisory-adjudication-calibration.md still name old flat paths (pre-existing, non-diff-touched internal docs) — owned by the docs pass, per prior-iteration handoff"
+  ],
+  "phase_4_1_report": {
+    "path": "inline (below)",
+    "text": "REJECT — 1 Critical, 1 Minor (corroborated x2), 3 Suggestions. The PR is a faithful mechanical relocation of create-issue scratch into per-run .prflow/tmp/create-issue/<slug>/ subdirectories plus a new best-effort reaper, and both prior-iteration Important findings are verified fixed. The blocker: the migration is incomplete — the registered test module lib/test/modules/issue-audit-state.sh was not updated to the new layout and still reads the flat state/draft paths the producer no longer writes, which breaks the modules-rest shard / suite and fails the 'all tests updated consistently' acceptance criterion. This must be migrated (all ~22 flat issue-audit-state-*.json and issue-draft-*.md references, plus the corruption-simulation rows) before the change can pass. Secondary: harden the pointer read (|| : not || ptr_slug=\"\") and correct the set -u comment attribution."
+  }
+}

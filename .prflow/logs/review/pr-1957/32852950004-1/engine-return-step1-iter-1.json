@@ -1,0 +1,64 @@
+{
+  "verdict": "REJECT",
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Coupled-site miss: the repo-local, agent-executed prompt extension `.prflow/prompt-extensions/create-issue.md:13` still instructs the run to write the Interaction-surface map into the flat `.prflow/tmp/issue-derivation-<slug>.md` and asserts \"which the Step 2 gate already requires\" — but after this PR the Step 2 gate (`skills/create-issue/references/step-2-clarify.md` lines 9/24/60) requires the nested `.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md`. The extension is loaded live into the create-issue prompt, so the agent is handed a flat path no gate reads and the parenthetical is now false against the shipped skill. VERIFIED against the tree.",
+      "defect_signature": {"file": ".prflow/prompt-extensions/create-issue.md", "line_range": [13, 13], "kind": "comment_drift"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter,prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "`scripts/cleanup-create-issue-run.sh` arg parser can infinite-loop. The `--slug`/`--root` cases do `shift 2`; when such a flag is the final token with no value, `$#`==1 and `shift 2` (under `set -u`) shifts nothing and returns non-zero, so `while [ \"$#\" -gt 0 ]` never advances and the script hangs (reproduced: `--slug` alone → rc=124 timeout). This defeats the reaper's own \"best-effort ... never blocks\" contract, worse than a normal failure since it would stall the create-issue flow after the issue already exists with no stderr to route on. Corroborated by two agents. NOT reachable from the shipped Step 5d invocation (which always supplies values), so real-world impact is low; a cheap guard (`shift; [ \"$#\" -gt 0 ] && shift`) closes it.",
+      "defect_signature": {"file": "scripts/cleanup-create-issue-run.sh", "line_range": [16, 22], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "Documentation drift: `docs/internal/create-issue-context.md` (lines 164, 183, 187, 209) still describes the create-issue artifacts at their old flat paths (`.prflow/tmp/issue-step1-<slug>.md`, `.prflow/tmp/issue-audit-<slug>.md`, `.prflow/tmp/issue-derivation-<slug>.md`). The canonical internal reference now disagrees with the shipped skill's artifact locations. Same coupled-site set the PR should have swept; docs are not executed so lower impact than the prompt-extension miss. VERIFIED via grep.",
+      "defect_signature": {"file": "docs/internal/create-issue-context.md", "line_range": [164, 209], "kind": "comment_drift"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Changeset wording imprecise: the bullet says the run removes its own run directory \"as its final step\", but the reaper runs at Step 4 sub-step 5d and the same diff's 5d body ends with \"Continue to sub-step 6 regardless\" — sub-step 6 (assignment question + implement offer) follows. Cleanup is the final step of the scratch lifecycle, not the run. Filed documented_falsehood per contract but behavior-inert changeset prose, so capped at Suggestion (Phase 4.1.5).",
+      "defect_signature": {"file": ".changeset/issue-1811-create-issue-per-run-scratch.md", "line_range": [12, 12], "kind": "documented_falsehood"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Test gap: the multi-root test seeds the slug dir under both roots, so it never exercises the realistic production topology (dir present under root A, absent under root B in one invocation) nor per-root pointer handling across multiple roots. A regression with an early exit/break inside the reaper's root loop, or a per-root pointer bug, would pass all current tests. Combined behavior is inferable from the separate absent-dir idempotence case, so low severity.",
+      "defect_signature": {"file": "lib/test/test_python_scripts.py", "line_range": [561, 567], "kind": "test_gap"}
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 1,
+    "by_category": {"behavior-inert-prose": 1}
+  },
+  "report": ".prflow/tmp/review/pr-1957/32852950004-1/phase-4-1-report.md",
+  "extension_status": {
+    "requesting-code-review": "loaded-empty resolved-root=unset (present-empty; no consumer extension content delivered)"
+  }
+}

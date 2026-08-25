@@ -1,0 +1,78 @@
+{
+  "run_id": "32852950004-1",
+  "slug": "pr-1957",
+  "pr": 1957,
+  "issue": 1811,
+  "mode": "blinded-shadow",
+  "head_override": "local",
+  "verdict": "APPROVE",
+  "verdict_rationale": "Issue #1811 is fully and correctly implemented across every coupled site. All six acceptance criteria are met: every create-issue artifact composer (skill prose, references, scripts/issue-audit-state.py state_path + _bound_draft_file) now writes under .prflow/tmp/create-issue/<slug>/; the slug-keyed reaper scripts/cleanup-create-issue-run.sh is wired only on the success path (step-4-present-create.md 5d), is non-destructive on empty/unsafe-slug and edge cases, and never sweeps by pattern/age; out-of-bounds enumerations in audit-prompt-template.md are relocated; pre-existing flat files are untouched. No surviving flat .prflow/tmp/issue-* create-issue literal outside the exempt set. Only one behavior-inert stale coupled-mirror inconsistency found (Minor), not merge-blocking.",
+  "diff_profile": {
+    "kind": "prose+script+test+docs relocation refactor",
+    "new_types": false,
+    "test_relevant": true,
+    "files_changed": 28,
+    "primary_surfaces": ["skills/create-issue/**", "scripts/cleanup-create-issue-run.sh", "scripts/issue-audit-state.py", "lib/test/**", "docs/internal/**", ".prflow/prompt-extensions/create-issue.md", ".changeset/**"]
+  },
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review (final-pass, dispatched as general-purpose Task invoking the skill)"
+  ],
+  "cap_drops": [],
+  "gated_out": ["prflow:type-design-analyzer (no new types)"],
+  "phase3_findings": [
+    {
+      "severity": "Minor",
+      "category": "stale-coupled-mirror",
+      "file": "skills/create-issue/references/step-3-6-audit-shared.md",
+      "line": 18,
+      "summary": "Bootstrap canonical-draft-write recipe still claims 'the identical Step 4 sub-step 2 recipe' and names the shallow `mkdir -p \"$MAIN_ROOT/.prflow/tmp\"`, but the actual Step 4 sub-step 2 recipe (step-4-present-create.md:32) was deepened to `mkdir -p \"$MAIN_ROOT/.prflow/tmp/create-issue/<slug>\"`. The 'identical' invariant is now false and the quoted mkdir literal is inconsistent with its named mirror.",
+      "behavior_inert": true,
+      "inertness_basis": "The staged canonical-draft write goes through scripts/stage-draft-write.py, whose _atomic_write does directory.mkdir(parents=True, exist_ok=True), so the nested create-issue/<slug>/ dir is created regardless and the draft still lands nested (no flat artifact, AC1/AC2 hold). Capped at Minor/Suggestion.",
+      "suggested_fix": "Update the literal at line 18 to `mkdir -p \"$MAIN_ROOT/.prflow/tmp/create-issue/<slug>\"` to restore the 'identical recipe' mirror."
+    },
+    {
+      "severity": "Suggestion",
+      "category": "cloud-shape-denial",
+      "file": "skills/create-issue/references/step-4-present-create.md",
+      "line": 187,
+      "summary": "The reaper invocation embeds command substitution ($(git rev-parse...), $(resolve-main-root.sh)) and ${CLAUDE_SKILL_DIR} expansion in argument position, shapes the cloud matcher denies silently. On a cloud create-issue run cleanup would no-op and scratch would accumulate.",
+      "non_blocking_basis": "This substitution/expansion pattern is pervasive across create-issue references (e.g. same file line 129 gh-api write), so create-issue behaves as a local/interactive command; this is not a regression introduced by the PR. Cleanup is best-effort by design; failure never blocks issue creation.",
+      "disposition": "advisory"
+    },
+    {
+      "severity": "Suggestion",
+      "category": "test-durability-gap",
+      "file": "lib/test/test_python_scripts.py",
+      "line": 472,
+      "summary": "Pointer-removal runs in a branch independent of the [ -d target ] dir guard, but the _seed1811 helper always creates the run dir when it writes a pointer, so 'own-slug pointer present, run dir already absent -> pointer still removed' is untested. A future refactor nesting pointer cleanup under the dir guard would keep the suite green while orphaning the pointer.",
+      "non_blocking_basis": "Behavior correct today; regression-durability only. Independently flagged and parked advisory on a prior iteration.",
+      "disposition": "advisory"
+    },
+    {
+      "severity": "Suggestion",
+      "category": "defense-in-depth",
+      "file": "scripts/cleanup-create-issue-run.sh",
+      "line": 39,
+      "summary": "--root is only checked non-empty; the slug segment is regex-validated but the root prefix is not. Not exploitable via the trusted shipped callers (git rev-parse / resolve-main-root.sh); noted as an asymmetry only.",
+      "disposition": "advisory"
+    }
+  ],
+  "per_reviewer_assessment": {
+    "prflow:code-reviewer": "One Important finding (the step-3-6-audit-shared.md:18 stale mirror, verified behavior-inert -> downgraded to Minor here). Confirmed coupled-mirror completeness of the relocation, reaper correctness/portability/SPDX, comment discipline, and mkdir ordering all clean.",
+    "prflow:silent-failure-hunter": "No Critical/High silent-failure defects. All flagged hazards (arg-loop, empty/unsafe-slug, newline-less pointer read, concurrent-rebind guard, python path composition with mkdir -p producers) correctly handled. Two LOW notes (cloud shape denial; root not validated) carried as advisory.",
+    "prflow:comment-analyzer": "No critical issues. All added/modified path literals in issue-audit-state.py docstrings accurate and internally consistent; all four reaper comments name a concrete wrong change within the 3-line cap; no comment-rot or mirror-fact violations.",
+    "prflow:pr-test-analyzer": "No Critical/Important coverage gaps. Reaper is well covered (real #1811 block in test_python_scripts.py; coverage-map row points at genuine target); audit-state relocation covered producer+reader. One severity-3 durability gap (pointer-without-dir), already accepted advisory.",
+    "prflow:requesting-code-review": "Merge-ready, no findings. Verified all six ACs, holistic completeness (zero residual flat literals), reaper edge cases, and the deliberate slug-independent pointer placement at create-issue/issue-run-slug."
+  }
+}

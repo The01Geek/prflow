@@ -1,0 +1,139 @@
+{
+  "iter": 3,
+  "started_at": "2026-08-25T14:05:00Z",
+  "fix_commit_sha": "5a69135e2",
+  "fix_files": [
+    "scripts/cleanup-create-issue-run.sh",
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "newline-handling comment 4 lines over the 3-line cap",
+      "defect_signature": {
+        "file": "scripts/cleanup-create-issue-run.sh",
+        "line_range": [
+          55,
+          58
+        ],
+        "kind": "comment_cap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "interior-slash slug / empty --root / unexpected-arg branches untested",
+      "defect_signature": {
+        "file": "scripts/cleanup-create-issue-run.sh",
+        "line_range": [
+          23,
+          40
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "CRLF/trailing-whitespace pointer fails slug equality (benign, safe direction)",
+      "defect_signature": {
+        "file": "scripts/cleanup-create-issue-run.sh",
+        "line_range": [
+          59,
+          63
+        ],
+        "kind": "robustness"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-3-1",
+      "decision": "applied",
+      "commit": "5a69135e2"
+    },
+    {
+      "finding_id": "F-3-3",
+      "decision": "applied",
+      "commit": "5a69135e2"
+    },
+    {
+      "finding_id": "F-3-2",
+      "decision": "advisory",
+      "source_file": "scripts/cleanup-create-issue-run.sh",
+      "claim_text": "CRLF/whitespace pointer",
+      "skip_category": "advisory-parked",
+      "evidence": "safe direction (leaves a shared pointer, never removes a foreign one); pointer written unix-newline by the skill; Suggestion"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 29,
+    "new_corroborated_critical_count": 0
+  },
+  "dispatch_mode": "fanned-out",
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "reviewed_sha": "5a69135e2",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

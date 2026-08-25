@@ -1,0 +1,59 @@
+{
+  "run_id": "32852950004-1",
+  "pr": 1957,
+  "issue": 1811,
+  "blinded": true,
+  "verdict": "REJECT",
+  "verdict_rationale": "All six issue-1811 acceptance criteria are satisfied by the shipped code and the full suite modules pass (create-issue-contract 397/0, issue-audit-state 286/0, test_python_scripts 5644/0). The new reaper and the issue-audit-state.py relocation are correct, well-guarded, and well-tested. The single non-cosmetic defect is a coupled-mirror violation: this PR relocated every create-issue scratch artifact but left the canonical internal documentation (DEVFLOW_SYSTEM_OVERVIEW.md §11, the CLAUDE.md-designated home for the create-issue lifecycle contract, plus create-issue-context.md) describing the OLD flat .prflow/tmp/issue-* paths as current behavior. CLAUDE.md's coupled-invariant discipline requires reconciling such a mirror in the SAME change, 'never a follow-up commit'. Behavior/runtime is correct, so this is Important rather than Critical, but it blocks a clean approval under this repo's own convention.",
+  "diff_profile": {
+    "shape": "bash-reaper + path-relocation + tests + changeset",
+    "changed_files": 24,
+    "has_new_types": false,
+    "test_relevant": true,
+    "surfaces": ["skills/create-issue/**", "scripts/issue-audit-state.py", "scripts/cleanup-create-issue-run.sh (new)", ".prflow/prompt-extensions/create-issue.md", "lib/test/test_python_scripts.py", "lib/test/test_render_audit_prompt.py", "lib/test/modules/issue-audit-state.sh", "lib/test/run.sh", "lib/test/modules/coverage-map.json", ".changeset/"]
+  },
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review", "prflow:pr-test-analyzer"],
+  "reviewers_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "cap_drops": {
+    "type-design-analyzer": "gated out — Phase 0.5 has_new_types=false (bash reaper + path relocations + tests introduce no new types)"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "defect_signature": "coupled-mirror-stale-doc",
+      "description": "Canonical internal docs describe the pre-relocation flat scratch paths as current behavior after this PR moved them under .prflow/tmp/create-issue/<slug>/. Occurrences describing CURRENT behavior (should be updated in-PR): docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md lines ~806, 814, 836 (issue-step1-<slug>.md, issue-run-slug, issue-derivation-<slug>.md, issue-audit-state-<slug>.json, issue-audit-<slug>.md, issue-audit-dispatch-<slug>.md); docs/internal/create-issue-context.md lines 164, 183, 187, 209. §11 is CLAUDE.md's designated canonical home for the create-issue lifecycle contract, and the coupled-invariant discipline forbids leaving the mirror stale for a follow-up commit. Historical snapshots (advisory-adjudication-calibration.md:84-85 dated inventory; cutovers/issue-1604-*.md:1) correctly stay on the old spelling and must NOT be changed."
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Minor",
+      "defect_signature": "worktree-fence-command-substitution",
+      "description": "step-4-present-create.md 5d invokes the reaper with --root \"$(git rev-parse ...)\" --root \"$(...resolve-main-root.sh)\". A Claude Code worktree-isolated local session refuses fences carrying $(...), so cleanup would be skipped and scratch silently persists there. Best-effort by contract (never blocks the flow), so not a correctness defect; consistent with existing $(...) usage in the same reference."
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Info",
+      "defect_signature": "shared-pointer-toctou",
+      "description": "cleanup-create-issue-run.sh:59-61 has a read-then-rm TOCTOU on the shared issue-run-slug pointer when sibling worktrees resolve one main root. Blast radius bounded to durability reduction (victim falls back to title-derived slug); no issue artifact or <slug>/ dir destroyed (dir deletion is strictly slug-keyed). Inherent to a single-file pointer; consistent with the stated best-effort contract."
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Info",
+      "defect_signature": "flag-shaped-slug-misparse",
+      "description": "`--slug --root /x` binds slug=\"--root\", which the regex guard then rejects (exit 0, nothing removed). Non-destructive cosmetic misparse only."
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Minor",
+      "defect_signature": "no-direct-positive-state_path-assertion",
+      "description": "No direct positive unit assertion on state_path() composition; covered transitively by CLI round-trips (issue-audit-state.sh reads the literal new path) and save_state test. A one-line positive assertion mirroring the _bound_draft_file test would localize a composition regression faster. Optional."
+    }
+  ],
+  "per_reviewer_assessment": {
+    "prflow:code-reviewer": "Reaper argument parsing, slug-safety guard (mirrors the Python guard exactly), pointer-only-when-matching removal, and non-preflight-tool compliance all correct. Coupled-mirror consistency across skill/references/python/tests intact — no residual flat .prflow/tmp/issue-* under skills/create-issue or scripts, run.sh pin byte-matches the relocated note. One Important coupled-mirror finding on stale canonical internal docs; two Minor notes.",
+    "prflow:silent-failure-hunter": "Substantively clean. All three named hazards (slug-collapse to namespace root, trailing valueless-flag loop, newline-less pointer read) correctly defended and verified against tests. save_state mkdir(parents=True) sits inside the try whose except OSError re-raises a loud StateError — relocation introduces no swallowed failure. Two Info-level observations only.",
+    "prflow:comment-analyzer": "Clean. All six comment blocks in the new reaper name a concrete wrong change they prevent and are accurate against the code; within the 3-line cap; no mirror-fact restatement. The six changed docstring/help path literals in issue-audit-state.py each track the exact literal the adjacent code produces. SPDX/contract header correctly exempt.",
+    "prflow:pr-test-analyzer": "Coverage adequate. The reaper's destructive-safety branches (slug traversal refusal, pointer ownership, empty/unset handle, arg-loop-spin under timeout, newline-less pointer) are each protected by focused executable assertions in test_python_scripts.py's #1811 block. issue-audit-state.py at the new location covered by CLI round-trips reading the literal new path. coverage-map.json entry (unmodularized, focused_test test_python_scripts.py) is valid and mechanically enforced by coverage_map_guard arm 1 + arm 10. Two optional minor notes.",
+    "prflow:requesting-code-review": "APPROVE on AC compliance — all six ACs SATISFIED with cited evidence; no artifact resolves flat under .prflow/tmp/; cleanup runs only on the success path (AC3) and is strictly slug-keyed (AC4); pre-existing flat issue-* files untouched (AC6). create-issue-contract module passes (397/0). Note: this reviewer's scope was AC/merge-readiness against shipped code and did not sweep docs/internal/, where the coupled-mirror finding lives."
+  }
+}

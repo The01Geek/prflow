@@ -1,0 +1,69 @@
+{
+  "run_id": "32852950004-1",
+  "slug": "pr-1957",
+  "pr": 1957,
+  "issue": 1811,
+  "mode": "blinded-shadow",
+  "head_override": "local",
+  "verdict": "APPROVE",
+  "verdict_rationale": "Path relocation to .prflow/tmp/create-issue/<slug>/ is thorough and internally consistent across skills/create-issue/**, scripts/issue-audit-state.py, prompt extension, and docs. The new reaper scripts/cleanup-create-issue-run.sh is slug-keyed, fail-closed, traversal-safe, best-effort, and has strong behavioral test coverage. All six acceptance criteria are satisfied. The only cross-cutting finding is a stale documentation coupled-mirror (docs/internal/cloud-allowlist.md still names the old flat issue-body path); it is human-read, tool-consumed by nothing, the illustrative point still holds for the new path, and it breaks no behavior or AC. Non-blocking. Remaining findings are test-hardening and comment-accuracy suggestions.",
+  "diff_profile": {
+    "surfaces": ["skills/create-issue/**", "scripts/issue-audit-state.py", "scripts/cleanup-create-issue-run.sh (new)", ".prflow/prompt-extensions/create-issue.md", "lib/test/test_python_scripts.py", "lib/test/test_render_audit_prompt.py", "lib/test/modules/issue-audit-state.sh", "lib/test/run.sh", "lib/test/modules/coverage-map.json", "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md", "docs/internal/create-issue-context.md", ".changeset/"],
+    "has_new_types": false,
+    "test_relevant": true,
+    "config_only": false
+  },
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "reviewers_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "gated_out": ["prflow:type-design-analyzer (no new types)"],
+  "cap_drops": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer / prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "Unreconciled coupled-mirror: docs/internal/cloud-allowlist.md:1018 and :1038 still document the OLD flat redirect target `<main-root>/.prflow/tmp/issue-body-<slug>.md` for create-issue/references/issue-template.md, but issue-template.md:197 now composes `<main-root>/.prflow/tmp/create-issue/<slug>/issue-body-<slug>.md`. CLAUDE.md coupled-invariant discipline requires documenting sites of a relocated literal to be reconciled in the same change. Non-blocking: human-read adjudication doc, no tool consumes it, and the illustrative point (a <main-root>/-prefixed redirect containing .prflow/tmp evades the anchored matcher pattern) still holds for the new path.",
+      "file": "docs/internal/cloud-allowlist.md",
+      "line": 1018,
+      "defect_signature": "coupled-mirror-miss/relocated-path-literal/cloud-allowlist documents old flat issue-body-<slug>.md"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Pointer-removal branch (cleanup-create-issue-run.sh:53-63) executes independently of the dir-removal guard, but every test seeding a pointer also seeds the run dir. No test covers 'own-slug pointer present, run dir absent -> pointer still removed', so a future refactor nesting pointer cleanup inside the dir-exists guard would pass the suite while orphaning the shared pointer.",
+      "file": "scripts/cleanup-create-issue-run.sh",
+      "line": 53,
+      "defect_signature": "reaper-pointer-removal-untested-without-dir"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC6 (pre-existing flat issue-* files survive) has no direct regression pin. The reaper is structurally safe today (only touches create-issue/<slug>/ and the namespaced pointer), but a one-line test seeding a sibling flat file and asserting survival would pin the invariant a future scope-broadening could violate.",
+      "file": "lib/test/test_python_scripts.py",
+      "line": 35493,
+      "defect_signature": "reaper-AC6-flat-file-survival-unpinned"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Slug-safety comment (cleanup-create-issue-run.sh:27-29) attributes both the empty-slug and the path-unsafe-slug hazard to 'collapse to the shared namespace root', but that rationale is accurate only for the empty slug; a traversal/absolute slug would instead escape the namespace and rm -rf a path outside it (the more dangerous case the regex guard actually prevents). Split the rationale.",
+      "file": "scripts/cleanup-create-issue-run.sh",
+      "line": 27,
+      "defect_signature": "inaccurate-comment-rationale/unsafe-slug-mischaracterized-as-collapse"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "rm -rf failure arm prints 'warning: could not remove' to stderr but the script always exit 0s and also prints on success, so the only failure signal is the literal 'warning:' token in stderr; no machine-readable channel. Acceptable for a best-effort reaper an LLM agent reads, noted only for a future non-agent caller.",
+      "file": "scripts/cleanup-create-issue-run.sh",
+      "line": 46,
+      "defect_signature": "best-effort-cleanup-exit0-masks-rm-failure"
+    }
+  ],
+  "per_reviewer_assessment": {
+    "prflow:code-reviewer": "One Important finding (cloud-allowlist coupled-mirror miss). Confirmed reaper arg-parsing, slug guard, pointer read, best-effort contract all correct; no flat create-issue literal survives in source.",
+    "prflow:silent-failure-hunter": "No defects; one Suggestion (exit-0 masks rm failure). Verified nested dir created before every writer via mkdir(parents=True); refusal arms exit before deletion; pointer read non-destructive.",
+    "prflow:comment-analyzer": "One Suggestion (imprecise slug-safety comment). All issue-audit-state.py docstrings and test comments accurately updated to the new path; no stale old-path comment survives.",
+    "prflow:pr-test-analyzer": "Coverage strong; two hardening Suggestions (pointer-without-dir case; AC6 direct pin). 11 behavioral reaper cases; state.py nested path exercised end-to-end; AC5 pinned at rendered surface.",
+    "prflow:requesting-code-review": "Verdict ready-to-merge. All 6 ACs satisfied with concrete evidence; reaper fail-closed and slug-safe; mkdir-before-write confirmed on every writer. Same cloud-allowlist mirror flagged as non-blocking Minor."
+  }
+}
