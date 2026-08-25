@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1936",
+  "generated_at": "2026-08-25T23:19:48Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.32",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 3.7739070000000003,
+    "tokens": {
+      "input_tokens": 36,
+      "output_tokens": 19370,
+      "cache_read_input_tokens": 2662234,
+      "cache_creation_input_tokens": 195836,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 36,
+        "outputTokens": 19370,
+        "cacheReadInputTokens": 2662234,
+        "cacheCreationInputTokens": 195836,
+        "webSearchRequests": 0,
+        "costUSD": 3.7739070000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 26,
+    "duration_ms": 289821
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} ACTIONS=${GITHUB_ACTIONS:-unset}\"",
+      "RID=\"${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"run-id=$RID\"; mkdir -p \".prflow/tmp/review/pr-1936/$RID\"; echo \"$RID\" > /dev/null; ls -d \".prflow/tmp/review/pr-1936/$RID\""
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
