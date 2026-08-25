@@ -1,0 +1,98 @@
+{
+  "root_completeness": "established",
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "apply-labels.sh config wrong-type guard only matches the [object Object] sentinel; a JSON bool/number config value coerces to 'true'/'false'/digits and is applied verbatim as a garbage label reported 'applied' rather than config-unreadable. Bounded: keys are schema-constrained to string/array, null→empty→fallback, object case is caught.",
+      "defect_signature": "config-wrongtype-guard-scalar-fallopen"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Substring object-sentinel guard would false-positive-reject a pathological real label literally containing '[object Object]'. Fails CLOSED (config-unreadable), so informational only; substring match is the correct choice for the mixed-array case.",
+      "defect_signature": "object-sentinel-substring-false-positive"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "apply-labels.sh header OUTCOME CONTRACT describes config-unreadable's trigger only as 'config-get exited non-zero', omitting the second path (config-get exit 0 with an [object Object] wrong-type value). The header presents itself as the authoritative closed trigger list. Not misleading for routing (both mean config unusable).",
+      "defect_signature": "incomplete-outcome-token-trigger"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Folded ensure-label.sh outcome inside apply-labels.sh not independently exercised (no test drives apply where the folded ensure hits already-exists while apply POST succeeds). Inert since ensure exits 0 with stdout discarded.",
+      "defect_signature": "folded-ensure-outcome-not-isolated"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "--config-key given no following value (empty key → config-get.sh '' fallback) is an untested arg-parsing edge.",
+      "defect_signature": "config-key-missing-value-untested"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "No direct multi-label test that a middle empty entry is dropped while real labels survive (A, ,B, → A,B) — coverage the retired deferred_labels_normalize() replica carried explicitly. Same code path as covered trim/whitespace cases.",
+      "defect_signature": "drop-empty-middle-entry-untested"
+    }
+  ],
+  "per_reviewer_assessments": [
+    {
+      "agent": "prflow:code-reviewer",
+      "assessment_prose": "No high-confidence issues. Traced arg-parsing loop (safe under set -u, guarded shifts, guarded _POSITIONAL expansion), confirmed stdout carries only the token on every path (breadcrumbs to >&2, gh stdout and folded ensure stdout to /dev/null, config-get captured, resolve-gh sourced with no top-level echo). Object-sentinel substring guard sound against config-get coercion. nocasematch runs as a separate subprocess and is unconditionally unset after the case. All ACs verified present and consistent.",
+      "defect_signatures": []
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "assessment_prose": "Substantially clean; one-token-per-path contract holds on every traced branch, folded ensure suppresses nothing real (ensure writes only stderr; a creation failure surfaces downstream as api-failure), nocasematch process-local and reset, set -- uses -- correctly so a leading-dash label is safe, call-site prose fails closed. Two Minor observations, neither a blocker.",
+      "defect_signatures": ["config-wrongtype-guard-scalar-fallopen", "object-sentinel-substring-false-positive"]
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "assessment_prose": "Comment/doc corrections accurate; both issue-#1855 comment/doc ACs met (run.sh empty-set comment now says 'writes a breadcrumb'; implement-skill.md states shared normalisation rule + different mechanisms). 5-token set matches echo sites. No stale references to the retired tr|sed|grep normalizer, old grep already-exists check, or 'silent on empty set' survive. One low-severity header-completeness note.",
+      "defect_signatures": ["incomplete-outcome-token-trigger"]
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "assessment_prose": "Coverage strong and adequate for merge. All five tokens exercised behaviorally against stubbed gh; six-shape config matrix complete; object-sentinel tested bare + mixed-array (substring); grep-less-host ensure path + three case arms + case-insensitivity covered; 'exactly one token' soundly tested via exact-equality of command substitution. empty-string→fallback vs whitespace→nothing-to-apply distinction now covered behaviorally. Retired SKILL-mirror pins correctly replaced by behavioral tests + absence/collapsed-form pins. Four low-severity optional-hardening gaps, none blocking.",
+      "defect_signatures": ["folded-ensure-outcome-not-isolated", "config-key-missing-value-untested", "drop-empty-middle-entry-untested", "object-sentinel-substring-false-positive"]
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "assessment_prose": "APPROVE. Every AC met. Traced all apply-labels.sh exit paths (exactly one token each, set -uo pipefail, always exit 0); object-sentinel guard sound and fails closed against config-get coercion; nocasematch scoped to the classification only; collapsed call sites emit single leading-token calls, record non-success tokens as durable dropped-failed reflections, and treat no-output/helper-missing correctly; byte-identical stderr contract preserved; docs, coverage-map, §4.0.5 bullet-count (7→6) and sed-range anchors updated; patch changeset present; no new capability-profiles entry. No correctness, fail-open, or contract-drift defects.",
+      "defect_signatures": []
+    }
+  ],
+  "phase2_fails": [],
+  "checklist_skipped": null,
+  "report": "# PRFlow Shadow Review — PR #1936 (issue #1855)\n\n**Verdict: APPROVE**\n\n## Diff profile\nsmall diff; not config-only (touches scripts/ + shell helpers); no new types; engine-self-modifying (reviews DevFlow's own implement + test surface); checklist ran.\n\n## Summary\nPR #1936 folds label config resolution and outcome classification into `scripts/apply-labels.sh`: a new `--config-key`/`--config-fallback` mode resolves the label list via `config-get.sh`, folds per-label creation (`ensure-label.sh`) in, applies via REST, and prints exactly one stdout outcome token from the closed set {applied, nothing-to-apply, arg-slip, api-failure, config-unreadable} on every path it runs, with stderr breadcrumbs kept byte-identical. `ensure-label.sh` swaps `grep -qiE` already-exists detection for a bash `case` + `shopt -s nocasematch` so a grep-less host classifies correctly. Four implement call sites collapse to one invocation routing on the token. `lib/test/run.sh` gains a behavioral test block and retires the hand-copied normalizer replica and SKILL-mirror grep pins. Two doc/comment corrections. One patch changeset.\n\n## Phase 3 — reviewer findings (all Suggestion-level; none blocking)\n1. **config-wrongtype-guard-scalar-fallopen** (silent-failure-hunter, `scripts/apply-labels.sh`): the wrong-type guard only catches the `[object Object]` object sentinel; a bool/number config value coerces to `true`/`false`/digits and is applied verbatim as a garbage label reported `applied`. Bounded — keys are schema string/array, null→fallback, the realistic accidental `{}` object case is caught.\n2. **object-sentinel-substring-false-positive** (silent-failure-hunter / pr-test-analyzer, `scripts/apply-labels.sh`): a pathological real label containing `[object Object]` is rejected `config-unreadable`. Fails closed; informational.\n3. **incomplete-outcome-token-trigger** (comment-analyzer, `scripts/apply-labels.sh` header): OUTCOME CONTRACT omits the config-get-exit-0 wrong-type path from `config-unreadable`'s trigger description.\n4. **folded-ensure-outcome-not-isolated** (pr-test-analyzer, `lib/test/run.sh`): folded ensure-label already-exists path not independently exercised; inert.\n5. **config-key-missing-value-untested** (pr-test-analyzer, `lib/test/run.sh`): `--config-key` with no value untested.\n6. **drop-empty-middle-entry-untested** (pr-test-analyzer, `lib/test/run.sh`): `A, ,B,`→`A,B` middle-empty-drop has no direct multi-label test.\n\n## Verdict rationale\nAll fourteen acceptance criteria verified met. Every apply-labels.sh path emits exactly one stdout token; the object-sentinel wrong-type guard fails closed; nocasematch is process-local and unconditionally reset; the byte-identical stderr contract is preserved; collapsed call sites remain fail-closed and record non-success tokens as durable workpad reflections; docs/comment corrections are accurate; anchors and the §4.0.5 bullet count (7→6) updated; no new capability-profiles entry; patch changeset present. No Critical or Major defect surfaced by any of the five reviewers — every finding is an optional Suggestion. **APPROVE.**"
+}

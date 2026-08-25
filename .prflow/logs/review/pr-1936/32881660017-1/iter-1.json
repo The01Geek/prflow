@@ -1,0 +1,160 @@
+{
+  "iter": 1,
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "dispatch_mode": "fanned-out",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": {
+    "count": 1,
+    "by_category": {
+      "behavior-inert-prose-cap": 1
+    }
+  },
+  "engine_verdict": "APPROVE with notes",
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "apply-labels.sh:31 contract-header under-specifies the config-unreadable trigger (omits the object-valued config path); capped from Important by Phase 4.1.5 behavior-inert prose cap",
+      "defect_signature": {
+        "file": "scripts/apply-labels.sh",
+        "line_range": [
+          31,
+          31
+        ],
+        "kind": "doc_underspec"
+      },
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "parked_class_sweep": {
+    "classes": [
+      {
+        "source_finding_ids": [
+          "comment-analyzer-1"
+        ],
+        "kind_literal": "doc_underspec",
+        "sites_examined": [
+          "scripts/apply-labels.sh:23-40 header + 4 collapsed call sites + docs"
+        ],
+        "new_siblings": []
+      }
+    ],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-25",
+    "reviewed_sha": "b2bbe9911b141bd55da9128cca8f982d1f820ace",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "config bool/number value coerces to a garbage label reported applied (bounded — schema-constrained keys; object case caught)"
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "label literally containing [object Object] rejected — fails closed, informational"
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "apply-labels.sh header config-unreadable trigger omits the config-get-exit-0 wrong-type path (overlap with iter-1 parked finding)"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "folded ensure-label already-exists path not independently exercised (inert)"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "--config-key with no value untested"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "A, ,B, middle-empty-drop has no direct multi-label test"
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 6,
+      "overlap_with_iter_N": 1,
+      "new": 5,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 1,
+          "index": 0
+        },
+        "parked_finding_id": "comment-analyzer-1",
+        "shadow_finding_index": 2,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the same config-unreadable-header under-specification on the same basis, adding no new failing input; parked severity Suggestion is below $FIX_THRESHOLD so condition (c) does not bind",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": "no-fix iteration — nothing was changed, so the fix-delta gate is not owed"
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

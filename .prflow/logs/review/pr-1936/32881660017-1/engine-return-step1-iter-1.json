@@ -1,0 +1,106 @@
+{
+  "root_completeness": "established",
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "scripts/apply-labels.sh OUTCOME CONTRACT header (line 31) describes `config-unreadable` as emitted only when '--config-key mode and config-get exited non-zero', but the code also emits it on the [object Object] wrong-type guard path where config-get exits 0. The companion prose in docs/internal/implement-skill.md states it correctly, so the two disagree and the in-file one under-specifies.",
+      "defect_signature": "{file: scripts/apply-labels.sh, line_range: [31,31], kind: comment_drift}",
+      "fix_decision": "capped-to-suggestion (Phase 4.1.5 behavior-inert prose cap: an internal contract-header comment no tool parses for behavior and not read by a consumer; both inertness limbs hold; not a self-contradicting-diff carve-out because it under-specifies rather than being false against HEAD). Does not drive REJECT at the default `critical` threshold. Advisory: a one-clause broadening of line 31 to name the object-value path would resolve it."
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Mixed-mode invocation (config flag AND positional labels) silently discards the positional labels — _CONFIG_MODE wins with no breadcrumb. No in-tree call site mixes modes; fails toward the config value, not data loss.",
+      "defect_signature": "{file: scripts/apply-labels.sh, line_range: [92,117], kind: logic_error}",
+      "fix_decision": "advisory (below threshold; no fix required)"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "ensure-label.sh outcome fully discarded inside the creation loop (stdout>/dev/null, stderr uninspected, always exits 0). A genuine creation failure is surfaced only indirectly via the subsequent apply POST failing → api-failure, so the token names the apply stage rather than the creation stage (mis-attribution, not silence).",
+      "defect_signature": "{file: scripts/apply-labels.sh, line_range: [159,161], kind: logic_error}",
+      "fix_decision": "advisory (acceptable under best-effort contract; below threshold)"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Config mode with a missing --config-fallback: _CONFIG_FALLBACK defaults to \"\" and config mode is entered whenever either flag appears, so an absent configured value resolves to empty → nothing-to-apply rather than intended fallback. All four in-tree call sites pass both flags; defensive-coding note.",
+      "defect_signature": "{file: scripts/apply-labels.sh, line_range: [75,117], kind: api_misuse}",
+      "fix_decision": "advisory (unreachable from in-tree callers; fails safe; below threshold)"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Several newly-added comment blocks in apply-labels.sh/ensure-label.sh exceed the prevention-only three-line cap by carrying worked examples/provenance/derivation (number-guard UNQUOTED/QUOTED example ~55-66; bash-builtins guard-class-2 provenance ~119-127; wrong-type mixed-array example ~95-100; ensure-label already-exists narrative ~41-54). Each names a real wrong change, so load-bearing — Suggestion, not removal.",
+      "defect_signature": "{file: scripts/apply-labels.sh, line_range: [55,127], kind: style}",
+      "fix_decision": "advisory (below threshold; comments are load-bearing)"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The folded ensure-label.sh creation on the apply path has no direct assertion: every `applied` test stubs gh to return [] for both the ensure and apply POSTs, so dropping the ensure loop entirely would still print `applied` and pass. A marker-file probe asserting the ensure POST fired during an apply would close the gap.",
+      "defect_signature": "{file: lib/test/run.sh, line_range: [14931,14994], kind: test_gap}",
+      "fix_decision": "advisory (below threshold; core token contract fully covered)"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "arg-slip stdout token asserted only for the non-numeric shape, not the empty/missing-number shape (both share one case arm; low risk).",
+      "defect_signature": "{file: lib/test/run.sh, line_range: [14941,14943], kind: test_gap}",
+      "fix_decision": "advisory (below threshold; shared code path)"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "api-failure and config-unreadable each exercised in only one mode; post-resolution apply code is shared, so a completeness note rather than a real risk.",
+      "defect_signature": "{file: lib/test/run.sh, line_range: [14944,14960], kind: test_gap}",
+      "fix_decision": "advisory (below threshold)"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "nothing-to-apply stderr breadcrumb wording ('the caller passed an empty/whitespace-only label list') misdescribes the cause when the empty set arose from a config value that normalized to nothing. Byte-for-byte preservation is an explicit AC, so this is a genuine tension, harmless (token still nothing-to-apply).",
+      "defect_signature": "{file: scripts/apply-labels.sh, line_range: [149,152], kind: comment_drift}",
+      "fix_decision": "advisory (below threshold; breadcrumb intentionally byte-frozen per AC)"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Empty --config-key value silently proceeds and resolves to the fallback (unreachable from the four in-tree callers; fails safe).",
+      "defect_signature": "{file: scripts/apply-labels.sh, line_range: [79,85], kind: api_misuse}",
+      "fix_decision": "advisory (below threshold; unreachable in-tree)"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 1,
+    "by_category": {
+      "behavior-inert-prose-cap": 1
+    }
+  },
+  "report": "## Verdict: APPROVE with notes (issue #1855 label-config fold is correct and well-tested; one Important comment-completeness note capped to Suggestion as behavior-inert prose, plus advisory Suggestions)\n\n## Issue Compliance\nReviewed against issue #1855 — criteria from the /prflow:implement workpad — scope unchanged. The change satisfies the specification: `apply-labels.sh` gains `--config-key/--config-fallback` mode that resolves the label list via `config-get.sh`, folds per-label creation through the sibling `ensure-label.sh` (stdout suppressed), applies via the same REST `POST /repos/{owner}/{repo}/issues/{number}/labels`, always exits 0, and prints exactly one stdout token from the closed set {applied, nothing-to-apply, arg-slip, api-failure, config-unreadable} on every path (a harness refusal is the sole no-output outcome). `ensure-label.sh`'s already-exists test moved from `grep -qiE` to a bash `case` under `nocasematch` (no non-preflight PATH tool), preserving the three arms and case-insensitivity. The four implement call sites (Phase 3.1 provenance, 4.0, 4.0.5, 4.1) collapse to one token-routing invocation each. Every stderr breadcrumb is preserved byte-for-byte.\n\n## Verification Checklist Results\n20 passed, 0 failed, 0 inconclusive — checklist claims (token contract, flag parsing, [object Object] substring guard, folded per-label ensure with stdout suppression, grep→case/nocasematch swap, byte-identical stderr, four call-site token routing) each confirmed against the shipped `scripts/apply-labels.sh`, `scripts/ensure-label.sh`, `scripts/config-get.sh` and `lib/test/run.sh` by the code-reviewer and final-pass reviewers.\n\n## Code Review Findings\n### 🟡 Suggestion / Minor\n1. Contract-header comment at scripts/apply-labels.sh:31 under-specifies the `config-unreadable` trigger set — it names only the config-get-non-zero path and omits the `[object Object]` wrong-type guard path (where config-get exits 0); docs/internal/implement-skill.md states it correctly (raised by 1/5 agents) [suspected over-grade: behavior-inert prose cap — internal contract-header comment, no tool reads it for behavior, not consumer-facing; both inertness limbs hold; under-specifies rather than false against HEAD so not a self-contradicting-diff carve-out; capped from Important to Suggestion].\n2. Mixed-mode invocation (config flag + positional labels) silently discards the positional labels; no in-tree call site mixes modes (raised by 1/5 agents).\n3. ensure-label.sh creation-loop outcome discarded — a genuine creation failure is mis-attributed to the apply POST (api-failure), not fully silent (raised by 1/5 agents).\n4. Config mode with a missing --config-fallback resolves an absent value to empty → nothing-to-apply; all in-tree callers pass both flags (raised by 2/5 agents).\n5. Several new comment blocks exceed the prevention-only three-line cap with worked examples/provenance, but each is load-bearing (raised by 1/5 agents).\n6. Test gaps: the folded ensure POST is executed but never observed by an `applied` assertion; the empty-number arg-slip token, and api-failure/config-unreadable in the alternate mode, are inferred rather than asserted (raised by 1/5 agents).\n7. nothing-to-apply stderr breadcrumb wording misdescribes the cause in config mode, but is intentionally byte-frozen per the byte-identical-breadcrumb AC (raised by 1/5 agents).\n\nover-grade annotation: one finding flagged and capped (behavior-inert prose cap — scripts/apply-labels.sh:31, Important → Suggestion).\ntruthfulness sweep: no finding promoted.\nintra-diff contradiction scan: no contradiction found.\n\n## Verdict Criteria\n- No verification-checklist FAIL or INCONCLUSIVE.\n- No self-contradicting-diff carve-out finding (the one Important is an incomplete-but-true comment, not false against HEAD; capped behavior-inert per Phase 4.1.5).\n- No finding at or above the default `critical` verdict threshold.\n- Only findings below threshold present → APPROVE with notes.\n\nNo blocking issues. The change is correct, satisfies issue #1855, and is well-covered by new behavioral tests; the notes are optional polish (a one-clause header broadening at scripts/apply-labels.sh:31 would clear the sole Important-origin item).",
+  "engine_dir_selected": "/home/runner/work/prflow/prflow/skills/review — first candidate in the ordered list; the scan did not advance past it (this is a devflow-self checkout, so repo-root skills/review resolved directly). Root completeness established (SKILL.md read in full, 340 lines, EOF confirmed by a bounded read at line 341 returning nothing); root identity hashed over SKILL.md + the nine phase references; phase-3 and phase-4 reference boundary contracts cleared."
+}
