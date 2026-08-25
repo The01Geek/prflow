@@ -8598,8 +8598,8 @@ I682STUB
   rm -rf "$I682_D"
 fi
 
-# ── issue #338: --rewrite-ac (post-merge) retag requires a --note rationale ────
-# scripts/workpad.py: an `update` call in which any --rewrite-ac pair APPENDS the
+# scripts/workpad.py CLI contract coverage (issue #1934: the #338 --rewrite-ac retag
+# block extracted from this file into a focused module).
 if ! devflow_run_full_suite_module "$LIB/test/modules/workpad-cli.sh" \
   "workpad-cli" 85; then
   printf 'ERROR: workpad-cli boundary could not record its result\n'
