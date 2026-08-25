@@ -4516,8 +4516,7 @@ rm -rf "$_f1_skilldir"
 # keep each current source boundary observable on every suite execution.
 P362_P1="$IMPL_PHASES_DIR/phase-1-setup.md"
 
-# (1) Generalized mid-phase re-anchor — fires after EVERY Skill-tool return, not just the
-#     Phase 4.1 docs subagent.
+# (1) Generalized mid-phase re-anchor — fires after EVERY Skill-tool return.
 assert_pin_unique "#362: orchestrator re-anchors after every Skill-tool return (trigger)" \
   'after **every** Skill-tool return mid-phase' "$IMPL_ORCH"
 assert_pin_unique "#362: generalized re-anchor carries its operative resume directive" \
