@@ -33,6 +33,16 @@ final response is one marker line carrying what it read, and the top-level sessi
 that back through its own Bash call. A Bash `tool_use` carrying the hop-two marker is the
 harness-recorded evidence. The model's prose is never the measurement.
 
+HOW HOP ONE IS MADE MEASURABLE (issue #1321). Hop one runs in the orchestrator's own shell,
+so Action 2 (`printf 'ENVPROBE_HOP1 %s\n' "${VAR}"`) prints the shell-EXPANDED value and the
+harness records it as that Bash call's tool_result OUTPUT. The prompt's Action-3 echo-back was
+meant to copy that value into a tool_use input, but it is model-performed and can silently
+degrade (run 30956039324 recorded hop one silent while hop two reported). So `collect` reads
+tool_result OUTPUTS too and hop one is derived from Action 2's recorded output directly. The
+`_OBSERVED` guard is unweakened: the unexpanded instruction text lives only in a tool_use
+input, never in a tool_result output, so widening the read cannot count a commanded-but-unread
+value.
+
 WHAT THIS PROBE DOES NOT ESTABLISH. It measures visibility of a sentinel value, not of
 `DEVFLOW_PROMPT_EXTENSION_ROOT` under a real review run's step ordering, and it rests on
 a cooperative model faithfully reporting what it read — a compliant model reaches the
@@ -74,13 +84,13 @@ CONTROL_AFTER = "ENVPROBE_CONTROL_AFTER"
 _OBSERVED = {SENTINEL, "UNSET"}
 
 
-def _hop_values(tool_uses, marker):
+def _hop_values(entries, marker):
     """Return the set of OBSERVED values recorded for a hop marker.
 
     Matches `<marker> <token>` and keeps only tokens the probe can actually observe.
     A `%s` template (the unexpanded printf the instructions carry) yields nothing."""
     pat = re.compile(re.escape(marker) + r"\s+([^\s\"'\\]+)")
-    return {v for t in tool_uses for v in pat.findall(t)} & _OBSERVED
+    return {v for t in entries for v in pat.findall(t)} & _OBSERVED
 
 
 def parse_execution_file(exec_file):
@@ -121,17 +131,43 @@ def parse_execution_file(exec_file):
     return parsed, ""
 
 
-def collect(parsed):
-    """Walk the parsed structure and return the recorded tool_use entries as text.
+def _tool_result_text(node):
+    """Return a tool_result node's recorded OUTPUT content as text.
 
-    A tool_use node is recorded even when it carries no `input` key, so an input-less
-    entry is not silently dropped."""
-    tool_uses = []
+    Handles the two observed content shapes — a bare string, or a list of
+    `{"type": "text", "text": ...}` blocks whose `text` fields are joined; any other
+    shape (and any malformed list item) yields '' so a bad payload credits no hop rather
+    than raising, preserving the always-exit-0 contract."""
+    content = node.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            b["text"] for b in content
+            if isinstance(b, dict) and isinstance(b.get("text"), str)
+        )
+    return ""
+
+
+def collect(parsed):
+    """Walk the parsed structure and return the recorded entries as text — each
+    tool_use INPUT and each tool_result OUTPUT content.
+
+    Hop one's genuine reading is the shell-EXPANDED value printed by Action 2, recorded in
+    that Bash call's tool_result OUTPUT — never in a tool_use input, which by design carries
+    the variable unexpanded. Reading tool_result output is what makes hop one measurable
+    without depending on the model's manual echo-back (issue #1321); the `_OBSERVED` guard in
+    `_hop_values` still rejects the unexpanded instruction text, which only ever appears in a
+    tool_use input. A tool_use node is recorded even when it carries no `input` key, so an
+    input-less entry is not silently dropped."""
+    entries = []
 
     def walk(o):
         if isinstance(o, dict):
             if o.get("type") == "tool_use":
-                tool_uses.append(json.dumps(o.get("input")) + " NAME=" + str(o.get("name", "")))
+                entries.append(json.dumps(o.get("input")) + " NAME=" + str(o.get("name", "")))
+            elif o.get("type") == "tool_result":
+                entries.append(_tool_result_text(o))
             for v in o.values():
                 walk(v)
         elif isinstance(o, list):
@@ -139,10 +175,10 @@ def collect(parsed):
                 walk(it)
 
     walk(parsed)
-    return tool_uses
+    return entries
 
 
-def compute_verdict(tool_uses, note_top):
+def compute_verdict(entries, note_top):
     """Return (verdict, reason, record_it).
 
     A hop counts as PROPAGATED only when its marker is recorded alongside the sentinel
@@ -150,22 +186,22 @@ def compute_verdict(tool_uses, note_top):
     sentinel leaking in from the OTHER hop's entry and crediting a hop that never saw
     it; requiring an OBSERVED value (see `_hop_values`) is what stops the probe's own
     unexpanded instruction text from being counted as a report."""
-    hop1_values = _hop_values(tool_uses, HOP1)
-    hop2_values = _hop_values(tool_uses, HOP2)
+    hop1_values = _hop_values(entries, HOP1)
+    hop2_values = _hop_values(entries, HOP2)
     hop1 = SENTINEL in hop1_values
     hop2 = SENTINEL in hop2_values
     hop1_reported = bool(hop1_values)
     hop2_reported = bool(hop2_values)
-    before = any(CONTROL_BEFORE in t for t in tool_uses)
-    after = any(CONTROL_AFTER in t for t in tool_uses)
+    before = any(CONTROL_BEFORE in t for t in entries)
+    after = any(CONTROL_AFTER in t for t in entries)
 
     # Ordered, and the degraded arms come FIRST. A measurement that did not run must
     # never be read as a measurement that came back negative — collapsing "we could not
     # look" onto "it does not propagate" is the fail-open this ordering exists to stop.
     if note_top:
         return "INCONCLUSIVE", "the execution file could not be read cleanly: " + note_top, False
-    if not tool_uses:
-        return "INCONCLUSIVE", "no tool_use entries were recorded, so nothing was measured", False
+    if not entries:
+        return "INCONCLUSIVE", "no tool_use or tool_result entries were recorded, so nothing was measured", False
     if not (before and after):
         return (
             "INCONCLUSIVE",
@@ -214,13 +250,13 @@ def compute_verdict(tool_uses, note_top):
 def render(exec_file):
     parsed, note_top = parse_execution_file(exec_file)
     try:
-        tool_uses = collect(parsed)
+        entries = collect(parsed)
     except RecursionError:
         note_top = (note_top + "; " if note_top else "") + (
             "execution file nested too deeply to walk"
         )
-        tool_uses = []
-    verdict, reason, record_it = compute_verdict(tool_uses, note_top)
+        entries = []
+    verdict, reason, record_it = compute_verdict(entries, note_top)
 
     out = []
     out.append("## Step-level `env:` propagation probe (issue #874)")
@@ -230,8 +266,8 @@ def render(exec_file):
     out.append(reason + ".")
     out.append("")
     out.append(
-        "Deterministic verdict from the execution file's recorded `tool_use` entries — "
-        "the model's prose is never the measurement. Sentinel: `%s`." % SENTINEL
+        "Deterministic verdict from the execution file's recorded `tool_use` inputs and "
+        "`tool_result` outputs — the model's prose is never the measurement. Sentinel: `%s`." % SENTINEL
     )
     out.append("")
     if record_it:
@@ -245,15 +281,15 @@ def render(exec_file):
             "Re-dispatch the probe."
         )
     out.append("")
-    out.append("### Raw tool_use entries (%d)" % len(tool_uses))
+    out.append("### Raw recorded entries — tool_use inputs + tool_result outputs (%d)" % len(entries))
     out.append("")
-    if tool_uses:
+    if entries:
         out.append("```")
-        for t in tool_uses:
+        for t in entries:
             out.append(t[:400])
         out.append("```")
     else:
-        out.append("_No tool_use entries found in the execution file._")
+        out.append("_No tool_use or tool_result entries found in the execution file._")
     return "\n".join(out)
 
 

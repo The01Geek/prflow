@@ -3048,7 +3048,7 @@ def _decode_utf8(raw: bytes, flag: str, path: str) -> str:
     """Decode bytes as UTF-8, converting a `UnicodeDecodeError` (a `ValueError`
     the plain `except OSError` shape would let escape as a raw traceback) into
     the flag's clean `_UpdateError` contract. Single-sourced so the two file
-    readers below (`_read_section_file`, `_read_reflection_payload`) cannot drift
+    readers below (`_read_section_file`, `_read_file_payload`) cannot drift
     the decode-failure message shape apart."""
     try:
         return raw.decode('utf-8')
@@ -3070,27 +3070,29 @@ def _read_section_file(path: str, flag: str) -> str:
     return _decode_utf8(raw, flag, path)
 
 
-def _read_reflection_payload(path: str) -> str:
-    """Read a reflection payload for --reflection-file, bypassing shell
-    interpolation: bytes are read verbatim from a file, or from stdin when
-    `path` is `-`, and decoded via `_decode_utf8` (explicit UTF-8, no ambient
-    codec) so an em-dash or emoji round-trips byte-identical on any host. An
-    empty or whitespace-only payload is a structural failure — a blank reflection
-    bullet carries no signal — so it aborts before any PATCH. All failure modes
-    raise `_UpdateError`, so `_apply_mutations` aborts with no partial workpad
-    write."""
+def _read_file_payload(path: str, flag: str, thing: str) -> str:
+    """Read a `--*-file` bullet payload for `flag` (e.g. `--reflection-file`,
+    `--note-file`), bypassing shell interpolation: bytes are read verbatim from a
+    file, or from stdin when `path` is `-`, and decoded via `_decode_utf8`
+    (explicit UTF-8, no ambient codec) so backticks, `$`, quotes, an em-dash or an
+    emoji round-trip byte-identical on any host. An empty or whitespace-only
+    payload is a structural failure — a blank `thing` bullet carries no signal —
+    so it aborts before any PATCH. All failure modes raise `_UpdateError`, so
+    `_apply_mutations` aborts with no partial workpad write. Shared by both file
+    channels so a future fix to the read/decode/empty-guard contract cannot drift
+    one behind the other."""
     try:
         if path == '-':
             raw = sys.stdin.buffer.read()
         else:
             raw = Path(path).read_bytes()
     except OSError as e:
-        raise _UpdateError(f"--reflection-file: could not read {path!r}: {e}")
-    text = _decode_utf8(raw, '--reflection-file', path)
+        raise _UpdateError(f"{flag}: could not read {path!r}: {e}")
+    text = _decode_utf8(raw, flag, path)
     if not text.strip():
         raise _UpdateError(
-            "--reflection-file: payload is empty or whitespace-only; a "
-            "reflection bullet must carry text")
+            f"{flag}: payload is empty or whitespace-only; a "
+            f"{thing} bullet must carry text")
     return text
 
 
@@ -3103,13 +3105,29 @@ def _reflection_file_payload(args) -> str:
     when the PATCH drops it. The `-`/stdin arm can only be read once — a second read
     returns empty and would raise the empty-payload `_UpdateError` against a payload
     that was in fact fine — so the first read is cached and a later caller is served
-    from that cache. Failure modes are `_read_reflection_payload`'s unchanged
+    from that cache. Failure modes are `_read_file_payload`'s unchanged
     `_UpdateError` contract; only a SUCCESSFUL read is cached, so a caller that
     retries after a failure re-reads rather than seeing a half-populated cache."""
     cached = getattr(args, '_reflection_file_payload_cache', None)
     if cached is None:
-        cached = _read_reflection_payload(args.reflection_file)
+        cached = _read_file_payload(args.reflection_file, '--reflection-file', 'reflection')
         args._reflection_file_payload_cache = cached
+    return cached
+
+
+def _note_file_payload(args) -> str:
+    """Read `--note-file`'s payload at most once per invocation, memoized on
+    `args` — the note twin of `_reflection_file_payload` (both share
+    `_read_file_payload`). Two consumers need the SAME text:
+    `_cmd_update_inner`'s failed-write buffering (which persists the note when a
+    PATCH drops it) and `_apply_mutations`, which renders the bullet. The
+    `-`/stdin arm can only be read once, so the first read is cached and a later
+    caller is served from that cache; only a SUCCESSFUL read is cached, so a
+    caller that retries after a failure re-reads rather than seeing a stale one."""
+    cached = getattr(args, '_note_file_payload_cache', None)
+    if cached is None:
+        cached = _read_file_payload(args.note_file, '--note-file', 'note')
+        args._note_file_payload_cache = cached
     return cached
 
 
@@ -3506,6 +3524,17 @@ def _cmd_update_inner(args):
         # whole call with exit 1 and no PATCH, which is the contract that matters.
         try:
             _own_reflections.append(_reflection_file_payload(args))
+        except _UpdateError as e:
+            sys.stderr.write(f"workpad.py update: {e}\n")
+            sys.exit(1)
+    if getattr(args, 'note_file', None):
+        # A file-sourced note is buffered exactly like an inline --note, so a
+        # PATCH failure preserves it — the note twin of the --reflection-file
+        # rescue above (issue #1813 mirrors #1214). The read is memoized, so
+        # `_apply_mutations` renders from the same text without re-reading, which
+        # also keeps the `-`/stdin arm single-read.
+        try:
+            _own_notes.append(_note_file_payload(args))
         except _UpdateError as e:
             sys.stderr.write(f"workpad.py update: {e}\n")
             sys.exit(1)
@@ -4263,6 +4292,23 @@ _REVIEW_ROSTER_MARKER_RE = re.compile(
 # `_review_roster_incoherence` refuses it — the fail-closed posture
 # `_review_coverage_dispositions` takes for a duplicated gap.
 _REVIEW_ROSTER_DUPLICATE = object()
+# issue #1510: the record's optional as-of anchor — the trailing `<head>:<asof>` fields
+# appended after the axes. Both are colon-free because the payload is re-split on `:`, so a
+# colon-bearing ISO time here would be re-read as an axis field and break the record.
+_REVIEW_COVERAGE_ANCHOR_FIELDS = 2
+_REVIEW_COVERAGE_ANCHOR_UNESTABLISHED = 'unestablished'
+_REVIEW_COVERAGE_ANCHOR_HEAD_RE = re.compile(
+    r'\A(?:[0-9a-f]{7,40}|' + _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED + r')\Z')
+_REVIEW_COVERAGE_ANCHOR_ASOF_RE = re.compile(r'\A[0-9]{8}T[0-9]{6}Z\Z')
+
+
+def _utc_now_compact() -> str:
+    """The current UTC instant in colon-free basic-ISO form (`YYYYMMDDTHHMMSSZ`).
+
+    The review-coverage anchor's write-time (issue #1510) rides the colon-joined
+    payload, so it takes this spelling rather than the `:`-bearing ISO form `cmd_now`
+    renders."""
+    return datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
 # A disposition reason must name the specific gap, so a placeholder is refused
 # (issue #1453 AC9). This is deliberately NOT a cost/budget word blocklist: shipped
 # `shadow-review.md` permits cost as a TRUE cause on a dispatched-and-fell-short
@@ -4325,15 +4371,43 @@ def _parse_review_coverage_payload(payload: str):
     or return None when it is malformed — the wrong field count, or any field outside
     its axis vocabulary. A malformed payload is unestablished, never a partial read:
     accepting the fields that happened to parse would let a truncated record answer
-    for axes it never carried."""
+    for axes it never carried.
+
+    A record written before issue #1510 has exactly len(_REVIEW_COVERAGE_AXES) fields
+    and no anchor; an anchored record appends the trailing `<head>:<asof>` fields. Both
+    parse to the same axis dict here — the anchor is metadata read by
+    `_parse_review_coverage_anchor`, never a fifth axis — so the gate and every existing
+    reader are unchanged, and the pre-anchor field count still parses (AC4)."""
     fields = (payload or '').split(':')
-    if len(fields) != len(_REVIEW_COVERAGE_AXES):
+    n = len(_REVIEW_COVERAGE_AXES)
+    if len(fields) not in (n, n + _REVIEW_COVERAGE_ANCHOR_FIELDS):
         return None
-    record = dict(zip(_REVIEW_COVERAGE_AXES, fields))
+    record = dict(zip(_REVIEW_COVERAGE_AXES, fields[:n]))
     for axis, value in record.items():
         if value not in _REVIEW_COVERAGE_VOCABULARY[axis]:
             return None
     return record
+
+
+def _parse_review_coverage_anchor(payload: str):
+    """The as-of anchor a review-coverage payload carries (issue #1510), or None.
+
+    A pre-#1510 record has exactly len(_REVIEW_COVERAGE_AXES) fields and no anchor, so
+    it returns None — absent, never an error (AC4). An anchored record appends
+    `<head>:<asof>`: `head` is a lowercase-hex SHA (or the literal `unestablished` when
+    the reviewed head could not be derived) and `asof` is a colon-free basic-ISO UTC
+    instant. A payload with the anchor field count but a malformed head or asof also
+    returns None — an unreadable anchor is absent, not a partial one."""
+    fields = (payload or '').split(':')
+    n = len(_REVIEW_COVERAGE_AXES)
+    if len(fields) != n + _REVIEW_COVERAGE_ANCHOR_FIELDS:
+        return None
+    head, asof = fields[n:]
+    if not _REVIEW_COVERAGE_ANCHOR_HEAD_RE.match(head):
+        return None
+    if not _REVIEW_COVERAGE_ANCHOR_ASOF_RE.match(asof):
+        return None
+    return {'head': head, 'asof': asof}
 
 
 def _render_review_coverage_state(record: dict) -> str:
@@ -4548,7 +4622,13 @@ def _render_review_coverage_disposition(gap: str, reason: str) -> str:
     return f'review-coverage disposition — gap={gap}; reason: {reason}'
 
 
-_REVIEW_COVERAGE_REFLECTION_PREFIX = 'review coverage gap carried forward — gap='
+_REVIEW_COVERAGE_REFLECTION_PREFIX = (
+    "review coverage gap in this run's own review pass — gap=")
+# The pre-#1510 spelling (issue #1510 reworded the prefix). The strip below reads BOTH, so a
+# bullet a prior code version wrote is cleaned when a fresh record supersedes it across an
+# upgrade — otherwise a stale friction bullet survives and keeps tripping the retrospective gate.
+_REVIEW_COVERAGE_REFLECTION_PREFIX_SUPERSEDED = (
+    'review coverage gap carried forward — gap=')
 
 
 def _strip_review_coverage_reflection_bullets(content: str) -> str:
@@ -4557,11 +4637,12 @@ def _strip_review_coverage_reflection_bullets(content: str) -> str:
     Runs wherever the rows those bullets accompany are stripped, so a superseded or
     inherited disposition does not leave a permanent `### ⚠️ Action required` bullet
     that keeps tripping the retrospective friction gate after the gap it named is
-    gone. Matches on `_REVIEW_COVERAGE_REFLECTION_PREFIX`, the same constant the
-    disposition's reflection writer in `_apply_mutations` emits, so the two move
-    together."""
+    gone. Matches on `_REVIEW_COVERAGE_REFLECTION_PREFIX` (the constant the disposition's
+    reflection writer in `_apply_mutations` emits, so the two move together) and on its
+    superseded spelling, so a bullet a prior code version wrote is cleaned across an upgrade."""
     kept = [ln for ln in content.splitlines(keepends=True)
-            if _REVIEW_COVERAGE_REFLECTION_PREFIX not in ln]
+            if _REVIEW_COVERAGE_REFLECTION_PREFIX not in ln
+            and _REVIEW_COVERAGE_REFLECTION_PREFIX_SUPERSEDED not in ln]
     return ''.join(kept)
 
 
@@ -4827,6 +4908,62 @@ def _review_coverage_verdict(progress_content: str) -> None:
             )
 
 
+def _extension_row_verdict(progress_content: str) -> None:
+    """The extension-row half of the terminal gate (issue #1817): a terminal
+    `--status Complete` is refused while any `_EXTENSION_ROWS` `prompt extension
+    resolved:` row is BOTH unticked AND unaccompanied by that row's sanctioned
+    `state not established` note — the same fail-open the unticked-AC hard-fail
+    closes, applied to the extension rows so an unticked row on a Complete workpad
+    means the deliberate "state not established" record issue #1462 intended rather
+    than a silent bookkeeping miss.
+
+    Each row is located in the ## Progress content by its stable substring via
+    `_CHECKBOX_ROW_RE` (the same detector `_reconcile_extension_rows` uses). A row
+    that is absent entirely is tolerated, not refused: a workpad created before the
+    rows existed (pre-#1462, never `--reconcile-extension-rows`'d) carries none of
+    them, matching the gate's existing tolerance for older workpads (an absent AC or
+    Plan section contributes nothing). A ticked row passes. An unticked row passes
+    only when ## Progress carries a note line naming that row's substring together
+    with the phrase `state not established` — keyed on the row name plus that phrase,
+    not a byte-exact match of the free-prose note.
+
+    A PURE READ, structured like `_required_artifact_verdict`: it raises a structural
+    `_UpdateError` (no PATCH — `cmd_update` aborts before the temp-file/PATCH block)
+    and mutates nothing on any path. Returns None on a clean pass."""
+    lines = progress_content.split('\n')
+    offending = []
+    for _phase, text, substr in _EXTENSION_ROWS:
+        row = next(
+            (
+                m for ln in lines
+                if (m := _CHECKBOX_ROW_RE.match(ln))
+                and substr.lower() in m.group(4).lower()
+            ),
+            None,
+        )
+        if row is None:
+            continue  # wholly-absent row → legacy workpad tolerance, never refused
+        if row.group(2) != '[ ]':
+            continue  # ticked → satisfied
+        note_present = any(
+            not _CHECKBOX_ROW_RE.match(ln)
+            and substr.lower() in ln.lower()
+            and 'state not established' in ln.lower()
+            for ln in lines
+        )
+        if not note_present:
+            offending.append(text)
+    if offending:
+        rows = '\n'.join(f'    - [ ] {t}' for t in offending)
+        raise _UpdateError(
+            "refusing to finalize Status: Complete — "
+            f"{len(offending)} prompt-extension row(s) resolved-but-unrecorded: each "
+            "is unticked and carries no `state not established` note (tick it once the "
+            "extension's state was observed, or record that note, before finalizing) "
+            f"[extension-row-unrecorded]:\n{rows}"
+        )
+
+
 def _terminal_complete_gate(sections, args) -> list[str]:
     """Reconcile the workpad self-record on a terminal `--status Complete` write.
 
@@ -4861,7 +4998,13 @@ def _terminal_complete_gate(sections, args) -> list[str]:
     pass ran in full, or a disposition for each gap it records, over a fan-out that
     was actually dispatched. An unestablished record, an undispositioned gap, an
     undispatched pass, or a boilerplate reason is a structural `_UpdateError` (no
-    PATCH), like every other member here."""
+    PATCH), like every other member here.
+
+    Also enforces the extension-row gate (issue #1817): every `_EXTENSION_ROWS`
+    `prompt extension resolved:` row present in ## Progress must be ticked or carry a
+    `state not established` note, so a resolved-but-unrecorded row cannot pass
+    silently. A wholly-absent row set (a pre-#1462 workpad) is tolerated. A violation
+    is a structural `_UpdateError` (no PATCH), like every other member here."""
     # Completion-evidence gate first: it is the strictest precondition and its
     # failure is the one issue #1087 exists to enforce. `args` is REQUIRED (never
     # defaulted) so the gate can never be silently skipped by an argument omission —
@@ -4872,6 +5015,7 @@ def _terminal_complete_gate(sections, args) -> list[str]:
     _completion_evidence_verdict(args, prog_content)
     _required_artifact_verdict(prog_content)
     _review_coverage_verdict(prog_content)
+    _extension_row_verdict(prog_content)
     ac_idx = _find_section(sections, 'Acceptance Criteria')
     if ac_idx is not None:
         ac_content = sections[ac_idx][1]
@@ -5087,6 +5231,7 @@ def _has_non_checkpoint_mutation(args) -> bool:
         args.tick_ac, args.tick_ac_n, args.rewrite_ac,
         args.replace_plan_file, args.replace_acs_file, args.set_reproduction_file,
         args.note, args.reflection, args.reflection_file,
+        getattr(args, 'note_file', None),
         args.record_classification, args.reconcile_reproduction,
         args.scope_decision_deferred, args.scope_decision_rewritten,
         args.bind_scope_decisions, args.mark_deferred_filed,
@@ -5594,7 +5739,19 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             raise _UpdateError(
                 f"--record-review-coverage: {incoherent}. No PATCH was made."
             )
-        review_coverage_payload = ':'.join(review_coverage)
+        # issue #1510: stamp the record's as-of anchor — the reviewed head SHA it was
+        # derived from (from the caller, else `unestablished`) and the UTC write time.
+        # A bad head is a structural refusal here so no half-anchored record is written.
+        _anchor_head = (getattr(args, 'record_review_coverage_head', None)
+                        or _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED)
+        if not _REVIEW_COVERAGE_ANCHOR_HEAD_RE.match(_anchor_head):
+            raise _UpdateError(
+                f"--record-review-coverage-head: {_anchor_head!r} is not a "
+                "lowercase-hex head SHA (or 'unestablished'). No PATCH was made."
+            )
+        _anchor_asof = _utc_now_compact()
+        review_coverage_payload = ':'.join(
+            list(review_coverage) + [_anchor_head, _anchor_asof])
     # Shadow-review roster enumeration (issue #1512): validated before any body mutation
     # and cross-checked against the roster axis. Read via getattr so an older arg shape
     # (no --record-roster-member) degrades to "flag absent" rather than raising.
@@ -5802,7 +5959,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         # traceback. A bare string is rejected too (it would `p[1]`-index a character).
         for _pair in args.rewrite_ac:
             _require_arity('--rewrite-ac', _pair, 2, ('OLD', 'NEW'))
-        has_note = any(n.strip() for n in args.note)
+        has_note = any(n.strip() for n in args.note) or bool(getattr(args, 'note_file', None))
         # A multi-line NEW is structurally invalid, and rejecting it here is load-bearing
         # for BOTH guards below (issue #338). `_rewrite_checkbox` writes NEW verbatim into
         # one line, so an embedded line boundary SPLITS that checkbox row in two: it injects
@@ -5956,7 +6113,14 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     for _ckey, _ctext in checkpoint_reqs:
         if f'{_ctext} {_checkpoint_marker(_ckey)}' in body:
             _checkpoint_covered_texts.add(_ctext)
-    _notes = [n for n in args.note if n not in _checkpoint_covered_texts]
+    # A --note-file payload (issue #1813) is an ordinary note appended AFTER the
+    # inline --note bullets, mirroring the --reflection/--reflection-file order.
+    # The read is memoized (see `_note_file_payload`), so this reuses the text
+    # `_cmd_update_inner` already read for buffering rather than re-reading it.
+    _notes_in = list(args.note)
+    if getattr(args, 'note_file', None):
+        _notes_in.append(_note_file_payload(args))
+    _notes = [n for n in _notes_in if n not in _checkpoint_covered_texts]
     progress_notes = _notes + scope_decision_notes + deferred_filed_notes + [
         f'{text} {_checkpoint_marker(key)}' for key, text in checkpoint_inserts
     ]
@@ -5994,8 +6158,14 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if review_coverage_payload:
         _state = _render_review_coverage_state(
             dict(zip(_REVIEW_COVERAGE_AXES, review_coverage)))
+        # issue #1510: surface the as-of anchor in the visible row (from the locals
+        # composed above — no re-parse) so a human reader can tell a record that predates
+        # a later standalone review from a current one.
+        _head_disp = (_anchor_head if _anchor_head == _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED
+                      else _anchor_head[:12])
         _review_coverage_rows.add(
-            f'review coverage recorded ({_state}) '
+            f'review coverage recorded ({_state}; as of head {_head_disp} '
+            f'at {_anchor_asof}) '
             f'{_review_coverage_marker(review_coverage_payload)}'
         )
     for _member, _status in roster_members.items():
@@ -6524,6 +6694,17 @@ def main():
                         'Status\'s phase inside ## Progress. May be passed '
                         'multiple times to append several entries (sharing one '
                         'timestamp) in one atomic update.')
+    u.add_argument('--note-file', metavar='PATH', default=None,
+                   help='Append a ## Progress note bullet whose text is read '
+                        'verbatim as UTF-8 from PATH (or from stdin when PATH is '
+                        '"-"), bypassing shell interpolation — use for text '
+                        'containing backticks, $, or double quotes. Compose the '
+                        'payload file with an editor/Write tool, never a shell '
+                        'heredoc or redirect, or the interpolation hazard just '
+                        'moves upstream. Combines with --note; the file bullet '
+                        'appends after any inline --note bullets. An unreadable '
+                        'path, an undecodable (non-UTF-8) payload, or an empty/'
+                        'whitespace-only payload aborts the call before any PATCH.')
     u.add_argument('--reflection', metavar='TEXT', action='append', default=[],
                    help='Append a bullet to Devflow Reflection (no timestamp). '
                         'May be passed multiple times to append several bullets '
@@ -6651,8 +6832,11 @@ def main():
                    metavar=('COVERAGE', 'DISPATCH', 'ROSTER', 'CHECKLIST'),
                    help='Record this run\'s resolved Phase 3 review-coverage state '
                         '(issue #1453) as a machine-readable "<!-- prflow:checkpoint '
-                        'review-coverage:<coverage>:<dispatch>:<roster>:<checklist> '
-                        '-->" ## Progress row, replacing any prior one. COVERAGE: '
+                        'review-coverage:<coverage>:<dispatch>:<roster>:<checklist>'
+                        '[:<head>:<asof>] '
+                        '-->" ## Progress row, replacing any prior one. The optional '
+                        '[:<head>:<asof>] as-of anchor (issue #1510) is stamped from '
+                        '--record-review-coverage-head + the UTC write time. COVERAGE: '
                         + '|'.join(_REVIEW_COVERAGE_VOCABULARY['coverage'])
                         + '. DISPATCH (was a shadow fan-out attempted): '
                         + '|'.join(_REVIEW_COVERAGE_VOCABULARY['dispatch'])
@@ -6681,6 +6865,13 @@ def main():
                         + ') is dispatched and no member is missing, while a member its '
                           'applicability gate excluded (gated-off) does not block '
                           'complete; roster=short must name a missing member.')
+    u.add_argument('--record-review-coverage-head', default=None, metavar='SHA',
+                   help='The reviewed head SHA the review-coverage record is derived '
+                        'from (issue #1510), stamped as the record\'s as-of anchor '
+                        'beside the UTC write time so a reader can tell a record that '
+                        'predates a later standalone review from a current one. A '
+                        'lowercase-hex SHA; omit it to record the head as '
+                        '"unestablished". Only meaningful with --record-review-coverage.')
     u.add_argument('--review-coverage-disposition', nargs=2, action='append',
                    default=[], metavar=('GAP', 'REASON'),
                    help='Carry a recorded review-coverage gap forward under a stated '
