@@ -209,5 +209,92 @@
       "iter": 2,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.13",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 71.69932700000003,
+    "tokens": {
+      "input_tokens": 342,
+      "output_tokens": 249824,
+      "cache_read_input_tokens": 73644778,
+      "cache_creation_input_tokens": 711402,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 627,
+        "outputTokens": 370945,
+        "cacheReadInputTokens": 83803448,
+        "cacheCreationInputTokens": 2458376,
+        "webSearchRequests": 0,
+        "costUSD": 69.21109150000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 180,
+        "outputTokens": 35917,
+        "cacheReadInputTokens": 5832540,
+        "cacheCreationInputTokens": 384879,
+        "webSearchRequests": 0,
+        "costUSD": 2.4882355000000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 234,
+    "duration_ms": 6824735
+  },
+  "permission_denials": {
+    "count": 27,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<unset>}\"; echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-<unset>}\"; git branch --show-current; git status --porcelain",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      "for r in 30857543531 32289799442 32294218782; do\n  echo \"=== run $r ===\"\n  gh run view \"$r\" --json displayTitle,workflowName,createdAt,updatedAt,conclusion,event 2>&1 | head -20\ndone",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1808 \\\n  --replace-plan-file .prflow/tmp/plan-1808.md \\\n  --note \"criterion-lifecycle accounting: AC1 (elapsed line on CLEAN and FAILED stdout) -> Testable via parallel-suite-runner.sh clean-path + failed-path assertions. AC2 (no program outside git/gh/jq/python3) -> Testable-by-construction (pure printf with SECONDS builtin) + covered by AC3 assertions driving real output; verified by inspection. AC3 (module fails when elapsed line absent, both pa …[per-command-truncated]",
+      "lib/test/regenerate-artifacts.py 2>&1 | tail -30; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1808-run-parallel-elapsed.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"EXIT=$?\"",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p .prflow/tmp/review/pr-1939/32809097887-1\ngit diff \"origin/main...HEAD\" | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1939/32809097887-1/diff.patch >/dev/null\necho \"=== sections ===\" && grep -c '^diff --git' .prflow/tmp/review/pr-1939/32809097887-1/diff.patch\necho \"=== full diff ===\" && cat .prflow/tmp/review/pr-1939/32809097887-1/diff.patch",
+      "git -C /home/runner/work/prflow/prflow diff \"origin/main...HEAD\" | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1939/32809097887-1/diff.patch >/dev/null\necho \"sections:\" && grep -c '^diff --git' /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1939/32809097887-1/diff.patch\ncat /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1939/32809097887-1/diff.patch",
+      "git -C /home/runner/work/prflow/prflow diff \"origin/main...HEAD\" > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1939/32809097887-1/diff.raw",
+      "git -C /home/runner/work/prflow/prflow diff \"origin/main...HEAD\"",
+      "git diff \"origin/main...HEAD\" | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1939/32809097887-1/diff.patch && grep -c '^diff --git' .prflow/tmp/review/pr-1939/32809097887-1/diff.patch",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review",
+      "case \"run-parallel: elapsed 0s\" in *\"run-parallel: elapsed \"[0-9]*) echo \"accepts elapsed 0s: yes\" ;; *) echo \"accepts elapsed 0s: NO(bad)\" ;; esac\ncase \"run-parallel: elapsed 5s\" in *\"run-parallel: elapsed \"[0-9]*) echo \"accepts elapsed 5s: yes\" ;; *) echo \"accepts elapsed 5s: NO(bad)\" ;; esac\ncase \"run-parallel: elapsed s\" in *\"run-parallel: elapsed \"[0-9]*) echo \"rejects empty value: NO(bad)\" ;; *) echo \"rejects empty value: yes\" ;; esac",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1939/32809097887-1\ngit diff origin/main...HEAD > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1939/32809097887-1/diff.patch\nwc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1939/32809097887-1/diff.patch\necho \"---displaced---\"; ls /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null || echo \"no displaced list\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1939/32809097887-1 && git -C /home/runner/work/prflow/prflow diff origin/main...HEAD | head -c 50 && echo \"OK\"",
+      "mkdir -p .prflow/tmp/review/pr-1939/32809097887-1\ngit diff origin/main...HEAD | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1939/32809097887-1/diff.patch\ngrep -c '^diff --git' .prflow/tmp/review/pr-1939/32809097887-1/diff.patch\necho \"=== ISSUE 1808 ===\"\ngh issue view 1808 --json title,body --jq '.title, .body' 2>&1 | head -80",
+      ".prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT:$?---\"",
+      ".prflow/scripts/load-prompt-extension.sh requesting-code-review; echo \"---EXIT:$?---\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp\nFP=$(python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py)\necho \"$FP\"\npython3 - <<PYEOF\nimport json\nfp = json.loads('''$FP''')\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-module.sh\", \"parallel-suite-runner\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_services\": \"none\"\n  } …[per-command-truncated]",
+      "cat > /home/runner/work/prflow/prflow/.prflow/tmp/build_decl.py <<'PYEOF'\nimport json, subprocess\n\nfp = json.loads(subprocess.run(\n    [\"python3\", \".prflow/vendor/prflow/scripts/checkout-fingerprint.py\"],\n    cwd=\"/home/runner/work/prflow/prflow\", capture_output=True, text=True, check=True\n).stdout)\n\ndecl = {\n    \"schema_version\": 1,\n    \"profile\": {\n        \"profile_version\": 1,\n        \"argv\": [\"lib/test/run-module.sh\", \"parallel-suite-runner\"],\n        \"cwd\": \"/home/runner/work/prflow/prflow\" …[per-command-truncated]",
+      "python3 -c \"\nimport json\nsummary = {\n  'exit_status': 0,\n  'command': 'lib/test/run-module.sh parallel-suite-runner',\n  'result_line': 'Module parallel-suite-runner: 173 passed, 0 failed',\n  'note': 'includes issue #1808 elapsed-line assertions on both the clean and failed paths'\n}\nopen('/home/runner/work/prflow/prflow/.prflow/tmp/flight-summary.json', 'w').write(json.dumps(summary))\nprint(open('/home/runner/work/prflow/prflow/.prflow/tmp/flight-summary.json').read())\n\"\nFLIGHT=28ab34bebfe92aa993 …[per-command-truncated]",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs; echo \"---EXIT:$?---\"",
+      "for f in CLAUDE.md docs/internal/claude-md-tiered-suite-rationale.md docs/internal/implement-skill.md lib/test/run-parallel.sh .github/workflows/devflow.yml; do echo \"===== $f =====\"; git diff main...HEAD -- \"$f\"; done",
+      "echo \"=== docs diff ===\"; git diff origin/main...HEAD -- .github/workflows/devflow.yml CLAUDE.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md docs/internal/claude-md-tiered-suite-rationale.md docs/internal/implement-skill.md\necho \"=== growth helper ===\"; .prflow/vendor/prflow/scripts/prompt-surface-growth.py 2>&1 || scripts/prompt-surface-growth.py 2>&1",
+      "WP=$(scripts/workpad.py id 1808 2>/dev/null || true); echo \"wp=$WP\"; if [ -n \"$WP\" ]; then scripts/workpad.py body \"$WP\" 2>/dev/null | grep -iE '\\(post-merge\\)' || echo \"(no post-merge items)\"; fi; echo \"=== deferrals ===\"; ls -la .prflow/tmp/review/pr-1939/deferrals.json 2>&1 || echo \"(no deferrals file)\"",
+      "scripts/prompt-surface-growth.py 2>&1",
+      "PR=$(gh pr view 1939 --json number --jq '.number' 2>/dev/null); if [ -z \"$PR\" ]; then echo \"NO_PR_NUMBER\"; exit 1; fi; gh api --method PATCH \"repos/{owner}/{repo}/pulls/$PR\" -F body=@/home/runner/work/prflow/prflow/.prflow/tmp/pr-1939-body.md --jq '.number' 2>&1"
+    ],
+    "total": 27,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
