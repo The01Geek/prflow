@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1926",
+  "generated_at": "2026-08-25T03:06:11Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.11",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.344450999999998,
+    "tokens": {
+      "input_tokens": 40,
+      "output_tokens": 26558,
+      "cache_read_input_tokens": 2945670,
+      "cache_creation_input_tokens": 210272,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 160,
+        "outputTokens": 70615,
+        "cacheReadInputTokens": 6805837,
+        "cacheCreationInputTokens": 861894,
+        "webSearchRequests": 0,
+        "costUSD": 11.344450999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 41,
+    "duration_ms": 1114528
+  },
+  "permission_denials": {
+    "count": 21,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none} actions=${GITHUB_ACTIONS:-none}\"; date -u +%Y%m%dT%H%M%SZ",
+      "for f in scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py; do\n  echo \"=== $f ===\"\n  echo \"-- RESIDENCY_KEYS refs --\"; grep -n 'RESIDENCY_KEYS' \"$f\" || echo \"(none)\"\n  echo \"-- math. usage --\"; grep -n 'math\\.' \"$f\" || echo \"(none)\"\n  echo \"-- import math --\"; grep -n 'import math' \"$f\" || echo \"(none)\"\ndone",
+      "for f in create_issue_eval.py implement-context-eval.py review-context-eval.py; do echo \"=== $f ===\"; git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/$f | grep -n \"math\\.\" ; done",
+      "for f in scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py scripts/create-issue-context-eval.py; do echo \"=== $f ===\"; git show bc157565aa9be596008253a308ef6d82fce0e7f7:$f 2>&1 | grep -nE \"RESIDENCY_KEYS|math\\.|import math|_usage_field|_residency_spend|_median_or_unestablished\" ; done",
+      "for f in create_issue_eval.py implement-context-eval.py review-context-eval.py; do echo \"== $f ==\"; git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/$f | grep -n \"math\\.\" || echo \"  no math. usage\"; done",
+      "for f in scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py; do echo \"=== $f ===\"; git show bc157565aa9be596008253a308ef6d82fce0e7f7:$f | grep -n \"math\\.\" ; echo \"rc:$?\"; done",
+      "cd /home/runner/work/prflow/prflow\nfor f in scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py; do\necho \"=== $f ===\"\necho \"-- math refs:\"; git show bc157565aa9be596008253a308ef6d82fce0e7f7:$f | grep -n \"math\\.\" || echo none\necho \"-- RESIDENCY_KEYS refs:\"; git show bc157565aa9be596008253a308ef6d82fce0e7f7:$f | grep -n \"RESIDENCY_KEYS\" || echo none\necho \"-- importlib refs:\"; git show bc157565aa9be596008253a308ef6d82fce0e7f7:$f | grep -n \"importlib\" || ech …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; for f in scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py; do echo \"=== FILE $f ===\"; echo \"-- math.:\"; git show \"bc157565aa9be596008253a308ef6d82fce0e7f7:$f\" | grep -nc \"math\\.\" ; echo \"-- RESIDENCY_KEYS:\"; git show \"bc157565aa9be596008253a308ef6d82fce0e7f7:$f\" | grep -nc \"RESIDENCY_KEYS\"; echo \"-- importlib:\"; git show \"bc157565aa9be596008253a308ef6d82fce0e7f7:$f\" | grep -nc \"importlib\"; done",
+      "cd /home/runner/work/prflow/prflow; git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/create_issue_eval.py > /tmp/cie.py; git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/implement-context-eval.py > /tmp/ice.py; git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/review-context-eval.py > /tmp/rce.py; git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/context_eval_shared.py > /tmp/shared.py; echo done",
+      "git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/create_issue_eval.py > /tmp/cie.py",
+      "git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/implement-context-eval.py > /tmp/ice.py",
+      "git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/review-context-eval.py > /tmp/rce.py",
+      "cd /home/runner/work/prflow/prflow; mkdir -p .prflow/tmp/rev1926; git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/create_issue_eval.py > .prflow/tmp/rev1926/cie.py",
+      "cd /home/runner/work/prflow/prflow; git worktree add -q .prflow/tmp/wt-1926 bc157565aa9be596008253a308ef6d82fce0e7f7 2>&1 | tail -3; echo \"---\"; python3 .prflow/tmp/wt-1926/lib/test/test_context_eval_shared.py 2>&1 | tail -20",
+      "git worktree add -q .prflow/tmp/wt-1926 bc157565aa9be596008253a308ef6d82fce0e7f7",
+      "git worktree add -q .prflow/tmp/wt-1926 bc157565aa9be596008253a308ef6d82fce0e7f7",
+      "cd /home/runner/work/prflow/prflow; git reset -q HEAD -- scripts/context_eval_shared.py scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py scripts/create-issue-context-eval.py lib/test/test_context_eval_shared.py lib/test/modules/coverage-map.json; git checkout -- scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py scripts/create-issue-context-eval.py lib/test/modules/coverage-map.json 2>/dev/null; rm -f scripts …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; git reset -q HEAD .; git checkout -- scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py scripts/create-issue-context-eval.py lib/test/modules/coverage-map.json",
+      "git reset -q HEAD .",
+      "git reset -q HEAD . && git checkout -- scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py scripts/create-issue-context-eval.py lib/test/modules/coverage-map.json && rm -f scripts/context_eval_shared.py lib/test/test_context_eval_shared.py && git status --porcelain",
+      "cd /home/runner/work/prflow/prflow; git restore --staged .; git restore scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py scripts/create-issue-context-eval.py lib/test/test_implement_context_eval.py lib/test/test_review_context_eval.py lib/test/test_create_issue_context_eval.py lib/test/test_module_runner.py lib/test/modules/coverage-map.json; rm -f scripts/context_eval_shared.py lib/test/test_context_eval_shared.py; git worktree prune; rm -rf .prflow/ …[per-command-truncated]"
+    ],
+    "total": 21,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
