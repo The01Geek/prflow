@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.27] — 2026-08-25
+
+### Changed
+- **The implement skill's cloud command-shape discipline now states that a helper the run's own branch introduced or modified is unreachable in that run.** The vendored checkout is version-pinned and config grants resolve at trigger time from the default branch, so such a helper is absent, stale, or silently denied — and a modified one runs stale bytes at rc-0, so waiting for a failed invocation misses it. The run recognizes it from its own branch delta and routes the dependent step to the existing deferral/Blocked path up front, naming post-merge grant/vendor timing, attempting no workaround. `docs/internal/implement-skill.md` now points at the shipped skill body as the runtime home of this rule. (#1942)
+
 ## [2.34.26] — 2026-08-25
 
 ### Added
