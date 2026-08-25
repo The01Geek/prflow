@@ -35490,6 +35490,96 @@ assert_eq("#1027 decide: stale-advisory with no checkpoint -> stale-advisory", "
 assert_eq("#1027 decide: stale-advisory with no checkpoint omits the checkpoint clause",
           True, "last checkpoint" not in _dnc1027.message)
 
+# ── issue #1811: cleanup-create-issue-run.sh — per-run create-issue scratch reaper ──
+print()
+print("cleanup-create-issue-run.sh: per-run create-issue scratch cleanup (issue #1811)")
+import subprocess as _sp1811  # noqa: E402
+
+_CLEANUP1811 = SCRIPTS / 'cleanup-create-issue-run.sh'
+
+
+def _ci1811_dir(root, slug):
+    return Path(root) / '.prflow' / 'tmp' / 'create-issue' / slug
+
+
+def _ci1811_ptr(root):
+    return Path(root) / '.prflow' / 'tmp' / 'create-issue' / 'issue-run-slug'
+
+
+def _seed1811(root, slug, pointer_slug=None):
+    d = _ci1811_dir(root, slug)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f'issue-draft-{slug}.md').write_text('draft', encoding='utf-8')
+    if pointer_slug is not None:
+        _ci1811_ptr(root).write_text(pointer_slug + '\n', encoding='utf-8')
+    return d
+
+
+def _cleanup1811(*args):
+    return _sp1811.run(['bash', str(_CLEANUP1811), *args],
+                       capture_output=True, text=True)
+
+
+# A valid slug reaps only its own recorded handle: its run dir and the pointer that
+# still holds its slug go; a concurrent slug's run dir stays (AC: cleanup targets only
+# the recorded directory, never a sweep).
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _mine = _seed1811(_r, 'issue-1811-mine', pointer_slug='issue-1811-mine')
+    _other = _seed1811(_r, 'issue-9999-other')
+    _res = _cleanup1811('--slug', 'issue-1811-mine', '--root', str(_r))
+    assert_eq("#1811 cleanup: valid slug exits 0", 0, _res.returncode)
+    assert_eq("#1811 cleanup: removes the run's own dir", False, _mine.exists())
+    assert_eq("#1811 cleanup: removes the pointer holding this run's slug",
+              False, _ci1811_ptr(_r).exists())
+    assert_eq("#1811 cleanup: leaves another slug's run dir untouched", True, _other.exists())
+
+# A pointer holding a DIFFERENT slug is a concurrent run's rebind — the own dir still
+# reaps, but the foreign pointer stays.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _mine = _seed1811(_r, 'mine', pointer_slug='someone-else')
+    _cleanup1811('--slug', 'mine', '--root', str(_r))
+    assert_eq("#1811 cleanup: reaps own dir even when the pointer holds another slug",
+              False, _mine.exists())
+    assert_eq("#1811 cleanup: leaves a pointer holding a different slug in place",
+              True, _ci1811_ptr(_r).exists())
+
+# Empty handle (no --slug): the residual-risk case — deletes nothing, exits 0.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _seed1811(_r, 'stays', pointer_slug='stays')
+    _res = _cleanup1811('--root', str(_r))
+    assert_eq("#1811 cleanup: empty handle exits 0", 0, _res.returncode)
+    assert_eq("#1811 cleanup: empty handle removes nothing (run dir)",
+              True, _ci1811_dir(_r, 'stays').exists())
+    assert_eq("#1811 cleanup: empty handle removes nothing (pointer)",
+              True, _ci1811_ptr(_r).exists())
+
+# Path-unsafe slug refuses (delete nothing, exit 0): the regex guard is what stops a
+# `../`-reaching handle from escaping the create-issue namespace and deleting a sibling.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _victim = _ci1811_dir(_r, 'victim')
+    _victim.mkdir(parents=True)
+    _res = _cleanup1811('--slug', '../create-issue/victim', '--root', str(_r))
+    assert_eq("#1811 cleanup: unsafe slug exits 0", 0, _res.returncode)
+    assert_eq("#1811 cleanup: unsafe slug deletes nothing (no traversal escape)",
+              True, _victim.exists())
+
+# Multiple roots: each root's own run dir is reaped.
+with tempfile.TemporaryDirectory() as _td1811a, tempfile.TemporaryDirectory() as _td1811b:
+    _r1, _r2 = Path(_td1811a), Path(_td1811b)
+    _d1, _d2 = _seed1811(_r1, 'slug'), _seed1811(_r2, 'slug')
+    _cleanup1811('--slug', 'slug', '--root', str(_r1), '--root', str(_r2))
+    assert_eq("#1811 cleanup: reaps the run dir under the first root", False, _d1.exists())
+    assert_eq("#1811 cleanup: reaps the run dir under the second root", False, _d2.exists())
+
+# Absent run dir: idempotent, exit 0 (a re-run or already-reaped handle).
+with tempfile.TemporaryDirectory() as _td1811:
+    _res = _cleanup1811('--slug', 'never-created', '--root', str(Path(_td1811)))
+    assert_eq("#1811 cleanup: absent run dir exits 0 non-destructively", 0, _res.returncode)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
