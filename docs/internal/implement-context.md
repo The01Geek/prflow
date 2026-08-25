@@ -348,9 +348,9 @@ python3 scripts/implement-context-eval.py <transcript-dir> --format json
 ```
 
 That is a different command from the fixture reproduction above, which runs against the
-committed synthetic corpus and re-derives nothing about a real run. No transcript path is
-recorded here: `lib/test/test_implement_context_eval.py` scans this page for owner-identifying
-path shapes, so writing one in turns the suite red.
+committed synthetic corpus and re-derives nothing about a real run. The transcript directory
+is deliberately not named on this page: `lib/test/test_implement_context_eval.py` scans it
+against a fixed owner-identifying pattern set, so writing such a path in turns the suite red.
 
 **What the corpus shows.** Phase-1 reads dominate the corpus total, and the per-run
 distribution is heavily skewed — a median run reads one phase file while the heaviest reads
