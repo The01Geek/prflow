@@ -8578,7 +8578,7 @@ fi
 # scripts/workpad.py CLI contract coverage (issue #1934: the #338 --rewrite-ac retag
 # block extracted from this file into a focused module).
 if ! devflow_run_full_suite_module "$LIB/test/modules/workpad-cli.sh" \
-  "workpad-cli" 85; then
+  "workpad-cli" 94; then
   printf 'ERROR: workpad-cli boundary could not record its result\n'
   exit 1
 fi
@@ -19252,7 +19252,7 @@ assert_eq "app-token: overview §15 positively documents the optional App (DEVFL
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/efficiency-trace-telemetry.sh" \
-  "efficiency-trace-telemetry" 951; then
+  "efficiency-trace-telemetry" 994; then
   printf 'ERROR: efficiency-trace-telemetry boundary could not record its result\n'
   exit 1
 fi
@@ -53346,7 +53346,8 @@ for helper in ("workpad.py", "preflight.py", "parse-acs.py", "run-jq.sh", "confi
                "branch-for-issue.py", "update-branch-checkpoint.sh",
                "phase2-durability-checkpoint.sh", "react-to-trigger.sh",
                "load-prompt-extension.sh", "ensure-label.sh", "apply-labels.sh",
-               "apply-pr-triggerer.sh", "check-verified-premises.py", "refresh-pr-run-link.py"):
+               "apply-pr-triggerer.sh", "check-verified-premises.py", "refresh-pr-run-link.py",
+               "validate-issue-claim-audit.py"):
     stub(os.path.join(scripts, helper))
 stub(os.path.join(libdir, "efficiency-trace.sh"))
 ambient = {

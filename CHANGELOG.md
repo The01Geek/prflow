@@ -4,6 +4,35 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.27] — 2026-08-25
+
+### Changed
+- **The implement skill's cloud command-shape discipline now states that a helper the run's own branch introduced or modified is unreachable in that run.** The vendored checkout is version-pinned and config grants resolve at trigger time from the default branch, so such a helper is absent, stale, or silently denied — and a modified one runs stale bytes at rc-0, so waiting for a failed invocation misses it. The run recognizes it from its own branch delta and routes the dependent step to the existing deferral/Blocked path up front, naming post-merge grant/vendor timing, attempting no workaround. `docs/internal/implement-skill.md` now points at the shipped skill body as the runtime home of this rule. (#1942)
+
+## [2.34.26] — 2026-08-25
+
+### Added
+- **Phase 3.2 of `/prflow:implement` now records a machine-findable `simplify outcome:` tally on the workpad.** After `/simplify` completes, the run writes one outcome record — opening with the fixed lead phrase `simplify outcome:` — tallying findings generated, findings applied, and findings skipped as AC conflicts, in the same call as the existing `simplify` progress tick. The record is written on every run: a diff `/simplify` reports already clean records the same lead phrase with all three tallies zero, so a zero-yield run is distinguishable from a run that never wrote the record. §3.2 still runs unconditionally and the per-finding AC-conflict skip notes are unchanged; the record gives the weekly retrospective a per-run signal it can aggregate to measure §3.2's yield. (#1959)
+
+## [2.34.25] — 2026-08-25
+
+### Added
+- **`workpad.py update` gains a `--note-file <path>` channel.** It reads a `## Progress` note's text verbatim as UTF-8 from a file (or stdin via `-`), mirroring `--reflection-file`, so a note containing backticks, `$`, or double quotes survives byte-identical instead of being mangled by shell interpolation — and the worktree-isolated tier gains a working channel for such notes. An empty, whitespace-only, or unreadable payload is refused with a `--note-file`-named error before any PATCH; it combines with inline `--note`, appending after the inline notes. (#1947)
+
+## [2.34.24] — 2026-08-25
+
+### Added
+- **The `issue-claim-auditor` now states a disposition per chartered pass, enforced by a deterministic validator.** Its returned ISSUE-CLAIM-AUDIT RECORD carries a `pass<N>_disposition: ran|skipped (reason)` line for each chartered pass, and the Phase 1.6 routing runs `scripts/validate-issue-claim-audit.py` over the record before honouring `outcome: proceed`: a pass whose disposition is absent, `skipped`, malformed, or names a pass outside the charter turns the audit into a visible §1.6 refusal (naming the pass) instead of a silently-skipped pass that wastes a whole implement run. Mirrors the Named-steps contract the two AC verifiers already carry. (#1938)
+- **The implement workpad's terminal `--status Complete` gate now refuses a resolved-but-unrecorded prompt-extension row.** A `prompt extension resolved:` row that is unticked and carries no `state not established` note now blocks Complete (naming each offending row), mirroring the existing unticked-acceptance-criteria hard-fail; a ticked row, an unticked row with its note, and a pre-#1462 workpad carrying no such rows all pass, and `Blocked`/`Failed` are unchanged. This restores the unticked-row signal issue #1462 built the rows for. (#1943)
+- **Decompose the `null` review-verdict residual into a per-agent disposition.** The review-agent
+  efficiency record now carries, beside each agent's derived verdict, a `disposition`
+  (`returned` / `failed` / `silent` / `unestablished`) and a `fix_decisions` roll-up, so a silent
+  reviewer is distinguishable from one that failed and from one whose findings were all deferred.
+  The residual is decomposed only over an established roster; a roster-absent or historical record
+  reads as disposition-unestablished rather than silently shrinking the null denominator. Adds the
+  `phase3_failed_agents` iteration field (the sink for a non-returning agent) and persists the
+  shadow pass's per-reviewer assessment. (#1956)
+
 ## [2.34.23] — 2026-08-25
 
 ### Added
