@@ -43533,7 +43533,7 @@ unset _I1219_IMPL_YML _I1219_CMD_YML _I1219_MUT
 # ARMS the #671 `claude plugin validate --strict` gate earlier in this file. Same
 # failure class as the fetch-depth: 0 pin above. With no CLI on PATH that gate takes its
 # blocking-gate skip branch; the install is monolith-only (issue #1830), and
-# lib/test/run-shard.sh now FAILS any shard whose log shows that CLI-absence skip, so
+# lib/test/run-shard.sh now FAILS any CI shard whose log shows that CLI-absence skip, so
 # dropping this step reddens the shard rather than retiring the validation silently.
 # Scope note: the PyYAML frontmatter and JSON manifest gates sit OUTSIDE that
 # `command -v claude` branch and keep running regardless — only the strict
