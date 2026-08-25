@@ -14110,29 +14110,45 @@ assert_eq "#356: a 💥 Failed workpad gates non-clean via cheap-gate" "false" \
 assert_eq "#356: a 💥 Failed workpad gates non-clean for the workpad-status reason" "workpad status not Complete" \
   "$(jq -c -f "$LIB/cheap-gate.jq" <<<"$CTXF" | jq -r .reason)"
 
-# #1: post_bot_commits / human_postbot SHA list count only *substantive* (non-merge)
-# commits after the bot's last commit. A `git merge main` by a human (parents>1)
-# is branch hygiene, not a fixup, and must not be counted.
-_postbot_count() {  # stdin: COMMITS-shaped array; arg1: PR-author login
-  jq --arg author "$1" '
-    to_entries
-    | [.[] | select(
-        (.value.author_login | endswith("[bot]"))
-        or (.value.committer_login | endswith("[bot]"))
-        or (.value.author_login == $author)
-        or (.value.committer_login == $author)
-      ) | .key
-    ] as $bot
-    | if ($bot | length) == 0 then 0
-      else ([.[($bot | last) + 1:][] | select((.value.parents_count // 1) <= 1)] | length)
-      end'
+# #1440: post_bot_commits / POSTBOT_SHAS count only positively HUMAN-attributable
+# non-merge commits after the bot's last commit. A blank/absent login (the
+# local-tier agent identity GitHub can't resolve to an account) is agent-side,
+# never human, and a null login must not abort the filter. A `git merge main` by a
+# human (parents>1) is branch hygiene, not a fixup. Drive the SHIPPED jq blocks
+# (extracted from lib/fetch-pr-context.sh, never a transcribed copy — a copy keeps
+# passing after the shipped filter drifts) against fixture commit arrays.
+_PBC_START=$(grep -n 'POST_BOT_COMMITS="$(echo' "$LIB/fetch-pr-context.sh" | head -1 | cut -d: -f1)
+_PBC_PROG=$(sed -n "${_PBC_START},/^')\"$/p" "$LIB/fetch-pr-context.sh")
+_PBS_START=$(grep -n 'POSTBOT_SHAS="$(echo' "$LIB/fetch-pr-context.sh" | head -1 | cut -d: -f1)
+_PBS_PROG=$(sed -n "${_PBS_START},/^    ')\"$/p" "$LIB/fetch-pr-context.sh")
+# Name a failed extraction directly (mirrors the #1347 CP4 guard): every fixture
+# row below already fails RED on an empty/truncated program, so this only turns
+# those into one diagnostic naming the cause.
+assert_eq "#1440: the shipped POST_BOT_COMMITS block extracted cleanly" "yes" \
+  "$(case "$_PBC_PROG" in *POST_BOT_COMMITS=*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1440: the shipped POSTBOT_SHAS block extracted cleanly" "yes" \
+  "$(case "$_PBS_PROG" in *POSTBOT_SHAS=*) echo yes ;; *) echo no ;; esac)"
+_pbc() {  # $1=COMMITS json  $2=PR-author login ; runs the SHIPPED count block
+  COMMITS="$1" AUTHOR="$2" DEVFLOW_JQ=jq bash -c "$_PBC_PROG"'; printf %s "$POST_BOT_COMMITS"'
 }
-assert_eq "post_bot: merge commit excluded, real fixup counted" "1" \
-  "$(echo '[{"author_login":"claude[bot]","committer_login":"web-flow","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":2},{"author_login":"alice","committer_login":"alice","parents_count":1}]' | _postbot_count someoneelse)"
-assert_eq "post_bot: only a human merge after the bot → 0" "0" \
-  "$(echo '[{"author_login":"claude[bot]","committer_login":"web-flow","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":2}]' | _postbot_count someoneelse)"
-assert_eq "post_bot: missing parents_count treated as non-merge (counted)" "1" \
-  "$(echo '[{"author_login":"claude[bot]","committer_login":"web-flow"},{"author_login":"alice","committer_login":"alice"}]' | _postbot_count someoneelse)"
+_pbs() {  # $1=COMMITS json  $2=PR-author login ; runs the SHIPPED SHA block, compact
+  COMMITS="$1" AUTHOR="$2" DEVFLOW_JQ=jq bash -c "$_PBS_PROG"'; printf %s "$POSTBOT_SHAS"' | jq -cS .
+}
+assert_eq "#1440: blank-login tail → 0 (agent-side, not human)" "0" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"","committer_login":"","parents_count":1}]' someoneelse)"
+assert_eq "#1440: mixed tail with one named human → 1 (blank not counted)" "1" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"","committer_login":"","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":1}]' someoneelse)"
+assert_eq "#1440: null login does not abort the filter (human still counted)" "1" \
+  "$(_pbc '[{"author_login":null,"committer_login":null,"parents_count":1},{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":1}]' someoneelse)"
+assert_eq "#1440: merge commit excluded, real human fixup counted" "1" \
+  "$(_pbc '[{"author_login":"claude[bot]","committer_login":"web-flow","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":2},{"author_login":"alice","committer_login":"alice","parents_count":1}]' someoneelse)"
+assert_eq "#1440: only a human merge after the bot → 0" "0" \
+  "$(_pbc '[{"author_login":"claude[bot]","committer_login":"web-flow","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":2}]' someoneelse)"
+assert_eq "#1440: missing parents_count treated as non-merge (human counted)" "1" \
+  "$(_pbc '[{"author_login":"claude[bot]","committer_login":"web-flow"},{"author_login":"alice","committer_login":"alice"}]' someoneelse)"
+assert_eq "#1440: POSTBOT_SHAS excludes the blank-login SHA, keeps the human SHA" '["A"]' \
+  "$(_pbs '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1,"sha":"X"},{"author_login":"","committer_login":"","parents_count":1,"sha":"B"},{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"A"}]' someoneelse)"
+unset _PBC_START _PBC_PROG _PBS_START _PBS_PROG
 
 # #4 / issue #895: the /review verdict parser is now exercised by EXECUTING the
 # producer (lib/fetch-pr-context.sh) through a gh stub — never by re-declaring its

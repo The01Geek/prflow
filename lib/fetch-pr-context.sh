@@ -247,26 +247,33 @@ trap 'rm -rf "$_JQ_TMP"' EXIT
 # review_comments_count
 REVIEW_COMMENTS_COUNT="$(echo "$REVIEW_COMMENTS" | "$DEVFLOW_JQ" 'length')"
 
-# post_bot_commits: count *substantive* commits AFTER the last bot/PR-author
-# commit. A commit is "bot-authored" if author_login or committer_login ends
-# with [bot] OR equals the AUTHOR (the [bot]-stripped PR author). Pure merge
-# commits (parents_count > 1 — `git merge main` into the PR branch) are NOT
-# counted: a human merging in main is branch hygiene, not a fixup of the bot's
-# work, and counting it created a flood of false "imperfect" verdicts that
-# nothing actionable came out of. (Trivial *non-merge* fixups — a one-line
-# typo/lint commit — ARE still counted: a small human correction is a real,
-# if minor, "the bot shipped something slightly off" signal.)
+# post_bot_commits: count non-merge commits AFTER the last bot/PR-author commit
+# that are positively human-attributable — author_login or committer_login is a
+# non-blank string that neither ends in [bot] nor equals the [bot]-stripped PR
+# author. Both logins blank/absent/non-string are classified agent-side, never
+# human (unknown is not a human): local-tier agent commits carry a git identity
+# GitHub cannot resolve to an account, so their login returns blank and must not
+# read as human rework. The "last bot commit" anchor (below) is unchanged. Pure
+# merge commits (parents_count > 1 — `git merge main` into the PR branch) stay
+# excluded: a human merging in main is branch hygiene, not a fixup of the bot's
+# work. (Trivial *non-merge* human fixups — a one-line typo/lint commit — ARE
+# still counted: a small human correction is a real, if minor, signal.)
 POST_BOT_COMMITS="$(echo "$COMMITS" | "$DEVFLOW_JQ" --arg author "$AUTHOR" '
+    def ends_bot($l): (($l | type) == "string") and ($l | endswith("[bot]"));
+    def is_human($l): (($l | type) == "string") and ($l != "") and ((ends_bot($l)) | not) and ($l != $author);
     to_entries
     | [.[] | select(
-        (.value.author_login | endswith("[bot]"))
-        or (.value.committer_login | endswith("[bot]"))
+        ends_bot(.value.author_login)
+        or ends_bot(.value.committer_login)
         or (.value.author_login == $author)
         or (.value.committer_login == $author)
       ) | .key
     ] as $bot_indices
     | if ($bot_indices | length) == 0 then 0
-      else ([.[($bot_indices | last) + 1:][] | select((.value.parents_count // 1) <= 1)] | length)
+      else ([.[($bot_indices | last) + 1:][]
+            | select((.value.parents_count // 1) <= 1)
+            | select(is_human(.value.author_login) or is_human(.value.committer_login))
+            ] | length)
       end
 ')"
 
@@ -760,16 +767,21 @@ fi
 HUMAN_POSTBOT_DIFF="null"
 if [ "$POST_BOT_COMMITS" -gt 0 ]; then
     POSTBOT_SHAS="$(echo "$COMMITS" | "$DEVFLOW_JQ" --arg author "$AUTHOR" '
+        def ends_bot($l): (($l | type) == "string") and ($l | endswith("[bot]"));
+        def is_human($l): (($l | type) == "string") and ($l != "") and ((ends_bot($l)) | not) and ($l != $author);
         to_entries
         | [.[] | select(
-            (.value.author_login | endswith("[bot]"))
-            or (.value.committer_login | endswith("[bot]"))
+            ends_bot(.value.author_login)
+            or ends_bot(.value.committer_login)
             or (.value.author_login == $author)
             or (.value.committer_login == $author)
           ) | .key
         ] as $bot_indices
         | if ($bot_indices | length) == 0 then []
-          else [.[($bot_indices | last)+1:][] | select((.value.parents_count // 1) <= 1) | .value.sha]
+          else [.[($bot_indices | last)+1:][]
+                | select((.value.parents_count // 1) <= 1)
+                | select(is_human(.value.author_login) or is_human(.value.committer_login))
+                | .value.sha]
           end
     ')"
     PATCHES=""
