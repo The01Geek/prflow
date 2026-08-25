@@ -35617,6 +35617,32 @@ with tempfile.TemporaryDirectory() as _td1811:
     assert_eq("#1811 cleanup: a newline-less own-slug pointer is still removed",
               False, _ci1811_ptr(_r).exists())
 
+# An interior-slash slug is refused too (the guard rejects any slug that is not a
+# single safe path segment, not only a leading-dot `../` form).
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _victim = _ci1811_dir(_r, 'a')
+    (_victim / 'b').mkdir(parents=True)
+    _res = _cleanup1811('--slug', 'a/b', '--root', str(_r))
+    assert_eq("#1811 cleanup: an interior-slash slug exits 0", 0, _res.returncode)
+    assert_eq("#1811 cleanup: an interior-slash slug deletes nothing", True, (_victim / 'b').exists())
+
+# An empty --root value is skipped (the per-root `[ -n "$root" ]` guard), a non-error.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _kept = _seed1811(_r, 'slug')
+    _res = _cleanup1811('--slug', 'slug', '--root', '', '--root', str(_r))
+    assert_eq("#1811 cleanup: an empty --root is skipped and the real root still reaped",
+              (0, False, True), (_res.returncode, _kept.exists(), True))
+
+# An unexpected positional argument warns and is skipped, not fatal.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _mine = _seed1811(_r, 'slug')
+    _res = _cleanup1811('surprise', '--slug', 'slug', '--root', str(_r))
+    assert_eq("#1811 cleanup: an unexpected arg exits 0 and still reaps the run dir",
+              (0, False), (_res.returncode, _mine.exists()))
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

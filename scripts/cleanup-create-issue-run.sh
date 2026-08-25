@@ -52,10 +52,9 @@ for root in "${roots[@]:-}"; do
   # builtin, not `tr`/`cut` (non-preflight tools whose absence would silently misread).
   ptr="$base/issue-run-slug"
   if [ -f "$ptr" ]; then
-    # A pointer written without a trailing newline makes `read` return non-zero at
-    # EOF AFTER assigning the slug — `|| ptr_slug=""` would then blank a good read and
-    # silently skip the removal, so keep the assigned value (`|| :`) and pre-init for
-    # the genuinely-unreadable case.
+    # A newline-less pointer makes `read` return non-zero AFTER assigning the slug;
+    # `|| ptr_slug=""` would blank that good read and skip the removal, so keep the
+    # value (`|| :`) and pre-init "" for the genuinely-unreadable case.
     ptr_slug=""
     IFS= read -r ptr_slug < "$ptr" 2>/dev/null || :
     if [ "$ptr_slug" = "$slug" ]; then
