@@ -322,9 +322,20 @@ EOF
 cat > "$ET_ADV/iter-6.json" <<'EOF'
 {"iter":6,"phase3_dispatched":["a","z"],"phase3_failed_agents":7,"phase3_findings":[{"agent":"a","fix_decision":"applied","corroboration_count":1}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
 EOF
+# iter-7,8: present-but-malformed-ELEMENT arrays (issue #1849 review). The container is
+# a well-formed array, so a container-type-only check (== "array") reads it as a total
+# establishment — but its elements establish nothing. iter-7 is all-object; iter-8 mixes
+# a named string with a junk number, proving establishment fails CLOSED even when a real
+# agent is named. In both, silent agent z must read unestablished, never silent.
+cat > "$ET_ADV/iter-7.json" <<'EOF'
+{"iter":7,"phase3_dispatched":["a","z"],"phase3_failed_agents":[{"agent":"z"}],"phase3_findings":[{"agent":"a","fix_decision":"applied","corroboration_count":1}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_ADV/iter-8.json" <<'EOF'
+{"iter":8,"phase3_dispatched":["a","z"],"phase3_failed_agents":["z",7],"phase3_findings":[{"agent":"a","fix_decision":"applied","corroboration_count":1}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
 ET_ADV_RC=0; ET_ADV_REC="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_ADV" --slug pr-adv --mode record)" || ET_ADV_RC=$?
 assert_eq "et(#1849 adversarial): malformed phase3_failed_agents never aborts the filter (exit 0)" "0" "$ET_ADV_RC"
-assert_eq "et(#1849 adversarial): all six malformed shapes still produce iteration records" "6" \
+assert_eq "et(#1849 adversarial): all eight malformed shapes still produce iteration records" "8" \
   "$(echo "$ET_ADV_REC" | jq -r '.iterations')"
 assert_eq "et(#1849 adversarial): object failed field → silent agent unestablished" "unestablished" \
   "$(echo "$ET_ADV_REC" | jq -r '.per_iteration[] | select(.iter==1) | .agent_verdicts[] | select(.agent=="z") | .disposition')"
@@ -341,6 +352,15 @@ assert_eq "et(#1849 adversarial): valid-falsy (empty string) failed field → si
   "$(echo "$ET_ADV_REC" | jq -r '.per_iteration[] | select(.iter==5) | .agent_verdicts[] | select(.agent=="z") | .disposition')"
 assert_eq "et(#1849 adversarial): scalar-number (7) failed field → silent agent unestablished" "unestablished" \
   "$(echo "$ET_ADV_REC" | jq -r '.per_iteration[] | select(.iter==6) | .agent_verdicts[] | select(.agent=="z") | .disposition')"
+# Present-but-malformed-element array: container is an array yet establishes nothing.
+assert_eq "et(#1849 adversarial): all-object element array → silent agent unestablished (not silent)" "unestablished" \
+  "$(echo "$ET_ADV_REC" | jq -r '.per_iteration[] | select(.iter==7) | .agent_verdicts[] | select(.agent=="z") | .disposition')"
+assert_eq "et(#1849 adversarial): all-object element array → phase3_failed_agents_present false" "false" \
+  "$(echo "$ET_ADV_REC" | jq -r '.per_iteration[] | select(.iter==7) | .phase3_failed_agents_present')"
+assert_eq "et(#1849 adversarial): mixed string+number element array fails closed → named agent unestablished" "unestablished" \
+  "$(echo "$ET_ADV_REC" | jq -r '.per_iteration[] | select(.iter==8) | .agent_verdicts[] | select(.agent=="z") | .disposition')"
+assert_eq "et(#1849 adversarial): mixed-element array → phase3_failed_agents_present false" "false" \
+  "$(echo "$ET_ADV_REC" | jq -r '.per_iteration[] | select(.iter==8) | .phase3_failed_agents_present')"
 rm -rf "$ET_DISP" "$ET_ADV"
 
 # diff_profile + verification posture: the Phase 0.5 classification is carried

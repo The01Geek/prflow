@@ -259,7 +259,12 @@ def iter_view:
   # there would mis-classify. Gate on `coverage == "full"`; otherwise the channel
   # decides nothing and its agents fall back to unestablished (unknown is not zero).
   | (($it.shadow | objects | select(.coverage == "full") | .per_reviewer_assessment) // null) as $assess_raw
-  | (($failed_raw | type) == "array") as $failed_direct_present
+  # Element-aware establishment (issue #1849 review): keying on container type alone
+  # (== "array") would treat a malformed-element array ([{...}], ["x",7]) as a total
+  # establishment and re-collapse an uncovered silent agent onto "silent" — every
+  # element must be a string ([] is a valid "none failed" establishment).
+  | (($failed_raw | type) == "array") as $failed_is_array
+  | (if $failed_is_array then ($failed_raw | map(type == "string") | all) else false end) as $failed_direct_present
   | (if $failed_direct_present then [$failed_raw[] | strings] else [] end) as $failed_direct
   # Only assessment entries with a boolean `returned` and a string `agent` are
   # authoritative; `$assess_covered` names the agents the assessment can decide,
