@@ -22,7 +22,8 @@ disposition for a pass outside the charter — exits 0.
 Exit codes:
     0 — conforming: every chartered pass dispositioned `ran (<reason>)`
     2 — non-conforming: a chartered pass absent (treated as not run), `skipped`,
-        unparseable, or a disposition for an unknown pass — offenders on stderr
+        unparseable, stated more than once, or a disposition for an unknown pass —
+        offenders on stderr
     3 — the record file was unreadable or empty (fail closed)
 """
 

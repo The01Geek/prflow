@@ -35598,9 +35598,8 @@ assert_eq("#1740 parse_disposition accepts a colon-boundary reason", ("skipped",
           validate_ica.parse_disposition("skipped: nothing"))
 
 # Cross-file coupling (cross-file-phase-contract): the validator's CHARTERED_PASSES must equal the
-# pass<N>_disposition fields the agent body's returned-record schema declares — the two are a
-# coupled pair (agents/issue-claim-auditor.md ships the contract the validator enforces), so this
-# guard goes RED if either drifts. Read the agent body and extract its pass<N>_disposition numbers.
+# pass<N>_disposition fields agents/issue-claim-auditor.md's record schema declares — a coupled
+# pair, so this guard goes RED if either drifts.
 _ica_agent_body = (SCRIPTS.parent / "agents" / "issue-claim-auditor.md").read_text(encoding="utf-8")
 _ica_agent_passes = sorted(int(_m) for _m in re.findall(r"pass(\d+)_disposition:", _ica_agent_body))
 assert_eq("#1740 agent-body record schema declares exactly the validator's chartered passes",  # structural-pin-ok: cross-file-phase-contract -- the validator reads these agent-authored slots; drift silently checks a pass the charter never asks for or misses one
