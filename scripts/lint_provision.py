@@ -125,6 +125,8 @@ class Plan:
                  "digest", "archive_type", "member", "strategy", "url")
 
     def __init__(self, status, **kw):
+        if status not in ("established", "unsupported", "unestablished"):
+            raise ValueError(f"invalid plan status: {status!r}")
         self.status = status
         self.reason = kw.get("reason")
         for k in ("tool", "os", "arch", "version", "digest", "archive_type",

@@ -5,8 +5,9 @@
 
 `.prflow/install-state.json` is the digest-bound compatibility-tuple marker the
 installer publishes **last**, only after staging and validating the set of
-components that must ship together — the lint manifest, its reader/validator,
-the `setup-project-env` composite action, and the shipped workflow templates.
+components that must ship together — the lint manifest, its readers, the
+`setup-project-env` composite action and its provisioning helper, and the shipped
+implement workflow (the exact set is `COMPONENTS` in `lib/generate-install-state.py`).
 The composite action's provisioning phase consults this marker *before model
 execution* and refuses to provision when it is absent, a recorded component's
 on-disk digest disagrees (a version-skew in either direction, or an
@@ -64,6 +65,12 @@ class StateResult:
     def __init__(self, status: str, *, state=None, reason: str | None = None):
         if status not in ("established", "unestablished"):
             raise ValueError(f"invalid state-result status: {status!r}")
+        # Make the documented XOR unrepresentable, not merely conventional: an
+        # established result must carry state; an unestablished one must carry a reason.
+        if status == "established" and state is None:
+            raise ValueError("established StateResult requires a state")
+        if status == "unestablished" and not reason:
+            raise ValueError("unestablished StateResult requires a reason")
         self.status = status
         self.state = state
         self.reason = reason
@@ -90,6 +97,9 @@ class Readiness:
     __slots__ = ("ready", "reason")
 
     def __init__(self, ready: bool, reason: str | None = None):
+        # A not-ready verdict must name the specific fail-closed cause, never None.
+        if not ready and not reason:
+            raise ValueError("a not-ready Readiness requires a reason")
         self.ready = ready
         self.reason = reason
 
@@ -114,7 +124,7 @@ def _json_kind(value) -> str:
 
 def digest_bytes(raw: bytes) -> str:
     """`sha256:<64-hex>` of `raw`, the digest spelling the marker and the manifest
-    both use (mirrors install.sh's python3-hashlib `devflow_digest`)."""
+    both use (the same sha256 hashing install.sh uses, prefixed `sha256:`)."""
     return "sha256:" + hashlib.sha256(raw).hexdigest()
 
 

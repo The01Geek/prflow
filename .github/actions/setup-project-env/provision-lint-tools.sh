@@ -10,9 +10,11 @@
 # compatibility-marker readiness gate — lives in the trusted Python helpers
 # (scripts/lint_provision.py, scripts/install_state.py). This script is the thin
 # orchestrator: it gates on readiness, resolves each tool's artifact, then
-# downloads → verifies the pinned digest → extracts → installs run-local (NO
-# sudo) → verifies the executable's version, and re-verifies a restored cache
-# under the same digest. Every failure fails CLOSED, naming the tool, BEFORE the
+# downloads → verifies the pinned ARCHIVE digest → extracts → installs run-local
+# (NO sudo) → verifies the executable reports the pinned version. An executable
+# already present at the destination this job is reused only after re-passing that
+# version check (no cross-run actions/cache is wired). Every failure fails CLOSED,
+# naming the tool, BEFORE the
 # model runs — a missing installer primitive, a checksum mismatch, an archive
 # that will not extract, the wrong version, a network failure, an unwritable
 # target, or an unsupported platform tuple.
@@ -49,6 +51,14 @@ _die() {
 }
 
 _have() { command -v "$1" >/dev/null 2>&1; }
+
+# Match the pinned version as a WHOLE token in the tool's --version output, never a
+# substring: pinned "1.2" must NOT match reported "1.24.1". Portable ERE token
+# boundary (no GNU \b, which BSD grep silently ignores). $1 = reported text, $2 = version.
+_version_token_match() {
+  local esc="${2//./\\.}"
+  printf '%s' "$1" | grep -Eq "(^|[^0-9.])${esc}([^0-9.]|\$)"
+}
 
 # sha256 of a file via the trusted python interpreter (no sha256sum dependency —
 # it is not preflight-guaranteed and diverges across BSD/GNU).
@@ -111,13 +121,19 @@ _provision_one() {
 
   local dest="$DEST_BIN/$member"
 
-  # Cache re-verification: a restored executable is trusted only after it
-  # re-passes the version check under this run's resolved version. The digest is
-  # bound into the cache key {OS, arch, tool, version, digest, installer}, so a
-  # restore under a changed tuple lands under a different key and is a miss.
-  if [ -x "$dest" ] && "$dest" --version 2>&1 | grep -qF "$version"; then
-    printf 'provision-lint-tools: %s: cache hit re-verified (%s, key %s)\n' "$tool" "$version" "$cache_key"
-    return 0
+  # Within-job re-verification: an executable already at $dest this job is reused
+  # only after it re-passes the whole-token version check under this run's resolved
+  # version. No cross-run actions/cache is wired, so $DEST_BIN is fresh each job and
+  # this branch fires only on a within-job re-invocation; the download path's exact
+  # ARCHIVE-digest check below is the supply-chain gate. The digest is bound into the
+  # cache key so a changed tuple keys a different slot.
+  if [ -x "$dest" ]; then
+    local cached_ver
+    cached_ver="$("$dest" --version 2>&1 || true)"
+    if _version_token_match "$cached_ver" "$version"; then
+      printf 'provision-lint-tools: %s: reused verified install (%s, key %s)\n' "$tool" "$version" "$cache_key"
+      return 0
+    fi
   fi
 
   # Installer primitives for this artifact's strategy.
@@ -164,7 +180,7 @@ _provision_one() {
   # Verify the installed executable reports the manifest's exact version (one exec).
   local reported
   reported="$("$dest" --version 2>&1)" || _die "$tool" "installed executable is not runnable"
-  printf '%s' "$reported" | grep -qF "$version" \
+  _version_token_match "$reported" "$version" \
     || _die "$tool" "wrong version: $dest does not report $version"
 
   printf 'provision-lint-tools: %s: installed %s (%s), version-verified (key %s)\n' \

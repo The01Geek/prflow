@@ -36274,6 +36274,68 @@ finally:
     shutil.rmtree(_d1388b, ignore_errors=True)
 
 
+# ── issue #1388 (review fixes): version-anchoring, within-job reuse, zip, guards ──
+import zipfile as _zip1388  # noqa: E402
+_d1388d = Path(tempfile.mkdtemp())
+try:
+    # Whole-token version match: manifest pins 1.2, the tool reports 1.24.1 -> wrong
+    # version (a substring match would have accepted it).
+    _va_arc, _va_dig = _mk_archive_1388(_d1388d, "shellcheck", "1.24.1")
+    _repo_va = _mk_repo_1388(_d1388d / "va", _mk_manifest_1388(_va_dig, version="1.2"))
+    _rc, _out = _run_helper_1388(_repo_va, archive=_va_arc)
+    assert_eq("#1388 helper: superset version (1.2 vs 1.24.1) is rejected", 1, _rc)
+    assert_eq("#1388 helper: superset version named wrong version", True, "wrong version" in _out)
+
+    # Within-job reuse: a second run over the same repo+DEST_BIN reuses the verified
+    # install (no re-download) instead of failing.
+    _ok_arc, _ok_dig = _mk_archive_1388(_d1388d, "shellcheck", "9.9.9")
+    _repo_ru = _mk_repo_1388(_d1388d / "ru", _mk_manifest_1388(_ok_dig))
+    _rc1, _o1 = _run_helper_1388(_repo_ru, archive=_ok_arc)
+    _rc2, _o2 = _run_helper_1388(_repo_ru, archive=_ok_arc)
+    assert_eq("#1388 helper: first install succeeds", 0, _rc1)
+    assert_eq("#1388 helper: second run reuses the verified install (no re-download)", 0, _rc2)
+    assert_eq("#1388 helper: reuse path names the verified reuse", True, "reused verified install" in _o2)
+
+    # extract-zip end-to-end (only where a real unzip is on PATH, else the missing-primitive
+    # arm is exercised instead — both are valid fail-open-free outcomes).
+    _zdir = _d1388d / "z"
+    _zdir.mkdir()
+    _member = _zdir / "shellcheck"
+    _member.write_text("#!/bin/sh\necho 'shellcheck 9.9.9'\n", encoding="utf-8")
+    _member.chmod(0o755)
+    _zarc = _d1388d / "artifact.zip"
+    with _zip1388.ZipFile(_zarc, "w") as zf:
+        zf.write(_member, arcname="nested/shellcheck")
+    _zdig = _install_state.digest_bytes(_zarc.read_bytes())
+    _zman = _mk_manifest_1388(_ok_dig)
+    _zman["tools"]["shellcheck"]["artifacts"][0].update(
+        {"digest": _zdig, "archive_type": "zip", "strategy": "extract-zip"})
+    _repo_z = _mk_repo_1388(_d1388d / "zr", _zman)
+    _rc, _out = _run_helper_1388(_repo_z, archive=_zarc)
+    if _sp1388.run(["sh", "-c", "command -v unzip"], capture_output=True).returncode == 0:
+        assert_eq("#1388 helper: extract-zip strategy installs + verifies", 0, _rc)
+    else:
+        assert_eq("#1388 helper: extract-zip without unzip fails closed on the primitive", 1, _rc)
+        assert_eq("#1388 helper: missing unzip primitive named", True, "installer primitive not found" in _out)
+finally:
+    shutil.rmtree(_d1388d, ignore_errors=True)
+
+# Type guards make illegal states unrepresentable (review type-design finding).
+assert_raises("#1388 Plan: an out-of-vocabulary status raises (no else-is-established fail-open)",
+              ValueError, lambda: _lint_provision.Plan("bogus"))
+assert_raises("#1388 StateResult: established with no state raises",
+              ValueError, lambda: _install_state.StateResult("established"))
+assert_raises("#1388 Readiness: not-ready with no reason raises",
+              ValueError, lambda: _install_state.Readiness(False))
+# Matrix completeness: component sub-object shapes and a missing required top-level key.
+assert_eq("#1388 state: components wrong-type (array) rejected", True,
+          _install_state.validate_state(_mk_state(components=[])).reason.startswith("invalid-value:"))
+assert_eq("#1388 state: a missing required top-level key rejected", True,
+          _install_state.parse_state(b'{"schema_version":1,"installer_version":"v"}').reason.startswith("missing:"))
+assert_eq("#1388 state: component missing digest rejected", True,
+          _install_state.validate_state(_mk_state(components={"m": {"path": "x"}})).reason.startswith("missing:"))
+
+
 # ── issue #1388: workflow + composite-action wiring pins (cross-file contract) ──
 _WF_1388 = SCRIPTS.parent / '.github' / 'workflows'
 _ACTION_1388 = (SCRIPTS.parent / '.github' / 'actions' / 'setup-project-env' / 'action.yml').read_text(encoding='utf-8')
