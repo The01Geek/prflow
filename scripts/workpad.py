@@ -4861,8 +4861,15 @@ def _review_coverage_verdict(progress_content: str) -> None:
             "[review-coverage-unestablished]. Re-stamp it at the Phase 3.3 review "
             "exit. No PATCH was made."
         )
-    roster_incoherent = _review_roster_incoherence(
-        record, _review_roster_members(progress_content))
+    # The roster cross-check is enforced at WRITE time (a `complete`/`short` record
+    # cannot be recorded without a coherent per-member enumeration), so a record that
+    # reaches finalize carrying NO enumeration predates issue #1512 — a legacy workpad,
+    # which the issue does not re-validate retroactively. Re-run the check here only when
+    # an enumeration is present, so a legacy `complete` record still finalizes while a
+    # record whose enumeration IS present stays cross-checked as defense-in-depth.
+    roster_members = _review_roster_members(progress_content)
+    roster_incoherent = (_review_roster_incoherence(record, roster_members)
+                         if roster_members else None)
     if roster_incoherent:
         raise _UpdateError(
             "refusing to finalize Status: Complete — the review-coverage record "

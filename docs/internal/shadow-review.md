@@ -381,9 +381,12 @@ right reviewers return?).
 The fix cross-checks the axis against a per-member enumeration recorded beside it. `scripts/workpad.py`
 gains a `--record-roster-member <member> <status>` flag (one row per expected roster member, `<status>`
 one of `dispatched` / `gated-off` / `missing`) and a `_review_roster_incoherence` validator that mirrors
-`_review_coverage_incoherence` — run **identically at write time and at the read-time `Status: Complete`
-gate**, so a record that cannot pass the check is refused whenever it is stamped and again when the run
-tries to finalize. The rules the validator enforces:
+`_review_coverage_incoherence`. It is **enforced at write time** — a `complete`/`short` record cannot be
+stamped without a coherent enumeration, closing the self-report hole at the source — and **re-run at the
+read-time `Status: Complete` gate only when an enumeration is present**. A record reaching finalize with
+no enumeration therefore predates this change (a legacy workpad), and is grandfathered rather than
+re-validated retroactively; a record whose enumeration *is* present stays cross-checked as
+defense-in-depth. The rules the validator enforces:
 
 - **`roster=complete` requires every always-on member recorded `dispatched` and no member `missing`.**
   The always-on set is `code-reviewer`, `silent-failure-hunter`, `comment-analyzer`,

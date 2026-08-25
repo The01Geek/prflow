@@ -12256,14 +12256,17 @@ assert_eq("#1512: short naming a missing member writes cleanly",
 assert_eq("#1512: short with no missing member is refused",
           True, (_rc_write(["not-verified", "attempted", "short", "complete"], _1512_full)
                  or "").find("at least one missing") >= 0)
-# A measured axis requires an enumeration; a self-reported complete with none is refused.
-assert_eq("#1512 AC1: roster=complete with no per-member enumeration is refused",
+# A measured axis requires an enumeration at WRITE time; a self-reported complete with
+# none is refused there, closing the self-report hole at the source.
+assert_eq("#1512 AC1: roster=complete with no per-member enumeration is refused at write time",
           True, "no review-roster row is present"
           in (_rc_write(["full", "attempted", "complete", "complete"], None) or ""))
-assert_eq("#1512 AC1: ...and identically at read time (self-report, no enumeration)",
-          True, "[review-coverage-unestablished]"
-          in (_rc_complete(_rc_row("full:attempted:complete:complete", members=[]))
-              or ""))
+# At READ time (finalize) a rosterless complete record is GRANDFATHERED: the write-time
+# gate already enforces the enumeration, so a rosterless record reaching finalize predates
+# issue #1512 and is a legacy workpad, which the issue does not re-validate retroactively.
+assert_eq("#1512 AC1: ...but a rosterless record is grandfathered at read time (legacy "
+          "workpad, not re-validated retroactively)",
+          None, _rc_complete(_rc_row("full:attempted:complete:complete", members=[])))
 # not-applicable/unestablished measured no roster, so they must carry NO enumeration.
 assert_eq("#1512: a member enumeration on a not-applicable roster is refused",
           True, "measured no roster" in (_rc_write(
@@ -12679,19 +12682,19 @@ assert_eq("#1510 AC4: a pre-change 4-field anchor-less payload still parses",
           workpad._parse_review_coverage_payload("full:attempted:complete:complete"))
 assert_eq("#1510 AC4: a pre-change payload has no anchor (None), never a parse error",
           None, workpad._parse_review_coverage_anchor("full:attempted:complete:complete"))
-# #1512 tightened the read-time Complete gate: a `complete` roster now REQUIRES a per-member
-# enumeration. So a modern anchor-less full record carrying its roster rows still satisfies
-# the gate, while a genuinely-legacy record with NO roster rows is refused — the intentional
-# backward-incompatibility (a pre-#1512 workpad resumed to finalize must re-record coverage).
-# Passing members=[] omits the enumeration to exercise the true legacy shape; the default
-# _rc_row auto-injects a coherent roster, which is the MODERN record.
+# #1512 cross-checks the `complete` roster against a per-member enumeration at WRITE time;
+# the read-time Complete gate re-runs that check only when an enumeration is present. So a
+# modern anchor-less full record carrying its roster rows still satisfies the gate, and a
+# genuinely-legacy rosterless record (members=[]) is GRANDFATHERED — a pre-#1512 workpad is
+# not re-validated retroactively. The default _rc_row auto-injects a coherent roster (the
+# MODERN record); members=[] omits it to exercise the legacy shape.
 assert_eq("#1510/#1512 AC4: a modern anchor-less full record with its roster enumeration "
           "satisfies the Complete gate",
           None, _rc_complete(_rc_row("full:attempted:complete:complete")))
-assert_eq("#1512 AC4: a genuinely-legacy rosterless full record is now REFUSED at the "
-          "Complete gate (roster=complete requires a per-member enumeration)",
-          True, "is a measured value" in (_rc_complete(_rc_row(
-              "full:attempted:complete:complete", members=[])) or ""))
+assert_eq("#1512 AC4: a genuinely-legacy rosterless full record still finalizes at the "
+          "read-time Complete gate (grandfathered; the roster check is enforced at write "
+          "time and legacy workpads are not re-validated retroactively)",
+          None, _rc_complete(_rc_row("full:attempted:complete:complete", members=[])))
 
 # AC3/AC2: declare a gap on an anchored record, then a later standalone review closes it.
 # The gap wording is scoped to the run's own review pass at the anchor, and the record
