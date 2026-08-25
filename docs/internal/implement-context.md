@@ -320,7 +320,7 @@ with provenance, and no gate, ceiling, or threshold reads them.
 | Generating instrument | `scripts/implement-context-eval.py` |
 | Generating revision | `cccf0e5f7038c5e5460383ce3c7bdd962b3e21a7` |
 | Capture date | 2026-08-25 |
-| Corpus root | the `projects/` directory of one local Claude Code account (the sibling accounts' were empty); the tool walks it and selects the `*.jsonl` members itself |
+| Corpus root | one local Claude Code account's `~/.claude*/projects` directory, passed whole (the sibling accounts' held no transcripts); the tool walks it and selects the `*.jsonl` members itself |
 | Corpus size | 6,647 session transcripts, yielding **148** bounded `/prflow:implement` runs |
 | Tier covered | local/interactive only |
 | Median peak main-thread context | **138K** tokens |
@@ -346,7 +346,7 @@ python3 scripts/implement-context-eval.py <transcript-dir> --format json
 The command shape is identical to the fixture reproduction above; what differs is the
 directory it is pointed at — a real transcript corpus rather than the committed synthetic
 one. The operand must be a directory the tool can walk, not a glob. The corpus directory is
-deliberately not written on this page: `lib/test/test_implement_context_eval.py` scans it
+deliberately not written out here: `lib/test/test_implement_context_eval.py` scans this page
 against a fixed owner-identifying pattern set, so a path naming a machine owner turns the
 suite red.
 
@@ -358,6 +358,8 @@ costs. Compaction is an observed local-tier event rather than a hypothetical one
 its scrubbed transcript under a name ending `.json`, while the collector in
 `scripts/context_eval_shared.py` accepts only names ending `.jsonl` — so a cloud transcript
 is skipped with no error at all, and the corpus above is local/interactive by construction.
-The barrier is the suffix alone, and the drop is untallied: a renamed copy of the same
-artifact collects normally, which is how a maintainer took cloud figures by hand before this
-snapshot, and a corpus of wrong-suffixed files reports zero runs and exits 0.
+The drop is untallied, so a corpus of wrong-suffixed files reports zero runs and exits 0
+rather than saying anything was skipped. Renaming the artifact would not be enough on its
+own: `scripts/scrub-transcript.sh` prepends a `#`-comment caveat header to it, and
+`scripts/extract-execution-cost.py` records its observed shapes as a single object, a JSON
+array, or JSONL — so the suffix is the first barrier, not the only one.
