@@ -1,0 +1,236 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "3e70dee4535792b01ef0794dc27e6ecd0426c742",
+  "fix_files": [
+    "lib/test/run-shard.sh",
+    "lib/test/modules/parallel-suite-runner.sh"
+  ],
+  "loop_role": "fix",
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "fix-delta authoring sweeps: comment corrections (2.3.4a self-authored-claim), test hardening; no enum/peer/delete/collection triggers"
+  },
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "for-loop rationale comment claimed run-shard.sh has 'exit branching' between the retained-log printf and its exit; it does not (single unconditional exit). Documented falsehood.",
+      "defect_signature": {
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "line_range": [
+          704,
+          706
+        ],
+        "kind": "documented_falsehood"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "section-header comment exceeded the 3-line 2.3 cap",
+      "defect_signature": {
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "line_range": [
+          689,
+          693
+        ],
+        "kind": "comment_over_cap"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "run-shard.sh comment said 'on every exit' — imprecise (printf only on the shard-execution path)",
+      "defect_signature": {
+        "file": "lib/test/run-shard.sh",
+        "line_range": [
+          138,
+          138
+        ],
+        "kind": "imprecise_comment"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "the 'absolute path' guarantee was only distinctly exercised under a symlinked TMPDIR; a printf \"$LOG_FILE\" regression would stay GREEN on Linux CI",
+      "defect_signature": {
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "line_range": [
+          706,
+          716
+        ],
+        "kind": "weak_guard"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "emitted log path derived via dirname/basename (non-preflight PATH tools)",
+      "defect_signature": {
+        "file": "lib/test/run-shard.sh",
+        "line_range": [
+          141,
+          141
+        ],
+        "kind": "un_guaranteed_tool"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "cd '${LOG_FILE%/*}' && pwd -P short-circuits to /log.txt if the tally dir is concurrently deleted; unreachable (dir created fail-closed 2 lines earlier) and value is advisory-only",
+      "defect_signature": {
+        "file": "lib/test/run-shard.sh",
+        "line_range": [
+          141,
+          141
+        ],
+        "kind": "silent_degradation"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "relative-dir absoluteness only asserted on the passing exit; emitted path not verified to name an existing file",
+      "defect_signature": {
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "line_range": [
+          717,
+          724
+        ],
+        "kind": "weak_guard"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "3e70dee4535792b01ef0794dc27e6ecd0426c742"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "3e70dee4535792b01ef0794dc27e6ecd0426c742"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "3e70dee4535792b01ef0794dc27e6ecd0426c742"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "3e70dee4535792b01ef0794dc27e6ecd0426c742"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "3e70dee4535792b01ef0794dc27e6ecd0426c742"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "pushed_back",
+      "source_file": "lib/test/run-shard.sh",
+      "claim_text": "cd short-circuit could emit /log.txt",
+      "skip_category": "claim-quality",
+      "evidence": "the tally dir is created fail-closed at run-shard.sh:97 and written at :101, both before :141, so the cd target always exists; concurrent deletion is unreachable and the value is advisory-only (never consumed by shard-tally or the exit status). Both the code-reviewer and silent-failure-hunter rated it not worth hardening."
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "pushed_back",
+      "source_file": "lib/test/modules/parallel-suite-runner.sh",
+      "claim_text": "relative absoluteness only on passing exit / no file-exists check",
+      "skip_category": "uncategorized",
+      "evidence": "the printf is a single unconditional exit-independent line already proven on both exits by the two-row loop and proven absolute-from-relative by the passing relative case; pr-test-analyzer rated it severity 2-4 and 'not a real gap for the AC'. Diminishing returns."
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 5,
+    "fix_diff_lines": 24,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh parallel-suite-runner",
+    "result": "pass",
+    "skipped_checks": [],
+    "focused_selection": {
+      "surfaces": [
+        {
+          "surface": "lib/test/run-shard.sh",
+          "coverage_map_entry": "parallel-suite-runner (owner)",
+          "target": "run-module.sh parallel-suite-runner"
+        }
+      ],
+      "single_flight_consulted": false
+    }
+  },
+  "shadow": {
+    "ran_at": "iter-1-convergence",
+    "reviewed_sha": "3e70dee4535792b01ef0794dc27e6ecd0426c742",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer"
+    ],
+    "checklist_skipped": "intentional",
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 0,
+      "new": 3,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
