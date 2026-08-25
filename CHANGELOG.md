@@ -4,6 +4,130 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.25] — 2026-08-25
+
+### Added
+- **`workpad.py update` gains a `--note-file <path>` channel.** It reads a `## Progress` note's text verbatim as UTF-8 from a file (or stdin via `-`), mirroring `--reflection-file`, so a note containing backticks, `$`, or double quotes survives byte-identical instead of being mangled by shell interpolation — and the worktree-isolated tier gains a working channel for such notes. An empty, whitespace-only, or unreadable payload is refused with a `--note-file`-named error before any PATCH; it combines with inline `--note`, appending after the inline notes. (#1947)
+
+## [2.34.24] — 2026-08-25
+
+### Added
+- **The `issue-claim-auditor` now states a disposition per chartered pass, enforced by a deterministic validator.** Its returned ISSUE-CLAIM-AUDIT RECORD carries a `pass<N>_disposition: ran|skipped (reason)` line for each chartered pass, and the Phase 1.6 routing runs `scripts/validate-issue-claim-audit.py` over the record before honouring `outcome: proceed`: a pass whose disposition is absent, `skipped`, malformed, or names a pass outside the charter turns the audit into a visible §1.6 refusal (naming the pass) instead of a silently-skipped pass that wastes a whole implement run. Mirrors the Named-steps contract the two AC verifiers already carry. (#1938)
+- **The implement workpad's terminal `--status Complete` gate now refuses a resolved-but-unrecorded prompt-extension row.** A `prompt extension resolved:` row that is unticked and carries no `state not established` note now blocks Complete (naming each offending row), mirroring the existing unticked-acceptance-criteria hard-fail; a ticked row, an unticked row with its note, and a pre-#1462 workpad carrying no such rows all pass, and `Blocked`/`Failed` are unchanged. This restores the unticked-row signal issue #1462 built the rows for. (#1943)
+- **Decompose the `null` review-verdict residual into a per-agent disposition.** The review-agent
+  efficiency record now carries, beside each agent's derived verdict, a `disposition`
+  (`returned` / `failed` / `silent` / `unestablished`) and a `fix_decisions` roll-up, so a silent
+  reviewer is distinguishable from one that failed and from one whose findings were all deferred.
+  The residual is decomposed only over an established roster; a roster-absent or historical record
+  reads as disposition-unestablished rather than silently shrinking the null denominator. Adds the
+  `phase3_failed_agents` iteration field (the sink for a non-returning agent) and persists the
+  shadow pass's per-reviewer assessment. (#1956)
+
+## [2.34.23] — 2026-08-25
+
+### Added
+- **`lib/test/run-parallel.sh` now reports its own elapsed wall-clock time.** The parallel full-suite coordinator prints a `run-parallel: elapsed Ns` line to standard output, placed before its clean/failed branch so it appears whether the aggregate is clean or failed, using only the bash `SECONDS` builtin. This makes the coordinator's runtime visible in a run's own records instead of recoverable only by hand from execution transcripts, so the drift that motivated this change is caught from the repository itself. (#1939)
+
+## [2.34.22] — 2026-08-25
+
+### Fixed
+Fix the ScheduleWakeup `--disallowedTools` probe verdict helper
+(`scripts/schedulewakeup-probe-verdict.py`) reading a `ToolSearch` query that names
+ScheduleWakeup as a real ScheduleWakeup tool-call attempt. The attempt predicate now keys on
+the recorded `tool_use` name rather than substring-matching the input JSON, and a ship verdict
+(`DENIED`/`REMOVED`) now requires positive `permission_denials` evidence instead of presumptive
+absence — a run with both controls but no attempt and no denial resolves `INCONCLUSIVE`. The
+withdrawn `MEASURED AVAILABLE` citation is corrected in `matcher-probe.yml` and the internal
+docs, and two new `matcher-probe.yml` probe arms (a re-invocation arm without `--disallowedTools`
+and a `CLAUDE_CODE_DISABLE_CRON=1` cloud arm) are added for a post-merge re-measurement (#1937).
+
+## [2.34.21] — 2026-08-25
+
+### Changed
+- **Self-validating portable-helper anchor on non-Claude-Code runners.** The shared
+  "Portable helper anchor" paragraph in the 17 identity-pinned `skills/*/SKILL.md` copies now
+  locates the skill directory by validating a candidate against the filesystem — accepting it
+  only once `ls <candidate>/../../scripts/` succeeds in the same shell — instead of computing a
+  path from a runner-reported value and never checking it, and a runner that validates no
+  candidate stops and reports rather than running a broken path. Across all 18 copies (those 17
+  plus `skills/create-issue/SKILL.md`'s variant) the optional `wslpath`/`cygpath` probe is kept
+  (tried in order, no platform branch, output used only on success with non-empty output) while
+  the tool-less drive-letter arithmetic, the WSL-vs-MSYS2 branch, and the platform guess are
+  removed. `create-issue` keeps its degrade-never-block carve-out unchanged — it does not add
+  the filesystem check and instead lets an unresolvable anchor surface downstream rather than
+  blocking issue creation. (#1940)
+
+## [2.34.20] — 2026-08-25
+
+### Fixed
+- **Stamp an as-of anchor on the review-coverage record.** The record `scripts/workpad.py` writes
+  now carries the reviewed head SHA it was derived from and the UTC time it was written, and a
+  carried coverage gap is worded as a statement about the run's own review pass at that anchor
+  rather than the pull request's final review state — so a later standalone review that closes the
+  gap no longer leaves the workpad record reading stale. Records written before this change,
+  without the anchor fields, still parse. (#1951)
+
+## [2.34.19] — 2026-08-25
+
+### Changed
+- **The review engine root must now be established complete before it is executed on the file-read path.** Three call sites reach `skills/review/SKILL.md` by an ordinary file read — the fix loop's Step 1 engine entry, its Step 2.6 shadow entry, and the implement tier's degraded engine-read arm — and the acceptance predicate was that a candidate "returns a readable body", with no notion of completeness at all. But the engine root has no boundary-marker pair, and an over-cap read of a marker-less file returns a fragment that is perfectly readable, so a half-delivered merge gate was indistinguishable from a whole one and executed with no stop label. The canonical statement in `skills/review-and-fix/references/loop-control.md` Step 1 now establishes completeness by a **positive end-of-file confirmation** taken from the reader itself: after a read that appears whole, one further bounded read starting at the line immediately after the last one already held, whose reply must be **attributable to the position requested**. End of file is established **only** by the reader reporting that the file is shorter than the position asked for, or returning literally nothing at all — the ordinary outcome on a whole body; a reader that ignores or clamps the start position and re-returns the head, or answers a position later than asked, proves nothing about the end of the file. Any content returned there — a blank line included, since the position asked for exists at all — means the earlier read was truncated, so the caller appends it and re-confirms, each confirming read starting at the line immediately after the one before it and a finite file reporting its end, so the re-confirmation terminates. The paged arm terminates on that same confirmation rather than on "no continuation offered" or "a page added nothing new", neither of which distinguishes the file's end from a reader that stopped short of it. A line count from an external counting tool is not substituted for the confirmation, since no line counter is guaranteed present.
+- **The confirming read's own failure modes are routed rather than left open.** The shapes that leave completeness *unestablished* name only genuine failures: a runner whose file-read tool takes no start position, so the confirmation cannot be issued at all; a confirming read refused or erroring otherwise than by that end-of-file report; a reply whose content cannot be attributed to the position requested; a confirming read that does not start at the line immediately after the last one held; and a gap in a paged read's page sequence. Each takes the same terminal — so an intact engine on a non-paging reader stops, which is the specified behaviour: a run that cannot establish completeness must not act on the body.
+- **Selection now splits the resolution question from the delivery question, so the fail-closed default sits where it is right.** A path the reader reports as non-existent is *absent* and advances the list; a reader message that cannot be classified *as to whether the path resolved* leaves **resolution** unestablished — that candidate is not selected and the scan advances too, reporting which candidate it advanced past and whether the selection is a later candidate than the first, since the earlier candidates are expected to be absent on a consumer checkout and hard-stopping there would strand a run whose vendored engine is one candidate later. That advance report has a channel on every entry: a dispatched engine subagent returns it, which is the parent's only view of it. A path that positively **resolved** is the selected candidate whatever the read returned — any message that affirms the path exists, a permission denial the reader raised *on that path* among them, resolves it, while a harness or sandbox policy refusal returned before the path was ever consulted affirms nothing about existence and is classified unclassifiable instead; the self-review note is scoped to match: the repo-root candidate resolves the branch's own engine unless its own resolution is left unestablished, which advances the scan to a vendored copy. From there a permission failure, a transient reader error, an oversize error returning no content, and an empty or whitespace-only body are a present-but-undelivered engine that leaves **completeness** unestablished; the old readable-body predicate advanced past the first three of those to a different engine copy, and all four now stop. Step 4 routes the failures apart: no candidate selected keeps the existing absent-engine fatal naming `/prflow:init`, while an unestablished body stops at the new terminal `engine-root: incomplete`, which names the file, treats the body as unusable and repairs nothing.
+- **That terminal is scoped by engine entry, and its record has one writer.** On the Step 1 entry the loop stops before any mutation — it does not loop back for another iteration and never reaches Loop Exit, so it renders no verdict marker and no verdict headline — and reports that halt as non-convergence, which is never eligible for a caller's soft-proceed arm; the blocked record is written by a caller that maintains a workpad, and standalone `/prflow:review-and-fix` maintains none, so the record lands exactly once on the implement path and names no absent surface on the standalone one. On the Step 2.6 shadow entry the same stop is a structural failure taking that pass's outcome 3, which the shadow reference already prescribed for an unusable engine root, so the two sites state one disposition.
+- **An `engine-root: incomplete` non-convergence cannot be soft-proceeded.** `skills/implement/phases/phase-3-fix-loop.md` routes it to that phase's Blocked path on both reachable paths, whose `engine-root: incomplete` substitution states the real cause instead of the path's unresolved-Critical literal. That path's soft-proceed arm turns on "every residual was gradeable as non-Critical", a test that passes vacuously when the engine never ran and graded nothing — which would stamp the PR review-ready with no review having happened — so the Blocked path now names this terminal alongside a genuine unresolved Critical. Because such a loop never reaches Loop Exit it returns no verdict and no marker, so that phase reads a `NO-MARKER` alongside the reported terminal as the Blocked path directly rather than only through the severity-aware exit. `references/error-handling.md` and `references/shadow-review.md` point at the one canonical statement.
+- **The predicate reaches the path the loop tries first — the engine subagent.** Both engine entries dispatch the engine as an Agent-tool subagent before any inline read, and that subagent runs in a fresh context holding none of `loop-control.md`, so with the predicate stated only in the parent's file it would accept a truncated root and return a well-formed, merge-gating `fanned-out` verdict over a fragment — a failure the well-formedness fallback cannot catch, because such a subagent does not fail. The Step 1 dispatch paragraph and `references/shadow-review.md`'s subagent arm now both require the parent to carry resolution steps 3 and 4 into the subagent's prompt verbatim, leaving the predicate itself stated in exactly one place. The subagent reports its own determination back as a returned `root_completeness` field, and the parent's existing well-formedness check treats a payload reporting anything but established as not well-formed, so a completeness the subagent never applied routes into the inline fallback rather than passing unobserved. Step 4's disposition list gains an engine-subagent arm: that subagent has no loop to halt, so it returns the terminal in place of a `fanned-out` payload and the parent's existing fallback re-decides it on the entry arm. The Step 1 arm also states what the halt records in place of the per-iteration `iter-<N>.json` emit it never reaches, and the two sites that call that emit non-optional now state that a halt short of Step 3 never reaches it.
+- **A failed read of the predicate itself is recorded as its own failure.** The implement tier's degraded engine-read arm previously read the engine from the tree and executed its phases inline with no completeness predicate consulted at all. It now fetches Step 1's predicate from `references/loop-control.md` before executing, and clears that reference's own boundary contract — first non-blank line its `# Reference:` heading, last non-blank line its `<!-- END loop-control.md -->` marker — before applying it, because that file sits near the reference size ceiling and a read truncated above the predicate would deliver a plausible Step 1 without it. A predicate read that fails or does not clear that contract carries its own label and its own record, `engine-predicate: unread — {path}`, naming the reference actually attempted rather than the engine root, which was probably intact and whose condition was never tested. (#1603)
+- **The weekly retrospective now ranks recurring patterns by rework cost, not frequency alone.**
+  `lib/compute-patterns.jq` joins pattern occurrences to their PR's
+  `efficiency_runs[].iterations` in the experiment records and derives a per-pattern cost
+  aggregate (the mean over covered occurrences) plus the covered-occurrence count it was
+  computed from; `lib/actionable-patterns.sh` then emits patterns ranked by descending cost,
+  breaking ties by occurrence count, with zero-coverage patterns ranked last. The
+  `min_occurrences` admission gate is unchanged, and a pattern with no covered occurrences
+  records the absence as a null cost rather than a fabricated zero, so the fixed filing budget
+  buys more rework reduction per week. (#1949)
+
+## [2.34.18] — 2026-08-25
+
+### Fixed
+- **`env-propagation-probe-verdict.py` now reads hop one from Action 2's `tool_result` output.** The verdict helper derived hop values only from `tool_use` inputs, where hop one's variable is unexpanded by design, so hop one was reported only if the model's manual echo-back landed — leaving run 30956039324's genuine reading (recorded in Action 2's Bash `tool_result` output) invisible and the verdict stuck at INCONCLUSIVE. `collect` now also reads `tool_result` outputs; the `_OBSERVED` guard is unweakened, since unexpanded instruction text lives only in a `tool_use` input. (#1955)
+
+## [2.34.17] — 2026-08-25
+
+### Added
+- **Retrospective entries now record `analysis_provenance`.** A live Stage A retrospective run
+  records an `analysis_provenance` object — booleans `bundle_diff_present`,
+  `bundle_workpad_body_present`, and `bundle_issue_comments_present` — on the entries it writes
+  (both the gate-skipped clean-path entry in `lib/clean-entry.jq` and an LLM-judged entry),
+  each reflecting what the analyst's context bundle actually contained. The field names match
+  the existing backfill cohort's, so diff-present and diff-absent entries can be segmented
+  rather than pooled indistinguishably; `schema_version` is bumped to 3. Existing entries are
+  left byte-unchanged. (#1950)
+
+### Changed
+- **`/prflow:implement` Phase 4 now resumes directly after a documentation or PR-description subagent returns.** These are Agent-tool dispatches whose returns enter the orchestrator's context as a report only, so the run proceeds to the next sub-step without re-reading the whole phase file — dropping the repeated full re-read that runs were truncating. The prompt-extension re-load still fires at both boundaries, and the full re-read stays mandatory at every phase entry, every mid-phase Skill-tool return, and the nested-skill completion re-anchor. (#1954)
+
+## [2.34.16] — 2026-08-25
+
+### Changed
+- **The create-issue template now opens every issue's Problem Statement with a mandated user-story sentence.** `skills/create-issue/references/issue-template.md` instructs the drafter to open `## Problem Statement` with one sentence in the form `As a <role>, I want <capability>, so that <outcome>.` before the free-prose narrative, on every issue; the no-options rule's carve-out set names that sentence so its "I want" phrasing is never flagged as hedge language, and the worked example and quality checklist are updated to match. (#1948)
+
+## [2.34.15] — 2026-08-25
+
+### Changed
+- **Record the upstream revision each vendored third-party skill and agent was last reconciled against, and stop the vendored reviewer from spawning sub-reviewers.** `LICENSES/README.md` now carries a per-file "Last reconciled against" column (`superpowers 6.3.0` for the superpowers-derived skills; a `claude-plugins-official` commit SHA for the seven Anthropic-plugin agents), so a future refresh starts from a recorded pin instead of git archaeology. The vendored reviewer prompt (`skills/requesting-code-review/code-reviewer.md`) now directs the reviewer to review the whole diff itself in multiple passes and never dispatch a subagent for part of the diff or a second opinion, since a spawned sub-reviewer duplicates a reviewer seat at full cost while its verdict counts for nothing. (#1952)
+
+### Fixed
+- **`/prflow:create-issue` Step 1 now makes its docs-verify peer dispatch executable.** Step 1
+  asserted that each leg reaches its peer as a real `--search-space <pathspec>` operand and that
+  the dispatch waits synchronously, but gave the orchestrator no form to carry either out — so a
+  peer could silently run under the defaults (collapsing the deep-arm leg disjointness) and a
+  background fork could die on resume. Step 1 now names the Agent-tool synchronous dispatch form
+  (background dispatch excluded, mirroring Step 3.6), instructs the orchestrator to place each
+  leg's pathspec as a literal `--search-space <pathspec>` operand in the invocation arguments, and
+  requires each peer to confirm in its return the operand it ran under — recording a leg
+  unestablished when it does not. The degrade-never-block contract is unchanged. (#1953)
+
 ## [2.34.14] — 2026-08-25
 
 ### Fixed

@@ -90,6 +90,11 @@ workpad._required_artifact_verdict = lambda prog_content: None
 # re-installs this bypass after.
 _REAL_REVIEW_COVERAGE_VERDICT = workpad._review_coverage_verdict
 workpad._review_coverage_verdict = lambda prog_content: None
+# Bypassed like the three verdicts above: do not drop this bypass, or every pre-#1817
+# Complete test starts failing on unticked extension rows it never set up. The
+# dedicated #1817 block restores the real function and re-installs this bypass after.
+_REAL_EXTENSION_ROW_VERDICT = workpad._extension_row_verdict
+workpad._extension_row_verdict = lambda prog_content: None
 parse_acs = _load('parse_acs', SCRIPTS / 'parse-acs.py')
 section_parse = _load('section_parse', SCRIPTS / 'section_parse.py')
 file_deferrals = _load('file_deferrals', SCRIPTS / 'file-deferrals.py')
@@ -220,6 +225,7 @@ def make_args(**overrides):
         rewrite_ac=[],
         replace_plan_file=None, replace_acs_file=None, set_reproduction_file=None,
         note=[], reflection=[], reflection_kind=None, reflection_file=None,
+        note_file=None,
         marker=None,
         reconcile_reproduction=None, record_classification=None,
         checkpoint=[], expect_comment_id=None, expect_status=None,
@@ -242,7 +248,9 @@ def make_args(**overrides):
         # issue #1347 inherited required-artifact strip — read on every call.
         strip_inherited_checkpoints=False,
         # issue #1453 review-coverage record + dispositions — read on every call.
+        # issue #1510 adds the optional as-of anchor head, read via getattr.
         record_review_coverage=None, review_coverage_disposition=[],
+        record_review_coverage_head=None,
         # issue #1462 prompt-extension row reconciliation — read on every call.
         reconcile_extension_rows=False,
         # issue #1876 mid-phase resume-point record — read on every call.
@@ -2403,6 +2411,114 @@ _ac = parse_acs._parse_checkboxes(
 assert_eq("invariant: AC section parses to 2 checkboxes after mutation", 2, len(_ac))
 assert_eq("invariant: AC one ticked is visible to the parser", True,
           any(i['text'] == 'AC one' and i['ticked'] for i in _ac))
+
+
+# --- --note-file: interpolation-safe verbatim UTF-8 input for ## Progress notes (issue #1813) ---
+# The payload must render as an ordinary ## Progress bullet, identical to an inline
+# --note: routing it to ## Devflow Reflection instead would change how
+# lib/cheap-gate.jq treats the record.
+def _note_file(payload_bytes, body=WORKPAD_V2, also_note=None):
+    """Write payload_bytes to a temp file, apply an update carrying --note-file
+    (+ optional inline --note) with status Implementing, return the ## Progress
+    region (everything before ## Plan)."""
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / 'payload.txt'
+        p.write_bytes(payload_bytes)
+        out = apply_mut(body, make_args(
+            status='Implementing', note=(also_note or []), note_file=str(p)))
+    return out.split('## Plan', 1)[0]
+
+# Backticks + $(…) + quotes round-trip byte-identical (the hazard the flag defeats).
+_nf_shelly = 'ran `git rev-parse` and $(cmd) with "quotes"'
+nf_bf = _note_file(_nf_shelly.encode('utf-8'))
+assert_eq("--note-file: backticks/$(…)/quotes round-trip byte-identical", True,
+          ('— ' + _nf_shelly) in nf_bf)
+
+# Non-ASCII (em-dash + emoji) round-trips byte-identical via explicit UTF-8.
+_nf_nonascii = 'reconciled — see 🚀 the workpad'
+nf_na = _note_file(_nf_nonascii.encode('utf-8'))
+assert_eq("--note-file: non-ASCII (em-dash + emoji) round-trips byte-identical", True,
+          ('— ' + _nf_nonascii) in nf_na)
+
+# Combined --note + --note-file: both bullets present, file payload AFTER the
+# inline note (mirrors the --reflection/--reflection-file ordering — AC3).
+nf_comb = _note_file(b'from the file', also_note=['from a flag'])
+assert_eq("--note-file: combines with inline --note (both bullets present)", True,
+          ('— from a flag' in nf_comb) and ('— from the file' in nf_comb))
+assert_eq("--note-file: file bullet appends AFTER the inline --note bullet", True,
+          nf_comb.index('— from a flag') < nf_comb.index('— from the file'))
+
+# stdin arm: --note-file - decodes UTF-8 from sys.stdin.buffer.
+def _note_stdin(payload_bytes):
+    saved = sys.stdin
+    sys.stdin = _FakeStdin(payload_bytes)
+    try:
+        out = apply_mut(WORKPAD_V2, make_args(status='Implementing', note_file='-'))
+    finally:
+        sys.stdin = saved
+    return out.split('## Plan', 1)[0]
+
+nf_stdin = _note_stdin('via `stdin` — 🚀'.encode('utf-8'))
+assert_eq("--note-file -: stdin honored, UTF-8 decoded at the bytes level", True,
+          '— via `stdin` — 🚀' in nf_stdin)
+
+# Inline --note still works unchanged when --note-file is absent (AC3 regression).
+_out_inline = apply_mut(WORKPAD_V2, make_args(status='Implementing', note=['plain inline']))
+assert_eq("--note-file: inline --note unchanged when --note-file absent", True,
+          '— plain inline' in _out_inline.split('## Plan', 1)[0])
+
+# Structural aborts before any PATCH: empty, whitespace-only, undecodable, unreadable.
+def _nf_empty():
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / 'e.txt'
+        p.write_bytes(b'')
+        apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+assert_raises("--note-file: empty payload raises _UpdateError",
+              workpad._UpdateError, _nf_empty)
+
+def _nf_ws_only():
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / 'w.txt'
+        p.write_bytes(b'   \n\t  \n')
+        apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+assert_raises("--note-file: whitespace-only payload raises _UpdateError",
+              workpad._UpdateError, _nf_ws_only)
+
+def _nf_undecodable():
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / 'u.txt'
+        p.write_bytes(b'\xff\xfe\xfd not utf-8')
+        apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+assert_raises("--note-file: undecodable payload raises _UpdateError (no traceback)",
+              workpad._UpdateError, _nf_undecodable)
+
+def _nf_unreadable():
+    apply_mut(WORKPAD_V2, make_args(
+        note_file='/nonexistent/definitely/missing/note-1813.txt'))
+assert_raises("--note-file: unreadable path raises _UpdateError",
+              workpad._UpdateError, _nf_unreadable)
+
+# Atomicity: a bad --note-file payload aborts the WHOLE call — an accompanying
+# inline --note is not partially applied (no body produced to PATCH).
+def _nf_bad_with_inline():
+    apply_mut(WORKPAD_V2, make_args(
+        note=['inline note that must not persist'],
+        note_file='/nonexistent/definitely/missing/note-1813.txt'))
+assert_raises("--note-file: a bad payload aborts even with an inline --note (no partial write)",
+              workpad._UpdateError, _nf_bad_with_inline)
+
+# The specific error message names the flag (matching --reflection-file's contract).
+def _nf_empty_msg():
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / 'e.txt'
+            p.write_bytes(b'')
+            apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+    except workpad._UpdateError as e:
+        return str(e)
+    return ''
+assert_eq("--note-file: empty-payload error names the --note-file flag", True,
+          _nf_empty_msg().startswith('--note-file:'))
 
 
 print("workpad new-body: lean initial skeleton")
@@ -11605,9 +11721,8 @@ assert_eq("#1453 AC9: the two reason rejections are separately attributable",
 # then satisfies the gate through the ordinary call path (the positive control).
 _rc_full = apply_mut(_CP_BODY, make_args(
     record_review_coverage=["full", "attempted", "complete", "complete"]))
-assert_eq("#1453 AC1: the producer writes exactly one review-coverage marker",
-          1, _rc_full.count(
-              workpad._review_coverage_marker("full:attempted:complete:complete")))
+assert_eq("#1453 AC1: the producer writes exactly one review-coverage record",
+          1, len(workpad._review_coverage_payloads(_rc_full)))
 assert_eq("#1453 AC1: the recorded row states every axis in readable form",
           True, "coverage=full, dispatch=attempted, roster=complete, checklist=complete"
           in _rc_full)
@@ -11734,11 +11849,13 @@ for _mixed in ("full:attempted:not-applicable:not-applicable",
         _wmsg = str(e)
     assert_eq(f"#1453 soft-proceed: the mixed record {_mixed!r} is refused at write time",
               True, _wmsg is not None and "all 4 axes or none" in _wmsg)
+_rc_na = apply_mut(_RC_BASE, make_args(record_review_coverage=["not-applicable"] * 4))
 assert_eq("#1453 soft-proceed: the coherent all-not-applicable record writes cleanly",
-          True, workpad._review_coverage_marker(
-              "not-applicable:not-applicable:not-applicable:not-applicable")
-          in apply_mut(_RC_BASE, make_args(record_review_coverage=[
-              "not-applicable"] * 4)))
+          (1, {"coverage": "not-applicable", "dispatch": "not-applicable",
+               "roster": "not-applicable", "checklist": "not-applicable"}),
+          (len(workpad._review_coverage_payloads(_rc_na)),
+           workpad._parse_review_coverage_payload(
+               workpad._review_coverage_payloads(_rc_na)[0])))
 # DEFERRED (review of PR #1486, note S3b): the NEGATIVE real-CLI path — a genuine
 # `workpad.py update --status Complete` subprocess refused for a missing coverage row —
 # is exercised only in-process here, because this module no-ops `_review_coverage_verdict`
@@ -11790,13 +11907,13 @@ _rc_disp = apply_mut(_RC_BASE, make_args(
 _DF_GLYPH, _DF_LABEL, _ = workpad._REFLECTION_KINDS["dropped-failed"]
 assert_eq("#1453 AC8: the disposition files a dropped-failed reflection bullet",
           True, _DF_GLYPH in _rc_disp and _DF_LABEL in _rc_disp
-          and "review coverage gap carried forward — gap=roster" in _rc_disp)
+          and "review coverage gap in this run's own review pass — gap=roster" in _rc_disp)
 assert_eq("#1453 AC8: dropped-failed is a recognized reflection kind and is not 'note'",
           True, "dropped-failed" in workpad._REFLECTION_KINDS
           and workpad._REFLECTION_KINDS["dropped-failed"]
           != workpad._REFLECTION_KINDS["note"])
 assert_eq("#1453 AC8: a compliant full-coverage run files NO such reflection",
-          False, "review coverage gap carried forward" in _rc_full)
+          False, "review coverage gap in this run's own review pass" in _rc_full)
 
 # AC10: the gate is scoped to Complete — Blocked and Failed stay reachable over an
 # incomplete record, which is exactly the #1230 exit the gate must not foreclose.
@@ -11877,8 +11994,11 @@ assert_eq("#1453: a planted, well-formed disposition is accepted (positive contr
 _rc_rerecord = apply_mut(_rc_row("full:attempted:complete:complete"), make_args(
     record_review_coverage=["not-verified", "attempted", "short", "complete"]))
 assert_eq("#1453: re-recording replaces the prior record rather than accumulating",
-          ["not-verified:attempted:short:complete"],
-          workpad._review_coverage_payloads(_rc_rerecord))
+          (1, {"coverage": "not-verified", "dispatch": "attempted",
+               "roster": "short", "checklist": "complete"}),
+          (len(workpad._review_coverage_payloads(_rc_rerecord)),
+           workpad._parse_review_coverage_payload(
+               workpad._review_coverage_payloads(_rc_rerecord)[0])))
 # ...and a fresh record strips the prior record's dispositions, which would otherwise
 # answer for gaps the new record may not report.
 _rc_rerecord2 = apply_mut(
@@ -12059,8 +12179,11 @@ assert_eq("#1722: ...ticking BOTH requested review-boundary rows in the one call
           (f"- [x] {_MM_ROW_A[0]}" in _mm_patched,
            f"- [x] {_MM_ROW_B[0]}" in _mm_patched))
 assert_eq("#1722: ...and writing exactly one review-coverage record",
-          ["not-verified:never:short:skipped"],
-          workpad._review_coverage_payloads(_mm_patched))
+          (1, {"coverage": "not-verified", "dispatch": "never",
+               "roster": "short", "checklist": "skipped"}),
+          (len(workpad._review_coverage_payloads(_mm_patched)),
+           workpad._parse_review_coverage_payload(
+               workpad._review_coverage_payloads(_mm_patched)[0])))
 
 # Reorder reconcile after the ticks and the tick assertion goes RED, which is the ordering
 # the shipped Phase 1.3 fold rests on.
@@ -12297,8 +12420,335 @@ assert_eq("#1453: every dirty axis reports its gap, deduped and in table order",
               workpad._parse_review_coverage_payload(
                   "not-verified:never:short:skipped")))
 
+# ── issue #1510: the review-coverage record carries an as-of anchor (the reviewed head
+#    SHA it was derived from + the UTC time it was written), so a gap it declares is a
+#    statement about THIS run's own review pass at that anchor — a later standalone
+#    review closing the gap never contradicts it.
+_rc_head = "a1b2c3d4e5" * 4  # a 40-char lowercase-hex head
+_rc_anchored = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=["full", "attempted", "short", "skipped"],
+    record_review_coverage_head=_rc_head))
+_rc_anchored_payloads = workpad._review_coverage_payloads(_rc_anchored)
+assert_eq("#1510 AC1: exactly one anchored review-coverage record is written",
+          1, len(_rc_anchored_payloads))
+_rc_anchor = workpad._parse_review_coverage_anchor(_rc_anchored_payloads[0])
+assert_eq("#1510 AC1: the anchor carries the reviewed head SHA it was derived from",
+          _rc_head, (_rc_anchor or {}).get("head"))
+_rc_asof = (_rc_anchor or {}).get("asof", "")
+assert_eq("#1510 AC1: the anchor carries a colon-free basic-ISO UTC write time",
+          True, len(_rc_asof) == 16 and _rc_asof.endswith("Z") and _rc_asof[8] == "T"
+          and _rc_asof[:8].isdigit() and _rc_asof[9:15].isdigit())
+assert_eq("#1510 AC1: the anchored payload still parses to the SAME four axes "
+          "(the anchor is metadata, not a fifth axis)",
+          {"coverage": "full", "dispatch": "attempted", "roster": "short",
+           "checklist": "skipped"},
+          workpad._parse_review_coverage_payload(_rc_anchored_payloads[0]))
+assert_eq("#1510 AC1: the visible ## Progress row surfaces the anchor to a human reader",
+          True, ("head " + _rc_head[:12]) in _rc_anchored and _rc_asof in _rc_anchored)
+
+# AC4: a record written BEFORE this change — the pre-anchor payload, no anchor — still
+# parses and is not refused; the gate reads the same axes and the anchor is simply absent.
+assert_eq("#1510 AC4: a pre-change 4-field anchor-less payload still parses",
+          {"coverage": "full", "dispatch": "attempted", "roster": "complete",
+           "checklist": "complete"},
+          workpad._parse_review_coverage_payload("full:attempted:complete:complete"))
+assert_eq("#1510 AC4: a pre-change payload has no anchor (None), never a parse error",
+          None, workpad._parse_review_coverage_anchor("full:attempted:complete:complete"))
+assert_eq("#1510 AC4: a legacy anchor-less full record still satisfies the Complete gate",
+          None, _rc_complete(_rc_row("full:attempted:complete:complete")))
+
+# AC3/AC2: declare a gap on an anchored record, then a later standalone review closes it.
+# The gap wording is scoped to the run's own review pass at the anchor, and the record
+# names its own reviewed head — so its claim is bounded and a later review at a DIFFERENT
+# head never contradicts it.
+_rc_gap = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=["not-verified", "attempted", "short", "skipped"],
+    record_review_coverage_head=_rc_head,
+    review_coverage_disposition=[
+        ["shadow-coverage", _RC_REASONS["shadow-coverage"]],
+        ["roster", _RC_REASONS["roster"]],
+        ["checklist", _RC_REASONS["checklist"]]]))
+assert_eq("#1510 AC2: a carried coverage gap is worded about the run's own review pass",
+          True, "run's own review pass" in _rc_gap)
+assert_eq("#1510 AC2: a carried gap is NOT worded 'carried forward' "
+          "(a claim about the PR's final review state)",
+          True, "carried forward" not in _rc_gap)
+_rc_gap_payload = workpad._review_coverage_payloads(_rc_gap)[0]
+_rc_gap_anchor = workpad._parse_review_coverage_anchor(_rc_gap_payload)
+assert_eq("#1510 AC3: the gap-declaring record is anchor-bounded — it names the reviewed "
+          "head it was derived from",
+          _rc_head, (_rc_gap_anchor or {}).get("head"))
+_rc_later_head = "b" * 40  # the head a later standalone review would examine
+assert_eq("#1510 AC3: the stored record claims nothing about a later review's head "
+          "(it is bounded by its own anchor)",
+          (True, False),
+          (_rc_head in _rc_gap_payload, _rc_later_head in _rc_gap_payload))
+
+# --- issue #1510 fix-loop additions: drive the gate over an anchored record, cover the new
+#     write-time refusal and the anchor's malformed/absent arms, and strengthen AC3. ---
+
+# The Complete gate is driven over a real 6-field ANCHORED record that reports gaps and carries
+# dispositions (the production path) — it passes exactly as the axis dict dictates, the anchor
+# being metadata the gate ignores.
+_rc_anchored_gate = apply_mut(_RC_BASE, make_args(
+    record_review_coverage=["not-verified", "attempted", "short", "skipped"],
+    record_review_coverage_head=_rc_head,
+    review_coverage_disposition=[
+        ["shadow-coverage", _RC_REASONS["shadow-coverage"]],
+        ["roster", _RC_REASONS["roster"]],
+        ["checklist", _RC_REASONS["checklist"]]]))
+assert_eq("#1510: the Complete gate passes over an anchored 6-field record with dispositioned gaps",
+          None, _rc_complete(_rc_anchored_gate))
+
+# A malformed head at write time is a structural refusal — no half-anchored record is written.
+_rc_bad_head_err = None
+try:
+    apply_mut(_CP_BODY, make_args(
+        record_review_coverage=["full", "attempted", "complete", "complete"],
+        record_review_coverage_head="NOTHEX-XYZ"), [])
+except workpad._UpdateError as _e:
+    _rc_bad_head_err = str(_e)
+assert_eq("#1510: a malformed --record-review-coverage-head is refused at write time (no PATCH)",
+          True, _rc_bad_head_err is not None
+          and "record-review-coverage-head" in _rc_bad_head_err
+          and "No PATCH was made" in _rc_bad_head_err)
+
+# An omitted head defaults to 'unestablished', round-trips, and the visible row shows it un-truncated.
+_rc_noh = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=["full", "attempted", "complete", "complete"]))
+_rc_noh_anchor = workpad._parse_review_coverage_anchor(
+    workpad._review_coverage_payloads(_rc_noh)[0])
+assert_eq("#1510: an omitted head records the anchor head as 'unestablished'",
+          "unestablished", (_rc_noh_anchor or {}).get("head"))
+assert_eq("#1510: the visible row shows an 'unestablished' head un-truncated (not sliced to 12)",
+          True, "as of head unestablished at " in _rc_noh)
+
+# A 6-field payload whose anchor is malformed reads as absent (None), never a partial anchor,
+# while its four axes still parse — the deliberate 'unreadable anchor is absent' divergence.
+_rc_mal6 = "full:attempted:complete:complete:NOThex:20260101T000000Z"
+assert_eq("#1510: a 6-field payload with a bad head yields no anchor (None)",
+          None, workpad._parse_review_coverage_anchor(_rc_mal6))
+assert_eq("#1510: ...yet its four axes still parse (anchor malformation never corrupts the axes)",
+          {"coverage": "full", "dispatch": "attempted", "roster": "complete",
+           "checklist": "complete"},
+          workpad._parse_review_coverage_payload(_rc_mal6))
+# A colon-bearing asof inflates the field count past n+2, so BOTH parsers reject the record —
+# the concrete failure the colon-free basic-ISO write-time spelling exists to avoid.
+_rc_colon_asof = "full:attempted:complete:complete:" + _rc_head + ":2026-01-01T00:00:00Z"
+assert_eq("#1510: a colon-bearing asof breaks the record (field-count blowup → axes unparseable)",
+          (None, None),
+          (workpad._parse_review_coverage_payload(_rc_colon_asof),
+           workpad._parse_review_coverage_anchor(_rc_colon_asof)))
+# The asof-regex rejection arm specifically: a 6-field payload with a VALID head but a malformed
+# (colon-free) asof reads as no anchor — so deleting _REVIEW_COVERAGE_ANCHOR_ASOF_RE goes RED here.
+_rc_bad_asof = "full:attempted:complete:complete:" + _rc_head + ":2026JUNK0T000000Z"
+assert_eq("#1510: a 6-field payload with a valid head but a malformed asof yields no anchor (None)",
+          None, workpad._parse_review_coverage_anchor(_rc_bad_asof))
+
+# Negative control: the Complete gate REFUSES an anchored 6-field record reporting a gap with no
+# disposition — the anchor is stripped before the axes are read, so the gap refusal fires exactly
+# as it does for a legacy record.
+assert_eq("#1510: the Complete gate refuses an anchored record with an undispositioned gap",
+          True, "[review-coverage-gap]" in (_rc_complete(_rc_row(
+              "not-verified:attempted:short:skipped:" + _rc_head
+              + ":20260101T000000Z")) or ""))
+
+# AC3 strengthened: re-recording at a DIFFERENT reviewed head rebinds the anchor to that head, so
+# each stored record is bounded to its own head — a later review at head B produces a record naming
+# head B and never rewrites the earlier head-A record's anchor-bounded claim.
+_rc_headA = "a" * 40
+_rc_headB = "c" * 40
+_rc_recA = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=["not-verified", "attempted", "short", "skipped"],
+    record_review_coverage_head=_rc_headA))
+_rc_recB = apply_mut(_rc_recA, make_args(
+    record_review_coverage=["full", "attempted", "complete", "complete"],
+    record_review_coverage_head=_rc_headB))
+assert_eq("#1510 AC3: re-recording at a later reviewed head rebinds the anchor to that head (one record)",
+          (_rc_headB, 1),
+          ((workpad._parse_review_coverage_anchor(
+              workpad._review_coverage_payloads(_rc_recB)[0]) or {}).get("head"),
+           len(workpad._review_coverage_payloads(_rc_recB))))
+
+# The strip reads BOTH the current and the superseded reflection-bullet wording, so a bullet a
+# pre-#1510 code version wrote ("carried forward") is cleaned when a fresh record supersedes it —
+# otherwise a stale friction bullet would survive an upgrade and keep tripping the retrospective gate.
+_rc_old_bullet = _RC_BASE.replace(
+    "<summary>Devflow Reflection (click to expand)</summary>",
+    "<summary>Devflow Reflection (click to expand)</summary>\n"
+    "- 🔴 review coverage gap carried forward — gap=roster: a stale reason from prior code")
+_rc_stripped_old = apply_mut(_rc_old_bullet, make_args(
+    record_review_coverage=["full", "attempted", "complete", "complete"]))
+assert_eq("#1510: a fresh record strips a superseded ('carried forward') reflection bullet too",
+          False, "carried forward" in _rc_stripped_old)
+
 # Restore the module-load bypass so any later Complete tests are not gated on the record.
 workpad._review_coverage_verdict = lambda prog_content: None
+
+# ── issue #1817: the terminal --status Complete extension-row gate ─────────────
+# The gate refuses a Complete write while any `prompt extension resolved:` row is
+# unticked AND carries no sanctioned `state not established` note — mirroring the
+# unticked-AC hard-fail. The other three prog_content verdicts stay no-op'd (above)
+# so this block exercises the extension-row member in isolation.
+print()
+print("issue #1817: terminal --status Complete extension-row gate")
+workpad._extension_row_verdict = _REAL_EXTENSION_ROW_VERDICT
+
+_EXT_BODY = """<!-- devflow:workpad -->
+# DevFlow Workpad — Issue #1817t
+
+**Status:** 🚀 Reviewing
+**Branch:** `x`
+**Last updated:** 2026-05-15 00:00 UTC
+
+## Progress
+- [x] **Setup** — branch & workpad
+  - [x] prompt extension resolved: implement
+- [x] **Review**
+  - [x] prompt extension resolved: review engine
+  - [x] prompt extension resolved: fix loop
+  - [x] prompt extension resolved: code-review reception
+- [x] **Implement**
+
+## Plan
+- [x] step
+
+## Acceptance Criteria
+- [x] AC1
+
+## Devflow Reflection
+<details>
+<summary>Devflow Reflection (click to expand)</summary>
+
+</details>
+"""
+# AC2: _EXT_BODY ticks all four _EXTENSION_ROWS members → Complete finalizes (Status → 🎉).
+_ext_ok = apply_mut(_EXT_BODY, make_args(status="Complete"), [])
+assert_eq("#1817 AC2: an all-ticked extension-row workpad finalizes Complete",
+          True, "🎉 Complete" in _statusline(_ext_ok))
+
+# One extension row unticked, no note.
+_EXT_UNTICKED = _EXT_BODY.replace(
+    "  - [x] prompt extension resolved: fix loop",
+    "  - [ ] prompt extension resolved: fix loop")
+
+# AC1: a Complete with an unticked, un-noted extension row is refused, naming the row.
+_ext_err = None
+try:
+    apply_mut(_EXT_UNTICKED, make_args(status="Complete"), [])
+except workpad._UpdateError as e:
+    _ext_err = str(e)
+assert_eq("#1817 AC1: an unticked, un-noted extension row refuses Complete",
+          True, _ext_err is not None)
+assert_eq("#1817 AC1: the refusal is tagged [extension-row-unrecorded] and names the row",
+          True, _ext_err is not None and "[extension-row-unrecorded]" in _ext_err
+          and "prompt extension resolved: fix loop" in _ext_err)
+# AC4: the refusal aborts before any PATCH — no mutation, non-zero exit.
+_code, _out, _err, _patched = _drive_cmd_update(_EXT_UNTICKED, status="Complete")
+assert_eq("#1817 AC4: the refused Complete makes NO PATCH and exits non-zero",
+          (1, None), (_code, _patched))
+
+# AC2: an unticked row WITH its `state not established` note finalizes. The note lands
+# in ## Progress via the real --note append path, then the post-mutation gate reads it.
+_ext_noted = apply_mut(_EXT_UNTICKED, make_args(
+    status="Complete",
+    note=["extension resolved: fix loop — state not established (loader ladder refused)"]),
+    [])
+assert_eq("#1817 AC2: an unticked row + its state-not-established note finalizes Complete",
+          True, "🎉 Complete" in _statusline(_ext_noted))
+
+# AC1 (multi-row plural path): two unticked, un-noted rows are BOTH named, exercising
+# len(offending) pluralization and the multi-row join that a single-row test never reaches.
+_EXT_TWO_UNTICKED = _EXT_BODY.replace(
+    "  - [x] prompt extension resolved: review engine",
+    "  - [ ] prompt extension resolved: review engine").replace(
+    "  - [x] prompt extension resolved: fix loop",
+    "  - [ ] prompt extension resolved: fix loop")
+_ext_two_err = None
+try:
+    apply_mut(_EXT_TWO_UNTICKED, make_args(status="Complete"), [])
+except workpad._UpdateError as e:
+    _ext_two_err = str(e)
+assert_eq("#1817 AC1: two unticked rows both refuse Complete and are BOTH named",
+          True, _ext_two_err is not None
+          and "prompt extension resolved: review engine" in _ext_two_err
+          and "prompt extension resolved: fix loop" in _ext_two_err
+          and "2 prompt-extension row(s)" in _ext_two_err)
+
+# AC1 (note keying is load-bearing): an unticked row whose only note names a DIFFERENT row
+# is still refused — proving the note's row-substring conjunct is not vacuous (a note for
+# 'review engine' does not satisfy the unticked 'fix loop' row).
+_ext_wrongnote_err = None
+try:
+    apply_mut(_EXT_UNTICKED, make_args(
+        status="Complete",
+        note=["extension resolved: review engine — state not established (loader refused)"]),
+        [])
+except workpad._UpdateError as e:
+    _ext_wrongnote_err = str(e)
+assert_eq("#1817 AC1: a state-not-established note for a DIFFERENT row does not satisfy the unticked row",
+          True, _ext_wrongnote_err is not None
+          and "prompt extension resolved: fix loop" in _ext_wrongnote_err)
+
+# AC3: Blocked and Failed are accepted with an unticked, un-noted extension row.
+for _terminal in ("Blocked", "Failed"):
+    _res = None
+    try:
+        _res = apply_mut(_EXT_UNTICKED, make_args(status=_terminal), [])
+    except workpad._UpdateError:
+        assert_eq(f"#1817 AC3: --status {_terminal} must not be gated on extension rows",
+                  True, False)
+    assert_eq(f"#1817 AC3: --status {_terminal} applies over an unticked extension row",
+              True, _res is not None
+              and workpad._status_glyph(_terminal) in _statusline(_res))
+
+# Gotcha: a pre-#1462 workpad carries NONE of the rows — the gate must tolerate a
+# wholly-absent row set rather than refuse Complete on every legacy workpad. `_CP_BODY`
+# has no extension rows at all; with AC ticked, Complete must not raise from this gate.
+_ext_legacy = _CP_BODY.replace("- [ ] AC1", "- [x] AC1")
+_legacy_res = apply_mut(_ext_legacy, make_args(status="Complete"), [])
+assert_eq("#1817 gotcha: a wholly-absent extension-row set does not detonate the gate",
+          True, "🎉 Complete" in _statusline(_legacy_res))
+
+# Mixed row presence — the realistic partially-reconciled workpad: some `_EXTENSION_ROWS`
+# members are wholly absent while another is present-and-offending. The per-row absence
+# tolerance must not swallow the genuine offender beside it, and only the present row is
+# named. `_EXT_BODY` minus the two Review-tier rows, with `fix loop` left unticked.
+_EXT_MIXED = _EXT_BODY.replace(
+    "  - [x] prompt extension resolved: review engine\n", "").replace(
+    "  - [x] prompt extension resolved: code-review reception\n", "").replace(
+    "  - [x] prompt extension resolved: fix loop",
+    "  - [ ] prompt extension resolved: fix loop")
+_ext_mixed_err = None
+try:
+    apply_mut(_EXT_MIXED, make_args(status="Complete"), [])
+except workpad._UpdateError as e:
+    _ext_mixed_err = str(e)
+assert_eq("#1817: a partially-reconciled workpad still refuses on its one present offender",
+          True, _ext_mixed_err is not None
+          and "1 prompt-extension row(s)" in _ext_mixed_err
+          and "prompt extension resolved: fix loop" in _ext_mixed_err
+          and "review engine" not in _ext_mixed_err
+          and "code-review reception" not in _ext_mixed_err)
+
+# The pure-read invariant, directly: the verdict takes only its progress-content
+# argument, returns None on a satisfied ## Progress and raises on an unsatisfied one.
+assert_eq("#1817: the verdict returns None on a ticked extension row",
+          None, workpad._extension_row_verdict(
+              "  - [x] prompt extension resolved: fix loop"))
+assert_eq("#1817: the verdict returns None on a wholly-absent row set",
+          None, workpad._extension_row_verdict("- 03:00:00 — nothing here"))
+assert_eq("#1817: the verdict returns None on an unticked row WITH its note",
+          None, workpad._extension_row_verdict(
+              "  - [ ] prompt extension resolved: fix loop\n"
+              "  - 03:00:00 — extension resolved: fix loop — state not established (x)"))
+assert_raises("#1817: the verdict raises _UpdateError on an unticked, un-noted row",
+              workpad._UpdateError,
+              lambda: workpad._extension_row_verdict(
+                  "  - [ ] prompt extension resolved: fix loop"))
+
+# Restore the module-load bypass so any later Complete tests are not gated on the rows.
+workpad._extension_row_verdict = lambda prog_content: None
 
 # ── issue #548: cmd_record_adjudication reject-path coverage (the agreement invariant is the
 #    feature's core new safety gate — every _fail guard is driven, plus the unestablished
@@ -25731,6 +26181,7 @@ def _update_args(**kw):
         issue=1214, marker=None, status=None, branch=None, run_link=None,
         pr_link=None, tick_progress=[], tick_plan=[], tick_plan_n=[], tick_ac=[],
         tick_ac_n=[], rewrite_ac=[], note=[], reflection=[], reflection_file=None,
+        note_file=None,
         reflection_kind=None, replace_plan_file=None, replace_acs_file=None,
         set_reproduction_file=None, checkpoint=None, record_completion_evidence=None,
         record_classification=None, reconcile_reproduction=None, mark_deferred_filed=None,
@@ -25876,6 +26327,51 @@ assert_eq("#1214 file-reflection: the buffered file payload is replayed into the
           True, _pb is not None and _rfl_payload in _pb)
 assert_eq("#1214 file-reflection: the buffer is cleared after the replay",
           False, _buf_file4.exists())
+
+# A `--note-file`-only call whose PATCH fails must buffer the note through
+# _cmd_update_inner's `_own_notes` append: the _apply_mutations coverage above never
+# enters _cmd_update_inner, so dropping that append loses the note silently.
+_bufdir5 = tempfile.mkdtemp(prefix='wp1813-buf5-')
+_nf_payload = 'Writing-skills evidence: `skills/review/SKILL.md` mode=subagent skill-loaded=yes'
+_nf_file = Path(_bufdir5) / 'payload.md'
+_nf_file.write_text(_nf_payload + '\n', encoding='utf-8')
+_code, _pb, _n = _run_cmd_update(
+    _update_args(note_file=str(_nf_file)),
+    live_body=_WP1214, patch_fails=True, buffer_dir=_bufdir5)
+_buf_file5 = Path(_bufdir5) / '55512.json'
+assert_eq("#1813 file-note: a PATCH failure still fails loudly (non-zero exit)",
+          True, _code != 0)
+assert_eq("#1813 file-note: the dropped --note-file payload IS buffered (backticks intact)",
+          True, _buf_file5.exists()
+          and _nf_payload in _buf_file5.read_text(encoding='utf-8'))
+# ...and replays into ## Progress on the next successful call (a note, not a reflection).
+_code, _pb, _n = _run_cmd_update(
+    _update_args(status='Reviewing'),
+    live_body=_WP1214, patch_fails=False, buffer_dir=_bufdir5)
+assert_eq("#1813 file-note: the replaying update exits 0", 0, _code)
+assert_eq("#1813 file-note: the buffered file note is replayed into the body",
+          True, _pb is not None and _nf_payload in _pb)
+assert_eq("#1813 file-note: the buffer is cleared after the replay",
+          False, _buf_file5.exists())
+
+# `--note-file -` reaches BOTH stdin consumers in one call — _cmd_update_inner's buffering
+# append and _apply_mutations' render. Dropping the memoization re-reads the exhausted
+# stream and raises the empty-payload _UpdateError on a payload that was fine.
+_bufdir6 = tempfile.mkdtemp(prefix='wp1813-buf6-')
+_nf_stdin_payload = 'Writing-skills evidence: `skills/implement/SKILL.md` skill-loaded=yes'
+_saved_stdin = sys.stdin
+sys.stdin = _FakeStdin((_nf_stdin_payload + '\n').encode('utf-8'))
+try:
+    _code, _pb, _n = _run_cmd_update(
+        _update_args(note_file='-'),
+        live_body=_WP1214, patch_fails=False, buffer_dir=_bufdir6)
+finally:
+    sys.stdin = _saved_stdin
+assert_eq("#1813 stdin note: a --note-file - call spanning both consumers exits 0", 0, _code)
+assert_eq("#1813 stdin note: the stdin payload reached the PATCHed body, backticks intact",
+          True, _pb is not None and _nf_stdin_payload in _pb)
+assert_eq("#1813 stdin note: the single stdin read is rendered exactly once", 1,
+          (_pb or '').count(_nf_stdin_payload))
 
 # Review finding (PR #1227, finding 2): idempotency must hold ACROSS buffered
 # records, not only against the live body. Two failed calls carrying the same
@@ -35489,6 +35985,163 @@ _dnc1027 = stall_observer.decide(stall_observer.parse_workpad(_wp1027(checkpoint
 assert_eq("#1027 decide: stale-advisory with no checkpoint -> stale-advisory", "stale-advisory", _dnc1027.token)
 assert_eq("#1027 decide: stale-advisory with no checkpoint omits the checkpoint clause",
           True, "last checkpoint" not in _dnc1027.message)
+
+# ── issue #1740: issue-claim-auditor per-pass disposition validator ──────────────
+# The deterministic consumer that turns a silently-skipped issue-claim pass into a visible
+# §1.6 refusal instead of a wasted implement run. Contract in the module docstring.
+validate_ica = _load('validate_issue_claim_audit', SCRIPTS / 'validate-issue-claim-audit.py')
+
+def _ica_record(overrides=None, drop=()):
+    """Build an ISSUE-CLAIM-AUDIT RECORD text with every chartered pass dispositioned
+    `ran (…)`, applying per-pass `overrides` (N -> raw value) and dropping `drop` passes."""
+    overrides = overrides or {}
+    lines = ["ISSUE-CLAIM-AUDIT RECORD", "outcome: proceed"]
+    for _n in validate_ica.CHARTERED_PASSES:
+        if _n in drop:
+            continue
+        _val = overrides.get(_n, f"ran (pass {_n} completed)")
+        lines.append(f"pass{_n}_disposition: {_val}")
+    return "\n".join(lines) + "\n"
+
+# Conforming: every chartered pass dispositioned `ran (<reason>)`.
+_ica_ok, _ica_res = validate_ica.validate_record(_ica_record())
+assert_eq("#1740 fully-dispositioned record is conforming", True, _ica_ok)
+assert_eq("#1740 conforming record has no offending passes", [], _ica_res["offending"])
+
+# A record missing one pass: refused, and the missing pass is named.
+_miss_ok, _miss_res = validate_ica.validate_record(_ica_record(drop=(2,)))
+assert_eq("#1740 record missing a pass is non-conforming", False, _miss_ok)
+assert_eq("#1740 the absent pass is treated as not run", "absent",
+          _miss_res["passes"][2])
+assert_eq("#1740 refusal names the missing pass",
+          True, any("pass 2" in _o for _o in _miss_res["offending"]))
+
+# A `skipped` disposition is a stated disposition but still blocks, and is named.
+_skip_ok, _skip_res = validate_ica.validate_record(
+    _ica_record(overrides={3: "skipped (nothing to check)"}))
+assert_eq("#1740 a skipped pass is non-conforming", False, _skip_ok)
+assert_eq("#1740 a skipped pass classifies as skipped", "skipped",
+          _skip_res["passes"][3])
+assert_eq("#1740 refusal names the skipped pass",
+          True, any("pass 3" in _o and "skipped" in _o for _o in _skip_res["offending"]))
+
+# A malformed disposition (no verdict, or a verdict with no substantive reason) refuses.
+_mal_ok, _mal_res = validate_ica.validate_record(
+    _ica_record(overrides={5: "done maybe"}))
+assert_eq("#1740 an unparseable disposition is non-conforming", False, _mal_ok)
+assert_eq("#1740 an unparseable disposition classifies as malformed", "malformed",
+          _mal_res["passes"][5])
+_bare_ok, _bare_res = validate_ica.validate_record(_ica_record(overrides={0: "ran"}))
+assert_eq("#1740 a verdict with no reason is malformed (undischarged)", "malformed",
+          _bare_res["passes"][0])
+
+# An unknown pass (a disposition for a pass outside the charter, e.g. the renumbered-away
+# Pass 4) is refused and named.
+_unk_ok, _unk_res = validate_ica.validate_record(
+    _ica_record() + "pass4_disposition: ran (bogus)\n")
+assert_eq("#1740 an unknown pass number is non-conforming", False, _unk_ok)
+assert_eq("#1740 the unknown pass is listed", [4], _unk_res["unknown"])
+assert_eq("#1740 refusal names the unknown pass",
+          True, any("pass 4" in _o for _o in _unk_res["offending"]))
+
+# Cardinality (2.3.7): multiple absent passes are all named, in charter order; multiple
+# unknown passes are sorted; a duplicated pass line fails closed (see the duplicate case below).
+_multi_ok, _multi_res = validate_ica.validate_record(_ica_record(drop=(1, 5)))
+assert_eq("#1740 two absent passes are both non-conforming", False, _multi_ok)
+assert_eq("#1740 both absent passes classify absent", ("absent", "absent"),
+          (_multi_res["passes"][1], _multi_res["passes"][5]))
+assert_eq("#1740 both absent passes are named",
+          True, any("pass 1" in _o for _o in _multi_res["offending"])
+          and any("pass 5" in _o for _o in _multi_res["offending"]))
+_unk2_ok, _unk2_res = validate_ica.validate_record(
+    _ica_record() + "pass9_disposition: ran (x)\npass4_disposition: ran (y)\n")
+assert_eq("#1740 multiple unknown passes are sorted", [4, 9], _unk2_res["unknown"])
+# A pass stated more than once is ambiguous and fails CLOSED (no last-writer-wins fail-open):
+# a later `ran` must not mask an earlier `skipped`/malformed line for the same pass.
+_dup_ok, _dup_res = validate_ica.validate_record(
+    _ica_record(overrides={2: "skipped (x)"}) + "pass2_disposition: ran (again)\n")
+assert_eq("#1740 a duplicated pass line is non-conforming (masking direction)",
+          (False, "duplicate"), (_dup_ok, _dup_res["passes"][2]))
+assert_eq("#1740 the duplicated pass is named",
+          True, any("pass 2" in _o for _o in _dup_res["offending"]))
+
+# `parse_disposition` accepts `ran`/`skipped` with a substantive reason and rejects the rest.
+assert_eq("#1740 parse_disposition ran", ("ran", "did it"),
+          validate_ica.parse_disposition("ran (did it)"))
+assert_eq("#1740 parse_disposition skipped", ("skipped", "nothing"),
+          validate_ica.parse_disposition("skipped (nothing)"))
+assert_eq("#1740 parse_disposition rejects an empty reason", (None, ""),
+          validate_ica.parse_disposition("ran ()"))
+assert_eq("#1740 parse_disposition rejects a non-verdict", (None, ""),
+          validate_ica.parse_disposition("maybe (later)"))
+# IGNORECASE verdict normalizes to lowercase.
+assert_eq("#1740 parse_disposition is case-insensitive on the verdict", ("ran", "x"),
+          validate_ica.parse_disposition("RAN (x)"))
+# The lookahead requires a boundary char after the verdict, so a longer word starting with a
+# verdict token (e.g. "randomly") does NOT match ran.
+assert_eq("#1740 parse_disposition rejects a verdict-prefixed longer word", (None, ""),
+          validate_ica.parse_disposition("randomly (x)"))
+# The paren-unwrap only strips a clause the OUTER parens actually enclose; a nested "((a))"
+# is left as-is rather than reshaped to "a".
+assert_eq("#1740 parse_disposition does not unwrap nested parens", ("ran", "((a))"),
+          validate_ica.parse_disposition("ran ((a))"))
+assert_eq("#1740 parse_disposition rejects an empty skipped reason", (None, ""),
+          validate_ica.parse_disposition("skipped ()"))
+# A non-paren boundary char (comma/semicolon/colon/period) after the verdict is accepted.
+assert_eq("#1740 parse_disposition accepts a comma-boundary reason", ("ran", ", done"),
+          validate_ica.parse_disposition("ran, done"))
+assert_eq("#1740 parse_disposition accepts a colon-boundary reason", ("skipped", ": nothing"),
+          validate_ica.parse_disposition("skipped: nothing"))
+# Absent-operand shapes fail CLOSED at both entry points: a non-string disposition value must
+# not reach the regex, and a None/empty record must classify every chartered pass absent rather
+# than vacuously conforming.
+assert_eq("#1740 parse_disposition rejects a non-string value", (None, ""),
+          validate_ica.parse_disposition(None))
+assert_eq("#1740 validate_record(None) is non-conforming", False,
+          validate_ica.validate_record(None)[0])
+assert_eq("#1740 validate_record(None) classifies every chartered pass absent",
+          ["absent"] * len(validate_ica.CHARTERED_PASSES),
+          [validate_ica.validate_record(None)[1]["passes"][_n]
+           for _n in validate_ica.CHARTERED_PASSES])
+assert_eq("#1740 validate_record('') is non-conforming", False,
+          validate_ica.validate_record("")[0])
+
+# Cross-file coupling (cross-file-phase-contract): the validator's CHARTERED_PASSES must equal the
+# pass<N>_disposition fields agents/issue-claim-auditor.md's record schema declares — a coupled
+# pair, so this guard goes RED if either drifts.
+_ica_agent_body = (SCRIPTS.parent / "agents" / "issue-claim-auditor.md").read_text(encoding="utf-8")
+_ica_agent_passes = sorted(int(_m) for _m in re.findall(r"pass(\d+)_disposition:", _ica_agent_body))
+assert_eq("#1740 agent-body record schema declares exactly the validator's chartered passes",  # structural-pin-ok: cross-file-phase-contract -- the validator reads these agent-authored slots; drift silently checks a pass the charter never asks for or misses one
+          sorted(validate_ica.CHARTERED_PASSES), _ica_agent_passes)
+
+# CLI exit-code contract via a real temp file, driving main().
+import tempfile as _tf1740  # noqa: E402
+with _tf1740.TemporaryDirectory() as _d1740:
+    _p_ok = Path(_d1740) / "ok.md"
+    _p_ok.write_text(_ica_record(), encoding="utf-8")
+    assert_eq("#1740 main() exits 0 on a conforming record",
+              0, validate_ica.main(["--record-file", str(_p_ok)]))
+
+    _p_bad = Path(_d1740) / "bad.md"
+    _p_bad.write_text(_ica_record(drop=(6,)), encoding="utf-8")
+    assert_eq("#1740 main() exits 2 on a non-conforming record",
+              2, validate_ica.main(["--record-file", str(_p_bad)]))
+
+    _p_empty = Path(_d1740) / "empty.md"
+    _p_empty.write_text("   \n", encoding="utf-8")
+    assert_eq("#1740 main() exits 3 on an empty record (fail closed)",
+              3, validate_ica.main(["--record-file", str(_p_empty)]))
+
+    assert_eq("#1740 main() exits 3 on an unreadable record (fail closed)",
+              3, validate_ica.main(["--record-file", str(Path(_d1740) / "nope.md")]))
+
+    # A non-UTF-8 (binary) record fails closed to exit 3 rather than detonating with a
+    # UnicodeDecodeError traceback — the record is agent-authored, so a bad shape must refuse.
+    _p_bin = Path(_d1740) / "binary.md"
+    _p_bin.write_bytes(b"\xff\xfe\x00\x01 not utf-8 \x80")
+    assert_eq("#1740 main() exits 3 on a non-UTF-8 record (fail closed, no traceback)",
+              3, validate_ica.main(["--record-file", str(_p_bin)]))
+
 
 print()
 print(f"{PASS} passed, {FAIL} failed")

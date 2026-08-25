@@ -55,6 +55,11 @@
 #                      Any future `fix_decision` value also defaults to `null`
 #                      unless `verdict_for` is updated.
 #
+# Narrowed `null` class (issue #1849). Do not add a verdict value or change this
+# derivation to express agent silence or failure — the additive per-agent
+# `disposition` and `fix_decisions` fields decompose that residual instead, and
+# the denominator confound governs reading the rates (docs/internal/efficiency-trace.md).
+#
 # The four buckets above are written in `fix_decision` (review-and-fix) terms.
 # `verdict_for` has a SECOND derivation for standalone-/devflow:review records
 # (run-level `source == "review"`), where there is no `fix_decision`: a finding's
@@ -91,6 +96,32 @@ def finding_kind:
           | if ($k | type) == "string" and ($k | length) > 0 then $k else "unknown" end)
     else "unknown"
     end;
+
+# Per-agent disposition decomposing the derived `null` residual (issue #1849).
+# `null` collapses three opposite states — an agent that returned findings, one
+# that failed / returned an unusable result, and one dispatched but silent. This
+# splits them, gated on what the producer actually established (unknown is not
+# zero):
+#   returned      — the agent appears in this iteration's phase3_findings.
+#   failed        — the agent is named in the established failed set (the
+#                   `phase3_failed_agents` sink or a shadow per-reviewer
+#                   assessment that marked it not-returned).
+#   silent        — dispatched, absent from findings, and the failed set is
+#                   established and does NOT name it.
+#   unestablished — the split cannot be read from what the producer emitted: the
+#                   roster is absent (a non-returning agent cannot be enumerated
+#                   at all) or the failed set is absent/malformed (a silent agent
+#                   cannot be told from a failed one). Never mapped onto silent.
+# `$failed_established` is per-AGENT, not per-iteration — do not hoist it to an
+# iteration-level flag: an agent no sink covers would then read `silent` on the
+# strength of another agent's coverage (see the operand block below).
+def agent_disposition($returned; $roster_established; $failed_established; $is_failed):
+  if $returned then "returned"
+  elif ($roster_established | not) then "unestablished"
+  elif $is_failed then "failed"
+  elif ($failed_established | not) then "unestablished"
+  else "silent"
+  end;
 
 # Human-readable Phase 0.5 diff-profile label for the trace.
 def diff_profile_label($dp):
@@ -193,6 +224,48 @@ def iter_view:
      end) as $verification_posture
   # Roster = dispatched ∪ agents-seen-in-findings (degradation safety).
   | (($dispatched + ($findings | map(finding_agent))) | unique) as $roster
+  # Failed-agent operands for the per-agent disposition (issue #1849). The
+  # `phase3_failed_agents` sink (written by the review engine's Phase 3 for a
+  # non-returning agent) is unioned with the shadow block's per-reviewer
+  # assessment, whose `returned == false` reviewers are the shadow join's
+  # dispatched-but-lost set. Both are type-guarded so an agent-mutable, malformed
+  # producer value never aborts the filter: a non-array `phase3_failed_agents`
+  # (object/scalar/valid-falsy) and a non-array/absent assessment each yield no
+  # failed entries. Establishment is per-AGENT (see agent_disposition): the
+  # authoritative `phase3_failed_agents` array covers every dispatched agent, while
+  # the shadow `per_reviewer_assessment` authoritatively covers only the reviewers
+  # it lists with a boolean `returned`. A malformed present value on either channel
+  # establishes nothing for the agents it fails to cover (unknown is not zero), so
+  # a silent agent that neither sink covers reads `unestablished`, never `silent`.
+  | (($it.phase3_failed_agents) // null) as $failed_raw
+  # The shadow `per_reviewer_assessment` is authoritative only on a full-coverage
+  # block: on a not_verified (outcome 3) block it holds a partial pre-shortfall
+  # capture (per shadow-review.md), so a reviewer that returned but was not yet
+  # captured could read `returned: false` — using it to establish failed/silent
+  # there would mis-classify. Gate on `coverage == "full"`; otherwise the channel
+  # decides nothing and its agents fall back to unestablished (unknown is not zero).
+  | (($it.shadow | objects | select(.coverage == "full") | .per_reviewer_assessment) // null) as $assess_raw
+  # Element-aware establishment (issue #1849 review): keying on container type alone
+  # (== "array") would treat a malformed-element array ([{...}], ["x",7]) as a total
+  # establishment and re-collapse an uncovered silent agent onto "silent" — every
+  # element must be a string ([] is a valid "none failed" establishment).
+  | (($failed_raw | type) == "array") as $failed_is_array
+  | (if $failed_is_array then ($failed_raw | map(type == "string") | all) else false end) as $failed_direct_present
+  | (if $failed_direct_present then [$failed_raw[] | strings] else [] end) as $failed_direct
+  # Only assessment entries with a boolean `returned` and a string `agent` are
+  # authoritative; `$assess_covered` names the agents the assessment can decide,
+  # and its `returned == false` members are the shadow-lost (failed) set.
+  | (if ($assess_raw | type) == "array"
+     then [$assess_raw[] | select(type == "object" and ((.returned) | type) == "boolean" and ((.agent) | type) == "string")]
+     else [] end) as $assess_entries
+  | ($assess_entries | map(.agent)) as $assess_covered
+  | ([$assess_entries[] | select(.returned == false) | .agent]) as $assess_failed
+  | (($failed_direct + $assess_failed) | unique) as $failed_agents
+  # Roster presence: the residual can only be decomposed over an established
+  # roster. Absent `phase3_dispatched` means a non-returning agent cannot be
+  # enumerated, so the iteration is roster-unestablished (AC3) — reused from the
+  # existing phase3_dispatched_present idiom below.
+  | ($it | has("phase3_dispatched")) as $roster_established
   # dispatched_effort (issue #609): the iter-workpad field capturing every
   # dispatch phase's roster with its per-agent effort decision — including the
   # Phase-1/1.5/2 checklist agents that never appear in phase3_dispatched.
@@ -231,8 +304,10 @@ def iter_view:
       added_nothing: ($fixes_applied == 0),
       # The roster is "present" iff the field exists at all. A legitimately-empty
       # roster ("phase3_dispatched": []) is still present — only a genuinely
-      # absent field triggers the degradation warning in the trace.
-      phase3_dispatched_present: ($it | has("phase3_dispatched")),
+      # absent field triggers the degradation warning in the trace. Reuses the
+      # $roster_established binding above (the same has() test) rather than
+      # re-evaluating it.
+      phase3_dispatched_present: $roster_established,
       # Presence mirror for the #609 roster field, same unknown-vs-zero honesty
       # as phase3_dispatched_present: an empty array is present; only a
       # genuinely absent field reads false (an older workpad).
@@ -258,13 +333,30 @@ def iter_view:
             fallback_reason: $entry.fallback_reason
           }
       ],
+      # Per-agent effectiveness view. Keep the `strings` type-guard on
+      # `fix_decisions`: an agent-mutable non-string `fix_decision` would otherwise
+      # reach `unique` and abort the whole filter.
       agent_verdicts: [
         $roster[] as $agent
+        | ([$findings[] | select(finding_agent == $agent)]) as $af
         | {
             agent: $agent,
-            verdict: verdict_for([$findings[] | select(finding_agent == $agent)]; ($it.source == "review"))
+            verdict: verdict_for($af; ($it.source == "review")),
+            disposition: agent_disposition(
+              (($af | length) > 0);
+              $roster_established;
+              ($failed_direct_present or (($assess_covered | index($agent)) != null));
+              (($failed_agents | index($agent)) != null)),
+            fix_decisions: ($af | map(.fix_decision) | map(strings) | unique)
           }
       ],
+      # Presence flag for the #1849 authoritative failed-set sink, same
+      # unknown-vs-zero honesty as phase3_dispatched_present: a well-formed
+      # `phase3_failed_agents` array reads true; an absent/malformed one reads
+      # false, so a historical record lacking the field surfaces as
+      # disposition-unestablished (AC7). The shadow `per_reviewer_assessment` is a
+      # separate, per-agent channel and does not set this iteration-level flag.
+      phase3_failed_agents_present: $failed_direct_present,
       telemetry: ($it | if (type == "object" and has("telemetry") and .telemetry != null) then .telemetry else "unavailable" end),
       # Which skill produced this iteration: "review" (standalone /devflow:review)
       # vs the default review-and-fix loop. Carried so a cross-run analyzer can
@@ -398,6 +490,10 @@ def iter_view:
         # genuinely zero-dispatch iteration from one degraded by an absent roster
         # (both show count 0) — the chat-only trace warning does not survive teardown.
         phase3_dispatched_present: .phase3_dispatched_present,
+        # Issue #1849: whether the failed-set operand was established this
+        # iteration, carried into the durable record so a reader can tell a
+        # decomposed disposition from an unestablished (historical/malformed) one.
+        phase3_failed_agents_present: .phase3_failed_agents_present,
         # Issue #609: the per-agent effort observability block and its roster
         # field's presence flag, carried into the durable record (additive and
         # nullable — schema_version stays 1, mirroring config_fingerprint).

@@ -4219,8 +4219,8 @@ IMPL_DOC="$LIB/../docs/internal/implement-skill.md"
 # phase's load step (which would make the engine improvise that phase from its thin stub).
 IMPL_ORCH="$LIB/../skills/implement/SKILL.md"
 IMPL_PHASES_DIR="$LIB/../skills/implement/phases"
-# Shared phase-file path, colocated with its parent IMPL_PHASES_DIR so the #232 and #230
-# pin blocks below reference one source of truth for the path (not two differently-named locals).
+# Shared phase-file path, colocated with its parent IMPL_PHASES_DIR so the pin blocks
+# below reference one source of truth for the path (not two differently-named locals).
 P4_FILE="$IMPL_PHASES_DIR/phase-4-documentation.md"
 IMPL_REFS_DIR="$LIB/../skills/implement/references"
 # Issue #1374 relocated §4.0.5's filing procedure out of the phase file and behind a
@@ -4505,28 +4505,6 @@ assert_eq "F1: misregistration guard detects an injected SKILL.md (find non-empt
   "$([ -z "$(find "$_f1_skilldir" -name SKILL.md 2>/dev/null)" ] && echo yes || echo no)"
 rm -rf "$_f1_skilldir"
 # ── end issue #218 structural assertions ──
-# ── issue #232: the Phase 4.1 post-subagent re-anchor (phase-4-documentation.md), guarding
-# against a run that stops before Phase 4 finalization (workpad frozen at an in-progress
-# Status, un-described draft PR). Coupled to the skill clause: removing it turns the suite
-# RED.
-# (P4_FILE is the shared phase-file path hoisted next to IMPL_PHASES_DIR above.)
-# Do not re-point this pin at §4.2's re-anchor or widen its literal: the literal is
-# grandfathered as unique to the §4.1 note, and §4.2's counterpart is agent-executed prose
-# that owes no pin (CLAUDE.md #843/#876). Provenance: docs/internal/implement-skill.md.
-assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
-  'scoped to **subagent** returns' "$P4_FILE"
-# review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly —
-# the Phase 4.1 re-anchor TRIGGER is repeated in the always-loaded orchestrator so a
-# subagent-return eviction cannot remove it, and dropping the pin drops that hardening.
-assert_pin_unique "#232: orchestrator keeps the OPERATIVE always-loaded re-Read directive (SFH F2)" \
-  'the phase file before continuing to §4.2 (resume from §4.2' "$IMPL_ORCH"
-# AC4 scope constraint is mirrored in the always-loaded orchestrator too; pin that copy so the
-# "not the Phase 2/3 returns" guardrail can't be dropped from the resident mirror unnoticed.
-# Reworded by #362 (see the phase-4 block above) to scope the trigger to SUBAGENT returns,
-# since a Skill-tool return now has its own generalized re-anchor in the same resident body.
-assert_pin_unique "#232/#362: orchestrator mirror scopes the re-anchor to **subagent** returns (SFH F2 mirror)" \
-  'scoped to **subagent** returns, not the Phase 2/3 subagent returns' "$IMPL_ORCH"
-
 # ── issue #362: run-continuity guards. Three always-resident cross-phase rules in the
 # orchestrator (generalized mid-phase re-anchor after ANY Skill-tool return; the
 # non-interactive self-answer rule; the Agent-subagent dispatch path for interactive
@@ -4538,8 +4516,7 @@ assert_pin_unique "#232/#362: orchestrator mirror scopes the re-anchor to **suba
 # keep each current source boundary observable on every suite execution.
 P362_P1="$IMPL_PHASES_DIR/phase-1-setup.md"
 
-# (1) Generalized mid-phase re-anchor — fires after EVERY Skill-tool return, not just the
-#     Phase 4.1 docs subagent.
+# (1) Generalized mid-phase re-anchor — fires after EVERY Skill-tool return.
 assert_pin_unique "#362: orchestrator re-anchors after every Skill-tool return (trigger)" \
   'after **every** Skill-tool return mid-phase' "$IMPL_ORCH"
 assert_pin_unique "#362: generalized re-anchor carries its operative resume directive" \
@@ -8598,453 +8575,13 @@ I682STUB
   rm -rf "$I682_D"
 fi
 
-# ── issue #338: --rewrite-ac (post-merge) retag requires a --note rationale ────
-# scripts/workpad.py: an `update` call in which any --rewrite-ac pair APPENDS the
-# trailing (post-merge) tag (NEW ends with it after rstrip; neither OLD nor the row
-# the pair resolves to already does) and which carries no non-empty --note aborts
-# STRUCTURALLY — _UpdateError, exit 1, stderr naming the offending pair, NO PATCH
-# issued (all-or-nothing preserved). The same call with a non-empty --note succeeds.
-# A pair targeting a row that already ends with the tag, or that removes it, needs no
-# note. Exercised as a real CLI subprocess against a gh stub, mirroring the #258
-# fixture pattern. T1/T4/T5 go RED against the pre-guard workpad.py (the laundered
-# tag PATCHed with no rationale); T2/T3/T3c/T5b are pass controls.
-S338="$(mktemp -d)"
-cat > "$S338/gh" <<'STUB'
-#!/usr/bin/env bash
-# Minimal gh stub for workpad.py update: repo view, comments list (marker match),
-# body fetch, and PATCH (records that a PATCH happened + echoes the patched body).
-j="$*"
-if [[ "$j" == *"repo view"* ]]; then echo "owner/repo"; exit 0; fi
-if [[ "$j" == *"-X PATCH"* ]]; then
-  echo p >> "$WP_PATCHLOG"
-  for a in "$@"; do case "$a" in body=@*) cat "${a#body=@}";; esac; done
-  exit 0
+# scripts/workpad.py CLI contract coverage (issue #1934: the #338 --rewrite-ac retag
+# block extracted from this file into a focused module).
+if ! devflow_run_full_suite_module "$LIB/test/modules/workpad-cli.sh" \
+  "workpad-cli" 94; then
+  printf 'ERROR: workpad-cli boundary could not record its result\n'
+  exit 1
 fi
-if [[ "$j" == *"issues/comments/7"* ]]; then cat "$WP_BODY"; exit 0; fi
-if [[ "$j" == *"issues/999/comments"* ]]; then echo '[{"id":7,"body":"<!-- devflow:workpad -->"}]'; exit 0; fi
-echo '[]'
-STUB
-chmod +x "$S338/gh"
-
-cat > "$S338/base.md" <<'WPMD'
-<!-- devflow:workpad -->
-# DevFlow Workpad — Issue #999
-
-**Status:** 🚀 Reviewing
-**Last updated:** 2026-05-15T00:00:00Z
-
-## Progress
-- [ ] **Review**
-
-## Plan
-- [x] Plan step one
-
-## Acceptance Criteria
-- [ ] AC one
-- [ ] AC two
-WPMD
-# A fixture whose AC two already carries the (post-merge) tag (for the OLD-already-tagged case).
-sed 's/- \[ \] AC two/- [ ] AC two (post-merge)/' "$S338/base.md" > "$S338/base-tagged.md"
-# A fixture carrying a `## Devflow Reflection` section, so a --reflection is a VALID
-# mutation on it. Without that section --reflection aborts on 'section not found', and a
-# test asserting "a reflection does not satisfy the --note" would pass for that unrelated
-# reason — staying green against a mutant that lets a reflection satisfy the guard (T4d).
-cp "$S338/base.md" "$S338/base-refl.md"
-printf '\n## Devflow Reflection\n- existing bullet\n' >> "$S338/base-refl.md"
-# A fixture whose AC two is already TICKED (`- [x]`). The retag guards must treat a
-# ticked row's tag exactly like an unticked one: `- [x]` rows are outside the Phase 3.4
-# terminal gate's population, but a `(post-merge)` tag landing on one is still a net-added
-# tagged row, and SKILL.md/DEVFLOW_SYSTEM_OVERVIEW both promise a crafted multi-pair
-# sequence that net-adds such a row is caught.
-sed 's/- \[ \] AC two/- [x] AC two/' "$S338/base.md" > "$S338/base-ticked.md"
-# ...and one whose ticked AC two is already tagged (for the tag-preserving no-false-fire control).
-sed 's/- \[ \] AC two/- [x] AC two (post-merge)/' "$S338/base.md" > "$S338/base-ticked-tagged.md"
-
-# These cases turn on whether the call carries a non-empty --note, and issue #1214's
-# replay FOLDS a buffered note into `args.note` — so a replay buffer left over for the
-# comment id this block's stub answers with (7) would satisfy the very guard T1 asserts
-# fires. The producing block reclaims its own buffer; clear it here too so this block's
-# precondition is stated where it is relied on rather than 700 lines away.
-rm -f "$LIB/../.prflow/tmp/workpad-buffer/7.json"
-
-# run338 <body-file> <args...> → prints the exit code; leaves out/err/patchlog on disk.
-run338() {
-  local body="$1"; shift
-  : > "$S338/patchlog"
-  WP_BODY="$body" WP_PATCHLOG="$S338/patchlog" DEVFLOW_GH="$S338/gh" \
-    python3 "$WP_PY" update 999 --print-body "$@" >"$S338/out" 2>"$S338/err"
-  echo $?
-}
-
-# T1 (refusal — reproduces the defect): appending pair, no --note → abort, NO PATCH.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "AC two (post-merge)")"
-assert_eq "#338(T1): appending (post-merge) retag with no --note aborts non-zero" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T1): the refusal made NO PATCH (all-or-nothing)" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-assert_eq "#338(T1): the refusal names the offending pair on stderr" "yes" \
-  "$(grep -q 'AC two' "$S338/err" && grep -q 'post-merge' "$S338/err" && echo yes || echo no)"
-
-# T2 (pass with note): identical call + non-empty --note → exit 0, row rewritten.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "AC two (post-merge)" \
-  --note "retro-tagged as post-merge (genuinely-live): live deploy target")"
-assert_eq "#338(T2): the same retag WITH a non-empty --note succeeds (exit 0)" "0" "$_c"
-assert_eq "#338(T2): the with-note retag PATCHed the row with the (post-merge) tag" "yes" \
-  "$([ -s "$S338/patchlog" ] && grep -q '\- \[ \] AC two (post-merge)' "$S338/out" && echo yes || echo no)"
-
-# T2b (note scope is the CALL, not the pair): the guard's documented contract is that ANY
-# one non-empty --note in the same update call satisfies it, whether or not the note is
-# *about* the retag — the note is appended to ## Progress, never bound to the rewritten
-# row, so the guard enforces that a rationale EXISTS for the retrospective auditor to
-# read, not that it is true or on-topic. This batched call carries a note describing the
-# OTHER pair (the plain AC one rewrite) and never mentions the tag or the retagged row,
-# and must still pass. Without this pin a refactor that bound the note to the specific
-# appending pair would tighten the contract past what workpad.py's guard comment,
-# SKILL.md, and docs/internal/implement-skill.md all promise, while every other S338 test — whose
-# notes all happen to describe the retag itself — stayed green. Compare T5: the same
-# batched shape with NO note is refused.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC one" "AC one edited" \
-  --rewrite-ac "AC two" "AC two (post-merge)" \
-  --note "reworded the first criterion for clarity")"
-assert_eq "#338(T2b): an appending retag is satisfied by any non-empty --note in the call, even one about an unrelated pair (exit 0)" "0" "$_c"
-assert_eq "#338(T2b): the call-scoped-note retag PATCHed the (post-merge) row" "yes" \
-  "$([ -s "$S338/patchlog" ] && grep -q '\- \[ \] AC two (post-merge)' "$S338/out" && echo yes || echo no)"
-assert_eq "#338(T2b): the unrelated pair in the same call applied too" "yes" \
-  "$(grep -q '\- \[ \] AC one edited' "$S338/out" && echo yes || echo no)"
-
-# T3 (no false fire): OLD already ends with the tag → a text tweak needs no note.
-_c="$(run338 "$S338/base-tagged.md" --rewrite-ac "AC two (post-merge)" "AC two reworded (post-merge)")"
-assert_eq "#338(T3): a rewrite whose OLD already ends with (post-merge) passes with no note (exit 0)" "0" "$_c"
-assert_eq "#338(T3): the tag-preserving rewrite PATCHed" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo yes || echo no)"
-
-# T4 (empty note): --note "" with an appending pair is a MISSING rationale → refused.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "AC two (post-merge)" --note "")"
-assert_eq "#338(T4): an empty-string --note is treated as missing → refused (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T4): the empty-note refusal made NO PATCH" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-
-# T5 (all-or-nothing): a mixed repeatable call (one appending pair among a plain
-# rewrite), no note, is refused BEFORE any PATCH — no partial application.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC one" "AC one edited" \
-  --rewrite-ac "AC two" "AC two (post-merge)")"
-assert_eq "#338(T5): a mixed call with one appending pair, no note, aborts non-zero" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T5): the mixed-call refusal made NO PATCH (the plain rewrite did not partially apply)" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-
-# T5b (guard + backstop no FALSE FIRE): an ordinary batched multi-pair rewrite that never
-# touches the (post-merge) tag needs no note and must apply in full. Pins the innocent
-# path both guards share: a regression that miscounted a plain row as post-merge-terminal
-# (or classified a plain pair as an append) would abort an honest batch, and no other
-# S338 test would notice — every one of them either carries a note or expects a refusal.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC one" "AC one edited" \
-  --rewrite-ac "AC two" "AC two edited")"
-assert_eq "#338(T5b): an ordinary batched no-note rewrite that never touches the tag succeeds (exit 0)" "0" "$_c"
-assert_eq "#338(T5b): both pairs of the innocent batch applied" "yes" \
-  "$([ -s "$S338/patchlog" ] && grep -q '\- \[ \] AC one edited' "$S338/out" \
-     && grep -q '\- \[ \] AC two edited' "$S338/out" && echo yes || echo no)"
-
-# T3b (removal pair — documented no-note case, unpinned until now): NEW lacks the tag
-# and OLD ends with it (de-tagging an already-post-merge row) needs no note. Pins the
-# predicate's first-conjunct-False path (no current test drives it: T1/T2/T3 all have NEW
-# ending in the marker), so a refactor that fired on any tag *movement* would go RED here.
-_c="$(run338 "$S338/base-tagged.md" --rewrite-ac "AC two (post-merge)" "AC two")"
-assert_eq "#338(T3b): a rewrite that REMOVES the (post-merge) tag passes with no note (exit 0)" "0" "$_c"
-assert_eq "#338(T3b): the tag-removing rewrite PATCHed" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo yes || echo no)"
-
-# T3c (no false REFUSAL — the guard reasons over the RESOLVED ROW, not the OLD string):
-# a text tweak on a row that ALREADY ends with the tag creates no new deferral, so it
-# needs no note — even when the OLD substring does not itself span the tag. The
-# argument-string-only predicate classified this as an append and demanded a --note,
-# contradicting the exemption workpad.py's docstring, SKILL.md and docs/internal/implement-skill.md
-# all publish. Fails CLOSED (an extra-note demand, never a laundered deferral), but the
-# published contract must match the code. RED against the OLD-string-only predicate.
-_c="$(run338 "$S338/base-tagged.md" --rewrite-ac "AC two" "AC two clarified (post-merge)")"
-assert_eq "#338(T3c): a tweak on an already-(post-merge) row needs no note even when OLD omits the tag (exit 0)" "0" "$_c"
-assert_eq "#338(T3c): the already-tagged-row tweak PATCHed the reworded row" "yes" \
-  "$([ -s "$S338/patchlog" ] && grep -q '\- \[ \] AC two clarified (post-merge)' "$S338/out" && echo yes || echo no)"
-# Control: the SAME shape onto an UNTAGGED row is still refused — the exemption is bound
-# to the target row's existing tag, not to the OLD substring being a prefix.
-_c="$(run338 "$S338/base-tagged.md" --rewrite-ac "AC one" "AC one clarified (post-merge)")"
-assert_eq "#338(T3c): the same shape onto an UNTAGGED row is still refused (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T3c): the untagged-row refusal made NO PATCH" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-
-# T4b (trailing-whitespace anti-evasion — the reason the predicate rstrips): an appending
-# pair whose NEW ends with the tag plus trailing spaces is still an append and is refused
-# with no note. Pins the rstrip; a bare endswith (no rstrip) would let this evasion through
-# while every other S338 test stayed green.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "AC two (post-merge)   ")"
-assert_eq "#338(T4b): an appending pair with trailing whitespace after the tag is refused (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T4b): the trailing-whitespace-append refusal made NO PATCH" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-
-# T4c (note-side anti-evasion — the discriminating input that actually pins `.strip()`):
-# T4's `--note ""` does NOT pin it — `any([""])` is already falsy, so T4 stays GREEN
-# against a mutant `has_note = any(n for n in args.note)`. A whitespace-only note is the
-# input that separates them: truthy as a bare string, falsy after `.strip()`. Mutation-
-# checked — dropping `.strip()` turns THIS assertion RED while T4 stays GREEN.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "AC two (post-merge)" --note "   ")"
-assert_eq "#338(T4c): a whitespace-only --note is treated as missing → refused (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T4c): the whitespace-note refusal made NO PATCH" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-
-# T4d (only --note satisfies the rationale): a --reflection is a different channel
-# (## Devflow Reflection) and never stands in for the retag rationale. Without this pin a
-# refactor broadening has_note to accept a reflection would loosen the contract while
-# every other S338 test stayed green. Runs against base-refl.md — the fixture that HAS a
-# ## Devflow Reflection section — so the reflection is a valid mutation and the refusal is
-# attributable to the guard; on a section-less fixture this test would pass vacuously via
-# 'section not found'. The stderr assertion pins that attribution (cf. T7's 'net-adds').
-_c="$(run338 "$S338/base-refl.md" --rewrite-ac "AC two" "AC two (post-merge)" \
-  --reflection "retro-tagged as post-merge (genuinely-live): live deploy target")"
-assert_eq "#338(T4d): a --reflection does not satisfy the --note rationale → refused (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T4d): the reflection-only refusal made NO PATCH" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-assert_eq "#338(T4d): the refusal is the rationale guard's, not an incidental section abort" "yes" \
-  "$(grep -q 'no non-empty --note rationale' "$S338/err" && echo yes || echo no)"
-# Control: the same call on the same fixture WITH a --note succeeds — proving base-refl.md
-# is not itself the reason T4d is refused (the reflection applies cleanly alongside).
-_c="$(run338 "$S338/base-refl.md" --rewrite-ac "AC two" "AC two (post-merge)" \
-  --reflection "context bullet" --note "genuinely-live: live deploy target")"
-assert_eq "#338(T4d): the same reflection call WITH a --note succeeds (exit 0)" "0" "$_c"
-
-# T7 (state-based multi-pair backstop, issue #338 hardening): a crafted two-pair call whose
-# pairs each individually dodge the per-pair guard — pair 1 places the marker non-terminally
-# (NEW doesn't end in the tag), pair 2 makes it terminal (OLD ends in the tag) — net-adds a
-# (post-merge) row. The per-pair guard alone would fail OPEN here; the post-loop count-of-
-# post-merge-rows backstop catches it and aborts before any PATCH. RED against the pre-
-# backstop code (the laundered tag PATCHes with no note).
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "(post-merge) AC two" \
-  --rewrite-ac "(post-merge)" "AC two (post-merge)")"
-assert_eq "#338(T7): a multi-pair call that net-adds a (post-merge) row with no note is refused (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T7): the multi-pair backstop refusal made NO PATCH (all-or-nothing)" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-# Assert the refusal came from the STATE BACKSTOP ('net-adds'), not an incidental
-# _rewrite_checkbox zero/multi-match abort — so a refactor that made this call fail for
-# the wrong reason (while the backstop silently rotted) is caught, not masked by T7b.
-assert_eq "#338(T7): the refusal is the state backstop's 'net-adds' abort, not an incidental match failure" "yes" \
-  "$(grep -q 'net-adds' "$S338/err" && echo yes || echo no)"
-# T7b (backstop no false fire): the identical multi-pair call WITH a non-empty --note succeeds.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "(post-merge) AC two" \
-  --rewrite-ac "(post-merge)" "AC two (post-merge)" --note "retro-tagged (genuinely-live): live endpoint")"
-assert_eq "#338(T7b): the same multi-pair retag WITH a --note succeeds (exit 0)" "0" "$_c"
-
-# T8 (single-pair append onto an already-TICKED row): the per-pair guard is tick-state
-# agnostic — it reasons over the row's LABEL text, which `_CHECKBOX_ROW_RE` exposes
-# independently of the `[ ]`/`[x]` state cell — so this is refused with no note. Behavior
-# was already correct but unpinned; without this a refactor that skipped `[x]` rows in the
-# per-pair guard (to "match" the backstop's old unticked-only population) would go
-# unnoticed by every other S338 test, all of which drive `- [ ]` rows.
-#
-# ATTRIBUTION IS LOAD-BEARING HERE, not decoration. Since the backstop now also counts
-# ticked rows, a mutant that skips `[x]` rows in the per-pair guard STILL exits non-zero
-# with no PATCH — the backstop catches it one step later. rc/no-PATCH assertions alone
-# therefore pass on the very mutant this test exists to kill. Pin the refusal to the
-# PER-PAIR guard: its message names the offending pair, and it never says `net-adds` (the
-# backstop's word). Both attribution assertions below independently kill that mutant — the
-# backstop's message omits the pair AND says `net-adds` — while the rc/no-PATCH assertions
-# alone stay GREEN on it. Note the backstop's message also contains the phrase
-# `no non-empty --note rationale`, so that substring alone does not discriminate; the
-# pair name is what does.
-_c="$(run338 "$S338/base-ticked.md" --rewrite-ac "AC two" "AC two (post-merge)")"
-assert_eq "#338(T8): a single-pair (post-merge) append onto a TICKED [x] row is refused (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T8): the ticked-row single-pair refusal made NO PATCH" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-assert_eq "#338(T8): the refusal is the PER-PAIR guard's (names the pair + rationale), not the backstop's" "yes" \
-  "$(grep -q 'AC two' "$S338/err" && grep -q 'no non-empty --note rationale' "$S338/err" && echo yes || echo no)"
-assert_eq "#338(T8): the per-pair guard — not the state backstop — refused (stderr has no 'net-adds')" "yes" \
-  "$(grep -q 'net-adds' "$S338/err" && echo no || echo yes)"
-
-# T8b (the ticked-row SHUTTLE — the fail-open this backstop population closes): the same
-# crafted two-pair shuttle as T7, aimed at an already-`[x]` row. Both pairs dodge the
-# per-pair guard exactly as in T7; with the backstop counting only UNTICKED rows the
-# tagged row landed with NO note and exit 0, silently falsifying SKILL.md's and
-# DEVFLOW_SYSTEM_OVERVIEW's promise that "a crafted multi-pair sequence that net-adds a
-# (post-merge) row is caught by the same rule". Snapshotting each row's post-merge-terminal
-# flag across EVERY tick state (`_post_merge_flags`) closes it. RED against the
-# unticked-only population; the 'net-adds' grep pins that the STATE BACKSTOP is what
-# refuses it (T8 already covers the per-pair path, so a refusal for the wrong reason would
-# otherwise pass here).
-_c="$(run338 "$S338/base-ticked.md" --rewrite-ac "AC two" "(post-merge) AC two" \
-  --rewrite-ac "(post-merge)" "AC two (post-merge)")"
-assert_eq "#338(T8b): a multi-pair shuttle that net-adds (post-merge) onto a TICKED row is refused (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T8b): the ticked-row shuttle refusal made NO PATCH (all-or-nothing)" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-assert_eq "#338(T8b): the ticked-row shuttle refusal is the state backstop's 'net-adds' abort" "yes" \
-  "$(grep -q 'net-adds' "$S338/err" && echo yes || echo no)"
-# T8c (no false fire on the widened population): a tag-PRESERVING tweak on an already-tagged
-# TICKED row adds no tagged row, so the wider count must not fire — this is the assertion a
-# naive "count every tagged row and abort on any tagged row present" backstop would fail.
-_c="$(run338 "$S338/base-ticked-tagged.md" --rewrite-ac "AC two (post-merge)" "AC two reworded (post-merge)")"
-assert_eq "#338(T8c): a tag-preserving tweak on a TICKED tagged row still passes with no note (exit 0)" "0" "$_c"
-assert_eq "#338(T8c): the ticked tag-preserving rewrite PATCHed" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo yes || echo no)"
-# T8d (no false fire): REMOVING the tag from a ticked tagged row decreases the count → passes.
-_c="$(run338 "$S338/base-ticked-tagged.md" --rewrite-ac "AC two (post-merge)" "AC two")"
-assert_eq "#338(T8d): removing the tag from a TICKED row passes with no note (exit 0)" "0" "$_c"
-
-# T9 (net-zero tag-swap — the last laundering shape): remove the tag from one row while
-# shuttling it onto ANOTHER, with no note. Every pair dodges the per-pair guard (pair 1
-# removes; pair 2's NEW is non-terminal; pair 3's OLD ends with the tag), and the TOTAL
-# count of tagged rows is unchanged — so an aggregate-count backstop reads "no net add"
-# and PATCHes a silently-deferred criterion. Comparing each row's flag POSITIONALLY
-# catches it: AC one transitions untagged -> terminally-tagged. RED against a count-based
-# backstop (verified: it exits 0 and PATCHes `- [ ] AC one (post-merge)`).
-_c="$(run338 "$S338/base-tagged.md" --rewrite-ac "AC two (post-merge)" "AC two" \
-  --rewrite-ac "AC one" "(post-merge) AC one" \
-  --rewrite-ac "(post-merge)" "AC one (post-merge)")"
-assert_eq "#338(T9): a net-zero tag-swap onto another row is refused (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T9): the net-zero tag-swap refusal made NO PATCH (all-or-nothing)" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-assert_eq "#338(T9): the net-zero refusal is the state backstop's 'net-adds' abort" "yes" \
-  "$(grep -q 'net-adds' "$S338/err" && echo yes || echo no)"
-# T9b (no false fire): the identical net-zero swap WITH a --note succeeds.
-_c="$(run338 "$S338/base-tagged.md" --rewrite-ac "AC two (post-merge)" "AC two" \
-  --rewrite-ac "AC one" "(post-merge) AC one" \
-  --rewrite-ac "(post-merge)" "AC one (post-merge)" \
-  --note "moved the deferral: AC one needs the live endpoint, AC two was verified")"
-assert_eq "#338(T9b): the same net-zero swap WITH a --note succeeds (exit 0)" "0" "$_c"
-
-# T10 (newline in NEW — the premise the positional comparison rests on): `_rewrite_checkbox`
-# writes NEW verbatim into ONE line, so an embedded newline splits that checkbox row in two.
-# That injects an unreviewed AC row AND breaks the row-index stability `_net_adds_post_merge`
-# compares against. It also slips the per-pair guard, whose `NEW ends with the marker` test
-# reads the whole string (`X (post-merge)\n- [ ] Y` ends with `Y`). Reject it structurally,
-# note or not. RED against the pre-fix code, which exited 0 and PATCHed the injected row.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" 'AC two (post-merge)
-- [ ] Injected')"
-assert_eq "#338(T10): a --rewrite-ac NEW containing a line break is refused (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T10): the line-break refusal made NO PATCH (no row injected)" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-assert_eq "#338(T10): the refusal names the line boundary, not the missing note" "yes" \
-  "$(grep -q 'line boundary in NEW' "$S338/err" && echo yes || echo no)"
-# T10a (the full `str.splitlines()` separator set — the superset bug): a `'\n' in s or
-# '\r' in s` membership test accepts \v, \f, \x1c-\x1e, NEL, LS and PS, EVERY one of which
-# `str.splitlines()` still splits on — so each injected a phantom `- [x]` row (with a
-# --note, both post-merge guards are skipped, leaving the row check as the only defense).
-# `_is_single_line` shares splitlines' own contract, so the rejected set matches exactly.
-# Driven with a --note so a refusal cannot come from a post-merge guard. RED against the
-# two-character membership test (all eight exited 0 and PATCHed an injected row).
-# Interpreter note: `printf '%b'` must expand `\302\205` (NEL), `\342\200\250` (LS) and
-# `\342\200\251` (PS) to their real bytes for the last three cases to drive a separator at
-# all. Bash's printf does; zsh's does not — it emits the literal backslash text, which
-# carries no separator, so workpad.py would accept the rewrite (exit 0) and these
-# assertions would FAIL LOUDLY. They cannot degrade into a silent green. This suite's
-# shebang is `#!/usr/bin/env bash`, so the expansion holds. Independently verified: under a
-# membership-test mutant all eight — including these three — go RED, which they could not
-# if their input carried no separator.
-for _sep in '\v' '\f' '\034' '\035' '\036' '\302\205' '\342\200\250' '\342\200\251'; do
-  _new="$(printf 'AC two (post-merge)%b- [x] Phantom' "$_sep")"
-  _c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "$_new" --note "genuinely-live: endpoint")"
-  assert_eq "#338(T10a): NEW split by separator '$_sep' is refused even with a --note" "no" \
-    "$([ "$_c" = "0" ] && echo yes || echo no)"
-  assert_eq "#338(T10a): separator '$_sep' injected no row (NO PATCH)" "yes" \
-    "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-done
-# T10b: a --note does NOT excuse it — the newline is a malformed argument, not a deferral.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" 'AC two (post-merge)
-- [ ] Injected' --note "genuinely-live: live endpoint")"
-assert_eq "#338(T10b): a line break in NEW is refused even WITH a --note (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-# T10c (the laundering combo the newline enabled): remove a tag from one row while
-# newline-splitting another into a terminally-tagged row. Row counts differ, so an
-# aggregate-count fallback reads the sum as flat and passes. Refused now — first by the
-# newline check; and were that ever removed, _net_adds_post_merge's length-mismatch branch
-# fails CLOSED rather than downgrading to the blind aggregate compare.
-_c="$(run338 "$S338/base-tagged.md" --rewrite-ac "AC two (post-merge)" "AC two" \
-  --rewrite-ac "AC one" 'AC one (post-merge)
-- [ ] Injected')"
-assert_eq "#338(T10c): a newline-split net-zero laundering combo is refused (non-zero)" "no" \
-  "$([ "$_c" = "0" ] && echo yes || echo no)"
-assert_eq "#338(T10c): the laundering combo made NO PATCH" "yes" \
-  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
-# T10d (no false fire): a NEW with ordinary internal whitespace (not a line break) is fine.
-_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "AC two   with   spaces")"
-assert_eq "#338(T10d): a NEW with internal spaces (no line break) still passes (exit 0)" "0" "$_c"
-
-# Source pin: the length-mismatch branch fails CLOSED (returns True), never degrading to an
-# aggregate `sum(post) > sum(pre)` compare that is blind to a remove-one/add-one swap.
-assert_eq "#338: _net_adds_post_merge fails closed on a row-count mismatch (no aggregate fallback)" "yes" \
-  "$(grep -q 'sum(post) > sum(pre)' "$WP_PY" && echo no || echo yes)"
-# Source pin: the newline rejection guards the row-index-stability premise. Pin the SYMBOL,
-# not the stderr wording — the message literal is an f-string wrapped across two source
-# lines ("...has a line " / "boundary in NEW; ..."), so no single line contains the phrase
-# whole and a source grep for it always fails. (That is the same wrapped-literal blind spot
-# that let the argparse help text drift; the rendered-surface pins are the ones that catch
-# wording, and T10 already asserts this message on real stderr.)
-assert_eq "#338: --rewrite-ac structurally rejects a line break in NEW" "yes" \
-  "$(grep -q 'offending_nl' "$WP_PY" && echo yes || echo no)"
-
-# Source pin: the backstop's population spans every tick state AND compares positionally.
-# A revert to `_unticked_rows(content)[1]` re-opens the T8b ticked-row fail-open; a revert
-# to an aggregate count re-opens the T9 net-zero fail-open.
-assert_eq "#338: the retag backstop snapshots per-row post-merge flags (not an aggregate count)" "yes" \
-  "$(grep -q 'pre_pm = _post_merge_flags(content)' "$WP_PY" && echo yes || echo no)"
-assert_eq "#338: the retag backstop compares those flags positionally via _net_adds_post_merge" "yes" \
-  "$(grep -q '_net_adds_post_merge(pre_pm, _post_merge_flags(content))' "$WP_PY" && echo yes || echo no)"
-
-# Source pin: the rationale-required guard + its predicate live in workpad.py.
-assert_eq "#338: workpad.py carries the (post-merge)-retag rationale guard" "yes" \
-  "$(grep -q '_pair_appends_post_merge' "$WP_PY" && echo yes || echo no)"
-# Source pin: the guard SHARES the rewriter's row resolution (parse, don't validate)
-# rather than re-deriving the target row from the OLD argument string. A revert to the
-# two-argument, string-only predicate re-introduces the T3c false refusal.
-assert_eq "#338: the retag guard resolves the target row via _find_checkbox_row" "yes" \
-  "$(grep -q '_find_checkbox_row' "$WP_PY" && echo yes || echo no)"
-# Coupled-invariant pin: SKILL.md publishes the row-scoped --rewrite-ac exemption
-# (not the stale OLD-only form). Edited in lockstep with the predicate above.
-assert_eq "#338: SKILL.md publishes the row-scoped (post-merge) exemption" "yes" \
-  "$(grep -q 'neither OLD nor the row it targets already does' \
-       "$LIB/../skills/implement/SKILL.md" && echo yes || echo no)"
-# ...and the NEGATIVE half. `grep -q` reports presence, not exhaustiveness, so the positive
-# assertion above can stay GREEN across a partial reversion to the stale OLD-only form.
-# The positive half also reads only skills/implement/SKILL.md, so a reversion confined to the
-# docs mirror is invisible to it. Asserting the stale form is ABSENT catches a reversion in
-# either file the loop below covers — and does so without a brittle occurrence-count pin that
-# a further legitimate mention would break.
-for _f338 in "$LIB/../skills/implement/SKILL.md" "$LIB/../docs/internal/implement-skill.md"; do
-  assert_eq "#338: $(basename "$_f338") carries no stale OLD-only (post-merge) contract sentence" "yes" \
-    "$(grep -q 'NEW ends with it, OLD does not' "$_f338" && echo no || echo yes)"
-done
-# Coupled-invariant pin on the RENDERED CLI surface. workpad.py's --rewrite-ac argparse
-# help is a third mirror of the guard contract, and it is the one a plain source grep for
-# the contract sentence MISSES: argparse help is assembled from adjacent string literals,
-# so the phrase wraps across lines ('... OLD does ' 'not)') and no line contains it whole.
-# Pin what the user actually reads — `update --help` — so a stale OLD-only help text turns
-# the suite RED. Asserts the row-scoped phrasing is present AND the stale form is gone.
-_h338="$(python3 "$WP_PY" update --help 2>&1)"
-assert_eq "#338: workpad.py --rewrite-ac help publishes the row-scoped exemption" "yes" \
-  "$(printf '%s' "$_h338" | tr -s '[:space:]' ' ' \
-     | grep -q 'neither OLD nor the row it targets already does' && echo yes || echo no)"
-assert_eq "#338: workpad.py --rewrite-ac help no longer carries the stale OLD-only form" "yes" \
-  "$(printf '%s' "$_h338" | tr -s '[:space:]' ' ' \
-     | grep -q 'NEW ends with it, OLD does not' && echo no || echo yes)"
-assert_eq "#338: workpad.py --rewrite-ac help states a --reflection does not satisfy the note" "yes" \
-  "$(printf '%s' "$_h338" | tr -s '[:space:]' ' ' \
-     | grep -q 'Only --note satisfies the rationale; a --reflection does not' && echo yes || echo no)"
-assert_eq "#338: workpad.py --rewrite-ac help states NEW must be a single line" "yes" \
-  "$(printf '%s' "$_h338" | tr -s '[:space:]' ' ' \
-     | grep -q 'NEW must be a single line' && echo yes || echo no)"
-
-# T6: exact-one check for the operative third forbidden case in phase-3-review.md §3.4;
-# deletion or duplication fails.
-P3REVIEW="$LIB/../skills/implement/phases/phase-3-ac-gate.md"
-assert_pin_unique "#338(T6): §3.4 pins the operative sentence of the self-reconfiguration forbidden case" \
-  'is runnable on this host and is never `(post-merge)`' "$P3REVIEW"  # structural-pin-ok: lifecycle-state-transition -- the self-reconfiguration forbidden case bounds the (post-merge) deferral
-rm -rf "$S338"
 
 # ── Issue #345: pre-merge probe contract before any (post-merge) AC deferral ──
 # Coupled-invariant pins: the probe contract is stated once in phase-3-review.md
@@ -10496,7 +10033,7 @@ assert_eq "#1515 proceed plus unmatched projection is unusable and runs the inli
   "$(_issue1515_projection_route proceed unmatched 'Desired Behavior: exports retain stable ordering')"
 assert_eq "#1515 proceed with missing projection fields is unusable and runs the inline audit fallback" \
   "inline-audit-fallback" "$(_issue1515_projection_route proceed missing missing)"
-# P4_FILE is defined once next to IMPL_PHASES_DIR above (shared by the #232 and #230 blocks).
+# P4_FILE is defined once next to IMPL_PHASES_DIR near the top (shared by pin blocks in this file).
 # AC1's operational prohibition remains covered directly.
 assert_pin_unique "#230: phase-2 §2.1 keeps the operational 'narrow or suppress' prohibition (AC1 meaning)" \
   'narrow or suppress' "$P2_FILE"
@@ -14752,7 +14289,7 @@ assert_eq "#626 consumer: recurring-targets counts the impl entry, skip marker i
   "$(printf '%s\n%s\n%s\n' "$IMPL_ENTRY" "$MRK" "$(echo "$IMPL_ENTRY" | jq -c '.pr=78')" | jq -s -f "$LIB/recurring-targets.jq" | jq -r '.[0].target // "none"')"
 # compute-patterns.jq: a skip marker forms no pattern (selects implementation/audit only).
 assert_eq "#626 consumer: compute-patterns excludes skip markers (empty object)" "0" \
-  "$(printf '%s\n' "$MRK" | jq -s -L "$LIB" -f "$LIB/compute-patterns.jq" --slurpfile overrides <(echo '{}') | jq 'keys | length')"
+  "$(printf '%s\n' "$MRK" | jq -s -L "$LIB" -f "$LIB/compute-patterns.jq" --slurpfile overrides <(echo '{}') --slurpfile experiments <(printf '') | jq 'keys | length')"
 # open-state-pr.sh N counts entries excluding skip markers.
 OSP_TMP="$(mktemp -d)"
 printf '%s\n%s\n' "$IMPL_ENTRY" "$MRK" > "$OSP_TMP/retrospectives.jsonl"
@@ -17117,11 +16654,39 @@ CTX_CLEAN='{"pr":42,"kind":"implementation","issue_number":40,"merged_at":"2026-
 E="$(echo "$CTX_CLEAN" | jq -c -f "$LIB/clean-entry.jq")"
 assert_eq "clean-entry verdict=clean"       "clean" "$(echo "$E" | jq -r .verdict)"
 assert_eq "clean-entry pr=42"               "42"    "$(echo "$E" | jq -r .pr)"
-assert_eq "clean-entry schema_version=2"    "2"     "$(echo "$E" | jq -r .schema_version)"
+assert_eq "clean-entry schema_version=3"    "3"     "$(echo "$E" | jq -r .schema_version)"
 assert_eq "clean-entry categories=[]"       "0"     "$(echo "$E" | jq '.categories|length')"
 assert_eq "clean-entry descriptors=[]"      "0"     "$(echo "$E" | jq '.descriptors|length')"
 assert_eq "clean-entry no theme_tags field" "true"  "$(echo "$E" | jq 'has("theme_tags") | not')"
 assert_eq "clean-entry signals carried"     "0"     "$(echo "$E" | jq -r .signals.post_bot_commits)"
+
+# ── #1829 clean-entry.jq records analysis_provenance from the bundle ──────────
+# A live Stage A run's gate-skipped entry records what evidence the bundle
+# carried (the three booleans join the backfill cohort's field names). The
+# bundle here (CTX_CLEAN) carries no diff/workpad/issue keys, so all three are
+# false — and the entry cleans without error despite the absent source fields.
+assert_eq "#1829 clean-entry: analysis_provenance present"          "true"  "$(echo "$E" | jq 'has("analysis_provenance")')"
+assert_eq "#1829 clean-entry: no source fields → diff_present false" "false" "$(echo "$E" | jq -r '.analysis_provenance.bundle_diff_present')"
+assert_eq "#1829 clean-entry: no source fields → workpad_present false" "false" "$(echo "$E" | jq -r '.analysis_provenance.bundle_workpad_body_present')"
+assert_eq "#1829 clean-entry: no source fields → comments_present false" "false" "$(echo "$E" | jq -r '.analysis_provenance.bundle_issue_comments_present')"
+# A bundle whose fields are all present → all three booleans true. Clean once,
+# then assert each field against the result (the block's own convention, above).
+CE_AP_DERIVE='{"pr":92,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"diff":"@@ a real diff @@","diff_truncated":false,"workpad_body":"wp text","issue":{"comments":[{"author":"x","body":"y"}]}}'
+CE_AP_DERIVE_E="$(printf '%s' "$CE_AP_DERIVE" | jq -c -f "$LIB/clean-entry.jq")"
+assert_eq "#1829 clean-entry: diff present → diff_present true"     "true"  "$(echo "$CE_AP_DERIVE_E" | jq -r '.analysis_provenance.bundle_diff_present')"
+assert_eq "#1829 clean-entry: workpad present → workpad_present true" "true"  "$(echo "$CE_AP_DERIVE_E" | jq -r '.analysis_provenance.bundle_workpad_body_present')"
+assert_eq "#1829 clean-entry: comments present → comments_present true" "true" "$(echo "$CE_AP_DERIVE_E" | jq -r '.analysis_provenance.bundle_issue_comments_present')"
+# AC2: a diff suppressed by diff_byte_cap arrives as diff:null / diff_truncated:true → diff_present false.
+CE_AP_SUPPRESSED='{"pr":93,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"diff":null,"diff_truncated":true,"workpad_body":null,"issue":null}'
+assert_eq "#1829 clean-entry: diff suppressed (diff_byte_cap) → diff_present false" "false" "$(printf '%s' "$CE_AP_SUPPRESSED" | jq -r -f "$LIB/clean-entry.jq" | jq -r '.analysis_provenance.bundle_diff_present')"
+# An .issue object present but with an empty comments array → comments_present false.
+CE_AP_EMPTYCOMMENTS='{"pr":95,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"diff":"d","diff_truncated":false,"workpad_body":"w","issue":{"comments":[]}}'
+assert_eq "#1829 clean-entry: issue present, zero comments → comments_present false" "false" "$(printf '%s' "$CE_AP_EMPTYCOMMENTS" | jq -r -f "$LIB/clean-entry.jq" | jq -r '.analysis_provenance.bundle_issue_comments_present')"
+# AC3: a bundle already carrying an analysis_provenance object survives cleaning intact.
+CE_AP_PRESENT='{"pr":94,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"analysis_provenance":{"cohort":"backfill-2026-08-08","bundle_diff_present":true,"bundle_workpad_body_present":false,"bundle_issue_comments_present":true}}'
+CE_AP_PRESENT_E="$(printf '%s' "$CE_AP_PRESENT" | jq -c -f "$LIB/clean-entry.jq")"
+assert_eq "#1829 clean-entry: incoming analysis_provenance survives intact (cohort)" "backfill-2026-08-08" "$(echo "$CE_AP_PRESENT_E" | jq -r '.analysis_provenance.cohort')"
+assert_eq "#1829 clean-entry: incoming analysis_provenance survives intact (diff_present)" "true" "$(echo "$CE_AP_PRESENT_E" | jq -r '.analysis_provenance.bundle_diff_present')"
 # #152: audit-entry.jq is pruned along with the audit-intervention path.
 assert_eq "#152: audit-entry.jq is removed" "true" \
   "$([ ! -f "$LIB/audit-entry.jq" ] && echo true || echo false)"
@@ -19721,7 +19286,7 @@ assert_eq "app-token: overview §15 positively documents the optional App (DEVFL
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/efficiency-trace-telemetry.sh" \
-  "efficiency-trace-telemetry" 951; then
+  "efficiency-trace-telemetry" 994; then
   printf 'ERROR: efficiency-trace-telemetry boundary could not record its result\n'
   exit 1
 fi
@@ -23524,6 +23089,44 @@ assert_eq "#874 env-probe verdict: the echo-backs alongside the instruction text
 EPV_LEAK="$(devflow_epv "$EPV_CB" "$EPV_CA" "ENVPROBE_HOP1 $EPV_SENT" "ENVPROBE_HOP2 UNSET" "a stray mention of $EPV_SENT")"
 assert_eq "#874 env-probe verdict: a stray sentinel elsewhere does not credit the silent hop" "ORCHESTRATOR_ONLY" \
   "$(devflow_epv_verdict "$EPV_LEAK")"
+# ── The tool_result-output arm (issue #1321). A collector reading only tool_use INPUTS
+# misses hop one's genuine reading, which the harness records as Action 2's Bash tool_result
+# OUTPUT (run 30956039324's silent hop one). This fixture is that recorded shape — Action 2's
+# unexpanded tool_use input plus its tool_result output carrying the sentinel, no echo-back —
+# and the SAME entries without that tool_result line (below) must stay silent, so the
+# tool_result output is exactly what discriminates.
+EPV_TRESULT="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf '"'"'ENVPROBE_HOP1 %s'"'"' \"${DEVFLOW_PROMPT_EXTENSION_ROOT:-UNSET}\""}}
+{"type":"tool_result","tool_use_id":"h1","content":"ENVPROBE_HOP1 DEVFLOW_ENVPROBE_SENTINEL_874\n","is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: hop one read from Action 2 tool_result output → BOTH_HOPS" "BOTH_HOPS" \
+  "$(devflow_epv_verdict "$EPV_TRESULT")"
+# Discrimination: the SAME entries WITHOUT the hop-one tool_result line read hop-one-silent,
+# so the tool_result output is what flips the verdict (the pre-fix collector saw only these).
+EPV_TRESULT_NONE="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf '"'"'ENVPROBE_HOP1 %s'"'"' \"${DEVFLOW_PROMPT_EXTENSION_ROOT:-UNSET}\""}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: the same entries without that tool_result stay INCONCLUSIVE" "INCONCLUSIVE" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_NONE")"
+# A tool_result output carrying UNSET is a REAL negative (hop looked, nothing propagated) —
+# reported, not silent — so reading tool_result never fabricates propagation.
+EPV_TRESULT_UNSET="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_result","tool_use_id":"h1","content":"ENVPROBE_HOP1 UNSET\n","is_error":false}
+{"type":"tool_result","tool_use_id":"h2","content":[{"type":"text","text":"ENVPROBE_HOP2 UNSET\n"}],"is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: tool_result outputs reading UNSET at both hops → NEITHER_HOP" "NEITHER_HOP" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_UNSET")"
+# A malformed list-content item (a non-dict block, a dict missing "text") must not raise —
+# _tool_result_text skips it and still extracts the valid text block, so the always-exit-0
+# contract holds and the genuine reading is not lost.
+EPV_TRESULT_MALFORMED="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_result","tool_use_id":"h1","content":[42,{"type":"text"},{"type":"text","text":"ENVPROBE_HOP1 DEVFLOW_ENVPROBE_SENTINEL_874\n"}],"is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: a malformed tool_result list item does not crash; the valid text block still reads → BOTH_HOPS" "BOTH_HOPS" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_MALFORMED")"
 # The helper never raises through its always-exit-0 contract.
 python3 "$EPV" "$EPV_TMP/no-such-file.jsonl" >/dev/null 2>&1
 assert_eq "#874 env-probe verdict: exits 0 even on an absent execution file" "0" "$?"
@@ -24778,813 +24381,11 @@ print("coupled")
 PY_COUPLED
 )"
 
-# ────────────────────────────────────────────────────────────────────────────
-echo "#1264 render-time placeholder probe verdict helper"
-# ────────────────────────────────────────────────────────────────────────────
-# scripts/placeholder-probe-verdict.py is a branch-selecting core: its verdict ROUTES
-# issue #1264's design (a negative limb sends the work to workflow-side composition
-# instead of the placeholder mechanism), so every arm is driven here rather than left to
-# a paid probe run to exercise. Same treatment, and same rationale, as the #858/#874/#812
-# probe-verdict siblings: unmodularized, no focused_test, driven inline from run.sh.
-PPV="$LIB/../scripts/placeholder-probe-verdict.py"
-PPV_TMP="$(mktemp -d)"
-ppv_build() {  # $1 scenario -> writes $PPV_TMP/exec.jsonl; rc 0 AND non-empty on success
-  python3 - "$PPV_TMP/exec.jsonl" "$1" <<'PY_PPV'
-import json, sys
-out, scen = sys.argv[1], sys.argv[2]
-BEFORE = "PHPROBE_SKILL_REACHED"
-AFTER = "PHPROBE_CONTROL_AFTER"
-def tu(cmd):
-    return {"type": "tool_use", "name": "Bash", "input": {"command": cmd}}
-def echo(payload):
-    return tu("printf '%s\\n' '" + payload + "'")
-controls = [echo(BEFORE), echo(AFTER)]
-# The echo-back the agent is instructed to produce, one shape per scenario.
-shapes = {
-    "visible":      [echo("PHPROBE_SAW PHPROBE_ENV DEVFLOW_PHPROBE_SENTINEL_1264")],
-    "unset":        [echo("PHPROBE_SAW PHPROBE_ENV UNSET")],
-    # The placeholder survived verbatim: the echo-back carries the raw backtick-bang and
-    # the script path, neither of which can appear in the script's own stdout.
-    "unexecuted":   [echo("PHPROBE_SAW !`.github/probe-plugin/phprobe-read-env.sh`")],
-    "line_absent":  [echo("PHPROBE_LINE_A_ABSENT")],
-    "no_marker":    [],
-    # A marker-shaped entry with NO SAW prefix: not the measurement, so it must not be
-    # read as a report. Both readers are scoped to the SAW token for exactly this reason.
-    "template_only": [tu("printf 'PHPROBE_ENV %s\\n' \"$DEVFLOW_PROMPT_EXTENSION_ROOT\"")],
-    # A real sentinel report PLUS an unrelated command mentioning the script path. The
-    # unexecuted-form test is scoped to the SAW echo-back, so this must stay
-    # SUBSTITUTED_ENV_VISIBLE rather than flipping to NOT_SUBSTITUTED.
-    "incidental":   [echo("PHPROBE_SAW PHPROBE_ENV DEVFLOW_PHPROBE_SENTINEL_1264"),
-                     tu("ls .github/probe-plugin/phprobe-read-env.sh")],
-}
-if scen == "no_controls":
-    recs = shapes["visible"]
-elif scen == "empty":
-    recs = []
-elif scen in shapes:
-    recs = [controls[0]] + shapes[scen] + [controls[1]]
-elif scen in ("unparseable", "partial_corrupt"):
-    recs = [controls[0]] + shapes["visible"] + [controls[1]]
-else:
-    raise SystemExit("unrecognised scenario: %s" % scen)
-with open(out, "w", encoding="utf-8") as fh:
-    if scen == "unparseable":
-        fh.write("{ not json at all\n")
-    else:
-        for r in recs:
-            fh.write(json.dumps(r) + "\n")
-        if scen == "partial_corrupt":
-            fh.write("{ this line is not valid json\n")
-        if scen == "empty":
-            # A file that PARSES cleanly but holds no tool_use records — distinct from
-            # unparseable, and it must reach the no-tool_uses arm rather than the parse arm.
-            fh.write(json.dumps({"type": "system", "note": "no tool uses here"}) + "\n")
-PY_PPV
-  _ppv_rc=$?
-  [ "$_ppv_rc" -eq 0 ] && [ -s "$PPV_TMP/exec.jsonl" ]
-}
-ppv() {  # $1 scenario -> the VERDICT token, or a build sentinel the extractor cannot forge
-  if ! ppv_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
-  local _out; _out="$(python3 "$PPV" "$PPV_TMP/exec.jsonl" 2>/dev/null)"
-  # Pure parameter expansion (CLAUDE.md guard-class 2: no tr/sed/cut, whose absence
-  # would fail OPEN and hand every assertion an empty string to compare).
-  case "$_out" in
-    *'VERDICT: '*) local _v="${_out#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
-    *) printf 'NO_VERDICT' ;;
-  esac
-}
-# NEGATIVE CONTROL — the assertion that makes the scenario sweep non-vacuous. An
-# unrecognised scenario must FAIL the build rather than leave an empty fixture that the
-# helper would read as unparseable, passing every arm below for the wrong reason.
-assert_eq "#1264 placeholder: an unrecognised fixture scenario fails the build" "failed" \
-  "$(ppv_build __no_such_scenario__ 2>/dev/null && echo built || echo failed)"
-assert_eq "#1264 placeholder: a recognised fixture scenario still builds" "built" \
-  "$(ppv_build visible 2>/dev/null && echo built || echo failed)"
-
-# The three real measurements.
-assert_eq "#1264 placeholder: substituted + sentinel observed -> SUBSTITUTED_ENV_VISIBLE" \
-  "SUBSTITUTED_ENV_VISIBLE" "$(ppv visible)"
-assert_eq "#1264 placeholder: substituted but env UNSET -> SUBSTITUTED_ENV_UNSET (limb b negative)" \
-  "SUBSTITUTED_ENV_UNSET" "$(ppv unset)"
-assert_eq "#1264 placeholder: unexecuted placeholder text -> NOT_SUBSTITUTED (limb a negative, routes the design)" \
-  "NOT_SUBSTITUTED" "$(ppv unexecuted)"
-
-# Every degraded arm resolves INCONCLUSIVE — never a confident negative. Collapsing
-# "could not look" onto "does not substitute" would route issue #1264 away from its
-# selected direction on no evidence, which is the whole reason the arms are ordered
-# degraded-first in the helper.
-assert_eq "#1264 placeholder: agent reported the line absent -> INCONCLUSIVE" \
-  "INCONCLUSIVE" "$(ppv line_absent)"
-assert_eq "#1264 placeholder: no marker reported at all -> INCONCLUSIVE (unestablished, not negative)" \
-  "INCONCLUSIVE" "$(ppv no_marker)"
-assert_eq "#1264 placeholder: controls missing -> INCONCLUSIVE" \
-  "INCONCLUSIVE" "$(ppv no_controls)"
-assert_eq "#1264 placeholder: file parses but records nothing -> INCONCLUSIVE" \
-  "INCONCLUSIVE" "$(ppv empty)"
-assert_eq "#1264 placeholder: unparseable execution file -> INCONCLUSIVE" \
-  "INCONCLUSIVE" "$(ppv unparseable)"
-assert_eq "#1264 placeholder: PARTIALLY corrupt file -> INCONCLUSIVE (a dropped line is not a clean read)" \
-  "INCONCLUSIVE" "$(ppv partial_corrupt)"
-assert_eq "#1264 placeholder: an absent execution file -> INCONCLUSIVE" \
-  "INCONCLUSIVE" \
-  "$(_o="$(python3 "$PPV" "$PPV_TMP/definitely-not-here.jsonl" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
-
-# The two discrimination guards. Each pins a way the helper could report a measurement
-# it never made.
-assert_eq "#1264 placeholder: the marker in TEMPLATE form is not counted as a report" \
-  "INCONCLUSIVE" "$(ppv template_only)"
-assert_eq "#1264 placeholder: an incidental /bin/echo elsewhere does not forge NOT_SUBSTITUTED" \
-  "SUBSTITUTED_ENV_VISIBLE" "$(ppv incidental)"
-
-# The routing line is what a maintainer transcribes into the #1264 thread, so pin that a
-# cleared verdict says so and a negative one does not.
-assert_eq "#1264 placeholder: a cleared verdict routes to the placeholder mechanism" "yes" \
-  "$(ppv_build visible >/dev/null 2>&1 && python3 "$PPV" "$PPV_TMP/exec.jsonl" 2>/dev/null | grep -q 'ROUTES TO: the placeholder mechanism' && echo yes || echo no)"
-assert_eq "#1264 placeholder: a NOT_SUBSTITUTED verdict routes AWAY from the placeholder mechanism" "yes" \
-  "$(ppv_build unexecuted >/dev/null 2>&1 && python3 "$PPV" "$PPV_TMP/exec.jsonl" 2>/dev/null | grep -q 'ROUTES TO: workflow-side composition' && echo yes || echo no)"
-
-# COUPLED SITES: the workflow job and the helper's constants are one contract. The
-# sentinel must match, and — the load-bearing one — the job's --allowed-tools must NOT
-# grant the placeholder's own head. Widening that list would leave limb (c) measuring
-# nothing while every assertion above still passed, which is exactly the silently-vacuous
-# probe the #858 coupling assertion exists to prevent for its own markers.
-assert_eq "#1264 placeholder: workflow sentinel and probe markers are coupled to the helper's constants" "coupled" \
-  "$(python3 - "$LIB/../.github/workflows/matcher-probe.yml" "$LIB/../scripts/placeholder-probe-verdict.py" "$LIB/../.github/probe-plugin/skills/placeholder-probe/SKILL.md" <<'PY_PPV_COUPLED'
-import re, sys, yaml
-wf_path, helper_path, skill_path = sys.argv[1], sys.argv[2], sys.argv[3]
-src = open(helper_path, encoding="utf-8").read()
-def const(name):
-    m = re.search(r'^%s = "([^"]+)"' % name, src, re.M)
-    return m.group(1) if m else None
-names = ("SENTINEL", "MARKER", "LINE_ABSENT", "CONTROL_BEFORE", "CONTROL_AFTER", "SAW")
-vals = {n: const(n) for n in names}
-if not all(vals.values()):
-    print("helper constants not readable: %r" % (vals,)); sys.exit(0)
-job = (yaml.safe_load(open(wf_path, encoding="utf-8"))["jobs"] or {}).get("placeholder-probe")
-if not job:
-    print("matcher-probe.yml has no placeholder-probe job"); sys.exit(0)
-steps = job.get("steps") or []
-claude = [s for s in steps if isinstance(s.get("with"), dict) and "claude_args" in s["with"]]
-if not claude:
-    print("placeholder-probe job has no claude-code-action step"); sys.exit(0)
-step = claude[0]
-if (step.get("env") or {}).get("DEVFLOW_PROMPT_EXTENSION_ROOT") != vals["SENTINEL"]:
-    print("job env sentinel does not match the helper's SENTINEL"); sys.exit(0)
-args = step["with"]["claude_args"]
-# The placeholder's head must be GRANTED. This assertion is INVERTED from its original
-# form, and the inversion is the record of a completed measurement rather than a
-# loosening: while limb (c) ("is rendering refused by --allowed-tools?") was open, the
-# head was deliberately withheld and the answer came back NEGATIVE — run 31058504896
-# refused the placeholder with `This command requires approval`. With (c) answered, the
-# grant is what makes limbs (a) and (b) reachable at all; four consecutive runs were
-# refused before substitution could ever be observed. Read the head from the skill body
-# rather than restating it here, so the grant cannot drift from the command it covers.
-body = open(skill_path, encoding="utf-8").read()
-m = re.search(r'!`([^\s`]+)', body)
-if not m:
-    print("skill body carries no `!` placeholder"); sys.exit(0)
-head = m.group(1)
-if head not in args:
-    print("--allowed-tools does not grant the placeholder head %r, so every run is "
-          "refused before limbs (a)/(b) can be observed" % head)
-    sys.exit(0)
-# The skill body must carry both controls, the absent-line token and the SAW prefix the
-# helper scopes its readers to. MARKER is deliberately NOT required here: since the
-# expansion moved into the script, the body no longer names it — the SCRIPT emits it, and
-# the coupling to that producer is asserted just below.
-for n in ("CONTROL_BEFORE", "CONTROL_AFTER", "LINE_ABSENT", "SAW"):
-    if vals[n] not in body:
-        print("skill body does not carry %s (%s)" % (n, vals[n])); sys.exit(0)
-# The injected command must exist, be executable, and emit the helper's MARKER — an
-# injected command that cannot run is the zero-turn abort hazard, and one that emits a
-# different token would make every future run INCONCLUSIVE with the suite still green.
-import os, subprocess
-script = os.path.normpath(os.path.join(os.path.dirname(wf_path), "..", "probe-plugin", "phprobe-read-env.sh"))
-if not os.path.isfile(script):
-    print("the injected command %s does not exist" % script); sys.exit(0)
-if not os.access(script, os.X_OK):
-    print("the injected command %s is not executable" % script); sys.exit(0)
-env = dict(os.environ); env.pop("DEVFLOW_PROMPT_EXTENSION_ROOT", None)
-r = subprocess.run([script], capture_output=True, text=True, env=env)
-if r.returncode != 0:
-    print("the injected command exits %d on an UNSET variable — the abort hazard" % r.returncode)
-    sys.exit(0)
-if vals["MARKER"] not in r.stdout:
-    print("the injected command does not emit %s" % vals["MARKER"]); sys.exit(0)
-prompt = step["with"].get("prompt", "")
-# The PRODUCTION prompt shape, and both halves are load-bearing. The slash command must be
-# the LAST line (that is what limb (a) measures), and there must be leading prose before it:
-# a prompt consisting of a bare slash command naming a plugin SKILL returns num_turns 0 in
-# ~37ms with an empty result — the CLI resolves it as a slash command, finds no matching
-# COMMAND, and exits before the model is called. Measured on the bare CLI and in this job's
-# own first run (31057622518 / job 92478457854). A regression to the bare form would make
-# every paid probe run resolve INCONCLUSIVE while this suite stayed green, and the zero-turn
-# signature is indistinguishable from the abort hazard the probe is built to avoid.
-lines = [ln for ln in prompt.strip().splitlines() if ln.strip()]
-if not lines or lines[-1].strip() != "/phprobe:placeholder-probe":
-    print("the probe prompt does not END with the slash command limb (a) measures"); sys.exit(0)
-if len(lines) < 2:
-    print("the probe prompt is a BARE slash command, which dispatches nothing (num_turns 0)")
-    sys.exit(0)
-print("coupled")
-PY_PPV_COUPLED
-)"
-rm -rf "$PPV_TMP"
-
-# ────────────────────────────────────────────────────────────────────────────
-echo "#1618 skill-body-load-probe verdict deriver"
-# ────────────────────────────────────────────────────────────────────────────
-# scripts/skill-body-load-probe-verdict.py derives, per engine root, whether the Skill
-# tool delivered that root's SKILL.md body WHOLE — from the body record that FOLLOWS the
-# Skill tool_result in a claude-code-action execution file, never model text. Its verdict is what a maintainer
-# transcribes into docs/internal/skill-body-load-delivery.md, so every arm is driven here
-# rather than left to a paid probe run. Same treatment as the #1264 sibling above:
-# unmodularized, no focused_test, driven inline from run.sh.
-SBL="$LIB/../scripts/skill-body-load-probe-verdict.py"
-SBL_REVIEW="$LIB/../skills/review/SKILL.md"
-SBL_IMPLEMENT="$LIB/../skills/implement/SKILL.md"
-# review-and-fix is the root whose NAME PROPERLY CONTAINS prflow:review. Do not swap in a
-# root with an unrelated name: the containment is what arms the binding fixtures below.
-SBL_RAF="$LIB/../skills/review-and-fix/SKILL.md"
-SBL_TMP="$(mktemp -d)"
-# Every child spawned below carries NO_COLOR/PYTHON_COLORS, per
-# docs/internal/test-suite-probe-conventions.md: without them an escape sequence from a
-# colour-forcing host lands inside a matched token and the match silently fails.
-sbl_build() {  # $1 scenario -> writes $SBL_TMP/exec.jsonl; rc 0 AND non-empty on success
-  # Truncate FIRST. The builder writes in place, so without this a failed build leaves the
-  # previous scenario's fixture on disk and the next assertion measures that one instead —
-  # green, against a fixture it never built.
-  rm -f "$SBL_TMP/exec.jsonl"
-  NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" "$SBL_IMPLEMENT" "$SBL_RAF" <<'PY_SBL'
-import json, os, sys
-out, scen, path, impl_path, raf_path = sys.argv[1:6]
-body = open(path, encoding="utf-8").read()
-impl_body = open(impl_path, encoding="utf-8").read()
-raf_body = open(raf_path, encoding="utf-8").read()
-tail = [ln.strip() for ln in body.splitlines() if ln.strip()][-1]
-review_dir = os.path.dirname(path)
-impl_dir = os.path.dirname(impl_path)
-raf_dir = os.path.dirname(raf_path)
-other_dir = os.path.join(os.path.dirname(review_dir), "implement")
-# The runner's own ABSOLUTE base directory, as a real transcript records it. Do not rewrite
-# these to on-disk paths: an identical pair on both sides drives only dirs_match's equality
-# branch, leaving the suffix branch every production reading takes unexercised.
-runner_dir = "/home/runner/work/prflow/prflow/skills/review"
-boundary_dir = "/home/runner/work/prflow/prflow/myskills/review"
-PREFIX = "Base directory for this skill: "
-# These fixtures reproduce the RECORD LAYOUT of a real claude-code-action transcript: the
-# Skill tool_result is a ~30-byte launch STUB and the body arrives in the NEXT, user-role
-# record. Writing the body into the tool_result would make every assertion below vacuous.
-_UNSET = object()
-def skill_use(name="prflow:review", uid="su1", input_obj=_UNSET):
-    inp = {"skill": name} if input_obj is _UNSET else input_obj
-    return {"type": "assistant", "message": {"role": "assistant", "content": [
-        {"type": "tool_use", "name": "Skill", "id": uid, "input": inp}]}}
-def stub(uid="su1", is_error=False, content=None):
-    if content is None:
-        content = "Launching skill: prflow:review"
-    return {"type": "user", "message": {"role": "user", "content": [
-        {"type": "tool_result", "tool_use_id": uid, "content": content,
-         "is_error": is_error}]}}
-def body_rec(text, base=None, role="user"):
-    base = review_dir if base is None else base
-    return {"type": role, "message": {"role": role, "content": [
-        {"type": "text", "text": PREFIX + base + "\n\n" + text}]}}
-# Each scenario maps to a list of records, EXCEPT the fixture-free ones (absent/unparseable),
-# which are handled by the caller. An unrecognised scenario raises, so the build fails rather
-# than leaving an empty fixture the helper would read as unparseable and pass for the wrong reason.
-scenarios = {
-    "whole":       [skill_use(), stub(), body_rec(body)],
-    # tool_result content as a list of text blocks — the other real stub serialization.
-    "whole_blocks":[skill_use(),
-                    stub(content=[{"type": "text", "text": "Launching skill: prflow:review"}]),
-                    body_rec(body)],
-    # Body missing its final line: the tail control cannot be found.
-    "short_tail":  [skill_use(), stub(), body_rec(body.rsplit("\n", 2)[0])],
-    # Only the tail line survives: tail present, a real interior line absent.
-    "mid_gap":     [skill_use(), stub(), body_rec(tail)],
-    # A whole body that ALSO carries a cap notice — the marker arm fires before the tail check.
-    "trunc_marker":[skill_use(), stub(), body_rec(body + "\nshowing lines 1-10 of 343 (cap 25000)")],
-    # The load happened but NO body record followed — measuring the stub alone must not
-    # adjudicate anything, so this is unestablished rather than a short delivery.
-    "stub_only":   [skill_use(), stub()],
-    # A body record naming a DIFFERENT skill's directory: another root's body must not be
-    # adjudicated as this one's.
-    "wrong_dir_body":[skill_use(), stub(), body_rec(body, base=other_dir)],
-    # PRODUCTION DIRECTORY SHAPE: an absolute runner base dir against a repo-relative --root,
-    # which only dirs_match's SUFFIX branch resolves.
-    "abs_suffix_dir":[skill_use(), stub(), body_rec(body, base=runner_dir)],
-    # SEPARATOR BOUNDARY: `myskills/review` is a bare suffix of `skills/review` but not a
-    # component-boundary one. Do not swap in a non-suffix directory — the refusal would then
-    # come from the directory differing at all, and the `/` guard would go unpinned.
-    "boundary_dir": [skill_use(), stub(), body_rec(body, base=boundary_dir)],
-    # The prefix in an ASSISTANT record is the model talking about a delivery, not one.
-    "assistant_body":[skill_use(), stub(), body_rec(body, role="assistant")],
-    # No Skill tool_use at all — the body was never loaded by this channel.
-    "no_skill":    [{"type": "assistant", "message": {"role": "assistant", "content": [
-                        {"type": "tool_use", "name": "Bash", "id": "b1",
-                         "input": {"command": "true"}}]}}],
-    # A Skill load that returned an error (refused/aborted) — the abort mode, not truncation.
-    "err_result":  [skill_use(), stub(is_error=True, content="permission denied")],
-    # A Skill tool_use recorded with NO paired result — nothing was delivered to measure.
-    "no_result":   [skill_use()],
-    # Parses cleanly but records no tool_use of any kind.
-    "wrong_shape": [{"type": "system", "note": "no tool uses here"}],
-    # TWO Skill loads in one transcript, each with its OWN body. Do not collapse this to a
-    # single load: it is the only fixture that closes the position window's upper bound, and
-    # a window narrowed by one drops the FIRST load's body while every single-load arm stays green.
-    "two_skill_loads": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
-                        skill_use("prflow:implement", "su2"),
-                        stub("su2", content="Launching skill: prflow:implement"),
-                        body_rec(impl_body, base=impl_dir)],
-    # The review body arrives AFTER a LATER Skill tool_use. Do not move it before that tool_use:
-    # its position is what proves the window STOPS there, so a window widened to the end of the
-    # transcript mis-credits this body to the earlier load and reports a delivery it cannot attribute.
-    "late_body":   [skill_use("prflow:review", "su1"), stub("su1"),
-                    skill_use("prflow:implement", "su2"),
-                    stub("su2", content="Launching skill: prflow:implement"),
-                    body_rec(body)],
-    # Do not collapse this to one load: the containing name recorded FIRST is what a
-    # bare-substring first-match binds the review root to, and nothing else exhibits it.
-    "contains_name_first": [skill_use("prflow:review-and-fix", "su1"),
-                            stub("su1", content="Launching skill: prflow:review-and-fix"),
-                            body_rec(raf_body, base=raf_dir),
-                            skill_use("prflow:review", "su2"), stub("su2"), body_rec(body)],
-    # The same pair in the OTHER order. Keep both: a match that scanned in reverse, or kept the
-    # LAST match rather than the first, would resolve one order and fail the other.
-    "contains_name_second": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
-                             skill_use("prflow:review-and-fix", "su2"),
-                             stub("su2", content="Launching skill: prflow:review-and-fix"),
-                             body_rec(raf_body, base=raf_dir)],
-    # An ARGUMENT string that is exactly another root's name.
-    "arg_equals_other_root": [skill_use("prflow:implement", "su1",
-                                        input_obj={"skill": "prflow:implement",
-                                                   "args": "prflow:review"}),
-                              stub("su1", content="Launching skill: prflow:implement"),
-                              body_rec(impl_body, base=impl_dir)],
-    # A root recorded TWICE, the first load errored and the second delivering a whole body.
-    "retry_after_error": [skill_use("prflow:review", "su1"),
-                          stub("su1", is_error=True, content="permission denied"),
-                          skill_use("prflow:review", "su2"), stub("su2"), body_rec(body)],
-    # THREE recorded loads of which TWO match, so the ambiguity reason's count operand is
-    # distinguishable from the total: swap it for len(pairs) and the digit renders 3, not 2.
-    "ambiguous_among_three": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
-                              skill_use("prflow:implement", "su2"),
-                              stub("su2", content="Launching skill: prflow:implement"),
-                              body_rec(impl_body, base=impl_dir),
-                              skill_use("prflow:review", "su3"), stub("su3"), body_rec(body)],
-    # Two body records in one window, both naming the review directory, the second truncated:
-    # keeping the first answers delivered-whole and keeping the last short-delivery.
-    "two_bodies_one_window": [skill_use("prflow:review", "su1"), stub("su1"),
-                              body_rec(body), body_rec(body.rsplit("\n", 2)[0])],
-    # A successful load plus a load whose argument text mentions this root's name: two matches.
-    "success_plus_arg_mention": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
-                                 skill_use("prflow:implement", "su2",
-                                           input_obj={"skill": "prflow:implement",
-                                                      "args": "prflow:review"}),
-                                 stub("su2", content="Launching skill: prflow:implement")],
-    # A duplicated tool_use_id whose second result is clean: last-write-wins would erase the
-    # first result's error flag.
-    "duplicate_result_id": [skill_use("prflow:review", "su1"),
-                            stub("su1", is_error=True, content="permission denied"),
-                            stub("su1"), body_rec(body)],
-    # A Skill tool_use carrying NO input at all.
-    "null_input":  [skill_use("prflow:review", "su1", input_obj=None), stub("su1"),
-                    body_rec(body)],
-}
-if scen == "unparseable":
-    open(out, "w", encoding="utf-8").write("{ not json at all\n")
-elif scen == "leading_comment":
-    # The PUBLISHED artifact shape: scripts/scrub-transcript.sh prepends one `#` caveat line
-    # to the pretty-printed array, which strict json.loads rejects.
-    open(out, "w", encoding="utf-8").write(
-        "# DEVFLOW SCRUB CAVEAT: best-effort blocklist redaction. Treat as sensitive.\n"
-        + json.dumps(scenarios["whole"], indent=2) + "\n")
-elif scen == "interior_comment":
-    # Only the LEADING blank/`#` run is stripped. Do not move the trailing `#` line to the top:
-    # its position is what proves an interior `#` still counts as unparseable, and a stripper
-    # that dropped every `#` line would hide the corruption and report a clean read.
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write("# DEVFLOW SCRUB CAVEAT: best-effort blocklist redaction.\n\n")
-        for r in scenarios["whole"]:
-            fh.write(json.dumps(r) + "\n")
-        fh.write("# not a record\n")
-elif scen == "whole_json":
-    # A single whole-file JSON document (not JSONL) — exercises parse_execution_file's
-    # json.loads(raw) success path, which the line-by-line fixtures never reach.
-    open(out, "w", encoding="utf-8").write(json.dumps(scenarios["whole"]))
-elif scen == "partial_corrupt":
-    # Some lines parse, one does not: parse_execution_file returns a non-empty note_top, which
-    # forces every root to unestablished even though a valid Skill pair was recovered.
-    with open(out, "w", encoding="utf-8") as fh:
-        for r in scenarios["whole"]:
-            fh.write(json.dumps(r) + "\n")
-        fh.write("{ this line is not valid json\n")
-elif scen in scenarios:
-    with open(out, "w", encoding="utf-8") as fh:
-        for r in scenarios[scen]:
-            fh.write(json.dumps(r) + "\n")
-else:
-    raise SystemExit("unrecognised scenario: %s" % scen)
-PY_SBL
-  _sbl_rc=$?
-  [ "$_sbl_rc" -eq 0 ] && [ -s "$SBL_TMP/exec.jsonl" ]
-}
-sbl_run() {  # the single invocation point for spawning THE HELPER: audit args -> its stdout
-  # Route helper spawns through this one point so a site added later cannot omit the colour
-  # neutralisation, and do not discard stderr in a caller that reads stdout — a traceback would
-  # vanish and the crash read as a grep miss. A caller reading only the exit status may discard.
-  NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$@"
-}
-sbl_verdict_token() {  # $1 the helper's stdout -> the FIRST per-root VERDICT token
-  # Pure parameter expansion (CLAUDE.md guard-class 2: no tr/sed/cut, which would fail OPEN).
-  # The audit summary line is `AUDIT: …` (not `AUDIT VERDICT:`), so the first `VERDICT: `
-  # match is a per-root verdict, never the summary.
-  case "$1" in
-    *'VERDICT: '*) local _v="${1#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
-    *) printf 'NO_VERDICT' ;;
-  esac
-}
-sbl_says() {  # $1 scenario, $2 pattern -> yes|no, whether the review root's report carries $2
-  # A build OR helper failure prints its OWN token, never 'no': inverted by sbl_denies, a 'no'
-  # would become the expected 'yes' and turn a fixture or a crash into a green assertion. Gate
-  # on the helper's exit status BEFORE the grep — a crash produces no stdout, which greps as a
-  # plain miss.
-  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
-  local _out
-  if ! _out="$(sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW")"; then
-    printf 'HELPER_FAILED'; return 0
-  fi
-  printf '%s' "$_out" | grep -q "$2" && printf 'yes' || printf 'no'
-}
-sbl_denies() {  # the NEGATED sbl_says. A separate name, never an inverted echo pair inline:
-                # a reader must not have to spot `echo no || echo yes` to see the inversion.
-  local _r
-  _r="$(sbl_says "$1" "$2")"
-  case "$_r" in yes) printf 'no' ;; no) printf 'yes' ;; *) printf '%s' "$_r" ;; esac
-}
-sbl_rel_denies() {  # $1 scenario, $2 pattern -> yes when the REPO-RELATIVE-root report lacks $2
-  # Never `grep -q … && echo no || echo yes` inline: that expects grep's FAILURE arm, so a helper
-  # crash greps as a miss and passes the assertion green. Gate on the exit status first.
-  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
-  local _out
-  if ! _out="$(cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md")"; then
-    printf 'HELPER_FAILED'; return 0
-  fi
-  printf '%s' "$_out" | grep -q "$2" && printf 'no' || printf 'yes'
-}
-sbl() {  # $1 scenario -> the first per-root VERDICT token (single-root fixtures)
-  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
-  sbl_verdict_token "$(sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW")"
-}
-sbl_rel() {  # $1 scenario -> first VERDICT token, run from the repo root with a REPO-RELATIVE
-             # --root. Do not switch this to an absolute --root: the relative form is what makes
-             # dirs_match take its production suffix branch instead of the equality branch.
-  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
-  local _out
-  _out="$(cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md")"
-  sbl_verdict_token "$_out"
-}
-# NEGATIVE CONTROL — an unrecognised scenario must FAIL the build, or the sweep is vacuous.
-assert_eq "#1618 skill-body: an unrecognised fixture scenario fails the build" "failed" \
-  "$(sbl_build __no_such_scenario__ 2>/dev/null && echo built || echo failed)"
-assert_eq "#1618 skill-body: a recognised fixture scenario still builds" "built" \
-  "$(sbl_build whole 2>/dev/null && echo built || echo failed)"
-
-# The two real measurements: a body delivered whole, and a tail loss. The whole-body arm is
-# the regression guard for the wrong-record defect — the body lives in the record AFTER the
-# Skill tool_result, so a helper measuring the ~30-byte launch stub reads short-delivery here.
-assert_eq "#1618 skill-body: whole body in the following record -> delivered-whole" \
-  "delivered-whole" "$(sbl whole)"
-assert_eq "#1618 skill-body: tail line missing -> short-delivery (tail lost)" \
-  "short-delivery" "$(sbl short_tail)"
-assert_eq "#1618 skill-body: tail present but interior gone -> short-delivery" \
-  "short-delivery" "$(sbl mid_gap)"
-assert_eq "#1618 skill-body: a cap/truncation notice in the body -> short-delivery" \
-  "short-delivery" "$(sbl trunc_marker)"
-
-# Each degraded arm asserted below reads `unestablished`, never `delivered-whole`; the
-# helper's docstring enumerates the arms. Collapsing any onto delivered-whole is the
-# fail-open the arm ordering exists to prevent.
-assert_eq "#1618 skill-body: no Skill tool_use -> unestablished (never loaded)" \
-  "unestablished" "$(sbl no_skill)"
-assert_eq "#1618 skill-body: Skill load returned an error -> unestablished (abort mode)" \
-  "unestablished" "$(sbl err_result)"
-assert_eq "#1618 skill-body: Skill call with no paired result -> unestablished" \
-  "unestablished" "$(sbl no_result)"
-assert_eq "#1618 skill-body: well-formed JSON of the wrong shape -> unestablished" \
-  "unestablished" "$(sbl wrong_shape)"
-assert_eq "#1618 skill-body: launch stub with no body record -> unestablished" \
-  "unestablished" "$(sbl stub_only)"
-assert_eq "#1618 skill-body: body record naming another skill's directory -> unestablished" \
-  "unestablished" "$(sbl wrong_dir_body)"
-assert_eq "#1618 skill-body: the prefix in an assistant record is not a delivery" \
-  "unestablished" "$(sbl assistant_body)"
-assert_eq "#1618 skill-body: unparseable execution file -> unestablished" \
-  "unestablished" "$(sbl unparseable)"
-assert_eq "#1618 skill-body: an absent execution file -> unestablished" \
-  "unestablished" \
-  "$(_o="$(sbl_run "$SBL_TMP/definitely-not-here.jsonl" --tier review --root "prflow:review=$SBL_REVIEW")"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
-
-# A tool_result whose content is a list of text blocks is still only the launch stub; the
-# following body record is what carries the delivery.
-assert_eq "#1618 skill-body: tool_result content as a list of text blocks -> delivered-whole" \
-  "delivered-whole" "$(sbl whole_blocks)"
-# The PUBLISHED transcript artifact carries one leading `#` caveat line, which strict JSON
-# rejects; without comment tolerance every line falls to the JSONL path and is dropped.
-assert_eq "#1618 skill-body: published artifact (leading # caveat) -> delivered-whole" \
-  "delivered-whole" "$(sbl leading_comment)"
-# A single whole-file JSON document (not JSONL) still resolves — the whole-file json.loads path.
-assert_eq "#1618 skill-body: whole-file JSON (not JSONL) -> delivered-whole" \
-  "delivered-whole" "$(sbl whole_json)"
-# A partially-corrupt file (some lines parse, one does not) forces unestablished — a recovered
-# Skill pair must NOT be adjudicated as delivered-whole when the file could not be read cleanly.
-assert_eq "#1618 skill-body: partially-corrupt execution file -> unestablished (not a clean read)" \
-  "unestablished" "$(sbl partial_corrupt)"
-# The on-disk control file is unreadable: read_controls fails, so the delivered body cannot be
-# checked -> unestablished, never collapsed onto delivered-whole. The bogus --root names a
-# MISSING FILE INSIDE the delivered body's own directory; a path in another directory would be
-# refused one arm earlier by the base-directory match and never reach read_controls.
-assert_eq "#1618 skill-body: unreadable on-disk control file -> unestablished" \
-  "unestablished" \
-  "$(sbl_build whole >/dev/null 2>&1; _o="$(sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$LIB/../skills/review/DEFINITELY-NOT-HERE.md")"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
-assert_eq "#1618 skill-body: the control-file arm is reached, not the missing-body arm" "yes" \
-  "$(sbl_build whole >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$LIB/../skills/review/DEFINITELY-NOT-HERE.md" | grep -q 'could not be read for controls' && echo yes || echo no)"
-# Multi-root audit (the shape both workflow jobs actually use): two --root operands emit two
-# per-root VERDICT lines. The `whole` fixture carries a prflow:review pair only, so review reads
-# delivered-whole and implement (no pair) reads unestablished — proving the loop runs per root
-# rather than short-circuiting on the first. Counted with grep -c (a missing count fails the
-# assert loudly), never a selection-determining tr/sed pipeline.
-assert_eq "#1618 skill-body: multi-root audit emits a delivered-whole for the present root" "1" \
-  "$(sbl_build whole >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" | grep -c 'VERDICT: delivered-whole')"
-assert_eq "#1618 skill-body: multi-root audit emits an unestablished for the absent root" "1" \
-  "$(sbl_build whole >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" | grep -c 'VERDICT: unestablished')"
-
-# MULTI-LOAD ATTRIBUTION — the position window (stop = use_positions[n+1]) claims every body
-# record between one Skill tool_use and the NEXT. Both bounds are driven here: every other
-# fixture carries a single load and leaves an off-by-one or an unbounded window green.
-assert_eq "#1618 skill-body: two Skill loads in one transcript -> each root delivered-whole" "2" \
-  "$(sbl_build two_skill_loads >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=$SBL_IMPLEMENT" | grep -c 'VERDICT: delivered-whole')"
-# Stop bound: a body arriving after a LATER tool_use belongs to neither load — the earlier load's
-# window has closed and the later load's own window holds a body naming another skill's directory.
-# An unbounded window credits it to the earlier load and this count rises to 1.
-assert_eq "#1618 skill-body: a body after a later Skill tool_use is credited to neither load" "0" \
-  "$(sbl_build late_body >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=$SBL_IMPLEMENT" | grep -c 'VERDICT: delivered-whole')"
-# ATTRIBUTED REJECTION: the review root must be refused by the no-following-body arm specifically,
-# not by an unrelated precondition (never-loaded / no-result / error) upstream of it.
-assert_eq "#1618 skill-body: the late body is refused by the no-following-body arm" "yes" \
-  "$(sbl_says late_body 'no following body record naming its own')"
-# POSITIVE CONTROL on that same fixture: both loads WERE recorded and paired, so the refusal above
-# is the window closing rather than a fixture the helper could not read.
-assert_eq "#1618 skill-body: the late-body fixture still records both Skill loads" "yes" \
-  "$(sbl_says late_body 'recorded Skill tool_use pairs: 2')"
-
-# NAME BINDING (#1897) — do not narrow this to one load order: a bare-substring match binds
-# the review root to the `prflow:review-and-fix` load and answers `unestablished`, and a fix
-# that scanned in reverse would resolve one order while leaving the other broken.
-for _sbl_order in contains_name_first contains_name_second; do
-  assert_eq "#1618/#1897 skill-body: a containing name does not claim the root's load ($_sbl_order)" "2" \
-    "$(sbl_build "$_sbl_order" >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:review-and-fix=$SBL_RAF" | grep -c 'VERDICT: delivered-whole')"
-  # POSITIVE CONTROL: both loads WERE recorded, so a red above is the binding rather than a
-  # fixture the helper could not read.
-  assert_eq "#1618/#1897 skill-body: the $_sbl_order fixture records both Skill loads" "yes" \
-    "$(sbl_says "$_sbl_order" 'recorded Skill tool_use pairs: 2')"
-done
-# RESIDUE the quoted form does not remove: an argument equal to another root's name is
-# quote-delimited like the skill name, so that load still matches. Do not "fix" it by reading a
-# named input field: one committed transcript is a dated observation, not a schema contract.
-assert_eq "#1618/#1897 skill-body: an argument equal to another root's name yields no verdict for it" \
-  "unestablished" "$(sbl arg_equals_other_root)"
-assert_eq "#1618/#1897 skill-body: that root is refused by the no-following-body arm" "yes" \
-  "$(sbl_says arg_equals_other_root 'no following body record naming its own')"
-# POSITIVE CONTROL on that same fixture: the load's OWN root resolves, so the refusal above is
-# the argument string failing to bind rather than a fixture the helper could not read.
-assert_eq "#1618/#1897 skill-body: that fixture's own root still resolves" "1" \
-  "$(sbl_build arg_equals_other_root >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:implement=$SBL_IMPLEMENT" | grep -c 'VERDICT: delivered-whole')"
-# AMBIGUITY — more than one recorded load matches, so the root resolves to none of them. The
-# reason must NAME the ambiguity: an unestablished that reads like a genuine non-result is the
-# defect class this arm exists to end.
-assert_eq "#1618/#1897 skill-body: a root recorded twice -> unestablished" "unestablished" \
-  "$(sbl retry_after_error)"
-assert_eq "#1618/#1897 skill-body: the twice-recorded root's reason names the ambiguity" "yes" \
-  "$(sbl_says retry_after_error 'recorded Skill loads name prflow:review')"
-# The ambiguity reason counts the loads that MATCHED, not the transcript's total. This fixture
-# records three loads of which two match, so swapping the operand for len(pairs) renders 3 here
-# and goes RED — on retry_after_error the two counts coincide and the swap is invisible.
-assert_eq "#1618/#1897 skill-body: the ambiguity reason counts the matching loads, not the total" "yes" \
-  "$(sbl_says ambiguous_among_three '2 recorded Skill loads name prflow:review')"
-assert_eq "#1618/#1897 skill-body: that fixture records three loads in total" "yes" \
-  "$(sbl_says ambiguous_among_three 'recorded Skill tool_use pairs: 3')"
-# ATTRIBUTED REJECTION: the refusal is the ambiguity arm, not the error arm one step above it.
-assert_eq "#1618/#1897 skill-body: the twice-recorded root is not refused by the error arm" "yes" \
-  "$(sbl_denies retry_after_error 'returned an error tool_result')"
-# Do not revert either selection half to a first-match: keeping the first of several makes the
-# verdict depend on record order.
-assert_eq "#1618/#1897 skill-body: two bodies naming one directory -> unestablished" "unestablished" \
-  "$(sbl two_bodies_one_window)"
-assert_eq "#1618/#1897 skill-body: that reason names the body-record ambiguity, not a missing body" "yes" \
-  "$(sbl_says two_bodies_one_window '2 body records in the Skill load bound to prflow:review')"
-# The disclosed residue of matching a quoted name against the serialised input: report the
-# collision, never measure one of the colliding loads.
-assert_eq "#1618/#1897 skill-body: a successful load plus an argument mention -> unestablished" "unestablished" \
-  "$(sbl success_plus_arg_mention)"
-assert_eq "#1618/#1897 skill-body: that pair is refused by the ambiguity arm" "yes" \
-  "$(sbl_says success_plus_arg_mention '2 recorded Skill loads name prflow:review')"
-# A duplicated tool_use_id must not let a later clean result erase an earlier error flag.
-assert_eq "#1618/#1897 skill-body: a duplicated tool_use_id keeps the error flag" "unestablished" \
-  "$(sbl duplicate_result_id)"
-assert_eq "#1618/#1897 skill-body: that load is refused by the error arm, not measured" "yes" \
-  "$(sbl_says duplicate_result_id 'returned an error tool_result')"
-# A tool_use with NO input serialises to the bare literal `null`, which no quoted name occurs
-# inside — the fail-closed direction is never-loaded, never a body credited to it.
-assert_eq "#1618/#1897 skill-body: a Skill tool_use with no input -> unestablished" "unestablished" \
-  "$(sbl null_input)"
-assert_eq "#1618/#1897 skill-body: the no-input load is refused by the never-loaded arm" "yes" \
-  "$(sbl_says null_input 'no recorded Skill tool_use names prflow:review')"
-# The never-loaded reason carries the TOTAL recorded load count, which is what separates a
-# transcript that recorded nothing from one whose loads all bound another name. Swap the operand
-# for the match count and both assertions below go RED.
-assert_eq "#1618/#1897 skill-body: the never-loaded reason reports one recorded load for null_input" "yes" \
-  "$(sbl_says null_input '1 Skill load(s) were recorded in total')"
-assert_eq "#1618/#1897 skill-body: the never-loaded reason reports zero recorded loads for no_skill" "yes" \
-  "$(sbl_says no_skill '0 Skill load(s) were recorded in total')"
-# The same --root supplied TWICE: argparse append accepts it with no uniqueness check, so the
-# audit reports that root once per operand. Two identical operands must not read as two roots
-# measured, nor make either reading disagree with the single-operand one.
-assert_eq "#1618/#1897 skill-body: a duplicated --root emits one verdict per operand" "2" \
-  "$(sbl_build whole >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:review=$SBL_REVIEW" | grep -c 'VERDICT: delivered-whole')"
-# The no-following-body reason names the DIRECTORY it compared. Do not revert the operand to the
-# --root path: the sentence says directory, and the pair below pins that it is one.
-assert_eq "#1618/#1897 skill-body: the no-following-body reason names the compared directory" "yes" \
-  "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md") | grep -q "directory ('skills/review')" && echo yes || echo no)"
-assert_eq "#1618/#1897 skill-body: that reason no longer names the SKILL.md file path" "yes" \
-  "$(sbl_rel_denies boundary_dir "directory ('skills/review/SKILL.md')")"  # raw-guard-ok: sbl_rel_denies greps the helper's rendered stdout, not a SKILL file's text; the SKILL.md token is the operand under test
-# Do not rebuild this fixture from the builder above: it is a REAL captured transcript, and a
-# fixture built from the instrument's own assumptions cannot contradict the instrument — which
-# is how this file's defect family survived a green suite. Provenance is in the fixture header.
-SBL_OBS="$LIB/test/fixtures/skill-body-load-transcript.observed.txt"
-assert_eq "#1618/#1897 skill-body: the committed real transcript records exactly one Skill load" "yes" \
-  "$(sbl_run "$SBL_OBS" --tier review --root "prflow:review=$SBL_REVIEW" | grep -q 'recorded Skill tool_use pairs: 1' && echo yes || echo no)"
-# AC8's promise is that the recorded measurement is re-derivable from committed bytes, so drive
-# the documented recipe: the review body AT THE MEASURED HEAD, laid out as skills/review/, must
-# still read delivered-whole. A shallow clone lacking that blob prints its own token rather than
-# a silent pass.
-assert_eq "#1618/#1897 skill-body: the committed transcript re-derives delivered-whole at the measured head" "delivered-whole" \
-  "$(mkdir -p "$SBL_TMP/rederive/skills/review" && NO_COLOR=1 PYTHON_COLORS=0 git -C "$LIB/.." show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > "$SBL_TMP/rederive/skills/review/SKILL.md" 2>/dev/null || { printf 'GIT_OBJECT_MISSING'; false; } && sbl_verdict_token "$(cd "$SBL_TMP/rederive" && sbl_run "$SBL_OBS" --tier review --root "prflow:review=skills/review/SKILL.md")")"
-# Do not point this at a path outside the matching directory: the controls arm is reached only
-# after the name binding and the directory selection both resolve, so a root elsewhere would be
-# refused upstream and prove neither.
-assert_eq "#1618/#1897 skill-body: the real transcript binds the review root and selects its body" "yes" \
-  "$(cd "$LIB/.." && sbl_run "$SBL_OBS" --tier review --root "prflow:review=skills/review/DEFINITELY-NOT-HERE.md" | grep -q 'could not be read for controls' && echo yes || echo no)"
-# ONE-CONTROL ARM. read_controls finds no interior control when every non-tail line is under 20
-# characters, so the delivered-whole reason must say only the tail was checked. Drop the
-# conditional and this goes RED — nothing else reaches that arm, since every engine root has a
-# long interior line. The scratch root lives beside the fixture's own base directory so the
-# directory match resolves.
-assert_eq "#1618/#1897 skill-body: a root with no interior control says only the tail was checked" "yes" \
-  "$(mkdir -p "$SBL_TMP/skills/review" && printf 'a\nb\nTHE FINAL LINE OF THE ONE-CONTROL FIXTURE\n' > "$SBL_TMP/skills/review/SKILL.md" && NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL_TMP" <<'PY_SBL_ONE'
-import json, os, sys
-root = sys.argv[1]
-body = open(os.path.join(root, "skills", "review", "SKILL.md"), encoding="utf-8").read()
-PREFIX = "Base directory for this skill: "
-recs = [
-    {"type": "assistant", "message": {"role": "assistant", "content": [
-        {"type": "tool_use", "name": "Skill", "id": "s1", "input": {"skill": "prflow:review"}}]}},
-    {"type": "user", "message": {"role": "user", "content": [
-        {"type": "tool_result", "tool_use_id": "s1", "content": "Launching skill: prflow:review"}]}},
-    {"type": "user", "message": {"role": "user", "content": [
-        {"type": "text", "text": PREFIX + os.path.join(root, "skills", "review") + "\n\n" + body}]}},
-]
-with open(os.path.join(root, "one-control.jsonl"), "w", encoding="utf-8") as fh:
-    for r in recs:
-        fh.write(json.dumps(r) + "\n")
-PY_SBL_ONE
-sbl_run "$SBL_TMP/one-control.jsonl" --tier review --root "prflow:review=$SBL_TMP/skills/review/SKILL.md" | grep -q 'only the tail was checked' && echo yes || echo no)"
-# POSITIVE CONTROL: that same fixture reaches delivered-whole, so the assertion above is the
-# one-control wording rather than a fixture the helper could not read.
-assert_eq "#1618/#1897 skill-body: the one-control fixture still reads delivered-whole" "1" \
-  "$(sbl_run "$SBL_TMP/one-control.jsonl" --tier review --root "prflow:review=$SBL_TMP/skills/review/SKILL.md" | grep -c 'VERDICT: delivered-whole')"
-# dirs_match under the WINDOWS path module. Every fixture above runs under the host's own
-# os.path, so a POSIX-only host leaves the ntpath reading unexercised — and there the
-# separator cleanup was undone by normpath, so every root read unestablished.
-sbl_dirs_match_both_modules() {  # $1 body base dir, $2 root dir (default skills/review)
-                                 #   -> "<posixpath result> <ntpath result>"
-  # dirs_match reads the module-level os.path, so swapping it is what exercises the Windows
-  # reading on a POSIX host. Keep each call site below its own assertion: one spawn each buys
-  # a per-case label that a fused multi-value print would cost.
-  NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL" "$1" "${2:-skills/review}" <<'PY_SBL_NT'
-import importlib.util, ntpath, posixpath, sys
-spec = importlib.util.spec_from_file_location("sbl", sys.argv[1])
-m = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(m)
-out = []
-for mod in (posixpath, ntpath):
-    m.os.path = mod
-    out.append(str(m.dirs_match(sys.argv[2], sys.argv[3])))
-print(" ".join(out))
-PY_SBL_NT
-}
-assert_eq "#1618/#1897 skill-body: dirs_match resolves identically under posixpath and ntpath" "True True" \
-  "$(sbl_dirs_match_both_modules /home/runner/work/prflow/prflow/skills/review)"
-# The component-boundary guard must survive that fix under each of the two stdlib path modules
-# `os.path` can resolve to, or the ntpath repair resolves `myskills/review` against `skills/review`.
-assert_eq "#1618/#1897 skill-body: the component-boundary guard holds under both path modules" "False False" \
-  "$(sbl_dirs_match_both_modules /home/runner/work/prflow/prflow/myskills/review)"
-# A backslash-bearing base dir is the form a real Windows runner records. Keep it alongside the
-# forward-slash probe rather than in place of it: that one reaches the same normalisation via
-# ntpath.normpath, while this one pins the input shape production actually sees.
-assert_eq "#1618/#1897 skill-body: a backslash-bearing runner directory resolves under both modules" "True True" \
-  "$(sbl_dirs_match_both_modules 'C:\runners\work\prflow\prflow\skills\review')"
-# EMPTY-OPERAND GUARD. `.` is what root_dir_for returns for a bare-filename --root, so a blank
-# base directory against it is reachable from production. Move the emptiness test back after
-# normpath and this returns True — normpath maps "" to "." — crediting an unrelated body.
-assert_eq "#1618/#1897 skill-body: a blank base directory matches no root under either module" "False False" \
-  "$(sbl_dirs_match_both_modules '' '.')"
-
-# DIRECTORY MATCH — every fixture above builds the body's base dir from the same on-disk path
-# the --root spec names, so they drive dirs_match's equality branch only. Production never takes
-# it: the transcript carries an absolute runner dir while --root is repo-relative.
-assert_eq "#1618 skill-body: absolute runner base dir vs repo-relative root -> delivered-whole" \
-  "delivered-whole" "$(sbl_rel abs_suffix_dir)"
-# Separator boundary: a bare-suffix directory (`myskills/review`) is not a component-boundary
-# suffix of `skills/review`, so it must NOT be adjudicated as this root's body.
-assert_eq "#1618 skill-body: a bare-suffix directory does not satisfy the root -> unestablished" \
-  "unestablished" "$(sbl_rel boundary_dir)"
-# ATTRIBUTED REJECTION: the refusal must come from the directory-match arm, not an upstream
-# precondition. abs_suffix_dir is the same fixture shape one directory component apart and it
-# resolves, so it is the positive control proving the `/` guard is what refused this one.
-assert_eq "#1618 skill-body: the bare-suffix body is refused by the no-following-body arm" "yes" \
-  "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md") | grep -q 'no following body record naming its own' && echo yes || echo no)"
-
-# Only the LEADING blank/`#` run is stripped: the caveat line and the blank after it go, while a
-# `#` line INSIDE the file stays unparseable and forces unestablished. A stripper that dropped
-# every `#` line would hide that corruption and report a clean read.
-assert_eq "#1618 skill-body: a # line inside the file is not stripped -> unestablished" \
-  "unestablished" "$(sbl interior_comment)"
-
-# Empty selection MUST fail rather than report a clean pass — an audit that audited nothing
-# reading as an audit that found nothing is this defect one level up. No --root -> exit !=0,
-# NO-ROOTS, and never a delivered-whole line.
-assert_eq "#1618 skill-body: empty selection (no --root) exits non-zero" "nonzero" \
-  "$(sbl_run "$SBL_TMP/exec.jsonl" >/dev/null 2>&1 && echo zero || echo nonzero)"
-assert_eq "#1618 skill-body: empty selection prints NO-ROOTS, not a clean pass" "yes" \
-  "$(sbl_run "$SBL_TMP/exec.jsonl" | grep -q 'AUDIT: NO-ROOTS' && echo yes || echo no)"
-# Exit-status gating is unavailable here (the no-roots path deliberately exits 2), so require the
-# header PRESENT and the verdict line ABSENT from ONE capture: a traceback prints neither, so it
-# fails the present half rather than passing on the absent one.
-assert_eq "#1618 skill-body: empty selection prints NO-ROOTS and no delivered-whole verdict" "yes" \
-  "$(_o="$(sbl_run "$SBL_TMP/exec.jsonl" 2>/dev/null)"; case "$_o" in *'AUDIT: NO-ROOTS'*) case "$_o" in *'VERDICT: delivered-whole'*) echo no ;; *) echo yes ;; esac ;; *) echo no ;; esac)"
-
-# COUPLED SITES: the two workflow jobs and the helper are one contract. Each job must load
-# the prflow plugin, capture the full output, invoke the helper, and audit BOTH engine roots
-# at their real on-disk paths — a job that dropped a --root would silently measure nothing
-# for that root while the suite stayed green.
-assert_eq "#1618 skill-body: matcher-probe jobs and helper are coupled" "coupled" \
-  "$(NO_COLOR=1 PYTHON_COLORS=0 python3 - "$LIB/../.github/workflows/matcher-probe.yml" <<'PY_SBL_COUPLED'
-import sys, yaml
-wf_path = sys.argv[1]
-jobs = yaml.safe_load(open(wf_path, encoding="utf-8"))["jobs"] or {}
-roots = {"prflow:review": "skills/review/SKILL.md", "prflow:implement": "skills/implement/SKILL.md"}
-for job_name, tier in (("skill-body-load-review-probe", "review"),
-                       ("skill-body-load-implement-probe", "implement")):
-    job = jobs.get(job_name)
-    if not job:
-        print("matcher-probe.yml has no %s job" % job_name); sys.exit(0)
-    steps = job.get("steps") or []
-    claude = [s for s in steps if isinstance(s.get("with"), dict) and "claude_args" in s["with"]]
-    if not claude:
-        print("%s has no claude-code-action step" % job_name); sys.exit(0)
-    with_ = claude[0]["with"]
-    if with_.get("show_full_output") is not True:
-        print("%s does not set show_full_output: true — the tool_result is not captured" % job_name)
-        sys.exit(0)
-    plugins = str(with_.get("plugins", ""))
-    if "prflow@" not in plugins:
-        print("%s does not load the prflow plugin, so the engine roots never load" % job_name)
-        sys.exit(0)
-    verdict_steps = [s for s in steps if "skill-body-load-probe-verdict.py" in str(s.get("run", ""))]
-    if not verdict_steps:
-        print("%s never invokes the verdict helper" % job_name); sys.exit(0)
-    run = str(verdict_steps[0]["run"])
-    for name, path in roots.items():
-        if ("%s=%s" % (name, path)) not in run:
-            print("%s verdict step does not audit root %s at %s" % (job_name, name, path))
-            sys.exit(0)
-    if ("--tier %s" % tier) not in run and ("--tier=%s" % tier) not in run:
-        print("%s verdict step does not name its tier %s" % (job_name, tier)); sys.exit(0)
-# The audited paths must be real files, or the on-disk control read is vacuous. Derive the
-# repo root from the (normalized) workflow path: .github/workflows/matcher-probe.yml is three
-# levels below the root.
-import os
-base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.normpath(wf_path))))
-for path in roots.values():
-    if not os.path.isfile(os.path.join(base, path)):
-        print("audited root path does not exist on disk: %s" % path); sys.exit(0)
-print("coupled")
-PY_SBL_COUPLED
-)"
-rm -rf "$SBL_TMP"
-
+if ! devflow_run_full_suite_module "$LIB/test/modules/review-contract.sh" \
+  "review-contract" 86; then
+  printf 'ERROR: review-contract boundary could not record its result\n'
+  exit 1
+fi
 # ────────────────────────────────────────────────────────────────────────────
 echo "docs per-step toggles (docs.internal_enabled / docs.external_enabled)"
 # ────────────────────────────────────────────────────────────────────────────
@@ -32134,16 +30935,15 @@ assert_eq "#247 preflight: jq genuinely absent → \"not installed\" wording (no
 #    longer carries inline SHELL normalization mirrors: Copilot CLI's inline-bash
 #    marshaling drops same-command variable assignments, so the multi-statement
 #    mirror blocks were removed and normalization moved to PROMPT time — the agent
-#    converts a Windows-form runner-reported base directory (one standalone
-#    wslpath/cygpath probe, or the textual drive-letter rules) BEFORE substituting
-#    it into the single-statement invocation. The preamble paraphrases
-#    lib/normalize-path.sh's rules; pin the operative paraphrase fragments so a
-#    trim of the normalization guidance (or of its lib lockstep reference) goes RED.
+#    converts a Windows-form runner-reported base directory with one standalone
+#    wslpath/cygpath probe BEFORE substituting it into the single-statement
+#    invocation (issue #1856 removed the tool-less drive-letter paraphrase, whose
+#    T5b pin retired with it). The preamble's probe mirrors lib/normalize-path.sh's
+#    tool-first tier; pin the probe fragment and that lib lockstep reference so a
+#    trim of either goes RED.
 CI_SKILL="$LIB/../skills/create-issue/SKILL.md"
 assert_pin_unique "#247/#275 T5: create-issue preamble carries the prompt-time wslpath probe guidance" \
   "wslpath -u '<path>'" "$CI_SKILL"
-assert_pin_unique "#247/#275 T5b: create-issue preamble carries the tool-less drive-letter mapping rule" \
-  'map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2' "$CI_SKILL"
 assert_pin_unique "#247/#275 T5c: create-issue preamble names lib/normalize-path.sh as the rules' source (lockstep reference)" \
   'lib/normalize-path.sh' "$CI_SKILL"
 
@@ -32343,8 +31143,10 @@ assert_eq "#247 preflight partial copy: degraded remedy names the override value
 # ── T5d (reshaped by #275) — the SKILL.md shell mirrors are gone (normalization is
 #    prompt-time prose now), so behavioral SKILL↔lib parity is no longer executable.
 #    lib/normalize-path.sh remains the canonical rules source (its own T4* behavioral
-#    tests above still exercise every arm); the prose paraphrase is pinned by
-#    T5/T5b/T5c. Keep the lib-side detection-regex pin so the helper's operative
+#    tests above still exercise every arm); the surviving prompt-time wslpath/cygpath
+#    probe fragment and its lib lockstep reference are pinned by T5/T5c (issue #1856
+#    removed T5b with the tool-less drive-letter paraphrase it guarded). Keep the
+#    lib-side detection-regex pin so the helper's operative
 #    detection line cannot be trimmed while its callers still rely on it. ──
 assert_eq "#247 lockstep: detection regex literal present in lib/normalize-path.sh" "yes" \
   "$(grep -qF '=~ ^[A-Za-z]:[\\/] ]]' "$NORMALIZE_PATH_SH" && echo yes || echo no)"
@@ -34800,7 +33602,7 @@ echo "#408 cloud review no-verdict auto-resume backstop + #414 post-and-annotate
 # module re-derives REPO_ROOT and rebuilds the review-engine bundle itself;
 # see its .inventory.md for the coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-stall-backstop.sh" \
-  "review-stall-backstop" 462; then
+  "review-stall-backstop" 469; then
   printf 'ERROR: review-stall-backstop boundary could not record its result\n'
   exit 1
 fi
@@ -47659,78 +46461,11 @@ print("unreadable=%s empty=%s post-filter-empty=%s" % (
     verdict(rc3, o3, "empty audited population")))
 ')"
 
-echo "#693 issue-body cache: no cut-over site re-fetches the body"
-IBR_LINT="$LIB/test/lint-issue-body-refetch.py"
-IBR_FX="$LIB/test/fixtures/issue-body-refetch"
-
-# Real-tree run: clean now, plus a POSITIVE tally so a collapsed audited set can't read as clean.
-IBR_OUT="$(python3 "$IBR_LINT" 2>&1)"; IBR_RC=$?
-assert_eq "#693 scanner: clean on the tree as it stands" "rc=0" \
-  "$([ "$IBR_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$IBR_RC" "$IBR_OUT")"
-assert_eq "#693 scanner: the real-tree run audited a positive number of files" "yes" \
-  "$(printf '%s' "$IBR_OUT" | python3 -c 'import re,sys
-m = re.search(r"audited (\d+) of", sys.stdin.read())
-print("yes" if m and int(m.group(1)) > 0 else "no")')"
-
-# Fixture-driven behavior over --files-from. The fixtures live under lib/test/ (unreachable from
-# the default enumeration); their in-list paths are laid out under skills/implement/ so is_audited()
-# selects them.
-ibr_run() {  # <root> <path…> -> "rc=<n>|<stdout+stderr>"
-  local root="$1"; shift
-  local list out rc
-  list="$(probe_tmp '#693 fixture list')" || return 0
-  printf '%s\n' "$@" > "$list"
-  out="$(python3 "$IBR_LINT" --root "$root" --files-from "$list" 2>&1)"; rc=$?
-  rm -f "$list"
-  printf 'rc=%s|%s' "$rc" "$out"
-}
-
-# Discrimination: the §1.1 producer fetch is the named in-file allowance — a green run over
-# it (plus a clean file) proves the guard discriminates. Issue #1554 retired the §4.1 gate's
-# own allowance with the fence that needed it, so the docgate fixture went with it.
-assert_eq "#693 scanner: the §1.1 producer fetch is not flagged" \
-  "rc=0|lint-issue-body-refetch: audited 2 of 2 files" \
-  "$(ibr_run "$IBR_FX" skills/implement/clean.md skills/implement/producer.md)"
-# The producer's MIGRATED spelling (issue #1633) writes to the absolute path the
-# precondition printed, so the line carries the `<absolute-cache-path>` placeholder
-# instead of the cache path — a separate allowance literal, driven on its own file so
-# neither spelling's allowance can go vacuous behind the other.
-assert_eq "#693 scanner: the migrated §1.1 producer spelling is not flagged" \
-  "rc=0|lint-issue-body-refetch: audited 1 of 1 files" \
-  "$(ibr_run "$IBR_FX" skills/implement/producer-migrated.md)"
-
-# Planted-defect positive control, one per detected form (the coverage-claim rule).
-while IFS=: read -r _ibr_file _ibr_slug _ibr_what; do
-  [ -n "$_ibr_file" ] || continue
-  assert_eq "#693 scanner: flags the $_ibr_what form ($_ibr_file)" "yes" \
-    "$(case "$(ibr_run "$IBR_FX" "$_ibr_file")" in *"|$_ibr_file:"*"($_ibr_slug)"*) echo yes ;; *) echo no ;; esac)"
-done <<'IBR_VIOLATIONS'
-skills/implement/v-ghview-body.md:gh-issue-view-body:gh issue view requesting body
-skills/implement/v-ghview-nojson.md:gh-issue-view-no-json:gh issue view with no --json
-skills/implement/v-ghapi-body.md:gh-api-issue-body:gh api issue-body read
-skills/implement/v-parseacs-issue.md:parse-acs-issue:parse-acs.py --issue
-skills/implement/v-preflight-issue.md:preflight-issue:preflight.py --issue
-skills/implement/v-wrapped.md:gh-issue-view-body:a line-wrapped detected form
-IBR_VIOLATIONS
-
-# An all-unaudited population is a zero tally at exit 0 (never a silent clean over nothing).
-assert_eq "#693 scanner: an all-unaudited population is a zero tally at exit 0" \
-  "rc=0|lint-issue-body-refetch: audited 0 of 0 files" \
-  "$(ibr_run "$IBR_FX" other/foo.md)"
-
-# Fail-closed arms (mirroring the #664 sibling, since the scaffolding is a deliberate mirror):
-# an audited path that cannot be READ is named on stderr and, when it is the whole population,
-# fails closed — "audited nothing" must never print the same thing as "audited everything, clean".
-assert_eq "#693 scanner: an unreadable audited path is named, not silently skipped" "yes" \
-  "$(case "$(ibr_run "$IBR_FX" skills/implement/no-such-file.md)" in *"SKIPPED skills/implement/no-such-file.md"*) echo yes ;; *) echo no ;; esac)"
-assert_eq "#693 scanner: a wholly unreadable population fails closed rather than reporting clean" "rc=1|0 of 1" \
-  "$(ibr_run "$IBR_FX" skills/implement/no-such-file.md | python3 -c 'import re,sys
-t = sys.stdin.read()
-m = re.search(r"audited (\d+ of \d+)", t)
-print("rc=" + re.match(r"rc=(\d+)", t).group(1) + "|" + (m.group(1) if m else "no-tally"))')"
-# An empty pre-filter enumeration fails closed with its own breadcrumb (never a silent exit 0).
-assert_eq "#693 scanner: an empty enumeration fails closed with its own breadcrumb" "yes" \
-  "$(case "$(ibr_run "$IBR_FX")" in "rc=0"*) echo "no: exited 0" ;; *"yielded zero paths"*) echo yes ;; *) echo no ;; esac)"
+if ! devflow_run_full_suite_module "$LIB/test/modules/implement-contract.sh" \
+  "implement-contract" 14; then
+  printf 'ERROR: implement-contract boundary could not record its result\n'
+  exit 1
+fi
 
 echo "#725 worktree-immunity residuals pinned in the remaining working-tree enumeration"
 # lint-issue-body-refetch.py takes the ASSERTION form (its worktree immunity is a PREFIX
@@ -47738,6 +46473,19 @@ echo "#725 worktree-immunity residuals pinned in the remaining working-tree enum
 # deliberate act). Build a temp root carrying a worktree-shaped decoy that holds a real
 # re-fetch violation, drive it through --files-from so no .git/info/exclude line has any
 # say (AC2), and prove the real helper does NOT report it (AC1).
+# IBR_LINT + ibr_run were formerly defined by the #693 block; that block was extracted
+# into lib/test/modules/implement-contract.sh (issue #1934), so this sibling — which is a
+# lib/test-subject label, not skills/implement — carries its own minimal copy.
+IBR_LINT="$LIB/test/lint-issue-body-refetch.py"
+ibr_run() {  # <root> <path…> -> "rc=<n>|<stdout+stderr>"
+  local root="$1"; shift
+  local list out rc
+  list="$(probe_tmp '#725 fixture list')" || return 0
+  printf '%s\n' "$@" > "$list"
+  out="$(python3 "$IBR_LINT" --root "$root" --files-from "$list" 2>&1)"; rc=$?
+  rm -f "$list"
+  printf 'rc=%s|%s' "$rc" "$out"
+}
 E725_IBR_FX="$(probe_tmp '#725 ibr worktree fixture root')"
 case "$E725_IBR_FX" in ""|/dev/null) : ;; *) rm -f "$E725_IBR_FX"; mkdir -p "$E725_IBR_FX" ;; esac
 E725_IBR_DECOY=".claude/worktrees/w/skills/implement/phases/phase-1-setup.md"
@@ -54555,7 +53303,8 @@ for helper in ("workpad.py", "preflight.py", "parse-acs.py", "run-jq.sh", "confi
                "branch-for-issue.py", "update-branch-checkpoint.sh",
                "phase2-durability-checkpoint.sh", "react-to-trigger.sh",
                "load-prompt-extension.sh", "ensure-label.sh", "apply-labels.sh",
-               "apply-pr-triggerer.sh", "check-verified-premises.py", "refresh-pr-run-link.py"):
+               "apply-pr-triggerer.sh", "check-verified-premises.py", "refresh-pr-run-link.py",
+               "validate-issue-claim-audit.py"):
     stub(os.path.join(scripts, helper))
 stub(os.path.join(libdir, "efficiency-trace.sh"))
 ambient = {

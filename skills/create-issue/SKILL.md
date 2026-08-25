@@ -182,8 +182,10 @@ leg unestablished, never an established absence. A resolver that never ran — r
 assumes `docs/internal/`, says so in your output, and records the leg unestablished when that
 directory holds no tracked files.
 Both enumerate from the index, and each reaches its peer as its docs-verify invocation's
-`--search-space <pathspec>` operand, never as dispatch-prompt prose its own contract overrides.
-The duty floor, not the space's size, bounds each peer.
+`--search-space <pathspec>` operand — write the leg's resolved pathspec verbatim as that operand,
+the invocation string `/prflow:docs-verify --report-only --search-space <pathspec> <topic>` per that
+grammar's order — never as dispatch-prompt prose its own contract overrides. The duty floor, not the
+space's size, bounds each peer.
 
 The orchestrator reconciles both returns. An empty documentation leg is an established absence only
 when the location itself is absent.
@@ -196,6 +198,11 @@ naming the failed leg, never reporting a partial verification as complete.
 An incomplete return — one that succeeds but omits or malforms its duty statuses, or omits a
 bearing observation for a duty it reported `judged-not-engaged` — records that duty unestablished
 with a breadcrumb naming the missing field, never a discharged floor.
+The dispatch also instructs each peer to state, in its return, the `--search-space` operand it
+actually ran under; the orchestrator compares that returned operand against the pathspec that leg
+dispatched, and records the leg unestablished with a breadcrumb — escalating shallow→deep like any
+unestablished duty — when the return omits the operand or its stated value does not match, rather
+than an established result, so a peer that silently defaulted the operand is detected, not trusted.
 
 Escalation shallow→deep is the only entry to the deep arm. Escalate
 on `UNRELIABLE` or `ABSENT`, on an unestablished duty, and on any judged-not-engaged duty whose returned
@@ -215,12 +222,16 @@ degrades to a bounded inline verification with a breadcrumb naming the failure k
 evidence degraded, and writes its own output to the same artifact path. It never terminates the run
 and never presents a half-verification as whole.
 
-Completion-wait discipline (mandatory, mirroring Step 3.6's synchronous dispatch). The docs-verify
-findings report must be complete and captured before the first Step 2 clarification question — and,
-on a run so complete it asks zero clarifying questions, before Step 3 drafting begins.
-When a runner executes `/prflow:docs-verify` as a subagent, that dispatch blocks on the completed
-result, and a launch acknowledgment is never treated as the findings report.
-Never open Step 2 clarification or Step 3 drafting on the strength of "docs-verify is running".
+Completion-wait discipline (mandatory, mirroring Step 3.6's synchronous dispatch). Dispatch each
+peer through the Agent tool (`subagent_type: general-purpose` on Claude Code; the runner's
+equivalent context-isolated subagent tool elsewhere), synchronously — the normative requirement is
+behavioral: the dispatch blocks until the peer's completed findings are in hand, and a launch
+acknowledgment is never the findings report. On Claude Code, `run_in_background: false` is a current
+example of meeting it, not the definition; a background fork is excluded, since it can die on resume
+and lose the verification. The docs-verify findings report must be complete and captured before the
+first Step 2 clarification question — and, on a run so complete it asks zero clarifying questions,
+before Step 3 drafting begins. Never open Step 2 clarification or Step 3 drafting on the strength of
+"docs-verify is running".
 
 ### Step 2: Clarify until the Definition of Ready is met
 
@@ -322,12 +333,9 @@ Otherwise substitute the base directory this runner reports in context — e.g. 
 this skill:` line. Never capture the anchor into a shell variable that a later statement reads:
 some runners' inline-bash marshaling drops a variable assigned in an earlier statement of the same command.
 
-Normalize a Windows-form base directory before substituting it. Run one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) and
-use its output only if the command succeeds and prints a non-empty path — otherwise fall through to
-the drive-letter rules exactly as if the tool were absent.
-With neither tool: lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and
-turn backslashes into `/`. Neither WSL nor MSYS2: use the path unchanged and report that it could
-not be normalized. These are `lib/normalize-path.sh`'s rules restated as prompt-time prose.
+Normalize a Windows-form base directory before substituting it: run one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2), in that order, and
+use its output only if the command succeeds and prints a non-empty path — otherwise substitute the
+runner-reported path unchanged. This `wslpath`/`cygpath` probe mirrors the tool-first tier of `lib/normalize-path.sh`.
 
 An unresolvable anchor degrades; it never stops the run — an anchor failure must never block issue creation.
 Proceed and let the underlying "No such file" error surface: a `/prflow:docs-verify` pass whose

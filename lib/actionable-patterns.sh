@@ -113,20 +113,60 @@ if [ ! -f "$OVERRIDES_FILE" ] || [ ! -s "$OVERRIDES_FILE" ]; then
     _OVERRIDES_ACTUAL="$_JQ_TMP/overrides.json"
 fi
 
+# ── Experiment records: the cost source for the #1828 cost-weighted ranking ───
+# The unified experiment record (scripts/build-experiment-records.py) is the sibling
+# of the retrospectives file. compute-patterns.jq joins occurrences to their PR's
+# efficiency_runs[].iterations from it. The cost source is best-effort — it only
+# reorders patterns, never admits or excludes one — so a source it cannot read must
+# degrade to no coverage (rank by occurrence count), never take the weekly derivation
+# down. An absent/empty artifact (a repo that has not built one yet) stubs to an empty
+# stream; a present-but-unparseable one would otherwise abort at the eager --slurpfile
+# read below (there is no breadcrumb on that jq stage), so it is validated here and, on
+# a parse failure, replaced by the same empty stub with a specific ::warning::.
+EXPERIMENTS_FILE="$(dirname "$RETRO_FILE")/experiment-records.jsonl"
+_EXPERIMENTS_ACTUAL="$EXPERIMENTS_FILE"
+if [ ! -f "$EXPERIMENTS_FILE" ] || [ ! -s "$EXPERIMENTS_FILE" ]; then
+    : > "$_JQ_TMP/experiment-records.jsonl"
+    _EXPERIMENTS_ACTUAL="$_JQ_TMP/experiment-records.jsonl"
+elif ! "$DEVFLOW_JQ" '.' "$EXPERIMENTS_FILE" >/dev/null 2>&1; then
+    echo "::warning::actionable-patterns: experiment-records.jsonl at '$EXPERIMENTS_FILE' does not parse as JSON — ignoring the cost source this run (patterns rank by occurrence count only); regenerate it via scripts/build-experiment-records.py or remove it to restore cost-weighted ranking" >&2
+    : > "$_JQ_TMP/experiment-records.jsonl"
+    _EXPERIMENTS_ACTUAL="$_JQ_TMP/experiment-records.jsonl"
+fi
+
 # ── Compute pattern view ─────────────────────────────────────────────────────
 # If the retrospectives file doesn't exist yet (first run or empty scan),
 # pipe an empty stream to jq rather than letting it error on a missing file.
 if [ -f "$RETRO_FILE" ] && [ -s "$RETRO_FILE" ]; then
   PATTERN_VIEW="$(
     "$DEVFLOW_JQ" -s -L "$HERE" --slurpfile overrides "$_OVERRIDES_ACTUAL" \
+       --slurpfile experiments "$_EXPERIMENTS_ACTUAL" \
        -f "$HERE/compute-patterns.jq" \
        "$RETRO_FILE"
   )"
 else
   PATTERN_VIEW="$(
     printf '' | "$DEVFLOW_JQ" -s -L "$HERE" --slurpfile overrides "$_OVERRIDES_ACTUAL" \
+       --slurpfile experiments "$_EXPERIMENTS_ACTUAL" \
        -f "$HERE/compute-patterns.jq"
   )"
+fi
+
+# Producer-drift heartbeat (issue #1828): compute-patterns.jq's per-record cost-index type
+# guards drop a malformed experiment record silently (fail-safe — the pattern reads
+# uncovered), so a producer-schema regression that still parses as JSON — a non-number `pr`,
+# a renamed `efficiency_runs` — would collapse cost coverage to zero with no signal,
+# indistinguishably from the benign no-records case. When the real experiment file was used
+# (the `_EXPERIMENTS_ACTUAL == EXPERIMENTS_FILE` arm, i.e. present, non-empty, and parseable)
+# yet NO pattern came out covered, emit one advisory ::warning:: so that silent collapse is
+# observable. `|| true` + the non-numeric arm keep an unestablished count from fabricating a
+# zero heartbeat (unknown is not zero); the warning never changes the emitted output.
+if [ "$_EXPERIMENTS_ACTUAL" = "$EXPERIMENTS_FILE" ]; then
+  _COVERED_ANY="$(printf '%s' "$PATTERN_VIEW" | "$DEVFLOW_JQ" '[to_entries[] | select((.value.covered_occurrence_count // 0) > 0)] | length' 2>/dev/null || true)"
+  case "$_COVERED_ANY" in
+    ''|*[!0-9]*) : ;;
+    0) echo "::warning::actionable-patterns: experiment-records.jsonl at '$EXPERIMENTS_FILE' is present and parses but yielded zero cost coverage for every pattern — cost-weighted ranking has degraded to occurrence-count-only; if unexpected, check scripts/build-experiment-records.py for producer-schema drift (a non-number 'pr' or a renamed 'efficiency_runs' the per-record type guards drop silently)" >&2 ;;
+  esac
 fi
 
 # ── Fetch open filed retrospective issues and build slug→createdAt map ───────
@@ -274,9 +314,24 @@ OUTPUT="$(
           last_seen: $v.last_seen,
           occurrences: $v.occurrences,
           descriptors: ($v.descriptors // []),
+          # Cost aggregate + the covered-occurrence count it was computed from (issue
+          # #1828). null cost signals zero coverage — never a fabricated 0.
+          cost_mean_iterations: $v.cost_mean_iterations,
+          covered_occurrence_count: ($v.covered_occurrence_count // 0),
           cooldown_active: $cooldown_active
         }
     ]
+    # Cost-weighted ranking (issue #1828): covered patterns first, ordered by descending
+    # cost aggregate with occurrence count as the tiebreak; a pattern with zero covered
+    # occurrences ranks after every covered pattern, ordered by occurrence count. jq
+    # sort_by is ascending, so the numeric keys are negated for descending order. An
+    # uncovered pattern has null cost — `// 0` folds it to the same key the covered/
+    # uncovered partition (the first key) already sorts it below every covered pattern by.
+    | sort_by(
+        (if (.covered_occurrence_count // 0) > 0 then 0 else 1 end),
+        -(.cost_mean_iterations // 0),
+        -(.occurrence_count)
+      )
   '
 )" || { echo "::error::actionable-patterns: failed to build the actionable-pattern output (jq exited non-zero — e.g. a malformed pattern view; the former oversized-operand arg-limit overflow is now mitigated via --slurpfile)" >&2; exit 1; }
 
