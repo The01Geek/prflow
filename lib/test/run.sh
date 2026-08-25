@@ -17083,11 +17083,36 @@ CTX_CLEAN='{"pr":42,"kind":"implementation","issue_number":40,"merged_at":"2026-
 E="$(echo "$CTX_CLEAN" | jq -c -f "$LIB/clean-entry.jq")"
 assert_eq "clean-entry verdict=clean"       "clean" "$(echo "$E" | jq -r .verdict)"
 assert_eq "clean-entry pr=42"               "42"    "$(echo "$E" | jq -r .pr)"
-assert_eq "clean-entry schema_version=2"    "2"     "$(echo "$E" | jq -r .schema_version)"
+assert_eq "clean-entry schema_version=3"    "3"     "$(echo "$E" | jq -r .schema_version)"
 assert_eq "clean-entry categories=[]"       "0"     "$(echo "$E" | jq '.categories|length')"
 assert_eq "clean-entry descriptors=[]"      "0"     "$(echo "$E" | jq '.descriptors|length')"
 assert_eq "clean-entry no theme_tags field" "true"  "$(echo "$E" | jq 'has("theme_tags") | not')"
 assert_eq "clean-entry signals carried"     "0"     "$(echo "$E" | jq -r .signals.post_bot_commits)"
+
+# ── #1829 clean-entry.jq records analysis_provenance from the bundle ──────────
+# A live Stage A run's gate-skipped entry records what evidence the bundle
+# carried (the three booleans join the backfill cohort's field names). The
+# bundle here (CTX_CLEAN) carries no diff/workpad/issue keys, so all three are
+# false — and the entry cleans without error despite the absent source fields.
+assert_eq "#1829 clean-entry: analysis_provenance present"          "true"  "$(echo "$E" | jq 'has("analysis_provenance")')"
+assert_eq "#1829 clean-entry: no source fields → diff_present false" "false" "$(echo "$E" | jq -r '.analysis_provenance.bundle_diff_present')"
+assert_eq "#1829 clean-entry: no source fields → workpad_present false" "false" "$(echo "$E" | jq -r '.analysis_provenance.bundle_workpad_body_present')"
+assert_eq "#1829 clean-entry: no source fields → comments_present false" "false" "$(echo "$E" | jq -r '.analysis_provenance.bundle_issue_comments_present')"
+# A bundle whose fields are all present → all three booleans true.
+CE_AP_DERIVE='{"pr":92,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"diff":"@@ a real diff @@","diff_truncated":false,"workpad_body":"wp text","issue":{"comments":[{"author":"x","body":"y"}]}}'
+assert_eq "#1829 clean-entry: diff present → diff_present true"     "true"  "$(printf '%s' "$CE_AP_DERIVE" | jq -r -f "$LIB/clean-entry.jq" | jq -r '.analysis_provenance.bundle_diff_present')"
+assert_eq "#1829 clean-entry: workpad present → workpad_present true" "true"  "$(printf '%s' "$CE_AP_DERIVE" | jq -r -f "$LIB/clean-entry.jq" | jq -r '.analysis_provenance.bundle_workpad_body_present')"
+assert_eq "#1829 clean-entry: comments present → comments_present true" "true" "$(printf '%s' "$CE_AP_DERIVE" | jq -r -f "$LIB/clean-entry.jq" | jq -r '.analysis_provenance.bundle_issue_comments_present')"
+# AC2: a diff suppressed by diff_byte_cap arrives as diff:null / diff_truncated:true → diff_present false.
+CE_AP_SUPPRESSED='{"pr":93,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"diff":null,"diff_truncated":true,"workpad_body":null,"issue":null}'
+assert_eq "#1829 clean-entry: diff suppressed (diff_byte_cap) → diff_present false" "false" "$(printf '%s' "$CE_AP_SUPPRESSED" | jq -r -f "$LIB/clean-entry.jq" | jq -r '.analysis_provenance.bundle_diff_present')"
+# An .issue object present but with an empty comments array → comments_present false.
+CE_AP_EMPTYCOMMENTS='{"pr":95,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"diff":"d","diff_truncated":false,"workpad_body":"w","issue":{"comments":[]}}'
+assert_eq "#1829 clean-entry: issue present, zero comments → comments_present false" "false" "$(printf '%s' "$CE_AP_EMPTYCOMMENTS" | jq -r -f "$LIB/clean-entry.jq" | jq -r '.analysis_provenance.bundle_issue_comments_present')"
+# AC3: a bundle already carrying an analysis_provenance object survives cleaning intact.
+CE_AP_PRESENT='{"pr":94,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"analysis_provenance":{"cohort":"backfill-2026-08-08","bundle_diff_present":true,"bundle_workpad_body_present":false,"bundle_issue_comments_present":true}}'
+assert_eq "#1829 clean-entry: incoming analysis_provenance survives intact (cohort)" "backfill-2026-08-08" "$(printf '%s' "$CE_AP_PRESENT" | jq -r -f "$LIB/clean-entry.jq" | jq -r '.analysis_provenance.cohort')"
+assert_eq "#1829 clean-entry: incoming analysis_provenance survives intact (diff_present)" "true" "$(printf '%s' "$CE_AP_PRESENT" | jq -r -f "$LIB/clean-entry.jq" | jq -r '.analysis_provenance.bundle_diff_present')"
 # #152: audit-entry.jq is pruned along with the audit-intervention path.
 assert_eq "#152: audit-entry.jq is removed" "true" \
   "$([ ! -f "$LIB/audit-entry.jq" ] && echo true || echo false)"
