@@ -1,0 +1,124 @@
+{
+  "pr": 1942,
+  "issue": 1834,
+  "reviewed_head": "3f0dd7ea80e32705979eb72b074575ccb156492d",
+  "branch": "issue-1834-a-run-cannot-execute-a-bundled-helper-its-own-pr",
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "verdict_rationale": "All 7 acceptance criteria met. No Critical or High findings. Highest-severity findings are Medium precision/clarity/prose-discipline concerns on agent-executed prompt prose (issue-843/876: no automated regression coverage by design). None is a non-demotable REJECT. Mechanical byte-ceiling check passes (61746 < 61750, no exemption). Shipped skill body is repo-agnostic.",
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "roster_note": "type-design-analyzer and pr-test-analyzer gated out (no new types, no tests in this prose-only diff). requesting-code-review is a skill dispatched via a general-purpose Task, not a direct agent type; dispatched that way after the direct-agent form was unavailable. All four always-on reviewers returned an assessment.",
+  "diff_profile": "prose-only: shipped skill body (skills/implement/SKILL.md, +1 bullet), internal doc (docs/internal/implement-skill.md, +1 paragraph), new changeset (bump: patch, type: Changed). No executable code, no new types, no tests.",
+  "checklist_skipped": true,
+  "checklist_skipped_reason": "Prose-only diff with no executable/verifiable code claims; agent-executed prompt prose carries no automated regression coverage by design (issue-843/876). The verification contract is the acceptance criteria plus the single mechanical byte-ceiling check.",
+  "mechanical_checks": {
+    "reference_size_ceiling": {
+      "file": "skills/implement/SKILL.md",
+      "bytes": 61746,
+      "ceiling": 61750,
+      "margin_bytes": 4,
+      "new_exemption_row": false,
+      "result": "pass"
+    }
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Medium",
+      "description": "The bullet asserts flatly that the vendored checkout is version-pinned (=> rc-127 absent / stale rc-0), but per .github/actions/vendor-plugin/action.yml the version pin applies only to the `fetch` (thin-install) source; `committed`/`self` sources copy from the possibly-PR-head checkout. PRFlow's own runs use source: self, where a branch-committed helper is not necessarily absent/stale. The claim is true for the dominant fetch case but stated as universal.",
+      "defect_signature": "overgeneralized-mechanism-claim: vendoring version-pin asserted universally but holds only for `fetch` source",
+      "assessment": "Core reasoning technically sound and the three surfaces are mutually consistent with an accurate section cross-reference; the one substantive technical inaccuracy is the universal vendoring claim (should be scoped to fetch/thin-install or note the self/committed exception). Two Medium items (this + skill-body derivation duplication) plus one Low adjacency note. Note: the rule's operative conclusion (helper unreachable) still holds under self/committed via the second, grant-timing mechanism, so this is a precision defect, not a wrong-action rule."
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Medium",
+      "description": "The rule offers 'the existing deferral/Blocked path' as a disjunction with no criterion for choosing between them. Deferral (records follow-up, run may still report Complete) and Blocked (stops) have different completion semantics; if the unreachable helper backs an AC-critical step, routing to deferral rather than Blocked could let the run report Complete with an AC unmet. Mitigated by the existing (referenced, not redefined) deferral/Blocked machinery presumably enforcing AC-completeness, so a clarity gap rather than a new silent path.",
+      "defect_signature": "disjunctive-terminal-without-selection-criterion: deferral-vs-Blocked routing left to agent discretion; AC-critical case not distinguished",
+      "assessment": "A well-constructed fail-loud rule, not a silent-failure defect. Up-front detection from branch delta (a computable operand already used in phase-2 sweeps via git diff --merge-base) correctly decouples detection from the rc-0 trap; the terminal is loud and named; 'attempt no workaround' bars masking shapes after the work is recorded, not instead of recording it; ordering places detection before any rc-based short-circuit. No Critical/High. One Medium (disjunctive terminal) + one Low (named-signal-without-operationalized-command)."
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Medium",
+      "description": "The SKILL.md bullet inlines the full two-mechanism derivation ('Two mechanisms: the vendored checkout is version-pinned...; and config grants resolve at trigger time...') that the docs/internal paragraph also carries and explicitly claims to own ('this paragraph remains the broader statement'). Tension with the instruction-plus-consequence prose rule for skills/** bodies (derivation/worked-example should move to internal docs) and a mirror-fact restatement of B's mechanism facts.",
+      "defect_signature": "skill-body-derivation-duplication: SKILL.md bullet inlines the two-mechanism derivation the docs/internal paragraph also carries",
+      "assessment": "See comment-analyzer overall assessment above; this is the second of its two Medium findings. Counterpoint (shadow orchestrator): both mechanisms are load-bearing to the rule — they justify 'no need to distinguish' and 'up front' — so a case exists that they belong in the operative body; treated as a non-blocking prose-discipline concern."
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Low",
+      "description": "The detection instruction names 'branch delta' but, unlike the phase-2 sweep bullets, does not name the concrete command (git diff --merge-base / --name-only) to obtain it. An agent mapping invocations against memory rather than a computed diff could miss an indirectly-modified helper and quietly degrade toward the rc-based path the rule supersedes.",
+      "defect_signature": "named-signal-without-operationalized-command: relies on 'branch delta' concept without pointing at the established git diff computation used elsewhere",
+      "assessment": "Low because the concept is defined and used a few files away; a cross-reference would close the gap cheaply."
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Low",
+      "description": "The docs/internal/implement-skill.md paragraph substantially restates the skill-body rule's specifics (branch delta, post-merge grant/vendor timing, stale rc-0, absent/stale/denied identical) rather than being a terse pointer. Satisfies AC6 but creates a coupled mirror that will drift if the skill bullet is reworded; no test pins the two identical.",
+      "defect_signature": "single-source/docs-restates-skill-body-rule-coupling",
+      "assessment": "Approve-quality. Change is correct, well-scoped, correctly placed in the shipped skill body per the placement rule, repo-agnostic, and satisfies every AC. Two Low findings (this + 4-byte ceiling headroom) and one Suggestion (prose density), all advisory."
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Low",
+      "description": "skills/implement/SKILL.md is now 61746 bytes against the 61750 ceiling — a 4-byte margin. AC7 is met (under ceiling, no new exemption), but essentially any future prose addition to this file will trip the RED gate; remedy per CLAUDE.md is trim-not-exempt. Informational for this change.",
+      "defect_signature": "reference-size-margin/implement-SKILL-4-bytes-under-ceiling",
+      "assessment": "See code-reviewer overall assessment above."
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Low",
+      "description": "The added docs paragraph sits immediately after the Grant-timing bootstrap paragraph, which already states grants resolve at trigger time from the default branch; the new paragraph re-invokes the same fact. B mitigates by pointing rather than fully restating, so a mild adjacency-redundancy note, acceptable as written.",
+      "defect_signature": "adjacent-fact-restatement: grant-timing mechanism referenced immediately below the paragraph that defines it",
+      "assessment": "Flagged for awareness only; not a hard mirror-fact violation."
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "The SKILL.md bullet is dense with layered consequence clauses; the tail 'This tightens first-refusal only for one this branch introduced or modified' partially re-states the opening scope. Given the 4-byte ceiling margin, tightening would buy headroom. Optional.",
+      "defect_signature": "prose-density/introduced-helper-bullet-restated-scope",
+      "assessment": "See code-reviewer overall assessment above."
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Low",
+      "description": "The docs/internal/implement-skill.md paragraph restates the rule's mechanics fairly fully rather than pointing tersely; stays on the right side of single-source (names the skill body as runtime home, scopes itself as the broader allowed_tools statement) but is close to a second copy needing same-commit reconciliation if the skill wording changes.",
+      "defect_signature": "docs-internal-restates-skill-rule-near-duplication",
+      "assessment": "Merge-ready APPROVE. All seven ACs met; load-bearing technical claims verified correct against lib/capability-profiles.json (implement profile grants ONLY vendored-literal paths, so the bare repo-relative fallback is denied and the 'unreachable' + path-prefix-ban claims are accurate even in self-repo runs). Placement and consumer-shipping conventions honored; byte ceiling holds. Single minor observation is a maintainability note, not a defect."
+    }
+  ],
+  "per_reviewer_summary": {
+    "prflow:code-reviewer": "APPROVE-quality. AC1-AC7 satisfied; repo-agnostic; correct placement. 2 Low (docs coupling, 4-byte ceiling margin) + 1 Suggestion (prose density). No blocking issues.",
+    "prflow:silent-failure-hunter": "Well-constructed fail-loud rule; up-front branch-delta detection correctly decouples from the rc-0 stale trap and routes to a named loud terminal. No Critical/High. 1 Medium (deferral-vs-Blocked disjunction lacks selection criterion) + 1 Low (branch-delta signal not operationalized to a command).",
+    "prflow:comment-analyzer": "Three surfaces mutually consistent, cross-reference accurate. 1 Medium (vendoring version-pin overgeneralized beyond the fetch source) + 1 Medium (skill-body derivation duplication vs instruction-plus-consequence rule) + 1 Low (adjacent grant-timing restatement).",
+    "prflow:requesting-code-review": "Merge-ready APPROVE. All 7 ACs met; load-bearing 'unreachable'/path-prefix-ban claims verified against capability-profiles (vendored-literal-only grants); byte ceiling holds. 1 Low maintainability note (docs near-duplication)."
+  },
+  "findings_by_severity": {
+    "Critical": 0,
+    "High": 0,
+    "Medium": 3,
+    "Low": 4,
+    "Suggestion": 1
+  },
+  "phase2_fails": 0,
+  "cap_drops": [],
+  "ac_verdicts": {
+    "AC1": "met",
+    "AC2": "met",
+    "AC3": "met",
+    "AC4": "met",
+    "AC5": "met",
+    "AC6": "met",
+    "AC7": "met"
+  }
+}

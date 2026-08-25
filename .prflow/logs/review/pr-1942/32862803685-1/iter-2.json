@@ -1,0 +1,216 @@
+{
+  "iter": 2,
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "shadow",
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "not-run",
+    "reason": "no fixes applied (both iter-2 findings pushed back as AC-mandated required content)"
+  },
+  "checklist": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "the 'Two mechanisms' clause in the SKILL.md bullet reads as derivation",
+      "defect_signature": {
+        "file": "skills/implement/SKILL.md",
+        "line_range": [
+          45,
+          45
+        ],
+        "kind": "mechanism-narration-in-shipped-body"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "the 'local/interactive tier is unchanged' tail reads as restated scope",
+      "defect_signature": {
+        "file": "skills/implement/SKILL.md",
+        "line_range": [
+          45,
+          45
+        ],
+        "kind": "restated-scope-tail"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "pushed_back",
+      "source_file": "skills/implement/SKILL.md",
+      "claim_text": "the 'Two mechanisms' clause reads as derivation",
+      "skip_category": "claim-quality",
+      "evidence": "AC1 mandates naming BOTH mechanisms (trigger-time grant resolution and version-pinned vendoring); the two-mechanisms clause is required AC content, not gratuitous derivation. Fixing would fail AC1.",
+      "parking_evidence": {
+        "basis": "content is AC1-mandated, not derivation",
+        "failing_input": "the two-mechanisms naming AC1 requires",
+        "source": "issue #1834 AC1",
+        "finding_ref": {
+          "iter": 2,
+          "index": 0
+        }
+      }
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "pushed_back",
+      "source_file": "skills/implement/SKILL.md",
+      "claim_text": "the 'local/interactive tier is unchanged' tail reads as restated scope",
+      "skip_category": "claim-quality",
+      "evidence": "AC4 mandates stating the rule is scoped to the cloud implement tier with the local/interactive tier unchanged; the tail is required AC content. Fixing would fail AC4.",
+      "parking_evidence": {
+        "basis": "content is AC4-mandated scope statement",
+        "failing_input": "the local-tier-unchanged statement AC4 requires",
+        "source": "issue #1834 AC4",
+        "finding_ref": {
+          "iter": 2,
+          "index": 1
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "command": "none (no fixes applied this iteration)",
+    "result": "skipped",
+    "reason": "no fixes applied; both findings pushed back as AC-mandated content",
+    "skipped_checks": []
+  },
+  "test_first_gate": [],
+  "telemetry": "unavailable",
+  "dispatch_mode": "fanned-out",
+  "parked_class_sweep": {
+    "classes": [],
+    "truncation": null,
+    "dispatch": "verified",
+    "note": "both parked findings are claim-quality pushbacks whose evidence disproves the finding (AC-mandated content), so excluded from the sweep union; no sweep inputs remain — clean, no new siblings"
+  },
+  "convergence": {
+    "exit": "early",
+    "reason": "iter-2 applied 0 Critical/Important code fixes (<3), 0-line code fix-diff (<30), and no new corroborated Critical/Important vs iter-1"
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "iter2-convergence",
+    "reviewed_sha": "3f0dd7ea8",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": "intentional",
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "deferral-vs-Blocked disjunction lacks an explicit selection criterion",
+        "defect_signature": {
+          "file": "skills/implement/SKILL.md",
+          "line_range": [
+            45,
+            45
+          ],
+          "kind": "underspecified-disjunction"
+        }
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "vendoring version-pin stated universally but only holds for the fetch source; operative conclusion (helper unreachable) still holds under self/committed via the grant-timing mechanism — precision, not a wrong-action rule",
+        "defect_signature": {
+          "file": "skills/implement/SKILL.md",
+          "line_range": [
+            45,
+            45
+          ],
+          "kind": "precision-overgeneralization"
+        }
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "skill-body two-mechanisms clause reads as derivation duplication",
+        "defect_signature": {
+          "file": "skills/implement/SKILL.md",
+          "line_range": [
+            45,
+            45
+          ],
+          "kind": "mechanism-narration-in-shipped-body"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 9,
+      "overlap_with_iter_N": 1,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false,
+    "post_shadow_edit_gate": {
+      "reviewed_sha": "3f0dd7ea8",
+      "head_at_exit": "82c45dc8e",
+      "delta": "base-branch advance only (checkpoint-3 merge of origin/main, UPDATED 27, clean ort auto-merge); the PR's own delta (3 files) is byte-identical to the shadow-reviewed state; whole merged tree is verified by implement Phase 4.3",
+      "resolution": "reviewed_sha=head_at_exit; PR-delta unchanged"
+    }
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 2,
+          "index": 0
+        },
+        "parked_finding_id": "F-1",
+        "shadow_finding_index": 2,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the two-mechanisms-clause-as-derivation concern on the same basis, adding no new failing input; parked at Suggestion, re-raised at Suggestion-tier (Medium), parking rationale anchored to AC1 (source non-null)",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "synthesized": false
+}

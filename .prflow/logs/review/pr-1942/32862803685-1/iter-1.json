@@ -1,0 +1,180 @@
+{
+  "iter": 1,
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": "fix_delta_gate",
+  "fix_commit_sha": "3f0dd7ea8",
+  "fix_files": [
+    ".changeset/issue-1834-introduced-helper-unreachable.md",
+    "docs/internal/implement-skill.md"
+  ],
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "fix delta is human-facing release-note + internal-doc prose only; no code. §2.3.4a self-authored-claim consistency was the driving concern and is now satisfied (changeset/doc aligned to SKILL.md up-front branch-delta framing). No enum/contract/collection change; no other §2.3 sweep triggered."
+  },
+  "checklist": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Critical",
+      "description": "changeset prose says 'on the first failed invocation', contradicting the shipped SKILL.md body which recognizes the helper up front from the branch delta (a modified helper runs stale at rc-0 and never fails). Self-contradicting-diff carve-out; changeset feeds consumer-facing CHANGELOG.",
+      "defect_signature": {
+        "file": ".changeset/issue-1834-introduced-helper-unreachable.md",
+        "line_range": [
+          6,
+          6
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 4,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "docs/internal/implement-skill.md same 'first failed invocation' falsehood (capped: docs/internal pruned from vendor slice, no tool reads it)",
+      "defect_signature": {
+        "file": "docs/internal/implement-skill.md",
+        "line_range": [
+          896,
+          901
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "four-item workaround enumeration in SKILL.md exceeds shipped-prose cost budget",
+      "defect_signature": {
+        "file": "skills/implement/SKILL.md",
+        "line_range": [
+          45,
+          45
+        ],
+        "kind": "prose-cost"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "absent/stale/denied all attributed to post-merge timing could mask a genuine branch-introduced helper bug; bounded by branch-delta scoping",
+      "defect_signature": {
+        "file": "skills/implement/SKILL.md",
+        "line_range": [
+          45,
+          45
+        ],
+        "kind": "over-broad-attribution"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "3f0dd7ea8"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "3f0dd7ea8"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "pushed_back",
+      "source_file": "skills/implement/SKILL.md",
+      "claim_text": "four-item workaround enumeration exceeds shipped-prose cost budget",
+      "skip_category": "claim-quality",
+      "evidence": "AC2 mandates forbidding the workaround family BY NAME (copy-into-vendor, chmod, heredoc/interpreter re-invocation, path-prefix variants); trimming the enumeration would violate AC2. Also SKILL.md has 4 bytes of headroom under the 61,750-byte ceiling.",
+      "parking_evidence": {
+        "basis": "the enumeration is an AC2 requirement, not a cost overrun to trim",
+        "failing_input": "the four named workaround forms AC2 requires",
+        "source": "issue #1834 AC2",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "pushed_back",
+      "source_file": "skills/implement/SKILL.md",
+      "claim_text": "absent/stale/denied all attributed to post-merge timing could mask a genuine branch-introduced helper bug",
+      "skip_category": "claim-quality",
+      "evidence": "AC3 mandates rc-127 and a silent denial receive an identical response with no requirement to distinguish them; collapsing them is the required behavior. The finding is self-bounded by branch-delta scoping, which the rule already applies.",
+      "parking_evidence": {
+        "basis": "AC3 mandates identical treatment; the rule is already bounded to a helper this branch introduced/modified",
+        "failing_input": "a branch-introduced helper failing for an unrelated reason",
+        "source": "issue #1834 AC3",
+        "finding_ref": {
+          "iter": 1,
+          "index": 3
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 9,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 1,
+    "by_category": {
+      "documented_falsehood": 1
+    }
+  },
+  "base_checkpoint": {
+    "token": "UP_TO_DATE",
+    "behind_by": null
+  },
+  "stale_prose_check": {
+    "result": "clean",
+    "rows": 0
+  },
+  "verification_evidence": {
+    "command": "none (prose-only fix; no automated-testable behavior)",
+    "result": "skipped",
+    "reason": "fix delta is human-facing release-note + internal-doc prose; agent-executed/consumer-facing prose carries no automated regression coverage (issue-843/876). Whole-suite obligation owned by implement Phase 4.3.",
+    "skipped_checks": []
+  },
+  "test_first_gate": [],
+  "telemetry": "unavailable",
+  "dispatch_mode": "fanned-out",
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false
+}

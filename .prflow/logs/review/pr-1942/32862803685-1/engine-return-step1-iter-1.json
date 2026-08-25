@@ -1,0 +1,59 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "phase3_findings": [
+    {
+      "agent": "requesting-code-review, code-reviewer, silent-failure-hunter, comment-analyzer",
+      "severity": "REJECT (self-contradicting-diff carve-out; non-demotable)",
+      "description": ".changeset/issue-1834-introduced-helper-unreachable.md line 12 states the run routes the dependent step to the deferral/Blocked path 'on the first failed invocation', which is false against the shipped skills/implement/SKILL.md bullet this change also adds. The skill body directs the run to recognize such a helper from its own branch delta and route around it UP FRONT, 'not only on a failed invocation - a modified one runs stale bytes at rc-0 and never fails, so a failure trigger misses it.' The changeset thus contradicts another part of the same change. Because changeset prose is prepended into CHANGELOG.md on merge (a consumer-facing release note), Phase 4.1.5 limb two does not hold, so this is NOT behavior-inert prose: it is a self-contradicting-diff (documented_falsehood) carve-out that drives REJECT at every threshold, non-demotably, independent of corroboration. Fix: reword to describe up-front branch-delta detection (a modified helper runs stale at rc-0 and never fails).",
+      "defect_signature": {"file": ".changeset/issue-1834-introduced-helper-unreachable.md", "line_range": [12, 12], "kind": "documented_falsehood"},
+      "corroboration_count": 4,
+      "self_contradicting_diff_carveout": ".changeset/issue-1834-introduced-helper-unreachable.md",
+      "phase_4_1_5": "not capped - changeset->CHANGELOG is consumer-facing (limb two fails); non-inert",
+      "contributed_to_verdict": true,
+      "fix_decision": "fix"
+    },
+    {
+      "agent": "requesting-code-review, code-reviewer, silent-failure-hunter, comment-analyzer",
+      "severity": "Suggestion (capped from Important/Critical by Phase 4.1.5 behavior-inert prose cap)",
+      "description": "docs/internal/implement-skill.md (added lines ~896-901) describes the skill-body rule as directing the run 'on that helper's first failed invocation' to route to the deferral/Blocked path. That is false against the shipped skills/implement/SKILL.md bullet, which routes UP FRONT from the branch delta precisely because a modified helper runs stale at rc-0 and never produces a failed invocation. The describing internal doc contradicts the runtime home it points at, and steers a future maintainer back toward the modified-helper silent-failure the change exists to close. Phase 4.1.5 behavior-inert prose cap: docs/internal/ is pruned by vendor-slice.sh (not shipped to any consumer -> limb two holds) and no tool reads it to decide program behavior (limb one holds); the finding's subject is the sentence's truth value, which changes no output/branch/coverage. Both limbs hold -> capped at Suggestion; does not drive REJECT at the default critical threshold. Still a real falsehood the fix loop should correct in the same pass as the changeset. Fix: restate as up-front branch-delta detection covering absent (rc-127), stale (rc-0, never fails), and denied cases identically.",
+      "defect_signature": {"file": "docs/internal/implement-skill.md", "line_range": [896, 901], "kind": "documented_falsehood"},
+      "corroboration_count": 4,
+      "phase_4_1_5": "behavior-inert prose cap APPLIED (both limbs hold: docs/internal not shipped, no tool reads for behavior) -> capped at Suggestion",
+      "contributed_to_verdict": false,
+      "fix_decision": "fix"
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "skills/implement/SKILL.md new bullet: the workaround enumeration ('not copying it into the vendored directory, not chmod, not a heredoc or interpreter re-invocation, not a path-prefix variant of the denied form') spends four examples on a point the preceding 'attempt no workaround' already makes. Shipped-prose cost audit (DevFlow review extension): each added word under skills/** is paid for in every run and every consumer repo; consider trimming to the bare directive plus at most one representative example. Clarity/cost only, not a correctness defect.",
+      "defect_signature": {"file": "skills/implement/SKILL.md", "line_range": [45, 45], "kind": "style"},
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "fix_decision": "optional"
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "skills/implement/SKILL.md new bullet collapses absent/stale/denied into 'the same response ... naming post-merge grant/vendor timing as the reason'. For a branch-introduced/modified helper this is correct and loud (deferral/Blocked are recorded). Residual: if such a helper fails for a genuine path/logic bug the branch introduced, the rule attributes it to post-merge timing and defers, so the real defect is not surfaced in-run. Bounded by branch-delta scoping and the recorded deferral path, so a Suggestion. Optional clause: note the reason attribution assumes the helper is otherwise correct.",
+      "defect_signature": {"file": "skills/implement/SKILL.md", "line_range": [45, 45], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "fix_decision": "defer"
+    }
+  ],
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 1,
+    "by_category": {"behavior-inert-prose-cap": 1}
+  },
+  "report": "## Verdict: REJECT (a diff-added changeset line contradicts the skill body the same change ships)\n\n## Issue Compliance\nReviewed against issue #1834: a run cannot execute a bundled helper its own PR introduces - criteria from the /prflow:implement workpad; scope unchanged. The shipped skills/implement/SKILL.md bullet satisfies every acceptance criterion (unreachable on the cloud implement tier; two mechanisms - version-pinned vendoring rc-127/stale and trigger-time grant resolution silent denial; route to the existing deferral/Blocked path; forbid the workaround family by name; treat absent/stale/denied identically; two-denials rule preserved for every other shape; local tier unchanged) - and arguably exceeds them by detecting the case up front from the branch delta rather than on a failed invocation. The defect is confined to the two files that DESCRIBE the rule.\n\nPrompt-surface edit routing evidence gate: DISCHARGED - the issue #1834 workpad carries Writing-skills evidence: markers for skills/implement/SKILL.md with all four dispositions explicitly recorded (skill-loaded=yes, guidance-applied=yes, pressure-scenario=no, micro-tests=yes/no across passes).\n\n## Diff Classification\nsmall_diff=true, config_only=true, has_new_types=false, engine_self_modifying=true (skills/implement/SKILL.md matches skills/**), detect_all_audit=false. engine_self_modifying overrides checklist behavior to run the full Phase 1+2 checklist (checklist_skipped=null); over a prose-only diff the checklist's sole verifiable claim is the doc-vs-skill-body accuracy the Phase 3 agents already resolved.\n\n## Code Review Findings\n\n### 🟠 Important / Major\n1. .changeset/issue-1834-introduced-helper-unreachable.md line 12 says the run routes the dependent step to the deferral/Blocked path \"on the first failed invocation\", which is false against the shipped skills/implement/SKILL.md bullet the same change adds - the skill body routes up front from the branch delta, \"not only on a failed invocation\", because a modified helper runs stale at rc-0 and never fails. (raised by 4/4 agents) [self-contradicting-diff carve-out: .changeset/issue-1834-introduced-helper-unreachable.md] -- changeset prose ships into CHANGELOG.md (consumer-facing release note), so Phase 4.1.5 does not cap it; non-demotable REJECT.\n\n### 🟡 Suggestion / Minor\n1. docs/internal/implement-skill.md (~lines 896-901) describes the skill-body rule as firing \"on that helper's first failed invocation\", contradicting the shipped up-front branch-delta rule and steering a future maintainer back toward the modified-helper silent failure. (raised by 4/4 agents) [behavior-inert prose cap: docs/internal is pruned from the vendor slice (not shipped) and no tool reads it for behavior - both limbs hold, capped from Important/Critical to Suggestion; still a real falsehood to fix alongside the changeset.]\n2. skills/implement/SKILL.md new bullet: the four-item workaround enumeration exceeds the shipped-prose cost budget; trim to the directive plus one example. (raised by 1/4 agents)\n3. skills/implement/SKILL.md new bullet: absent/stale/denied all attributed to post-merge timing could mask a genuine branch-introduced helper bug as a timing deferral; bounded by branch-delta scoping and the recorded deferral path. (raised by 1/4 agents)\n\n## Verdict Criteria\n- Self-contradicting-diff carve-out (threshold-independent, non-demotable): the changeset falsehood -> REJECT.\n- Phase 4.1.5 behavior-inert prose cap applied to the docs/internal falsehood (both inertness limbs hold) -> capped at Suggestion, does not drive REJECT at the default critical threshold.\n- over-grade annotation: 1 finding capped by the behavior-inert prose cap (docs/internal/implement-skill.md).\n- truthfulness sweep: promoted/confirmed the changeset falsehood into the carve-out.\n- intra-diff contradiction scan: the changeset/docs 'first failed invocation' framing contradicts the skill body's 'not only on a failed invocation' - same-symbol contradiction, filed.\n\nThe fix is two one-line prose edits (changeset + docs/internal) to match the shipped skill body's up-front branch-delta framing; the two minor suggestions are optional. No change to shipped runtime behavior is needed."
+}
