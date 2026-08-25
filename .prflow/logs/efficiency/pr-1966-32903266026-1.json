@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1966",
+  "generated_at": "2026-08-25T22:11:37Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.29",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.972174049999998,
+    "tokens": {
+      "input_tokens": 76,
+      "output_tokens": 57626,
+      "cache_read_input_tokens": 7390592,
+      "cache_creation_input_tokens": 284115,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 129,
+        "outputTokens": 96747,
+        "cacheReadInputTokens": 8910841,
+        "cacheCreationInputTokens": 742144,
+        "webSearchRequests": 0,
+        "costUSD": 12.578571749999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 204,
+        "outputTokens": 29515,
+        "cacheReadInputTokens": 4429059,
+        "cacheCreationInputTokens": 884893,
+        "webSearchRequests": 0,
+        "costUSD": 3.3936022999999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 83,
+    "duration_ms": 1070800
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"; echo \"---HEAD---\"; git rev-parse HEAD",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1966/32903266026-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1966/32903266026-1/verdicts/iter-1/VC-1-n1a.json << 'EOF'\n{\"id\":\"VC-1\",\"verdict\":\"PASS\",\"evidence\":\"scripts/workpad.py (at reviewed head a7ce5898144b9439cc41ec6bb1b483c45c04110d) lines 4475-4514: _recompute_diff_facts takes only anchor_head/base_ref/repo_root (identifiers, not file data), computes merge_base via git merge-base, then derives …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1966/32903266026-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1966/32903266026-1/verdicts/iter-1/VC-2-n2b.json << 'EOF'\n{\"id\":\"VC-2\",\"verdict\":\"PASS\",\"evidence\":\"scripts/workpad.py:4507-4509 (at a7ce5898144b9439cc41ec6bb1b483c45c04110d) constructs base = base_ref or git symbolic-ref origin/HEAD (fallback only), then merge_base = git merge-base(anchor_head, base). anchor_head is the reviewed head / rec …[per-command-truncated]",
+      "mkdir -p \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1966/32903266026-1/verdicts/iter-1\"\ncat > \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1966/32903266026-1/verdicts/iter-1/VC-3-n3c.json\" << 'EOF'\n{\"id\":\"VC-3\",\"verdict\":\"PASS\",\"evidence\":\"scripts/workpad.py (PR head a7ce5898) _review_coverage_profile_disproof at line 4555 checks facts['lines'] < _REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING, facts['files'] <= _REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING, every path's extension in _ …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1966/32903266026-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1966/32903266026-1/verdicts/iter-1/VC-4-n4d.json << 'EOF'\n{\"id\":\"VC-4\",\"verdict\":\"PASS\",\"evidence\":\"In scripts/workpad.py (a7ce5898 revision), the confirmed branch of the skipped-intentional review-coverage recomputation (lines ~5819-5831) writes to sys.stderr on success: 'workpad.py: review-coverage skipped-intentional confirmed — {files} changed file(s), {lines} changed line(s), path-set config-only { …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1966/32903266026-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1966/32903266026-1/verdicts/iter-1/VC-7-n7g.json <<'EOF'\n{\"id\":\"VC-7\",\"verdict\":\"PASS\",\"evidence\":\"scripts/workpad.py:4220 defines _REVIEW_COVERAGE_CLEAN['checklist'] = ('complete', 'not-applicable', 'skipped-intentional'), excluding bare 'skipped', so a bare-skipped checklist value continues to be reported as a gap. scripts/workpad.py:5790 gates the recomputation branch with `if review_coverage[_checkl …[per-command-truncated]",
+      "mkdir -p .prflow/tmp && rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled && git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "git show a7ce5898144b9439cc41ec6bb1b483c45c04110d:skills/review/phases/phase-4-verdict.md | grep -nE 'record-review-coverage' ; echo \"=== grep all phases ===\"; for f in $(git show a7ce5898144b9439cc41ec6bb1b483c45c04110d:skills/review/phases/ 2>/dev/null | tail -n +2); do echo \"-- $f\"; git show a7ce5898144b9439cc41ec6bb1b483c45c04110d:skills/review/phases/$f 2>/dev/null | grep -nE 'record-review-coverage-base|record-review-coverage-head|record-review-coverage ' | head; done"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
