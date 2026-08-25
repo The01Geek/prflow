@@ -32100,16 +32100,15 @@ assert_eq "#247 preflight: jq genuinely absent → \"not installed\" wording (no
 #    longer carries inline SHELL normalization mirrors: Copilot CLI's inline-bash
 #    marshaling drops same-command variable assignments, so the multi-statement
 #    mirror blocks were removed and normalization moved to PROMPT time — the agent
-#    converts a Windows-form runner-reported base directory (one standalone
-#    wslpath/cygpath probe, or the textual drive-letter rules) BEFORE substituting
-#    it into the single-statement invocation. The preamble paraphrases
-#    lib/normalize-path.sh's rules; pin the operative paraphrase fragments so a
-#    trim of the normalization guidance (or of its lib lockstep reference) goes RED.
+#    converts a Windows-form runner-reported base directory with one standalone
+#    wslpath/cygpath probe BEFORE substituting it into the single-statement
+#    invocation (issue #1856 removed the tool-less drive-letter paraphrase, whose
+#    T5b pin retired with it). The preamble's probe mirrors lib/normalize-path.sh's
+#    tool-first tier; pin the probe fragment and that lib lockstep reference so a
+#    trim of either goes RED.
 CI_SKILL="$LIB/../skills/create-issue/SKILL.md"
 assert_pin_unique "#247/#275 T5: create-issue preamble carries the prompt-time wslpath probe guidance" \
   "wslpath -u '<path>'" "$CI_SKILL"
-assert_pin_unique "#247/#275 T5b: create-issue preamble carries the tool-less drive-letter mapping rule" \
-  'map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2' "$CI_SKILL"
 assert_pin_unique "#247/#275 T5c: create-issue preamble names lib/normalize-path.sh as the rules' source (lockstep reference)" \
   'lib/normalize-path.sh' "$CI_SKILL"
 
