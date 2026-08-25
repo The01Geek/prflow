@@ -110,10 +110,22 @@ import difflib
 import hashlib
 import importlib.util
 import json
-import math
 import os
 import re
 import sys
+
+# _iter_session_files/_median/_context_tokens/_usage_value/UNESTABLISHED (+ RESIDENCY_KEYS
+# for _residency_spend) are single-sourced in scripts/context_eval_shared.py (issue #1900).
+# Keep the sys.path insert: this file is loaded by path (test + shim), import fails without it.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from context_eval_shared import (  # noqa: E402,F401
+    RESIDENCY_KEYS,
+    UNESTABLISHED,
+    _context_tokens,
+    _iter_session_files,
+    _median,
+    _usage_value,
+)
 
 # A run is bounded by `attributionSkill`, which carries the LIVE plugin namespace. That
 # namespace is renameable, and historical census rows keep whatever namespace was live
@@ -162,10 +174,6 @@ LARGE_BLOCK_MIN_CHARS = 500
 # The peak-context bucket thresholds the aggregate summary reports on.
 BUCKET_200K = 200_000
 BUCKET_400K = 400_000
-# The sentinel a per-kind / proxy figure carries when the state file could not
-# supply the operand it needs. It is NEVER a number and NEVER 0 — an unestablished
-# measurement collapsed onto a real value is the bug the whole axis guards against.
-UNESTABLISHED = "unestablished"
 # Every stderr breadcrumb this module writes carries one prefix: the module is
 # reachable under two script names, and a second literal makes an operator
 # grepping by prefix miss a whole degradation class.
@@ -794,27 +802,6 @@ def quality_gate(baseline_grade, candidate_grade):
     }
 
 
-def _median(values):
-    """Deterministic median of a NON-EMPTY list of numbers.
-
-    Refuses an empty population rather than returning 0 (issue #1899), matching both
-    sibling instruments: an unestablished measurement is never collapsed onto a real
-    value. Call `_median_or_unestablished` for a possibly-empty population.
-    """
-    if not values:
-        raise ValueError("median of an empty population")
-    ordered = sorted(values)
-    n = len(ordered)
-    mid = n // 2
-    if n % 2 == 1:
-        return ordered[mid]
-    # Even count: mean of the two central values. Keep an int when it divides
-    # evenly so the output stays byte-stable across runs.
-    lo, hi = ordered[mid - 1], ordered[mid]
-    total = lo + hi
-    return total // 2 if total % 2 == 0 else total / 2
-
-
 def _is_numeric(value):
     """True for a real number. Both context guards read this one predicate.
 
@@ -847,31 +834,6 @@ def _sum_or_unestablished(values):
     return sum(values) if values else UNESTABLISHED
 
 
-RESIDENCY_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
-
-
-def _usage_value(usage, key):
-    """One usage sub-field's ESTABLISHED token count on the RESIDENCY axis, or None.
-
-    None covers absent, null, bool, non-numeric and non-finite values — the residency
-    axis reports an unmeasured field as unestablished, never a spurious 0 (issue #1899).
-    The single source of the sub-field validity guard; `_usage_field` reads the SAME fields
-    on the spend axis, coalescing this reader's None to a summable 0.
-    """
-    if not isinstance(usage, dict):
-        return None
-    val = usage.get(key)
-    if isinstance(val, bool):  # bool is an int subclass; never a token count
-        return None
-    if isinstance(val, (int, float)):
-        # json.loads accepts bare Infinity/NaN and int(inf) raises OverflowError, so guard
-        # non-finite here rather than in eval_corpus's per-record backstop tuple (#1899).
-        if isinstance(val, float) and not math.isfinite(val):
-            return None
-        return int(val)
-    return None
-
-
 def _usage_field(usage, key):
     """Read one usage sub-field on the SPEND axis: an unmeasured field is a summable 0.
 
@@ -882,19 +844,6 @@ def _usage_field(usage, key):
     """
     val = _usage_value(usage, key)
     return 0 if val is None else val
-
-
-def _context_tokens(usage):
-    """Main-thread residency = input + cache_read + cache_creation (no output), or None.
-
-    None when NO residency sub-field carried an established count: an empty, all-null, or
-    otherwise unusable `usage` object measured nothing, and folding its 0 into the peak
-    would report an unmeasured turn as a real-looking 0 (issue #1899). This is the
-    RESIDENCY axis (`observe_assistant`); the spend axis is `_auditor_cost`.
-    """
-    established = [v for v in (_usage_value(usage, k) for k in RESIDENCY_KEYS)
-                   if v is not None]
-    return sum(established) if established else None
 
 
 def _residency_spend(usage):
@@ -1177,54 +1126,6 @@ class RunAccumulator:
             "dispatch_rounds": sorted(self.dispatch_rounds),
             "record_reopen_count": self.record_reopen_count,
         }
-
-
-def _iter_session_files(corpus_root, skipped):
-    """Yield JSONL session file paths under the corpus root, deterministically.
-
-    Skips any entry whose real path escapes the corpus root (a symlink out), so the
-    eval never reads outside the supplied directory. Sorted for determinism.
-
-    Both walk-level drops are TALLIED and breadcrumbed, never silent (mirroring the
-    per-record and unreadable-file skip discipline): a `.jsonl` whose real path
-    escapes the corpus root is counted under `escaped_path`, and a directory-walk
-    error (a permission-denied dir, a vanished tree) is counted under `walk_error`
-    via the `os.walk` `onerror` callback — default `onerror=None` would swallow it.
-    """
-    root_real = os.path.realpath(corpus_root)
-    collected = []
-
-    def _on_walk_error(exc):
-        # A directory os.walk could not descend (permissions, a race deletion): tally
-        # and breadcrumb so the aggregate is never silently computed over a corpus the
-        # walk under-enumerated. `exc.filename` names the offending directory.
-        skipped["walk_error"] += 1
-        sys.stderr.write(
-            "warning: skipping unwalkable corpus directory {}: {}\n".format(
-                getattr(exc, "filename", "?"), exc
-            )
-        )
-
-    for dirpath, dirnames, filenames in os.walk(corpus_root, onerror=_on_walk_error):
-        dirnames.sort()
-        for name in sorted(filenames):
-            if not name.endswith(".jsonl"):
-                continue
-            full = os.path.join(dirpath, name)
-            real = os.path.realpath(full)
-            if real != root_real and not real.startswith(root_real + os.sep):
-                # A symlink (or other entry) whose real path escapes the corpus root:
-                # never read, but tally + breadcrumb so the drop is visible, not silent.
-                skipped["escaped_path"] += 1
-                sys.stderr.write(
-                    "warning: skipping session file escaping corpus root {}\n".format(
-                        full
-                    )
-                )
-                continue
-            collected.append(full)
-    collected.sort()
-    return collected
 
 
 def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
