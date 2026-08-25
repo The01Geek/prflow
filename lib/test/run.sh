@@ -48650,7 +48650,6 @@ assert_eq "#487 stop-refresher exists (extracted from the workflow Stop step)" "
 # defeated warning. The live pid is the positive control the died-mid-run arm 19 needs:
 # same fixture shape, only liveness differs.
 # Bounded retry (issue #1931): widen this liveness assertion's slack under pool saturation — retry only a starved capture (empty output or a dead/failed-fork fixture), never the assertion outcome, so a real defect's deterministic non-empty output is still asserted and goes RED.
-_live13=""; _s13=""; _s13_rc=0
 for (( _try13=1; _try13<=40; _try13++ )); do
   sleep 300 & _live13=$!
   echo "$_live13" > "$D487/pidA"; printf 'refresh-app-credentials: cycle OK (credentials refreshed)\n' > "$D487/logA"
@@ -48742,7 +48741,6 @@ assert_eq "#487 arm20: the warning is attributed to the empty pidfile" "yes" \
 # "git push may be stale" over-claim (push in fact stayed fresh). Pins stop-refresher's new
 # divergence case arm (removing it drops the last line to the generic ::warning:: arm → RED).
 # Bounded retry (issue #1931) — same pool-saturation slack widening as arm13 above.
-_live20b=""; _s20b=""; _s20b_rc=0
 for (( _try20b=1; _try20b<=40; _try20b++ )); do
   sleep 300 & _live20b=$!
   echo "$_live20b" > "$D487/pid20b"
@@ -48889,7 +48887,6 @@ assert_eq "#1882 arm1882j: teardown does NOT emit the did-not-start defeat on th
 # 1882k — fail-closed when grep/tail are unavailable: defeated + warn, never silent.
 # Bounded retry (issue #1931) — same pool-saturation slack widening as arm13 (no live fixture here, so retry only on an empty capture).
 MINBIN1882="$D487/minbin1882"
-_s1882k=""
 for (( _try1882k=1; _try1882k<=40; _try1882k++ )); do
   mkdir -p "$MINBIN1882"
   for _t1882 in bash cat mktemp dirname sleep kill; do _p1882="$(command -v "$_t1882" || true)"; [ -n "$_p1882" ] && ln -sf "$_p1882" "$MINBIN1882/$_t1882"; done
