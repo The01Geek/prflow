@@ -43715,6 +43715,7 @@ cat > "$CGA_TREE/lib/test/run.sh" <<'CGA_EOF'
 case "${CGA_CASE:-clean}" in
   reverted) printf '  SKIP  #671 claude plugin validate --strict (plugin tree + descent matrix) [blocking-gate] — claude CLI not on PATH — not run\n' ;;
   only434)  printf '  SKIP  #434 stale-prose self-scan [blocking-gate] — working tree dirty (grades committed HEAD)\n' ;;
+  quote)    printf '  info: the #671 claude plugin validate --strict check (blocking-gate kind) mentioned claude CLI not on PATH — a diagnostic line with no NOTE or SKIP emission prefix\n' ;;
 esac
 printf '1 passed, 0 failed\n'
 CGA_EOF
@@ -43734,23 +43735,17 @@ assert_eq "#1830 run-shard: an unrelated #434 blocking-gate skip does NOT fail t
   "$(cd "$CGA_TREE" && CGA_CASE=only434 DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-434" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
 assert_eq "#1830 run-shard: a clean log passes the monolith shard" "zero" \
   "$(cd "$CGA_TREE" && CGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-clean" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+# False-positive control: a log line that merely QUOTES the pattern (e.g. a mutation-routing
+# gate finding echoing it) but lacks skip()'s NOTE/SKIP emission prefix must NOT trip the
+# backstop — this is what the `(NOTE|SKIP)  ` anchor in run-shard.sh guards.
+assert_eq "#1830 run-shard: a line quoting the pattern without the NOTE/SKIP prefix does NOT fail the shard" "zero" \
+  "$(cd "$CGA_TREE" && CGA_CASE=quote DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-quote" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
 # Migration-detection: the backstop runs on EVERY shard, not just monolith. A MODULE shard
 # whose log carries the #671 CLI-absence skip must ALSO fail — a regression scoping the guard
 # to `monolith` by name would pass every case above while silently reverting this property.
 assert_eq "#1830 run-shard: a non-monolith (module) shard whose log carries the #671 skip ALSO fails" "nonzero" \
   "$(cd "$CGA_TREE" && DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-mig" bash lib/test/run-shard.sh modules-pin >/dev/null 2>&1 && echo zero || echo nonzero)"
 rm -rf "$CGA_TREE"
-# Coupling pin: the run-shard.sh backstop regex and run.sh's own #671 skip() lines are a
-# coupled pair (issue #1830) — a reword of either that drifts them apart silently disarms
-# the backstop, the exact silent-revert #1830 closes. Pin both ends against one canonical
-# pattern, so a drift on either side goes RED and the editor is forced to update the other.
-CGA_PAT='#671 claude plugin validate --strict.*blocking-gate.*claude CLI not on PATH'
-# structural-pin-ok: cross-file-phase-contract -- run-shard.sh must key its backstop on this exact pattern; a drifted regex stops matching run.sh's skip lines and reverts the gate silently
-assert_eq "#1830 coupling: run-shard.sh's backstop greps the canonical CLI-absence pattern" "yes" \
-  "$(grep -qF -- "$CGA_PAT" "$LIB/test/run-shard.sh" && echo yes || echo no)"
-# structural-pin-ok: cross-file-phase-contract -- run.sh's #671 skip() calls must match that pattern; a reworded skip name/reason silently stops the backstop from firing (the `skip "` anchor excludes this file's own fixture log lines)
-assert_eq "#1830 coupling: run.sh's #671 CLI-absence skip() calls match that same pattern" "yes" \
-  "$(grep -Eq -- "skip \"$CGA_PAT" "$LIB/test/run.sh" && echo yes || echo no)"
 #
 # ── scripts/assert-cli-version.sh: every arm of the extracted version check ──
 # The decision this helper makes used to be inline workflow shell, which no assertion
