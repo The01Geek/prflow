@@ -121,10 +121,9 @@ def collect(parsed):
     def walk(o):
         if isinstance(o, dict):
             if o.get("type") == "tool_use":
-                tool_uses.append(
-                    json.dumps(o.get("input")) + " NAME=" + str(o.get("name", ""))
-                )
-                tool_use_names.append(str(o.get("name", "")))
+                name = str(o.get("name", ""))
+                tool_uses.append(json.dumps(o.get("input")) + " NAME=" + name)
+                tool_use_names.append(name)
             pd = o.get("permission_denials")
             if isinstance(pd, list):
                 for d in pd:
