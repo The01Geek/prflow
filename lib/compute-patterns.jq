@@ -147,9 +147,20 @@ def fixes_for($entries; $cat):
 
 # entry_of — compute one derived-view entry for an attribution category $cat and a
 # lifecycle record $rec (an object, or null for a corpus-only category).
-def entry_of($entries; $dismissed; $cat; $rec):
+# $cost_by_pr maps a PR number (as a string key) to that PR's mean
+# efficiency_runs[].iterations (issue #1828); a PR absent from it has no coverage.
+def entry_of($entries; $dismissed; $cost_by_pr; $cat; $rec):
   occurrences_for($entries; $cat) as $occs
   | fixes_for($entries; $cat) as $fixes
+  # Cost aggregate (issue #1828): the mean of the per-occurrence mean-iterations over
+  # this pattern's occurrences THAT HAVE COVERAGE, plus the covered-occurrence count it
+  # was computed from. An occurrence with no experiment-records coverage contributes
+  # nothing (unknown is not zero), and a pattern with zero covered occurrences records
+  # the absence as a null cost rather than a fabricated 0 — never derived from
+  # post_bot_commits, only from efficiency_runs[].iterations.
+  | ([ $occs[] | (.pr | numbers) as $pr | ($cost_by_pr[$pr | tostring]) | numbers ]) as $covered_costs
+  | ($covered_costs | length) as $covered_n
+  | (if $covered_n > 0 then (($covered_costs | add) / $covered_n) else null end) as $cost_mean
   # Fix-timestamp precedence: the lifecycle record's fixed_at when a record exists
   # (authoritative), else the legacy audit fix history.
   # `strings` is load-bearing: jq's `>` is a TOTAL order across types and never
@@ -178,7 +189,9 @@ def entry_of($entries; $dismissed; $cat; $rec):
       descriptors: descriptors_for($entries; $cat),
       status: $status,
       fix_history: $fixes,
-      category: $cat
+      category: $cat,
+      cost_mean_iterations: $cost_mean,
+      covered_occurrence_count: $covered_n
     };
 
 . as $entries
@@ -206,6 +219,19 @@ def entry_of($entries; $dismissed; $cat; $rec):
          rec: $v,
          category: ( ((($v.category // "") | strings) // "") as $c
                      | (if $c != "" then $c else $k end) | slugify ) } ]) as $records
+# Per-PR cost index (issue #1828): map each PR to the mean of its experiment record's
+# efficiency_runs[].iterations. `$experiments` is the slurped experiment-records.jsonl
+# corpus (an array of records, or [] when the artifact is absent/empty). Every field is
+# type-guarded so a hand-edited or agent-authored record — a non-object row, a non-number
+# `pr`, a non-array `efficiency_runs`, a non-number `iterations` — is skipped rather than
+# aborting the whole weekly derivation. A record with no numeric iterations yields no map
+# entry, so its PR reads as uncovered (never a cost of 0).
+| ([ $experiments[]? | objects
+     | (.pr | numbers) as $pr
+     | ([ (((.efficiency_runs // []) | arrays) // [])[] | objects | (.iterations | numbers) ]) as $iters
+     | select(($iters | length) > 0)
+     | {key: ($pr | tostring), value: (($iters | add) / ($iters | length))} ]
+   | from_entries ) as $cost_by_pr
 # The set of attribution categories some record claims — a corpus category in this
 # set is suppressed (its occurrences are reported by the record's own entry).
 | ([ $records[] | .category ] | unique) as $claimed
@@ -222,10 +248,10 @@ def entry_of($entries; $dismissed; $cat; $rec):
 # entry for every category NO record claims and whose slug does not already collide
 # with a record key already emitted.
 | (reduce $records[] as $r ({};
-      . + { ($r.key | slugify): entry_of($entries; $dismissed; $r.category; $r.rec) }
+      . + { ($r.key | slugify): entry_of($entries; $dismissed; $cost_by_pr; $r.category; $r.rec) }
     )) as $with_records
 | reduce ($corpus_cats[] | select(. as $x | ($claimed | index($x)) | not)) as $x ($with_records;
       if has($x) then .
-      else . + { ($x): entry_of($entries; $dismissed; $x; null) }
+      else . + { ($x): entry_of($entries; $dismissed; $cost_by_pr; $x; null) }
       end
   )

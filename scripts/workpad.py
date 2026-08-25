@@ -4243,6 +4243,23 @@ _REVIEW_COVERAGE_AXIS_GAP = {s['name']: s['gap'] for s in _REVIEW_COVERAGE_AXIS_
 # table's own order rather than a hand-maintained second one.
 _REVIEW_COVERAGE_GAPS = tuple(
     dict.fromkeys(s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS))
+# issue #1510: the record's optional as-of anchor — the trailing `<head>:<asof>` fields
+# appended after the axes. Both are colon-free because the payload is re-split on `:`, so a
+# colon-bearing ISO time here would be re-read as an axis field and break the record.
+_REVIEW_COVERAGE_ANCHOR_FIELDS = 2
+_REVIEW_COVERAGE_ANCHOR_UNESTABLISHED = 'unestablished'
+_REVIEW_COVERAGE_ANCHOR_HEAD_RE = re.compile(
+    r'\A(?:[0-9a-f]{7,40}|' + _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED + r')\Z')
+_REVIEW_COVERAGE_ANCHOR_ASOF_RE = re.compile(r'\A[0-9]{8}T[0-9]{6}Z\Z')
+
+
+def _utc_now_compact() -> str:
+    """The current UTC instant in colon-free basic-ISO form (`YYYYMMDDTHHMMSSZ`).
+
+    The review-coverage anchor's write-time (issue #1510) rides the colon-joined
+    payload, so it takes this spelling rather than the `:`-bearing ISO form `cmd_now`
+    renders."""
+    return datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
 # A disposition reason must name the specific gap, so a placeholder is refused
 # (issue #1453 AC9). This is deliberately NOT a cost/budget word blocklist: shipped
 # `shadow-review.md` permits cost as a TRUE cause on a dispatched-and-fell-short
@@ -4305,15 +4322,43 @@ def _parse_review_coverage_payload(payload: str):
     or return None when it is malformed — the wrong field count, or any field outside
     its axis vocabulary. A malformed payload is unestablished, never a partial read:
     accepting the fields that happened to parse would let a truncated record answer
-    for axes it never carried."""
+    for axes it never carried.
+
+    A record written before issue #1510 has exactly len(_REVIEW_COVERAGE_AXES) fields
+    and no anchor; an anchored record appends the trailing `<head>:<asof>` fields. Both
+    parse to the same axis dict here — the anchor is metadata read by
+    `_parse_review_coverage_anchor`, never a fifth axis — so the gate and every existing
+    reader are unchanged, and the pre-anchor field count still parses (AC4)."""
     fields = (payload or '').split(':')
-    if len(fields) != len(_REVIEW_COVERAGE_AXES):
+    n = len(_REVIEW_COVERAGE_AXES)
+    if len(fields) not in (n, n + _REVIEW_COVERAGE_ANCHOR_FIELDS):
         return None
-    record = dict(zip(_REVIEW_COVERAGE_AXES, fields))
+    record = dict(zip(_REVIEW_COVERAGE_AXES, fields[:n]))
     for axis, value in record.items():
         if value not in _REVIEW_COVERAGE_VOCABULARY[axis]:
             return None
     return record
+
+
+def _parse_review_coverage_anchor(payload: str):
+    """The as-of anchor a review-coverage payload carries (issue #1510), or None.
+
+    A pre-#1510 record has exactly len(_REVIEW_COVERAGE_AXES) fields and no anchor, so
+    it returns None — absent, never an error (AC4). An anchored record appends
+    `<head>:<asof>`: `head` is a lowercase-hex SHA (or the literal `unestablished` when
+    the reviewed head could not be derived) and `asof` is a colon-free basic-ISO UTC
+    instant. A payload with the anchor field count but a malformed head or asof also
+    returns None — an unreadable anchor is absent, not a partial one."""
+    fields = (payload or '').split(':')
+    n = len(_REVIEW_COVERAGE_AXES)
+    if len(fields) != n + _REVIEW_COVERAGE_ANCHOR_FIELDS:
+        return None
+    head, asof = fields[n:]
+    if not _REVIEW_COVERAGE_ANCHOR_HEAD_RE.match(head):
+        return None
+    if not _REVIEW_COVERAGE_ANCHOR_ASOF_RE.match(asof):
+        return None
+    return {'head': head, 'asof': asof}
 
 
 def _render_review_coverage_state(record: dict) -> str:
@@ -4434,7 +4479,13 @@ def _render_review_coverage_disposition(gap: str, reason: str) -> str:
     return f'review-coverage disposition — gap={gap}; reason: {reason}'
 
 
-_REVIEW_COVERAGE_REFLECTION_PREFIX = 'review coverage gap carried forward — gap='
+_REVIEW_COVERAGE_REFLECTION_PREFIX = (
+    "review coverage gap in this run's own review pass — gap=")
+# The pre-#1510 spelling (issue #1510 reworded the prefix). The strip below reads BOTH, so a
+# bullet a prior code version wrote is cleaned when a fresh record supersedes it across an
+# upgrade — otherwise a stale friction bullet survives and keeps tripping the retrospective gate.
+_REVIEW_COVERAGE_REFLECTION_PREFIX_SUPERSEDED = (
+    'review coverage gap carried forward — gap=')
 
 
 def _strip_review_coverage_reflection_bullets(content: str) -> str:
@@ -4443,11 +4494,12 @@ def _strip_review_coverage_reflection_bullets(content: str) -> str:
     Runs wherever the rows those bullets accompany are stripped, so a superseded or
     inherited disposition does not leave a permanent `### ⚠️ Action required` bullet
     that keeps tripping the retrospective friction gate after the gap it named is
-    gone. Matches on `_REVIEW_COVERAGE_REFLECTION_PREFIX`, the same constant the
-    disposition's reflection writer in `_apply_mutations` emits, so the two move
-    together."""
+    gone. Matches on `_REVIEW_COVERAGE_REFLECTION_PREFIX` (the constant the disposition's
+    reflection writer in `_apply_mutations` emits, so the two move together) and on its
+    superseded spelling, so a bullet a prior code version wrote is cleaned across an upgrade."""
     kept = [ln for ln in content.splitlines(keepends=True)
-            if _REVIEW_COVERAGE_REFLECTION_PREFIX not in ln]
+            if _REVIEW_COVERAGE_REFLECTION_PREFIX not in ln
+            and _REVIEW_COVERAGE_REFLECTION_PREFIX_SUPERSEDED not in ln]
     return ''.join(kept)
 
 
@@ -5529,7 +5581,19 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             raise _UpdateError(
                 f"--record-review-coverage: {incoherent}. No PATCH was made."
             )
-        review_coverage_payload = ':'.join(review_coverage)
+        # issue #1510: stamp the record's as-of anchor — the reviewed head SHA it was
+        # derived from (from the caller, else `unestablished`) and the UTC write time.
+        # A bad head is a structural refusal here so no half-anchored record is written.
+        _anchor_head = (getattr(args, 'record_review_coverage_head', None)
+                        or _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED)
+        if not _REVIEW_COVERAGE_ANCHOR_HEAD_RE.match(_anchor_head):
+            raise _UpdateError(
+                f"--record-review-coverage-head: {_anchor_head!r} is not a "
+                "lowercase-hex head SHA (or 'unestablished'). No PATCH was made."
+            )
+        _anchor_asof = _utc_now_compact()
+        review_coverage_payload = ':'.join(
+            list(review_coverage) + [_anchor_head, _anchor_asof])
     review_dispositions = list(getattr(args, 'review_coverage_disposition', []) or [])
     _seen_gaps: set[str] = set()
     for _pair in review_dispositions:
@@ -5892,8 +5956,14 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if review_coverage_payload:
         _state = _render_review_coverage_state(
             dict(zip(_REVIEW_COVERAGE_AXES, review_coverage)))
+        # issue #1510: surface the as-of anchor in the visible row (from the locals
+        # composed above — no re-parse) so a human reader can tell a record that predates
+        # a later standalone review from a current one.
+        _head_disp = (_anchor_head if _anchor_head == _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED
+                      else _anchor_head[:12])
         _review_coverage_rows.add(
-            f'review coverage recorded ({_state}) '
+            f'review coverage recorded ({_state}; as of head {_head_disp} '
+            f'at {_anchor_asof}) '
             f'{_review_coverage_marker(review_coverage_payload)}'
         )
     for _gap, _reason in review_dispositions:
@@ -6541,8 +6611,11 @@ def main():
                    metavar=('COVERAGE', 'DISPATCH', 'ROSTER', 'CHECKLIST'),
                    help='Record this run\'s resolved Phase 3 review-coverage state '
                         '(issue #1453) as a machine-readable "<!-- prflow:checkpoint '
-                        'review-coverage:<coverage>:<dispatch>:<roster>:<checklist> '
-                        '-->" ## Progress row, replacing any prior one. COVERAGE: '
+                        'review-coverage:<coverage>:<dispatch>:<roster>:<checklist>'
+                        '[:<head>:<asof>] '
+                        '-->" ## Progress row, replacing any prior one. The optional '
+                        '[:<head>:<asof>] as-of anchor (issue #1510) is stamped from '
+                        '--record-review-coverage-head + the UTC write time. COVERAGE: '
                         + '|'.join(_REVIEW_COVERAGE_VOCABULARY['coverage'])
                         + '. DISPATCH (was a shadow fan-out attempted): '
                         + '|'.join(_REVIEW_COVERAGE_VOCABULARY['dispatch'])
@@ -6554,6 +6627,13 @@ def main():
                           'a clean value. A later "--status Complete" write is refused '
                           'unless this record is complete or every gap it reports '
                           'carries a --review-coverage-disposition.')
+    u.add_argument('--record-review-coverage-head', default=None, metavar='SHA',
+                   help='The reviewed head SHA the review-coverage record is derived '
+                        'from (issue #1510), stamped as the record\'s as-of anchor '
+                        'beside the UTC write time so a reader can tell a record that '
+                        'predates a later standalone review from a current one. A '
+                        'lowercase-hex SHA; omit it to record the head as '
+                        '"unestablished". Only meaningful with --record-review-coverage.')
     u.add_argument('--review-coverage-disposition', nargs=2, action='append',
                    default=[], metavar=('GAP', 'REASON'),
                    help='Carry a recorded review-coverage gap forward under a stated '
