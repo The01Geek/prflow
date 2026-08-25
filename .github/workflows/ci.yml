@@ -243,6 +243,7 @@ jobs:
   # skipped check is never laundered into a clean pass), failing closed if a shard's tally
   # is missing or malformed.
   test:
+    # prflow:required-check
     name: lib + python tests
     needs: [shard]
     if: always()
@@ -272,6 +273,7 @@ jobs:
         run: bash lib/test/gate-shard-result.sh "${{ needs.shard.result }}"
 
   lint:
+    # prflow:required-check
     name: lint (shellcheck + actionlint + ruff)
     runs-on: ubuntu-latest
     steps:

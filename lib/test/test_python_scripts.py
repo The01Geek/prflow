@@ -236,8 +236,9 @@ def make_args(**overrides):
         # and the terminal gate read these on every call.
         record_completion_evidence=None, repo_root=None, claim_identity=None,
         # issue #1611 CI-derived completion evidence — `_apply_mutations` and the
-        # terminal gate read this on every call.
-        record_completion_evidence_ci=None,
+        # terminal gate read this on every call. issue #1898 adds the repeatable
+        # --completion-ci-check pairs read beside it.
+        record_completion_evidence_ci=None, completion_ci_check=None,
         # issue #1347 inherited required-artifact strip — read on every call.
         strip_inherited_checkpoints=False,
         # issue #1453 review-coverage record + dispositions — read on every call.
@@ -31959,6 +31960,22 @@ print("issue #1611: CI-derived completion-evidence gate")
 # The CI validator does REAL git reads (rev-parse HEAD + status --porcelain) against
 # a repo_root — no mock of subprocess/git, per the issue's testing strategy. Build a
 # real temporary repository with one commit.
+# The required checks the fixture ci.yml declares — the single declared source that
+# _required_checks reads (issue #1898). The fixture repo carries a real ci.yml so the
+# coverage check runs against a genuine declared set, not a stubbed constant.
+_CI_REQUIRED_A = 'lib + python tests'
+_CI_REQUIRED_B = 'lint (shellcheck + actionlint + ruff)'
+_CI_YML = (
+    "jobs:\n"
+    "  test:\n"
+    "    # prflow:required-check\n"
+    "    name: %s\n"
+    "  lint:\n"
+    "    # prflow:required-check\n"
+    "    name: %s\n"
+) % (_CI_REQUIRED_A, _CI_REQUIRED_B)
+
+
 def _make_ci_repo():
     root = _tmp1087.mkdtemp()
     _subprocess.run(['git', 'init', '-q', '-b', 'main', root], check=True)
@@ -31966,7 +31983,10 @@ def _make_ci_repo():
     _subprocess.run(['git', 'config', 'user.name', 't'], cwd=root, check=True)
     with open(os.path.join(root, 'f.txt'), 'w') as _fh:
         _fh.write('x\n')
-    _subprocess.run(['git', 'add', 'f.txt'], cwd=root, check=True)
+    os.makedirs(os.path.join(root, '.github', 'workflows'), exist_ok=True)
+    with open(os.path.join(root, '.github', 'workflows', 'ci.yml'), 'w') as _fh:
+        _fh.write(_CI_YML)
+    _subprocess.run(['git', 'add', '-A'], cwd=root, check=True)
     _subprocess.run(['git', 'commit', '-qm', 'init'], cwd=root, check=True)
     _h = _subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root,
                          capture_output=True, text=True, check=True).stdout.strip()
@@ -31977,8 +31997,11 @@ _ci_root, _ci_head = _make_ci_repo()
 
 
 def _ci_rec(**over):
-    base = {'head_sha': _ci_head, 'check_name': 'lib + python tests',
-            'conclusion': 'success', 'run_url': 'https://github.com/o/r/actions/runs/1'}
+    # A well-formed local-tier record whose checks cover the required set (issue #1898).
+    base = {'head_sha': _ci_head, 'tier': 'local',
+            'run_url': 'https://github.com/o/r/actions/runs/1',
+            'checks': [{'name': _CI_REQUIRED_A, 'conclusion': 'success'},
+                       {'name': _CI_REQUIRED_B, 'conclusion': 'success'}]}
     base.update(over)
     return base
 
@@ -32011,22 +32034,51 @@ _t, _d = cce.validate_implement_completion_ci(_ci_rec(), _ci_root)
 assert_eq("#1611 CI record over a dirty tree → stale-candidate", "stale-candidate", _t)
 _subprocess.run(['git', 'checkout', '--', 'f.txt'], cwd=_ci_root, check=True)
 
-# conclusion sweep: each non-success → verification-not-pass.
-for _c in ('failure', 'cancelled', 'skipped', 'neutral'):
-    _t, _d = cce.validate_implement_completion_ci(_ci_rec(conclusion=_c), _ci_root)
-    assert_eq(f"#1611 CI conclusion {_c!r} → verification-not-pass", "verification-not-pass", _t)
-# absent conclusion field → missing-evidence.
+# ── issue #1898: tier operand ────────────────────────────────────────────────
+# A `cloud` tier is refused (missing-evidence), and the detail names the tier.
+_t, _d = cce.validate_implement_completion_ci(_ci_rec(tier='cloud'), _ci_root)
+assert_eq("#1898 CI tier 'cloud' → missing-evidence", "missing-evidence", _t)
+assert_eq("#1898 the cloud-tier refusal names the tier (cloud)", True, 'cloud' in _d)
+# An absent tier value is refused (missing-evidence), naming the tier field.
 _r = _ci_rec()
-del _r['conclusion']
+del _r['tier']
 _t, _d = cce.validate_implement_completion_ci(_r, _ci_root)
-assert_eq("#1611 absent conclusion field → missing-evidence", "missing-evidence", _t)
+assert_eq("#1898 absent tier → missing-evidence", "missing-evidence", _t)
+assert_eq("#1898 the absent-tier refusal names the tier field", True, 'tier' in _d)
+# Any other non-local tier value is refused too (fail closed).
+_t, _d = cce.validate_implement_completion_ci(_ci_rec(tier='remote'), _ci_root)
+assert_eq("#1898 a non-local tier value → missing-evidence", "missing-evidence", _t)
 
-# missing each required field in turn → missing-evidence.
-for _f in ('head_sha', 'check_name', 'conclusion', 'run_url'):
+# ── issue #1898: the checks set + required-check coverage ─────────────────────
+# A single non-success conclusion among the checks → verification-not-pass, naming it.
+for _c in ('failure', 'cancelled', 'skipped', 'neutral'):
+    _r = _ci_rec(checks=[{'name': _CI_REQUIRED_A, 'conclusion': _c},
+                         {'name': _CI_REQUIRED_B, 'conclusion': 'success'}])
+    _t, _d = cce.validate_implement_completion_ci(_r, _ci_root)
+    assert_eq(f"#1898 a {_c!r} conclusion in the checks set → verification-not-pass",
+              "verification-not-pass", _t)
+# A checks set that does NOT cover the required set → missing-evidence, naming the
+# missing check.
+_r = _ci_rec(checks=[{'name': _CI_REQUIRED_A, 'conclusion': 'success'}])  # lint absent
+_t, _d = cce.validate_implement_completion_ci(_r, _ci_root)
+assert_eq("#1898 checks missing a required member → missing-evidence", "missing-evidence", _t)
+assert_eq("#1898 the uncovered-required-check refusal names the missing check",
+          True, _CI_REQUIRED_B in _d)
+# An empty checks list, a non-list checks value, and a malformed pair → missing-evidence.
+for _over, _lbl in [({'checks': []}, "empty-list"),
+                    ({'checks': 'x'}, "non-list"),
+                    ({'checks': [{'name': _CI_REQUIRED_A}]}, "pair-missing-conclusion"),
+                    ({'checks': [{'conclusion': 'success'}]}, "pair-missing-name"),
+                    ({'checks': [['a', 'b']]}, "pair-not-object")]:
+    _t, _d = cce.validate_implement_completion_ci(_ci_rec(**_over), _ci_root)
+    assert_eq(f"#1898 malformed checks {_lbl} → missing-evidence", "missing-evidence", _t)
+
+# missing each required scalar field in turn → missing-evidence.
+for _f in ('head_sha', 'tier', 'run_url'):
     _r = _ci_rec()
     del _r[_f]
     _t, _d = cce.validate_implement_completion_ci(_r, _ci_root)
-    assert_eq(f"#1611 missing field {_f} → missing-evidence", "missing-evidence", _t)
+    assert_eq(f"#1898 missing field {_f} → missing-evidence", "missing-evidence", _t)
 
 # malformed SHA shapes → missing-evidence (shape checked before staleness).
 for _bad, _lbl in [(_ci_head[:7], "abbrev-7"),
@@ -32041,14 +32093,28 @@ for _bad, _lbl in [([1, 2], "array"), ("scalar", "scalar-str"), (5, "scalar-int"
     _t, _d = cce.validate_implement_completion_ci(_bad, _ci_root)
     assert_eq(f"#1611 non-object payload {_lbl} → missing-evidence", "missing-evidence", _t)
 
-# present-but-wrong-typed field VALUES inside a well-formed object → missing-evidence
+# present-but-wrong-typed scalar field VALUES inside a well-formed object → missing-evidence
 # (a best-effort parser over an agent-writable payload; a producer bug could emit these).
-for _over, _lbl in [({'conclusion': 5}, "conclusion-int"),
+for _over, _lbl in [({'tier': 5}, "tier-int"),
                     ({'head_sha': 123}, "head_sha-int"),
-                    ({'conclusion': '   '}, "conclusion-whitespace"),
                     ({'run_url': ['x']}, "run_url-list")]:
     _t, _d = cce.validate_implement_completion_ci(_ci_rec(**_over), _ci_root)
     assert_eq(f"#1611 wrong-typed field value {_lbl} → missing-evidence", "missing-evidence", _t)
+
+# ── issue #1898: _required_checks reads the single declared source (ci.yml) ────
+assert_eq("#1898 _required_checks reads the marked job names from ci.yml",
+          {_CI_REQUIRED_A, _CI_REQUIRED_B}, set(cce._required_checks(_ci_root)))
+# An absent ci.yml declares no required checks (empty set; coverage is then vacuous).
+assert_eq("#1898 _required_checks over a root with no ci.yml → empty set",
+          frozenset(), cce._required_checks(_tmp1087.mkdtemp()))
+# Marker-drift guard: a dropped `# prflow:required-check` marker on the REAL repo ci.yml
+# silently shrinks the required set and re-opens the #1888 fail-open, which the fixture
+# tests above cannot catch. Pin that the live tree still declares both known-critical
+# checks (subset, so adding a future required check does not falsely fail this).
+_REAL_ROOT_1898 = str(Path(__file__).resolve().parents[2])
+assert_eq("#1898 the real repo ci.yml still declares both required checks (marker-drift guard)",
+          {_CI_REQUIRED_A, _CI_REQUIRED_B},
+          {_CI_REQUIRED_A, _CI_REQUIRED_B} & set(cce._required_checks(_REAL_ROOT_1898)))
 
 # internal git-read failure propagates as _Internal (never a verdict): a well-formed
 # record over a NON-git repo_root makes _ci_git_read raise, and the entry point catches
@@ -32064,22 +32130,31 @@ except Exception:  # noqa: BLE001
 assert_eq("#1611 well-formed record over a non-git repo_root raises _Internal (no verdict)",
           True, _raised_internal)
 
-# ORDERED_TOKENS unchanged; every CI verdict token is in the closed set.
-assert_eq("#1611 ORDERED_TOKENS still exactly 8 members", 8, len(cce.ORDERED_TOKENS))
-for _tk in ('pass', 'missing-evidence', 'stale-candidate', 'verification-not-pass'):
-    assert_eq(f"#1611 CI token {_tk} is in ALL_TOKENS", True, _tk in cce.ALL_TOKENS)
+# ORDERED_TOKENS unchanged (issue #1898 AC): compare the module's token set against its
+# pre-change members, written down literally rather than derived from the module itself.
+_EXPECTED_TOKENS_1898 = (
+    'pass', 'missing-evidence', 'stale-candidate', 'verification-not-pass',
+    'skipped-checks-present', 'undischarged-findings', 'non-durable-deferral',
+    'unverifiable-trace',
+)
+assert_eq("#1898 ORDERED_TOKENS unchanged after the CI-record widening",
+          _EXPECTED_TOKENS_1898, tuple(cce.ORDERED_TOKENS))
+assert_eq("#1898 ALL_TOKENS unchanged after the CI-record widening",
+          frozenset(_EXPECTED_TOKENS_1898), cce.ALL_TOKENS)
 
 # ── workpad terminal-gate integration (real verdict) ─────────────────────────
-_enc_ci = workpad._encode_ci_payload(_ci_rec(check_name='c'))
+_enc_ci = workpad._encode_ci_payload(_ci_rec())
 workpad._completion_evidence_verdict = _REAL_COMPLETION_EVIDENCE_VERDICT
 try:
-    _ci_ok = [_ci_head, 'lib + python tests', 'success',
-              'https://github.com/o/r/actions/runs/1']
+    # The new operand shape (issue #1898): nargs-3 (HEAD_SHA, TIER, RUN_URL) plus one
+    # --completion-ci-check NAME CONCLUSION pair per required check, covering the set.
+    _ci_ok = [_ci_head, 'local', 'https://github.com/o/r/actions/runs/1']
+    _ci_checks = [[_CI_REQUIRED_A, 'success'], [_CI_REQUIRED_B, 'success']]
 
     # Recording a valid CI marker, then finalizing, PATCHes once.
     _code, _out, _err, _patched = _drive_cmd_update(
         GATE_BODY, status='Complete', record_completion_evidence_ci=_ci_ok,
-        repo_root=_ci_root)
+        completion_ci_check=_ci_checks, repo_root=_ci_root)
     assert_eq("#1611 Complete WITH a validated CI marker exits 0", None, _code)
     assert_eq("#1611 Complete with a valid CI marker PATCHes (🎉 Complete)", True,
               _patched is not None and '🎉 Complete' in _patched)
@@ -32094,16 +32169,37 @@ try:
 
     # Recording a CI marker twice (no finalize) leaves exactly one row.
     _cA, _oA, _eA, _bA = _drive_cmd_update(
-        GATE_BODY, record_completion_evidence_ci=_ci_ok, repo_root=_ci_root)
+        GATE_BODY, record_completion_evidence_ci=_ci_ok,
+        completion_ci_check=_ci_checks, repo_root=_ci_root)
     _cB, _oB, _eB, _bB = _drive_cmd_update(
-        _bA, record_completion_evidence_ci=_ci_ok, repo_root=_ci_root)
+        _bA, record_completion_evidence_ci=_ci_ok,
+        completion_ci_check=_ci_checks, repo_root=_ci_root)
     assert_eq("#1611 recording a CI marker twice leaves exactly one row", 1,
               _bB.count('completion-ci:'))
+
+    # A cloud tier aborts before PATCH (issue #1898), naming the tier.
+    _cC, _oC, _eC, _pC = _drive_cmd_update(
+        GATE_BODY, status='Complete', repo_root=_ci_root,
+        record_completion_evidence_ci=[_ci_head, 'cloud', 'u'],
+        completion_ci_check=_ci_checks)
+    assert_eq("#1898 recording a cloud-tier CI record aborts (no PATCH)", None, _pC)
+    assert_eq("#1898 the cloud-tier abort names the tier", True, 'cloud' in _eC)
+
+    # A checks set missing a required member aborts before PATCH (issue #1898).
+    _cU, _oU, _eU, _pU = _drive_cmd_update(
+        GATE_BODY, status='Complete', repo_root=_ci_root,
+        record_completion_evidence_ci=_ci_ok,
+        completion_ci_check=[[_CI_REQUIRED_A, 'success']])  # lint absent
+    assert_eq("#1898 recording a CI record that omits a required check aborts (no PATCH)",
+              None, _pU)
+    assert_eq("#1898 the uncovered-check abort names the missing check", True,
+              _CI_REQUIRED_B in _eU)
 
     # SHA != HEAD aborts before PATCH (no PATCH), naming stale-candidate.
     _cS, _oS, _eS, _pS = _drive_cmd_update(
         GATE_BODY, status='Complete', repo_root=_ci_root,
-        record_completion_evidence_ci=['b' * 40, 'c', 'success', 'u'])
+        record_completion_evidence_ci=['b' * 40, 'local', 'u'],
+        completion_ci_check=_ci_checks)
     assert_eq("#1611 recording a stale-SHA CI record aborts (no PATCH)", None, _pS)
     assert_eq("#1611 the stale-SHA abort names stale-candidate", True, 'stale-candidate' in _eS)
 
@@ -32112,7 +32208,7 @@ try:
         _fh.write('dirty2\n')
     _cD, _oD, _eD, _pD = _drive_cmd_update(
         GATE_BODY, status='Complete', record_completion_evidence_ci=_ci_ok,
-        repo_root=_ci_root)
+        completion_ci_check=_ci_checks, repo_root=_ci_root)
     assert_eq("#1611 recording a CI record over a dirty tree aborts (no PATCH)", None, _pD)
     assert_eq("#1611 the dirty-tree abort names stale-candidate", True, 'stale-candidate' in _eD)
     _subprocess.run(['git', 'checkout', '--', 'f.txt'], cwd=_ci_root, check=True)
@@ -32120,7 +32216,8 @@ try:
     # A non-success conclusion aborts before PATCH, naming verification-not-pass.
     _cF, _oF, _eF, _pF = _drive_cmd_update(
         GATE_BODY, status='Complete', repo_root=_ci_root,
-        record_completion_evidence_ci=[_ci_head, 'c', 'failure', 'u'])
+        record_completion_evidence_ci=[_ci_head, 'local', 'u'],
+        completion_ci_check=[[_CI_REQUIRED_A, 'failure'], [_CI_REQUIRED_B, 'success']])
     assert_eq("#1611 recording a failure-conclusion CI record aborts (no PATCH)", None, _pF)
     assert_eq("#1611 the failure abort names verification-not-pass", True,
               'verification-not-pass' in _eF)
@@ -32128,7 +32225,8 @@ try:
     # A malformed SHA aborts before PATCH.
     _cM, _oM, _eM, _pM = _drive_cmd_update(
         GATE_BODY, status='Complete', repo_root=_ci_root,
-        record_completion_evidence_ci=[_ci_head[:7], 'c', 'success', 'u'])
+        record_completion_evidence_ci=[_ci_head[:7], 'local', 'u'],
+        completion_ci_check=_ci_checks)
     assert_eq("#1611 recording a malformed-SHA CI record aborts (no PATCH)", None, _pM)
 
     # ── cross-family combined-count via the verdict function directly ──────────
@@ -32196,7 +32294,8 @@ try:
     # and converts to a no-PATCH _UpdateError (fail closed, no false Complete).
     _cI, _oI, _eI, _pI = _drive_cmd_update(
         GATE_BODY, status='Complete', repo_root=_nongit,
-        record_completion_evidence_ci=['a' * 40, 'c', 'success', 'u'])
+        record_completion_evidence_ci=['a' * 40, 'local', 'u'],
+        completion_ci_check=_ci_checks)
     assert_eq("#1611 CI record over a non-git repo_root makes NO PATCH", None, _pI)
     assert_eq("#1611 the internal-error CI arm reports unestablished (no PATCH)", True,
               'internal error' in _eI or 'unestablished' in _eI)
@@ -32213,6 +32312,96 @@ try:
         assert_eq(f"#1611 verdict: single valid {_spell}: CI marker → clean pass", True, _ok)
 finally:
     workpad._completion_evidence_verdict = lambda args, prog_content: None
+
+
+# ── issue #1898: the --context-mode direct/loop CI route reaches the SAME check ──
+# The reception (direct) and fix-loop (loop) passes reach the CI validation through
+# check-completion-evidence.py's own CLI, supplying a --ci-record. Drive cce.main(argv)
+# and read its exit code + the single verdict line, exactly as the production caller does.
+import contextlib as _ctx1898  # noqa: E402
+
+
+def _write_json_1898(obj):
+    _p = _tmp1087.mkstemp(suffix='.json')[1]
+    with open(_p, 'w') as _fh:
+        _fh.write(_json1087.dumps(obj))
+    return _p
+
+
+def _run_cce_1898(argv):
+    _out = io.StringIO()
+    _code = None
+    try:
+        with _ctx1898.redirect_stdout(_out), _ctx1898.redirect_stderr(io.StringIO()):
+            _code = cce.main(argv)
+    except SystemExit as _e:  # main() returns an int; guard against any raise-path too
+        _code = _e.code
+    return _code, _out.getvalue()
+
+
+# The CI record file (a valid local-tier record covering the required set at HEAD).
+_ci_record_path = _write_json_1898(_ci_rec())
+# Session anchors bound to the claim context 'tok'. Direct requires the identity
+# artifact and a non-empty findings list (its undischarged check is completeness-only).
+_ident_path = _write_json_1898({'claim_context_token': 'tok'})
+_fi_direct_path = _write_json_1898({'claim_context_token': 'tok',
+                                    'findings': [{'finding_id': 'f1'}]})
+# Loop needs only the findings inventory; this fixture routes no finding into the fix set.
+_fi_loop_path = _write_json_1898({'claim_context_token': 'tok', 'findings': []})
+
+# AC7: a --context-mode direct invocation with a valid CI record reaches `pass`.
+_c, _o = _run_cce_1898([
+    '--context-mode', 'direct', '--context', 'tok', '--ci-record', _ci_record_path,
+    '--identity-artifact', _ident_path, '--findings-inventory', _fi_direct_path,
+    '--repo-root', _ci_root])
+assert_eq("#1898 direct route with a valid CI record exits 0", 0, _c)
+assert_eq("#1898 direct route with a valid CI record → pass", True, 'completion-check: pass' in _o)
+
+# AC7: the same holds for --context-mode loop.
+_c, _o = _run_cce_1898([
+    '--context-mode', 'loop', '--context', 'tok', '--ci-record', _ci_record_path,
+    '--findings-inventory', _fi_loop_path, '--repo-root', _ci_root])
+assert_eq("#1898 loop route with a valid CI record exits 0", 0, _c)
+assert_eq("#1898 loop route with a valid CI record → pass", True, 'completion-check: pass' in _o)
+
+# AC3: the tier refusals fire on the direct/loop routes too (a cloud tier → refused).
+_cloud_record_path = _write_json_1898(_ci_rec(tier='cloud'))
+_c, _o = _run_cce_1898([
+    '--context-mode', 'direct', '--context', 'tok', '--ci-record', _cloud_record_path,
+    '--identity-artifact', _ident_path, '--findings-inventory', _fi_direct_path,
+    '--repo-root', _ci_root])
+assert_eq("#1898 direct route refuses a cloud-tier CI record (exit 1)", 1, _c)
+assert_eq("#1898 direct route cloud refusal is missing-evidence naming the tier", True,
+          'missing-evidence' in _o and 'cloud' in _o)
+# AC3: the same tier refusal fires on the loop route.
+_c, _o = _run_cce_1898([
+    '--context-mode', 'loop', '--context', 'tok', '--ci-record', _cloud_record_path,
+    '--findings-inventory', _fi_loop_path, '--repo-root', _ci_root])
+assert_eq("#1898 loop route refuses a cloud-tier CI record (exit 1)", 1, _c)
+assert_eq("#1898 loop route cloud refusal is missing-evidence naming the tier", True,
+          'missing-evidence' in _o and 'cloud' in _o)
+
+# AC8: the undischarged-findings check still runs on the CI route — a direct session
+# whose findings ledger records zero dispositions is refused even with a valid CI record.
+_fi_empty_path = _write_json_1898({'claim_context_token': 'tok', 'findings': []})
+_c, _o = _run_cce_1898([
+    '--context-mode', 'direct', '--context', 'tok', '--ci-record', _ci_record_path,
+    '--identity-artifact', _ident_path, '--findings-inventory', _fi_empty_path,
+    '--repo-root', _ci_root])
+assert_eq("#1898 direct route still refuses on undischarged findings (exit 1)", 1, _c)
+assert_eq("#1898 the undischarged refusal names undischarged-findings", True,
+          'undischarged-findings' in _o)
+
+# AC8: the deferral-durability check still runs — a deferral with no durable channel is
+# refused (non-durable-deferral) even with an otherwise-valid CI record.
+_deferrals_path = _write_json_1898({'deferrals': [{'finding_id': 'd1'}]})
+_c, _o = _run_cce_1898([
+    '--context-mode', 'loop', '--context', 'tok', '--ci-record', _ci_record_path,
+    '--findings-inventory', _fi_loop_path, '--deferrals', _deferrals_path,
+    '--repo-root', _ci_root])
+assert_eq("#1898 CI route still refuses a non-durable deferral (exit 1)", 1, _c)
+assert_eq("#1898 the deferral refusal names non-durable-deferral", True,
+          'non-durable-deferral' in _o)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

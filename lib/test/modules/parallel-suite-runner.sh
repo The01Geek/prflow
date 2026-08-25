@@ -686,6 +686,42 @@ assert_eq "psr output: the complete synthetic log stays readable under the retai
 assert_eq "psr output: every one of the 25 skip entries survives in the retained log" "25" \
   "$(cd "$PSR_T6" && psr_count_matching "$PSR_BULK_LOG" "  SKIP  synthetic-skip-")"
 
+# ── run-shard.sh names the log it retained, on pass AND fail (issue #1923) ────
+# A reader who tail-piped run-shard.sh's echoed log away (CLAUDE.md's `| tail -<n>`)
+# must re-read the retained log, not re-execute the shard; assert it is named on both.
+PSR_RS_TREE="$(mktemp -d "$PSR_ROOT/rs.XXXXXX")"
+mkdir -p "$PSR_RS_TREE/lib/test"
+cp "$LIB/test/run-shard.sh" "$PSR_RS_TREE/lib/test/run-shard.sh"
+cp "$PSR_TALLY" "$PSR_RS_TREE/lib/test/shard-tally.py"
+chmod +x "$PSR_RS_TREE/lib/test/run-shard.sh"
+cat > "$PSR_RS_TREE/lib/test/run.sh" <<'PSR_EOF'
+#!/usr/bin/env bash
+if [ -n "${PSR_RS_FAIL:-}" ]; then printf '0 passed, 1 failed\n'; exit 1; fi
+printf '1 passed, 0 failed\n'
+PSR_EOF
+chmod +x "$PSR_RS_TREE/lib/test/run.sh"
+# One row per exit ("" = passing shard, "1" = failing via PSR_RS_FAIL): the fail case is
+# not redundant — it catches a future edit that gates the printf behind a success-only
+# path, which run-shard.sh must never do since the log is retained on both outcomes.
+for psr_rs_fail in "" "1"; do
+  [ -z "$psr_rs_fail" ] && psr_rs_label=passing || psr_rs_label=failing
+  psr_rs_tally="$PSR_RS_TREE/tally-$psr_rs_label"
+  psr_rs_out="$(cd "$PSR_RS_TREE" && PSR_RS_FAIL="$psr_rs_fail" DEVFLOW_SHARD_TALLY_DIR="$psr_rs_tally" \
+    bash lib/test/run-shard.sh monolith 2>&1)"
+  mkdir -p "$psr_rs_tally"
+  psr_rs_exp="$(cd "$psr_rs_tally" && pwd -P)/log.txt"
+  assert_eq "psr run-shard: a $psr_rs_label shard names its retained log by absolute path" "yes" \
+    "$(case "$psr_rs_out" in *"retained log: $psr_rs_exp"*) echo yes ;; *) echo no ;; esac)"
+done
+
+# A RELATIVE tally dir must still yield an ABSOLUTE retained-log path — the guarantee
+# issue #1923's AC names, and the one a `printf "$LOG_FILE"` regression (dropping the
+# pwd -P canonicalization) would break while an already-absolute fixture stayed green.
+PSR_RS_OUT_REL="$(cd "$PSR_RS_TREE" && DEVFLOW_SHARD_TALLY_DIR="rel-tally" \
+  bash lib/test/run-shard.sh monolith 2>&1)"
+assert_eq "psr run-shard: a relative tally dir still yields an absolute retained-log path" "yes" \
+  "$(case "$PSR_RS_OUT_REL" in *"retained log: /"*) echo yes ;; *) echo no ;; esac)"
+
 # ── shard-tally.py --detail-cap, driven directly ─────────────────────────────
 # The coordinator only ever exercises cap 20. CI's aggregator omits the flag entirely,
 # and "CI's output is unchanged" is the guarantee that carries the whole no-regression
