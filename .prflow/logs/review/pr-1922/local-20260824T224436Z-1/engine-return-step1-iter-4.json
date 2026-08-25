@@ -1,0 +1,243 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "verdict_threshold": "critical",
+  "verdict_driver": "Phase 4.2 rule 1 \u2014 four verification-checklist items carry a stored FAIL (VC-10, VC-14, VC-21, VC-28). Three are checklist-construction artifacts whose underlying source claim was independently re-measured true; VC-28's FAIL is substantive. No Phase-3 finding reached the critical threshold, so rule 3 did not fire; the self-contradicting-diff carve-out was evaluated and did not fire.",
+  "report": "## Verdict: REJECT (four verification-checklist FAILs; one Important finding leaves acceptance criterion 3 unmet on the engine-subagent path)\n\n## Issue Compliance\n\nReviewed against issue #1603: Establish that the review engine root arrived whole on the file-read path before executing it - criteria from workpad; scope unchanged. Requirement-based checklist items are included in the verification results below.\n\nCriteria came from the `/prflow:implement` workpad comment - this run's authoritative set, possibly narrowed from the issue.\n\nNo divergence between the workpad's criteria and the issue body's.\n\nPer-criterion assessment: AC1 satisfied (completeness established at the canonical site, merely-readable insufficient). AC2 satisfied (named terminal, body unusable, no repair). AC3 NOT ESTABLISHED - the dispatched engine subagent, which performs the fix loop's engine resolution on the path Step 1 tries first, receives no predicate at all (finding Important-1). AC4 satisfied (one canonical statement; no unreconciled \"readable body\" mirror survives). AC5 satisfied. AC6 satisfied (both skill roots byte-identical to the merge base and untouched). AC7 satisfied (two `Writing-skills evidence:` markers, four stated slots each). AC8 satisfied. AC9 satisfied (`lib + python tests` SUCCESS at the reviewed head, all five shards, zero skips).\n\n## Verification Checklist Results\n\n25 passed, 4 failed, 0 inconclusive - 1 via lite probe, 28 via agent.\nNormalized (wording-only): 0; ineligible-on-field-defect FAILs: 0.\n\n- VC-10: FAIL - \"end of file is established ONLY by the shorter-than-position report or literally nothing\" [skills/review-and-fix/references/loop-control.md:178]. Orchestrator adjudication: REFUTED BY DIRECT MEASUREMENT. The verifier chose its confirming offset from `wc -l` (340), an external counting tool the predicate explicitly forbids substituting. The reader's own whole read delivers through line 341; a confirming read at offset 342 returns \"the file exists but is shorter than the provided offset (342). The file has 341 lines.\" - exactly the report the sentence names, and the ordinary outcome on a whole body. Even under the verifier's mistaken operand the \"a blank line is content -> append and re-confirm\" clause reaches 342 and establishes completeness in two reads. VC-11's independent empirical run reproduced both readings and returned PASS.\n- VC-14: FAIL - \"the engine root carries no boundary markers\" [skills/review/SKILL.md]. PROBE-CONSTRUCTION ARTIFACT: the generator's `string_absent` probe scans for `prflow:review-ref` anywhere in the file; the two hits sit inside the fenced example documenting the marker format for the phase references. The claim itself is true - the root's first line is `---` and its last line is ordinary prose. The lite path has no normalization channel.\n- VC-21: FAIL - \"the degraded arm carries no completeness requirement for the predicate read\" [skills/implement/phases/phase-3-fix-loop.md:39]. CLAIM-WORDING ARTIFACT: the arm does carry a requirement. The residual the verifier established is filed as Suggestion-1.\n- VC-28: FAIL - \"the Step 1 halt does not strand the mandatory per-iteration emit or a workpad terminal gate\" [skills/review-and-fix/references/loop-control.md:188]. SUBSTANTIVE: the halt does strand the `iter-<N>.json` emit. Filed as Suggestion-5.\n\nPassed items (25 of 29): VC-1 through VC-9, VC-11, VC-12, VC-13, VC-15 through VC-20, VC-22 through VC-27, VC-29.\n\n## Code Review Findings\n\n### Important / Major\n\n1. The engine-subagent entry - the path Step 1 tries FIRST on every iteration - is not covered by the completeness predicate, and Step 4's disposition list has no arm for it. `loop-control.md`'s Engine-dispatch paragraph has an Agent-tool subagent resolve the candidate list and Read the engine root in a fresh context that does not hold `loop-control.md`; nothing instructs the parent to transcribe the predicate into that prompt, nor the subagent to read it - the exact remedy this same diff applied at `phase-3-fix-loop.md`'s degraded arm for the structurally identical case, with the stated reason that the file \"did not load on this arm, so its text is not in your context\". `shadow-review.md` added the completeness qualifier to the `unavailable` inline arm only. Step 4's disposition list names only Step 1 entry and Step 2.6 shadow entry; a subagent taking the terminal can do neither, having no loop to halt. The well-formedness fallback does not backstop it: a subagent that never learns the predicate accepts a truncated body and returns a well-formed `fanned-out` payload whose verdict carries the merge gate. Direct evidence - this review IS that dispatched subagent: its prompt carried no completeness predicate and it read the engine root with a single Read, issuing no confirming read. (raised by 2/3 agents)\n2. On the implement tier's predicate-read-failure entry the durable Blocked record misattributes the failure to the engine root. `phase-3-fix-loop.md` routes a failed read of `references/loop-control.md` to the Blocked path \"naming `engine-root: incomplete`\", and that path's substitution \"names that `SKILL.md` path\"; `{path}` is unbound on this entry, so the record asserts a condition never tested about a file that is probably intact - while the same diff-added sentence claims the substitution exists \"so the record names the real cause\". Fail direction is closed, but this is the only human-facing artifact the halt produces. (raised by 2/3 agents)\n\n### Suggestion / Minor\n\n1. The predicate read on the degraded arm applies only the merely-readable test this change exists to close. `loop-control.md` carries a boundary-marker pair as its literal first and last lines and is 56,844 bytes (under the 61,750 ceiling), so naming that pair as the arm's acceptance test closes the gap at zero cost; today a truncated read returns the head, \"succeeds\", and delivers no predicate. (raised by 2/3 agents)\n2. The Resolution arm's parenthetical \"a permission failure among them\" over-reaches: a harness- or sandbox-level policy refusal is also naturally called a permission failure yet affirms nothing about path existence, and under the parenthetical would select a candidate that does not exist on a consumer checkout. The governing clause is correct and the outcome fails closed, so this is a diagnosis edge, not a correctness hole. (raised by 1/3 agents)\n3. An unestablished-resolution advance has no durable sink. \"Naming in this run's report\" is chat prose - no `--reflection`, no `--record-review-coverage` axis, no instruction to the implement orchestrator to look for it - so a self-review whose repo-root candidate was skipped can return a clean verdict produced by a vendored engine copy, with the downgrade visible only in a transcript that does not survive the run. (raised by 1/3 agents)\n4. A newly reachable Blocked entry contradicts a pre-existing extension-tick rationale: the three Review extension rows are ticked \"on every Phase 3 exit ... because those three extensions loaded on all of them\", yet the new Blocked entry is reached from the degraded engine-read arm, entered precisely because the `Skill` call was refused twice. Pre-existing, diff-untouched prose; the file's unticked-row arm already supplies the correct behavior. (raised by 1/3 agents)\n5. The Step 1 halt strands the fix loop's mandatory per-iteration `iter-<N>.json` emit, which is fused to Step 3's fix-commit moment the halt never reaches. Fail direction is closed - the terminal-complete gate is scoped to a `Complete` write - but the iteration's effectiveness record is silently absent. (from checklist item VC-28)\n6. Shipped-prose cost audit (required by this repository's review extension). Every added block under `skills/**` carries a real instruction plus one consequence, so nothing is deletable wholesale; three clauses restate a rule another clause in the same block already binds - the in-line \"starts later steps over undelivered lines\" gloss versus the unestablished list's fourth shape; the two adjacent sentences carrying the single \"no boundary markers, so no truncation notice\" justification; and `phase-3-fix-loop.md`'s \"which would otherwise mislabel the durable record\" versus the Blocked path's own rationale. (orchestrator)\n\nover-grade annotation: no finding flagged\ntruthfulness sweep: no finding promoted\nintra-diff contradiction scan: no contradiction found\n\n## Verdict Criteria applied\n\n- Threshold resolved: `critical`.\n- Self-contradicting-diff carve-out: evaluated, did not fire. Every diff-added factual claim checked (blank-line ratio, exemption roster, absence of boundary markers on the engine root, the three enumerated call sites, the end-of-file reader semantics) verified true against HEAD.\n- Behavior-inert prose cap: evaluated, not applied - both Important findings dispute what the mechanism covers, a functional-coverage gap 4.1.5's sharpening rule forbids capping by that path.\n- Rule 1 (any checklist FAIL -> REJECT): FIRES on VC-10, VC-14, VC-21, VC-28.\n- Rule 3 (finding at or above `critical`): does not fire - no Critical finding.\n",
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_roster_exclusions": {
+    "prflow:code-reviewer": "iterations: \"first-only\" resolved override, fix-loop iteration 4 (N>=2) \u2014 Phase 3.1 exclusion overrides always-on membership",
+    "prflow:type-design-analyzer": "has_new_types false",
+    "prflow:pr-test-analyzer": "test-relevance predicate: no test file changed and every changed file's extension is in the config_only set"
+  },
+  "phase3_findings": [
+    {
+      "id": "F1",
+      "severity": "Important",
+      "agent": "prflow:silent-failure-hunter",
+      "corroboration_count": 2,
+      "corroborating_agents": [
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer"
+      ],
+      "contributed_to_verdict": false,
+      "description": "The engine-subagent entry \u2014 the path Step 1 tries FIRST on every iteration \u2014 is not covered by the completeness predicate, and Step 4's disposition list has no arm for it. loop-control.md's Engine dispatch paragraph has an Agent-tool subagent resolve the candidate list and Read the engine root in a fresh context that does not hold loop-control.md; nothing instructs the parent to transcribe the predicate into the subagent prompt, nor the subagent to read it \u2014 the exact remedy the same diff applied at phase-3-fix-loop.md's degraded arm for the structurally identical case. shadow-review.md added the completeness qualifier to the `unavailable` INLINE arm only, leaving the subagent arm on a bare 'resolves the engine directory per Step 1'. Step 4's disposition list names only Step 1 entry and Step 2.6 shadow entry; a subagent taking the terminal can do neither (it has no loop to halt). The well-formedness fallback does not backstop this: a subagent that never learns the predicate accepts a truncated body, returns a well-formed fanned-out payload, and its verdict carries the merge gate. Direct evidence: THIS review is that dispatched subagent \u2014 its prompt carried no completeness predicate and it read skills/review/SKILL.md with a single Read, issuing no confirming read. AC-3 ('no path is left with a weaker acceptance predicate than another') is therefore not met on that path.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          163,
+          189
+        ],
+        "kind": "logic_error"
+      }
+    },
+    {
+      "id": "F2",
+      "severity": "Important",
+      "agent": "prflow:silent-failure-hunter",
+      "corroboration_count": 2,
+      "corroborating_agents": [
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer"
+      ],
+      "contributed_to_verdict": false,
+      "description": "On the implement tier's predicate-read-failure entry the durable Blocked record misattributes the failure to the engine root. phase-3-fix-loop.md routes a failed read of `references/loop-control.md` to the Blocked path 'naming engine-root: incomplete', and the Blocked path's substitution 'names that SKILL.md path'. `{path}` is unbound on that entry, so the record asserts a condition never tested about a file that is probably intact, sending the operator to the wrong file \u2014 while the same diff-added sentence claims the substitution exists 'so the record names the real cause'. Fail direction is closed; the defect is in the only human-facing artifact the halt produces. Remedy: bind `{path}` per entry, or give the predicate-read entry its own label.",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-3-fix-loop.md",
+        "line_range": [
+          39,
+          256
+        ],
+        "kind": "logic_error"
+      }
+    },
+    {
+      "id": "F3",
+      "severity": "Suggestion",
+      "agent": "prflow:comment-analyzer",
+      "corroboration_count": 2,
+      "corroborating_agents": [
+        "prflow:comment-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "contributed_to_verdict": false,
+      "description": "The predicate read on the degraded arm applies only the merely-readable test this change exists to close: 'If that predicate read does not succeed'. loop-control.md carries a boundary-marker pair (`# Reference: Loop Control \u2026` first line, `<!-- END loop-control.md -->` last line) and is 56,844 bytes, under the 61,750-byte ceiling, so a truncated read would return the head, 'succeed', and deliver no predicate \u2014 the predicate sits ~60% into the file. Naming that pair as the arm's acceptance test closes it at zero cost.",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-3-fix-loop.md",
+        "line_range": [
+          39,
+          39
+        ],
+        "kind": "logic_error"
+      }
+    },
+    {
+      "id": "F4",
+      "severity": "Suggestion",
+      "agent": "prflow:requesting-code-review",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "The Resolution arm's parenthetical 'a permission failure among them' over-reaches. A harness- or sandbox-level policy refusal, returned before the filesystem is touched, is also naturally called 'a permission failure' yet affirms nothing about existence \u2014 and under the parenthetical it would SELECT a candidate that does not exist on a consumer checkout and hard-stop at engine-root: incomplete rather than reaching the vendored engine one candidate later. The governing clause ('affirms the path exists') is correct and the outcome fails closed, so this is a diagnosis/availability edge, not a correctness hole; narrowing the example to an error that distinguishes non-existence from denial removes the ambiguity.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          175,
+          175
+        ],
+        "kind": "logic_error"
+      }
+    },
+    {
+      "id": "F5",
+      "severity": "Suggestion",
+      "agent": "prflow:silent-failure-hunter",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "An unestablished-resolution advance has no durable sink. loop-control.md routes it to 'naming in this run's report which candidate it advanced past and why', and the self-review clause states the consequence plainly: the scan advances to a vendored copy, so the branch's own engine is NOT what reviewed the PR. 'This run's report' is chat prose: there is no --reflection for it, no axis in --record-review-coverage, and no instruction to the implement orchestrator to look for it, so a clean verdict can be produced by a fallback engine copy with the downgrade visible only in a transcript that does not survive the run. Note this shares a defect_signature with F4 but is a different defect.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          175,
+          175
+        ],
+        "kind": "logic_error"
+      }
+    },
+    {
+      "id": "F6",
+      "severity": "Suggestion",
+      "agent": "prflow:comment-analyzer",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "A newly reachable Blocked entry contradicts a pre-existing extension-tick rationale. phase-3-fix-loop.md ticks three Review extension rows 'on every Phase 3 exit \u2014 \u2026 and the Blocked path alike, because those three extensions loaded on all of them'; the diff adds a Blocked entry reached from the degraded engine-read arm, which is entered precisely BECAUSE the Skill call was refused twice, so those extensions demonstrably did not load. The rationale is pre-existing and diff-untouched, and the file's unticked-row arm already supplies the correct behavior, so this is a note rather than a documented falsehood.",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-3-fix-loop.md",
+        "line_range": [
+          232,
+          232
+        ],
+        "kind": "comment_drift"
+      }
+    },
+    {
+      "id": "F7",
+      "severity": "Suggestion",
+      "agent": "orchestrator (from checklist item VC-28)",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true,
+      "description": "The Step 1 halt strands the fix loop's mandatory per-iteration iter-<N>.json emit. That emit is explicitly fused to Step 3's fix-commit moment; the halt stops before any mutation and never reaches Step 3, so the effectiveness record for that iteration is never written. Fail direction is closed \u2014 workpad.py's terminal-complete gate is scoped to a `Complete` write, so a `Blocked` write is not refused for lacking a review-coverage record \u2014 but the iteration's effectiveness record is silently absent.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          188,
+          290
+        ],
+        "kind": "logic_error"
+      }
+    },
+    {
+      "id": "F8",
+      "severity": "Suggestion",
+      "agent": "orchestrator (shipped-prose cost audit, per the review prompt extension)",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "Shipped-prose cost audit of the ~4 KB added under skills/**: every added block carries a real instruction plus one consequence, so nothing is deletable wholesale, but three clauses restate a rule another clause in the same block already binds. (a) 'a confirming read that starts later steps over undelivered lines and confirms an end beyond a hole' restates in-line the fourth shape of the unestablished list two paragraphs down. (b) 'The engine root carries no boundary markers, so an absent truncation notice is no evidence of a whole body' and 'nothing on this path distinguishes an intact engine on a reader that cannot page from a truncated one' are two sentences carrying one justification. (c) phase-3-fix-loop.md's 'which would otherwise mislabel the durable record' duplicates the Blocked path's own 'so the record names the real cause' rationale. Trimming these costs nothing in binding force and is paid back on every run in this repository and in every consumer.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          174,
+          191
+        ],
+        "kind": "style"
+      }
+    }
+  ],
+  "checklist_summary": {
+    "total": 29,
+    "passed": 25,
+    "failed": 4,
+    "inconclusive": 0,
+    "lite_count": 1,
+    "agent_count": 28,
+    "normalized_count": 0,
+    "field_defect_fail_count": 0,
+    "failed_items": [
+      {
+        "id": "VC-10",
+        "raw_verdict": "FAIL",
+        "stored_verdict": "FAIL",
+        "normalization_ineligible": "source_authored provenance; property not proven; inaccuracy_scope not generated_claim_text",
+        "orchestrator_adjudication": "REFUTED BY DIRECT MEASUREMENT \u2014 verifier-operand error, not a source defect. The verifier picked its confirming offset from `wc -l` (340), an external counting tool the predicate explicitly forbids substituting. The reader's own whole read of skills/review/SKILL.md delivers through line 341, and a confirming read at offset 342 returns 'the file exists but is shorter than the provided offset (342). The file has 341 lines.' \u2014 exactly the end-of-file report the sentence names, and the ordinary outcome on a whole body. Even under the verifier's mistaken operand the predicate's 'a blank line is content -> append and re-confirm' clause reaches 342 and establishes completeness in two reads. VC-11's independent empirical run reproduced both readings and returned PASS. The verifier's conclusion that 'EVERY engine entry would take engine-root: incomplete' is false."
+      },
+      {
+        "id": "VC-14",
+        "raw_verdict": "FAIL",
+        "stored_verdict": "FAIL",
+        "normalization_ineligible": "lite path \u2014 normalization does not apply",
+        "orchestrator_adjudication": "PROBE-CONSTRUCTION ARTIFACT \u2014 the generator's lite_probe tests `string_absent \"prflow:review-ref\"` anywhere in skills/review/SKILL.md, but the claim it was built for is that the engine root carries no boundary-marker PAIR as its first and last lines. The two hits are inside the fenced example that documents the marker format for the phase references. Directly measured: the root's first line is `---` (frontmatter) and its last line is ordinary prose, so the source claim is true. The lite path has no normalization channel and 2.1a's malformed-item arm covers only an ABSENT lite_probe, so the FAIL is stored as measured."
+      },
+      {
+        "id": "VC-21",
+        "raw_verdict": "FAIL",
+        "stored_verdict": "FAIL",
+        "normalization_ineligible": "property not proven",
+        "orchestrator_adjudication": "CLAIM-WORDING ARTIFACT \u2014 the checklist claim asserted the arm carries NO completeness requirement of any kind; the arm in fact says 'If that predicate read does not succeed, take this phase's Blocked path below \u2026 rather than falling back to the weaker \"the read returned a body\" test'. The residual the verifier established \u2014 that the arm does not name loop-control.md's own boundary-marker pair as the acceptance test \u2014 is filed separately as finding F3."
+      },
+      {
+        "id": "VC-28",
+        "raw_verdict": "FAIL",
+        "stored_verdict": "FAIL",
+        "normalization_ineligible": "property not proven",
+        "orchestrator_adjudication": "SUBSTANTIVE \u2014 the claim's second conjunct is false as written: the Step 1 halt DOES strand the mandatory per-iteration iter-<N>.json emit, which is fused to Step 3's fix-commit moment the halt never reaches. Filed as finding F7. The first conjunct holds: workpad.py's terminal-complete gate is scoped to a `Complete` write, so a `Blocked` write is not refused."
+      }
+    ]
+  },
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "checklist_skipped": null,
+    "changed_file_count": 7,
+    "announcement": "Diff classification: engine_self_modifying (overrides other flags' checklist) + config_only -> running full checklist. Phase 3 roster gated by Phase 3.1 applicability (has_new_types false, test-relevance predicate skips pr-test-analyzer) and by the iterations: first-only exclusion on fix-loop iteration 4."
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "acceptance_criteria": {
+    "source": "workpad",
+    "divergence": "none",
+    "criteria_count": 9,
+    "assessment": "AC1, AC2, AC4, AC5, AC6, AC7, AC8, AC9 established satisfied. AC3 NOT established: the guarantee does not hold on the engine-subagent execution of the fix loop's engine resolution (finding F1), which is the path Step 1 tries first on every iteration."
+  },
+  "phase_notes": {
+    "phase_0_3_6": "not loaded \u2014 gated to standalone PR mode over a prior carve-out-only REJECT; this is the fix-loop path",
+    "phase_0_6": "not loaded \u2014 prflow_review.stale_prose.enabled resolves false in .prflow/config.json",
+    "phase_1_5": "skipped \u2014 single generator batch (7 changed files <= 10)",
+    "phase_2_0_5": "reused nothing \u2014 prior_checklist unavailable (produced inside prior engine subagents and not returned); documented fallback, Phase 1+2 ran in full",
+    "phase_3_1_5": "not run \u2014 detect_all_audit false",
+    "phase_4_0": "matcher ran; block_present false; all findings intact; Deferrals section omitted",
+    "phase_4_1_5": "over-grade annotation: no finding flagged. Behavior-inert prose cap evaluated and not applied: the two Important findings dispute what the mechanism covers (a functional-coverage gap), which 4.1.5's sharpening rule forbids capping by that path.",
+    "phase_4_1_6": "truthfulness sweep: no finding promoted. intra-diff contradiction scan: no contradiction found.",
+    "phase_4_1_7": "not loaded \u2014 no Phase 0.6 STALE rows to adjudicate (0.6 disabled)",
+    "phase_4_4": "skipped per caller (fix-loop path posts no verdict to GitHub)",
+    "phase_4_5": "not run \u2014 beyond the Phases 0-4.3 the caller scoped, and its iter-1.json write would collide with the fix loop's sole ownership of iter-<N>.json in this same run directory",
+    "extension_status": "PROMPT-EXTENSION-STATUS: content-present (review extension), re-invoked at every phase entry per the entry gate",
+    "requesting_code_review_extension": "EXTENSION-STATUS: loaded-empty resolved-root=unset \u2014 success token, no notice written; resolved-root cross-check wrote nothing because this orchestrator resolved no trusted root either",
+    "dirty_tree_backstop": "before-snapshot OID e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 (clean tree); after-dispatch cmp_rc=0 \u2014 no agent mutation"
+  },
+  "repo_extension_gates": {
+    "prompt_surface_edit_routing": "DISCHARGED \u2014 the diff touches skills/implement/phases/*.md and skills/review-and-fix/references/*.md. Issue 1603's workpad carries two `Writing-skills evidence:` markers, each with all four slots stated: skill-loaded=yes, guidance-applied=yes, pressure-scenario=yes/no with reason, micro-tests=no with reason. A `no` with a stated reason fully discharges the gate.",
+    "verification_evidence_advisory": "SILENT \u2014 the workpad carries a `Verification evidence:` record for the exact reviewed head 9d720187903e72aa4fe80480575106819d1b787c (required check `lib + python tests`, conclusion SUCCESS, run 32800071496). Tier classification: local/interactive (no prflow:checkpoint gha: row).",
+    "wording_only_pin_policy": "no new pins added by this diff",
+    "shipped_prose_cost_audit": "reported as finding F8"
+  },
+  "shadow": null,
+  "shadow_reason": "Not run. The caller scoped Step 2.6 to a tentative NON-REJECT verdict; this entry's verdict is REJECT, so the shadow pass was not entered."
+}
