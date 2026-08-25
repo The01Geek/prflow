@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1965",
+  "generated_at": "2026-08-25T20:02:37Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.27",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.514547000000001,
+    "tokens": {
+      "input_tokens": 38,
+      "output_tokens": 40064,
+      "cache_read_input_tokens": 2749171,
+      "cache_creation_input_tokens": 204505,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 90,
+        "outputTokens": 66839,
+        "cacheReadInputTokens": 4049719,
+        "cacheCreationInputTokens": 488219,
+        "webSearchRequests": 0,
+        "costUSD": 7.514547000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 31,
+    "duration_ms": 718259
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"SNAPSHOT-FAILED\"\nfi",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before; echo \"bytes=$(wc -c < .prflow/tmp/review-dirty-tree-before)\"",
+      "ls .changeset/ | head; echo \"---sample---\"; git show 9cd8457cdbf9614bd576d0959e9560a43c697a3b:.changeset/config.json 2>/dev/null | head -20 || echo \"no config\"; echo \"---existing changeset example---\"; for f in $(git show 9cd8457cdbf9614bd576d0959e9560a43c697a3b --stat --name-only --format= 2>/dev/null); do :; done; git log -1 --format= --name-only origin/main -- .changeset 2>/dev/null | head",
+      "git show 9cd8457cdbf9614bd576d0959e9560a43c697a3b:scripts/consolidate-changesets.py 2>/dev/null | grep -n \"bump\\|Fixed\\|Added\\|VALID\\|type\" | head -30; echo \"==other changesets==\"; git ls-tree 9cd8457cdbf9614bd576d0959e9560a43c697a3b .changeset/ | head",
+      "git ls-tree 9cd8457cdbf9614bd576d0959e9560a43c697a3b .changeset/",
+      "git status --porcelain; echo \"---CPD---\"; echo \"CLAUDE_PROJECT_DIR=[${CLAUDE_PROJECT_DIR:-UNSET}]\"; echo \"---MKTEMP-IN-REPO?---\"; d=$(mktemp -d); ( cd \"$d\" && git rev-parse --show-toplevel 2>&1 ); echo \"rev-parse-rc=$?\"; rm -rf \"$d\""
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
