@@ -232,8 +232,9 @@ the quoted check, so `subagent` can never be recorded when the skill never loade
 
 **The evidence contract.** After any trigger-file edit, the workpad carries a line **containing**
 the exact marker literal `Writing-skills evidence:`, recorded via the sanctioned `workpad.py update
---note` path — whose rendering prepends `  - HH:MM:SS — ` to every note, which is why the contract
-is *containment*, never line-start. That literal is the exact string the review-gate criterion
+--note-file` path (payload composed with the Write tool, so the marker's backtick-wrapped trigger
+paths reach the note verbatim) — whose rendering prepends `  - HH:MM:SS — ` to every note, which is
+why the contract is *containment*, never line-start. That literal is the exact string the review-gate criterion
 matches, a coupled site pinned in lockstep across `review-and-fix.md` and `review.md`.
 
 **The line's shape.** After the marker literal the line names the trigger files touched and `mode=`

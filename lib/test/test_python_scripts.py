@@ -225,6 +225,7 @@ def make_args(**overrides):
         rewrite_ac=[],
         replace_plan_file=None, replace_acs_file=None, set_reproduction_file=None,
         note=[], reflection=[], reflection_kind=None, reflection_file=None,
+        note_file=None,
         marker=None,
         reconcile_reproduction=None, record_classification=None,
         checkpoint=[], expect_comment_id=None, expect_status=None,
@@ -2410,6 +2411,114 @@ _ac = parse_acs._parse_checkboxes(
 assert_eq("invariant: AC section parses to 2 checkboxes after mutation", 2, len(_ac))
 assert_eq("invariant: AC one ticked is visible to the parser", True,
           any(i['text'] == 'AC one' and i['ticked'] for i in _ac))
+
+
+# --- --note-file: interpolation-safe verbatim UTF-8 input for ## Progress notes (issue #1813) ---
+# The payload must render as an ordinary ## Progress bullet, identical to an inline
+# --note: routing it to ## Devflow Reflection instead would change how
+# lib/cheap-gate.jq treats the record.
+def _note_file(payload_bytes, body=WORKPAD_V2, also_note=None):
+    """Write payload_bytes to a temp file, apply an update carrying --note-file
+    (+ optional inline --note) with status Implementing, return the ## Progress
+    region (everything before ## Plan)."""
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / 'payload.txt'
+        p.write_bytes(payload_bytes)
+        out = apply_mut(body, make_args(
+            status='Implementing', note=(also_note or []), note_file=str(p)))
+    return out.split('## Plan', 1)[0]
+
+# Backticks + $(…) + quotes round-trip byte-identical (the hazard the flag defeats).
+_nf_shelly = 'ran `git rev-parse` and $(cmd) with "quotes"'
+nf_bf = _note_file(_nf_shelly.encode('utf-8'))
+assert_eq("--note-file: backticks/$(…)/quotes round-trip byte-identical", True,
+          ('— ' + _nf_shelly) in nf_bf)
+
+# Non-ASCII (em-dash + emoji) round-trips byte-identical via explicit UTF-8.
+_nf_nonascii = 'reconciled — see 🚀 the workpad'
+nf_na = _note_file(_nf_nonascii.encode('utf-8'))
+assert_eq("--note-file: non-ASCII (em-dash + emoji) round-trips byte-identical", True,
+          ('— ' + _nf_nonascii) in nf_na)
+
+# Combined --note + --note-file: both bullets present, file payload AFTER the
+# inline note (mirrors the --reflection/--reflection-file ordering — AC3).
+nf_comb = _note_file(b'from the file', also_note=['from a flag'])
+assert_eq("--note-file: combines with inline --note (both bullets present)", True,
+          ('— from a flag' in nf_comb) and ('— from the file' in nf_comb))
+assert_eq("--note-file: file bullet appends AFTER the inline --note bullet", True,
+          nf_comb.index('— from a flag') < nf_comb.index('— from the file'))
+
+# stdin arm: --note-file - decodes UTF-8 from sys.stdin.buffer.
+def _note_stdin(payload_bytes):
+    saved = sys.stdin
+    sys.stdin = _FakeStdin(payload_bytes)
+    try:
+        out = apply_mut(WORKPAD_V2, make_args(status='Implementing', note_file='-'))
+    finally:
+        sys.stdin = saved
+    return out.split('## Plan', 1)[0]
+
+nf_stdin = _note_stdin('via `stdin` — 🚀'.encode('utf-8'))
+assert_eq("--note-file -: stdin honored, UTF-8 decoded at the bytes level", True,
+          '— via `stdin` — 🚀' in nf_stdin)
+
+# Inline --note still works unchanged when --note-file is absent (AC3 regression).
+_out_inline = apply_mut(WORKPAD_V2, make_args(status='Implementing', note=['plain inline']))
+assert_eq("--note-file: inline --note unchanged when --note-file absent", True,
+          '— plain inline' in _out_inline.split('## Plan', 1)[0])
+
+# Structural aborts before any PATCH: empty, whitespace-only, undecodable, unreadable.
+def _nf_empty():
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / 'e.txt'
+        p.write_bytes(b'')
+        apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+assert_raises("--note-file: empty payload raises _UpdateError",
+              workpad._UpdateError, _nf_empty)
+
+def _nf_ws_only():
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / 'w.txt'
+        p.write_bytes(b'   \n\t  \n')
+        apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+assert_raises("--note-file: whitespace-only payload raises _UpdateError",
+              workpad._UpdateError, _nf_ws_only)
+
+def _nf_undecodable():
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / 'u.txt'
+        p.write_bytes(b'\xff\xfe\xfd not utf-8')
+        apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+assert_raises("--note-file: undecodable payload raises _UpdateError (no traceback)",
+              workpad._UpdateError, _nf_undecodable)
+
+def _nf_unreadable():
+    apply_mut(WORKPAD_V2, make_args(
+        note_file='/nonexistent/definitely/missing/note-1813.txt'))
+assert_raises("--note-file: unreadable path raises _UpdateError",
+              workpad._UpdateError, _nf_unreadable)
+
+# Atomicity: a bad --note-file payload aborts the WHOLE call — an accompanying
+# inline --note is not partially applied (no body produced to PATCH).
+def _nf_bad_with_inline():
+    apply_mut(WORKPAD_V2, make_args(
+        note=['inline note that must not persist'],
+        note_file='/nonexistent/definitely/missing/note-1813.txt'))
+assert_raises("--note-file: a bad payload aborts even with an inline --note (no partial write)",
+              workpad._UpdateError, _nf_bad_with_inline)
+
+# The specific error message names the flag (matching --reflection-file's contract).
+def _nf_empty_msg():
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / 'e.txt'
+            p.write_bytes(b'')
+            apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+    except workpad._UpdateError as e:
+        return str(e)
+    return ''
+assert_eq("--note-file: empty-payload error names the --note-file flag", True,
+          _nf_empty_msg().startswith('--note-file:'))
 
 
 print("workpad new-body: lean initial skeleton")
@@ -26072,6 +26181,7 @@ def _update_args(**kw):
         issue=1214, marker=None, status=None, branch=None, run_link=None,
         pr_link=None, tick_progress=[], tick_plan=[], tick_plan_n=[], tick_ac=[],
         tick_ac_n=[], rewrite_ac=[], note=[], reflection=[], reflection_file=None,
+        note_file=None,
         reflection_kind=None, replace_plan_file=None, replace_acs_file=None,
         set_reproduction_file=None, checkpoint=None, record_completion_evidence=None,
         record_classification=None, reconcile_reproduction=None, mark_deferred_filed=None,
@@ -26217,6 +26327,51 @@ assert_eq("#1214 file-reflection: the buffered file payload is replayed into the
           True, _pb is not None and _rfl_payload in _pb)
 assert_eq("#1214 file-reflection: the buffer is cleared after the replay",
           False, _buf_file4.exists())
+
+# A `--note-file`-only call whose PATCH fails must buffer the note through
+# _cmd_update_inner's `_own_notes` append: the _apply_mutations coverage above never
+# enters _cmd_update_inner, so dropping that append loses the note silently.
+_bufdir5 = tempfile.mkdtemp(prefix='wp1813-buf5-')
+_nf_payload = 'Writing-skills evidence: `skills/review/SKILL.md` mode=subagent skill-loaded=yes'
+_nf_file = Path(_bufdir5) / 'payload.md'
+_nf_file.write_text(_nf_payload + '\n', encoding='utf-8')
+_code, _pb, _n = _run_cmd_update(
+    _update_args(note_file=str(_nf_file)),
+    live_body=_WP1214, patch_fails=True, buffer_dir=_bufdir5)
+_buf_file5 = Path(_bufdir5) / '55512.json'
+assert_eq("#1813 file-note: a PATCH failure still fails loudly (non-zero exit)",
+          True, _code != 0)
+assert_eq("#1813 file-note: the dropped --note-file payload IS buffered (backticks intact)",
+          True, _buf_file5.exists()
+          and _nf_payload in _buf_file5.read_text(encoding='utf-8'))
+# ...and replays into ## Progress on the next successful call (a note, not a reflection).
+_code, _pb, _n = _run_cmd_update(
+    _update_args(status='Reviewing'),
+    live_body=_WP1214, patch_fails=False, buffer_dir=_bufdir5)
+assert_eq("#1813 file-note: the replaying update exits 0", 0, _code)
+assert_eq("#1813 file-note: the buffered file note is replayed into the body",
+          True, _pb is not None and _nf_payload in _pb)
+assert_eq("#1813 file-note: the buffer is cleared after the replay",
+          False, _buf_file5.exists())
+
+# `--note-file -` reaches BOTH stdin consumers in one call — _cmd_update_inner's buffering
+# append and _apply_mutations' render. Dropping the memoization re-reads the exhausted
+# stream and raises the empty-payload _UpdateError on a payload that was fine.
+_bufdir6 = tempfile.mkdtemp(prefix='wp1813-buf6-')
+_nf_stdin_payload = 'Writing-skills evidence: `skills/implement/SKILL.md` skill-loaded=yes'
+_saved_stdin = sys.stdin
+sys.stdin = _FakeStdin((_nf_stdin_payload + '\n').encode('utf-8'))
+try:
+    _code, _pb, _n = _run_cmd_update(
+        _update_args(note_file='-'),
+        live_body=_WP1214, patch_fails=False, buffer_dir=_bufdir6)
+finally:
+    sys.stdin = _saved_stdin
+assert_eq("#1813 stdin note: a --note-file - call spanning both consumers exits 0", 0, _code)
+assert_eq("#1813 stdin note: the stdin payload reached the PATCHed body, backticks intact",
+          True, _pb is not None and _nf_stdin_payload in _pb)
+assert_eq("#1813 stdin note: the single stdin read is rendered exactly once", 1,
+          (_pb or '').count(_nf_stdin_payload))
 
 # Review finding (PR #1227, finding 2): idempotency must hold ACROSS buffered
 # records, not only against the live body. Two failed calls carrying the same
