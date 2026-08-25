@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1965",
+  "generated_at": "2026-08-25T22:31:56Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.29",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.228630650000001,
+    "tokens": {
+      "input_tokens": 64,
+      "output_tokens": 45975,
+      "cache_read_input_tokens": 5243028,
+      "cache_creation_input_tokens": 241542,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 125,
+        "outputTokens": 78487,
+        "cacheReadInputTokens": 6779275,
+        "cacheCreationInputTokens": 601399,
+        "webSearchRequests": 0,
+        "costUSD": 10.016963749999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 128,
+        "outputTokens": 22805,
+        "cacheReadInputTokens": 2874292,
+        "cacheCreationInputTokens": 563401,
+        "webSearchRequests": 0,
+        "costUSD": 2.2116669,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 59,
+    "duration_ms": 826321
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<unset>} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-<unset>} GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1965/32905320043-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1965/32905320043-1/verdicts/iter-1/VC-2-k4b1.json << 'EOF'\n{\n  \"id\": \"VC-2\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"At head (c341d9848ab5cfc1a8036b7977115c2955d8ec6b) docs/internal/cloud-allowlist.md's guard section (lines ~1497-1521) states 'the guard is inert on main ... devflow-runner.yml declares workflow_call: as its sole trigger, and its …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1965/32905320043-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1965/32905320043-1/verdicts/iter-1/VC-6-q8f4.json << 'EOF'\n{\n  \"id\": \"VC-6\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"At head c341d9848ab5cfc1a8036b7977115c2955d8ec6b, scripts/pretooluse-shape-guard.py's REMEDIATION['R1'] string (lines ~211-216) is unchanged and still reads: 'Permitted alternative: capture a command's output with VAR=$(cmd), or  …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1965/32905320043-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1965/32905320043-1/verdicts/iter-1/VC-11-x9m3.json << 'EOF'\n{\n  \"id\": \"VC-11\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"lib/test/run.sh:50864-50872 (PR head c341d984) runs the extracted hook command with PATH set to an empty-bin dir (python3 absent) and asserts rc==0 (_1047_RC_ABSENT), then re-runs with python3 present and asserts the guard scri …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nif rm -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" &&\n   [ -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   [ ! -L \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   git hash-object \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\"; then\n  : \nelse\n  echo \"::warning::dev …[per-command-truncated]"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
