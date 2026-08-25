@@ -23519,6 +23519,15 @@ EPV_TRESULT_UNSET="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{
 {"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
 assert_eq "#1321 env-probe verdict: tool_result outputs reading UNSET at both hops → NEITHER_HOP" "NEITHER_HOP" \
   "$(devflow_epv_verdict "$EPV_TRESULT_UNSET")"
+# A malformed list-content item (a non-dict block, a dict missing "text") must not raise —
+# _tool_result_text skips it and still extracts the valid text block, so the always-exit-0
+# contract holds and the genuine reading is not lost.
+EPV_TRESULT_MALFORMED="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_result","tool_use_id":"h1","content":[42,{"type":"text"},{"type":"text","text":"ENVPROBE_HOP1 DEVFLOW_ENVPROBE_SENTINEL_874\n"}],"is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: a malformed tool_result list item does not crash; the valid text block still reads → BOTH_HOPS" "BOTH_HOPS" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_MALFORMED")"
 # The helper never raises through its always-exit-0 contract.
 python3 "$EPV" "$EPV_TMP/no-such-file.jsonl" >/dev/null 2>&1
 assert_eq "#874 env-probe verdict: exits 0 even on an absent execution file" "0" "$?"

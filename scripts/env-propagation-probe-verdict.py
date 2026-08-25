@@ -135,8 +135,9 @@ def _tool_result_text(node):
     """Return a tool_result node's recorded OUTPUT content as text.
 
     Handles the two observed content shapes — a bare string, or a list of
-    `{"type": "text", "text": ...}` blocks (mirroring placeholder-probe-verdict.py's own
-    str/list handling); any other shape yields ''."""
+    `{"type": "text", "text": ...}` blocks whose `text` fields are joined; any other
+    shape (and any malformed list item) yields '' so a bad payload credits no hop rather
+    than raising, preserving the always-exit-0 contract."""
     content = node.get("content")
     if isinstance(content, str):
         return content
