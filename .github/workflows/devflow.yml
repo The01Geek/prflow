@@ -1782,7 +1782,9 @@ jobs:
           # 600000 ms (10 min), while the prompt extension this tier loads
           # (.prflow/prompt-extensions/review-and-fix.md) names the parallel verification
           # coordinator `lib/test/run-parallel.sh` (#1086) as the run's final whole-suite
-          # gate — measured at ~10.5 min in a cloud run (issue #1253's AC1 measurement).
+          # gate — measured at ~10.5 min in a cloud run (issue #1253's AC1 measurement,
+          # 2026-08-04); the coordinator has since drifted to ~15m40s, measured 2026-08-19
+          # in Actions run 32289799442.
           # The mandated command was therefore structurally unable to reach a verdict
           # here: it was killed at the wall with no output, and the run was pushed onto
           # the slower #1132 shard-decomposition fallback to redo the same work.
