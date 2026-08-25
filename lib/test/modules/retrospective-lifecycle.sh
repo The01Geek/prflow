@@ -3493,6 +3493,8 @@ printf '%s' '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$RL_TMP/drift
 RL_DRIFT="$(DEVFLOW_GH="$RL_TMP/gh-ap.sh" DEVFLOW_CONFIG_FILE="$REPO_ROOT/lib/test/fixtures/config.json" \
   bash "$RL_AP" "$RL_TMP/drift/retrospectives.jsonl" "$RL_TMP/drift/ov.json" 2>"$RL_TMP/drift.err")"; RL_DRIFT_RC=$?
 assert_eq "#1828 heartbeat: producer drift (all records dropped) still succeeds (rc 0)" "0" "$RL_DRIFT_RC"
+assert_eq "#1828 heartbeat: producer drift still emits the pattern (degraded to uncovered, null cost)" "true" \
+  "$(printf '%s' "$RL_DRIFT" | jq -e 'any(.[]; .tag=="incomplete-edit" and .cost_mean_iterations == null and .covered_occurrence_count == 0)' >/dev/null 2>&1 && echo true || echo false)"
 assert_eq "#1828 heartbeat: producer drift emits the zero-cost-coverage advisory" "true" \
   "$(grep -q 'yielded zero cost coverage for every pattern' "$RL_TMP/drift.err" && echo true || echo false)"
 # Control: the rank2 fixture (covered patterns) must NOT emit the heartbeat.
