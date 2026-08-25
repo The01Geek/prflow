@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1937",
+  "generated_at": "2026-08-25T15:51:29Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.17",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 14.398759599999991,
+    "tokens": {
+      "input_tokens": 54,
+      "output_tokens": 42086,
+      "cache_read_input_tokens": 4922051,
+      "cache_creation_input_tokens": 271682,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 176,
+        "outputTokens": 83008,
+        "cacheReadInputTokens": 9145692,
+        "cacheCreationInputTokens": 800436,
+        "webSearchRequests": 0,
+        "costUSD": 12.670458499999993,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 102,
+        "outputTokens": 12681,
+        "cacheReadInputTokens": 2255873,
+        "cacheCreationInputTokens": 460045,
+        "webSearchRequests": 0,
+        "costUSD": 1.7283011000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 50,
+    "duration_ms": 951595
+  },
+  "permission_denials": {
+    "count": 20,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} ACTIONS=${GITHUB_ACTIONS:-unset}\"",
+      "git show 6633944bc3b5196ec6da5f87887d685445a1a8ad:scripts/schedulewakeup-probe-verdict.py > /tmp/swv.py && python3 -c \"import ast; ast.parse(open('/tmp/swv.py').read()); print('parse OK')\" && grep -n \"compute_verdict\\|collect(\\|def collect\\|control_before\\|control_after\" /tmp/swv.py",
+      "git show 6633944bc3b5196ec6da5f87887d685445a1a8ad:scripts/schedulewakeup-probe-verdict.py > /tmp/swv.py; python3 -c \"import ast; ast.parse(open('/tmp/swv.py').read()); print('parse OK')\"",
+      "git show 6633944bc3b5196ec6da5f87887d685445a1a8ad:scripts/schedulewakeup-probe-verdict.py > .prflow/tmp/swv_head.py; python3 -c \"import ast; ast.parse(open('.prflow/tmp/swv_head.py').read()); print('parse OK')\"; grep -n \"compute_verdict\\|= collect\\|def collect\\|def compute\" .prflow/tmp/swv_head.py",
+      "cd /home/runner/work/prflow/prflow\ngit stash list >/dev/null 2>&1\n# Run head version of helper against fixtures via a temp file in allowed dir\nmkdir -p .prflow/tmp/rev\ngit show 6633944bc3b5196ec6da5f87887d685445a1a8ad:scripts/schedulewakeup-probe-verdict.py > .prflow/tmp/rev/swv.py 2>/dev/null || git show 6633944bc3b5196ec6da5f87887d685445a1a8ad:scripts/schedulewakeup-probe-verdict.py | tee .prflow/tmp/rev/swv.py >/dev/null\necho \"--- AC1: ToolSearch query names SW, no real tool_use ---\"\nprintf ' …[per-command-truncated]",
+      "D=/home/runner/work/prflow/prflow/.prflow/tmp/rev\nprintf '%s' '[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"grep x /etc/hosts\"}},{\"type\":\"tool_use\",\"name\":\"ToolSearch\",\"input\":{\"query\":\"select:ScheduleWakeup\"}},{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"grep x /etc/os-release\"}}]' | tee $D/f1.json >/dev/null\necho \"=== AC1 ToolSearch-only ===\"; python3 $D/swv.py $D/f1.json | grep -E \"\\*\\*(INCONCLUSIVE|AVAILABLE|REMOVED|DENIED)\\*\\*|tool_use\\(ScheduleWakeup\\)\"\nprintf '%s' '[{\"typ …[per-command-truncated]",
+      "cd /tmp && git -C /home/runner/work/prflow/prflow show 6633944bc3b5196ec6da5f87887d685445a1a8ad:scripts/schedulewakeup-probe-verdict.py > swv.py\nmkdir -p t\nprintf '%s' '[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"grep x /etc/hosts\"}},{\"type\":\"tool_use\",\"name\":\"schedulewakeup\",\"input\":{\"delaySeconds\":60}},{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"grep x /etc/os-release\"}}]' > t/f1.json\nprintf '%s' '[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"grep x /etc/hosts\"}},{\"t …[per-command-truncated]",
+      "git -C /home/runner/work/prflow/prflow show 6633944bc3b5196ec6da5f87887d685445a1a8ad:scripts/schedulewakeup-probe-verdict.py > /tmp/swv.py\nmkdir -p /tmp/t\nprintf '%s' '[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"grep x /etc/hosts\"}},{\"type\":\"tool_use\",\"name\":\"schedulewakeup\",\"input\":{\"delaySeconds\":60}},{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"grep x /etc/os-release\"}}]' > /tmp/t/f1.json\nprintf '%s' '[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"grep x /etc/hosts\"}} …[per-command-truncated]",
+      "git show 6633944bc3b5196ec6da5f87887d685445a1a8ad:lib/test/modules/review-stall-backstop.sh > /tmp/rsb.sh\nwc -l /tmp/rsb.sh\ngrep -nE \"assert_eq|assert_[a-z_]+\\(|assert \" /tmp/rsb.sh | wc -l\ngrep -oE \"^\\s*assert[a-zA-Z_]*\" /tmp/rsb.sh | sort | uniq -c",
+      "git show 6633944bc3b5196ec6da5f87887d685445a1a8ad:lib/test/modules/review-stall-backstop.sh > /tmp/rsb.sh; wc -l /tmp/rsb.sh",
+      "git show 6633944bc3b5196ec6da5f87887d685445a1a8ad:lib/test/modules/review-stall-backstop.sh > /tmp/rsb.sh",
+      "git show 6633944bc3b5196ec6da5f87887d685445a1a8ad --stat | grep -i schedulewakeup; git show 6633944bc3b5196ec6da5f87887d685445a1a8ad -- lib/test/modules/ 2>/dev/null | grep -il schedulewakeup; git ls-tree -r 6633944bc3b5196ec6da5f87887d685445a1a8ad --name-only | grep -i schedulewakeup",
+      "git ls-tree -r 6633944bc3b5196ec6da5f87887d685445a1a8ad --name-only | grep -i schedulewakeup",
+      "git show 6633944bc3b5196ec6da5f87887d685445a1a8ad:lib/test/modules/review-stall-backstop.sh > /home/runner/work/prflow/prflow/.prflow/tmp/rsb.sh; wc -l /home/runner/work/prflow/prflow/.prflow/tmp/rsb.sh",
+      "git ls-tree -r 6633944bc3b5196ec6da5f87887d685445a1a8ad --name-only > /tmp/files.txt; grep -i schedulewakeup /tmp/files.txt",
+      "git ls-tree -r 6633944bc3b5196ec6da5f87887d685445a1a8ad --name-only > /tmp/files.txt",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp && git show 6633944bc3b5196ec6da5f87887d685445a1a8ad:lib/test/modules/review-stall-backstop.sh > /home/runner/work/prflow/prflow/.prflow/tmp/rsb.sh; wc -l /home/runner/work/prflow/prflow/.prflow/tmp/rsb.sh",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p /tmp/swv\ngit show 6633944bc3b5196ec6da5f87887d685445a1a8ad:scripts/schedulewakeup-probe-verdict.py > /tmp/swv/swv.py\nprintf '%s' '[{\"permission_denials\":[{\"tool\":\"ScheduleWakeup\"}]},{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"grep x /etc/hosts\"}},{\"type\":\"tool_use\",\"name\":\"ScheduleWakeup\",\"input\":{\"delaySeconds\":300}},{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"grep x /etc/os-release\"}}]' > /tmp/swv/f1.json\npython3 /tmp/swv/swv.py /tm …[per-command-truncated]",
+      "mkdir -p /tmp/swv && git show 6633944bc3b5196ec6da5f87887d685445a1a8ad:scripts/schedulewakeup-probe-verdict.py > /tmp/swv/swv.py",
+      "mkdir -p /tmp/swv"
+    ],
+    "total": 20,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
