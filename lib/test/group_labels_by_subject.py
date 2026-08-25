@@ -3,19 +3,18 @@
 # SPDX-License-Identifier: MIT
 """Group unmodularized ``lib/test/run.sh`` assertion labels by source subject (issue #1928).
 
-Two candidate selection rules for module extraction were measured over 120 days of
-``lib/test/run.sh`` history and both failed to converge (hottest-label and co-edit-cluster —
-see issue #1928's body). The lever that does converge is the *subject* an assertion block is
-about: a change to ``skills/review``, ``skills/implement`` or ``scripts/workpad.py`` should
-have a covering focused module that runs in seconds, and the modules are extracted subject by
-subject in descending volume.
+Extraction converges on the *subject* an assertion block is about (rather than the hottest
+label or a co-edit cluster — see issue #1928 for why those do not): a change to
+``skills/review``, ``skills/implement`` or ``scripts/workpad.py`` should have a covering
+focused module that runs in seconds, and modules are extracted subject by subject in
+descending volume.
 
 This script derives, for every ``lib/test/run.sh`` assertion label that
 ``lib/test/modules/coverage-map.json`` marks ``unmodularized``, the dominant repository path
 its assertions name, and prints the labels grouped by that path with each group's label count.
-It reuses ``coverage_map_guard.py``'s label-location machinery (``derive_labels`` and the
-assertion-head/``_call_pattern`` discovery) so the two can never disagree about what a "label"
-is.
+It reuses ``coverage_map_guard.py``'s label-location primitives (``_LABEL_RE``,
+``_assertion_heads``/``_call_pattern``, and ``_git_tracked``) so the two can never disagree
+about what a "label" is.
 
 Runnable as a CLI over a repo root:
 ``python3 lib/test/group_labels_by_subject.py [repo_root] [--json]``
@@ -28,6 +27,7 @@ import argparse
 import importlib.util
 import json
 import re
+import subprocess
 import sys
 from collections import Counter
 from functools import lru_cache
@@ -265,8 +265,26 @@ def main(argv: "list[str] | None" = None) -> int:
         print(f"group_labels_by_subject: cannot read {RUN_SH_REL}: {exc}", file=sys.stderr)
         return 2
 
+    # Fail closed on a coverage-map that lacks the run_sh_blocks key entirely — a schema
+    # rename would otherwise make `restrict` empty and emit a silent, empty grouping that
+    # reads identically to the legitimate "nothing is unmodularized" result.
+    if "run_sh_blocks" not in coverage_map:
+        print(
+            f"group_labels_by_subject: {MAP_REL} has no 'run_sh_blocks' key (schema drift?); "
+            "refusing to emit an empty grouping",
+            file=sys.stderr,
+        )
+        return 2
     restrict = unmodularized_labels(coverage_map)
-    basename_index = build_basename_index(_guard._git_tracked(root))
+    try:
+        tracked = _guard._git_tracked(root)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(
+            f"group_labels_by_subject: cannot enumerate tracked files under {root}: {exc}",
+            file=sys.stderr,
+        )
+        return 2
+    basename_index = build_basename_index(tracked)
     groups = group_labels(run_sh_text, restrict=restrict, basename_index=basename_index)
     ordered = _sorted_groups(groups)
 

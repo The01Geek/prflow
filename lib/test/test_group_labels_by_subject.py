@@ -4,13 +4,19 @@
 """Focused unit tests for lib/test/group_labels_by_subject.py (issue #1928).
 
 Drives the subject-grouping helper against a synthetic ``lib/test/run.sh`` fixture holding
-labels whose assertions name known paths, and asserts the emitted grouping, the per-group
-label counts, and the handling of a label whose assertions name no repository path at all.
-Pure functions over in-memory text, so no live tree is read.
+labels whose assertions name known paths, and asserts the grouping data structures, the
+per-group label counts, the handling of a label whose assertions name no repository path at
+all, and the ``main()`` CLI emission (the literal "print" clauses of AC1) over a throwaway git
+fixture tree. The pure-function cases read no live tree; the ``main()`` cases build their own.
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
+import json
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -136,6 +142,95 @@ class Unmodularized(unittest.TestCase):
             }
         }
         self.assertEqual(g.unmodularized_labels(cmap), {"101", "303"})
+
+
+# A run.sh fixture for the main() CLI cases: #101 and #303 name scripts/workpad.py, #202 names
+# skills/review, #404 names no path. The bare basenames are not tracked files in the throwaway
+# repo below, so only the full path-regex mentions are tallied — a deterministic grouping.
+MAIN_RUN_SH = """\
+assert_eq "#101 workpad claim" "x" "y"
+grep -n scripts/workpad.py "$LIB/f"
+assert_eq "#202 review claim" "checks skills/review/SKILL.md"
+assert_eq "#303 mixed claim" "a" "b"
+grep scripts/workpad.py "$LIB/g"
+assert_eq "#404 a claim naming no repository path at all" "x" "y"
+"""
+
+MAIN_COVERAGE_MAP = {
+    "run_sh_blocks": {
+        "101": {"owner": "unmodularized"},
+        "202": {"owner": "unmodularized"},
+        "303": {"owner": "unmodularized"},
+        "404": {"owner": "unmodularized"},
+    }
+}
+
+
+def _build_repo(tmp: Path, *, coverage_map: "dict | None", run_sh: "str | None") -> None:
+    """Write the two files main() reads under a fresh git repo, and stage them.
+
+    _git_tracked runs `git ls-files`, so the tree must be a git repo with the files staged
+    for the basename index to see them. A None argument omits that file entirely (to drive the
+    unreadable-file / missing-key error paths).
+    """
+    (tmp / "lib" / "test" / "modules").mkdir(parents=True, exist_ok=True)
+    if coverage_map is not None:
+        (tmp / "lib" / "test" / "modules" / "coverage-map.json").write_text(
+            json.dumps(coverage_map), encoding="utf-8"
+        )
+    if run_sh is not None:
+        (tmp / "lib" / "test" / "run.sh").write_text(run_sh, encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(tmp), "add", "-A"], check=True)
+
+
+class MainCli(unittest.TestCase):
+    def test_prints_grouped_lines_with_counts(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _build_repo(root, coverage_map=MAIN_COVERAGE_MAP, run_sh=MAIN_RUN_SH)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = g.main([str(root)])
+            self.assertEqual(rc, 0)
+            lines = out.getvalue().splitlines()
+            # count-desc ordering puts the 2-label group first, and each line carries the count
+            # and the #-prefixed labels — the literal AC1 (b)+(c) "print" surface.
+            self.assertEqual(lines[0], "scripts/workpad.py (2 labels): #101 #303")
+            self.assertIn("skills/review (1 labels): #202", lines)
+            self.assertIn(f"{g.NO_PATH_KEY} (1 labels): #404", lines)
+
+    def test_json_branch_emits_the_grouping(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _build_repo(root, coverage_map=MAIN_COVERAGE_MAP, run_sh=MAIN_RUN_SH)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = g.main([str(root), "--json"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(out.getvalue())
+            self.assertEqual(payload["scripts/workpad.py"], ["101", "303"])
+            self.assertEqual(payload["skills/review"], ["202"])
+            self.assertEqual(payload[g.NO_PATH_KEY], ["404"])
+
+    def test_missing_run_sh_blocks_key_fails_closed(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _build_repo(root, coverage_map={"files": {}}, run_sh=MAIN_RUN_SH)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = g.main([str(root)])
+            self.assertEqual(rc, 2)
+            self.assertIn("no 'run_sh_blocks' key", err.getvalue())
+
+    def test_unreadable_coverage_map_returns_2(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)  # empty dir: coverage-map.json absent
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = g.main([str(root)])
+            self.assertEqual(rc, 2)
+            self.assertIn("cannot read", err.getvalue())
 
 
 if __name__ == "__main__":
