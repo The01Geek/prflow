@@ -960,15 +960,31 @@ the `review_dedupe` job in `devflow.yml`.
   because a head that cannot be established is never grounds for suppression.
 - **Two accepted, deliberate costs.** With `prflow_review.live_progress_comment_enabled`
   off there is no seeded comment, so nothing is suppressed (present-day behavior);
-  and a `/prflow:review` issued during a `/prflow:review-and-fix` run *is*
-  suppressed, because that run executes the review engine and the suppressed review
-  would have been redundant. The second holds while the PR's remote head is the one
+  and a `/prflow:review` issued during a `/prflow:review-and-fix` run *that seeds a
+  live PR progress comment* is suppressed, because that run executes the review engine
+  and the suppressed review would have been redundant. The second holds only for a
+  hosting run that seeds such a comment, and only while the PR's remote head is the one
   that run seeded on — once the fix loop *pushes*, the remote head has genuinely
   moved and a request naming the new head is a review of a commit nothing is
   reviewing, which the commit scope above correctly lets through. Both were part of
   the Candidate C decision. A third cost — pull-request rather than commit scope —
   was found during PR #993's review and **retired by issue #1010**, which added the
   seed-time head key above.
+- **The workpad-surfaced review (issue #1657).** Caller-scoped progress routing lets a
+  `/prflow:review-and-fix` run pick its progress surface; an implement-hosted fix loop
+  binds `progress_surface = workpad` and seeds **no** live PR progress comment at all
+  (the review engine's Phase 0.3.5 — the caller's issue workpad is the surface instead).
+  This detector reads only PR comments, so for such a host there is nothing to find and
+  the suppression above does not hold: a `/prflow:review` issued during an
+  implement-hosted review **fails open for the whole duration of that review**, not
+  merely the transient pre-seed window below. Fail-open is the **decided** behavior — no
+  new in-flight marker is stamped, because the alternatives are the same two the
+  pre-seed-window entry records and rejects (absence-keyed suppression carries no
+  `updated_at` to age out and would wedge every later request behind a silently-failed
+  seed; a head-blind thread scope over-suppresses), and it costs only a recoverable
+  duplicate run, never a swallowed review. Like the pre-seed window, it is an accepted
+  fail-open exposure, deliberately **not** a numbered member of the two accepted costs
+  above.
 - **The pre-seed window (issue #1479).** The seeded progress comment is published
   inside the peer run's *agent* job (Phase 0.3.5), so it does not exist for a period
   after that run starts; a request arriving in that window sees no in-flight comment
