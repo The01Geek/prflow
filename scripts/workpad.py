@@ -5523,8 +5523,9 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 f"--record-review-coverage-head: {_anchor_head!r} is not a "
                 "lowercase-hex head SHA (or 'unestablished'). No PATCH was made."
             )
+        _anchor_asof = _utc_now_compact()
         review_coverage_payload = ':'.join(
-            list(review_coverage) + [_anchor_head, _utc_now_compact()])
+            list(review_coverage) + [_anchor_head, _anchor_asof])
     review_dispositions = list(getattr(args, 'review_coverage_disposition', []) or [])
     _seen_gaps: set[str] = set()
     for _pair in review_dispositions:
@@ -5887,17 +5888,14 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if review_coverage_payload:
         _state = _render_review_coverage_state(
             dict(zip(_REVIEW_COVERAGE_AXES, review_coverage)))
-        # issue #1510: surface the as-of anchor in the visible row so a human reader can
-        # tell a record that predates a later standalone review from a current one.
-        _anchor = _parse_review_coverage_anchor(review_coverage_payload)
-        _anchor_txt = ''
-        if _anchor:
-            _head = _anchor['head']
-            _head_disp = (_head if _head == _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED
-                          else _head[:12])
-            _anchor_txt = f'; as of head {_head_disp} at {_anchor["asof"]}'
+        # issue #1510: surface the as-of anchor in the visible row (from the locals
+        # composed above — no re-parse) so a human reader can tell a record that predates
+        # a later standalone review from a current one.
+        _head_disp = (_anchor_head if _anchor_head == _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED
+                      else _anchor_head[:12])
         _review_coverage_rows.add(
-            f'review coverage recorded ({_state}{_anchor_txt}) '
+            f'review coverage recorded ({_state}; as of head {_head_disp} '
+            f'at {_anchor_asof}) '
             f'{_review_coverage_marker(review_coverage_payload)}'
         )
     for _gap, _reason in review_dispositions:
