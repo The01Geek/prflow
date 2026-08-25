@@ -135,6 +135,12 @@ esac
 # Echo the captured log so the shard job's own log carries the detail too.
 cat "$LOG_FILE" || true
 
+# Name the retained log's absolute path on the passing and failing shard exit, so a
+# tail-piped reader re-reads it instead of re-executing (issue #1923); the CLAUDE.md
+# tail-pipe bullet relies on this line, and builtins keep it off non-preflight tools.
+LOG_FILE_ABS="$(cd "${LOG_FILE%/*}" && pwd -P)/${LOG_FILE##*/}"
+printf 'run-shard.sh: retained log: %s\n' "$LOG_FILE_ABS"
+
 # Extract the tally. shard-tally.py fails closed: a non-zero shard_rc with no
 # parsed failure still records a failure, so a crashed shard never recombines green.
 python3 "$SCRIPT_DIR/shard-tally.py" extract \
