@@ -1,0 +1,73 @@
+{
+  "dispatch_mode": "fanned-out",
+  "shadow": true,
+  "blinded": true,
+  "verdict": "REJECT",
+  "pr": 1954,
+  "issue": 1831,
+  "head_sha": "7ba41faffee30c98154a70edd545be83ba847342",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "profile": "engine_self_modifying -> full Phase 1+2 checklist; checklist_skipped=null",
+    "changed_files": 6,
+    "reason": "skills/** and lib/** touched (arm 1); file count 6 > 3 so small_diff false; lib/test/run.sh (.sh) so config_only false"
+  },
+  "checklist_skipped": null,
+  "expected_reviewers": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "requesting-code-review",
+    "pr-test-analyzer"
+  ],
+  "reviewers_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "requesting-code-review",
+    "pr-test-analyzer"
+  ],
+  "type_design_analyzer": "gated out (has_new_types=false)",
+  "phase2_fails": [
+    "#810 mutation-routing worktree gate returns rc=3 (MUTATION-ROUTING unauthorized pin adjudication delta); lib/test/run.sh assert_eq expects rc=0 -> required check 'lib + python tests' is RED. Independently reproduced via python3 lib/test/pin-corpus-lint.py mutation-routing-worktree."
+  ],
+  "phase3_findings": [
+    {
+      "severity": "Critical",
+      "file": "lib/test/pin-corpus-adjudications.tsv",
+      "line": 65,
+      "summary": "Three rows removed from the delta-gated pin-corpus-adjudications.tsv (keys 2f16b7e5..., 56ddc5978..., 60f617f28...) with no authorizing delta-manifest bundle under .prflow/logs/pin-corpus-adjudication-changes/. The #810 mutation-routing worktree gate computes the merge-base->HEAD delta, finds it unauthorized, and returns rc=3, failing the assert_eq at lib/test/run.sh ~36088 -> required 'lib + python tests' check RED. AC5 of issue #1831 is UNMET.",
+      "defect_signature": "unauthorized-pin-adjudication-delta:pin-corpus-adjudications.tsv:missing-manifest-bundle:issue-1831",
+      "verdict": "CONFIRMED",
+      "remedy": "Add .prflow/logs/pin-corpus-adjudication-changes/issue-1831-*/adjudication-delta.tsv (header adjudication_key<TAB>base_state<TAB>current_state) with one row per retired hash mapping the prior boundary base_state to null current_state, mirroring the issue-1768-retire-self-check-pins precedent.",
+      "confirmed_by": ["pr-test-analyzer", "requesting-code-review (final-pass)"]
+    },
+    {
+      "severity": "Suggestion",
+      "file": "lib/test/run.sh",
+      "line": 4519,
+      "summary": "Stale contrast comment: '(1) Generalized mid-phase re-anchor — fires after EVERY Skill-tool return, not just the Phase 4.1 docs subagent.' After this change the Phase 4.1 docs subagent is an Agent-tool return that resumes directly and no longer re-anchors, so citing it as the contrast case is now inaccurate. Inert (behavior-neutral prose), not a suite failure.",
+      "defect_signature": "stale-comment:run.sh:4519:phase-4.1-docs-subagent-contrast",
+      "verdict": "PLAUSIBLE",
+      "confirmed_by": ["silent-failure-hunter"]
+    }
+  ],
+  "per_reviewer_assessment": {
+    "code-reviewer": "Returned APPROVE-leaning; judged all six ACs met. INCORRECT on AC5 — it only checked that the removed pin literals are absent (orphaned-literal check) and did NOT run the delta-gated mutation-routing gate, so it missed the unauthorized adjudication delta.",
+    "silent-failure-hunter": "No silent-failure defect; confirmed the prompt-extension re-load coupling is preserved (SKILL.md:147 names both boundaries) and the pin/adjudication removals are hash-consistent. Believed AC5 clean (did not run the delta gate) but flagged the stale run.sh:4519 comment nit (captured as Suggestion).",
+    "comment-analyzer": "Clean; the two reworded run.sh comments (dropping #232/#230 ordinals) remain accurate; residual #232 mentions at 7200/28717 are unrelated pin-pattern precedents.",
+    "pr-test-analyzer": "CONFIRMED the Critical finding by running the gate (rc=3); identified missing delta-manifest bundle as root cause and the exact remedy. Confirmed the prose coverage rationale (#843/#876) is itself sound.",
+    "requesting-code-review": "CONFIRMED REJECT; ran the gate (rc=3) and wc -c on both files; AC1-AC4 and AC6 met, AC5 unmet by the unauthorized adjudication delta."
+  },
+  "verdict_rationale": "Single blocking defect, but it is a required-check failure independently reproduced by two reviewers: removing three rows from the delta-gated pin-corpus-adjudications.tsv without an authorizing manifest bundle makes the #810 mutation-routing gate RED, so 'lib + python tests' fails and issue #1831 AC5 is unmet. All other ACs (AC1-AC4, AC6) are satisfied and the prose changes are correct.",
+  "notes": {
+    "diff_source": ".prflow/tmp/review/pr-1954/32838349124-1/diff.patch (git diff main...HEAD, engine Phase 0.2 cache)",
+    "acs_source": "issue #1831 body (caller override), carried verbatim as specification into every reviewer prompt",
+    "phase_4_4_skipped": true,
+    "progress_surface": "none (shadow ticks no workpad rows)"
+  }
+}

@@ -1,0 +1,157 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T11:10:00Z",
+  "fix_commit_sha": "7ba41fa",
+  "fix_files": [
+    "docs/internal/implement-skill.md",
+    "lib/test/pin-corpus-adjudications.tsv",
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "current_substep": null,
+  "engine_verdict": "REJECT",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Critical",
+      "description": "deleting the three assert_pin_unique pins left three orphaned pin-corpus adjudication rows; test_current_worktree_adjudications_close_the_classifier_corpus fails (unknown adjudication keys)",
+      "defect_signature": {
+        "file": "lib/test/pin-corpus-adjudications.tsv",
+        "line_range": [
+          115,
+          242
+        ],
+        "kind": "orphaned_adjudication_key"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "prompt-surface edit routing evidence gate: no Writing-skills evidence marker recorded on the workpad",
+      "defect_signature": {
+        "file": "skills/implement/SKILL.md",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "missing_evidence_marker"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "garbled non-parsing doc sentence",
+      "defect_signature": {
+        "file": "docs/internal/implement-skill.md",
+        "line_range": [
+          1216,
+          1216
+        ],
+        "kind": "prose_grammar"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "run.sh comment directional imprecision (behavior-inert, clarity only)",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          10477,
+          10477
+        ],
+        "kind": "comment_clarity"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "visibility note; no action (compliant with #843/#876)",
+      "defect_signature": {
+        "file": "skills/implement/SKILL.md",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "advisory"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "7ba41fa"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "7ba41fa"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "7ba41fa"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "7ba41fa"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "advisory",
+      "skip_category": "advisory-parked",
+      "evidence": "silent-failure-hunter visibility note; compliant with #843/#876, no action"
+    }
+  ],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "convergence_inputs": {
+    "fixes_applied": 4,
+    "fix_diff_lines": 8,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

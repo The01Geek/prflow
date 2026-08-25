@@ -1,0 +1,118 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "pr_number": 1954,
+  "issue": 1831,
+  "run_id": "32838349124-1",
+  "reviewed_head": "7fad41a850cf3b11b99276c9a7474b321e44f1d9",
+  "base_sha": "66eec8a8a2aee14677cd27359929722760691fe3",
+  "verdict_threshold": "critical",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "profile_announced": "engine_self_modifying (overrides other flags' checklist) -> full checklist. Phase 3 roster gated by Phase 3.1 applicability."
+  },
+  "acceptance_criteria_source": "workpad",
+  "acceptance_criteria_divergence": "none",
+  "checklist_results": {
+    "passed": 11,
+    "failed": 0,
+    "inconclusive": 0,
+    "normalized": 0,
+    "lite": 0,
+    "agent": 11,
+    "note": "VC-5 PASS confirmed no pin asserts the removed re-read literals, but the checklist did NOT cover the pin-corpus adjudication-row / classifier obligation that AC5 also requires; that gap was caught by the Phase 3 code-reviewer finding below."
+  },
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_agents_failed": [],
+  "requesting_code_review_extension_status": "loaded-empty resolved-root=unset (local/interactive tier: no trusted-root propagation; notice suppressed)",
+  "cap_drops": { "count": 0, "by_category": {} },
+  "stale_prose_lint": {
+    "enabled": true,
+    "exit_code": 0,
+    "stale_rows": 0,
+    "unresolvable_rows": 6,
+    "note": "6 UNRESOLVABLE (CU/R3 recognition-only) rows recorded as informational; none STALE, so none gates the verdict."
+  },
+  "phase3_findings": [
+    {
+      "id": "F1",
+      "severity": "Critical",
+      "agent": "prflow:code-reviewer",
+      "corroboration_count": 1,
+      "verdict": "CONFIRMED",
+      "contributed_to_verdict": true,
+      "description": "Deleting the three assert_pin_unique pins leaves three orphaned maintainer adjudication rows in lib/test/pin-corpus-adjudications.tsv (lines 115, 222, 242), keyed by the sha256 of the removed literals. pin-corpus-classifier.py computes unknown = set(adjudications) - known_keys and raises ValueError('unknown adjudication keys: ...') (line 705); test_red_on_removal_retirement_manifest.py::test_current_worktree_adjudications_close_the_classifier_corpus runs the classifier over the current worktree and asserts returncode == 0. Independently reproduced: the test FAILS with 'unknown adjudication keys: literal:2f16b7e5..., literal:56ddc597..., literal:60f617f2...' (exit 2), so the required 'lib + python tests' check will be RED. AC5 ('pin-corpus gate #810 satisfied for every retired pin' and 'the required lib + python tests check passes') is UNMET. Fix: remove the three orphaned rows from lib/test/pin-corpus-adjudications.tsv in this same change (coupled-site discipline).",
+      "defect_signature": { "file": "lib/test/pin-corpus-adjudications.tsv", "line_range": [115, 242], "kind": "test_gap" },
+      "over_grade_note": "Shape-1 advisory (suite-RED-catchable) noted, advisory-only; a flagged Critical still drives REJECT. NOTE: pr-test-analyzer and the requesting-code-review final pass both asserted this orphaned row was harmless — that assertion is FALSE and was refuted by directly running the test."
+    },
+    {
+      "id": "F2",
+      "severity": "Important",
+      "agent": "orchestrator (review prompt-extension gate)",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "Prompt-surface edit routing evidence gate: the reviewed diff touches prompt-surface files (skills/implement/SKILL.md, skills/implement/phases/phase-4-documentation.md), triggering the gate, but neither the linked issue #1831 workpad nor the PR #1954 description contains the 'Writing-skills evidence:' marker with its four dispositions (skill-loaded / guidance-applied / pressure-scenario / micro-tests). Gate fails closed -> at least Important. Under the default 'critical' verdict threshold this does not itself drive REJECT, but it must be discharged: the implement run should record the marker (its prompt-surface edits happened in Phase 2). Non-blocking at threshold, but reported per the review-and-fix extension.",
+      "defect_signature": { "file": "skills/implement/SKILL.md", "line_range": null, "kind": "other" }
+    },
+    {
+      "id": "F3",
+      "severity": "Suggestion",
+      "agent": "general-purpose (requesting-code-review final pass)",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "docs/internal/implement-skill.md line ~28 contains a garbled, non-parsing sentence: 'That residual is accepted (issue #1831): the truncated `| head -70` re-reads this replaced recovered nothing either.' It is missing words and does not parse, though it is the load-bearing justification for dropping the recovery re-read. Behavior-inert prose in an internal (vendor-pruned, non-shipped) doc -> Phase 4.1.5 behavior-inert prose cap applies (limb one: no tool reads it for behavior; limb two: docs/internal is pruned from the vendor slice, not read by any consumer) -> capped at Suggestion; does not drive REJECT. Worth a cleanup fix.",
+      "defect_signature": { "file": "docs/internal/implement-skill.md", "line_range": [28, 28], "kind": "comment_drift" }
+    },
+    {
+      "id": "F4",
+      "severity": "Suggestion",
+      "agent": "prflow:comment-analyzer",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "lib/test/run.sh line ~10477 comment 'P4_FILE is defined once next to IMPL_PHASES_DIR above (shared by the pin blocks above)' — the directional word 'above' is imprecise: the nearest sharer (#230 phase-4 block) sits directly below. Not false against HEAD (P4_FILE IS shared by pin blocks above, e.g. line 4252), so it is a clarity Suggestion, not a documented_falsehood. Behavior-inert comment in a test file -> capped at Suggestion. Suggested reword: drop the directional word ('shared by the pin blocks').",
+      "defect_signature": { "file": "lib/test/run.sh", "line_range": [10477, 10477], "kind": "comment_drift" }
+    },
+    {
+      "id": "F5",
+      "severity": "Suggestion",
+      "agent": "prflow:silent-failure-hunter",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "Visibility note (no action): after the pin deletions the Phase 4 subagent-return boundary has no regression coverage; the completion-obligation backstop rests entirely on the terminal-status self-check for the mid-subagent-compaction case. Compliant with CLAUDE.md #843/#876 (agent-executed prose owes no coverage). Not a defect.",
+      "defect_signature": { "file": "skills/implement/SKILL.md", "line_range": [270, 273], "kind": "test_gap" }
+    }
+  ],
+  "advisory_non_blocking": {
+    "verification_evidence_marker": "Absent from issue #1831 workpad and PR #1954 description. Tier classification: cloud (workpad carries <!-- prflow:checkpoint gha:... --> rows). Non-blocking advisory; the run has not yet claimed completion (Status: Reviewing).",
+    "shipped_prose_cost_audit": "Net shipped-prose under skills/** DECREASED (Phase 4 re-anchor paragraphs replaced with shorter 'resume directly' prose; the only growth is the explicit naming of both Phase 4 boundaries in SKILL.md's re-load trigger, which carries the AC3 instruction). No gratuitous additions; no cost finding.",
+    "wording_only_pins": "The diff removes pins and adds none; no new wording-only/presence pin -> no finding under the wording-only pin policy."
+  },
+  "phase_4_1_report_verdict_criteria": {
+    "checklist_fail": false,
+    "checklist_inconclusive": false,
+    "self_contradicting_diff_carveout": false,
+    "finding_at_or_above_threshold": true,
+    "rule_fired": "Rule 3 — a review-agent finding (F1, Critical) at or above the 'critical' threshold -> REJECT.",
+    "intra_diff_contradiction_scan": "no contradiction found",
+    "truthfulness_sweep": "no finding promoted",
+    "over_grade_annotation": "F1 flagged shape-1 (suite-RED-catchable) advisory only; verdict unchanged"
+  },
+  "report_markdown": "## Verdict: REJECT (required `lib + python tests` will be RED — orphaned pin-corpus adjudication rows; AC5 unmet)\n\n## Issue Compliance\nReviewed against issue #1831: scope Phase 4's mid-phase re-anchor to resume-directly — criteria from the /prflow:implement workpad comment; scope unchanged. Requirement-based checklist items are included in the verification results below. No divergence between the workpad's criteria and the issue body's.\n\nAC1–AC4 and AC6 are satisfied (verified). AC5 is UNMET: the three retired pins left orphaned adjudication rows that make the pin-corpus classifier raise and the required check go RED.\n\n## Verification Checklist Results\n11 passed, 0 failed, 0 inconclusive — 0 via lite probe, 11 via agent.\n(Note: VC-5 covered only the pin-literal removal, not the coupled adjudication-row obligation AC5 also carries — caught by the Critical below.)\n\n## Code Review Findings\n### 🔴 Critical\n1. Deleting the three assert_pin_unique pins left three orphaned maintainer adjudication rows in lib/test/pin-corpus-adjudications.tsv (lines 115, 222, 242, keyed by sha256 of the removed literals). pin-corpus-classifier.py raises 'unknown adjudication keys' and test_current_worktree_adjudications_close_the_classifier_corpus asserts rc==0 — independently reproduced as a FAILING test (exit 2). The required 'lib + python tests' check will be RED; AC5 unmet. Fix: remove the three orphaned rows in the same change. (raised by 1/5 agents; confirmed by direct test run) [suite-RED-catchable: shape 1 advisory]\n\n### 🟠 Important / Major\n1. Prompt-surface edit routing evidence gate: diff touches skills/implement/SKILL.md and skills/implement/phases/phase-4-documentation.md but no 'Writing-skills evidence:' marker (4 dispositions) is present on the issue #1831 workpad or the PR #1954 description. Gate fails closed. Non-blocking at the 'critical' threshold, but must be discharged. (raised by 1/5 agents — orchestrator gate)\n\n### 🟡 Suggestion / Minor\n1. docs/internal/implement-skill.md ~line 28: garbled non-parsing sentence ('the truncated `| head -70` re-reads this replaced recovered nothing either') — the load-bearing rationale for dropping the recovery re-read. Internal/non-shipped doc, behavior-inert (cap applies). (raised by 1/5 agents)\n2. lib/test/run.sh ~line 10477: comment 'shared by the pin blocks above' — 'above' is imprecise (nearest sharer is below); not false, clarity only. (raised by 1/5 agents)\n3. Visibility note: Phase 4 subagent-return boundary now has no regression coverage; backstop rests on the terminal-status self-check. Compliant with #843/#876. (raised by 1/5 agents)\n\n## Advisory (non-blocking)\n- Verification-evidence marker absent (cloud tier); run has not yet claimed completion.\n- Shipped-prose cost audit: net skills/** prose decreased; no cost finding.\n- No new wording-only pins (diff only removes pins).\n\n## Verdict Criteria\nRule 3 fired: a Critical review-agent finding at the 'critical' threshold → REJECT. (Checklist had no FAIL/INCONCLUSIVE; the REJECT is driven by the confirmed suite-RED defect.)"
+}

@@ -1,0 +1,72 @@
+{
+  "iter": 3,
+  "started_at": "2026-08-25T11:40:00Z",
+  "fix_commit_sha": "44aea87",
+  "fix_files": [
+    ".prflow/logs/pin-corpus-adjudication-changes/issue-1831-retire-phase4-reanchor-pins/adjudication-delta.tsv",
+    "lib/test/run.sh"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Critical",
+      "description": "removing rows from the delta-gated pin-corpus-adjudications.tsv without an authorizing delta-manifest bundle fails the issue-810 mutation-routing gate (required check RED)",
+      "defect_signature": {
+        "file": "lib/test/pin-corpus-adjudications.tsv",
+        "line_range": [
+          65,
+          65
+        ],
+        "kind": "unauthorized_pin_adjudication_delta"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "stale re-anchor contrast comment (run.sh:4519) after the Phase 4.1 docs subagent became a resume-directly Agent-tool return",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          4519,
+          4519
+        ],
+        "kind": "stale_comment"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "applied",
+      "commit": "44aea87"
+    },
+    {
+      "finding_id": "S-2",
+      "decision": "applied",
+      "commit": "44aea87"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 5,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

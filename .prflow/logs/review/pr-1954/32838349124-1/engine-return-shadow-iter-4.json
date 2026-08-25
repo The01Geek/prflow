@@ -1,0 +1,70 @@
+{
+  "pr": 1954,
+  "issue": 1831,
+  "head": "44aea87397e593fd81eac21fef331aea1cda00c2",
+  "run_id": "32838349124-1",
+  "slug": "pr-1954",
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "blinded": true,
+  "phase3_findings": [],
+  "phase2_fails": [],
+  "reviewers_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "reviewers_gated_out": [
+    "type-design-analyzer"
+  ],
+  "diff_profile": {
+    "files_changed": 7,
+    "insertions": 24,
+    "deletions": 40,
+    "surface": "prompt-prose (skills/implement) + coupled internal doc + test-pin removals + pin-corpus adjudication-row removals + delta-manifest bundle + changeset",
+    "pr_test_analyzer_gate": "lib/test/* touched",
+    "type_design_analyzer_gate": "no type introduced or modified"
+  },
+  "ac5_verification": {
+    "gate_mutation_routing_worktree": {
+      "cmd": "python3 lib/test/pin-corpus-lint.py mutation-routing-worktree .",
+      "stdout": "MUTATION-ROUTING-STATIC-SCAN-COMPLETED",
+      "exit_status": 0
+    },
+    "gate_retirement_manifest_unittest": {
+      "cmd": "python3 -m unittest lib.test.test_red_on_removal_retirement_manifest.RedOnRemovalRetirementManifestTests.test_current_worktree_adjudications_close_the_classifier_corpus",
+      "result": "OK",
+      "exit_status": 0
+    },
+    "delta_manifest": {
+      "path": ".prflow/logs/pin-corpus-adjudication-changes/issue-1831-retire-phase4-reanchor-pins/adjudication-delta.tsv",
+      "authorizes_exactly_three_removals": true,
+      "keys": [
+        "literal:2f16b7e5fdb1d60a293cb18af6e1378e09478325323de2e0fbc0e9c04c6ec5ca",
+        "literal:56ddc5978ee3e1464b7f47c0f3e9bb62fc925bf649dddf6d7a48292dd2144682",
+        "literal:60f617f28aef15b815bb99c8eaf64bf54fb582ae4451120118aafd3dc9a2ba59"
+      ],
+      "base_state_matches_merge_base": true,
+      "current_state": "null (removal) for all three",
+      "rows_gone_from_current_tree": true
+    },
+    "status": "GREEN"
+  },
+  "ac_summary": {
+    "AC1": "satisfied",
+    "AC2": "satisfied",
+    "AC3": "satisfied",
+    "AC4": "satisfied",
+    "AC5": "satisfied",
+    "AC6": "satisfied — SKILL.md 60482 B, phase-4-documentation.md 60923 B, both under 61750; no new reference-size-exemptions.json row"
+  }
+}
