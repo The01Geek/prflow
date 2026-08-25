@@ -2123,6 +2123,10 @@ SERIAL_BY_EXCLUSION_SUITES = (
     # The provider-neutral create-issue benchmark runs serially on the main shell
     # because its focused test launches matched local provider subprocesses.
     "test_create_issue_benchmark.py",
+    # issue #1928: the subject-grouping helper's focused unittest runs serially on the
+    # main shell (invoked directly by run.sh, like the eval blocks above), not through
+    # the pool or a full-suite module.
+    "test_group_labels_by_subject.py",
 )
 MODULE_DRIVEN_SUITES = (
     "test_reconcile_module_floors.py",

@@ -18,10 +18,15 @@ Prompt size, delivered context, and model behavior are related but not identical
 - A self-report is weaker evidence than a harness-recorded event.
 - A measurement over one tier, runner, or corpus does not establish behavior for every tier or future corpus.
 - An absent transcript or corpus is reported as unavailable rather than measured as zero.
+- That guarantee covers a corpus the instrument reads, not one it never selects. The shared
+  collector in `scripts/context_eval_shared.py` walks a corpus root and keeps only names ending
+  `.jsonl`; every other name is dropped with no tally and no breadcrumb. So a corpus of
+  wrong-suffixed transcripts yields a run count of zero and exit status 0, and a mixed corpus
+  under-counts silently. Confirm the suffix before reading a zero as an empty corpus.
 
 ## Source of truth
 
-- `scripts/create-issue-context-eval.py` and `scripts/implement-context-eval.py` — legacy context instruments; `scripts.create_issue_eval` also owns run-addressable manifest analysis and formal grading.
+- `scripts/create-issue-context-eval.py` and `scripts/implement-context-eval.py` — context instruments; `scripts.create_issue_eval` also owns run-addressable manifest analysis and formal grading.
 - `scripts/create-issue-benchmark.py` — provider-neutral paired execution, statistical reporting, and anonymized review export.
 - `scripts/workflow_flight_recorder.py` — transcript and workflow evidence.
 - `scripts/prompt-surface-growth.py` — prompt-surface measurement.
