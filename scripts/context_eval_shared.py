@@ -95,10 +95,10 @@ def _iter_session_files(corpus_root, skipped):
     permission-denied dir, a vanished tree) is counted under `walk_error` via the `os.walk`
     `onerror` callback — default `onerror=None` would swallow it.
 
-    The caller supplies a `skipped` dict already carrying both keys (every in-tree caller
-    pairs this with its own `new_skip_tally()`). Do NOT `setdefault`/`defaultdict` them
-    here: an under-populated dict would then tally into a key the caller never emits, so
-    the drop becomes invisible in the output — the KeyError is the fail-closed direction.
+    The caller supplies a `skipped` dict already carrying both keys. Do NOT
+    `setdefault`/`defaultdict` them here: an under-populated dict would then tally into a
+    key the caller never emits, so the drop becomes invisible in the output — the KeyError
+    is the fail-closed direction.
     """
     root_real = os.path.realpath(corpus_root)
     collected = []
