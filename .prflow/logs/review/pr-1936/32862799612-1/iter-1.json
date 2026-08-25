@@ -1,0 +1,216 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "a2e6e1120",
+  "fix_files": [
+    "docs/internal/implement-skill.md",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "docs/internal/implement-skill.md describes the retired per-phase label mechanism (config-get read, tr|sed|grep normalize, per-label ensure-label.sh, print-raw-alongside-normalized, four-outcome stderr routing) — coupled-mirror staleness",
+      "defect_signature": {
+        "file": "docs/internal/implement-skill.md",
+        "line_range": [
+          1504,
+          1509
+        ],
+        "kind": "stale_doc_mechanism"
+      }
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "DEVFLOW_SYSTEM_OVERVIEW.md label prose describes only stderr routing, omits the new stdout outcome-token channel",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          892,
+          892
+        ],
+        "kind": "incomplete_doc"
+      }
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "apply-labels.sh wrong-type guard covers JSON objects but not a top-level scalar non-string (bool/number coerced and applied as garbage label reported applied); bounded, documented out-of-scope in test block",
+      "defect_signature": {
+        "file": "scripts/apply-labels.sh",
+        "line_range": [
+          80,
+          110
+        ],
+        "kind": "bounded_edge_case"
+      }
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "config-driven mode silently discards positional labels if both supplied (no call site mixes them; latent)",
+      "defect_signature": {
+        "file": "scripts/apply-labels.sh",
+        "line_range": [
+          80,
+          90
+        ],
+        "kind": "latent_edge_case"
+      }
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "OUTCOME CONTRACT docstring at apply-labels.sh:31 under-describes config-unreadable",
+      "defect_signature": {
+        "file": "scripts/apply-labels.sh",
+        "line_range": [
+          31,
+          31
+        ],
+        "kind": "doc_nit"
+      }
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "folded per-label ensure-label.sh creation loop covered only transitively; an argv-recording stub would close the gap",
+      "defect_signature": {
+        "file": "scripts/apply-labels.sh",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "test_coverage_gap"
+      }
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "a2e6e1120"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "a2e6e1120"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "deferred",
+      "source_file": "scripts/apply-labels.sh",
+      "claim_text": "top-level scalar non-string wrong-type not guarded",
+      "skip_category": "out-of-scope",
+      "evidence": "bounded and explicitly documented as out-of-scope in the #1855 test block; no call site passes a scalar config value; helper unchanged this iteration (docs-only fix delta)",
+      "parking_evidence": {
+        "basis": "bounded latent edge case the prior review already adjudicated out-of-scope; the helper code is not in this iteration's fix delta",
+        "failing_input": "a top-level scalar (bool/number) value for .deferred.labels/.docs.labels",
+        "source": "scripts/apply-labels.sh test block (documented out-of-scope)",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "deferred",
+      "source_file": "scripts/apply-labels.sh",
+      "claim_text": "config mode discards positional labels if both supplied",
+      "skip_category": "uncategorized",
+      "evidence": "latent-only; no call site mixes config-key with positional labels; not worth a helper edit in a docs-only fix iteration",
+      "parking_evidence": {
+        "basis": "latent, unreachable from any call site",
+        "failing_input": "a call passing both positional labels and --config-key",
+        "source": "no call site mixes them",
+        "finding_ref": {
+          "iter": 1,
+          "index": 3
+        }
+      }
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "deferred",
+      "source_file": "scripts/apply-labels.sh",
+      "claim_text": "docstring under-describes config-unreadable",
+      "skip_category": "uncategorized",
+      "evidence": "minor docstring nit on a helper not in this iteration's fix delta",
+      "parking_evidence": {
+        "basis": "minor doc nit, helper unchanged this iteration",
+        "failing_input": "reader of the OUTCOME CONTRACT docstring",
+        "source": "scripts/apply-labels.sh:31",
+        "finding_ref": {
+          "iter": 1,
+          "index": 4
+        }
+      }
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "deferred",
+      "source_file": "scripts/apply-labels.sh",
+      "claim_text": "per-label ensure loop covered only transitively",
+      "skip_category": "uncategorized",
+      "evidence": "the ensure path is exercised transitively by the #1855 behavioral tests (already-exists success + apply); an argv-recording stub is a nice-to-have, not required for correctness; helper unchanged this iteration",
+      "parking_evidence": {
+        "basis": "transitive coverage exists; enhancement only",
+        "failing_input": "a regression in the folded ensure loop",
+        "source": "lib/test/run.sh #1855 block",
+        "finding_ref": {
+          "iter": 1,
+          "index": 5
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 29,
+    "new_corroborated_critical_count": 0
+  },
+  "base_checkpoint": {
+    "token": "UPDATED",
+    "behind_by": 27
+  },
+  "stale_prose_check": "exit 0, no STALE rows (UNRESOLVABLE CU rows in added docs prose are recognition-only, grounded by inline closed 5-token set + #1855 behavioral tests)",
+  "verification_evidence": {
+    "command": "lib/test/run-shard.sh monolith",
+    "result": "pass",
+    "duration_s": null,
+    "skipped_checks": []
+  },
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "fix delta is docs/internal prose only; §2.3.4a self-authored-claim verified against apply-labels.sh call sites and helper; §2.3.4b coverage-universals recognition-only, grounded by closed 5-token enumeration + #1855 tests; no contract/enum/peer change → contract-completeness sweeps not triggered"
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}

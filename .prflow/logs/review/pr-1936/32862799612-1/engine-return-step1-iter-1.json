@@ -1,0 +1,75 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "diff_profile": "engine_self_modifying",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "requesting-code-review (final-pass, dispatched as general-purpose Task)"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "requesting-code-review (final-pass)"
+  ],
+  "cap_drops": [
+    "prflow:type-design-analyzer — gated off: has_new_types is false (no new class/interface/type/enum/struct/trait in added code)."
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Stale canonical internal doc: docs/internal/implement-skill.md still describes the retired per-phase label mechanism (config-get read in both phases, the tr|sed|grep normalize idiom, per-label ensure-label.sh, 'print the raw config value alongside the normalized list', four-outcome stderr routing) at lines 1500-1513 (§Phase 4.0/4.0.5 deferred-issue labels) and 1768-1777 (§Phase 4.1 docs labels). CLAUDE.md points to this file as the canonical disclosure surface ('The full mechanism is disclosed in docs/internal/implement-skill.md'), and coupled-mirror discipline requires updating it in the same change.",
+      "defect_signature": "coupled-mirror-staleness: canonical doc contradicts the reworked skill after a helper cutover (docs/internal/implement-skill.md)",
+      "file": "docs/internal/implement-skill.md",
+      "line": 1500,
+      "verified": "CONFIRMED — read lines 1500-1513 and 1768-1777; they still instruct the retired config-get read, the split/trim/drop-empties normalizer, the per-label ensure-label.sh call, and raw+normalized printing that this PR removed."
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:892 describes only the stderr-breadcrumb routing (still literally true) but does not mention the new primary stdout outcome-token channel the call sites now route on — incomplete after the rework.",
+      "defect_signature": "incomplete-mirror: overview omits the new stdout-token contract channel",
+      "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+      "line": 892
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Wrong-type guard covers JSON objects (the [object Object] sentinel, matched as a substring so mixed arrays are caught) but not a top-level JSON scalar non-string: a config value that is a bool/number is coerced by config-get.sh to 'true'/'false'/'42', passes the object guard, and is applied verbatim as a garbage label reported 'applied'. Bounded impact (a visibly-odd but valid label on an internal provenance channel); the #1855 test block explicitly documents this scalar row as out-of-scope, so it is a design-accepted residual.",
+      "defect_signature": "wrong-type-guard-gap: scalar-non-string config value applied as a label",
+      "file": "scripts/apply-labels.sh",
+      "line": 101
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Config-driven mode wins unconditionally over positional labels: if a caller passes both positional labels and --config-key, the positionals are silently dropped with no breadcrumb. No current call site mixes the two, so latent only.",
+      "defect_signature": "silent-precedence: config-mode discards positional labels with no signal",
+      "file": "scripts/apply-labels.sh",
+      "line": 79
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "OUTCOME CONTRACT docstring at apply-labels.sh:31 says 'config-unreadable — --config-key mode and config-get exited non-zero', but the same token is also emitted on the wrong-type path (lines 102-105) where config-get exits 0 and the [object Object] sentinel is detected. The closed-set summary under-describes one producer of the token.",
+      "defect_signature": "docstring-accuracy: contract enumeration omits the wrong-type producer of config-unreadable",
+      "file": "scripts/apply-labels.sh",
+      "line": 31
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The folded per-label ensure-label.sh creation loop (apply-labels.sh:159-161) — the headline new behavior — is only covered transitively; no assertion verifies each normalized label is actually passed to ensure-label.sh. A regression dropping the loop, mis-quoting a multi-word label, or passing wrong label text would still print 'applied' and stay green. A stub ensure-label.sh recording its argv would close it. (Also minor: api-failure untested in config-driven mode; config-unreadable via missing-python3 rc-2 not independently asserted — both functionally covered by shared code paths.)",
+      "defect_signature": "test-gap: folded label-creation loop only indirectly covered",
+      "file": "lib/test/run.sh",
+      "line": 14940
+    }
+  ],
+  "phase4_report": "Phase 4.1 report (inline): PR #1936 (issue #1855) folds label config-resolution and outcome classification into scripts/apply-labels.sh — a new --config-key/--config-fallback config-driven mode (the helper resolves the label list itself via config-get.sh), a folded per-label ensure-label.sh creation step, and a closed 5-token stdout outcome contract {applied, nothing-to-apply, arg-slip, api-failure, config-unreadable} so call sites route on a token rather than English stderr sentences. scripts/ensure-label.sh replaces grep -qiE already-exists classification with a bash case under shopt -s nocasematch (grep-less-host portability). Four implement-skill label call sites collapse from a config-get read + per-label ensure + apply into a single apply-labels.sh call each; stale prose is corrected; and a thorough #1855 behavioral test block (all five tokens, the full six-shape config adversarial matrix, mixed-array substring guard, case-insensitive and grep-less already-exists arms) replaces the retired hand-copied deferred_labels_normalize() mirror.\n\nStrengths: the core helper is correct and internally consistent (number shifted off before flag parsing; every path emits exactly one token before exit 0; set -uo pipefail with no set -e preserves the always-exit-0 contract; gh POST stdout -> /dev/null keeps the token channel clean; label normalization is bash-builtins-only per CLAUDE.md guard-class 2). config-get.sh coupling is sound (object substring guard catches mixed arrays; rc!=0 routes to config-unreadable, never a silent empty set). Backward compatibility of positional call sites is preserved. Test coverage is behavioral and strong. Both prior fix iterations landed on-branch and the monolith shard is GREEN.\n\nVerdict rationale: one Important finding — the canonical mechanism doc docs/internal/implement-skill.md (which CLAUDE.md names as the disclosure surface) still describes the retired per-phase config-get/normalize/ensure mechanism at lines 1500-1513 and 1768-1777, a coupled-mirror the change was required to update in the same commit; leaving it would misdirect a maintainer or autonomous run to reintroduce the exact idiom this PR removed (and which the new run.sh absence-pins now turn RED). DEVFLOW_SYSTEM_OVERVIEW.md:892 is a related, lesser incomplete-mirror. Remaining findings are Suggestions (design-accepted scalar-config residual, config-mode-vs-positional precedence, a docstring accuracy gap, and a folded-creation-loop test gap). REJECT pending the coupled-mirror doc update; the code and tests themselves are merge-ready.",
+  "acceptance_criteria_source": "not-resolved-in-subagent (ISSUE_OVERRIDE=1855; caller owns AC verification via Phase 3.4 verifiers)"
+}

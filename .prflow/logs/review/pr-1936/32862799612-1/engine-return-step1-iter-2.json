@@ -1,0 +1,49 @@
+{
+  "dispatch_mode": "fanned-out",
+  "pr": 1936,
+  "issue": 1855,
+  "run_id": "32862799612-1",
+  "reviewed_head": "215c0194e0f6cc99f3a356e2b4bf613587e10f32",
+  "verdict": "APPROVE",
+  "verdict_severity_threshold": "critical",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "docs_only": false,
+    "test_only": false,
+    "notes": "Mixed diff: shell helpers (apply-labels.sh, ensure-label.sh), skill/phase prose (4 label call sites collapsed), internal docs, run.sh behavioral pins, coverage-map, changeset. 13 files, +352/-265."
+  },
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_findings": [],
+  "cap_drops": [],
+  "phase_4_1_report": {
+    "verdict_line": "APPROVE — label config-resolution + outcome classification folded into apply-labels.sh cleanly; the new config-driven mode, stdout outcome-token contract, folded ensure-label creation, and the grep->bash-case cutover in ensure-label.sh are all internally consistent, behaviorally tested, and accurately documented.",
+    "issue_compliance": "Reviewed against issue #1855. Criteria from the /prflow:implement workpad. The four implement label call sites (Phase 3.1 provenance, Phase 4.0/4.0.5 deferred, Phase 4.1 docs) each collapse to one apply-labels.sh invocation; the config-driven --config-key/--config-fallback mode, the closed 5-token stdout set {applied,nothing-to-apply,arg-slip,api-failure,config-unreadable}, folded per-label creation, and the grep-free ensure-label.sh already-exists classification are all present and match the acceptance criteria.",
+    "verification_checklist": "No FAIL, no INCONCLUSIVE. Behavioral pins in lib/test/run.sh drive the real scripts against a stubbed gh and cover the full config-shape matrix (scalar, empty->fallback, whitespace-only->nothing-to-apply, corrupt->config-unreadable, object->config-unreadable, array->applied, mixed-array-with-object->config-unreadable substring guard, missing-key->fallback) plus positional-mode token outcomes and the ensure-label.sh grep-less already-exists classification. Handoff reports monolith shard GREEN (10022 passed, 0 failed).",
+    "code_review_findings": "No new findings. The one iter-1 Important finding (stale docs describing the retired per-phase label mechanism) was fixed in commits a2e6e1120 + 6779d5b31 and the corrected docs (implement-skill.md, DEVFLOW_SYSTEM_OVERVIEW.md) accurately describe the collapsed apply-labels.sh --config-key/stdout-token mechanism. Load-bearing verifications this iteration: (1) the diff-added wrong-type-guard comment claiming config-get.sh coerces a JSON object to '[object Object]' is TRUE (config-get.sh coerce() returns '[object Object]' for dict and comma-joins arrays element-wise) — not a self-contradicting diff; (2) ensure-label.sh's shopt -s/-u nocasematch cannot leak because apply-labels.sh exec's ensure-label.sh as a subprocess, never sources it; (3) all four label channels and skills/implement/SKILL.md are updated consistently — no half-updated diff-modified section describing the old ensure/config-get/normalize flow.",
+    "over_grade_annotation": "over-grade annotation: no finding flagged",
+    "truthfulness_sweep": "truthfulness sweep: no finding promoted",
+    "intra_diff_contradiction_scan": "intra-diff contradiction scan: no contradiction found"
+  },
+  "already_considered_iter1": {
+    "fixed": "docs/internal/implement-skill.md retired-mechanism prose (now accurate)",
+    "parked_suggestions": [
+      "bounded wrong-type scalar guard",
+      "config-mode-discards-positional latent case (no call site mixes modes)",
+      "docstring nit",
+      "transitive ensure-loop coverage",
+      "overview-prose incompleteness (also addressed)"
+    ]
+  }
+}

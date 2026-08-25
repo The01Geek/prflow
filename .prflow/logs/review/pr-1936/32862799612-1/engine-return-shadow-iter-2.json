@@ -1,0 +1,133 @@
+{
+  "dispatch_mode": "fanned-out",
+  "pr_number": 1936,
+  "run_id": "32862799612-1",
+  "slug": "pr-1936",
+  "iteration": 2,
+  "blinded": true,
+  "head_reviewed": "215c0194e0f6cc99f3a356e2b4bf613587e10f32",
+  "head_override": "local",
+  "issue_override": 1855,
+  "base_ref_used_for_diff": "origin/main (merge-base b8861d1534ee4bc10f1a8422f1d1ea17347f18ca)",
+  "verdict": "APPROVE",
+  "diff_profile": {
+    "classification": "code+prose (shell helpers + agent-facing prompt prose + tests + docs)",
+    "in_scope_files": [
+      "scripts/apply-labels.sh",
+      "scripts/ensure-label.sh",
+      "skills/implement/phases/phase-3-review.md",
+      "skills/implement/phases/phase-4-documentation.md",
+      "skills/implement/references/deferred-ac-followups.md",
+      "skills/implement/references/deferred-review-findings.md",
+      "skills/implement/SKILL.md",
+      "skills/create-issue/references/step-4-present-create.md",
+      "lib/test/run.sh",
+      "lib/test/modules/coverage-map.json",
+      "docs/internal/implement-skill.md",
+      "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+      ".changeset/issue-1855-fold-label-config-outcome.md"
+    ],
+    "touches_tests": true,
+    "type_design_gated_out": "no new types",
+    "pr_test_analyzer_gated_in": "diff touches lib/test/run.sh"
+  },
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "cap_drops": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "scripts/ensure-label.sh unconditionally runs `shopt -u nocasematch` after its case block rather than saving/restoring the prior setting; latent only (invoked solely as a subprocess, so shopt state does not leak today).",
+      "defect_signature": "ensure-label.sh:shopt-u-nocasematch-unconditional-restore",
+      "verified": "CONFIRMED",
+      "disposition": "Real, non-blocking. Corroborated independently by the final-pass reviewer."
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "lib/test/run.sh #1855 comment says the `tr|sed|grep normalizer ... moved INTO apply-labels.sh`; the helper deliberately forbids that pipeline (bash-builtins only), so the wording could mislead a reader. Behavior-inert test prose.",
+      "defect_signature": "run.sh:1855-comment-normalizer-wording-imprecise",
+      "verified": "CONFIRMED",
+      "disposition": "Real clarity nit, non-blocking."
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Six-shape config matrix: the explicitly-false-like (JSON boolean/number scalar) row is dismissed by comment rather than asserted; empty-string stands in for valid-falsy. A one-line assert would close it.",
+      "defect_signature": "run.sh:config-matrix-valid-falsy-row-unasserted",
+      "verified": "CONFIRMED",
+      "disposition": "Minor coverage gap; overall coverage adequate."
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "config-unreadable exercised via corrupt-JSON rc!=0 only, not a genuinely absent python3; and --config-key mode combined with a non-numeric number (config-mode arg-slip) is untested; apply-labels idempotency asserted only transitively via ensure-label.",
+      "defect_signature": "run.sh:config-mode-argslip-and-missing-python3-and-idempotency-untested",
+      "verified": "CONFIRMED",
+      "disposition": "Minor coverage gaps on same downstream branches; non-blocking."
+    }
+  ],
+  "rejected_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "claimed_severity": "Critical",
+      "claim": "scripts/devflow-cloud-writer-contract.json branch-side digest regeneration turns cloud-writer-retention-check.py RED in CI.",
+      "adjudication": "FALSE POSITIVE. The reviewer used the stale local `main` ref (66eec8a8a) as the diff base. The true merge-base of HEAD and origin/main is b8861d15; diffing origin/main...HEAD shows devflow-cloud-writer-contract.json is NOT changed by this PR. The digest entries came from origin/main (merged in), not this branch.",
+      "defect_signature": "false-positive:stale-base-cloud-writer-contract"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "claimed_severity": "Minor/scope",
+      "claim": "phase-4-documentation.md removed the mandatory post-subagent §4.2/§4.3 phase-file re-anchor, unrelated to issue #1855.",
+      "adjudication": "FALSE POSITIVE. Same stale-base pollution. `git diff origin/main...HEAD` for phase-4-documentation.md contains no Re-anchor/Resume-directly change; the re-anchor removal is inherited from origin/main (a prior PR), not authored by #1936. The in-scope phase-4 change is only the label call-site collapse.",
+      "defect_signature": "false-positive:stale-base-reanchor-removal"
+    }
+  ],
+  "phase_4_1_report": {
+    "verdict": "APPROVE",
+    "summary": "Independent blinded shadow re-review of PR #1936 converges on APPROVE. The change folds label config-resolution + outcome classification into scripts/apply-labels.sh (new --config-key/--config-fallback flags plus a closed five-value stdout outcome-token set: applied, nothing-to-apply, arg-slip, api-failure, config-unreadable), replaces grep with a bash `case`/`nocasematch` in scripts/ensure-label.sh, collapses the four implement-tier label call sites to a single apply-labels.sh invocation each, updates the create-issue cross-skill pointer, adds behavioral lib/test/run.sh pins, corrects docs/internal prose, and adds a changeset.",
+    "ac_audit": {
+      "AC1_single_invocation_no_separate_read_or_ensure": "met (absence pins confirm the config read, tr|sed|grep normalizer, and separate ensure-label.sh call are gone at every call site)",
+      "AC2_one_token_stdout_only": "met (every terminal path emits exactly one token; gh POST stdout and internal ensure stdout both -> /dev/null)",
+      "AC3_five_token_closed_set_no_already_exists": "met (applied, nothing-to-apply, arg-slip, api-failure, config-unreadable; none contains 'already exists')",
+      "AC4_stderr_messages_byte_preserved": "met (pre-existing fixed-string stderr assertions retained and still passing; stdout token does not collide)",
+      "AC5_empty_string_to_fallback_whitespace_to_none": "met (behaviorally tested)",
+      "AC6_ensure_label_no_grep_success_on_grepless_path": "met (bash case + nocasematch; failing-test-first with a grep exit-127 PATH stub)",
+      "AC7_no_token_capture_or_shell_condition_lint_clean": "met (agent-level routing; command-shape lint pins the new call-site shape)",
+      "AC8_each_call_site_names_token_once_no_stderr_restatement": "met",
+      "AC9_non_success_token_records_durable_workpad_note": "met (each call site routes every non-applied/nothing-to-apply token and no-output-at-all to a dropped-failed reflection)",
+      "AC10_three_anchors_resolve": "met (sed-range terminator config-get.sh .docs.labels Documented retained; routing-bullet count 7->6; create-issue pointer re-aimed)",
+      "AC11_docs_deferred_vs_documentation_channels_corrected": "met",
+      "AC12_stale_run_sh_empty_set_comment_corrected": "met (now states the helper writes a breadcrumb)",
+      "AC13_no_output_refusal_vs_missing_path_anchor_failure": "met (call sites carve out exit-127/No such file as anchor-resolution failure)",
+      "AC14_no_new_capability_profiles_entry": "met (flag added to already-granted helper path)"
+    },
+    "independent_correctness_checks_by_orchestrator": [
+      "Verified live that scripts/config-get.sh coerce() emits the literal `[object Object]` (rc 0) for a JSON object and `X,[object Object]` for a mixed array, so apply-labels.sh's SUBSTRING wrong-type guard and its test are sound (an early suspicion that the sentinel was JS-only dead code was disproved).",
+      "Confirmed NUMBER=${1:-} is captured before flag parsing so the issue number is not swallowed into the label list.",
+      "Confirmed `set -- \"$_CFG_RAW\"` is quoted, preserving spaces in multi-word labels while comma-splitting downstream.",
+      "Adjudicated the code-reviewer's Critical + scope findings as stale-base false positives via git merge-base against origin/main."
+    ]
+  },
+  "reviewer_assessments": {
+    "prflow:code-reviewer": "Judged ACs 1-9 satisfied; token set exact, stdout token-only, six-shape config matrix real. Raised a Critical on devflow-cloud-writer-contract.json digest regeneration and a scope note on phase-4 re-anchor removal — BOTH adjudicated false positives (reviewer used stale local `main` base; neither file/change is in this PR relative to origin/main).",
+    "prflow:silent-failure-hunter": "No critical/high. Confirmed every terminal path in apply-labels.sh emits exactly one token and exits 0 with no tokenless fall-through; config-unreadable fires on config-get rc 2 (missing python3); ensure-label loop hides no real failure (POST is the authoritative gate); ensure-label 422 discrimination correct. One LOW: unconditional shopt -u nocasematch restore (latent, subprocess-only).",
+    "prflow:comment-analyzer": "All substantive comment claims accurate: the [object Object] coerce claim verified against config-get.sh; OUTCOME CONTRACT header, ensure-label nocasematch rationale, and the corrected run.sh empty-set comment all match behavior. One low: the run.sh #1855 comment's 'tr|sed|grep normalizer moved INTO apply-labels.sh' wording is imprecise (helper forbids that pipeline).",
+    "prflow:pr-test-analyzer": "Coverage strong and behavioral (real helpers, stubbed gh via DEVFLOW_GH, real config-get against a throwaway config; whole-stdout equality per token). ACs 1-9 covered. Minor gaps: JSON-boolean valid-falsy row asserted by comment only; missing-python3 not independently exercised; config-mode arg-slip untested; apply-labels idempotency only transitive. No brittle/over-fitted tests.",
+    "prflow:requesting-code-review": "APPROVE. Correctly diffed against origin/main (noted main...HEAD pollution from a merged-in origin/main). All ACs met; changeset added and plugin.json/CHANGELOG not hand-edited; meta-issue.sh apply-labels call is standalone (stdout token harmless); no capability-profiles grant added. Same low shopt observation; meta-issue.sh double label-create is idempotent/harmless."
+  },
+  "notes": "Blinded fan-out: each reviewer received NO prior findings and an 'already-considered: none' instruction. Reviewer prompts were seeded with a main...HEAD diff hint; the orchestrator independently detected and corrected the stale-base pollution (local main 66eec8a8a is behind origin/main 2f52581) before finalizing, discharging the only Critical as a false positive."
+}
