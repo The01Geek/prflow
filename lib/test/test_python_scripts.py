@@ -90,6 +90,13 @@ workpad._required_artifact_verdict = lambda prog_content: None
 # re-installs this bypass after.
 _REAL_REVIEW_COVERAGE_VERDICT = workpad._review_coverage_verdict
 workpad._review_coverage_verdict = lambda prog_content: None
+# issue #1817: the terminal `--status Complete` gate ALSO now refuses an
+# `_EXTENSION_ROWS` row that is unticked with no `state not established` note.
+# Bypassed by default for the same reason as the three verdicts above — the pre-#1817
+# Complete tests exercise those members, not this one; the dedicated #1817 block
+# restores the real function, exercises it directly, and re-installs this bypass after.
+_REAL_EXTENSION_ROW_VERDICT = workpad._extension_row_verdict
+workpad._extension_row_verdict = lambda prog_content: None
 parse_acs = _load('parse_acs', SCRIPTS / 'parse-acs.py')
 section_parse = _load('section_parse', SCRIPTS / 'section_parse.py')
 file_deferrals = _load('file_deferrals', SCRIPTS / 'file-deferrals.py')
@@ -12299,6 +12306,117 @@ assert_eq("#1453: every dirty axis reports its gap, deduped and in table order",
 
 # Restore the module-load bypass so any later Complete tests are not gated on the record.
 workpad._review_coverage_verdict = lambda prog_content: None
+
+# ── issue #1817: the terminal --status Complete extension-row gate ─────────────
+# The gate refuses a Complete write while any `prompt extension resolved:` row is
+# unticked AND carries no sanctioned `state not established` note — mirroring the
+# unticked-AC hard-fail. The other three prog_content verdicts stay no-op'd (above)
+# so this block exercises the extension-row member in isolation.
+print()
+print("issue #1817: terminal --status Complete extension-row gate")
+workpad._extension_row_verdict = _REAL_EXTENSION_ROW_VERDICT
+
+_EXT_BODY = """<!-- devflow:workpad -->
+# DevFlow Workpad — Issue #1817t
+
+**Status:** 🚀 Reviewing
+**Branch:** `x`
+**Last updated:** 2026-05-15 00:00 UTC
+
+## Progress
+- [x] **Setup** — branch & workpad
+  - [x] prompt extension resolved: implement
+- [x] **Review**
+  - [x] prompt extension resolved: review engine
+  - [x] prompt extension resolved: fix loop
+  - [x] prompt extension resolved: code-review reception
+- [x] **Implement**
+
+## Plan
+- [x] step
+
+## Acceptance Criteria
+- [x] AC1
+
+## Devflow Reflection
+<details>
+<summary>Devflow Reflection (click to expand)</summary>
+
+</details>
+"""
+# AC2: _EXT_BODY ticks all four _EXTENSION_ROWS members → Complete finalizes (Status → 🎉).
+_ext_ok = apply_mut(_EXT_BODY, make_args(status="Complete"), [])
+assert_eq("#1817 AC2: an all-ticked extension-row workpad finalizes Complete",
+          True, "🎉 Complete" in _statusline(_ext_ok))
+
+# One extension row unticked, no note.
+_EXT_UNTICKED = _EXT_BODY.replace(
+    "  - [x] prompt extension resolved: fix loop",
+    "  - [ ] prompt extension resolved: fix loop")
+
+# AC1: a Complete with an unticked, un-noted extension row is refused, naming the row.
+_ext_err = None
+try:
+    apply_mut(_EXT_UNTICKED, make_args(status="Complete"), [])
+except workpad._UpdateError as e:
+    _ext_err = str(e)
+assert_eq("#1817 AC1: an unticked, un-noted extension row refuses Complete",
+          True, _ext_err is not None)
+assert_eq("#1817 AC1: the refusal is tagged [extension-row-unrecorded] and names the row",
+          True, _ext_err is not None and "[extension-row-unrecorded]" in _ext_err
+          and "prompt extension resolved: fix loop" in _ext_err)
+# AC4: the refusal aborts before any PATCH — no mutation, non-zero exit.
+_code, _out, _err, _patched = _drive_cmd_update(_EXT_UNTICKED, status="Complete")
+assert_eq("#1817 AC4: the refused Complete makes NO PATCH and exits non-zero",
+          (1, None), (_code, _patched))
+
+# AC2: an unticked row WITH its `state not established` note finalizes. The note lands
+# in ## Progress via the real --note append path, then the post-mutation gate reads it.
+_ext_noted = apply_mut(_EXT_UNTICKED, make_args(
+    status="Complete",
+    note=["extension resolved: fix loop — state not established (loader ladder refused)"]),
+    [])
+assert_eq("#1817 AC2: an unticked row + its state-not-established note finalizes Complete",
+          True, "🎉 Complete" in _statusline(_ext_noted))
+
+# AC3: Blocked and Failed are accepted with an unticked, un-noted extension row.
+for _terminal in ("Blocked", "Failed"):
+    _res = None
+    try:
+        _res = apply_mut(_EXT_UNTICKED, make_args(status=_terminal), [])
+    except workpad._UpdateError:
+        assert_eq(f"#1817 AC3: --status {_terminal} must not be gated on extension rows",
+                  True, False)
+    assert_eq(f"#1817 AC3: --status {_terminal} applies over an unticked extension row",
+              True, _res is not None
+              and workpad._status_glyph(_terminal) in _statusline(_res))
+
+# Gotcha: a pre-#1462 workpad carries NONE of the rows — the gate must tolerate a
+# wholly-absent row set rather than refuse Complete on every legacy workpad. `_CP_BODY`
+# has no extension rows at all; with AC ticked, Complete must not raise from this gate.
+_ext_legacy = _CP_BODY.replace("- [ ] AC1", "- [x] AC1")
+_legacy_res = apply_mut(_ext_legacy, make_args(status="Complete"), [])
+assert_eq("#1817 gotcha: a wholly-absent extension-row set does not detonate the gate",
+          True, "🎉 Complete" in _statusline(_legacy_res))
+
+# The pure-read invariant, directly: the verdict takes only its progress-content
+# argument, returns None on a satisfied ## Progress and raises on an unsatisfied one.
+assert_eq("#1817: the verdict returns None on a ticked extension row",
+          None, workpad._extension_row_verdict(
+              "  - [x] prompt extension resolved: fix loop"))
+assert_eq("#1817: the verdict returns None on a wholly-absent row set",
+          None, workpad._extension_row_verdict("- 03:00:00 — nothing here"))
+assert_eq("#1817: the verdict returns None on an unticked row WITH its note",
+          None, workpad._extension_row_verdict(
+              "  - [ ] prompt extension resolved: fix loop\n"
+              "  - 03:00:00 — extension resolved: fix loop — state not established (x)"))
+assert_raises("#1817: the verdict raises _UpdateError on an unticked, un-noted row",
+              workpad._UpdateError,
+              lambda: workpad._extension_row_verdict(
+                  "  - [ ] prompt extension resolved: fix loop"))
+
+# Restore the module-load bypass so any later Complete tests are not gated on the rows.
+workpad._extension_row_verdict = lambda prog_content: None
 
 # ── issue #548: cmd_record_adjudication reject-path coverage (the agreement invariant is the
 #    feature's core new safety gate — every _fail guard is driven, plus the unestablished
