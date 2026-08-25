@@ -3341,6 +3341,30 @@ assert_eq "#1828: partial coverage — mean is the covered value alone" "4" \
 assert_eq "#1828: partial coverage — covered_occurrence_count counts only covered" "1" \
   "$(printf '%s' "$CP_PART" | jq -r '.["doc-accuracy"].covered_occurrence_count')"
 
+# The per-PR cost-index type guards each skip a malformed experiment record rather than
+# aborting the WHOLE weekly jq derivation. Each shape below pairs a malformed record with a
+# valid one (pr 1, iterations 4): the guard must drop the malformed record and leave the
+# valid coverage intact — occurrence_count 2 (filter ran to completion), covered 1, cost 4.
+# Removing any guard makes the malformed record abort the filter, so cp_run emits nothing and
+# the assertion goes RED. (The non-number `iterations` shape is exercised by CP_UNCOV/CP_PART.)
+cp_guard_intact() { # <malformed-experiment-line>
+  cp_run \
+    '{"schema_version":2,"kind":"implementation","pr":1,"merged_at":"2026-04-01T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}
+{"schema_version":2,"kind":"implementation","pr":2,"merged_at":"2026-04-02T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+    '{"schema_version":2,"patterns":{},"dismissed":{}}' \
+    "$1"'
+{"pr":1,"efficiency_runs":[{"iterations":4}]}' \
+  | jq -e '.["incomplete-edit"] | .occurrence_count == 2 and .covered_occurrence_count == 1 and .cost_mean_iterations == 4' >/dev/null 2>&1 && echo true || echo false
+}
+assert_eq "#1828 guard: a non-object experiment row does not abort the cost index" "true" \
+  "$(cp_guard_intact '42')"
+assert_eq "#1828 guard: a non-number pr does not abort the cost index" "true" \
+  "$(cp_guard_intact '{"pr":"abc","efficiency_runs":[{"iterations":9}]}')"
+assert_eq "#1828 guard: a non-array efficiency_runs does not abort the cost index" "true" \
+  "$(cp_guard_intact '{"pr":2,"efficiency_runs":"nope"}')"
+assert_eq "#1828 guard: a non-object efficiency_runs element does not abort the cost index" "true" \
+  "$(cp_guard_intact '{"pr":2,"efficiency_runs":[42]}')"
+
 # AC2 + AC3: actionable-patterns.sh ranks covered patterns by descending cost, with a
 # zero-coverage pattern last (still passing the unchanged min_occurrences gate). The
 # experiment records live as a SIBLING of the retrospectives file.
