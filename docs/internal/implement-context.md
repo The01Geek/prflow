@@ -320,15 +320,15 @@ with provenance, and no gate, ceiling, or threshold reads them.
 | Generating instrument | `scripts/implement-context-eval.py` |
 | Generating revision | `cccf0e5f7038c5e5460383ce3c7bdd962b3e21a7` |
 | Capture date | 2026-08-25 |
-| Corpus root | one local Claude Code account's `~/.claude*/projects` directory, passed whole (the sibling accounts' held no transcripts); the tool walks it and selects the `*.jsonl` members itself |
+| Corpus root | one local Claude Code account's `~/.claude*/projects` directory, passed whole (the sibling accounts held no transcripts); the tool walks it and selects the `*.jsonl` members itself |
 | Corpus size | 6,647 session transcripts, yielding **148** bounded `/prflow:implement` runs |
 | Tier covered | local/interactive only |
 | Median peak main-thread context | **138K** tokens |
 | Max peak main-thread context | **424K** tokens |
 | Runs exceeding 200K | **31** of 148 |
 | Runs exceeding 400K | **1** of 148 |
-| `compact_boundary` events | **13** across **11** of 148 runs |
-| Median / max turns per run | **13** / **255** |
+| `compact_boundary` events (hand-aggregated) | **13** across **11** of 148 runs |
+| Median / max turns per run (hand-aggregated) | **13** / **255** |
 | Phase-file reads, corpus total | phase-1 157, phase-2 59, phase-3 23, phase-4 4 |
 | Median / max phase-file reads per run | **1** / **8** |
 | Median / max main-thread tool calls per run | **6** / **167** |
@@ -360,7 +360,7 @@ its scrubbed transcript under a name ending `.json`, while the collector in
 is skipped with no error at all, and the corpus above is local/interactive by construction.
 The drop is untallied, so a corpus of wrong-suffixed files reports zero runs and exits 0
 rather than saying anything was skipped — and a mixed corpus silently under-counts by
-however many of its transcripts carry the other suffix. Renaming the artifact would not be enough on its
-own: `scripts/scrub-transcript.sh` prepends a `#`-comment caveat header to it, and
+however many of its transcripts carry the other suffix. Renaming the artifact would not be
+enough on its own: `scripts/scrub-transcript.sh` prepends a `#`-comment caveat header to it, and
 `scripts/extract-execution-cost.py` records its observed shapes as a single object, a JSON
 array, or JSONL — so the suffix is the first barrier, not the only one.
