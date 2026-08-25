@@ -43697,12 +43697,9 @@ assert_eq "#1830 ci.yml: the verify step runs on monolith independent of the ins
 # Negative control: the matcher is not vacuously `yes` — a shard never gated for reads `no`.
 assert_eq "#1830 ci.yml gate control: an unused shard condition is NOT present" "no" \
   "$(devflow_ci_shard_has "if: matrix[.]shard == 'no-such-shard'")"
-# The fail-loud backstop, driven end-to-end (RED/GREEN without a live CLI outage): a
-# fixture tree whose stub run.sh emits the crafted monolith log, so run-shard.sh's own
-# detection decides the shard's exit. The #671 CLI-absence skip FAILS the shard; an
-# unrelated #434 blocking-gate skip and a clean log pass — proving the #671 scope. Each
-# log carries a clean `1 passed, 0 failed` tally, so the exit turns ONLY on the backstop
-# (shard-tally.py extract returns 1 on a nonzero shard_rc even with a clean tally).
+# The backstop is driven end-to-end through a fixture tree, so run-shard.sh's own detection
+# decides each exit. Keep every stub log's tally clean (`1 passed, 0 failed`): a fixture that
+# also fails a test would make these assertions pass without the backstop firing at all.
 CGA_TREE="$(mktemp -d)"
 [ -n "$CGA_TREE" ] && [ -d "$CGA_TREE" ] || { printf 'FATAL: mktemp -d failed for the #1830 gate-armed controls\n' >&2; exit 1; }
 mkdir -p "$CGA_TREE/lib/test"
@@ -43730,11 +43727,9 @@ printf 'Module %s: 1 passed, 0 failed\n' "${1:-stub}"
 printf '  SKIP  #671 claude plugin validate --strict (plugin tree + descent matrix) [blocking-gate] — claude CLI not on PATH — not run\n'
 CGA_EOF
 chmod +x "$CGA_TREE/lib/test/run-module.sh"
-# Coupling to skip()'s REAL format: drive the actual skip() (SKIPS_FILE redirected to a sink
-# so the suite tally is untouched) with a #671-shaped CLI-absence call, capture its genuine
-# emission, and feed THAT through the real run-shard.sh backstop below (the `realnote` case).
-# So a drift between skip()'s output format and the backstop regex reddens here rather than
-# silently disarming the guard — without embedding the regex in this file (issue #1830).
+# Drive the REAL skip() rather than hand-authoring its line, so a drift between skip()'s output
+# format and the backstop regex reddens here. Keep SKIPS_FILE redirected to the sink: an
+# unredirected call would add a phantom skip to the suite's own tally.
 ( SKIPS_FILE="$CGA_TREE/skips-sink"; skip "#671 claude plugin validate --strict (coupling probe)" blocking-gate "claude CLI not on PATH (coupling probe)" ) > "$CGA_TREE/real-note.txt"
 assert_eq "#1830 run-shard: the #671 CLI-absence skip FAILS the monolith shard" "nonzero" \
   "$(cd "$CGA_TREE" && CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-rev" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
@@ -43756,6 +43751,49 @@ assert_eq "#1830 run-shard: a non-monolith (module) shard whose log carries the 
 # run-shard.sh regex to run.sh's real skip() format, not to a hand-authored fixture line.
 assert_eq "#1830 run-shard: skip()'s REAL #671 CLI-absence emission trips the backstop" "nonzero" \
   "$(cd "$CGA_TREE" && CGA_CASE=realnote CGA_REAL_PATH="$CGA_TREE/real-note.txt" DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-real" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+# Fail-closed arm: an unreadable log must not read as "no skip found" (log.txt is pre-created as
+# a DIRECTORY so grep reports a scan error). Do not assert the verdict unconditionally — a host
+# whose grep answers 1 here would have this pin its behavior rather than the guard's.
+mkdir -p "$CGA_TREE/t-unscan/log.txt"
+grep -Eq -- 'x' "$CGA_TREE/t-unscan/log.txt" 2>/dev/null
+CGA_UNSCAN_RC=$?
+if [ "$CGA_UNSCAN_RC" -gt 1 ]; then
+  assert_eq "#1830 run-shard: a log the backstop cannot scan fails the shard CLOSED" "nonzero" \
+    "$(cd "$CGA_TREE" && CGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-unscan" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+else
+  skip "#1830 run-shard unscannable-log fail-closed arm" host-capability "this host's grep returns $CGA_UNSCAN_RC (not >1) on an unreadable target, so the scan-error condition is not reproducible here"
+fi
+unset CGA_UNSCAN_RC
+# Do not stop at the probe above: its name/reason are CRAFTED, so it couples the backstop regex
+# to skip()'s FORMAT only, and renaming either real gate call-site would disarm the guard with
+# every assertion here still green. Re-drive the real call-sites' own literals instead.
+# structural-pin-ok: cross-file-phase-contract -- these two `skip` calls are the producers run-shard.sh's backstop regex consumes; a count change means a rename or rewrap the extraction below can no longer drive (issue #1830)
+CGA_SITES="$CGA_TREE/sites.txt"
+grep '^  skip "#671 claude plugin validate --strict' "$LIB/test/run.sh" > "$CGA_SITES" || true
+assert_eq "#1830 coupling: both real #671 CLI-absence gate call-sites are single-line and extractable" "2" \
+  "$(grep -c . "$CGA_SITES" || true)"
+CGA_N=0
+while IFS= read -r _cga_site || [ -n "$_cga_site" ]; do
+  CGA_N=$((CGA_N + 1))
+  # Split `  skip "NAME" KIND "REASON"` with builtins only — a non-preflight PATH tool would
+  # empty these operands silently and stamp the coupling assertions green on nothing.
+  _cga_rest="${_cga_site#*skip \"}"
+  _cga_name="${_cga_rest%%\"*}"
+  _cga_rest="${_cga_rest#*\" }"
+  _cga_kind="${_cga_rest%% *}"
+  _cga_reason="${_cga_rest#* \"}"
+  _cga_reason="${_cga_reason%\"*}"
+  # Both real producers of the scanned log: skip()'s own NOTE line, and the `  SKIP  ` line
+  # lib/test/summary.sh renders for each self-skip at end of run. The backstop regex accepts
+  # both prefixes because a real monolith log carries both, so both are driven here.
+  ( SKIPS_FILE="$CGA_TREE/site-skips-$CGA_N"; skip "$_cga_name" "$_cga_kind" "$_cga_reason" ) > "$CGA_TREE/site-note-$CGA_N.txt"
+  devflow_render_test_summary 1 0 1 "$CGA_TREE/site-skips-$CGA_N" > "$CGA_TREE/site-skip-$CGA_N.txt"
+  assert_eq "#1830 coupling: real gate call-site $CGA_N — skip()'s NOTE emission trips the backstop" "nonzero" \
+    "$(cd "$CGA_TREE" && CGA_CASE=realnote CGA_REAL_PATH="$CGA_TREE/site-note-$CGA_N.txt" DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-site-n$CGA_N" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+  assert_eq "#1830 coupling: real gate call-site $CGA_N — the rendered SKIP summary line trips the backstop" "nonzero" \
+    "$(cd "$CGA_TREE" && CGA_CASE=realnote CGA_REAL_PATH="$CGA_TREE/site-skip-$CGA_N.txt" DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-site-s$CGA_N" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+done < "$CGA_SITES"
+unset _cga_site _cga_rest _cga_name _cga_kind _cga_reason CGA_SITES CGA_N
 rm -rf "$CGA_TREE"
 #
 # ── scripts/assert-cli-version.sh: every arm of the extracted version check ──

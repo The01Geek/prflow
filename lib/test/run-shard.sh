@@ -141,13 +141,18 @@ cat "$LOG_FILE" || true
 LOG_FILE_ABS="$(cd "${LOG_FILE%/*}" && pwd -P)/${LOG_FILE##*/}"
 printf 'run-shard.sh: retained log: %s\n' "$LOG_FILE_ABS"
 
-# Fail the shard when the #671 plugin-validate gate self-skipped for CLI absence — a skip
-# exits 0, so this is what stops a silent revert (issue #1830). Run on EVERY shard: do NOT
-# scope to `monolith` by name (breaks migration-detection). The `(NOTE|SKIP)  ` prefix anchors
-# on skip()'s own emission (run.sh) so a log line that merely QUOTES the pattern cannot trip it,
-# and the #671+CLI-absence keys exclude the #434 self-scan skip.
-if grep -Eq -- '(NOTE|SKIP)  #671 claude plugin validate --strict.*blocking-gate.*claude CLI not on PATH' "$LOG_FILE"; then
+# Fail the shard when the #671 plugin-validate gate self-skipped for CLI absence: a skip exits
+# 0, so a disarmed gate would otherwise recombine green (issue #1830). Do not scope this to
+# `monolith` by name, drop the `(NOTE|SKIP)  ` emission anchor, or widen past the #671 keys.
+grep -Eq -- '(NOTE|SKIP)  #671 claude plugin validate --strict.*blocking-gate.*claude CLI not on PATH' "$LOG_FILE"
+cli_skip_rc=$?
+if [ "$cli_skip_rc" -eq 0 ]; then
   printf '::error::run-shard.sh: the #671 plugin-validate gate self-skipped for CLI absence on shard %s — the claude CLI must be installed on whichever shard hosts that gate (see .github/workflows/ci.yml). Failing loudly rather than reverting the gate silently (issue #1830).\n' "$SHARD" >&2
+  shard_rc=1
+elif [ "$cli_skip_rc" -ne 1 ]; then
+  # A grep rc above 1 is a scan ERROR, not "no match" — do not fold it into the no-match arm,
+  # which would fail this guard open on exactly the unscannable log it exists to catch.
+  printf '::error::run-shard.sh: could not scan shard %s log %s for the #671 CLI-absence skip (grep exit %s) — failing closed rather than reading an unscannable log as clean (issue #1830).\n' "$SHARD" "$LOG_FILE" "$cli_skip_rc" >&2
   shard_rc=1
 fi
 
