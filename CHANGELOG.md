@@ -4,6 +4,17 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.13] — 2026-08-25
+
+### Changed
+- **Single-sourced the shared transcript-walking helpers in the context-cost instruments.**
+  Five helpers were duplicated across `scripts/create_issue_eval.py`,
+  `scripts/implement-context-eval.py` and `scripts/review-context-eval.py` —
+  `_iter_session_files`, `_median`, `_context_tokens`, the per-field usage reader, and the
+  `UNESTABLISHED` sentinel. They now have one definition in a new
+  `scripts/context_eval_shared.py` that each instrument imports, so a fix lands once instead of
+  drifting across three private copies (the drift that produced #1899's defect). (#1926)
+
 ## [2.34.12] — 2026-08-25
 
 ### Added
