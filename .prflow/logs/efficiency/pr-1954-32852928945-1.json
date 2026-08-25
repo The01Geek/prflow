@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1954",
+  "generated_at": "2026-08-25T14:16:07Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 15.915058849999998,
+    "tokens": {
+      "input_tokens": 140,
+      "output_tokens": 65427,
+      "cache_read_input_tokens": 15919046,
+      "cache_creation_input_tokens": 292249,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 186,
+        "outputTokens": 74115,
+        "cacheReadInputTokens": 17606979,
+        "cacheCreationInputTokens": 449282,
+        "webSearchRequests": 0,
+        "costUSD": 14.561240749999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 68,
+        "outputTokens": 12768,
+        "cacheReadInputTokens": 2662348,
+        "cacheCreationInputTokens": 277413,
+        "webSearchRequests": 0,
+        "costUSD": 1.3538180999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 96,
+    "duration_ms": 3134053
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"; echo \"RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; git status --porcelain; git branch --show-current",
+      "git diff origin/main..HEAD > .prflow/tmp/ac-diff-1831.patch\nwc -l .prflow/tmp/ac-diff-1831.patch\ngit rev-parse HEAD",
+      ".prflow/vendor/prflow/scripts/checkout-fingerprint.py > .prflow/tmp/ac5-checkout.json 2>&1; cat .prflow/tmp/ac5-checkout.json",
+      "cat > /home/runner/work/prflow/prflow/.prflow/tmp/ac5-claim.json << 'EOF'\n{\"schema_version\": 1, \"candidate_identity\": \"ac-verifier-1831\",\n \"profile\": {\"profile_version\": \"1\", \"argv\": [\"lib/test/run-parallel.sh\"], \"cwd\": \"/home/runner/work/prflow/prflow\",\n   \"environment\": {}, \"toolchain\": {}, \"dependencies\": {}, \"output_roots\": [], \"external_services\": \"none\"},\n \"checkout\": {\"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n   \"head\": \"44aea87397e593fd81eac21fef331aea1cda00c2\", \"index_diges …[per-command-truncated]",
+      "python3 - << 'PYEOF'\nimport json\nd = {\"schema_version\": 1, \"candidate_identity\": \"ac-verifier-1831\",\n \"profile\": {\"profile_version\": \"1\", \"argv\": [\"lib/test/run-parallel.sh\"], \"cwd\": \"/home/runner/work/prflow/prflow\",\n   \"environment\": {}, \"toolchain\": {}, \"dependencies\": {}, \"output_roots\": [], \"external_services\": \"none\"},\n \"checkout\": {\"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n   \"head\": \"44aea87397e593fd81eac21fef331aea1cda00c2\", \"index_digest\": \"59e7f572e444d856be2e5015ff9d9a08 …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/checkout-fingerprint.py > /tmp/cur-checkout.json 2>&1; cat /tmp/cur-checkout.json",
+      "{ scripts/prompt-surface-growth.py 2>&1 || echo \"RC=$?\"; }",
+      "WID=$(scripts/workpad.py id 1831 2>/dev/null || true); echo \"WID=$WID\"; if [ -n \"$WID\" ]; then scripts/workpad.py body \"$WID\" 2>/dev/null | grep -iE 'post-merge' || echo \"(no post-merge items)\"; fi; echo \"---deferrals---\"; ls -la .prflow/tmp/review/pr-1954/deferrals.json 2>/dev/null || echo \"(no deferrals file)\"",
+      "scripts/prompt-surface-growth.py",
+      "PR=$(gh pr view --json number --jq '.number' 2>/dev/null); if [ -z \"$PR\" ]; then echo \"ERROR: empty PR number\"; exit 1; fi; echo \"PR=$PR\"; gh api --method PATCH \"repos/{owner}/{repo}/pulls/$PR\" -F body=@.prflow/tmp/pr-1954-body.md --jq '.number,.title' ",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1831 --checkpoint base-update-checkpoint-4 \"checkpoint 4: observed token UP_TO_DATE — clean, proceeding to the publish decision\"\necho \"---flight ledger---\"\nls -la .prflow/logs/verification-flight/\necho \"---most recent non-invalidated flight---\"\nfor f in .prflow/logs/verification-flight/*.json; do echo \"== $f ==\"; jq -c '{flight_key, state, result, head: .checkout.head, satisfies: .satisfies_verification}' \"$f\" 2>/dev/null || cat \"$f\" | head -3; don …[per-command-truncated]"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
