@@ -35603,8 +35603,8 @@ with tempfile.TemporaryDirectory() as _td1811a, tempfile.TemporaryDirectory() as
     assert_eq("#1811 cleanup: mixed roots exits 0", 0, _res.returncode)
     assert_eq("#1811 cleanup: reaps the present run dir under root A", False, _dA.exists())
     assert_eq("#1811 cleanup: removes root A's own-slug pointer", False, _ci1811_ptr(_rA).exists())
-    assert_eq("#1811 cleanup: absent run dir under root B is a non-error (no B pointer created)",
-              False, _ci1811_ptr(_rB).exists())
+    assert_eq("#1811 cleanup: absent run dir under root B leaves B's namespace untouched (clean non-error)",
+              True, (_rB / '.prflow' / 'tmp' / 'create-issue').is_dir())
 
 print()
 print(f"{PASS} passed, {FAIL} failed")
