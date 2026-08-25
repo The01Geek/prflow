@@ -387,7 +387,7 @@ assert_eq "psr failure: that refusal reaches the aggregate line rather than abor
 # ALONE — this proves the elapsed line still reaches stdout there; a 2>&1 capture would not.
 PSR_FAIL_OUT="$(cd "$PSR_T3" && SYN_MODE=notally-all DEVFLOW_SHARD_DISPATCHER="$PSR_T3/dispatch.sh" bash lib/test/run-parallel.sh 2>/dev/null)"
 assert_eq "psr failure: a failed run prints the coordinator's elapsed line to stdout (issue #1808)" "yes" \
-  "$(case "$PSR_FAIL_OUT" in *"run-parallel: elapsed "*) echo yes ;; *) echo no ;; esac)"
+  "$(case "$PSR_FAIL_OUT" in *"run-parallel: elapsed "[0-9]*) echo yes ;; *) echo no ;; esac)"
 PSR_FC="$(psr_fail_case nonzero)"
 assert_eq "psr failure: a shard reporting a failed assertion fails the aggregate" "yes" \
   "$(case "$PSR_FC" in 1\|*"1 failed"*) echo yes ;; *) echo no ;; esac)"
@@ -668,7 +668,7 @@ assert_eq "psr output: a clean run says so" "yes" \
 # STDOUT — a 2>&1 capture would pass even if the line wrongly went to stderr.
 PSR_CLEAN_OUT="$(cd "$PSR_T6" && DEVFLOW_SHARD_DISPATCHER="$PSR_T6/dispatch.sh" bash lib/test/run-parallel.sh 2>/dev/null)"
 assert_eq "psr output: a clean run prints the coordinator's elapsed line to stdout (issue #1808)" "yes" \
-  "$(case "$PSR_CLEAN_OUT" in *"run-parallel: elapsed "*) echo yes ;; *) echo no ;; esac)"
+  "$(case "$PSR_CLEAN_OUT" in *"run-parallel: elapsed "[0-9]*) echo yes ;; *) echo no ;; esac)"
 
 PSR_BULK="$(cd "$PSR_T6" && SYN_BULK=1 DEVFLOW_SHARD_DISPATCHER="$PSR_T6/dispatch.sh" bash lib/test/run-parallel.sh 2>&1)"
 PSR_SKIP_LINES=0; PSR_FAIL_LINES=0

@@ -596,7 +596,7 @@ printf '\n'
 printf 'run-parallel: shard roster:%s\n' "$(printf ' %s' $SHARDS)"
 printf 'run-parallel: retained logs: %s\n' "$RUN_ROOT/logs"
 # issue #1808: placed before the AGGREGATE_RC branch below so the branch cannot skip it;
-# SECONDS is a bash builtin counting from process start, so no program outside the set (AC2).
+# do not compute it via date or another external program — keep the SECONDS builtin (AC2).
 printf 'run-parallel: elapsed %ss\n' "$SECONDS"
 if [ "$AGGREGATE_RC" -eq 0 ]; then
   printf 'run-parallel: aggregate CLEAN\n'
