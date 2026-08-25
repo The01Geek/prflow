@@ -1,0 +1,74 @@
+{
+  "dispatch_mode": "fanned-out",
+  "pr": 1959,
+  "run_id": "32878529052-1",
+  "head_override": "local",
+  "issue": 1835,
+  "root_completeness": "complete",
+  "engine_dir": "skills/review",
+  "verdict": "APPROVE",
+  "diff_profile": {
+    "classification": "docs/prose-only",
+    "files_changed": [
+      "skills/implement/phases/phase-3-review.md",
+      "docs/internal/implement-skill.md",
+      ".changeset/issue-1835-simplify-outcome-record.md"
+    ],
+    "new_types": false,
+    "test_files_touched": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": false,
+    "note": "engine_self_modifying (skills/** edited) forces the full checklist; adds no Phase-3 agent. type-design-analyzer and pr-test-analyzer gate OUT (no new types, no test files)."
+  },
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": [],
+  "phase2_fails": [],
+  "phase3_findings": [
+    {
+      "severity": "Suggestion",
+      "file": "skills/implement/phases/phase-3-review.md",
+      "reviewer": "prflow:code-reviewer",
+      "defect_signature": "shipped-prose-token-efficiency:phase-3-review-simplify-outcome-placeholder-gloss",
+      "summary": "Line 222's placeholder gloss (`<N>` is findings produced, `<M>` how many applied, `<K>` how many skipped) largely restates the self-describing labels already in the format string on line 220; against the shipped-skills token-cost-efficiency guideline. Load-bearing clean-path/zeros sentence must stay; the gloss could be trimmed to just the non-obvious `<K>` pointer. Non-blocking."
+    },
+    {
+      "severity": "Suggestion",
+      "file": ".changeset/issue-1835-simplify-outcome-record.md",
+      "reviewer": "prflow:comment-analyzer",
+      "defect_signature": "changeset-reference-confirm:issue-1835-cites-1959",
+      "summary": "Changeset trailing reference reads `(#1959)` while branch/issue is 1835; fine if 1959 is the PR number (repo convention cites PR number). Low confidence this is a defect; confirm the reference points where intended."
+    },
+    {
+      "severity": "Suggestion",
+      "file": "docs/internal/implement-skill.md",
+      "reviewer": "prflow:review-and-fix-extension",
+      "defect_signature": "verification-evidence-marker-absent:issue-1835-workpad-cloud-tier",
+      "summary": "Extension Verification-evidence clause (advisory): the linked issue #1835 workpad carries no `Verification evidence:` marker on either durable surface (workpad note count 0; PR description not checked as no PR fetched under head_override=local). Workpad carries `gha:` checkpoint rows -> tier classified cloud. Non-blocking advisory per the extension's own 'Behavior' clause. Reported for transparency; does not gate the verdict."
+    }
+  ],
+  "prompt_surface_routing_gate": {
+    "triggered": true,
+    "trigger_glob": "skills/implement/phases/*.md",
+    "discharge_arm": 1,
+    "discharge_status": "discharged",
+    "evidence": "issue #1835 workpad contains 'Writing-skills evidence:' marker with all four slots stated (skill-loaded=yes, guidance-applied=yes, pressure-scenario=no with reason, micro-tests=no with reason). Fully discharged; no finding."
+  },
+  "per_reviewer_assessments": {
+    "prflow:code-reviewer": "No Critical/Important findings. Verified all three ACs met: AC1 single --note 'simplify outcome:' with three tallies in same update call as the existing tick (workpad.py accepts --tick-progress and --note together, --note nests under ## Progress); AC2 clean-path records same lead phrase with all-zero tallies (line 214 skip-commit still flows into unconditional tick/note); AC3 no gating predicate added, prose affirms 'written on every run, since §3.2 is unconditional'. No new wording-only pin (lead phrase has no machine consumer; retrospective is an LLM reader). Single-source discipline holds. One Suggestion: trim the placeholder gloss on line 222 for token efficiency.",
+    "prflow:silent-failure-hunter": "No Critical/High/Medium findings. Traced both hypothesized failure modes to workpad.py behavior and both are neutralized: (1) zero-yield vs never-written is handled explicitly by the mandated all-zero-tally record on the clean path; (2) failed note write swallowed while tick succeeds is structurally impossible — --tick-progress and --note are both append args consumed by one cmd_update that rewrites the comment body in a single gh api edit, so either both land or the whole update fails loudly (an unticked gate is a visible blocking signal). Coupling the note to the visible tick makes the telemetry strictly safer. No inert guard; this is advisory telemetry prose, fails toward undercount not data loss. Fixed 3-integer format adds no injection surface.",
+    "prflow:comment-analyzer": "No critical/high findings. Documentation accurately describes the shipped instruction and the three files are internally consistent: lead phrase, three tally field names, 'written on every run/unconditional', and 'zeros-when-clean distinguishable from never-written' all match across skill prose, internal doc, and changeset. Verified --tick-progress and --note are combinable/atomic and --note appends under ## Progress. Low notes: changeset cites #1959 vs issue 1835 (fine if PR number); 'grep by lead phrase' remains a valid substring anchor despite the rendered timestamp prefix (not an inaccuracy). No arithmetic over-claim (tallies are not asserted to sum, correct since /simplify also drops behavior-changing findings). Per-finding skip notes correctly stated as unchanged.",
+    "prflow:requesting-code-review": "Merge-ready. All three ACs satisfied by the shipped prose: AC1 single folded --note with matching lead phrase and skipped-as-AC-conflict token, one Progress record; AC2 clean branch falls through to the tick/note with all-zero tallies; AC3 no predicate introduced. Design sound: using --note (a Progress bullet) rather than --reflection correctly keeps the per-run signal out of cheap-gate.jq's friction gate, matching the 'signal without a gate' goal. Changeset present (type: Added, bump: patch) as required for an engine-surface edit; doc mirror consistent; no single-source violation. Reference-size ceiling fine (phase-3-review.md ~35KB << ~61,750). Prose-only, no parser/behavior change. One optional nit on 'grep by lead phrase' wording. Verdict: merge-ready."
+  },
+  "prompt_addenda": "none"
+}
