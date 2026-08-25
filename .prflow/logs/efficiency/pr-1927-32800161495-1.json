@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1927",
+  "generated_at": "2026-08-25T02:20:04Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.10",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.900116750000002,
+    "tokens": {
+      "input_tokens": 38,
+      "output_tokens": 27632,
+      "cache_read_input_tokens": 2819809,
+      "cache_creation_input_tokens": 209360,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 120,
+        "outputTokens": 58560,
+        "cacheReadInputTokens": 5858746,
+        "cacheCreationInputTokens": 595367,
+        "webSearchRequests": 0,
+        "costUSD": 8.900116750000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 32,
+    "duration_ms": 678782
+  },
+  "permission_denials": {
+    "count": 14,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"",
+      "grep '^diff --git' .prflow/tmp/review/pr-1927/local-1927-1/diff.patch; echo \"---STATS---\"; git diff --stat \"$(git merge-base origin/main 412e2fc4ec7517096d09b47d76766d4f3b2d9821)\" 412e2fc4ec7517096d09b47d76766d4f3b2d9821 2>/dev/null | tail -20",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "cd /home/runner/work/prflow/prflow; tmp=$(mktemp -d)\ngit show 412e2fc4:lib/efficiency-trace.sh > \"$tmp/et.sh\"\ngit show 412e2fc4:skills/review-and-fix/SKILL.md > \"$tmp/SKILL.md\"\nLR_CONST=\"$(grep -E '^ITER_EXPECTED_FIELDS=' \"$tmp/et.sh\" | sed -E 's/^ITER_EXPECTED_FIELDS=//; s/\"//g' | tr ' ' '\\n' | grep -v '^$' | sort -u)\"\nLR_CONDITIONAL_FIELDS=\"shadow promotion_provenance parked_class_sweep park_calibration current_step current_substep pending_dispatch reference_reads dispatch_mode\"\nLR_COND_RE=\"^( …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p /tmp/pr1927\ngit show 412e2fc4:lib/efficiency-trace.sh > /tmp/pr1927/et.sh\ngit show 412e2fc4:skills/review-and-fix/SKILL.md > /tmp/pr1927/SKILL.md\nLR_CONST=\"$(grep -E '^ITER_EXPECTED_FIELDS=' /tmp/pr1927/et.sh | sed -E 's/^ITER_EXPECTED_FIELDS=//; s/\"//g' | tr ' ' '\\n' | grep -v '^$' | sort -u)\"\nLR_CONDITIONAL_FIELDS=\"shadow promotion_provenance parked_class_sweep park_calibration current_step current_substep pending_dispatch reference_reads dispatch_mo …[per-command-truncated]",
+      "bash /tmp/pr1927/check.sh",
+      "bash /tmp/pr1927/check.sh 2>&1",
+      "cd /tmp/pr1927 && sh check.sh 2>&1",
+      "bash /tmp/pr1927/check.sh",
+      "git show 412e2fc4:skills/review-and-fix/SKILL.md > /tmp/pr1927_skill.md; git show 412e2fc4:lib/efficiency-trace.sh > /tmp/pr1927_et.sh; wc -l /tmp/pr1927_skill.md /tmp/pr1927_et.sh",
+      "git show 412e2fc4:skills/review-and-fix/SKILL.md > /tmp/pr1927_skill.md",
+      "git show 412e2fc4:skills/review-and-fix/SKILL.md > /home/runner/work/prflow/prflow/.prflow/tmp/pr1927_skill.md",
+      "cd /home/runner/work/prflow/prflow; git grep -n \"recompute\\|from the returned \\`diff_profile\\`\\|compute the expected\" 412e2fc4 -- 'skills/**' | head -30",
+      "for f in lib/efficiency-trace.sh skills/review-and-fix/SKILL.md skills/review-and-fix/references/loop-control.md skills/review-and-fix/references/fixing.md skills/review-and-fix/references/shadow-review.md; do echo \"=== $f ===\"; echo \"phase3_dispatched: $(git show 412e2fc4ec7517096d09b47d76766d4f3b2d9821:$f | grep -c 'phase3_dispatched')  expected_reviewers: $(git show 412e2fc4ec7517096d09b47d76766d4f3b2d9821:$f | grep -c 'expected_reviewers')\"; done"
+    ],
+    "total": 14,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
