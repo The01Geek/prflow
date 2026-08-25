@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "slug": "pr-587",
+  "generated_at": "2026-07-19T01:08:49Z",
+  "config_fingerprint": {
+    "sha256": "80ed30710c2433c0bd37b90acdb304f27826dd65309e063f370449347db25eac",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "detect_all_audit_forced_critic": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 14,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "orchestrator:checklist",
+          "verdict": null
+        },
+        {
+          "agent": "orchestrator:completeness-critic",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "orchestrator:stale-prose-precheck",
+          "verdict": "unique-effective"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 40
+        },
+        "phase_1": {
+          "calls": 1,
+          "tokens": 75316,
+          "wall_clock_s": 117
+        },
+        "phase_2": {
+          "calls": 17,
+          "tokens": 1053000,
+          "wall_clock_s": 540
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 357000,
+          "wall_clock_s": 265
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 60,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        }
+      }
+    }
+  ]
+}

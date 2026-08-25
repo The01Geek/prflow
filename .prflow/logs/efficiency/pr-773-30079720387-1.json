@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "slug": "pr-773",
+  "generated_at": "2026-07-24T09:53:29Z",
+  "config_fingerprint": {
+    "sha256": "80ed30710c2433c0bd37b90acdb304f27826dd65309e063f370449347db25eac",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:silent-failure-hunter",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "devflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": true,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    }
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.21.12",
+    "workflow": "The01Geek/devflow-autopilot/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 32.17319149999999,
+    "tokens": {
+      "input_tokens": 1686,
+      "output_tokens": 90639,
+      "cache_read_input_tokens": 36196817,
+      "cache_creation_input_tokens": 320094,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1898,
+        "outputTokens": 157682,
+        "cacheReadInputTokens": 41616598,
+        "cacheCreationInputTokens": 994080,
+        "webSearchRequests": 0,
+        "costUSD": 32.17319149999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 174,
+    "duration_ms": 4355059
+  }
+}

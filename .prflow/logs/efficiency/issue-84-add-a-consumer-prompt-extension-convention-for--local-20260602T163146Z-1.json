@@ -1,0 +1,249 @@
+{
+  "schema_version": 1,
+  "slug": "issue-84-add-a-consumer-prompt-extension-convention-for-",
+  "generated_at": "2026-06-03T20:10:56Z",
+  "source": "review-and-fix",
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 5,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "phase3_dispatched": [
+        "pr-review-toolkit:code-reviewer",
+        "pr-review-toolkit:silent-failure-hunter",
+        "pr-review-toolkit:comment-analyzer",
+        "pr-review-toolkit:pr-test-analyzer",
+        "superpowers:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 5,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "general-purpose:superpowers",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-review-toolkit:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "pr-review-toolkit:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-review-toolkit:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-review-toolkit:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "superpowers:requesting-code-review",
+          "verdict": null
+        }
+      ]
+    },
+    {
+      "iter": 2,
+      "phase3_dispatched": [
+        "pr-review-toolkit:code-reviewer",
+        "pr-review-toolkit:silent-failure-hunter",
+        "pr-review-toolkit:comment-analyzer",
+        "pr-review-toolkit:pr-test-analyzer",
+        "superpowers:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 2,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "general-purpose:superpowers",
+          "verdict": "noise"
+        },
+        {
+          "agent": "pr-review-toolkit:code-reviewer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-review-toolkit:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "pr-review-toolkit:pr-test-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "pr-review-toolkit:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "superpowers:requesting-code-review",
+          "verdict": null
+        }
+      ]
+    },
+    {
+      "iter": 3,
+      "phase3_dispatched": [
+        "pr-review-toolkit:code-reviewer",
+        "pr-review-toolkit:silent-failure-hunter",
+        "superpowers:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 3,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 2,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "general-purpose:superpowers",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-review-toolkit:code-reviewer",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "pr-review-toolkit:silent-failure-hunter",
+          "verdict": null
+        },
+        {
+          "agent": "superpowers:requesting-code-review",
+          "verdict": null
+        }
+      ]
+    },
+    {
+      "iter": 4,
+      "phase3_dispatched": [
+        "pr-review-toolkit:silent-failure-hunter",
+        "superpowers:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 2,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": [
+        {
+          "agent": "pr-review-toolkit:silent-failure-hunter",
+          "verdict": null
+        },
+        {
+          "agent": "superpowers:requesting-code-review",
+          "verdict": null
+        }
+      ]
+    },
+    {
+      "iter": 5,
+      "phase3_dispatched": [
+        "pr-review-toolkit:code-reviewer",
+        "pr-review-toolkit:silent-failure-hunter",
+        "pr-review-toolkit:comment-analyzer",
+        "pr-review-toolkit:pr-test-analyzer",
+        "superpowers:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 4,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "pr-review-toolkit:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "pr-review-toolkit:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-review-toolkit:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-review-toolkit:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "superpowers:requesting-code-review",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 2,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 3,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 4,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 5,
+      "phases": "unavailable"
+    }
+  ]
+}

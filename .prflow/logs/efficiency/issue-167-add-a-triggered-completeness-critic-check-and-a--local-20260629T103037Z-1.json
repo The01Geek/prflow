@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "issue-167-add-a-triggered-completeness-critic-check-and-a-",
+  "generated_at": "2026-06-29T10:42:28Z",
+  "source": "review-and-fix",
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 4,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    }
+  ]
+}

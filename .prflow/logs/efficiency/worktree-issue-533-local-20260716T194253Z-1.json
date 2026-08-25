@@ -1,0 +1,217 @@
+{
+  "schema_version": 1,
+  "slug": "worktree-issue-533",
+  "generated_at": "2026-07-16T21:17:52Z",
+  "config_fingerprint": {
+    "sha256": "9995defdac0864f7b7e213a820ba3191759fe533c3dfeedf4e78abc5682a6a40",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "important",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 3,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 2,
+      "checklist_agent_count": 16,
+      "fixes_applied": 6,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 2,
+      "loop_role": "promoted",
+      "synthesized": false,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": "intentional-promoted-iter (Phase 1+2 skipped by Decide outcome 2 — inputs are the shadow's full engine pass)"
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 1,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 3,
+      "loop_role": "promoted",
+      "synthesized": false,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": "intentional-promoted-iter (park-calibration promotion — Phase 1+2 skipped)"
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "corroborating"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 60
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        },
+        "phase_1": {
+          "calls": 1,
+          "tokens": 87729,
+          "wall_clock_s": 329
+        },
+        "phase_2": {
+          "calls": 16,
+          "tokens": 1000000,
+          "wall_clock_s": 420
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 420229,
+          "wall_clock_s": 700
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 120
+        }
+      }
+    },
+    {
+      "iter": 2,
+      "phases": {
+        "phase_2_6_shadow": {
+          "calls": 20,
+          "tokens": 1300000,
+          "wall_clock_s": 900
+        },
+        "phase_3": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 60
+        }
+      }
+    },
+    {
+      "iter": 3,
+      "phases": {
+        "phase_3": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        },
+        "step_3_5": {
+          "calls": 1,
+          "tokens": 59136,
+          "wall_clock_s": 140
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 60
+        }
+      }
+    }
+  ]
+}

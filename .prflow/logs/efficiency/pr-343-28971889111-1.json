@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "slug": "pr-343",
+  "generated_at": "2026-07-08T20:40:02Z",
+  "source": "review-and-fix",
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": true,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 2,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "corroborating"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_3": {
+          "calls": 5,
+          "tokens": 199000,
+          "wall_clock_s": 133
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "slug": "pr-514",
+  "generated_at": "2026-07-15T17:08:43Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.13.8",
+    "workflow": "The01Geek/devflow-autopilot/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 48.356458000000025,
+    "tokens": {
+      "input_tokens": 3301916,
+      "output_tokens": 318660,
+      "cache_read_input_tokens": 43165632,
+      "cache_creation_input_tokens": 0,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "z-ai/glm-5.2": {
+        "inputTokens": 3453564,
+        "outputTokens": 351182,
+        "cacheReadInputTokens": 44618176,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 48.356458000000025,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 32000
+      }
+    },
+    "num_turns": 217,
+    "duration_ms": 8641874
+  }
+}

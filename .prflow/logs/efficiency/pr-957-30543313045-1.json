@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "slug": "pr-957",
+  "generated_at": "2026-07-30T13:02:04Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.26.8",
+    "workflow": "The01Geek/devflow-autopilot/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 14.345821149999999,
+    "tokens": {
+      "input_tokens": 1275,
+      "output_tokens": 40804,
+      "cache_read_input_tokens": 5991845,
+      "cache_creation_input_tokens": 235124,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1432,
+        "outputTokens": 84326,
+        "cacheReadInputTokens": 10251036,
+        "cacheCreationInputTokens": 557841,
+        "webSearchRequests": 0,
+        "costUSD": 11.609049249999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 142,
+        "outputTokens": 29335,
+        "cacheReadInputTokens": 3192428,
+        "cacheCreationInputTokens": 356958,
+        "webSearchRequests": 0,
+        "costUSD": 2.7367719,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 54,
+    "duration_ms": 1415159
+  }
+}

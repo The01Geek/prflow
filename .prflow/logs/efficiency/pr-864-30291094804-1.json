@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "slug": "pr-864",
+  "generated_at": "2026-07-27T18:02:54Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.22.14",
+    "workflow": "The01Geek/devflow-autopilot/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.142995999999999,
+    "tokens": {
+      "input_tokens": 40,
+      "output_tokens": 23587,
+      "cache_read_input_tokens": 2554873,
+      "cache_creation_input_tokens": 151637,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 63,
+        "outputTokens": 43700,
+        "cacheReadInputTokens": 3604497,
+        "cacheCreationInputTokens": 268687,
+        "webSearchRequests": 0,
+        "costUSD": 5.142995999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 23,
+    "duration_ms": 636275
+  }
+}

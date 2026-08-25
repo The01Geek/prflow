@@ -1,0 +1,306 @@
+{
+  "schema_version": 1,
+  "slug": "pr-710",
+  "generated_at": "2026-07-22T05:45:13Z",
+  "config_fingerprint": {
+    "sha256": "80ed30710c2433c0bd37b90acdb304f27826dd65309e063f370449347db25eac",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 2,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": true,
+      "agent_effort": [
+        {
+          "agent": "devflow:code-reviewer",
+          "requested": "low",
+          "resolved": "low",
+          "application_point": "session-fallback",
+          "effective": null,
+          "fallback_reason": "per-agent effort 'low' resolved but not applied: no in-session per-agent effort seam"
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "requested": "low",
+          "resolved": "low",
+          "application_point": "session-fallback",
+          "effective": null,
+          "fallback_reason": "per-agent effort 'low' resolved but not applied: no in-session per-agent effort seam"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "requested": "low",
+          "resolved": "low",
+          "application_point": "session-fallback",
+          "effective": null,
+          "fallback_reason": "per-agent effort 'low' resolved but not applied: no in-session per-agent effort seam"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "requested": "low",
+          "resolved": "low",
+          "application_point": "session-fallback",
+          "effective": null,
+          "fallback_reason": "per-agent effort 'low' resolved but not applied: no in-session per-agent effort seam"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "requested": "low",
+          "resolved": "low",
+          "application_point": "session-fallback",
+          "effective": null,
+          "fallback_reason": "per-agent effort 'low' resolved but not applied: no in-session per-agent effort seam"
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 6,
+      "checklist_agent_count": 6,
+      "fixes_applied": 13,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 2,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "devflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "lite-only",
+      "checklist_lite_count": 3,
+      "checklist_agent_count": 0,
+      "fixes_applied": 13,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 40
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 2
+        },
+        "phase_1": {
+          "calls": 2,
+          "tokens": 160672,
+          "wall_clock_s": 110
+        },
+        "phase_1_5": {
+          "calls": 1,
+          "tokens": 61881,
+          "wall_clock_s": 56
+        },
+        "phase_2": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 90
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 466928,
+          "wall_clock_s": 420
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5,
+          "webfetches": 0
+        },
+        "step_2_6": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 30
+        }
+      }
+    },
+    {
+      "iter": 2,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 20
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 1
+        },
+        "phase_1": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_1_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_2": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 120
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 627317,
+          "wall_clock_s": 612
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5,
+          "webfetches": 0
+        },
+        "step_2_6": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 40
+        }
+      }
+    }
+  ]
+}

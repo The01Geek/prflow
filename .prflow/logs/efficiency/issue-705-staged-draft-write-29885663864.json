@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "slug": "issue-705-staged-draft-write",
+  "generated_at": "2026-07-22T04:56:08Z",
+  "config_fingerprint": {
+    "sha256": "80ed30710c2433c0bd37b90acdb304f27826dd65309e063f370449347db25eac",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:pr-test-analyzer"
+      ],
+      "phase3_dispatched_count": 3,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "devflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": true,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": false,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 1,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": "noise"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "noise"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_1": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_2": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_3": {
+          "calls": 3,
+          "tokens": 210000,
+          "wall_clock_s": 170
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "step_2_6": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        }
+      }
+    }
+  ]
+}

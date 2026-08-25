@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "slug": "pr-176",
+  "generated_at": "2026-06-29T10:52:22Z",
+  "source": "review-and-fix",
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 2,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:type-design-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 6,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": true,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 4,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:type-design-analyzer",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 2,
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:type-design-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 6,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": true,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 4,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:type-design-analyzer",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 2,
+      "phases": "unavailable"
+    }
+  ]
+}

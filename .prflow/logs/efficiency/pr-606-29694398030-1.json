@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "slug": "pr-606",
+  "generated_at": "2026-07-19T18:00:00Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.16.3",
+    "workflow": "The01Geek/devflow-autopilot/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 58.04250675000002,
+    "tokens": {
+      "input_tokens": 458,
+      "output_tokens": 189407,
+      "cache_read_input_tokens": 79118206,
+      "cache_creation_input_tokens": 510764,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 683,
+        "outputTokens": 242320,
+        "cacheReadInputTokens": 85065091,
+        "cacheCreationInputTokens": 1205309,
+        "webSearchRequests": 0,
+        "costUSD": 58.04250675000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "num_turns": 269,
+    "duration_ms": 6374673
+  }
+}

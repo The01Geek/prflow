@@ -1,0 +1,402 @@
+{
+  "schema_version": 1,
+  "slug": "issue-304-gate-the-devflow-review-auto-trigger-on-branch",
+  "generated_at": "2026-07-04T19:46:47Z",
+  "source": "review-and-fix",
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 5,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 3,
+      "checklist_agent_count": 22,
+      "fixes_applied": 12,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": "noise"
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 2,
+      "loop_role": "promoted",
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 8,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 3,
+      "loop_role": "fix",
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 2,
+      "checklist_agent_count": 4,
+      "fixes_applied": 8,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 4,
+      "loop_role": "fix",
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 1,
+      "checklist_agent_count": 2,
+      "fixes_applied": 6,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 5,
+      "loop_role": "fix",
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 1,
+      "checklist_agent_count": 3,
+      "fixes_applied": 5,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 20
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        },
+        "phase_1": {
+          "calls": 1,
+          "tokens": 89941,
+          "wall_clock_s": 109
+        },
+        "phase_1_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_2": {
+          "calls": 14,
+          "tokens": 756000,
+          "wall_clock_s": 220
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 459000,
+          "wall_clock_s": 296
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 30,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10
+        }
+      }
+    },
+    {
+      "iter": 2,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        },
+        "phase_3": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        }
+      }
+    },
+    {
+      "iter": 3,
+      "phases": {
+        "phase_1": {
+          "calls": 1,
+          "tokens": 102377,
+          "wall_clock_s": 141
+        },
+        "phase_2": {
+          "calls": 1,
+          "tokens": 63864,
+          "wall_clock_s": 45
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 515000,
+          "wall_clock_s": 880
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 15,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10
+        }
+      }
+    },
+    {
+      "iter": 4,
+      "phases": {
+        "phase_1": {
+          "calls": 1,
+          "tokens": 99044,
+          "wall_clock_s": 89
+        },
+        "phase_2": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 446531,
+          "wall_clock_s": 300
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10
+        }
+      }
+    },
+    {
+      "iter": 5,
+      "phases": {
+        "phase_1": {
+          "calls": 1,
+          "tokens": 101028,
+          "wall_clock_s": 99
+        },
+        "phase_2": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 466796,
+          "wall_clock_s": 360
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10
+        }
+      }
+    }
+  ]
+}

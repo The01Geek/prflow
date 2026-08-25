@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "slug": "pr-62",
+  "generated_at": "2026-06-03T20:10:56Z",
+  "source": "review-and-fix",
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 3,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "phase3_dispatched": [
+        "pr-review-toolkit:code-reviewer",
+        "pr-review-toolkit:silent-failure-hunter",
+        "pr-review-toolkit:comment-analyzer",
+        "superpowers:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 4,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": true,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 5,
+      "checklist_agent_count": 14,
+      "fixes_applied": 11,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "pr-review-toolkit:code-reviewer",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "pr-review-toolkit:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-review-toolkit:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "superpowers:requesting-code-review",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 2,
+      "phase3_dispatched": [
+        "pr-review-toolkit:code-reviewer",
+        "pr-review-toolkit:silent-failure-hunter",
+        "pr-review-toolkit:comment-analyzer",
+        "superpowers:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 4,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": true,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "lite-only",
+      "checklist_lite_count": 5,
+      "checklist_agent_count": 0,
+      "fixes_applied": 2,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "pr-review-toolkit:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "pr-review-toolkit:comment-analyzer",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "pr-review-toolkit:silent-failure-hunter",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "superpowers:requesting-code-review",
+          "verdict": null
+        }
+      ]
+    },
+    {
+      "iter": 3,
+      "phase3_dispatched": [
+        "pr-review-toolkit:code-reviewer",
+        "pr-review-toolkit:silent-failure-hunter",
+        "pr-review-toolkit:comment-analyzer",
+        "superpowers:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 4,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": true,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 1,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "pr-review-toolkit:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "pr-review-toolkit:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "pr-review-toolkit:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "superpowers:requesting-code-review",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "wall_clock_s": 6
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "wall_clock_s": 1
+        },
+        "phase_1": {
+          "calls": 1,
+          "tokens": 99657,
+          "wall_clock_s": 105
+        },
+        "phase_2": {
+          "calls": 14,
+          "tokens": 408000,
+          "wall_clock_s": 50
+        },
+        "phase_3": {
+          "calls": 4,
+          "tokens": 302000,
+          "wall_clock_s": 133
+        },
+        "step_2_5": {
+          "calls": 0,
+          "wall_clock_s": 2,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "wall_clock_s": 3
+        }
+      }
+    },
+    {
+      "iter": 2,
+      "phases": {
+        "phase_1": {
+          "calls": 1,
+          "tokens": 68717,
+          "wall_clock_s": 106
+        },
+        "phase_2": {
+          "calls": 0,
+          "wall_clock_s": 3,
+          "note": "variance items lite-verified post-fix by orchestrator; no verifier subagents dispatched"
+        },
+        "phase_3": {
+          "calls": 4,
+          "tokens": 376000,
+          "wall_clock_s": 134
+        },
+        "step_2_5": {
+          "calls": 0,
+          "wall_clock_s": 2,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "wall_clock_s": 2
+        }
+      }
+    },
+    {
+      "iter": 3,
+      "phases": {
+        "phase_1": {
+          "calls": 1,
+          "tokens": 35663,
+          "wall_clock_s": 33
+        },
+        "phase_2": {
+          "calls": 0,
+          "wall_clock_s": 1,
+          "note": "variance generator returned [] — no new items to verify"
+        },
+        "phase_3": {
+          "calls": 4,
+          "tokens": 231000,
+          "wall_clock_s": 123
+        },
+        "step_2_5": {
+          "calls": 0,
+          "wall_clock_s": 2,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "wall_clock_s": 2
+        }
+      }
+    }
+  ]
+}

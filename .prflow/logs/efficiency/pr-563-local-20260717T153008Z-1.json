@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "slug": "pr-563",
+  "generated_at": "2026-07-17T16:10:28Z",
+  "config_fingerprint": {
+    "sha256": "80ed30710c2433c0bd37b90acdb304f27826dd65309e063f370449347db25eac",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:type-design-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 6,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": true,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 3,
+      "checklist_agent_count": 12,
+      "fixes_applied": 18,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:type-design-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "orchestrator-completeness-critic",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 120
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 60
+        },
+        "phase_1": {
+          "calls": 2,
+          "tokens": 152468,
+          "wall_clock_s": 214
+        },
+        "phase_1_5": {
+          "calls": 1,
+          "tokens": 50837,
+          "wall_clock_s": 61
+        },
+        "phase_2": {
+          "calls": 12,
+          "tokens": 674905,
+          "wall_clock_s": 180
+        },
+        "phase_3": {
+          "calls": 6,
+          "tokens": 627638,
+          "wall_clock_s": 430
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 30
+        }
+      }
+    }
+  ]
+}

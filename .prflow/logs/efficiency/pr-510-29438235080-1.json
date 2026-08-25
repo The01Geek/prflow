@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "slug": "pr-510",
+  "generated_at": "2026-07-15T18:01:49Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.13.11",
+    "workflow": "The01Geek/devflow-autopilot/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.10715925,
+    "tokens": {
+      "input_tokens": 64,
+      "output_tokens": 32684,
+      "cache_read_input_tokens": 5938434,
+      "cache_creation_input_tokens": 205436,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 2788,
+        "outputTokens": 13,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.002853,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 164,
+        "outputTokens": 89467,
+        "cacheReadInputTokens": 9173415,
+        "cacheCreationInputTokens": 561555,
+        "webSearchRequests": 0,
+        "costUSD": 11.104306250000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "num_turns": 41,
+    "duration_ms": 531665
+  }
+}

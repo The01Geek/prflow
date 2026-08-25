@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "slug": "pr-993",
+  "generated_at": "2026-07-31T07:45:35Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.28.12",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.28534675,
+    "tokens": {
+      "input_tokens": 2797,
+      "output_tokens": 25899,
+      "cache_read_input_tokens": 1907325,
+      "cache_creation_input_tokens": 192538,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 2844,
+        "outputTokens": 67215,
+        "cacheReadInputTokens": 3080631,
+        "cacheCreationInputTokens": 532547,
+        "webSearchRequests": 0,
+        "costUSD": 7.28534675,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 24,
+    "duration_ms": 656582
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "slug": "pr-56",
+  "generated_at": "2026-05-25T21:38:30Z",
+  "source": "review-and-fix",
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "phase3_dispatched": [
+        "pr-review-toolkit:code-reviewer",
+        "pr-review-toolkit:silent-failure-hunter",
+        "pr-review-toolkit:comment-analyzer",
+        "pr-review-toolkit:pr-test-analyzer",
+        "superpowers:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 3,
+      "checklist_agent_count": 2,
+      "fixes_applied": 8,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "pr-review-toolkit:code-reviewer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-review-toolkit:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-review-toolkit:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-review-toolkit:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "superpowers:requesting-code-review",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_1": {
+          "calls": 1,
+          "tokens": 45736,
+          "wall_clock_s": 64
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 230970,
+          "wall_clock_s": 75
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "slug": "issue-609-per-agent-effort-observability-block-in-the-per",
+  "generated_at": "2026-07-20T05:13:37Z",
+  "config_fingerprint": {
+    "sha256": "80ed30710c2433c0bd37b90acdb304f27826dd65309e063f370449347db25eac",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": true,
+      "agent_effort": [
+        {
+          "agent": "devflow:checklist-generator",
+          "requested": "low",
+          "resolved": "low",
+          "application_point": "session-fallback",
+          "effective": null,
+          "fallback_reason": "per-agent effort 'low' resolved but not applied: an already-running session's Agent-tool dispatch has no per-agent effort parameter and no per-dispatch --agents injection exists; the agent inherits the session effort"
+        }
+      ],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    }
+  ]
+}

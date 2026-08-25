@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "slug": "pr-531",
+  "generated_at": "2026-07-17T08:42:59Z",
+  "config_fingerprint": {
+    "sha256": "9995defdac0864f7b7e213a820ba3191759fe533c3dfeedf4e78abc5682a6a40",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "important",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 5,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:type-design-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 6,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": true,
+        "engine_self_modifying": true,
+        "detect_all_audit_note": "true (composes; forced the Phase 3.1.5 completeness-critic pass) - not persisted as a profile flag by contract",
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 2,
+      "checklist_agent_count": 33,
+      "fixes_applied": 8,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:completeness-critic",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:type-design-analyzer",
+          "verdict": null
+        }
+      ]
+    },
+    {
+      "iter": 2,
+      "loop_role": "promoted",
+      "synthesized": false,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": true,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    },
+    {
+      "iter": 3,
+      "loop_role": "promoted",
+      "synthesized": false,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": true,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    },
+    {
+      "iter": 4,
+      "loop_role": "promoted",
+      "synthesized": false,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": true,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    },
+    {
+      "iter": 5,
+      "loop_role": "promoted",
+      "synthesized": false,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": true,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 45
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 20
+        },
+        "phase_0_6": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 3
+        },
+        "phase_1": {
+          "calls": 2,
+          "tokens": 202441,
+          "wall_clock_s": 153
+        },
+        "phase_1_5": {
+          "calls": 1,
+          "tokens": 70123,
+          "wall_clock_s": 81
+        },
+        "phase_2": {
+          "calls": 6,
+          "tokens": 451915,
+          "wall_clock_s": 161
+        },
+        "phase_3": {
+          "calls": 7,
+          "tokens": 542416,
+          "wall_clock_s": 422
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 60
+        }
+      }
+    },
+    {
+      "iter": 2,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 3,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 4,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 5,
+      "phases": "unavailable"
+    }
+  ]
+}

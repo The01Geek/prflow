@@ -1,0 +1,428 @@
+{
+  "schema_version": 1,
+  "slug": "pr-270",
+  "generated_at": "2026-07-03T03:50:39Z",
+  "source": "review-and-fix",
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 5,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 2,
+      "checklist_agent_count": 18,
+      "fixes_applied": 7,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "noise"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 2,
+      "loop_role": "promoted",
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": "intentional"
+      },
+      "verification_posture": "skipped-intentional",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 7,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 3,
+      "loop_role": "fix",
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 2,
+      "checklist_agent_count": 8,
+      "fixes_applied": 5,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "corroborating"
+        }
+      ]
+    },
+    {
+      "iter": 4,
+      "loop_role": "fix",
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "agent-only",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 6,
+      "fixes_applied": 8,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "step3.5-gate",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 5,
+      "loop_role": "fix",
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "agent-only",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 5,
+      "fixes_applied": 4,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 60
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 30
+        },
+        "phase_1": {
+          "calls": 1,
+          "tokens": 81593,
+          "wall_clock_s": 94
+        },
+        "phase_1_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_2": {
+          "calls": 18,
+          "tokens": 933449,
+          "wall_clock_s": 190
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 376983,
+          "wall_clock_s": 236
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10,
+          "webfetches": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 20
+        }
+      }
+    },
+    {
+      "iter": 2,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5,
+          "webfetches": 0
+        },
+        "phase_3": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "step_3_5": {
+          "calls": 1,
+          "tokens": 68029,
+          "wall_clock_s": 123
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10
+        }
+      }
+    },
+    {
+      "iter": 3,
+      "phases": {
+        "phase_1": {
+          "calls": 1,
+          "tokens": 86708,
+          "wall_clock_s": 87
+        },
+        "phase_2": {
+          "calls": 8,
+          "tokens": 420893,
+          "wall_clock_s": 60
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 403457,
+          "wall_clock_s": 299
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5,
+          "webfetches": 0
+        },
+        "step_3_5": {
+          "calls": 1,
+          "tokens": 71657,
+          "wall_clock_s": 158
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10
+        }
+      }
+    },
+    {
+      "iter": 4,
+      "phases": {
+        "phase_1": {
+          "calls": 1,
+          "tokens": 86480,
+          "wall_clock_s": 76
+        },
+        "phase_2": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 30,
+          "note": "6 items resolved orchestrator-direct from prior gate evidence + producer-table reads; no fresh verifier dispatch"
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 419746,
+          "wall_clock_s": 280
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5,
+          "webfetches": 0
+        },
+        "step_3_5": {
+          "calls": 2,
+          "tokens": 142748,
+          "wall_clock_s": 327
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10
+        }
+      }
+    },
+    {
+      "iter": 5,
+      "phases": {
+        "phase_1": {
+          "calls": 1,
+          "tokens": 91171,
+          "wall_clock_s": 90
+        },
+        "phase_2": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 20,
+          "note": "5 items resolved from accumulated mechanical evidence (3 reused verdicts, 2 from gate evidence)"
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 425743,
+          "wall_clock_s": 305
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5,
+          "webfetches": 0
+        },
+        "step_3_5": {
+          "calls": 1,
+          "tokens": 62300,
+          "wall_clock_s": 111
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 10
+        }
+      }
+    }
+  ]
+}

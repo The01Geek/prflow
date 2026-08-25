@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "slug": "issue-28-materialize-the-devflow-plugin-at-runtime-vendor",
+  "generated_at": "2026-05-24T03:50:26Z",
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "diff_profile": {
+        "engine_self_modifying": true,
+        "config_only": false,
+        "small_diff": false,
+        "has_new_types": false,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": [
+        {
+          "agent": "pr-review-toolkit:silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "type-design",
+          "verdict": "unique-effective"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    }
+  ]
+}

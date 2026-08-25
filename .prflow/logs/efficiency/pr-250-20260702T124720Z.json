@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-250",
+  "generated_at": "2026-07-02T12:47:20Z",
+  "source": "review",
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "phase3_dispatched": [
+        "code-reviewer",
+        "silent-failure-hunter",
+        "comment-analyzer",
+        "pr-test-analyzer",
+        "requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "engine_self_modifying": true,
+        "detect_all_audit": true,
+        "has_new_types": false,
+        "small_diff": false,
+        "config_only": false
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": [
+        {
+          "agent": "code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "requesting-code-review",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {}
+    }
+  ]
+}

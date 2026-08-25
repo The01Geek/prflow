@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "slug": "pr-243",
+  "generated_at": "2026-07-01T22:30:01Z",
+  "source": "review",
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "phase3_dispatched": [
+        "devflow:code-reviewer",
+        "devflow:silent-failure-hunter",
+        "devflow:comment-analyzer",
+        "devflow:pr-test-analyzer",
+        "devflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "detect_all_audit": true
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 6,
+      "checklist_agent_count": 7,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": [
+        {
+          "agent": "code-reviewer",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "devflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:pr-test-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "devflow:silent-failure-hunter",
+          "verdict": null
+        },
+        {
+          "agent": "pr-test-analyzer",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_0_5": {
+          "calls": 4
+        },
+        "phase_1": {
+          "calls": 1,
+          "agents": 1
+        },
+        "phase_2": {
+          "calls": 8,
+          "agents": 7,
+          "lite": 6
+        },
+        "phase_3": {
+          "calls": 5,
+          "agents": 5
+        }
+      }
+    }
+  ]
+}
