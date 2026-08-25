@@ -1,0 +1,179 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T22:20:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "decide",
+  "sweep_evidence": {
+    "status": "not-applicable-no-fix"
+  },
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "docs/internal/shadow-review.md calls requesting-code-review 'first-party PRFlow skill'; it is vendored from superpowers. Behavior-inert internal-doc prose, mirrors pre-existing line 261, capped Suggestion under Phase 4.1.5.",
+      "defect_signature": {
+        "file": "docs/internal/shadow-review.md",
+        "line_range": [
+          394,
+          394
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Read-time grandfathering keyed on absent enumeration; write-time is the authoritative control, partial corruption still fails closed. Defense-in-depth gap.",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          4867,
+          4884
+        ],
+        "kind": "logic_error"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Two inline comment blocks exceed the 3-line prevention-only cap.",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          4867,
+          4872
+        ],
+        "kind": "comment_drift"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Minor same-code-path test gaps (read-time parity for gated-off, arity, short+gated positive control).",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          12192,
+          12385
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "shadow-review.md 61748/61750 bytes, 2 under the reference-size ceiling; trim recommended in follow-up.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/shadow-review.md",
+        "line_range": [
+          80,
+          80
+        ],
+        "kind": "other"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-25T22:25:00Z",
+    "reviewed_sha": "ddb43ff465be74f31bdcdf6755abc45057166a5e",
+    "verdict": "APPROVE with notes",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:pr-test-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:pr-test-analyzer"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 7,
+      "overlap_with_iter_N": 7,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
