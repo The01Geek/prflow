@@ -31,7 +31,7 @@ DRAFT_UNREADABLE_EMIT = "If you cannot read the file, return **no findings** and
 HASH_OBJECT = "run `git hash-object --no-filters` on that draft file and quote the object ID it prints verbatim"
 FILE_ARM_OOB = (
     "The following on-disk files are **out of bounds**, exactly these 8 paths — "
-    "`.prflow/tmp/issue-derivation-"
+    "`.prflow/tmp/create-issue/"
 )
 EMBED_ARM_OOB = "the out-of-bounds declaration names exactly these 10 files"
 READ_ORDERING_AMENDED = (
@@ -1725,9 +1725,9 @@ class OutOfBoundsEnumerations(unittest.TestCase):
     the file but fell out of the rendered block would pass a grep and fail here.
     """
 
-    SCOPE_GLOB = "`.prflow/tmp/issue-audit-scope-<slug>.*.md`"
-    DISPATCH_FILE = "`.prflow/tmp/issue-audit-dispatch-<slug>.md`"
-    RECORD_FILE = "`.prflow/tmp/issue-record-<slug>.md`"  # issue #1331: the investigation record
+    SCOPE_GLOB = "`.prflow/tmp/create-issue/<slug>/issue-audit-scope-<slug>.*.md`"
+    DISPATCH_FILE = "`.prflow/tmp/create-issue/<slug>/issue-audit-dispatch-<slug>.md`"
+    RECORD_FILE = "`.prflow/tmp/create-issue/<slug>/issue-record-<slug>.md`"  # issue #1331: the investigation record
 
     def _slug_glob(self, slug="my-slug"):
         return self.SCOPE_GLOB.replace("<slug>", slug)

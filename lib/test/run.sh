@@ -16308,7 +16308,7 @@ assert_pin_unique "#332 AC4: create-issue resolves the main root via resolve-mai
 assert_pin_unique "#332/#569 AC4: the record-draft-binding --path re-resolves the root inline (self-contained fence)" \
   '--path "$('"$PORTABLE_ANCHOR_LITERAL"'scripts/resolve-main-root.sh)" --tier main-root' "$CI_SKILL_332"
 assert_pin_unique "#332/#569 AC4: create-issue displays the draft at the bound-root ABSOLUTE path" \
-  'Draft also saved to `<bound-root>/.prflow/tmp/issue-draft-<slug>.md` for review.' "$CI_SKILL_332"
+  'Draft also saved to `<bound-root>/.prflow/tmp/create-issue/<slug>/issue-draft-<slug>.md` for review.' "$CI_SKILL_332"  # structural-pin-ok: cross-file-phase-contract -- pins that create-issue's draft-save message names the bound-root ABSOLUTE per-run draft path; a relocation missing this display message would ship a stale draft path silently
 assert_eq "#332 AC4: create-issue no longer shows a bare-relative draft-save note" "no" \
   "$(grep -qF 'Draft also saved to `.prflow/tmp/issue-draft-<slug>.md` for review.' "$CI_SKILL_332" && echo yes || echo no)"  # raw-guard-ok: absence pin (expects no) — the old cwd-relative displayed draft note must be gone
 # The Step 2 derivation gate artifact deliberately STAYS cwd-anchored (internal, not shown
