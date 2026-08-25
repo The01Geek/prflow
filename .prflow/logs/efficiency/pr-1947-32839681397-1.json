@@ -114,5 +114,69 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.697446200000002,
+    "tokens": {
+      "input_tokens": 84,
+      "output_tokens": 42206,
+      "cache_read_input_tokens": 7257970,
+      "cache_creation_input_tokens": 230997,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 131,
+        "outputTokens": 64042,
+        "cacheReadInputTokens": 8331504,
+        "cacheCreationInputTokens": 553219,
+        "webSearchRequests": 0,
+        "costUSD": 10.091314500000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 90,
+        "outputTokens": 12749,
+        "cacheReadInputTokens": 1885821,
+        "cacheCreationInputTokens": 440519,
+        "webSearchRequests": 0,
+        "costUSD": 1.6061316999999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 65,
+    "duration_ms": 770525
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; git rev-parse HEAD",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1947/32839681397-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1947/32839681397-1/verdicts/iter-1/VC-7-n4a7.json << 'EOF'\n{\"id\":\"VC-7\",\"verdict\":\"PASS\",\"evidence\":\"In scripts/workpad.py at HEAD 92da5376576cb7f297fd16e404a8c882202d17fb, _has_non_checkpoint_mutation (line 4978-5001) includes getattr(args, 'note_file', None) in its any([...]) list (line 4991), so a --note-file-only invocation counts as a  …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1947/32839681397-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1947/32839681397-1/verdicts/iter-1/VC-10-n4b0.json << 'EOF'\n{\"id\":\"VC-10\",\"verdict\":\"PASS\",\"evidence\":\"scripts/workpad.py (head 92da5376576cb7f297fd16e404a8c882202d17fb) lines 3073-3096 define _read_file_payload as the sole read/decode/empty-guard implementation. Both note-file and reflection-file consumers (_note_file_payload L3121-3130, _ …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && [ -f .prflow/tmp/review-dirty-tree-before ] && [ ! -L .prflow/tmp/review-dirty-tree-before ] && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
