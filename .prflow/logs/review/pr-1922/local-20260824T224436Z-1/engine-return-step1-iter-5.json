@@ -1,0 +1,204 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "engine_root_completeness": {
+    "candidate_selected": "skills/review/SKILL.md",
+    "confirming_read_issued": true,
+    "reads": [
+      "whole read returned lines 1-340",
+      "offset=341 returned a blank line 341 -> content -> appended, re-confirmed from new last line",
+      "offset=342 returned the reader's shorter-than-offset warning (file has 341 lines) -> end of file established"
+    ],
+    "result": "established",
+    "note": "The predicate executed correctly on an intact root: it did NOT falsely stop. The AC3 blocker (engine-subagent entry not carrying the predicate) is verified FIXED — the parent carried resolution steps 3 and 4 verbatim into this subagent's prompt and into the shadow's."
+  },
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "checklist_skipped": null,
+    "changed_files": 7,
+    "changed_lines": 67,
+    "announcement": "Diff classification: detect_all_audit (+ engine_self_modifying, config_only) -> full Phase 1+2 checklist, AND forcing the Phase 3.1.5 completeness-critic pass. Phase 3 roster gated by Phase 3.1 applicability plus the iterations:first-only exclusion."
+  },
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "roster_gate_decisions": {
+    "prflow:code-reviewer": "excluded — resolved override carries iterations:first-only and this is fix-loop iteration 5 (N>=2)",
+    "prflow:type-design-analyzer": "skipped — has_new_types is false",
+    "prflow:pr-test-analyzer": "skipped — test-relevance predicate matches neither branch (no test file touched; every changed file has a config_only extension .md)"
+  },
+  "cap_drops": {"count": 0, "by_category": {}},
+  "checklist": {
+    "generated": 25,
+    "batches": 1,
+    "dedup_run": false,
+    "passed": 21,
+    "failed": 4,
+    "inconclusive": 0,
+    "normalized": 0,
+    "verdict_files_written": 22,
+    "recorded_from_response_text_fallback": ["VC-10", "VC-14", "VC-16"],
+    "failures": [
+      {"id": "VC-12", "inaccuracy_scope": "source_authored_text", "summary": "Empirically demonstrated: on a COMPLETE file ending in a trailing newline the reader returns a blank line at offset = last-content-line + 1 with no warning. The diff-added gloss 'a blank line is content, since the file continues past it' is false in that case — the file does not continue past it."},
+      {"id": "VC-13", "inaccuracy_scope": "source_authored_text", "summary": "PARTIALLY UPHELD on orchestrator re-check. The verifier is right that a preflight-guaranteed file-side length channel exists: `git cat-file -s $(git hash-object skills/review/SKILL.md)` returns 57775, matching `wc -c`, using only git (preflight guarantees are git gh jq python3 PyYAML). So 'none is guaranteed installed' is imprecise as written. But the verifier's conclusion overreaches: the missing half is the READER-side comparand — the agent cannot measure how many bytes its own reader delivered — so no comparison is actually available, and the operative rule (do not substitute an external count for the confirming read) is sound. A line-count comparison would work on the local tier via python3 but not on the cloud tier, where the interpreter head is denied, so the absolute 'nothing on this path distinguishes' is over-strong for one tier. Graded Suggestion; does not change the verdict."},
+      {"id": "VC-15", "inaccuracy_scope": "source_authored_text", "summary": "The changeset claims the Step 1 dispatch paragraph and shadow-review.md's subagent arm BOTH require carrying resolution steps 3 and 4 verbatim. shadow-review.md requires only 'Step 1's completeness predicate — carried into that subagent's prompt by the parent'; it names neither step 4 nor 'verbatim'."},
+      {"id": "VC-21", "inaccuracy_scope": "generated_claim_text", "summary": "Wording-only: the checklist item's own claim (an unsatisfiable extension-row tick obligation) was refuted; the shipped text is fine. The normalization helper declined to normalize it, so it stands as a raw FAIL in the tally."}
+    ]
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "corroboration_count": 2,
+      "contributed_to_verdict": true,
+      "description": "The degraded engine-read arm fetches the completeness predicate with no completeness check of its own — policy without mechanism. It routes on 'if that predicate read does not succeed', which is the same 'a body came back' test this PR exists to replace. Measured: skills/review-and-fix/references/loop-control.md is 60,211 bytes (97.5% of the 61,750-byte lint ceiling) and the predicate occupies bytes 39,005-45,837 (65-76% through the file), so a truncation anywhere in lines 166-194 delivers a body that reads as a complete Step 1 and contains no predicate. The same paragraph removes the agent's other source of that mechanism ('review-and-fix did not load on this arm'). Fails OPEN on a merge gate: the run proceeds to inline engine execution with no predicate, accepts a fragmentary engine root, and stamps the PR review-ready. Remedy is cheap — unlike the engine root, loop-control.md carries a boundary pair ('# Reference: Loop Control …' / '<!-- END loop-control.md -->'), so the arm can require that pair rather than an end-of-file confirmation.",
+      "defect_signature": {"file": "skills/implement/phases/phase-3-fix-loop.md", "line_range": [39, 39], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "corroboration_count": 2,
+      "contributed_to_verdict": true,
+      "description": "The changeset bullet is false against HEAD on both limbs. Limb 1: it claims the Step 1 dispatch paragraph and shadow-review.md's subagent arm 'both require the parent to carry resolution steps 3 and 4 into the subagent's prompt verbatim'. loop-control.md line 165 does; shadow-review.md line 39 requires only 'Step 1's completeness predicate — carried into that subagent's prompt by the parent' — neither naming step 4 nor requiring verbatim. This is substantive: step 4's Engine-subagent arm declares itself binding on 'the Step 1 or Step 2.6 dispatch' and is what tells that subagent to return the engine-root: incomplete terminal in place of a fanned-out payload, yet the shadow site does not require that arm to reach the fresh context it says holds none of Step 1. Limb 2: 'leaving the predicate itself stated in exactly one place' is contradicted by the same diff adding a full restatement to docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md — mitigated but not made true by that restatement self-labelling non-authoritative.",
+      "defect_signature": {"file": ".changeset/issue-1603-engine-root-completeness.md", "line_range": [11, 11], "kind": "documented_falsehood"}
+    },
+    {
+      "agent": "prflow:comment-analyzer + prflow:requesting-code-review",
+      "severity": "Important",
+      "corroboration_count": 2,
+      "contributed_to_verdict": true,
+      "description": "Intra-diff contradiction on the same symbol (iter-<N>.json). Diff-ADDED at loop-control.md line 191: 'The halt never reaches Step 3, so this iteration's fused iter-<N>.json emit never fires.' RETAINED and unreconciled at skills/implement/phases/phase-3-fix-loop.md line 37: 'the per-iteration effectiveness record (iter-<N>.json) is a non-optional emit on every iteration … and the emit is non-optional on every path, including a degraded one' — the paragraph immediately preceding the line this diff modified. Also retained at skills/review-and-fix/SKILL.md line 298: 'mandatory on every iteration regardless of how the loop was executed — … hand-run via direct Agent dispatch on a degraded path'. An orchestrator on the degraded arm reads two shipped instructions in conflict, and the cheap wrong resolution is to fabricate an iter-1.json for an iteration that produced no review, polluting the effectiveness telemetry the emit exists to make trustworthy. Both retained sites needed a one-clause carve-out in this change.",
+      "defect_signature": {"file": "skills/implement/phases/phase-3-fix-loop.md", "line_range": [37, 39], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true,
+      "description": "Diff-added deictic is false against HEAD: loop-control.md line 191 says 'the blocked record below … stands in as that iteration's record', but loop-control.md contains no blocked record and no further occurrence of 'blocked' after line 191 — the record lives in the caller's file, which the very next sentence correctly identifies. Read literally it sends an agent scanning this file for a sink it will not find. Fail direction is benign; the fix is 'the caller's own blocked record'.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [191, 191], "kind": "documented_falsehood"}
+    },
+    {
+      "agent": "orchestrator (Phase 2 VC-12, empirically probed)",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true,
+      "description": "The justification clause attached to the blank-line rule is false for the end-of-file case. Probed directly: a complete 3-line file ending in a trailing newline returns a blank numbered line at offset 4 with no warning; the same shape appears on skills/review/SKILL.md at offset 341. The rule itself ('a blank line is content') is correct and necessary — a truncated body's next undelivered line may well be blank — and the procedure still terminates in one extra read, which this run demonstrated. But 'since the file continues past it' is demonstrably false at EOF, and the real, undocumented consequence is that EVERY intact read now costs one extra confirming read on a trailing-newline file. Reword the gloss and state the cost.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [180, 180], "kind": "documented_falsehood"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "The overview's restatement presents the terminal's disposition as a two-way split (Step 1 entry / Step 2.6 shadow entry), silently dropping the third arm — Engine-subagent entry — which is the one the loop reaches FIRST on every entry, since both entries dispatch before any inline read. A maintainer reading only the overview would conclude the subagent path is ungated, the exact gap a prior iteration closed. CAPPED at Suggestion by the Phase 4.1.5 behavior-inert prose cap: both limbs hold — no tool parses it for behavior, and docs/internal/ is pruned by vendor-slice.sh so it reaches no consumer.",
+      "defect_signature": {"file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md", "line_range": [458, 458], "kind": "comment_drift"}
+    },
+    {
+      "agent": "orchestrator (Phase 2 VC-25)",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true,
+      "description": "Step 3 requires an unestablished-resolution advance to be recorded, 'naming in this run's report which candidate it advanced past and why', and states that an unrecorded advance 'hides a present-but-unreadable engine behind a later copy'. But the Step 1 return-file field set is closed and carries no advanced-past-candidate slot, so on a fanned-out engine-subagent return the record dies with the subagent's context. Reachable via the subagent's free-text return, which is why this is a Suggestion rather than higher.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [177, 177], "kind": "logic_error"}
+    },
+    {
+      "agent": "orchestrator (Phase 2 VC-13, re-checked)",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true,
+      "description": "Two absolutes in the diff-added line are over-strong. 'Do not substitute a byte or line count from an external counting tool, whose absence yields an empty value and the wrong outcome' — accurate about wc/cut, but a preflight-guaranteed file-side length channel does exist: git cat-file -s $(git hash-object <file>) returns the exact byte size using only git, which lib/preflight.sh guarantees. And 'nothing on this path distinguishes an intact engine on a reader that cannot page from a truncated one' holds on the cloud tier (the python3 interpreter head is denied there) but is over-strong on the local tier, where a python3 line count is available. The operative RULE is sound — the genuinely missing half is the reader-side comparand, since the agent cannot measure how many bytes its own reader delivered — so the fix is to scope the two absolutes, not to weaken the predicate.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [182, 182], "kind": "documented_falsehood"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "Headroom advisory, not a defect: loop-control.md grew 53,381 -> 60,211 bytes (1,539 under the 61,750 ceiling) and shadow-review.md grew 60,871 -> 61,180 (570 under). lint-reference-size.py is green today, but the next ordinary prose addition to either turns the required check RED. Some growth is avoidable under CLAUDE.md's instruction-plus-one-consequence rule — step 3's new paragraphs carry several rationale clauses per instruction.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [176, 194], "kind": "style"}
+    }
+  ],
+  "phase_3_1_5_completeness_critic": {
+    "ran": true,
+    "reason": "detect_all_audit set by Phase 0.5",
+    "population_claimed": "every file-read call site that reaches skills/review/SKILL.md — asserted to be exactly three (fix-loop Step 1 engine resolution, its Step 2.6 shadow, the implement tier's degraded engine-read arm), all gated by the completeness predicate",
+    "independent_signal": "git ls-files over tracked .md cross-grepped for engine-root reads and engine-directory resolution phrasing, then each hit read to check whether it states its own acceptance predicate or delegates — deliberately NOT the diff's own enumeration",
+    "result": "complete with respect to the independent signal used — the three claimed sites are the three that state an acceptance predicate, and all three are gated. skills/review-and-fix/SKILL.md mentions the file read at two places but states no competing predicate and delegates to Step 1; skills/implement/SKILL.md's only hit is the boundary-contract required copy, not an engine-root read.",
+    "adjacent_uncovered_member": "The change introduces a NEW file read on the same path — the predicate read from references/loop-control.md — and gives it a weaker acceptance test than the predicate it fetches. Filed as the Important finding above."
+  },
+  "phase_notes": {
+    "phase_0_1": "working tree clean",
+    "phase_0_3_6": "gated out — fix-loop path, not standalone PR mode, and no prior REJECT driven solely by carve-out blockers",
+    "phase_0_6": "gated out — prflow_review.stale_prose.enabled resolves to false (explicit)",
+    "phase_1_5": "skipped — single generator batch",
+    "phase_3_2_dirty_tree": "before/after snapshots IDENTICAL — no agent mutated the working tree",
+    "phase_4_0": "no Scope-Acknowledged Findings block consulted (fix-loop path, head_override local); no demotions",
+    "phase_4_1_7": "not reached — Phase 0.6 produced no STALE findings to adjudicate",
+    "phase_4_4": "SKIPPED as instructed — no gh pr review, no gh pr comment",
+    "prompt_extension": "PROMPT-EXTENSION-STATUS: content-present, rc=0, read whole at every phase entry",
+    "final_pass_extension_status": "EXTENSION-STATUS: loaded-empty resolved-root=unset"
+  },
+  "shadow": {
+    "ran": true,
+    "dispatch_mode": "fanned-out",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "return_file": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/engine-return-shadow-iter-5.json",
+    "reviewers_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+    "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+    "independence": "Resolved the engine directory from scratch and derived byte-identical root/reference hashes independently; ran its own Phase 0-4.3 with every reviewer prompt blinded (no prior findings, no fix decisions, no fixer reasoning). It correctly kept prflow:code-reviewer, which the Step 1 roster drops under iterations:first-only at iteration 5.",
+    "agreement": "AGREES with the primary pass on REJECT, and independently corroborates the degraded-arm predicate-read fail-open (3 of its 4 reviewers) and the iter-<N>.json / advance-record findings.",
+    "new_critical_the_primary_pass_missed": {
+      "severity": "Critical",
+      "agents": ["prflow:code-reviewer", "prflow:comment-analyzer"],
+      "file": ".changeset/issue-1603-engine-root-completeness.md",
+      "line_range": [9, 12],
+      "kind": "documented_falsehood",
+      "description": "Three 'previously' / 'no longer' bullets describe an intra-branch checkpoint state as RELEASED behavior. Orchestrator-verified at merge base cccf0e5f7038c5e5460383ce3c7bdd962b3e21a7: the literal `engine-root: incomplete` occurs ZERO times in skills/implement/phases/phase-3-fix-loop.md, skills/review-and-fix/references/loop-control.md and skills/review-and-fix/references/error-handling.md, and the base degraded engine-read arm contains no predicate read at all. So bullet 12 ('an unreadable references/loop-control.md previously took the Blocked path under `engine-root: incomplete` with an unbound path substitution') describes a state that never shipped; likewise bullet 9 ('the record no longer lands twice on the implement path') and bullet 10 ('previously the engine never running ... stamped the PR review-ready with no review having happened' — the base already fail-closed on 'no parseable verdict at all' and on an ungradeable residual). scripts/consolidate-changesets.py prepends this prose VERBATIM into CHANGELOG.md and the GitHub Release notes, so it ships to consumers as a released-behavior claim. Bullet 8 ('can no longer fall through to a different engine copy') IS true at base and shows the correct framing."
+    },
+    "other_new_important": [
+      {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [165, 165],
+        "kind": "api_misuse",
+        "description": "The engine subagent's completeness check is unobservable to the parent — the return contract has no attestation operand. The parent must carry steps 3 and 4 verbatim, and the well-formedness check validates phase3_dispatched, expected_reviewers, verdict, diff_profile and cap_drops field by field, but completeness is the one guarantee with NO returned field. A subagent that never received the predicate (a truncated parent prompt, or a pre-#1603 vendored loop-control.md under autoUpdate:true) returns a fully well-formed fanned-out payload over a fragment and every parent check passes. Remedy costs one field plus one not-well-formed trigger."
+      },
+      {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [177, 178],
+        "kind": "logic_error",
+        "description": "An unclassifiable resolution advances the scan and can substitute a DIFFERENT engine copy, and on the fanned-out dispatch path the mandated 'record of the advance' has no channel — the return file's enumerated fields carry no slot for a skipped candidate. This also weakens the self-review skew guard by exactly its worth: the diff now concedes a self-review resolves the branch's own engine 'unless that candidate's own resolution is left unestablished, which advances the scan to a vendored copy', three lines from the still-standing 'do not silently fall back to a stale plugin-cache copy'. Shadow suggests refusing the advance when the diff is engine_self_modifying."
+      }
+    ],
+    "classification_divergence": "The shadow set detect_all_audit=false where the primary pass set it true. The primary pass's reading forced the Phase 3.1.5 completeness-critic pass, which is purely additive, so neither pass lost coverage; the divergence is recorded rather than reconciled.",
+    "shadow_confirming_read": "Issued at offset 342 on a 341-line root; reader replied with the shortness report ('the file exists but is shorter than the provided offset (342). The file has 341 lines.') — one of the two admitted end-of-file shapes, so completeness established and the body executed.",
+    "shadow_checklist": {"generated": 28, "passed": 28, "failed": 0, "inconclusive": 0},
+    "shadow_disclosed_deviations": [
+      "normalize-verdicts.py not invoked — zero raw FAILs, so it had no candidate; normalized_count=0 stated rather than inferred",
+      "Phase 3.2 dirty-tree compare found the before-snapshot gone and took the fail-closed SKIPPED breadcrumb rather than misattributing a mutation; git status --porcelain independently confirmed the tree clean",
+      "Phase 4.5 telemetry not authored — the parent owns iter-<N>.json for this iteration",
+      "The Phase 1 boundary extension re-load was run with stdout suppressed (status read from stderr), against the root's read-whole rule; content was already held verbatim. Phase 2/3 and Phase 4 re-loads were unsuppressed.",
+      "Reused the primary pass's cached diff (permitted) but validated it independently: 7 rows + 0 typechange = 7 sections, cache carries exactly 7, 0 logs sections"
+    ],
+    "shadow_note_for_shepherd": "The branch is behind main: the base handed in (9489480) is not an ancestor of HEAD; the true merge base is cccf0e5. The three-dot diff is correct so the review surface is unaffected, and CI is green at the head, but an update-branch before merge is the usual precaution."
+  },
+  "verdict_reasoning": {
+    "threshold": "critical",
+    "rule_1_checklist_fail": "REJECT — 4 checklist FAILs stand after the normalization helper ran clean (no retries, no normalizations applied)",
+    "self_contradicting_diff_carve_out": "REJECT, threshold-independent and non-demotable — three diff-added artifacts are false against HEAD: the changeset bullet, the 'blocked record below' deictic, and the 'since the file continues past it' gloss. The Phase 4.1.6 intra-diff contradiction scan additionally fires on the iter-<N>.json absolute-claim / retained-limitation pair (same symbol).",
+    "cap_applicability": "The Phase 4.1.5 behavior-inert prose cap CANNOT apply to any skills/** or changeset finding here: vendor-slice.sh copies skills/ whole (pruning only docs/site, docs/external, docs/internal, lib/test), so limb two fails — those bodies ship to consumers — and a changeset becomes a release note, which limb two names explicitly. Only the docs/internal/ finding is capped.",
+    "rule_3": "inert at threshold critical — no finding is graded Critical"
+  }
+}

@@ -1,0 +1,224 @@
+{
+ "pairs": [
+  {
+   "item": {
+    "id": "VC-1",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/review-and-fix/references/loop-control.md:180"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-1-477af2c7ec04.json",
+   "response_text": "{\"id\": \"VC-1\", \"verdict\": \"PASS\", \"evidence\": \"skills/review-and-fix/references/loop-control.md:180 states verbatim: 'The selected candidate is the located engine directory \\u2014 call it <engine-dir> \\u2014 only once that body's completeness is established, and a merely-readable body does not satisfy the condition.' Step 1 also states the engine is executed 'only once that body's completeness is established per resolution step 3 below.' grep across skills/ finds no surviving 'readable body'/'readable SKILL.md' acceptance wording \\u2014 the only match is this line itself.\", \"file_checked\": \"skills/review-and-fix/references/loop-control.md:180\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-2",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/review-and-fix/references/loop-control.md:187-192"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-2-24edfe5d38e0.json",
+   "response_text": "{\"id\": \"VC-2\", \"verdict\": \"PASS\", \"evidence\": \"loop-control.md:189 states the terminal engine-root: incomplete names the candidate's SKILL.md path, and forbids execution ('do not execute it'), fall-through ('do not fall through to a later candidate'), and repair ('do not repair the file'). Lines 190-192 confirm each of the three disposition sub-arms (subagent entry, Step 1 entry, Step 2.6 shadow entry) preserves this terminal/report without executing or repairing the file.\", \"file_checked\": \"skills/review-and-fix/references/loop-control.md:187-192\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-3",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/review-and-fix/references/loop-control.md:176-196, skills/review-and-fix/references/shadow-review.md:52, skills/implement/phases/phase-3-fix-loop.md (Blocked path)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-3-cfe60c1b01b2.json",
+   "response_text": "{\"id\": \"VC-3\", \"verdict\": \"PASS\", \"evidence\": \"loop-control.md Step 1's engine resolution (lines 176-196) explicitly gates on 'completeness is established' (not mere readability), with the terminal 'engine-root: incomplete' at unestablished completeness. shadow-review.md line ~52 says the shadow dispatch subagent 'Reads its SKILL.md in full under Step 1's completeness predicate' and the inline arm likewise 'Reads its SKILL.md in full under Step 1's completeness predicate' -- reusing the same predicate, not a weaker one. phase-3-fix-loop.md's Blocked path explicitly names 'engine-root: incomplete' and 'engine-predicate: unread' as failure terminals distinct from 'the read returned a body', which the file calls out as 'the fail-open the predicate exists to close.' All three sites -- Step 1, Step 2.6 shadow (both fanned-out and unavailable/inline dispatch_mode arms), and phase-3-fix-loop's degraded arm -- route through the same completeness predicate rather than a readability-only check.\", \"file_checked\": \"skills/review-and-fix/references/loop-control.md:176-196, skills/review-and-fix/references/shadow-review.md:52, skills/implement/phases/phase-3-fix-loop.md (Blocked path)\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-4",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/review-and-fix/references/loop-control.md:167"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-4-c158f8f232bb.json",
+   "response_text": "{\"id\": \"VC-4\", \"verdict\": \"PASS\", \"evidence\": \"loop-control.md Step 1 (line ~167) is labeled 'Mandatory and authoritative \\u2014 this is the canonical statement of engine resolution; every other describing site mirrors it' and contains the full confirming-read/completeness predicate. error-handling.md:16 and shadow-review.md (skills/review-and-fix/references/) point at 'Step 1, the canonical statement' rather than restating the predicate text. phase-3-fix-loop.md:39 instructs reading the predicate from loop-control.md verbatim ('that statement is canonical... do not re-derive it here'). docs/internal/shadow-review.md references 'Step 1's completeness predicate' by pointer in multiple places without restating it. docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:458 does restate the predicate in substantial detail, but explicitly declares itself non-authoritative: 'The canonical statement of that gate is skills/review-and-fix/references/loop-control.md Step 1; the restatement that follows here is non-authoritative and the canonical statement wins wherever the two could be read against each other.' This self-declaration plus consistent pointer-based referencing at the other sites satisfies the claim's stated criterion (single canonical location, mirrors point at it or are reconciled/declared non-authoritative).\", \"file_checked\": \"skills/review-and-fix/references/loop-control.md:167\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-5",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "git diff main...HEAD -- skills/"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-5-2da7295b8827.json",
+   "response_text": "{\"id\": \"VC-5\", \"verdict\": \"PASS\", \"evidence\": \"git diff main...HEAD -- skills/ | grep '^+' (excluding '+++') and searched for docs/internal, docs/external, other repo-private paths (lib/test/, .prflow/logs, .changeset) and #<digits> issue references. Search returned zero matches, meaning no added skills/** line contains any of those forbidden tokens.\", \"file_checked\": \"git diff main...HEAD -- skills/\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-6",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/review/SKILL.md, skills/implement/SKILL.md"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-6-5f43c299df38.json",
+   "response_text": "{\"id\": \"VC-6\", \"verdict\": \"PASS\", \"evidence\": \"merge-base = cccf0e5f7038c5e5460383ce3c7bdd962b3e21a7. skills/review/SKILL.md: base size 57775 bytes, head size 57775 bytes (identical). skills/implement/SKILL.md: base size 60656 bytes, head size 60656 bytes (identical). Neither file appears in git diff --name-only main...HEAD, confirming they were not touched by this change.\", \"file_checked\": \"skills/review/SKILL.md, skills/implement/SKILL.md\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-7",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "gh issue view 1603 (workpad comment), lines 35 and 67 of fetched body"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-7-9d6eb4f67ca1.json",
+   "response_text": "{\"id\": \"VC-7\", \"verdict\": \"PASS\", \"evidence\": \"Workpad comment (marked <!-- prflow:workpad -->) on issue 1603 carries two 'Writing-skills evidence:' lines (workpad lines 35 and 67), each stating all four slots explicitly: line 35 -- skill-loaded=yes, guidance-applied=yes, pressure-scenario=yes, micro-tests=no (each with a stated one-clause reason); line 67 -- skill-loaded=yes, guidance-applied=yes, pressure-scenario=no, micro-tests=no (each with a stated reason). Both markers discharge all four slots with explicit =yes/=no dispositions and reasons, per the shipped evidence-contract shape.\", \"file_checked\": \"gh issue view 1603 (workpad comment), lines 35 and 67 of fetched body\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-8",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": ".changeset/issue-1603-engine-root-completeness.md, scripts/consolidate-changesets.py:76,80"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-8-e387964a4c77.json",
+   "response_text": "{\"id\": \"VC-8\", \"verdict\": \"PASS\", \"evidence\": \".changeset/issue-1603-engine-root-completeness.md exists with frontmatter 'bump: patch' and 'type: Changed' (the frontmatter form, not the npm \\\"prflow\\\": patch form). scripts/consolidate-changesets.py defines VALID_BUMPS = (\\\"patch\\\", \\\"minor\\\", \\\"major\\\") at line 76 and CANONICAL_TYPES including \\\"Changed\\\" at line 80, so both values are accepted by the consolidator.\", \"file_checked\": \".changeset/issue-1603-engine-root-completeness.md, scripts/consolidate-changesets.py:76,80\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-9",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "gh run list / gh pr checks / gh pr view / issue-1603 workpad comment line 129"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-9-38f32801ae10.json",
+   "response_text": "{\"id\": \"VC-9\", \"verdict\": \"PASS\", \"evidence\": \"gh run list --commit 709a543a98c9543f13d94c1d4a598c1341736a2d shows a completed/success run (32805414339) for the full 40-char SHA. gh pr checks 1922 lists 'lib + python tests: pass' by name (not via --required). gh pr view 1922 --json headRefOid returned 709a543a98c9543f13d94c1d4a598c1341736a2d both before and after the checks read, confirming stability. The issue-1603 workpad (line 129) records a 'Verification evidence:' entry naming the full SHA 709a543a98c9543f13d94c1d4a598c1341736a2d, required check 'lib + python tests', conclusion SUCCESS, and run URL https://github.com/The01Geek/prflow/actions/runs/32805414339, stating 'Green with all five shards passing'; no skip is reported for this SHA (an earlier related-SHA record at line 138 explicitly reports zero skips across all shard tallies). No skip requiring kind/reason surfacing was found for the reviewed head.\", \"file_checked\": \"gh run list / gh pr checks / gh pr view / issue-1603 workpad comment line 129\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-11",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/review/SKILL.md (probed at offsets 340/341/342); .prflow/tmp/probe_with_nl.txt and probe_without_nl.txt (probed past EOF)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-11-b18ffa9ec049.json",
+   "response_text": "{\"id\": \"VC-11\", \"verdict\": \"PASS\", \"evidence\": \"Empirically probed offsets past EOF on skills/review/SKILL.md (340 real lines, trailing newline) and two scratch files. Observed exactly two reply shapes: (1) an explicit system-reminder warning naming both the file's actual line count and the requested offset, e.g. offset=342 on SKILL.md -> 'Warning: the file exists but is shorter than the provided offset (342). The file has 341 lines.' (2) at the boundary immediately past the last real content line of a trailing-newline file (SKILL.md offset=341; probe_with_nl.txt offset=4), the tool returns a numbered-but-content-empty line ('4\\\\t') with no warning text at all -- functionally 'nothing' returned, and its line-number tag makes it attributable to the requested position. No third shape (an error string naming neither length nor position) was observed on this runner, so the predicate's two accepted EOF shapes match what this runner actually emits.\", \"file_checked\": \"skills/review/SKILL.md (probed at offsets 340/341/342); .prflow/tmp/probe_with_nl.txt and probe_without_nl.txt (probed past EOF)\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-12",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": ".prflow/tmp/probe_with_nl.txt (offset=4) vs .prflow/tmp/probe_without_nl.txt (offset=4); skills/review/SKILL.md offset=341 exhibits the same blank-line-no-warning shape"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-12-8422c218a843.json",
+   "response_text": "{\"id\": \"VC-12\", \"verdict\": \"FAIL\", \"evidence\": \"Created .prflow/tmp/probe_with_nl.txt = 'line1\\\\nline2\\\\nline3\\\\n' (genuinely complete file, ends with a trailing newline, no content after it). Reading at offset=4 (one past the last real content line) returned a blank/empty line tagged '4\\\\t' with NO warning -- i.e. Read reported 'content' at that position. Per the source_excerpt's own rule ('Any content returned at that position means the read you held was truncated ... a blank line is content, since the file continues past it'), this blank reply would be treated as proof of truncation and trigger append-and-re-confirm. But the file is genuinely complete: there is nothing past line 3 except the newline byte itself. This is the exact falsifying shape -- a complete engine root whose last line ends with a trailing newline reads as perpetually truncated under this rule. (Contrast: probe_without_nl.txt, lacking a trailing newline, produced the unambiguous length+position warning at the same relative offset, never a blank content line.)\", \"file_checked\": \".prflow/tmp/probe_with_nl.txt (offset=4) vs .prflow/tmp/probe_without_nl.txt (offset=4); skills/review/SKILL.md offset=341 exhibits the same blank-line-no-warning shape\", \"property_proven\": false, \"inaccuracy_scope\": \"source_authored_text\"}"
+  },
+  {
+   "item": {
+    "id": "VC-13",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/preflight.sh:53,111; skills/review/SKILL.md:276-288; skills/review-and-fix/references/loop-control.md:182"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-13-fbd3369b0598.json",
+   "response_text": "{\"id\": \"VC-13\", \"verdict\": \"FAIL\", \"evidence\": \"git IS guaranteed on PATH by lib/preflight.sh (_DEVFLOW_PREFLIGHT_GUARANTEES=(git gh jq python3 PyYAML), line 53; _need git at line 111), and this exact file-read path already mandates a git hash-object invocation over the same engine files (skills/review/SKILL.md:276-288, 'Root identity'), reading directly from disk independent of the Read tool's paging. A git-derived byte/line count (e.g. git cat-file -s or git show HEAD:<path> | wc -l) is therefore an available, preflight-guaranteed channel on this path that CAN distinguish a truncated read from an intact on-disk file, falsifying 'nothing on this path distinguishes' and 'none is guaranteed installed'. The source prose's own 'external counting tool' framing is contradicted by its own mandatory git hash-object step two sections later in the same skill.\", \"file_checked\": \"lib/preflight.sh:53,111; skills/review/SKILL.md:276-288; skills/review-and-fix/references/loop-control.md:182\", \"property_proven\": false, \"inaccuracy_scope\": \"source_authored_text\"}"
+  },
+  {
+   "item": {
+    "id": "VC-15",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/review-and-fix/references/shadow-review.md:39"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-15-732d902a3a59.json",
+   "response_text": "{\"id\": \"VC-15\", \"verdict\": \"FAIL\", \"evidence\": \"Changeset says 'The Step 1 dispatch paragraph and references/shadow-review.md's subagent arm now both require the parent to carry resolution steps 3 and 4 into the subagent's prompt verbatim'. loop-control.md:165 does state this verbatim requirement explicitly ('carry resolution steps 3 and 4 below into its prompt verbatim'). But shadow-review.md:39 only says the subagent Reads SKILL.md 'under Step 1's completeness predicate \\u2014 carried into that subagent's prompt by the parent, since that fresh context holds none of Step 1' \\u2014 it never names 'resolution steps 3 and 4' nor uses the word 'verbatim' for this obligation (verbatim there is reserved for per-agent prompts, block 48). A fresh-context parent reading only shadow-review.md is told to carry 'the predicate' but not told it must be steps 3 and 4 word-for-word; the obligation is weaker/vaguer than the changeset's 'both... require... verbatim' claim.\", \"file_checked\": \"skills/review-and-fix/references/shadow-review.md:39\", \"property_proven\": false, \"inaccuracy_scope\": \"source_authored_text\"}"
+  },
+  {
+   "item": {
+    "id": "VC-17",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/implement/phases/phase-3-fix-loop.md:210,248,256"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-17-e12ddb124206.json",
+   "response_text": "{\"id\": \"VC-17\", \"verdict\": \"PASS\", \"evidence\": \"Only caller with a soft-proceed arm enumerated: skills/implement/phases/phase-3-fix-loop.md (implement Phase 3.3). Two interception points both route engine-root:incomplete to Blocked, never soft-proceed: (1) line 210 \\u2014 a NO-MARKER reading accompanying the loop's reported engine-root:incomplete terminal 'takes the Blocked path below directly, not the severity-aware exit'; (2) line 248's severity-aware exit itself states 'The same applies to a non-convergence reported as engine-root: incomplete: the engine never ran, so there are no graded residuals and the soft-proceed test below would pass vacuously on an unreviewed PR' \\u2014 explicitly routed to the Blocked-path bullet, not soft-proceed. loop-control.md:191 confirms the loop itself never reaches Loop Exit on this terminal (no marker, no headline), consistent with the NO-MARKER interception. No other skills/**/*.md or .prflow/prompt-extensions/**/*.md file invokes /prflow:review-and-fix with a soft-proceed-style routing on its outcome (standalone review-and-fix has no caller-side soft-proceed; only phase-3-fix-loop.md's implement wrapper does).\", \"file_checked\": \"skills/implement/phases/phase-3-fix-loop.md:210,248,256\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-18",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/implement/phases/phase-3-fix-loop.md:256"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-18-e204ad3f521b.json",
+   "response_text": "{\"id\": \"VC-18\", \"verdict\": \"PASS\", \"evidence\": \"loop-control.md:191 states the blocked record has exactly one writer. Verified: the sole caller invoking review-and-fix with a workpad is skills/implement/phases/phase-3-fix-loop.md (both the initial invocation line 35 and the bounded re-review line 243), and its single --status Blocked write for the engine-root: incomplete terminal is at line 256. Standalone /prflow:review-and-fix has no workpad, matching the claim's zero-writer arm.\", \"file_checked\": \"skills/implement/phases/phase-3-fix-loop.md:256\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-19",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": ".github/actions/vendor-plugin/vendor-slice.sh:74,106"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-19-7986597bee28.json",
+   "response_text": "{\"id\": \"VC-19\", \"verdict\": \"PASS\", \"evidence\": \"vendor-slice.sh copies skills whole via `cp -R \\\"$src/.claude-plugin\\\" \\\"$src/agents\\\" \\\"$src/docs\\\" \\\"$src/lib\\\" \\\"$src/scripts\\\" \\\"$src/skills\\\" \\\"$src/LICENSES\\\" \\\"$stage/\\\"` (line 74), and its only prunes are `$stage/docs/site $stage/docs/external $stage/docs/internal $stage/lib/test` (line 106) plus __pycache__ \\u2014 no skills/** subdirectory, including skills/review-and-fix/references/, is pruned. Confirmed skills/review-and-fix/references/loop-control.md exists at repo root, and skills/review/phases/ (the sibling engine-bundle reference directory) is vendored the same way, establishing reference subdirectories are copied as a class. The claim's sibling-directory resolution (skills/review -> skills/review-and-fix on repo-root layout; .prflow/vendor/prflow/skills/review -> .prflow/vendor/prflow/skills/review-and-fix on vendored layout) therefore holds on both layouts.\", \"file_checked\": \".github/actions/vendor-plugin/vendor-slice.sh:74,106\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-20",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/implement/phases/phase-3-fix-loop.md:39"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-20-4de73175ac9b.json",
+   "response_text": "{\"id\": \"VC-20\", \"verdict\": \"PASS\", \"evidence\": \"skills/implement/phases/phase-3-fix-loop.md:39 instructs 'Read Step 1's completeness predicate itself from references/loop-control.md ... If that predicate read does not succeed, take this phase's Blocked path'. This tests only read success/failure, never applies any completeness/boundary-marker check to the loop-control.md read itself. loop-control.md is 60211 bytes / 242 lines (wc -c/-l), under the ~61750-byte ceiling lint-reference-size.py enforces (95% of 25000-token cap at 2.60 bytes/token floor), with a matching '# Reference:' / '<!-- END loop-control.md -->' marker pair, so under the documented budget a single Read is expected to deliver it whole -- making the fail-open largely theoretical at the standard 25k-token reader budget. But CLAUDE.md itself notes 'a smaller reader budget may not complete the paging', and the phase-3-fix-loop.md text quoted verbatim contains no instruction to verify the boundary markers or otherwise test completeness of this specific predicate read; it tests only success. The claim's core assertion -- that the arm's guard is 'read succeeded', not 'read was complete' -- is textually accurate.\", \"file_checked\": \"skills/implement/phases/phase-3-fix-loop.md:39\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-21",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/implement/phases/phase-3-fix-loop.md:232-256; skills/implement/phases/phase-1-setup.md:201"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-21-b0824b34fab1.json",
+   "response_text": "{\"id\": \"VC-21\", \"verdict\": \"FAIL\", \"evidence\": \"phase-3-fix-loop.md:240 explicitly handles the case: 'Where that state cannot be established here, leave that row unticked and say so in the note \\u2014 never tick it from recall.' phase-1-setup.md:201 (the \\u00a71.3 extension-row tick rule referenced by Phase 3) already provides the same escape: a row is ticked 'only on observed content'; when no observable result exists, 'leave the row unticked and say so in a --note.' Both new Blocked entries (engine-root: incomplete at line 256, and engine-predicate: unread at same line) are covered by this rule \\u2014 review-and-fix's extension never loaded on those arms, so the run legitimately records the row unticked with a note stating the state was not established. No unsatisfiable tick obligation exists; the claim that the rule forces a tick regardless is incorrect.\", \"file_checked\": \"skills/implement/phases/phase-3-fix-loop.md:232-256; skills/implement/phases/phase-1-setup.md:201\", \"property_proven\": true, \"inaccuracy_scope\": \"generated_claim_text\"}"
+  },
+  {
+   "item": {
+    "id": "VC-22",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/reference-size-exemptions.json; skills/review/SKILL.md; skills/retrospective-weekly/SKILL.md; CLAUDE.md:107"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-22-f800d5abb5f2.json",
+   "response_text": "{\"id\": \"VC-22\", \"verdict\": \"PASS\", \"evidence\": \"lib/test/reference-size-exemptions.json lists exactly one exempted file: skills/retrospective-weekly/SKILL.md (recorded_bytes 83427; current wc -c 71268, still over the 61750 ceiling). skills/review/SKILL.md measures 57775 bytes -- under the ceiling -- and carries no exemption row, consistent with the overview's claim. CLAUDE.md:107's mirroring sentence ('The files already over it carry expiring exemptions in lib/test/reference-size-exemptions.json') names no specific file (generic pointer to the JSON), so there is no stale reference to skills/review/SKILL.md in CLAUDE.md to reconcile. Both surfaces are consistent.\", \"file_checked\": \"lib/test/reference-size-exemptions.json; skills/review/SKILL.md; skills/retrospective-weekly/SKILL.md; CLAUDE.md:107\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-23",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/review-and-fix/references/loop-control.md:167-200"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-23-5b94e1686aa5.json",
+   "response_text": "{\"id\": \"VC-23\", \"verdict\": \"PASS\", \"evidence\": \"skills/review-and-fix/references/loop-control.md lines ~174-190 verbatim match the claim: resolution alone selects the candidate; a message affirming existence positively resolves it and no later candidate is read; the completeness-unestablished terminal explicitly forbids fall-through ('do not fall through to a later candidate, and do not repair the file'). Falsifier (a): the candidate is specifically `<repo-root>/skills/review`, a fixed path, not an arbitrary consumer path, so the rule's scope is accurate as stated. Falsifier (b): confirmed hard stop at `engine-root: incomplete` with no fall-through to candidate 2, stated as deliberate. Self-review paragraph: `ls -d .prflow/vendor` returns 'No such file or directory' in this repo, but the sentence is conditional ('unless ... left unestablished, which advances the scan to a vendored copy') and does not assert the vendored path is reached unconditionally here; no contradiction.\", \"file_checked\": \"skills/review-and-fix/references/loop-control.md:167-200\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-24",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/review-and-fix/references/loop-control.md:165,177-192"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-24-7e63c702543a.json",
+   "response_text": "{\"id\": \"VC-24\", \"verdict\": \"PASS\", \"evidence\": \"Step 4's engine-subagent arm (loop-control.md:190) states exactly the claimed behavior: 'the subagent holds no loop to halt, so it returns this terminal to the parent \\u2014 naming engine-root: incomplete and that path \\u2014 in place of a fanned-out payload, and reviews nothing further; the parent reads that as not well-formed and takes the fallback the dispatch paragraph already defines, which then re-decides the terminal on the entry arm below.' The dispatch paragraph's well-formedness enumeration (line 165) lists 'the subagent died, returned a dispatch_mode outside the two-value set, or its return file is missing, unreadable, or lacks a required field' as not-well-formed; the terminal-string return (no dispatch_mode, no return file) matches the 'missing return file' shape and correctly falls into that set. The fallback runs the engine inline (line 165), and the inline execution independently re-hits resolution step 4 (line 189) via the same predicate, landing on the Step 1 entry arm which STOPs before any mutation (line 191) rather than proceeding to review a root already declared incomplete. The round trip is sound: no path lets the parent execute a root the subagent flagged incomplete.\", \"file_checked\": \"skills/review-and-fix/references/loop-control.md:165,177-192\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-25",
+    "claim": "(see checklist)",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/review-and-fix/references/loop-control.md:165,177"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-5/VC-25-4d1c85d2d78d.json",
+   "response_text": "{\"id\": \"VC-25\", \"verdict\": \"PASS\", \"evidence\": \"Step 3's unestablished-resolution advance obligation (loop-control.md:177) requires 'naming in this run's report which candidate it advanced past and why,' warning that 'an unrecorded advance hides a present-but-unreadable engine behind a later copy.' The Step 1 dispatch paragraph's engine-subagent return-file field list (line 165) is closed: phase3_findings, phase3_dispatched, expected_reviewers, diff_profile, cap_drops, verdict, and the Phase 4.1 report (or a path to it) \\u2014 no field carries an advanced-past-candidate record. Constructing the case: an engine subagent's resolution scan advances past an unestablished repo-root candidate (e.g. a permission denial unclassifiable as to whether the path resolved), then successfully resolves and executes a later candidate, returning a normal well-formed fanned-out payload. Nothing in the return-file schema transports the advance record, and the subagent's conversational context (where 'this run's report' would have been narrated) is discarded on return per the dispatch paragraph's own framing ('That subagent runs in a fresh context... a subagent that never learns the predicate accepts a truncated root'). The parent's fused iter-<N>.json write (line 165) folds only the enumerated returned fields, so the advance is lost exactly as the claim describes -- reproducing the hole line 177 itself warns against, specifically in the subagent-dispatch case the change introduces.\", \"file_checked\": \"skills/review-and-fix/references/loop-control.md:165,177\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  }
+ ]
+}
