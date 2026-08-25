@@ -53461,7 +53461,7 @@ while IFS="$(printf '\t')" read -r _pri_p _pri_rest; do
   mkdir -p "$PRI_ROOT/$(dirname "$_pri_p")"
   cp "$REPO_ROOT/$_pri_p" "$PRI_ROOT/$_pri_p"
   printf '%s\n' "$_pri_p" >> "$PRI_LST"
-done < <(python3 "$PRI_LINT" --print-inventory)
+done <<< "$PRI_INV"
 # GREEN: clean scratch copies pass.
 assert_eq "#1946 lint: a clean scratch root passes (GREEN)" "0" \
   "$(python3 "$PRI_LINT" --root "$PRI_ROOT" --files-from "$PRI_LST" >/dev/null 2>&1; echo $?)"
