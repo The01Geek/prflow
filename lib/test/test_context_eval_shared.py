@@ -21,6 +21,7 @@ Driven serially from lib/test/run.sh.
 import importlib.util
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -123,6 +124,65 @@ class SingleSourceIdentityTest(unittest.TestCase):
         for mod, label in ((CIE, "create_issue_eval"), (CICE, "create-issue-context-eval shim")):
             self.assertIs(mod.RESIDENCY_KEYS, SHARED.RESIDENCY_KEYS,
                           "{}.RESIDENCY_KEYS is not the shared definition".format(label))
+
+
+class NoPrivateRedefinitionTest(unittest.TestCase):
+    """AC1 at the SOURCE level: no instrument reintroduces a private copy of a shared name.
+
+    `SingleSourceIdentityTest`'s `assertIs` cannot prove this for `UNESTABLISHED`: CPython
+    interns identifier-like string literals process-globally, so a reintroduced
+    `UNESTABLISHED = "unestablished"` in an instrument would still BE the shared object and
+    that assertion would pass. Do not drop this test as redundant with the identity one.
+    """
+
+    # `(?m)^` pins column 0, so a nested/local definition and the `_median_or_unestablished`
+    # wrappers the instruments legitimately keep do not match.
+    _REDEFINITION = {
+        "_iter_session_files": r"(?m)^def _iter_session_files\(",
+        "_median": r"(?m)^def _median\(",
+        "_context_tokens": r"(?m)^def _context_tokens\(",
+        "_usage_value": r"(?m)^def _usage_value\(",
+        "UNESTABLISHED": r"(?m)^UNESTABLISHED\s*=",
+        "RESIDENCY_KEYS": r"(?m)^RESIDENCY_KEYS\s*=",
+    }
+
+    _INSTRUMENTS = ("create_issue_eval.py", "implement-context-eval.py",
+                    "review-context-eval.py")
+
+    def test_no_instrument_redefines_a_shared_name(self):
+        for fname in self._INSTRUMENTS:
+            with open(os.path.join(_SCRIPTS, fname), encoding="utf-8") as fh:
+                src = fh.read()
+            for name, pattern in self._REDEFINITION.items():
+                self.assertIsNone(
+                    re.search(pattern, src),
+                    "{} redefines {} instead of importing the shared one".format(
+                        fname, name))
+
+    def test_each_pattern_fires_on_the_shape_it_forbids(self):
+        # Positive control: without it a typo'd pattern reads as a passing absence
+        # assertion. Attribute the rejection per name, not in aggregate.
+        samples = {
+            "_iter_session_files": "def _iter_session_files(root, skipped):\n    pass\n",
+            "_median": "def _median(values):\n    pass\n",
+            "_context_tokens": "def _context_tokens(usage):\n    pass\n",
+            "_usage_value": "def _usage_value(usage, key):\n    pass\n",
+            "UNESTABLISHED": 'UNESTABLISHED = "unestablished"\n',
+            "RESIDENCY_KEYS": 'RESIDENCY_KEYS = ("input_tokens",)\n',
+        }
+        for name, pattern in self._REDEFINITION.items():
+            self.assertIsNotNone(re.search(pattern, samples[name]), name)
+
+    def test_the_median_pattern_spares_the_wrapper(self):
+        # `_median_or_unestablished` is a per-instrument wrapper the extraction keeps; a
+        # pattern matching it would fail the absence test on a correct tree.
+        self.assertIsNone(re.search(self._REDEFINITION["_median"],
+                                    "def _median_or_unestablished(values):\n"))
+        for fname in self._INSTRUMENTS:
+            with open(os.path.join(_SCRIPTS, fname), encoding="utf-8") as fh:
+                src = fh.read()
+            self.assertIsNotNone(re.search(r"(?m)^def _median_or_unestablished\(", src),
+                                 fname)
 
 
 class ForceUtf8StaysPerFileTest(unittest.TestCase):

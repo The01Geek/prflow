@@ -8,9 +8,7 @@ scripts/review-context-eval.py each measure the runtime main-thread context a ru
 accumulates by walking a Claude Code transcript directory. This module is the single
 definition of the five helpers all three share — `_iter_session_files`, `_median`,
 `_context_tokens`, `_usage_value`, and the `UNESTABLISHED` sentinel — extracted (issue
-#1900) so a fix lands once. The drift between three private copies is what produced
-issue #1899's defect, where two instruments reported an unmeasured turn as a real 0
-while the third reported it unestablished.
+#1900) so a fix lands once.
 
 `_usage_value`, `_context_tokens` and `_median` keep issue #1899's strict discipline: an
 unmeasured turn, an empty population, and a non-finite number are reported unestablished
@@ -96,6 +94,11 @@ def _iter_session_files(corpus_root, skipped):
     corpus root is counted under `escaped_path`, and a directory-walk error (a
     permission-denied dir, a vanished tree) is counted under `walk_error` via the `os.walk`
     `onerror` callback — default `onerror=None` would swallow it.
+
+    The caller supplies a `skipped` dict already carrying both keys (every in-tree caller
+    pairs this with its own `new_skip_tally()`). Do NOT `setdefault`/`defaultdict` them
+    here: an under-populated dict would then tally into a key the caller never emits, so
+    the drop becomes invisible in the output — the KeyError is the fail-closed direction.
     """
     root_real = os.path.realpath(corpus_root)
     collected = []
