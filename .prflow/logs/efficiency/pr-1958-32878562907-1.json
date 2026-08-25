@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1958",
+  "generated_at": "2026-08-25T18:07:18Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.22",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 29.703845549999986,
+    "tokens": {
+      "input_tokens": 108,
+      "output_tokens": 98076,
+      "cache_read_input_tokens": 11148753,
+      "cache_creation_input_tokens": 317626,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 318,
+        "outputTokens": 175536,
+        "cacheReadInputTokens": 19928298,
+        "cacheCreationInputTokens": 1005845,
+        "webSearchRequests": 0,
+        "costUSD": 21.831767750000008,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 602,
+        "outputTokens": 94168,
+        "cacheReadInputTokens": 15451294,
+        "cacheCreationInputTokens": 1535574,
+        "webSearchRequests": 0,
+        "costUSD": 7.872077799999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 101,
+    "duration_ms": 1861932
+  },
+  "permission_denials": {
+    "count": 98,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<none>}\"; echo \"RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-<none>}\"; echo \"GH_ACTIONS=${GITHUB_ACTIONS:-<none>}\"; git status --porcelain | head -30; echo \"---rc=$?\"",
+      "mkdir -p .prflow/tmp/review/pr-1958/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"dir=.prflow/tmp/review/pr-1958/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "/home/runner/work/prflow/prflow/skills/review/../../scripts/seed-review-progress.sh \"1958\" \"\" .prflow/tmp/review/pr-1958/32878562907-1/review-wp.md ; echo \"seed-rc=$?\"",
+      "for f in review-contract implement-contract workpad-cli; do\necho \"== $f ==\"\ngit show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/$f.sh > /tmp/$f.sh 2>/tmp/${f}.err\nwc -l /tmp/$f.sh\ngrep -c -E '(^|[^a-zA-Z_])(pass|fail|assert)[[:space:]]' /tmp/$f.sh\ndone\ncat /tmp/*.err",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/review-contract.sh > /tmp/review-contract.sh\ngit show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/implement-contract.sh > /tmp/implement-contract.sh\ngit show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/workpad-cli.sh > /tmp/workpad-cli.sh\nwc -l /tmp/review-contract.sh /tmp/implement-contract.sh /tmp/workpad-cli.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/review-contract.sh > /tmp/review-contract.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/implement-contract.sh > /tmp/implement-contract.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/workpad-cli.sh > /tmp/workpad-cli.sh",
+      "cd /home/runner/work/prflow/prflow\nHEAD=3f193f668f9293d22ce72d7ac21dc4339059124c\ngit show $HEAD:lib/test/run.sh > /tmp/run.sh\nfor label in 1264 1618 1897 693 338; do\necho \"=== label $label in run.sh ===\"\ngrep -n \"#$label\" /tmp/run.sh | head -5\ndone",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p .prflow/tmp/review/pr-1958/scratch\ngit show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/review-contract.sh > .prflow/tmp/review/pr-1958/scratch/review-contract.sh\ngit show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/implement-contract.sh > .prflow/tmp/review/pr-1958/scratch/implement-contract.sh\ngit show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/workpad-cli.sh > .prflow/tmp/review/pr-1958/scratch/workpad-cli. …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nHEAD=3f193f668f9293d22ce72d7ac21dc4339059124c\ngit show \"$HEAD:lib/test/run.sh\" > /tmp/run.sh\nfor label in 1264 1618 1897 693 338; do\n  echo \"=== label ${label} in run.sh ===\"\n  grep -n \"#${label}\" /tmp/run.sh | head -5\ndone",
+      "cd /home/runner/work/prflow/prflow\nHEAD='3f193f668f9293d22ce72d7ac21dc4339059124c'\ngit show \"${HEAD}:lib/test/run.sh\" > /tmp/run.sh\nwc -l /tmp/run.sh",
+      "git -C /home/runner/work/prflow/prflow show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh > /tmp/run.sh\nwc -l /tmp/run.sh",
+      "git -C /home/runner/work/prflow/prflow show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh > /tmp/run.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/review-contract.sh > .prflow/tmp/review/pr-1958/scratch/review-contract.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/implement-contract.sh > .prflow/tmp/review/pr-1958/scratch/implement-contract.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/workpad-cli.sh > .prflow/tmp/review/pr-1958/scratch/workpad-cli.sh",
+      "cd /tmp && rm -rf prflow-check && git clone -q /home/runner/work/prflow/prflow prflow-check && cd prflow-check && git checkout -q 3f193f668f9293d22ce72d7ac21dc4339059124c && python3 lib/test/group_labels_by_subject.py 2>&1 | head -100",
+      "git -C /home/runner/work/prflow/prflow show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh > /home/runner/work/prflow/prflow/.prflow/tmp/run.sh\nwc -l /home/runner/work/prflow/prflow/.prflow/tmp/run.sh",
+      "rm -rf /tmp/prflow-check && git clone -q /home/runner/work/prflow/prflow /tmp/prflow-check && git -C /tmp/prflow-check checkout -q 3f193f668f9293d22ce72d7ac21dc4339059124c && cat /tmp/prflow-check/lib/test/group_labels_by_subject.py | head -30",
+      "git -C /home/runner/work/prflow/prflow show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh | grep -n \"#1264\\|#1618\\|#1897\\|#693\\|#338\" ",
+      "git -C /home/runner/work/prflow/prflow show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh | wc -l",
+      "git clone -q /home/runner/work/prflow/prflow /tmp/prflow-check2",
+      "for m in review-contract implement-contract workpad-cli; do\n  echo \"== $m ==\"\n  git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/$m.sh | grep -cE '^\\s*(assert_|pass\\b|record_pass|PASS=)' \ndone",
+      "git -C /home/runner/work/prflow/prflow show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh > /tmp/run_head.sh 2>&1; wc -l /tmp/run_head.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/review-contract.sh > /tmp/rc.sh\ngit show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/implement-contract.sh > /tmp/ic.sh\ngit show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/workpad-cli.sh > /tmp/wc.sh\nwc -l /tmp/rc.sh /tmp/ic.sh /tmp/wc.sh\ngrep -cE 'assert_|^\\s*pass ' /tmp/rc.sh /tmp/ic.sh /tmp/wc.sh\ntail -30 /tmp/rc.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh > /tmp/run_head.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/review-contract.sh > /tmp/rc.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/implement-contract.sh > /tmp/ic.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/workpad-cli.sh > /tmp/wc.sh",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1958/scratch && git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1958/scratch/run_head.sh && wc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1958/scratch/run_head.sh",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/verify && git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/review-contract.sh > .prflow/tmp/verify/rc.sh; git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/implement-contract.sh > .prflow/tmp/verify/ic.sh; git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/workpad-cli.sh > .prflow/tmp/verify/wc.sh; wc -l .prflow/tmp/verify/*.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/review-contract.sh > .prflow/tmp/verify/rc.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/implement-contract.sh > .prflow/tmp/verify/ic.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/workpad-cli.sh > .prflow/tmp/verify/wc.sh",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/group_labels_by_subject.py > /home/runner/work/prflow/prflow/vc3_run_head.sh 2>&1; head -5 /home/runner/work/prflow/prflow/vc3_run_head.sh",
+      "rm -f /home/runner/work/prflow/prflow/vc3_run_head.sh\ngit worktree add --detach /tmp/vc3wt 3f193f668f9293d22ce72d7ac21dc4339059124c 2>&1 | tail -5",
+      "git worktree add --detach /tmp/vc3wt 3f193f668f9293d22ce72d7ac21dc4339059124c",
+      "git worktree add --detach /home/runner/work/prflow/prflow/.vc3wt 3f193f668f9293d22ce72d7ac21dc4339059124c 2>&1 | tail -10"
+    ],
+    "total": 98,
+    "truncated": true,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
