@@ -115,6 +115,13 @@ you are actively writing, and mutation-checking a new test still runs that one t
 neither discharges the completion gate, which stays the CI reading for the commit this pass
 pushed.
 
+Once this pass has read a green CI rollup for the pushed commit, discharge the checker's
+completion validation through `check-completion-evidence.py --context-mode direct` (a fix loop
+uses `--context-mode loop`) by supplying a `--ci-record` JSON file — a `local`-tier record naming
+the pushed head, the run URL, and each required check with its conclusion, which the checker
+validates offline (issue #1898); a `cloud` tier or a record that omits a required check or carries
+a non-success conclusion is refused.
+
 ## Focused test modules in direct reception passes
 
 A reception pass iterates on a focused module only after recording the selected module ID: find a candidate in `lib/test/modules/coverage-map.json`, confirm it in `scripts/workflow-flight-recorder-registry.json`.

@@ -112,9 +112,9 @@ writes changes into your repository, so download it, read it, then run the file 
 read:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.7/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.11/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.34.7 bash devflow-install.sh
+DEVFLOW_REF=v2.34.11 bash devflow-install.sh
 ```
 
 Both refs are pinned to the same **release tag**, so the install is reproducible.
@@ -827,7 +827,14 @@ branch without opting in.** Two things bound the exposure and one turns it off:
   (`scripts/scrub-credentials.sh`: GitHub tokens/PATs, Anthropic keys, and both
   Authorization header forms) before it is written, and every record discloses
   `scrub.blocklist_incomplete: true` — a novel third-party credential shape can survive, so
-  treat the branch as sensitive.
+  treat the branch as sensitive. The `Bearer` and `basic` rules each match their scheme keyword
+  case-insensitively and redact a token of **four or more** units — class
+  members plus the JSON escape units `\/` and `\\` — so an escaped slash inside a token is
+  redacted while a lone `\` before a closing quote is left to the document it belongs to
+  (issue #1915: matching that `\` swallowed the JSON escape and left the published
+  execution-transcript artifact unparseable). A run of fewer than four units after the scheme
+  keyword is deliberately left alone, so a recorded `sed 's/AUTHORIZATION: basic //'` is not
+  taken for a credential.
 - The field is bounded (per-command and list caps) and command-only — never a whole
   transcript.
 - **To disable it, set `.prflow.execution_denial_commands_enabled` to `false`** in
