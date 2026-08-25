@@ -741,7 +741,8 @@ with a well-formed `}]`, so this is not end-truncation, and the two smaller tran
 and 1,388,549 bytes — parse cleanly. Root cause is diagnosed and filed as issue #1915: `scripts/scrub-credentials.sh`
 matches credential tokens with `[A-Za-z0-9+\/=]+`, and in a POSIX bracket expression `\` is a
 literal member of the set rather than an escape, so the `+` swallows the JSON escape backslash
-before a closing quote and the replacement drops it, ending the string early. The reported offset is
+before a closing quote and the replacement drops it, ending the string early. PR #1921 fixes that
+rule; the class quoted above is the one in force when this measurement ran. The reported offset is
 where the decoder noticed, not where the corruption is — which is why an inspection at that offset
 finds nothing wrong. The two smaller transcripts are clean because they carry no credential-shaped
 text for a rule to fire on, so this is a content effect and not a size effect. Cell 4's *two
