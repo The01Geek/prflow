@@ -12215,6 +12215,17 @@ assert_eq("#1512: a malformed roster payload is skipped, not crashed",
 assert_eq("#1512: re-recording strips the prior roster enumeration (no stale/duplicate rows)",
           dict(_rc_members_for("short")),
           workpad._review_roster_members(_rc_rerecord))
+# The free-text smuggling guard screens review-roster markers too (issue #1512): a --note
+# ending in a forged roster marker cannot be filed as a genuine dispatch outcome, so
+# dropping the `review-roster` alternation from _REVIEW_COVERAGE_ANY_MARKER_RE fails here.
+_1512_smuggle = None
+try:
+    apply_mut(_RC_BASE, make_args(note=["review pass done "
+        + workpad._review_roster_marker("requesting-code-review", "dispatched")]), [])
+except workpad._UpdateError as _e:
+    _1512_smuggle = str(_e)
+assert_eq("#1512: a --note carrying a forged review-roster marker is refused",
+          True, _1512_smuggle is not None and "reserved review-coverage" in _1512_smuggle)
 
 # ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
 
