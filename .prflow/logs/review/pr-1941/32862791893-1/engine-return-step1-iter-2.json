@@ -1,0 +1,134 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "run_id": "32862791893-1",
+  "iteration": 2,
+  "pr": 1941,
+  "issue": 1440,
+  "head_reviewed": "b9388ed7ab520677bc25fb6205cd2fa6619cee6d",
+  "head_override": "local",
+  "verdict_severity_threshold": "critical",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "checklist_skipped": null,
+    "announced": "engine_self_modifying (overrides other flags' checklist) -> full Phase 1+2 checklist; Phase 3 roster gated by Phase 3.1 applicability"
+  },
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "roster_exclusions": {
+    "prflow:code-reviewer": "iterations:first-only excluded on fix-loop iteration 2 (N>=2)",
+    "prflow:type-design-analyzer": "has_new_types is false (no new types in diff)"
+  },
+  "failed_agents": [],
+  "cap_drops": null,
+  "checklist_summary": {
+    "total": 17,
+    "passed": 17,
+    "failed": 0,
+    "inconclusive": 0,
+    "lite_count": 2,
+    "agent_count": 15,
+    "note": "All 17 items PASS. Behavioral claims verified by executing the shipped POST_BOT_COMMITS/POSTBOT_SHAS jq blocks against fixtures (blank->0, whitespace/tab->0, mixed->1, null->1 null-safe, merge-excluded->1, only-merge->0, missing-parents->1, non-string login->0, missing-login-key->0, POSTBOT_SHAS->[A]). Lite: VC-15 (cheap-gate.jq desc), VC-16 (coverage-map 1440) both present."
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "The `or is_human(.value.committer_login)` arm of the new tail predicate is never independently exercised: every human-counted fixture sets author_login == committer_login, so deleting the committer arm leaves the suite green. Confirmed load-bearing (author blank + committer 'alice' -> count 1). Test-coverage gap in the exact predicate this PR adds; the shipped code is correct.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [14110, 14156], "kind": "test_gap"},
+      "over_grade_annotation": "suspected over-grade: shape 3 (uncorroborated single-source finding from pr-test-analyzer, no other-agent corroboration and no Phase-2 FAIL covering the defect) -- advisory only, verdict unchanged; observable impact is a mutation-coverage gap, not a shipped defect"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "The updated block comment enumerates 'absent' and 'non-string' login states alongside the reachable 'blank'/'whitespace-only' ones, but the COMMITS projection defaults logins with `// \"\"` so absent/non-string are unreachable here; the type guards are defensive-only. Not a falsehood (comment does not claim they occur), but may mislead a maintainer.",
+      "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [250, 261], "kind": "comment_drift"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "Comment 'The \"last bot commit\" anchor (below) is unchanged' is imprecise: the anchor selection was changed to route through the new type-guarded ends_bot() (a null-safety change). Behavior is identical for the always-string real inputs, but a literal reader sees the anchor lines changed. Consider 'behaves the same for string logins'.",
+      "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [257, 257], "kind": "comment_drift"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "The modified test comment block is ~7 physical lines and largely design rationale/provenance; under the prevention-only comment standard (test files in scope) only the 'never a transcribed copy -- a copy keeps passing after the shipped filter drifts' clause is prevention-bearing. Trimmable.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [14116, 14122], "kind": "style"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "No fixture supplies a non-string login (e.g. numeric); the type == \"string\" guard branch is unpinned. A one-row numeric-login-tail -> 0 fixture would pin it. (Independently verified: numeric login currently yields 0, correct.)",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [14110, 14156], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "No fixture for the zero-bot-anchor / empty-commits path (`if ($bot_indices | length) == 0`). Low risk (branch unchanged by PR) but cheap to close.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [14110, 14156], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "description": "POSTBOT_SHAS has a single fixture vs 7 for the count block; a divergence introduced only in the SHA block would rely on the coupling holding. Adding null/whitespace variants to _pbs keeps mirror protection symmetric.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [14156, 14156], "kind": "test_gap"}
+    }
+  ],
+  "agents_reporting_no_findings": ["prflow:silent-failure-hunter", "prflow:requesting-code-review"],
+  "final_pass_extension_status": "unestablished (the general-purpose final-pass reviewer returned no EXTENSION-STATUS token; local/interactive tier -> held in-run, no sink, no notice per Phase 3 routing)",
+  "prior_findings_handoff": {
+    "iter1_important_whitespace_login": "FIXED this iteration and independently re-verified (whitespace/tab login tail -> 0); not re-raised",
+    "iter1_suggestions": "8 below-threshold suggestions from iter 1, not re-raised"
+  },
+  "phase_4_1_report": {
+    "verdict_line": "APPROVE with notes (retrospective post_bot_commits bugfix is correct and well-tested; 1 Important test-coverage gap and 5 Suggestions, none at or above the critical verdict threshold)",
+    "issue_compliance": "Reviewed against issue #1440 (post_bot_commits counts local-tier agent commits as human rework). All acceptance criteria satisfied: the two jq blocks now count only positively human-attributable non-merge commits via type-guarded null-safe ends_bot/is_human; blank/whitespace/absent/non-string logins classified agent-side; null-safe (verified no abort); POSTBOT_SHAS and cheap-gate.jq description updated to match; tests drive the shipped jq blocks. scope: not-established (fix-loop head_override=local; acceptance_criteria_divergence not applicable in this dispatch).",
+    "verification_checklist_results": "17 passed, 0 failed, 0 inconclusive -- 2 via lite probe, 15 via agent.",
+    "code_review_findings": {
+      "critical": [],
+      "important": ["committer_login arm of is_human never independently exercised (raised by 1/4 agents) [suspected over-grade: shape 3 -- observable fail-direction is a mutation-coverage gap, milder than the Important label]"],
+      "suggestion": [
+        "comment enumerates unreachable absent/non-string login states as if guarded at runtime (raised by 1/4 agents)",
+        "'anchor unchanged' comment imprecise -- anchor now routes through guarded ends_bot (raised by 1/4 agents)",
+        "test comment block ~7 lines, mostly rationale/provenance -- trimmable under prevention-only standard (raised by 1/4 agents)",
+        "no non-string-login fixture pins the type==string guard branch (raised by 1/4 agents)",
+        "no zero-bot-anchor/empty-commits fixture (raised by 1/4 agents)",
+        "POSTBOT_SHAS coverage thinner than the count block -- single fixture (raised by 1/4 agents)"
+      ]
+    },
+    "over_grade_annotation": "one finding flagged: the pr-test-analyzer Important committer-arm test gap matches shape 3 (uncorroborated single-source empirical over-grader) -- advisory only, verdict unchanged",
+    "truthfulness_sweep": "no finding promoted (every updated comment/changeset claim verified true against HEAD by reading is_human/ends_bot and the COMMITS projection)",
+    "intra_diff_contradiction_scan": "no contradiction found (absolute claims 'never human'/'unknown is not a human'/'null-safe'/'non-string classified agent-side' all backed by shipped code; no contradicting limitation note about the same symbol)",
+    "deferrals": "not applicable (fix-loop inline dispatch; no Scope-Acknowledged Findings block consulted)",
+    "verdict_criteria_applied": "No FAIL, no INCONCLUSIVE, no self-contradicting-diff finding, no Critical finding. verdict_severity_threshold=critical -> no finding at or above threshold. Only below-threshold findings present -> APPROVE with notes (Phase 4.2 rule 6)."
+  }
+}

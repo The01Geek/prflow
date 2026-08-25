@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1941",
+  "generated_at": "2026-08-25T16:03:16Z",
+  "config_fingerprint": {
+    "sha256": "c2dd346fdf78eacf9e402b333f46db8770aa0afa8742a7dc4ac5d1139ba96283",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "recurring_defect_kinds": [],
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:code-reviewer",
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "prflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "agent-only",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 9,
+      "fixes_applied": 1,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    }
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 29.022239650000007,
+    "tokens": {
+      "input_tokens": 128,
+      "output_tokens": 66622,
+      "cache_read_input_tokens": 14944956,
+      "cache_creation_input_tokens": 326872,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 317,
+        "outputTokens": 184144,
+        "cacheReadInputTokens": 23445305,
+        "cacheCreationInputTokens": 1566093,
+        "webSearchRequests": 0,
+        "costUSD": 27.341688750000007,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 92,
+        "outputTokens": 11869,
+        "cacheReadInputTokens": 2094622,
+        "cacheCreationInputTokens": 457101,
+        "webSearchRequests": 0,
+        "costUSD": 1.6805508999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 95,
+    "duration_ms": 3829453
+  },
+  "permission_denials": {
+    "count": 26,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"; echo \"RUN_ID=$GITHUB_RUN_ID\"; git rev-parse --abbrev-ref HEAD; git remote show origin 2>/dev/null | sed -n 's/.*HEAD branch: //p'",
+      "git branch --show-current; git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@refs/remotes/origin/@@'",
+      "HEAD_REF=\"issue-1440-post-bot-commits-counts-local-tier-agent-commits\"\nCO_ERR=$( { git fetch origin \"$HEAD_REF\" && git checkout \"$HEAD_REF\"; } 2>&1 1>/dev/null ) || true\nLANDED=no; [ -n \"$HEAD_REF\" ] && [ \"$(git rev-parse --abbrev-ref HEAD 2>/dev/null)\" = \"$HEAD_REF\" ] && LANDED=yes\necho \"CO_ERR=$CO_ERR\"\necho \"LANDED=$LANDED\"\ngit rev-parse HEAD",
+      "RUN_URL=\"https://github.com/The01Geek/prflow/actions/runs/32862791893\"\nPR_JSON='[{\"closingIssuesReferences\":[{\"number\":1440}],\"createdAt\":\"2026-08-25T05:14:25Z\",\"headRefName\":\"issue-1440-post-bot-commits-counts-local-tier-agent-commits\",\"isCrossRepository\":false,\"number\":1941}]'\nHEAD_REF=\"issue-1440-post-bot-commits-counts-local-tier-agent-commits\"\nPR_NUMBER=$(printf '%s' \"$PR_JSON\" | .prflow/vendor/prflow/scripts/run-jq.sh -r --arg h \"$HEAD_REF\" '[.[] | select(.headRefName == $h)] | sort_by(.cr …[per-command-truncated]",
+      "RUN_URL=\"https://github.com/The01Geek/prflow/actions/runs/32862791893\"\nPR_NUMBER=1941\nif ! PR_BODY=$(gh api \"repos/{owner}/{repo}/pulls/$PR_NUMBER\" --jq '.body' 2>/dev/null); then\n  PR_BODY=\"\"\n  echo \"warning: could not read PR body\" >&2\nfi\nprintf '%s' \"$PR_BODY\" > /tmp/pr_body_1941.txt\ngrep -c \"View run\" /tmp/pr_body_1941.txt || true\nwc -c /tmp/pr_body_1941.txt",
+      "gh api repos/The01Geek/prflow/pulls/1941 --jq '.body' > /tmp/pr_body_1941.txt 2>/tmp/pr_body_err.txt\necho \"rc=$?\"\ncat /tmp/pr_body_err.txt\nwc -c /tmp/pr_body_1941.txt\ngrep -c \"View run\" /tmp/pr_body_1941.txt",
+      "gh api repos/The01Geek/prflow/pulls/1941 --jq '.body' > /tmp/pr_body_1941.txt",
+      "mkdir -p .prflow/tmp && gh api repos/The01Geek/prflow/pulls/1941 --jq '.body' > .prflow/tmp/pr_body_1941.txt",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p .prflow/tmp/review/pr-1941/32862791893-1\nmkdir -p .prflow/tmp\ngit diff \"origin/main...HEAD\" | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1941/32862791893-1/diff.patch >/dev/null\necho \"sections:\"; grep -c '^diff --git' .prflow/tmp/review/pr-1941/32862791893-1/diff.patch\necho \"changed lines:\"; git diff \"origin/main...HEAD\" --numstat\nprintf '' > .prflow/tmp/displaced-paths.txt\necho \"displaced-file-written\"",
+      "git -C /home/runner/work/prflow/prflow diff \"origin/main...HEAD\" | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1941/32862791893-1/diff.patch | grep -c '^diff --git'",
+      "printf '' > /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt; echo written; git -C /home/runner/work/prflow/prflow diff \"origin/main...HEAD\" --numstat",
+      "git -C /home/runner/work/prflow/prflow diff \"origin/main...HEAD\" --numstat",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "jq -n --arg author \"someauthor\" '\n    def ends_bot($l): (($l | type) == \"string\") and ($l | endswith(\"[bot]\"));\n    def is_human($l): (($l | type) == \"string\") and ($l != \"\") and ((ends_bot($l)) | not) and ($l != $author);\n    ([{\"author_login\":\"someauthor[bot]\",\"committer_login\":\"\",\"parents_count\":1},{\"author_login\":\"\",\"committer_login\":\"\",\"parents_count\":1}]) as $commits\n    | ($commits | to_entries) as $entries\n    | ($entries\n    | [.[] | select(\n        ends_bot(.value.author_login)\n        …[per-command-truncated]",
+      "sed -n '261,278p' lib/fetch-pr-context.sh > /tmp/a.txt && sed -n '769,786p' lib/fetch-pr-context.sh > /tmp/b.txt && diff /tmp/a.txt /tmp/b.txt",
+      ".prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT:$?---\"",
+      ".prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review; echo \"---EXIT:$?---\"",
+      "LIB=lib\n_PBC_START=$(grep -n 'POST_BOT_COMMITS=\"$(echo' \"$LIB/fetch-pr-context.sh\" | head -1 | cut -d: -f1)\n_PBC_PROG=$(sed -n \"${_PBC_START},/^')\\\"$/p\" \"$LIB/fetch-pr-context.sh\")\n_PBS_START=$(grep -n 'POSTBOT_SHAS=\"$(echo' \"$LIB/fetch-pr-context.sh\" | head -1 | cut -d: -f1)\n_PBS_PROG=$(sed -n \"${_PBS_START},/^    ')\\\"$/p\" \"$LIB/fetch-pr-context.sh\")\necho \"=== PBC last line ===\"; echo \"$_PBC_PROG\" | tail -1\necho \"=== PBS last line ===\"; echo \"$_PBS_PROG\" | tail -1\n_pbc() { COMMITS=\"$1\" AUTHOR=\" …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1941/32862791893-1 && git diff main HEAD > .prflow/tmp/review/pr-1941/32862791893-1/diff.patch && wc -l .prflow/tmp/review/pr-1941/32862791893-1/diff.patch && grep -c '^diff --git' .prflow/tmp/review/pr-1941/32862791893-1/diff.patch",
+      "cd /home/runner/work/prflow/prflow\necho \"=== VC-15 lite ===\"; grep -nF \"positively human-attributable\" lib/cheap-gate.jq\necho \"=== VC-16 lite ===\"; grep -nF '\"1440\":' lib/test/modules/coverage-map.json\necho \"=== COMMITS projection (VC-1) ===\"; grep -n 'author_login' lib/fetch-pr-context.sh | head\necho \"=== run focused #1440 test block by executing shipped jq ===\"\nLIB=lib\n_PBC_START=$(grep -n 'POST_BOT_COMMITS=\"$(echo' \"$LIB/fetch-pr-context.sh\" | head -1 | cut -d: -f1)\n_PBC_PROG=$(sed -n \"${_PBC …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nLIB=lib\ns=$(grep -n 'POST_BOT_COMMITS=\"$(echo' \"$LIB/fetch-pr-context.sh\" | head -1 | cut -d: -f1)\nsed -n \"${s},/^')\\\"\\$/p\" \"$LIB/fetch-pr-context.sh\" > .prflow/tmp/pbc.sh\necho \"extracted lines:\"; wc -l .prflow/tmp/pbc.sh\nrun_pbc(){ COMMITS=\"$1\" AUTHOR=\"$2\" DEVFLOW_JQ=jq bash .prflow/tmp/pbc.sh -c 'printf %s \"$POST_BOT_COMMITS\"' 2>&1; }\nprintf 'blank->0: '; COMMITS='[{\"author_login\":\"github-actions[bot]\",\"committer_login\":\"github-actions[bot]\",\"parents_count\":1 …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nprog='def ends_bot($l): (($l | type) == \"string\") and ($l | endswith(\"[bot]\"));\n    def is_human($l): (($l | type) == \"string\") and ($l | test(\"[^[:space:]]\")) and ((ends_bot($l)) | not) and ($l != $author);\n    to_entries\n    | [.[] | select(\n        ends_bot(.value.author_login)\n        or ends_bot(.value.committer_login)\n        or (.value.author_login == $author)\n        or (.value.committer_login == $author)\n      ) | .key\n    ] as $bot_indices\n    | if ($ …[per-command-truncated]",
+      "cat > /tmp/p.jq <<'EOF'\ndef ends_bot($l): (($l | type) == \"string\") and ($l | endswith(\"[bot]\"));\ndef is_human($l): (($l | type) == \"string\") and ($l | test(\"[^[:space:]]\")) and ((ends_bot($l)) | not) and ($l != $author);\nto_entries\n| [.[] | select(\n    ends_bot(.value.author_login)\n    or ends_bot(.value.committer_login)\n    or (.value.author_login == $author)\n    or (.value.committer_login == $author)\n  ) | .key\n] as $bot_indices\n| if ($bot_indices | length) == 0 then 0\n  else ([.[($bot_indice …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; .prflow/vendor/prflow/scripts/config-get.sh .prflow_review.verdict_severity_threshold critical; echo \"---fix---\"; .prflow/vendor/prflow/scripts/config-get.sh .prflow_review_and_fix.fix_severity_threshold suggestion 2>/dev/null; echo \"---is_human author!=committer check on tail---\"; cat > .prflow/tmp/v2.sh <<'SH'\nLIB=lib\ns=$(grep -n 'POST_BOT_COMMITS=\"$(echo' \"$LIB/fetch-pr-context.sh\" | head -1 | cut -d: -f1)\nPBC=$(sed -n \"${s},/^')\\\"\\$/p\" \"$LIB/fetch-pr-conte …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; grep -n \"_REVIEW_PROGRESS_ROWS\" scripts/workpad.py | head; sed -n '/_REVIEW_PROGRESS_ROWS/,/]/p' scripts/workpad.py | head -30",
+      "cd /home/runner/work/prflow/prflow 2>/dev/null; for sub in \"Classify diff\" \"Generate verification checklist\" \"Verify checklist\" \"Review agents\" \"Aggregate & verdict\"; do scripts/workpad.py update 1440 --tick-progress \"$sub\" 2>&1 | tail -1; done"
+    ],
+    "total": 26,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}

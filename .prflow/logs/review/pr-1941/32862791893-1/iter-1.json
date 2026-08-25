@@ -1,0 +1,230 @@
+{
+  "iter": 1,
+  "started_at": "cloud-run-32862791893-1",
+  "fix_commit_sha": "b9388ed7a",
+  "fix_files": [
+    "lib/fetch-pr-context.sh",
+    "lib/test/run.sh",
+    "lib/test/modules/coverage-map.json"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "dispatch_mode": "fanned-out",
+  "checklist": [
+    {
+      "id": "VC-1",
+      "claim": "AC1 blank-login tail -> 0",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "claim": "AC2 named human still counted",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "claim": "AC3 merge commits excluded",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "claim": "AC4 comments state new measurement incl blank=agent-side",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "claim": "AC5 cheap-gate >0 arm unchanged",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "claim": "null login does not abort filter (type-guard)",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "claim": "POSTBOT_SHAS mirror consistent with count",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "claim": "test extraction anchors byte-verified",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "claim": "test env-var contract (COMMITS/AUTHOR/DEVFLOW_JQ)",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Whitespace-only login classified human (is_human tested only $l != \"\")",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          263,
+          263
+        ],
+        "kind": "unhandled_input_shape"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Silent drop of a blank-login human commit (documented safe-direction tradeoff)",
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "== $author without empty-$author guard (pre-existing latent)",
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "test-side non-preflight tools (fails closed, harness code)",
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "over-length comment block above POST_BOT_COMMITS",
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "over-length #1440 test comment block",
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "'extracted cleanly' assertion guards only the start anchor",
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "cross-attributed commits untested",
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AUTHOR=\"\" degenerate untested",
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "b9388ed7a"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 11,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "engine_verdict_iter1": "APPROVE with notes",
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

@@ -1,0 +1,136 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "pr": 1941,
+  "issue": 1440,
+  "head_override": "local",
+  "reviewed_head": "9554735176b74f3ebeb423de00e997462acc2471",
+  "base": "origin/main",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "checklist_skipped": null
+  },
+  "verdict_threshold": "critical",
+  "checklist_summary": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "inconclusive": 0,
+    "lite": 0,
+    "agent": 9,
+    "normalized": 0,
+    "items": [
+      {"id": "VC-1", "verdict": "PASS", "category": "issue_acceptance", "claim": "blank-login tail reports post_bot_commits: 0"},
+      {"id": "VC-2", "verdict": "PASS", "category": "issue_acceptance", "claim": "non-blank non-bot non-author login still counted"},
+      {"id": "VC-3", "verdict": "PASS", "category": "issue_acceptance", "claim": "merge commits (parents_count>1) excluded"},
+      {"id": "VC-4", "verdict": "PASS", "category": "issue_acceptance", "claim": "fetch-pr-context.sh + cheap-gate.jq comments describe new measure incl. blank-login agent-side"},
+      {"id": "VC-5", "verdict": "PASS", "category": "issue_acceptance", "claim": "cheap-gate.jq post_bot_commits>0 non-clean arm unchanged"},
+      {"id": "VC-6", "verdict": "PASS", "category": "data_format_assumption", "claim": "ends_bot/is_human type-guard null/non-string login; filter not aborted"},
+      {"id": "VC-7", "verdict": "PASS", "category": "dependency_interaction", "claim": "POSTBOT_SHAS applies identical is_human filter as POST_BOT_COMMITS"},
+      {"id": "VC-8", "verdict": "PASS", "category": "test_mock_alignment", "claim": "test sed extraction end-anchors match the real block terminators (byte-verified)"},
+      {"id": "VC-9", "verdict": "PASS", "category": "dependency_interaction", "claim": "test env-var contract (COMMITS/AUTHOR/DEVFLOW_JQ) matches shipped blocks"}
+    ]
+  },
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Whitespace-only login is classified human. is_human tests blankness only as ($l != \"\"), so a login of \" \" / \"\\t\" satisfies all four conjuncts and is counted as human rework, contradicting the change's stated 'non-blank string' / 'unknown is not a human' contract. Uncovered by any fixture; latent — reintroduces the false positive if the API ever returns a whitespace-padded unresolved local-tier identity. Suggested fix: strip/validate whitespace and add a fixture expecting 0.",
+      "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [263, 263], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "over_grade_annotation": "suspected over-grade: shape 3 — uncorroborated single-source Important from pr-test-analyzer, no other Phase-3 corroboration and no Phase-2 FAIL; observable fail-direction is a contrived-input over-count (fails toward the false positive the PR fixes), milder than the Important label. Advisory only; verdict unchanged.",
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Silent drop of a genuinely-human commit whose login the API returned blank (documented intentional 'unknown is not a human' tradeoff; fails in the safe direction — under-counts). Consider a stderr breadcrumb when a non-empty tail was dropped solely for blank login. Non-blocking, design bias documented.",
+      "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [261, 278], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Anchor select and is_human compare == $author without an empty-$author guard; if AUTHOR were empty a blank-login commit would both match the bot anchor and be excluded from is_human. Pre-existing (== $author comparisons unchanged); AUTHOR is normally the [bot]-stripped non-empty PR author, so latent only.",
+      "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [263, 269], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Test-side selection uses non-preflight tools (grep/sed/cut/head). This is harness code and fails closed (empty extraction -> assertion RED), so compliant in spirit with CLAUDE.md's non-preflight-PATH-tool rule; noted only because the same shape in a shipped helper would be a real defect.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [136, 139], "kind": "other"},
+      "corroboration_count": 1,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Over-length inline comment block above POST_BOT_COMMITS (~11 physical lines carrying derivation/rationale beyond naming the prevented wrong change). Under the prevention-only comment standard (>3 lines; derivation rather than a named wrong change) it is a Suggestion. Accurate against HEAD — no documented_falsehood.",
+      "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [47, 57], "kind": "style"},
+      "corroboration_count": 1,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Over-length #1440 test comment block in lib/test/run.sh (~7 physical lines mixing behavioral spec with provenance). Exceeds the three-line prevention-only cap; Suggestion. Accurate against HEAD.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [129, 135], "kind": "style"},
+      "corroboration_count": 1,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The '#1440: the shipped POST_BOT_COMMITS block extracted cleanly' assertion only checks the substring POST_BOT_COMMITS= is present, so it passes on a truncated (start-anchor-present) program; the real drift guard is the fixture rows. Rename to reflect it guards the start anchor only, or strengthen it to also assert the trailing terminator ')\" is present.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [143, 146], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Cross-attributed commits (bot author + human committer, and the reverse) are untested. They are structurally excluded from the counted tail (become anchors via the either-login bot-index select) — correct but non-obvious; a fixture would pin the anchor-selection interaction against future refactors.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [159, 172], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AUTHOR=\"\" degenerate case flips blank-login commits into anchors, changing which commits are counted; untested and defensive-only (AUTHOR normally non-empty). Worth a comment rather than a fixture.",
+      "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": null, "kind": "logic_error"},
+      "corroboration_count": 1,
+      "contributed_to_verdict": false
+    }
+  ],
+  "clean_agents": ["prflow:code-reviewer", "prflow:requesting-code-review"],
+  "cap_drops": {"count": 0, "by_category": {}},
+  "over_grade_annotations": [
+    "pr-test-analyzer whitespace-only-login Important -> suspected over-grade shape 3 (advisory; verdict unchanged)"
+  ],
+  "truthfulness_sweep": "no finding promoted; intra-diff contradiction scan: no contradiction found",
+  "self_contradicting_diff_findings": [],
+  "phase4_report": "## Verdict: APPROVE with notes (correct, null-safe, symmetric bugfix; one Important edge-case and several Suggestions below the critical threshold)\n\n## Issue Compliance\nReviewed against issue #1440: post_bot_commits counts local-tier agent commits as human rework — criteria from issue-body; scope unchanged. Requirement-based checklist items are included in the verification results below. This PR has no workpad criteria to use, so the issue body's ## Acceptance Criteria section supplied them. All 5 acceptance criteria verified PASS (VC-1..VC-5).\n\n## Verification Checklist Results\n9 passed, 0 failed, 0 inconclusive — 0 via lite probe, 9 via agent.\nAll issue acceptance criteria (VC-1 blank-login tail -> 0; VC-2 named human counted; VC-3 merge excluded; VC-4 comments updated; VC-5 non-clean arm unchanged) plus null-safety (VC-6), POSTBOT_SHAS mirror (VC-7), test extraction anchors byte-verified (VC-8), and test env-var contract (VC-9) all PASS.\n\n## Code Review Findings\n### 🟠 Important / Major\n1. Whitespace-only login is classified human — is_human tests blankness only as ($l != \"\"), so a whitespace login is counted as human rework, contradicting the 'non-blank string' contract; uncovered by any fixture, latent (raised by 1/5 agents) [suspected over-grade: shape 3 — observable fail-direction is a contrived-input over-count, milder than the Important label]\n### 🟡 Suggestion / Minor\n1. Silent drop of a genuinely-human blank-login commit (documented intentional tradeoff, fails safe) (raised by 1/5 agents)\n2. Anchor/is_human compare == $author without an empty-$author guard (pre-existing latent) (raised by 1/5 agents)\n3. Test-side selection uses non-preflight tools grep/sed/cut/head — fails closed, compliant in spirit (raised by 1/5 agents)\n4. Over-length inline comment block above POST_BOT_COMMITS (>3 lines, derivation) (raised by 1/5 agents)\n5. Over-length #1440 test comment in lib/test/run.sh (raised by 1/5 agents)\n6. 'extracted cleanly' assertion guards the start anchor only, not a truncated program — rename or assert the trailing terminator (raised by 1/5 agents)\n7. Cross-attributed commits (bot/human split) untested (raised by 1/5 agents)\n8. AUTHOR=\"\" degenerate case untested/defensive-only (raised by 1/5 agents)\n\nover-grade annotation: 1 finding flagged (shape 3, advisory).\ntruthfulness sweep: no finding promoted.\nintra-diff contradiction scan: no contradiction found.\n\n## Verdict Criteria\n- No checklist FAIL or INCONCLUSIVE.\n- No self-contradicting-diff / documented_falsehood finding (comment-analyzer verified all new comments accurate against HEAD).\n- No finding at or above the configured verdict threshold (critical); the single Important finding is below it.\n- Only findings below the verdict threshold present -> APPROVE with notes.\n\nNote for the fix loop: the whitespace-only-login Important finding and the 'extracted cleanly' assertion Suggestion are the two most actionable items if the fix_severity_threshold admits them."
+}
