@@ -4219,8 +4219,8 @@ IMPL_DOC="$LIB/../docs/internal/implement-skill.md"
 # phase's load step (which would make the engine improvise that phase from its thin stub).
 IMPL_ORCH="$LIB/../skills/implement/SKILL.md"
 IMPL_PHASES_DIR="$LIB/../skills/implement/phases"
-# Shared phase-file path, colocated with its parent IMPL_PHASES_DIR so the #232 and #230
-# pin blocks below reference one source of truth for the path (not two differently-named locals).
+# Shared phase-file path, colocated with its parent IMPL_PHASES_DIR so the pin blocks
+# below reference one source of truth for the path (not two differently-named locals).
 P4_FILE="$IMPL_PHASES_DIR/phase-4-documentation.md"
 IMPL_REFS_DIR="$LIB/../skills/implement/references"
 # Issue #1374 relocated §4.0.5's filing procedure out of the phase file and behind a
@@ -4505,28 +4505,6 @@ assert_eq "F1: misregistration guard detects an injected SKILL.md (find non-empt
   "$([ -z "$(find "$_f1_skilldir" -name SKILL.md 2>/dev/null)" ] && echo yes || echo no)"
 rm -rf "$_f1_skilldir"
 # ── end issue #218 structural assertions ──
-# ── issue #232: the Phase 4.1 post-subagent re-anchor (phase-4-documentation.md), guarding
-# against a run that stops before Phase 4 finalization (workpad frozen at an in-progress
-# Status, un-described draft PR). Coupled to the skill clause: removing it turns the suite
-# RED.
-# (P4_FILE is the shared phase-file path hoisted next to IMPL_PHASES_DIR above.)
-# Do not re-point this pin at §4.2's re-anchor or widen its literal: the literal is
-# grandfathered as unique to the §4.1 note, and §4.2's counterpart is agent-executed prose
-# that owes no pin (CLAUDE.md #843/#876). Provenance: docs/internal/implement-skill.md.
-assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
-  'scoped to **subagent** returns' "$P4_FILE"
-# review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly —
-# the Phase 4.1 re-anchor TRIGGER is repeated in the always-loaded orchestrator so a
-# subagent-return eviction cannot remove it, and dropping the pin drops that hardening.
-assert_pin_unique "#232: orchestrator keeps the OPERATIVE always-loaded re-Read directive (SFH F2)" \
-  'the phase file before continuing to §4.2 (resume from §4.2' "$IMPL_ORCH"
-# AC4 scope constraint is mirrored in the always-loaded orchestrator too; pin that copy so the
-# "not the Phase 2/3 returns" guardrail can't be dropped from the resident mirror unnoticed.
-# Reworded by #362 (see the phase-4 block above) to scope the trigger to SUBAGENT returns,
-# since a Skill-tool return now has its own generalized re-anchor in the same resident body.
-assert_pin_unique "#232/#362: orchestrator mirror scopes the re-anchor to **subagent** returns (SFH F2 mirror)" \
-  'scoped to **subagent** returns, not the Phase 2/3 subagent returns' "$IMPL_ORCH"
-
 # ── issue #362: run-continuity guards. Three always-resident cross-phase rules in the
 # orchestrator (generalized mid-phase re-anchor after ANY Skill-tool return; the
 # non-interactive self-answer rule; the Agent-subagent dispatch path for interactive
@@ -4538,8 +4516,7 @@ assert_pin_unique "#232/#362: orchestrator mirror scopes the re-anchor to **suba
 # keep each current source boundary observable on every suite execution.
 P362_P1="$IMPL_PHASES_DIR/phase-1-setup.md"
 
-# (1) Generalized mid-phase re-anchor — fires after EVERY Skill-tool return, not just the
-#     Phase 4.1 docs subagent.
+# (1) Generalized mid-phase re-anchor — fires after EVERY Skill-tool return.
 assert_pin_unique "#362: orchestrator re-anchors after every Skill-tool return (trigger)" \
   'after **every** Skill-tool return mid-phase' "$IMPL_ORCH"
 assert_pin_unique "#362: generalized re-anchor carries its operative resume directive" \
@@ -10496,7 +10473,7 @@ assert_eq "#1515 proceed plus unmatched projection is unusable and runs the inli
   "$(_issue1515_projection_route proceed unmatched 'Desired Behavior: exports retain stable ordering')"
 assert_eq "#1515 proceed with missing projection fields is unusable and runs the inline audit fallback" \
   "inline-audit-fallback" "$(_issue1515_projection_route proceed missing missing)"
-# P4_FILE is defined once next to IMPL_PHASES_DIR above (shared by the #232 and #230 blocks).
+# P4_FILE is defined once next to IMPL_PHASES_DIR near the top (shared by pin blocks in this file).
 # AC1's operational prohibition remains covered directly.
 assert_pin_unique "#230: phase-2 §2.1 keeps the operational 'narrow or suppress' prohibition (AC1 meaning)" \
   'narrow or suppress' "$P2_FILE"
@@ -14718,7 +14695,7 @@ assert_eq "#626 consumer: recurring-targets counts the impl entry, skip marker i
   "$(printf '%s\n%s\n%s\n' "$IMPL_ENTRY" "$MRK" "$(echo "$IMPL_ENTRY" | jq -c '.pr=78')" | jq -s -f "$LIB/recurring-targets.jq" | jq -r '.[0].target // "none"')"
 # compute-patterns.jq: a skip marker forms no pattern (selects implementation/audit only).
 assert_eq "#626 consumer: compute-patterns excludes skip markers (empty object)" "0" \
-  "$(printf '%s\n' "$MRK" | jq -s -L "$LIB" -f "$LIB/compute-patterns.jq" --slurpfile overrides <(echo '{}') | jq 'keys | length')"
+  "$(printf '%s\n' "$MRK" | jq -s -L "$LIB" -f "$LIB/compute-patterns.jq" --slurpfile overrides <(echo '{}') --slurpfile experiments <(printf '') | jq 'keys | length')"
 # open-state-pr.sh N counts entries excluding skip markers.
 OSP_TMP="$(mktemp -d)"
 printf '%s\n%s\n' "$IMPL_ENTRY" "$MRK" > "$OSP_TMP/retrospectives.jsonl"
@@ -17083,11 +17060,39 @@ CTX_CLEAN='{"pr":42,"kind":"implementation","issue_number":40,"merged_at":"2026-
 E="$(echo "$CTX_CLEAN" | jq -c -f "$LIB/clean-entry.jq")"
 assert_eq "clean-entry verdict=clean"       "clean" "$(echo "$E" | jq -r .verdict)"
 assert_eq "clean-entry pr=42"               "42"    "$(echo "$E" | jq -r .pr)"
-assert_eq "clean-entry schema_version=2"    "2"     "$(echo "$E" | jq -r .schema_version)"
+assert_eq "clean-entry schema_version=3"    "3"     "$(echo "$E" | jq -r .schema_version)"
 assert_eq "clean-entry categories=[]"       "0"     "$(echo "$E" | jq '.categories|length')"
 assert_eq "clean-entry descriptors=[]"      "0"     "$(echo "$E" | jq '.descriptors|length')"
 assert_eq "clean-entry no theme_tags field" "true"  "$(echo "$E" | jq 'has("theme_tags") | not')"
 assert_eq "clean-entry signals carried"     "0"     "$(echo "$E" | jq -r .signals.post_bot_commits)"
+
+# ── #1829 clean-entry.jq records analysis_provenance from the bundle ──────────
+# A live Stage A run's gate-skipped entry records what evidence the bundle
+# carried (the three booleans join the backfill cohort's field names). The
+# bundle here (CTX_CLEAN) carries no diff/workpad/issue keys, so all three are
+# false — and the entry cleans without error despite the absent source fields.
+assert_eq "#1829 clean-entry: analysis_provenance present"          "true"  "$(echo "$E" | jq 'has("analysis_provenance")')"
+assert_eq "#1829 clean-entry: no source fields → diff_present false" "false" "$(echo "$E" | jq -r '.analysis_provenance.bundle_diff_present')"
+assert_eq "#1829 clean-entry: no source fields → workpad_present false" "false" "$(echo "$E" | jq -r '.analysis_provenance.bundle_workpad_body_present')"
+assert_eq "#1829 clean-entry: no source fields → comments_present false" "false" "$(echo "$E" | jq -r '.analysis_provenance.bundle_issue_comments_present')"
+# A bundle whose fields are all present → all three booleans true. Clean once,
+# then assert each field against the result (the block's own convention, above).
+CE_AP_DERIVE='{"pr":92,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"diff":"@@ a real diff @@","diff_truncated":false,"workpad_body":"wp text","issue":{"comments":[{"author":"x","body":"y"}]}}'
+CE_AP_DERIVE_E="$(printf '%s' "$CE_AP_DERIVE" | jq -c -f "$LIB/clean-entry.jq")"
+assert_eq "#1829 clean-entry: diff present → diff_present true"     "true"  "$(echo "$CE_AP_DERIVE_E" | jq -r '.analysis_provenance.bundle_diff_present')"
+assert_eq "#1829 clean-entry: workpad present → workpad_present true" "true"  "$(echo "$CE_AP_DERIVE_E" | jq -r '.analysis_provenance.bundle_workpad_body_present')"
+assert_eq "#1829 clean-entry: comments present → comments_present true" "true" "$(echo "$CE_AP_DERIVE_E" | jq -r '.analysis_provenance.bundle_issue_comments_present')"
+# AC2: a diff suppressed by diff_byte_cap arrives as diff:null / diff_truncated:true → diff_present false.
+CE_AP_SUPPRESSED='{"pr":93,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"diff":null,"diff_truncated":true,"workpad_body":null,"issue":null}'
+assert_eq "#1829 clean-entry: diff suppressed (diff_byte_cap) → diff_present false" "false" "$(printf '%s' "$CE_AP_SUPPRESSED" | jq -r -f "$LIB/clean-entry.jq" | jq -r '.analysis_provenance.bundle_diff_present')"
+# An .issue object present but with an empty comments array → comments_present false.
+CE_AP_EMPTYCOMMENTS='{"pr":95,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"diff":"d","diff_truncated":false,"workpad_body":"w","issue":{"comments":[]}}'
+assert_eq "#1829 clean-entry: issue present, zero comments → comments_present false" "false" "$(printf '%s' "$CE_AP_EMPTYCOMMENTS" | jq -r -f "$LIB/clean-entry.jq" | jq -r '.analysis_provenance.bundle_issue_comments_present')"
+# AC3: a bundle already carrying an analysis_provenance object survives cleaning intact.
+CE_AP_PRESENT='{"pr":94,"issue_number":1,"merged_at":"m","branch":"b","head_sha":"h","merge_commit_sha":"c","signals":{},"analysis_provenance":{"cohort":"backfill-2026-08-08","bundle_diff_present":true,"bundle_workpad_body_present":false,"bundle_issue_comments_present":true}}'
+CE_AP_PRESENT_E="$(printf '%s' "$CE_AP_PRESENT" | jq -c -f "$LIB/clean-entry.jq")"
+assert_eq "#1829 clean-entry: incoming analysis_provenance survives intact (cohort)" "backfill-2026-08-08" "$(echo "$CE_AP_PRESENT_E" | jq -r '.analysis_provenance.cohort')"
+assert_eq "#1829 clean-entry: incoming analysis_provenance survives intact (diff_present)" "true" "$(echo "$CE_AP_PRESENT_E" | jq -r '.analysis_provenance.bundle_diff_present')"
 # #152: audit-entry.jq is pruned along with the audit-intervention path.
 assert_eq "#152: audit-entry.jq is removed" "true" \
   "$([ ! -f "$LIB/audit-entry.jq" ] && echo true || echo false)"
@@ -23490,6 +23495,44 @@ assert_eq "#874 env-probe verdict: the echo-backs alongside the instruction text
 EPV_LEAK="$(devflow_epv "$EPV_CB" "$EPV_CA" "ENVPROBE_HOP1 $EPV_SENT" "ENVPROBE_HOP2 UNSET" "a stray mention of $EPV_SENT")"
 assert_eq "#874 env-probe verdict: a stray sentinel elsewhere does not credit the silent hop" "ORCHESTRATOR_ONLY" \
   "$(devflow_epv_verdict "$EPV_LEAK")"
+# ── The tool_result-output arm (issue #1321). A collector reading only tool_use INPUTS
+# misses hop one's genuine reading, which the harness records as Action 2's Bash tool_result
+# OUTPUT (run 30956039324's silent hop one). This fixture is that recorded shape — Action 2's
+# unexpanded tool_use input plus its tool_result output carrying the sentinel, no echo-back —
+# and the SAME entries without that tool_result line (below) must stay silent, so the
+# tool_result output is exactly what discriminates.
+EPV_TRESULT="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf '"'"'ENVPROBE_HOP1 %s'"'"' \"${DEVFLOW_PROMPT_EXTENSION_ROOT:-UNSET}\""}}
+{"type":"tool_result","tool_use_id":"h1","content":"ENVPROBE_HOP1 DEVFLOW_ENVPROBE_SENTINEL_874\n","is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: hop one read from Action 2 tool_result output → BOTH_HOPS" "BOTH_HOPS" \
+  "$(devflow_epv_verdict "$EPV_TRESULT")"
+# Discrimination: the SAME entries WITHOUT the hop-one tool_result line read hop-one-silent,
+# so the tool_result output is what flips the verdict (the pre-fix collector saw only these).
+EPV_TRESULT_NONE="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf '"'"'ENVPROBE_HOP1 %s'"'"' \"${DEVFLOW_PROMPT_EXTENSION_ROOT:-UNSET}\""}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: the same entries without that tool_result stay INCONCLUSIVE" "INCONCLUSIVE" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_NONE")"
+# A tool_result output carrying UNSET is a REAL negative (hop looked, nothing propagated) —
+# reported, not silent — so reading tool_result never fabricates propagation.
+EPV_TRESULT_UNSET="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_result","tool_use_id":"h1","content":"ENVPROBE_HOP1 UNSET\n","is_error":false}
+{"type":"tool_result","tool_use_id":"h2","content":[{"type":"text","text":"ENVPROBE_HOP2 UNSET\n"}],"is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: tool_result outputs reading UNSET at both hops → NEITHER_HOP" "NEITHER_HOP" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_UNSET")"
+# A malformed list-content item (a non-dict block, a dict missing "text") must not raise —
+# _tool_result_text skips it and still extracts the valid text block, so the always-exit-0
+# contract holds and the genuine reading is not lost.
+EPV_TRESULT_MALFORMED="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_result","tool_use_id":"h1","content":[42,{"type":"text"},{"type":"text","text":"ENVPROBE_HOP1 DEVFLOW_ENVPROBE_SENTINEL_874\n"}],"is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: a malformed tool_result list item does not crash; the valid text block still reads → BOTH_HOPS" "BOTH_HOPS" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_MALFORMED")"
 # The helper never raises through its always-exit-0 contract.
 python3 "$EPV" "$EPV_TMP/no-such-file.jsonl" >/dev/null 2>&1
 assert_eq "#874 env-probe verdict: exits 0 even on an absent execution file" "0" "$?"
@@ -32100,16 +32143,15 @@ assert_eq "#247 preflight: jq genuinely absent → \"not installed\" wording (no
 #    longer carries inline SHELL normalization mirrors: Copilot CLI's inline-bash
 #    marshaling drops same-command variable assignments, so the multi-statement
 #    mirror blocks were removed and normalization moved to PROMPT time — the agent
-#    converts a Windows-form runner-reported base directory (one standalone
-#    wslpath/cygpath probe, or the textual drive-letter rules) BEFORE substituting
-#    it into the single-statement invocation. The preamble paraphrases
-#    lib/normalize-path.sh's rules; pin the operative paraphrase fragments so a
-#    trim of the normalization guidance (or of its lib lockstep reference) goes RED.
+#    converts a Windows-form runner-reported base directory with one standalone
+#    wslpath/cygpath probe BEFORE substituting it into the single-statement
+#    invocation (issue #1856 removed the tool-less drive-letter paraphrase, whose
+#    T5b pin retired with it). The preamble's probe mirrors lib/normalize-path.sh's
+#    tool-first tier; pin the probe fragment and that lib lockstep reference so a
+#    trim of either goes RED.
 CI_SKILL="$LIB/../skills/create-issue/SKILL.md"
 assert_pin_unique "#247/#275 T5: create-issue preamble carries the prompt-time wslpath probe guidance" \
   "wslpath -u '<path>'" "$CI_SKILL"
-assert_pin_unique "#247/#275 T5b: create-issue preamble carries the tool-less drive-letter mapping rule" \
-  'map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2' "$CI_SKILL"
 assert_pin_unique "#247/#275 T5c: create-issue preamble names lib/normalize-path.sh as the rules' source (lockstep reference)" \
   'lib/normalize-path.sh' "$CI_SKILL"
 
@@ -32309,8 +32351,10 @@ assert_eq "#247 preflight partial copy: degraded remedy names the override value
 # ── T5d (reshaped by #275) — the SKILL.md shell mirrors are gone (normalization is
 #    prompt-time prose now), so behavioral SKILL↔lib parity is no longer executable.
 #    lib/normalize-path.sh remains the canonical rules source (its own T4* behavioral
-#    tests above still exercise every arm); the prose paraphrase is pinned by
-#    T5/T5b/T5c. Keep the lib-side detection-regex pin so the helper's operative
+#    tests above still exercise every arm); the surviving prompt-time wslpath/cygpath
+#    probe fragment and its lib lockstep reference are pinned by T5/T5c (issue #1856
+#    removed T5b with the tool-less drive-letter paraphrase it guarded). Keep the
+#    lib-side detection-regex pin so the helper's operative
 #    detection line cannot be trimmed while its callers still rely on it. ──
 assert_eq "#247 lockstep: detection regex literal present in lib/normalize-path.sh" "yes" \
   "$(grep -qF '=~ ^[A-Za-z]:[\\/] ]]' "$NORMALIZE_PATH_SH" && echo yes || echo no)"
@@ -34766,7 +34810,7 @@ echo "#408 cloud review no-verdict auto-resume backstop + #414 post-and-annotate
 # module re-derives REPO_ROOT and rebuilds the review-engine bundle itself;
 # see its .inventory.md for the coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-stall-backstop.sh" \
-  "review-stall-backstop" 462; then
+  "review-stall-backstop" 469; then
   printf 'ERROR: review-stall-backstop boundary could not record its result\n'
   exit 1
 fi
