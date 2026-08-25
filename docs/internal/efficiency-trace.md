@@ -191,9 +191,9 @@ the tree-equality guard, and every OTHER path stays strictly per-run-immutable. 
   `fallback_reason`, populated over `phase3_dispatched` ∪ the iter workpad's `dispatched_effort`
   roster, so a Phase-1/1.5/2 checklist agent's effort decision is carried too; an agent with no
   entry records an all-null `session-inheritance` block; additive and nullable, `schema_version`
-  stays 1), the `agent_verdicts` roster (each entry carrying the derived `verdict` plus the issue-#1849
-per-agent `disposition` and `fix_decisions` roll-up that decompose the `null` residual — see *Decomposing
-the `null` residual* above) and its `phase3_failed_agents_present` flag, `synthesized`
+  stays 1), the `agent_verdicts` roster (issue #1849 adds a per-agent `disposition` and `fix_decisions`
+roll-up beside the derived `verdict`, decomposing the `null` residual — see *Decomposing the `null`
+residual* above) and its `phase3_failed_agents_present` flag, `synthesized`
   (whether *this* iteration was reconstructed by the synthesis floor — a strict `== true` of the
   workpad field, so an absent field reads `false`), and `loop_role`
   (`fix` | `promoted`) — each iteration's role in the fix loop, **derived here** from the prior

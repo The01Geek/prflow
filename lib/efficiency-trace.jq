@@ -58,9 +58,9 @@
 # Narrowed `null` class (issue #1849). `null` is a DERIVED residual, so a bare
 # `null` verdict still collapses opposite states: an agent genuinely silent, one
 # whose real findings were all deferred / severity-calibrated / foreclosed, and
-# one that failed or returned an unusable result. Two additive per-agent fields
-# beside the verdict decompose it — they add NO new verdict and change no
-# derivation: `disposition` (returned | failed | silent | unestablished — see
+# one that failed or returned an unusable result. Additive per-agent fields —
+# `disposition` and `fix_decisions` — beside the verdict decompose it; they add
+# NO new verdict and change no derivation: `disposition` (returned | failed | silent | unestablished — see
 # `agent_disposition`) separates a failed return from silence and marks the split
 # unestablished when the roster or failed set was never established (unknown is
 # not zero); and `fix_decisions` (the per-agent roll-up of `fix_decision` values)
