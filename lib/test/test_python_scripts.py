@@ -242,7 +242,9 @@ def make_args(**overrides):
         # issue #1347 inherited required-artifact strip — read on every call.
         strip_inherited_checkpoints=False,
         # issue #1453 review-coverage record + dispositions — read on every call.
+        # issue #1510 adds the optional as-of anchor head, read via getattr.
         record_review_coverage=None, review_coverage_disposition=[],
+        record_review_coverage_head=None,
         # issue #1462 prompt-extension row reconciliation — read on every call.
         reconcile_extension_rows=False,
         # issue #1876 mid-phase resume-point record — read on every call.
@@ -11605,9 +11607,8 @@ assert_eq("#1453 AC9: the two reason rejections are separately attributable",
 # then satisfies the gate through the ordinary call path (the positive control).
 _rc_full = apply_mut(_CP_BODY, make_args(
     record_review_coverage=["full", "attempted", "complete", "complete"]))
-assert_eq("#1453 AC1: the producer writes exactly one review-coverage marker",
-          1, _rc_full.count(
-              workpad._review_coverage_marker("full:attempted:complete:complete")))
+assert_eq("#1453 AC1: the producer writes exactly one review-coverage record",
+          1, len(workpad._review_coverage_payloads(_rc_full)))
 assert_eq("#1453 AC1: the recorded row states every axis in readable form",
           True, "coverage=full, dispatch=attempted, roster=complete, checklist=complete"
           in _rc_full)
@@ -11734,11 +11735,13 @@ for _mixed in ("full:attempted:not-applicable:not-applicable",
         _wmsg = str(e)
     assert_eq(f"#1453 soft-proceed: the mixed record {_mixed!r} is refused at write time",
               True, _wmsg is not None and "all 4 axes or none" in _wmsg)
+_rc_na = apply_mut(_RC_BASE, make_args(record_review_coverage=["not-applicable"] * 4))
 assert_eq("#1453 soft-proceed: the coherent all-not-applicable record writes cleanly",
-          True, workpad._review_coverage_marker(
-              "not-applicable:not-applicable:not-applicable:not-applicable")
-          in apply_mut(_RC_BASE, make_args(record_review_coverage=[
-              "not-applicable"] * 4)))
+          (1, {"coverage": "not-applicable", "dispatch": "not-applicable",
+               "roster": "not-applicable", "checklist": "not-applicable"}),
+          (len(workpad._review_coverage_payloads(_rc_na)),
+           workpad._parse_review_coverage_payload(
+               workpad._review_coverage_payloads(_rc_na)[0])))
 # DEFERRED (review of PR #1486, note S3b): the NEGATIVE real-CLI path — a genuine
 # `workpad.py update --status Complete` subprocess refused for a missing coverage row —
 # is exercised only in-process here, because this module no-ops `_review_coverage_verdict`
@@ -11790,13 +11793,13 @@ _rc_disp = apply_mut(_RC_BASE, make_args(
 _DF_GLYPH, _DF_LABEL, _ = workpad._REFLECTION_KINDS["dropped-failed"]
 assert_eq("#1453 AC8: the disposition files a dropped-failed reflection bullet",
           True, _DF_GLYPH in _rc_disp and _DF_LABEL in _rc_disp
-          and "review coverage gap carried forward — gap=roster" in _rc_disp)
+          and "review coverage gap in this run's own review pass — gap=roster" in _rc_disp)
 assert_eq("#1453 AC8: dropped-failed is a recognized reflection kind and is not 'note'",
           True, "dropped-failed" in workpad._REFLECTION_KINDS
           and workpad._REFLECTION_KINDS["dropped-failed"]
           != workpad._REFLECTION_KINDS["note"])
 assert_eq("#1453 AC8: a compliant full-coverage run files NO such reflection",
-          False, "review coverage gap carried forward" in _rc_full)
+          False, "review coverage gap in this run's own review pass" in _rc_full)
 
 # AC10: the gate is scoped to Complete — Blocked and Failed stay reachable over an
 # incomplete record, which is exactly the #1230 exit the gate must not foreclose.
@@ -11877,8 +11880,11 @@ assert_eq("#1453: a planted, well-formed disposition is accepted (positive contr
 _rc_rerecord = apply_mut(_rc_row("full:attempted:complete:complete"), make_args(
     record_review_coverage=["not-verified", "attempted", "short", "complete"]))
 assert_eq("#1453: re-recording replaces the prior record rather than accumulating",
-          ["not-verified:attempted:short:complete"],
-          workpad._review_coverage_payloads(_rc_rerecord))
+          (1, {"coverage": "not-verified", "dispatch": "attempted",
+               "roster": "short", "checklist": "complete"}),
+          (len(workpad._review_coverage_payloads(_rc_rerecord)),
+           workpad._parse_review_coverage_payload(
+               workpad._review_coverage_payloads(_rc_rerecord)[0])))
 # ...and a fresh record strips the prior record's dispositions, which would otherwise
 # answer for gaps the new record may not report.
 _rc_rerecord2 = apply_mut(
@@ -12059,8 +12065,11 @@ assert_eq("#1722: ...ticking BOTH requested review-boundary rows in the one call
           (f"- [x] {_MM_ROW_A[0]}" in _mm_patched,
            f"- [x] {_MM_ROW_B[0]}" in _mm_patched))
 assert_eq("#1722: ...and writing exactly one review-coverage record",
-          ["not-verified:never:short:skipped"],
-          workpad._review_coverage_payloads(_mm_patched))
+          (1, {"coverage": "not-verified", "dispatch": "never",
+               "roster": "short", "checklist": "skipped"}),
+          (len(workpad._review_coverage_payloads(_mm_patched)),
+           workpad._parse_review_coverage_payload(
+               workpad._review_coverage_payloads(_mm_patched)[0])))
 
 # Reorder reconcile after the ticks and the tick assertion goes RED, which is the ordering
 # the shipped Phase 1.3 fold rests on.
@@ -12296,6 +12305,70 @@ assert_eq("#1453: every dirty axis reports its gap, deduped and in table order",
           workpad._review_coverage_gaps(
               workpad._parse_review_coverage_payload(
                   "not-verified:never:short:skipped")))
+
+# ── issue #1510: the review-coverage record carries an as-of anchor (the reviewed head
+#    SHA it was derived from + the UTC time it was written), so a gap it declares is a
+#    statement about THIS run's own review pass at that anchor — a later standalone
+#    review closing the gap never contradicts it.
+_rc_head = "a1b2c3d4e5" * 4  # a 40-char lowercase-hex head
+_rc_anchored = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=["full", "attempted", "short", "skipped"],
+    record_review_coverage_head=_rc_head))
+_rc_anchored_payloads = workpad._review_coverage_payloads(_rc_anchored)
+assert_eq("#1510 AC1: exactly one anchored review-coverage record is written",
+          1, len(_rc_anchored_payloads))
+_rc_anchor = workpad._parse_review_coverage_anchor(_rc_anchored_payloads[0])
+assert_eq("#1510 AC1: the anchor carries the reviewed head SHA it was derived from",
+          _rc_head, (_rc_anchor or {}).get("head"))
+_rc_asof = (_rc_anchor or {}).get("asof", "")
+assert_eq("#1510 AC1: the anchor carries a colon-free basic-ISO UTC write time",
+          True, len(_rc_asof) == 16 and _rc_asof.endswith("Z") and _rc_asof[8] == "T"
+          and _rc_asof[:8].isdigit() and _rc_asof[9:15].isdigit())
+assert_eq("#1510 AC1: the anchored payload still parses to the SAME four axes "
+          "(the anchor is metadata, not a fifth axis)",
+          {"coverage": "full", "dispatch": "attempted", "roster": "short",
+           "checklist": "skipped"},
+          workpad._parse_review_coverage_payload(_rc_anchored_payloads[0]))
+assert_eq("#1510 AC1: the visible ## Progress row surfaces the anchor to a human reader",
+          True, ("head " + _rc_head[:12]) in _rc_anchored and _rc_asof in _rc_anchored)
+
+# AC4: a record written BEFORE this change — four fields, no anchor — still parses and
+# is not refused; the gate reads the same four axes and the anchor is simply absent.
+assert_eq("#1510 AC4: a pre-change 4-field anchor-less payload still parses",
+          {"coverage": "full", "dispatch": "attempted", "roster": "complete",
+           "checklist": "complete"},
+          workpad._parse_review_coverage_payload("full:attempted:complete:complete"))
+assert_eq("#1510 AC4: a pre-change payload has no anchor (None), never a parse error",
+          None, workpad._parse_review_coverage_anchor("full:attempted:complete:complete"))
+assert_eq("#1510 AC4: a legacy anchor-less full record still satisfies the Complete gate",
+          None, _rc_complete(_rc_row("full:attempted:complete:complete")))
+
+# AC3/AC2: declare a gap on an anchored record, then a later standalone review closes it.
+# The gap wording is scoped to the run's own review pass at the anchor, and the record
+# names its own reviewed head — so its claim is bounded and a later review at a DIFFERENT
+# head never contradicts it.
+_rc_gap = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=["not-verified", "attempted", "short", "skipped"],
+    record_review_coverage_head=_rc_head,
+    review_coverage_disposition=[
+        ["shadow-coverage", _RC_REASONS["shadow-coverage"]],
+        ["roster", _RC_REASONS["roster"]],
+        ["checklist", _RC_REASONS["checklist"]]]))
+assert_eq("#1510 AC2: a carried coverage gap is worded about the run's own review pass",
+          True, "run's own review pass" in _rc_gap)
+assert_eq("#1510 AC2: a carried gap is NOT worded 'carried forward' "
+          "(a claim about the PR's final review state)",
+          True, "carried forward" not in _rc_gap)
+_rc_gap_payload = workpad._review_coverage_payloads(_rc_gap)[0]
+_rc_gap_anchor = workpad._parse_review_coverage_anchor(_rc_gap_payload)
+assert_eq("#1510 AC3: the gap-declaring record is anchor-bounded — it names the reviewed "
+          "head it was derived from",
+          _rc_head, (_rc_gap_anchor or {}).get("head"))
+_rc_later_head = "b" * 40  # the head a later standalone review would examine
+assert_eq("#1510 AC3: the stored record claims nothing about a later review's head "
+          "(it is bounded by its own anchor)",
+          (True, False),
+          (_rc_head in _rc_gap_payload, _rc_later_head in _rc_gap_payload))
 
 # Restore the module-load bypass so any later Complete tests are not gated on the record.
 workpad._review_coverage_verdict = lambda prog_content: None
