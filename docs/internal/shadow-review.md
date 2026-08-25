@@ -86,7 +86,8 @@ one-subagent-layer rule is a portability floor rather than a claim that nesting 
 subagents, so it re-runs `/prflow:review`'s Phases 0 through 4.3 inline — resolving the engine
 directory via the ordered, repo-root-anchored candidate list (repo-root `skills/review`, then the
 `.prflow/vendor/prflow/` and superseded `.devflow/vendor/devflow/` vendored layouts), binding the
-bundle to that located directory, `Read`ing its `SKILL.md` in full, walking its gated phase references under `phases/` (re-deriving bundle identity and clearing each reference's boundary contract at every entry — a shadow entry is a phase entry), and running every
+bundle to that located directory, `Read`ing its `SKILL.md` in full under Step 1's completeness
+predicate, walking its gated phase references under `phases/` (re-deriving bundle identity and clearing each reference's boundary contract at every entry — a shadow entry is a phase entry), and running every
 Phase-3 reviewer normally. (Reading the engine as an inline procedure, rather than invoking it via
 the `Skill` tool, is deliberate: `Skill` would run the engine end-to-end including Phase 4.4's
 GitHub post, and the loop posts no formal review and no verdict comment. The shadow stops before
