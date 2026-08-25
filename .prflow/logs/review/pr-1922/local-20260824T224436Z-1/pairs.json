@@ -1,24 +1,263 @@
 {
-  "pairs": [
-    {"item": {"id": "VC-1", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "issue_acceptance", "source_file": "skills/review-and-fix/references/loop-control.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-1-34a0d50ffbf5.json", "response_text": ""},
-    {"item": {"id": "VC-2", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "issue_acceptance", "source_file": "skills/review-and-fix/references/loop-control.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-2-80d0bd44f4ff.json", "response_text": "{\"id\": \"VC-2\", \"verdict\": \"PASS\", \"evidence\": \"loop-control.md:177 names the terminal, the file, forbids execution, fall-through and repair.\", \"file_checked\": \"skills/review-and-fix/references/loop-control.md:177\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"},
-    {"item": {"id": "VC-3", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "issue_acceptance", "source_file": "skills/review-and-fix/references/shadow-review.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-3-939c017f2512.json", "response_text": ""},
-    {"item": {"id": "VC-4", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "issue_acceptance", "source_file": "skills/review-and-fix/references/loop-control.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-4-7e065c5de03a.json", "response_text": ""},
-    {"item": {"id": "VC-5", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "issue_acceptance", "source_file": "skills/review-and-fix/references/loop-control.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-5-41090b7fce84.json", "response_text": ""},
-    {"item": {"id": "VC-6", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "issue_acceptance", "source_file": "skills/review/SKILL.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-6-dfcc4d303bfc.json", "response_text": ""},
-    {"item": {"id": "VC-7", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "issue_acceptance", "source_file": "skills/review-and-fix/references/loop-control.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-7-8446db887e25.json", "response_text": ""},
-    {"item": {"id": "VC-8", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "issue_acceptance", "source_file": ".changeset/issue-1603-engine-root-completeness.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-8-a44222ea3e47.json", "response_text": ""},
-    {"item": {"id": "VC-9", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "issue_acceptance", "source_file": "skills/review-and-fix/references/loop-control.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-9-70f2b35e350a.json", "response_text": ""},
-    {"item": {"id": "VC-10", "verification_mode": "agent", "claim_provenance": "source_authored", "category": "absolute_claim", "source_file": "skills/review-and-fix/references/loop-control.md", "source_excerpt": "do not fall through to a later candidate (a later candidate is a different engine copy, so falling through reviews against the wrong engine)"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-10-edc9de187c60.json", "response_text": ""},
-    {"item": {"id": "VC-11", "verification_mode": "agent", "claim_provenance": "source_authored", "category": "absolute_claim", "source_file": ".changeset/issue-1603-engine-root-completeness.md", "source_excerpt": "The fix loop reaches `skills/review/SKILL.md` by an ordinary file read on three paths"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-11-b867a2779c3d.json", "response_text": "{\"id\": \"VC-11\", \"verdict\": \"PASS\", \"evidence\": \"The closed set of three file-read paths is enumerated in skills/review/SKILL.md:269-271. The fanned-out subagent at loop-control.md:163 is the Step 1 mechanism executed inside a subagent, reusing the identical resolution and completeness predicate, not a fourth path.\", \"file_checked\": \"skills/review/SKILL.md:269-271\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"},
-    {"item": {"id": "VC-12", "verification_mode": "agent", "claim_provenance": "source_authored", "category": "absolute_claim", "source_file": ".changeset/issue-1603-engine-root-completeness.md", "source_excerpt": "the shadow's two structural-failure trigger lists admit an unestablished root alongside an unreadable one"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-12-d3472b4efa9c.json", "response_text": ""},
-    {"item": {"id": "VC-13", "verification_mode": "agent", "claim_provenance": "source_authored", "category": "absolute_claim", "source_file": "skills/review-and-fix/references/loop-control.md", "source_excerpt": "A read you cannot complete, a gap in the page sequence, and a reader message you cannot classify each leave completeness **unestablished**."}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-13-3cb6097a33aa.json", "response_text": ""},
-    {"item": {"id": "VC-14", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "api_contract", "source_file": "skills/review-and-fix/references/loop-control.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-14-55f9f6556080.json", "response_text": ""},
-    {"item": {"id": "VC-15", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "api_contract", "source_file": "skills/review-and-fix/references/shadow-review.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-15-09fe7f49a03e.json", "response_text": ""},
-    {"item": {"id": "VC-16", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "dependency_interaction", "source_file": "skills/review-and-fix/references/loop-control.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-16-07f2eef0f6f1.json", "response_text": "{\"id\": \"VC-16\", \"verdict\": \"FAIL\", \"evidence\": \"The paged-read recovery in loop-control.md resolution step 3 is a textually-diverging inline restatement, not a matching reuse of the canonical copy in skills/review/SKILL.md. It drops the report-the-file-and-page-count instruction and routes an unclassifiable reader message to engine-root: incomplete rather than boundary: denied. skills/review/SKILL.md declares its only required-copy partner as skills/implement/SKILL.md.\", \"file_checked\": \"skills/review/SKILL.md:297-322; skills/review-and-fix/references/loop-control.md:174\", \"property_proven\": false, \"inaccuracy_scope\": \"generated_claim_text\"}"},
-    {"item": {"id": "VC-17", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "dependency_interaction", "source_file": "skills/implement/phases/phase-3-fix-loop.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-17-4c7c4e8bff4c.json", "response_text": ""},
-    {"item": {"id": "VC-18", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "dependency_interaction", "source_file": "skills/review-and-fix/references/loop-control.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-18-8b7c028ce09a.json", "response_text": ""},
-    {"item": {"id": "VC-19", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "data_format_assumption", "source_file": "skills/review-and-fix/references/loop-control.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-19-c02062f69a4f.json", "response_text": ""},
-    {"item": {"id": "VC-20", "verification_mode": "agent", "claim_provenance": "generated_paraphrase", "category": "api_contract", "source_file": "skills/review-and-fix/references/loop-control.md"}, "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-1/VC-20-f5218a7b37fc.json", "response_text": ""}
-  ]
+ "pairs": [
+  {
+   "item": {
+    "id": "VC-1",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-1-3edb3aff39a0.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-2",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-2-40036b227617.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-3",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-3-29fefa1069d3.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-4",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-4-fe40d414f243.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-5",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-5-773cde6e5eb7.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-6",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-6-ebaac84c990d.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-7",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-7-4908afb22fd4.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-8",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-8-985739263f4a.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-9",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-9-8d78980bfea8.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-10",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "End of file is established **only** by the reader reporting that the file is shorter than the position you asked for, or returning literally nothing at all; that report is itself attributable to the position requested, and is the ordinary outcome on a whole body."
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-10-bc0e72307cb7.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-11",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "Each confirming read starts at the line immediately after the one before it and a finite file reports its end, so the re-confirmation terminates"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-11-748772d944d6.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-12",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "Each takes step 4's `engine-root: incomplete` terminal \u2014 nothing on this path distinguishes an intact engine on a reader that cannot page from a truncated one."
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-12-93646b8044be.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-13",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "Any other message that **affirms the path exists** \u2014 a permission failure among them \u2014 positively resolves it: that is the **selected candidate**, whatever the read returned, and no later candidate is read."
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-13-missing.json",
+   "response_text": "```json\n{\"id\": \"VC-13\", \"verdict\": \"PASS\", \"evidence\": \"loop-control.md:175 states verbatim the source_excerpt; install.sh vendors only .prflow/vendor/prflow/, so the falsifying consumer scenario confirms rather than defeats the rule as written.\", \"file_checked\": \"skills/review-and-fix/references/loop-control.md:174-191\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-15",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "Reading a returned blank line as an end-of-file signal was itself a fail-open: roughly a third of the engine root's lines are blank, so a truncated body whose next undelivered line happened to be blank would have read as complete."
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-15-5f00b62300ad.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-16",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "The one file still over it \u2014 `skills/retrospective-weekly/SKILL.md` \u2014 is carried as an expiring exemption in `lib/test/reference-size-exemptions.json`; the review engine root sits under the ceiling and holds none."
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-16-383b1b04420c.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-17",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-17-e8ad19627abe.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-18",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-18-38a70bfda0a5.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-19",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-19-8f556a189f2d.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-20",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-20-84d491ab7b23.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-21",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-21-946c7ca0949b.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-22",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-22-558b06d1219b.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-23",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-23-b0b0f6865a87.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-24",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-24-3294f1946527.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-25",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-25-71b3be773948.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-26",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-26-cc5a02f7a176.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-27",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-27-missing.json",
+   "response_text": "```json\n{\"id\": \"VC-27\", \"verdict\": \"PASS\", \"evidence\": \"loop-control.md:178 requires the confirming read to start at the line immediately after the last one held without stating whether offset is 1- or 0-based. Empirical Read-tool test against a 5-line fixture confirms offset is 1-based and matches displayed line numbers. Line 180 lists 'a confirming read that does not start at the line immediately after the last one held' among the unestablished shapes, and step 4 routes every such item to the engine-root: incomplete terminal. The claim accurately paraphrases both the unstated offset-base and the routing of an off-by-one into the unestablished terminal.\", \"file_checked\": \"skills/review-and-fix/references/loop-control.md:178-180\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-28",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-28-9c8fe4117a34.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-29",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "Once a candidate is selected, a permission failure, a transient reader error, an oversize error that returns no content, and an empty or whitespace-only body are each a present engine that was not delivered: they leave completeness **unestablished** and never fall through to a later candidate, which is a different engine copy."
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1603/.prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-4/VC-29-0a9cf40214e5.json",
+   "response_text": ""
+  }
+ ]
 }
