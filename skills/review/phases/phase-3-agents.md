@@ -36,11 +36,6 @@ Execute the fence on every tier — the write-enabled `/prflow:review-and-fix` a
 
 Dispatch barrier. Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there; if your prompt carries no such block, collect every dispatch before the turn ends anyway.
 
-Record the reviewers'-dispatch boundary event (best-effort; the helper always exits 0 and never blocks the run):
-```bash
-.prflow/vendor/prflow/scripts/verification-flight.py event phase3-reviewers-dispatch
-```
-
 Launch all agents in a single message using multiple Agent tool calls, passing each a prompt to review the changes.
 
 Resolve overrides for the Phase-3 roster first. After the Phase 3.1 applicability gates decide which agents launch this run, pass that exact roster (the always-on four — `code-reviewer`, `silent-failure-hunter`, `comment-analyzer`, and the final-pass `prflow:requesting-code-review` dispatched as a `general-purpose` Task — plus any gated-in `type-design-analyzer` / `pr-test-analyzer`) to `resolve-review-overrides.py` per Per-Subagent Model/Effort Overrides above. Dispatch each Phase-3 agent via the Agent tool, applying its resolved `model` as the Agent-tool `model` override; do not request overrides for a gated-out agent (emit overrides only for dispatched agents). The final-pass reviewer's override is keyed under `prflow:requesting-code-review`, not `general-purpose` (see its dispatch note below).
@@ -220,11 +215,6 @@ Run these steps and add any finding to the Phase 3 findings set (collected in 3.
 The completeness critic is a finding-producing pass, not a verdict override: it injects findings into the set Phase 4.2 already grades by severity, adding no new Phase 4.2 rule. Living in the shared Phases 0–4.3, both standalone `/prflow:review` and the `/prflow:review-and-fix` fix loop apply it without any paraphrase in the fix-loop skill.
 
 ### 3.2 Collect results
-
-Record the reviewers'-return boundary event (best-effort; the helper always exits 0 and never blocks the run):
-```bash
-.prflow/vendor/prflow/scripts/verification-flight.py event phase3-reviewers-return
-```
 
 **Dirty-tree backstop — compare after dispatch (mandatory).** Before extracting findings, confirm the Phase 3.1 review-agent batch left the working tree unchanged. Compare against the fixed repo-local NUL-delimited snapshot file taken before dispatch; on any divergence the dispatch violated the advisory contract, so record it as a finding (never discard it silently) and restore only the snapshot-delta paths — those whose **path** was clean at snapshot time and became dirty during the dispatch window. The restore set is computed by **path column** (status prefix stripped from each `-z` record, not whole porcelain line): any path the orchestrator had **already** modified before dispatch is left to the human — its `git checkout` is never run even if an agent changes its status byte. **Residuals the backstop does NOT auto-restore:** (1) a **true rename/copy** (status `R`/`C`) — a staged rename needs index surgery to undo safely, so it is *surfaced* (named in a breadcrumb) but left for the human; (2) an agent's further edit to an **already-dirty path that does not change its status byte** — it produces an identical `-z` record, so the divergence test never fires and the path is never auto-restored. The Step 2.6 shadow + the post-shadow edit gate cover those residuals.
 
