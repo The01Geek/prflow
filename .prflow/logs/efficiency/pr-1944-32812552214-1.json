@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1944",
+  "generated_at": "2026-08-25T06:14:44Z",
+  "config_fingerprint": {
+    "sha256": "c2dd346fdf78eacf9e402b333f46db8770aa0afa8742a7dc4ac5d1139ba96283",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "recurring_defect_kinds": [],
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:code-reviewer",
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "prflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 3,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    }
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 34.96939205,
+    "tokens": {
+      "input_tokens": 264,
+      "output_tokens": 92890,
+      "cache_read_input_tokens": 33830222,
+      "cache_creation_input_tokens": 395407,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 482,
+        "outputTokens": 159311,
+        "cacheReadInputTokens": 40970871,
+        "cacheCreationInputTokens": 1228352,
+        "webSearchRequests": 0,
+        "costUSD": 33.63059675,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 80,
+        "outputTokens": 16642,
+        "cacheReadInputTokens": 2126789,
+        "cacheCreationInputTokens": 298743,
+        "webSearchRequests": 0,
+        "costUSD": 1.3387953,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 166,
+    "duration_ms": 3065150
+  },
+  "permission_denials": {
+    "count": 22,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=$GITHUB_RUN_ID RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT SERVER=$GITHUB_SERVER_URL REPO=$GITHUB_REPOSITORY ACTIONS=$GITHUB_ACTIONS APP_ID=$DEVFLOW_APP_ID\"",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"BASE=$BASE CUR=$CUR COMMON_DIR=$COMMON_DIR GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 1827 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1827 --note \"issue-claim audit (count): claimed '~175/489 entries' coverage, verified '175/489' entries carry efficiency_runs[].iterations at HEAD (749 total learnings records; 489 in retrospectives.jsonl)\" && \\\n.prflow/vendor/prflow/scripts/workpad. …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow 2>/dev/null\n# Build map pr -> max non-null iterations from experiment-records\njq -s '\n  (map({key: (.pr|tostring), value: ([.efficiency_runs[]?.iterations | numbers] | if length>0 then max else null end)}) | from_entries) as $iter\n  | $iter\n' .prflow/learnings/experiment-records.jsonl > .prflow/tmp/iter-map-1827.json\necho \"=== experiment records with a non-null iterations ===\"\njq '[to_entries[] | select(.value != null)] | length' .prflow/tmp/iter-map-1827.json\n …[per-command-truncated]",
+      "jq -s --slurpfile itmap .prflow/tmp/iter-map-1827.json '\n  ($itmap[0]) as $iter\n  | map(select(.categories // [] | index(\"incomplete-edit\")))\n  | map(. + {iters: ($iter[(.pr|tostring)] // null)})\n  | {\n      cohort_size: length,\n      with_iters: (map(select(.iters!=null)) | length),\n      without_iters: (map(select(.iters==null)) | length),\n      cohort_mean_iters: ((map(.iters|numbers) | if length>0 then (add/length) else null end)),\n      cohort_iter_values: (map(.iters|numbers) | sort)\n    } …[per-command-truncated]",
+      "for iss in 1380 1354 1352 1312 1241; do\n  body=$(gh api \"repos/{owner}/{repo}/issues/$iss/comments?per_page=100\" --jq 'map(select(.body|test(\"(pr|dev)flow:workpad\"))) | .[].body' 2>/dev/null)\n  n=$(printf '%s' \"$body\" | grep -icE 'sweep selection|diff shape|add-only|sweeps.*running|§2\\.3|2\\.3\\.x' 2>/dev/null)\n  has=$(printf '%s' \"$body\" | grep -qiE 'workpad' && echo yes || echo no)\n  echo \"issue $iss: workpad_found=$has sweep_note_hits=$n\"\ndone",
+      "echo '{\"pr\":42,\"additions\":120,\"deletions\":34,\"changed_files\":[\"a\",\"b\"],\"signals\":{}}' | jq -c -f lib/clean-entry.jq | jq -c '{schema_version, additions, deletions, changed_files}'",
+      "git diff --no-index -U0 /dev/null docs/internal/incomplete-edit-cost-analysis.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"LEG2_EXIT:$?\"",
+      "git diff --no-index -U0 /dev/null docs/internal/incomplete-edit-cost-analysis.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree",
+      "git push origin HEAD:refs/heads/issue-1827-incomplete-edit-costs-about-one-extra-iteration 2>&1 | tail -3; echo \"PUSH_EXIT:${PIPESTATUS[0]}\"",
+      "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)\nmkdir -p \"$ROOT/.prflow/tmp\" 2>/dev/null || true\n[ -n \"${ZSH_VERSION:-}\" ] && setopt nonomatch || :\nset -- \"$ROOT\"/.prflow/tmp/review/*/*/iter-*.json\nif [ -e \"$1\" ]; then printf '%s\\n' \"$@\" | sort; else echo \"(none)\"; fi",
+      "cd /home/runner/work/prflow/prflow; mkdir -p .prflow/tmp/review/pr-1944/rev1; git diff --merge-base origin/main | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1944/rev1/diff.patch; grep -c '^diff --git' .prflow/tmp/review/pr-1944/rev1/diff.patch; wc -l .prflow/tmp/review/pr-1944/rev1/diff.patch",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/rev1 && git -C /home/runner/work/prflow/prflow diff --merge-base origin/main | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/rev1/diff.patch | grep -c '^diff --git'",
+      "git -C /home/runner/work/prflow/prflow diff --merge-base origin/main > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/rev1/diff.patch; grep -c '^diff --git' /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/rev1/diff.patch",
+      "git -C /home/runner/work/prflow/prflow diff --merge-base origin/main > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/rev1/diff.patch; grep -c '^diff --git' /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/rev1/diff.patch",
+      "git -C /home/runner/work/prflow/prflow diff --merge-base origin/main | tee /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/rev1/diff.patch >/dev/null; grep -c '^diff --git' /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/rev1/diff.patch",
+      "git -C /home/runner/work/prflow/prflow diff --merge-base origin/main | tee /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/rev1/diff.patch >/dev/null",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review; echo \"EXIT: $?\"",
+      "cd /home/runner/work/prflow/prflow\nR=.prflow/learnings/retrospectives.jsonl\necho \"total entries: $(wc -l < $R)\"\necho \"incomplete-edit cohort: $(jq -c 'select(.categories // [] | index(\"incomplete-edit\"))' $R | wc -l)\"\necho \"cohort with issue: $(jq -c 'select((.categories // [] | index(\"incomplete-edit\")) and (.issue != null))' $R | wc -l)\"\necho \"additions/deletions/changed_files hits: $(grep -cE '\"additions\"|\"deletions\"|\"changed_files\"' $R)\"\necho \"efficiency-records exists: $(ls .prflow/learning …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\n# store-wide coverage of efficiency_runs[].iterations joined by PR\npython3 - <<'PY'\nimport json\nexp={}\nfor line in open('.prflow/learnings/experiment-records.jsonl'):\n    line=line.strip()\n    if not line: continue\n    try: o=json.loads(line)\n    except: continue\n    pr=o.get('pr')\n    runs=o.get('efficiency_runs') or []\n    its=[r.get('iterations') for r in runs if isinstance(r,dict) and r.get('iterations') is not None]\n    if pr is not None and its:\n        e …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; ls .changeset/ | head; echo \"---sample existing---\"; head -6 $(ls .changeset/*.md | grep -v issue-1827 | head -1) 2>/dev/null",
+      "lib/test/regenerate-artifacts.py 2>&1 | tail -8; echo \"REGEN_EXIT:${PIPESTATUS[0]}\""
+    ],
+    "total": 22,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}

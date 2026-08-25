@@ -1,0 +1,108 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T00:00:00Z",
+  "fix_commit_sha": "7a6c7a0",
+  "fix_files": [
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "run_shadow_fanout",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "null-when-absent assertions do not distinguish key-absent from key-present-null; has() would be load-bearing",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          81,
+          83
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "changed_files preservation asserted only by length, not verbatim",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          79,
+          79
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "valid-falsy 0/[] passthrough untested",
+      "defect_signature": {
+        "file": "lib/clean-entry.jq",
+        "line_range": [
+          37,
+          39
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "7a6c7a0"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "7a6c7a0"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "7a6c7a0"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 16,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": "monolith shard 10011 passed / 0 failed / 0 skipped over the post-fix tree"
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
