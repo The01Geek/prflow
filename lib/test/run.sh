@@ -49906,6 +49906,14 @@ RCE_TEST_RC=$?
 assert_eq "issue #1852: review context eval focused tests pass" "0" "$RCE_TEST_RC"
 [ "$RCE_TEST_RC" -eq 0 ] || while IFS= read -r _rce_line || [ -n "$_rce_line" ]; do printf '    %s\n' "$_rce_line"; done <<< "$RCE_TEST_OUT"
 
+# context_eval_shared coverage (issue #1900): the five helpers single-sourced out of the three
+# instruments. Asserts strict post-#1899 behavior on scripts/context_eval_shared.py + that each
+# instrument (and the create-issue shim) re-exports the SAME object. INVOKES the test, not a script.
+CES_TEST_OUT="$(python3 "$LIB/test/test_context_eval_shared.py" 2>&1)"
+CES_TEST_RC=$?
+assert_eq "issue #1900: shared context-eval helpers focused tests pass" "0" "$CES_TEST_RC"
+[ "$CES_TEST_RC" -eq 0 ] || while IFS= read -r _ces_line || [ -n "$_ces_line" ]; do printf '    %s\n' "$_ces_line"; done <<< "$CES_TEST_OUT"
+
 # harness-python-guards contract coverage (issue #707: extracted from this file's
 # #600 / #527 / #528 / #668 / #798 / #810 / #591 Python guard blocks into a focused
 # module, plus the #985 profiler unit tests added there directly). The registry and
