@@ -1,0 +1,228 @@
+{
+ "pairs": [
+  {
+   "item": {
+    "id": "VC-1",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-1-3d2bd82cd1244a8a.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-2",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-2-179ff9e327635009.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-3",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-3-d62c8951a8bc1453.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-4",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-4-4b2fc05c894ebd4f.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-5",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-5-a9bc7126773e3e49.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-6",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-6-ef302fca5ac8764d.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-7",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-7-f09055d4b97492ba.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-8",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-8-fc1396dcfe50da1f.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-9",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-9-09a7fbb8ea26f632.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-10",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-10-feada20e864b1501.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-11",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-11-d1ac9513ea55f078.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-12",
+    "claim_provenance": "source_authored"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-12-57413f36b35dc69a.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-13",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-13-7061bafb550e46e1.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-14",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-14-missing.json",
+   "response_text": "{\"id\":\"VC-14\",\"verdict\":\"PASS\",\"evidence\":\"loop-verdict-marker.py prints NO-MARKER verbatim; the new bullet keys on the conjunction of that token and the reported terminal.\",\"file_checked\":\"scripts/loop-verdict-marker.py\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-15",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-15-2ce363a110001919.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-16",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-16-21a3ac8c9a87a622.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-17",
+    "claim_provenance": "source_authored"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-17-a5210eeec53fbae3.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-18",
+    "claim_provenance": "source_authored"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-18-db39727e14225903.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-19",
+    "claim_provenance": "source_authored"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-19-5547fc6416d37478.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-20",
+    "claim_provenance": "source_authored"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-20-259937ae2dfb00d7.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-21",
+    "claim_provenance": "source_authored"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-21-667530ce2a5cc266.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-22",
+    "claim_provenance": "source_authored"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-22-0ac42dd8490a81fb.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-23",
+    "claim_provenance": "source_authored"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-23-ced05a260244fa90.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-24",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-24-15fd9f61511a6e93.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-25",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-25-8ff99aa2fdf0cc66.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-26",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-26-032234091505f50f.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-27",
+    "claim_provenance": "source_authored"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-27-45dd4a1065fa84f9.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-28",
+    "claim_provenance": "generated_paraphrase"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1922/local-20260824T224436Z-1/verdicts/iter-2/VC-28-afc88db58f58de0d.json",
+   "response_text": ""
+  }
+ ]
+}

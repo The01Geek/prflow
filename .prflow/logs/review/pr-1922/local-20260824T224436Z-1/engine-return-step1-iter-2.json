@@ -1,0 +1,218 @@
+{
+ "dispatch_mode": "fanned-out",
+ "verdict": "REJECT",
+ "report": "## Verdict: REJECT (the required check is RED at the reviewed head on a defect this PR introduced, and the change's own completeness predicate hard-stops on an intact engine root)\n\n## Issue Compliance\n\nReviewed against issue #1603: Establish that the review engine root arrived whole on the file-read path before executing it - criteria from workpad; scope unchanged. Requirement-based checklist items are included in the verification results below.\n\nCriteria came from the `/prflow:implement` workpad comment - this run's authoritative set, possibly narrowed from the issue.\n\nNo divergence between the workpad's criteria and the issue body's.\n\n## Verification Checklist Results\n\n26 passed, 4 failed, 0 inconclusive - 2 via lite probe, 28 via agent.\n\n- VC-4: FAIL - the canonical statement lives in exactly one place and every mirroring site points at it [docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md]\n- VC-9: FAIL - the whole suite is green by this tier's completion gate [CI run 32791742604 at head 335f10cd5: `lib + python tests` fail, `shard (monolith)` fail, 9896 passed / 1 failed / 0 skipped]\n- VC-19: FAIL - the added text asserts a closed set of exactly four unestablished shapes [skills/review-and-fix/references/loop-control.md]\n- VC-25: FAIL - docs/internal/shadow-review.md mirrors the shipped wording at every engine-read site [docs/internal/shadow-review.md]\n\n<details><summary>Passed items (26 of 30) - click to expand</summary>\n\n- VC-1, VC-2, VC-3: completeness gates execution; named terminal, body unusable, no repair; all three file-read call sites covered\n- VC-5: added `skills/**` wording carries no doc-root path, repo-private path, or issue number\n- VC-6: engine roots no larger than merge base - 57,775 / 60,656 bytes, both unchanged\n- VC-7: `Writing-skills evidence:` marker with all four slot dispositions on the workpad\n- VC-8: changeset with `bump: patch` frontmatter\n- VC-10, VC-11: loop-control.md 56,432 and phase-3-fix-loop.md 46,655 bytes, both under the 61,750 ceiling\n- VC-12: the exemptions file names exactly one row, retrospective-weekly\n- VC-13: no suite assertion pins the removed literals\n- VC-14: `NO-MARKER` is the helper's verbatim token\n- VC-15: the Blocked path's reached-from clause covers both entries\n- VC-16: `--reflection-kind blocked` and `--status Blocked` are accepted by workpad.py\n- VC-17: the two placeholder spellings differ, as the claim states\n- VC-18: the re-confirmation loop terminates via the non-advancing unestablished shape\n- VC-20: the blocked record has exactly one writer\n- VC-21: the terminal never reaches Loop Exit, as scoped\n- VC-22: paging terminates only on the confirming read\n- VC-23: selection is on resolution with no fall-through\n- VC-24: Step 2.6 mechanics are stated in shadow-review.md, not circularly deferred\n- VC-26: the new label does not collide with the identity/boundary vocabulary\n- VC-27: no external counting tool is guaranteed by preflight\n- VC-28: boundary marker pairs intact in all four edited references\n- VC-29, VC-30: no `docs/internal` reference added\n\n</details>\n\n## Code Review Findings\n\n### Critical\n\n1. `skills/implement/phases/phase-3-fix-loop.md:39` invokes `--reflection \"engine-root: incomplete - <that SKILL.md path>\"` on a line carrying no `--reflection-kind`, exactly the shape the `#126` call-site pin forbids. It is the sole offending line in the implement skill bundle (reproduced locally against the same file set the pin greps), and it is turning the merge-gating required check RED at the reviewed head: CI run 32791742604 for 335f10cd5e1cf51541c292e4aca62ba6d6072488 reports `shard (monolith)` fail with 9896 passed / 1 failed / 0 skipped and `Failure recap: #126 pin: every --reflection call-site in the implement skill carries a --reflection-kind`, and the required rollup `lib + python tests` fail. `gh pr view 1922 --json headRefOid` equalled the reviewed head both before and after the reading, so it binds. Acceptance criterion 9 is unsatisfied. Beyond the pin, an unkinded `--reflection` degrades to the `note` kind - the one kind `lib/cheap-gate.jq` does not treat as friction - so a Blocked record about an unreviewed PR would file as a non-friction note. Remedy: add `--reflection-kind blocked` to the line-39 clause, or reword it to point at the Blocked path's own command instead of restating the flag (the latter also clears Suggestion 1). (raised by 1/3 agents, orchestrator-confirmed)\n\n2. The end-of-file confirmation the change introduces hard-stops on an INTACT engine root under the reference reader all three call sites use. `skills/review-and-fix/references/loop-control.md:178-180` instructs \"issue one further bounded read starting past the last line you already hold\", and establishes completeness only when \"a read you can attribute to the position you requested returns no further non-empty content\"; the four unestablished shapes include \"a confirming read whose content cannot be attributed to the position requested\" and \"one that errors or is refused\". Measured on this runner against `skills/review/SKILL.md`: a read past the last held line returns no line-numbered content at all - only a warning that the file is shorter than the provided offset, naming its true line count. That reply is attributable to no returned position, so on the literal reading it lands in unestablished shape 1 (and arguably 3) and the run stops at `engine-root: incomplete` on a whole file. The reader also numbers a phantom empty line after the final newline, so \"the last line you already hold\" is itself ambiguous and only the non-phantom reading reaches the establishing branch. The existing clause \"a trailing empty line is not content beyond what you hold\" addresses the phantom on the RETURNING side only, never on the HELD side that sets the start position. Consequence on the losing branch: every `/prflow:review-and-fix` run stops and every implement Phase 3 lands on Blocked, i.e. the merge gate never runs. Remedy: (a) specify the start position as one past the last NON-EMPTY line held, and (b) add a fifth, ESTABLISHING outcome - a reader reply positively reporting the requested position is beyond the file's end, naming a line count at or below what is held, is a positive end-of-file confirmation rather than an error. The same wording is mirrored in `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` and in the changeset; all three need the same correction in one change. (raised by 2/3 agents, orchestrator-measured independently)\n\n### Important / Major\n\n1. `skills/review-and-fix/references/error-handling.md:16` contradicts itself inside the one bullet this change edited. It adds \"A candidate is located only once Step 1's completeness predicate is satisfied\" and then retains, two clauses later, \"Whichever candidate resolves first is the located engine directory\". Against the canonical statement those words are not interchangeable: `loop-control.md` makes a path that resolves the SELECTED candidate, which becomes the located `<engine-dir>` only once completeness is established. `error-handling.md` is the surface an agent consults when deciding whether to take the fatal `/prflow:init` arm, so the retained clause re-licenses exactly the merely-resolved-is-located reading acceptance criterion 1 forbids. Remedy: change the retained clause to \"Whichever candidate resolves first is the SELECTED candidate\". (raised by 2/3 agents, orchestrator-found independently) [self-contradicting-diff carve-out: skills/review-and-fix/references/error-handling.md]\n\n2. A permission-denied read is routed two opposite ways by the two new bullets at `skills/review-and-fix/references/loop-control.md:175-176`. The Resolution bullet enumerates only \"reported as non-existent\" -> absent/advance and \"positively resolved\" -> selected, sending everything else to a third arm that advances the scan; it never says which reader messages count as positively resolving. The Delivery bullet then names \"a permission failure\" as a case arising only AFTER selection, which never falls through. An EACCES message on the repo-root candidate is precisely a message whose resolution-classification is in question, so an agent applying the third arm advances and reviews against the vendored copy - the fall-through Delivery forbids, on a concrete input. Remedy: one clause naming the positive-resolution shapes, e.g. \"A message that names the path as existing but unreadable (a permission or access-denied error) positively resolves it; the unclassifiable third arm is for a message that says nothing either way.\" (raised by 1/3 agents)\n\n3. The unestablished-resolution advance is required to be \"reported\" to no named surface, and its coupled site is left unreconciled. `loop-control.md:175-176` says the scan advances \"but report which candidate it advanced past and why\"; Step 4 routes that report only on the fatal arm (no candidate selected). On the arm that matters - candidate 1 unclassifiable, candidate 2 resolves, the review proceeds - there is no sink and no consumer, so the hiding the sentence warns about still happens silently. Separately, the same file's untouched section on self-review / version-skew still asserts that because the repo-root candidate is listed first \"a self-review ALWAYS resolves the branch's own engine (never a stale plugin-cache copy carrying a `devflow/` path component)\". The new third arm makes that \"always\" conditionally false - an unclassifiable read on candidate 1 advances past it, and candidate 3 is literally the `.devflow/` vendored layout that sentence promises cannot be reached. Under the coupled-invariant discipline both sites move in the same change. Remedy: give the advance a sink on every arm (the file already routes `dispatch_mode` into the iteration record), and soften the \"always\" to state the new exception. (raised by 2/3 agents)\n\n4. The \"Four shapes leave completeness unestablished\" enumeration in `skills/review-and-fix/references/loop-control.md` is contradicted one paragraph later by \"A gap in the page sequence likewise leaves completeness unestablished\" - a fifth shape outside the closed set, and one structurally unlike the four (an across-page-sequence gap rather than a single confirming-read outcome). The Phase 4.1.6 intra-diff contradiction scan pairs the added absolute claim against the added limitation note about the same subject, so this routes as a self-contradicting diff on prose that can change behavior. Remedy: scope the enumeration to confirming-read shapes (\"Four confirming-read shapes ...\"), or fold the page-gap in as a fifth. (raised by 0/3 agents; Phase 2 checklist VC-19 and the Phase 4.1.6 intra-diff scan) [self-contradicting-diff carve-out: skills/review-and-fix/references/loop-control.md]\n\n### Suggestion / Minor\n\n1. The Blocked-path reflection literal is stated twice in `skills/implement/phases/phase-3-fix-loop.md` - at line 39 as `<that SKILL.md path>` and at line 256 as `{path}` - in two placeholder notations, the shape that drifts on the next edit. Line 39's instruction is \"takes this phase's Blocked path below\"; the substitution mechanics belong to the Blocked path, which now binds them. Trimming line 39 to the routing plus its one consequence also clears Critical 1. (raised by 1/3 agents)\n\n2. The two new `engine-root: incomplete` rows in the same file disagree on the route. Line 210 says the terminal \"takes the Blocked path below directly, NOT the severity-aware exit\"; line 248 then adds a row for the same terminal INSIDE the severity-aware exit. Both land on Blocked so nothing fails open, but an agent reaching 248 first reads the route 210 forbids, and the \"engine never ran, so the soft-proceed test passes vacuously\" rationale now appears three times across the shipped surfaces. Additionally, line 209's bare-`NO-MARKER` arm is evaluated before line 210's narrower `NO-MARKER`-plus-terminal arm and routes away to the exact-wording fallback, with no first-match-wins statement disambiguating them; the residual harm is that Blocked is reached by the generic route, so line 256's substitution clause may not be recognised as applying and the durable record reads \"unresolved Critical (or unparseable verdict)\" instead of the real cause. (raised by 2/3 agents)\n\n3. `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md`'s Root identity bullet re-derives the selection/delivery split, the confirming read, the attribution rule, the four unestablished shapes and the per-entry disposition at roughly 500 words, with no clause naming `loop-control.md` Step 1 as canonical and no non-authoritative marker - while every other mirroring site this PR touched carries an explicit pointer. Behavior-inert prose cap applied: no tool parses this file to decide behavior, and `docs/internal/` ships to no consumer, so both limbs hold and the finding is capped at Suggestion. (Phase 2 checklist VC-4; raised by 1/3 agents) [behavior-inert prose cap: both limbs established - no tool reader; not shipped]\n\n4. `docs/internal/shadow-review.md`'s section \"The fix: the PARENT orchestrator runs the shadow fan-out itself\" still reads \"binding the bundle to that located directory, `Read`ing its `SKILL.md` in full ...\" with no completeness clause, while its shipped counterpart `skills/review-and-fix/references/shadow-review.md` was reconciled in this same PR to \"`Read` its `SKILL.md` in full under Step 1's completeness predicate\". Same arm, one site updated, one not. Behavior-inert prose cap applied on the same two limbs. (Phase 2 checklist VC-25; orchestrator-found) [behavior-inert prose cap: both limbs established - no tool reader; not shipped]\n\n### Informational\n\n1. Advisory, non-blocking (consumer prompt-extension clause): no `Verification evidence:` marker is present on either durable surface - neither the issue #1603 workpad nor the PR #1922 body. Tier classification from the workpad Progress section: no `prflow:checkpoint gha:` row, so this is a LOCAL/INTERACTIVE run. The clause never raises the verdict on its own.\n\nover-grade annotation: no finding flagged\ntruthfulness sweep: 1 finding promoted (Important 4, via the intra-diff contradiction scan)\nintra-diff contradiction scan: 1 contradiction found - the added \"Four shapes\" absolute against the added page-sequence-gap limitation note about the same subject\n\n## Verdict Criteria applied\n\n- Threshold resolved: `prflow_review.verdict_severity_threshold` = `critical` (rc 0).\n- Rule 1 fires first: 4 verification checklist items are FAIL (VC-4, VC-9, VC-19, VC-25) -> REJECT.\n- Two Critical review-agent findings independently reach rule 3 at the `critical` threshold.\n- The threshold-independent self-contradicting-diff carve-out is invoked by Important 1 and Important 4; both are non-demotable and only a fix clears them.\n- No deferrals block is present in the PR body (block_present false), so no finding was demoted.\n- Phase 3 coverage: 3 of 3 dispatched agents returned results; 0 failed. No partial-coverage note.\n",
+ "phase3_findings": [
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "critical",
+   "description": "phase-3-fix-loop.md:39 invokes --reflection with no --reflection-kind on the same line, the sole #126 pin violation in the implement bundle; the required check lib + python tests is RED at head 335f10cd5 (run 32791742604, shard(monolith) fail, 9896 passed/1 failed/0 skipped). AC9 unsatisfied. An unkinded --reflection also degrades to the note kind, which cheap-gate.jq does not treat as friction.",
+   "defect_signature": {
+    "file": "skills/implement/phases/phase-3-fix-loop.md",
+    "line_range": [
+     39,
+     39
+    ],
+    "kind": "api_misuse"
+   },
+   "corroboration_count": 1,
+   "orchestrator_confirmed": true
+  },
+  {
+   "agent": "prflow:silent-failure-hunter,prflow:requesting-code-review",
+   "severity": "critical",
+   "description": "The end-of-file confirmation hard-stops on an INTACT engine root under the reference reader. A read past the last held line returns no attributable content, only a shorter-than-offset warning, which falls into unestablished shapes 1/3 and yields engine-root: incomplete on a whole file. The reader also numbers a phantom trailing line, making 'the last line you already hold' ambiguous. Remedy: start one past the last NON-EMPTY line held, and add a fifth ESTABLISHING outcome for a reader reply positively reporting the offset is beyond EOF. Mirrored in DEVFLOW_SYSTEM_OVERVIEW.md and the changeset.",
+   "defect_signature": {
+    "file": "skills/review-and-fix/references/loop-control.md",
+    "line_range": [
+     178,
+     180
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 2,
+   "orchestrator_confirmed": true
+  },
+  {
+   "agent": "prflow:comment-analyzer,prflow:requesting-code-review",
+   "severity": "important",
+   "description": "error-handling.md:16 self-contradiction: 'A candidate is located only once Step 1's completeness predicate is satisfied' beside the retained 'Whichever candidate resolves first is the located engine directory'. The retained clause re-licenses the merely-resolved-is-located reading AC1 forbids, on the surface that adjudicates the fatal /prflow:init arm. Remedy: 'resolves first is the SELECTED candidate'.",
+   "defect_signature": {
+    "file": "skills/review-and-fix/references/error-handling.md",
+    "line_range": [
+     16,
+     16
+    ],
+    "kind": "documented_falsehood"
+   },
+   "corroboration_count": 2,
+   "self_contradicting_diff_carveout": true
+  },
+  {
+   "agent": "prflow:comment-analyzer",
+   "severity": "important",
+   "description": "A permission-denied read is routed two opposite ways: the Resolution bullet's unclassifiable third arm advances the scan, while the Delivery bullet names permission failure as a post-selection case that never falls through. An EACCES on the repo-root candidate therefore reviews against the vendored copy. Remedy: name the positive-resolution shapes in the Resolution bullet.",
+   "defect_signature": {
+    "file": "skills/review-and-fix/references/loop-control.md",
+    "line_range": [
+     175,
+     176
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:silent-failure-hunter,prflow:requesting-code-review",
+   "severity": "important",
+   "description": "The unestablished-resolution advance names no recording sink on the success path (Step 4 routes it only on the fatal arm), and the coupled untouched Self-review/version-skew claim that a self-review ALWAYS resolves the branch's own engine (never a .devflow/ plugin-cache copy) is now conditionally false. Both sites must move in the same change.",
+   "defect_signature": {
+    "file": "skills/review-and-fix/references/loop-control.md",
+    "line_range": [
+     175,
+     197
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 2
+  },
+  {
+   "agent": "engine:phase-4.1.6-intra-diff-scan",
+   "severity": "important",
+   "description": "The added absolute 'Four shapes leave completeness unestablished' is contradicted one paragraph later by the added 'A gap in the page sequence likewise leaves completeness unestablished' - a fifth shape outside the closed set. Promoted by the intra-diff contradiction scan into the self-contradicting-diff carve-out. Remedy: scope the enumeration to confirming-read shapes, or fold the page-gap in as a fifth.",
+   "defect_signature": {
+    "file": "skills/review-and-fix/references/loop-control.md",
+    "line_range": [
+     180,
+     182
+    ],
+    "kind": "documented_falsehood"
+   },
+   "corroboration_count": 1,
+   "self_contradicting_diff_carveout": true,
+   "promoted_by": "phase-4.1.6"
+  },
+  {
+   "agent": "prflow:comment-analyzer",
+   "severity": "suggestion",
+   "description": "The Blocked-path reflection literal is stated twice in phase-3-fix-loop.md in two placeholder notations (<that SKILL.md path> at :39, {path} at :256). Trimming :39 to the routing plus one consequence also clears Critical 1.",
+   "defect_signature": {
+    "file": "skills/implement/phases/phase-3-fix-loop.md",
+    "line_range": [
+     39,
+     39
+    ],
+    "kind": "style"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:comment-analyzer,prflow:silent-failure-hunter",
+   "severity": "suggestion",
+   "description": "Line 210 routes the terminal to Blocked directly and NOT the severity-aware exit, while line 248 adds a row for the same terminal inside that exit; the vacuity rationale is restated three times. Line 209's bare-NO-MARKER arm is also evaluated before line 210's narrower conjunction with no first-match-wins statement, so Blocked is reached generically and :256's substitution clause may not be recognised as applying.",
+   "defect_signature": {
+    "file": "skills/implement/phases/phase-3-fix-loop.md",
+    "line_range": [
+     209,
+     248
+    ],
+    "kind": "comment_drift"
+   },
+   "corroboration_count": 2
+  },
+  {
+   "agent": "engine:phase-2-checklist,prflow:requesting-code-review",
+   "severity": "suggestion",
+   "description": "DEVFLOW_SYSTEM_OVERVIEW.md's Root identity bullet restates the whole predicate (~500 words) with no clause naming loop-control.md Step 1 as canonical and no non-authoritative marker, unlike every other mirroring site this PR touched. Behavior-inert prose cap applied (no tool reader; docs/internal ships to no consumer).",
+   "defect_signature": {
+    "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "line_range": [
+     458,
+     458
+    ],
+    "kind": "comment_drift"
+   },
+   "corroboration_count": 1,
+   "behavior_inert_prose_cap": true
+  },
+  {
+   "agent": "engine:phase-2-checklist",
+   "severity": "suggestion",
+   "description": "docs/internal/shadow-review.md's parent-fan-out section still describes the inline engine read with no completeness clause, while its shipped counterpart was reconciled in this same PR. Behavior-inert prose cap applied (no tool reader; not shipped).",
+   "defect_signature": {
+    "file": "docs/internal/shadow-review.md",
+    "line_range": [
+     85,
+     88
+    ],
+    "kind": "comment_drift"
+   },
+   "corroboration_count": 1,
+   "behavior_inert_prose_cap": true
+  },
+  {
+   "agent": "engine:prompt-extension-advisory",
+   "severity": "informational",
+   "description": "Advisory, non-blocking: no 'Verification evidence:' marker on either durable surface (issue 1603 workpad or PR 1922 body). Tier classified local/interactive (no prflow:checkpoint gha: row).",
+   "defect_signature": {
+    "file": "none",
+    "line_range": null,
+    "kind": "other"
+   },
+   "corroboration_count": 1,
+   "advisory_non_blocking": true
+  }
+ ],
+ "phase3_dispatched": [
+  "prflow:silent-failure-hunter",
+  "prflow:comment-analyzer",
+  "prflow:requesting-code-review"
+ ],
+ "phase3_roster_exclusions": {
+  "prflow:code-reviewer": "iterations: first-only (fix-loop iteration 2)",
+  "prflow:type-design-analyzer": "has_new_types false",
+  "prflow:pr-test-analyzer": "test-relevance predicate unmatched (config-only, no test files)"
+ },
+ "diff_profile": {
+  "small_diff": false,
+  "config_only": true,
+  "has_new_types": false,
+  "engine_self_modifying": true,
+  "checklist_skipped": null,
+  "detect_all_audit": false
+ },
+ "cap_drops": {
+  "count": 0,
+  "by_category": {}
+ },
+ "checklist": {
+  "total": 30,
+  "passed": 26,
+  "failed": 4,
+  "inconclusive": 0,
+  "lite": 2,
+  "agent": 28,
+  "normalized_count": 0,
+  "field_defect_fail_count": 0,
+  "failed_ids": [
+   "VC-4",
+   "VC-9",
+   "VC-19",
+   "VC-25"
+  ]
+ },
+ "ci_reading": {
+  "head": "335f10cd5e1cf51541c292e4aca62ba6d6072488",
+  "run_id": "32791742604",
+  "required_check": "lib + python tests",
+  "conclusion": "failure",
+  "failing_assertion": "#126 pin: every --reflection call-site in the implement skill carries a --reflection-kind",
+  "tally": "9896 passed, 1 failed, 0 skipped",
+  "url": "https://github.com/The01Geek/prflow/actions/runs/32791742604"
+ },
+ "phase3_agents_failed": 0,
+ "extension_status": {
+  "review": "content-present",
+  "requesting-code-review": "loaded-empty resolved-root=unset"
+ }
+}
