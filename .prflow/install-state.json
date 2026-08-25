@@ -20,11 +20,11 @@
     },
     "setup-action": {
       "path": ".github/actions/setup-project-env/action.yml",
-      "digest": "sha256:f5008c62e2ddbc95c436db41770491887dd997c111bd02c9a0174d570c2b824f"
+      "digest": "sha256:2576f9564220c3729ae2ed0f30a87c912771644c76cf92e8b1ce99dc2d8054c2"
     },
     "provision-helper": {
       "path": ".github/actions/setup-project-env/provision-lint-tools.sh",
-      "digest": "sha256:cf753f1af18c60699c8abb2f8d1ead6f3f7cf61b7014ea2cc844a6366a21ae00"
+      "digest": "sha256:67d2000b5522a9feaee862db174a3493f4b256247eb0d390e261f08c0dfb4932"
     },
     "implement-workflow": {
       "path": ".github/workflows/devflow-implement.yml",

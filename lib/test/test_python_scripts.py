@@ -36352,6 +36352,9 @@ assert_eq("#1388 action: none mode does no lint work / no manifest validation", 
           "no lint-tool provisioning and no manifest validation" in _ACTION_1388)
 assert_eq("#1388 action: provision invokes the provisioning helper", True,  # structural-pin-ok: routing-dispatch-contract -- provision dispatches the bundled helper
           "provision-lint-tools.sh" in _ACTION_1388)
+assert_eq("#1388 action: caches the toolchain keyed on the AC5 tuple (OS/arch + manifest+marker hash)", True,  # structural-pin-ok: routing-dispatch-contract -- cross-run cache restore keyed on {OS,arch,tool,version,digest,installer}
+          "uses: actions/cache@v5" in _ACTION_1388
+          and "lintprov-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.prflow/lint-manifest.json', '.prflow/install-state.json') }}" in _ACTION_1388)
 
 # AC7: the three callers pass tested lint modes none / provision / none.
 assert_eq("#1388 wiring: devflow.yml passes lint_mode: none", 1,  # structural-pin-ok: routing-dispatch-contract -- command tier lint mode

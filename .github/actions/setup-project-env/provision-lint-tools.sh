@@ -12,8 +12,9 @@
 # orchestrator: it gates on readiness, resolves each tool's artifact, then
 # downloads → verifies the pinned ARCHIVE digest → extracts → installs run-local
 # (NO sudo) → verifies the executable reports the pinned version. An executable
-# already present at the destination this job is reused only after re-passing that
-# version check (no cross-run actions/cache is wired). Every failure fails CLOSED,
+# already present at the destination — a cross-run cache restore (the action's
+# actions/cache step, keyed on the same tuple) or a within-job re-invocation — is
+# reused only after re-passing that version check. Every failure fails CLOSED,
 # naming the tool, BEFORE the
 # model runs — a missing installer primitive, a checksum mismatch, an archive
 # that will not extract, the wrong version, a network failure, an unwritable
@@ -121,12 +122,12 @@ _provision_one() {
 
   local dest="$DEST_BIN/$member"
 
-  # Within-job re-verification: an executable already at $dest this job is reused
-  # only after it re-passes the whole-token version check under this run's resolved
-  # version. No cross-run actions/cache is wired, so $DEST_BIN is fresh each job and
-  # this branch fires only on a within-job re-invocation; the download path's exact
-  # ARCHIVE-digest check below is the supply-chain gate. The digest is bound into the
-  # cache key so a changed tuple keys a different slot.
+  # Cache/within-job re-verification: an executable already at $dest — restored by
+  # the action's actions/cache step (keyed on {OS,arch,manifest+marker hash}) or
+  # left by a within-job re-invocation — is reused only after it re-passes the
+  # whole-token version check under this run's resolved version. The digest is bound
+  # into the cache key so a changed tuple keys a different slot and misses; the
+  # download path's exact ARCHIVE-digest check below is the supply-chain gate on a miss.
   if [ -x "$dest" ]; then
     local cached_ver
     cached_ver="$("$dest" --version 2>&1 || true)"
