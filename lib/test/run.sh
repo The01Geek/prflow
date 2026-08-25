@@ -18317,6 +18317,61 @@ assert_eq "scrub-credentials: redacts a gh token" \
 assert_eq "scrub-credentials: --shapes names four shapes" \
   "yes" "$(bash "$SCR" --shapes | grep -qF 'GitHub tokens/PATs' && echo yes || echo no)"
 
+# ── #1915 round trip: keep all four shapes in one document and keep the trailing-slash
+# case — narrowing either fixture lets the Authorization bracket expressions regress to
+# corrupting the bytes around a token while this block still reports green.
+_SCRUB_RAW='tok ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345 pat github_pat_ABCDEFGHIJKLMNOPQRSTUV ant sk-ant-ABCDEFGHIJKLMNOPQRSTUV hdr "AUTHORIZATION: basic T0xENEM=" and "Authorization: Bearer abc.def-ghi~jkl+mno/pqr=" end'
+_SCRUB_WANT='tok [REDACTED-GH-TOKEN] pat [REDACTED-GH-PAT] ant [REDACTED-ANTHROPIC-KEY] hdr "AUTHORIZATION: basic [REDACTED]" and "Authorization: Bearer [REDACTED]" end'
+_SCRUB_IN="$("$DEN_JQ" -n -c --arg v "$_SCRUB_RAW" '{note:$v}')"
+_SCRUB_EXPECT="$("$DEN_JQ" -n -c --arg v "$_SCRUB_WANT" '{note:$v}')"
+_SCRUB_OUT="$(printf '%s\n' "$_SCRUB_IN" | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): scrubbed JSON carrying all four shapes still parses" \
+  "yes" "$(printf '%s\n' "$_SCRUB_OUT" | "$DEN_JQ" -e . >/dev/null 2>&1 && echo yes || echo no)"
+assert_eq "scrub-credentials (#1915): only the credential tokens changed, every other byte identical" \
+  "$_SCRUB_EXPECT" "$_SCRUB_OUT"
+assert_eq "scrub-credentials (#1915): a recorded sed command keeps its trailing slashes" \
+  "run: sed 's/AUTHORIZATION: basic //' file" \
+  "$(printf '%s\n' "run: sed 's/AUTHORIZATION: basic //' file" | bash "$SCR")"
+# An escape unit belongs to the token in the Bearer rule and in the basic rule alike: narrowing
+# either group to plain class members would truncate the match at the escape and emit the rest of
+# a live credential. Each fixture leads with enough class members to yield that truncation.
+assert_eq "scrub-credentials (#1915): Bearer token with an escaped slash is fully redacted" \
+  'Authorization: Bearer [REDACTED]' \
+  "$(printf '%s\n' 'Authorization: Bearer AAAABBBB\/SECRETTAIL9999' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): basic token with an escaped slash is fully redacted" \
+  'AUTHORIZATION: basic [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic AAAABBBB\/SECRETTAIL9999' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): Bearer token with an escaped backslash is fully redacted" \
+  'Authorization: Bearer [REDACTED]' \
+  "$(printf '%s\n' 'Authorization: Bearer AAAABBBB\\SECRETTAIL9999' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): basic token with an escaped backslash is fully redacted" \
+  'AUTHORIZATION: basic [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic AAAABBBB\\SECRETTAIL9999' | bash "$SCR")"
+# The four-unit floor is the redaction boundary in the Bearer rule and in the basic rule alike:
+# relaxing either back to `+` resumes eating the bare `//` of a recorded command, and raising
+# either starts leaking short credentials.
+assert_eq "scrub-credentials (#1915): a three-unit basic run is below the floor and left alone" \
+  'AUTHORIZATION: basic ab=' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic ab=' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): a four-unit basic token is at the floor and redacted" \
+  'AUTHORIZATION: basic [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic abc=' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): a two-unit Bearer run is below the floor and left alone" \
+  "run: sed 's/Authorization: Bearer //' file" \
+  "$(printf '%s\n' "run: sed 's/Authorization: Bearer //' file" | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): a four-unit Bearer token is at the floor and redacted" \
+  'Authorization: Bearer [REDACTED]' \
+  "$(printf '%s\n' 'Authorization: Bearer abc=' | bash "$SCR")"
+# Match the scheme keyword per letter, as the header name already is: narrowing it back to a
+# case-sensitive tail lets a third-party emitter's uppercase scheme carry a whole credential
+# through into a published transcript.
+assert_eq "scrub-credentials (#1915): an uppercase BASIC scheme keyword is redacted" \
+  'AUTHORIZATION: basic [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: BASIC dXNlcjpwYXNz' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): an uppercase BEARER scheme keyword is redacted" \
+  'AUTHORIZATION: Bearer [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: BEARER abcdefghijklmnop' | bash "$SCR")"
+
 # ── AC6: the default-on key's off-switch decision (the workflow's builtin `case`). The
 # decision is `false → off; everything else → on`. Drive config-get.sh over each shape
 # and apply the SAME case, asserting exit 0 + the enabled/disabled result. `0`/`""` are
