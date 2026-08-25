@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1939",
+  "generated_at": "2026-08-25T15:45:58Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 6.489675000000001,
+    "tokens": {
+      "input_tokens": 88,
+      "output_tokens": 30791,
+      "cache_read_input_tokens": 7580620,
+      "cache_creation_input_tokens": 192915,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 88,
+        "outputTokens": 30791,
+        "cacheReadInputTokens": 7580620,
+        "cacheCreationInputTokens": 192915,
+        "webSearchRequests": 0,
+        "costUSD": 6.489675000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 63,
+    "duration_ms": 2793225
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset}\"; echo \"repo-root:\"; git rev-parse --show-toplevel; git branch --show-current",
+      "lib/test/run-parallel.sh 2>&1 | tail -40; echo \"COORD_EXIT=${PIPESTATUS[0]}\""
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
