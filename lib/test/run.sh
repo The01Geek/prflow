@@ -48538,6 +48538,11 @@ assert_eq "#491 arm30: the successful call preserves rc 0" "0" "$_a30_rc"
 # demands a running pid); stop-refresher.sh itself retires it via the pidfile.
 STOP_SH="$LIB/../scripts/stop-refresher.sh"
 _defeat487() { printf '%s' "$1" | grep -qF 'credential refresher may not have kept credentials fresh' && echo yes || echo no; }
+# Isolate the stop-refresher arms from the ambient cloud refresher env (issue #1931):
+# without this, an arm inheriting DEVFLOW_REFRESH_SELFTEST_FAILED hits stop-refresher's
+# self-test early-exit, and the default reaper glob (RUNNER_TEMP) could signal the live cloud refresher.
+unset DEVFLOW_REFRESH_SELFTEST_FAILED
+export DEVFLOW_REFRESH_REAP_GLOB="$D487/ambient-reap-none-*.pid"
 assert_eq "#487 stop-refresher exists (extracted from the workflow Stop step)" "yes" \
   "$([ -f "$STOP_SH" ] && echo yes || echo no)"
 
