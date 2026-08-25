@@ -5955,8 +5955,17 @@ assert_eq "#1348 CLI: the resumed-run refusal made NO PATCH" "yes" \
 # completion-ci marker and finalizes in one --record-completion-evidence-ci call.
 S1611_ROOT="$(mktemp -d)"
 git -C "$S1611_ROOT" init -q -b main
-git -C "$S1611_ROOT" -c user.email=t@t -c user.name=t commit --allow-empty -qm init
+# A ci.yml declaring the required checks (issue #1898) — the single declared source
+# _required_checks reads. Committed so the tree is clean for the validator's own check.
+mkdir -p "$S1611_ROOT/.github/workflows"
+printf 'jobs:\n  test:\n    # prflow:required-check\n    name: lib + python tests\n  lint:\n    # prflow:required-check\n    name: lint (shellcheck + actionlint + ruff)\n' \
+  > "$S1611_ROOT/.github/workflows/ci.yml"
+git -C "$S1611_ROOT" add -A
+git -C "$S1611_ROOT" -c user.email=t@t -c user.name=t commit -qm init
 S1611_HEAD="$(git -C "$S1611_ROOT" rev-parse HEAD)"
+# The covering --completion-ci-check pairs reused across the valid-record assertions.
+S1611_CHECKS=(--completion-ci-check "lib + python tests" success \
+              --completion-ci-check "lint (shellcheck + actionlint + ruff)" success)
 # CI body = the all-ticked shape minus the flight completion-verification marker row.
 # It (and the CLI's out/err/patchlog) live OUTSIDE the repo so its own tree stays
 # clean — the validator's `git status --porcelain` clean-tree check reads that repo.
@@ -5973,7 +5982,8 @@ run1611() {
 
 # (a) A valid CI reading records the marker and finalizes Complete (exit 0, PATCH).
 _c="$(run1611 "$S258/ci-body.md" \
-  --record-completion-evidence-ci "$S1611_HEAD" "lib + python tests" success "https://x/runs/1" \
+  --record-completion-evidence-ci "$S1611_HEAD" local "https://x/runs/1" \
+  "${S1611_CHECKS[@]}" \
   --status Complete)"
 assert_eq "#1611 CLI: a valid CI reading finalizes Complete (exit 0)" "0" "$_c"
 assert_eq "#1611 CLI: the CI finalize PATCHed Status → Complete" "yes" \
@@ -5983,7 +5993,9 @@ assert_eq "#1611 CLI: exactly one completion-ci marker, no flight marker" "yes" 
 
 # (b) A non-success conclusion is refused with NO PATCH, naming verification-not-pass.
 _c="$(run1611 "$S258/ci-body.md" \
-  --record-completion-evidence-ci "$S1611_HEAD" "lib + python tests" failure "https://x/runs/1" \
+  --record-completion-evidence-ci "$S1611_HEAD" local "https://x/runs/1" \
+  --completion-ci-check "lib + python tests" failure \
+  --completion-ci-check "lint (shellcheck + actionlint + ruff)" success \
   --status Complete)"
 assert_eq "#1611 CLI: a failure-conclusion CI record is refused (exit non-zero)" "no" \
   "$([ "$_c" = "0" ] && echo yes || echo no)"
@@ -5994,7 +6006,8 @@ assert_eq "#1611 CLI: the failure refusal names verification-not-pass" "yes" \
 
 # (c) A stale SHA (not the current head) is refused with NO PATCH, naming stale-candidate.
 _c="$(run1611 "$S258/ci-body.md" \
-  --record-completion-evidence-ci "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" "lib + python tests" success "https://x/runs/1" \
+  --record-completion-evidence-ci "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" local "https://x/runs/1" \
+  "${S1611_CHECKS[@]}" \
   --status Complete)"
 assert_eq "#1611 CLI: a stale-SHA CI record is refused (exit non-zero)" "no" \
   "$([ "$_c" = "0" ] && echo yes || echo no)"
@@ -18304,6 +18317,61 @@ assert_eq "scrub-credentials: redacts a gh token" \
 assert_eq "scrub-credentials: --shapes names four shapes" \
   "yes" "$(bash "$SCR" --shapes | grep -qF 'GitHub tokens/PATs' && echo yes || echo no)"
 
+# ── #1915 round trip: keep all four shapes in one document and keep the trailing-slash
+# case — narrowing either fixture lets the Authorization bracket expressions regress to
+# corrupting the bytes around a token while this block still reports green.
+_SCRUB_RAW='tok ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345 pat github_pat_ABCDEFGHIJKLMNOPQRSTUV ant sk-ant-ABCDEFGHIJKLMNOPQRSTUV hdr "AUTHORIZATION: basic T0xENEM=" and "Authorization: Bearer abc.def-ghi~jkl+mno/pqr=" end'
+_SCRUB_WANT='tok [REDACTED-GH-TOKEN] pat [REDACTED-GH-PAT] ant [REDACTED-ANTHROPIC-KEY] hdr "AUTHORIZATION: basic [REDACTED]" and "Authorization: Bearer [REDACTED]" end'
+_SCRUB_IN="$("$DEN_JQ" -n -c --arg v "$_SCRUB_RAW" '{note:$v}')"
+_SCRUB_EXPECT="$("$DEN_JQ" -n -c --arg v "$_SCRUB_WANT" '{note:$v}')"
+_SCRUB_OUT="$(printf '%s\n' "$_SCRUB_IN" | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): scrubbed JSON carrying all four shapes still parses" \
+  "yes" "$(printf '%s\n' "$_SCRUB_OUT" | "$DEN_JQ" -e . >/dev/null 2>&1 && echo yes || echo no)"
+assert_eq "scrub-credentials (#1915): only the credential tokens changed, every other byte identical" \
+  "$_SCRUB_EXPECT" "$_SCRUB_OUT"
+assert_eq "scrub-credentials (#1915): a recorded sed command keeps its trailing slashes" \
+  "run: sed 's/AUTHORIZATION: basic //' file" \
+  "$(printf '%s\n' "run: sed 's/AUTHORIZATION: basic //' file" | bash "$SCR")"
+# An escape unit belongs to the token in the Bearer rule and in the basic rule alike: narrowing
+# either group to plain class members would truncate the match at the escape and emit the rest of
+# a live credential. Each fixture leads with enough class members to yield that truncation.
+assert_eq "scrub-credentials (#1915): Bearer token with an escaped slash is fully redacted" \
+  'Authorization: Bearer [REDACTED]' \
+  "$(printf '%s\n' 'Authorization: Bearer AAAABBBB\/SECRETTAIL9999' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): basic token with an escaped slash is fully redacted" \
+  'AUTHORIZATION: basic [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic AAAABBBB\/SECRETTAIL9999' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): Bearer token with an escaped backslash is fully redacted" \
+  'Authorization: Bearer [REDACTED]' \
+  "$(printf '%s\n' 'Authorization: Bearer AAAABBBB\\SECRETTAIL9999' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): basic token with an escaped backslash is fully redacted" \
+  'AUTHORIZATION: basic [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic AAAABBBB\\SECRETTAIL9999' | bash "$SCR")"
+# The four-unit floor is the redaction boundary in the Bearer rule and in the basic rule alike:
+# relaxing either back to `+` resumes eating the bare `//` of a recorded command, and raising
+# either starts leaking short credentials.
+assert_eq "scrub-credentials (#1915): a three-unit basic run is below the floor and left alone" \
+  'AUTHORIZATION: basic ab=' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic ab=' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): a four-unit basic token is at the floor and redacted" \
+  'AUTHORIZATION: basic [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic abc=' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): a two-unit Bearer run is below the floor and left alone" \
+  "run: sed 's/Authorization: Bearer //' file" \
+  "$(printf '%s\n' "run: sed 's/Authorization: Bearer //' file" | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): a four-unit Bearer token is at the floor and redacted" \
+  'Authorization: Bearer [REDACTED]' \
+  "$(printf '%s\n' 'Authorization: Bearer abc=' | bash "$SCR")"
+# Match the scheme keyword per letter, as the header name already is: narrowing it back to a
+# case-sensitive tail lets a third-party emitter's uppercase scheme carry a whole credential
+# through into a published transcript.
+assert_eq "scrub-credentials (#1915): an uppercase BASIC scheme keyword is redacted" \
+  'AUTHORIZATION: basic [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: BASIC dXNlcjpwYXNz' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): an uppercase BEARER scheme keyword is redacted" \
+  'AUTHORIZATION: Bearer [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: BEARER abcdefghijklmnop' | bash "$SCR")"
+
 # ── AC6: the default-on key's off-switch decision (the workflow's builtin `case`). The
 # decision is `false → off; everything else → on`. Drive config-get.sh over each shape
 # and apply the SAME case, asserting exit 0 + the enabled/disabled result. `0`/`""` are
@@ -24901,16 +24969,28 @@ echo "#1618 skill-body-load-probe verdict deriver"
 SBL="$LIB/../scripts/skill-body-load-probe-verdict.py"
 SBL_REVIEW="$LIB/../skills/review/SKILL.md"
 SBL_IMPLEMENT="$LIB/../skills/implement/SKILL.md"
+# review-and-fix is the root whose NAME PROPERLY CONTAINS prflow:review. Do not swap in a
+# root with an unrelated name: the containment is what arms the binding fixtures below.
+SBL_RAF="$LIB/../skills/review-and-fix/SKILL.md"
 SBL_TMP="$(mktemp -d)"
+# Every child spawned below carries NO_COLOR/PYTHON_COLORS, per
+# docs/internal/test-suite-probe-conventions.md: without them an escape sequence from a
+# colour-forcing host lands inside a matched token and the match silently fails.
 sbl_build() {  # $1 scenario -> writes $SBL_TMP/exec.jsonl; rc 0 AND non-empty on success
-  python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" "$SBL_IMPLEMENT" <<'PY_SBL'
+  # Truncate FIRST. The builder writes in place, so without this a failed build leaves the
+  # previous scenario's fixture on disk and the next assertion measures that one instead —
+  # green, against a fixture it never built.
+  rm -f "$SBL_TMP/exec.jsonl"
+  NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" "$SBL_IMPLEMENT" "$SBL_RAF" <<'PY_SBL'
 import json, os, sys
-out, scen, path, impl_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+out, scen, path, impl_path, raf_path = sys.argv[1:6]
 body = open(path, encoding="utf-8").read()
 impl_body = open(impl_path, encoding="utf-8").read()
+raf_body = open(raf_path, encoding="utf-8").read()
 tail = [ln.strip() for ln in body.splitlines() if ln.strip()][-1]
 review_dir = os.path.dirname(path)
 impl_dir = os.path.dirname(impl_path)
+raf_dir = os.path.dirname(raf_path)
 other_dir = os.path.join(os.path.dirname(review_dir), "implement")
 # The runner's own ABSOLUTE base directory, as a real transcript records it. Do not rewrite
 # these to on-disk paths: an identical pair on both sides drives only dirs_match's equality
@@ -24921,9 +25001,11 @@ PREFIX = "Base directory for this skill: "
 # These fixtures reproduce the RECORD LAYOUT of a real claude-code-action transcript: the
 # Skill tool_result is a ~30-byte launch STUB and the body arrives in the NEXT, user-role
 # record. Writing the body into the tool_result would make every assertion below vacuous.
-def skill_use(name="prflow:review", uid="su1"):
+_UNSET = object()
+def skill_use(name="prflow:review", uid="su1", input_obj=_UNSET):
+    inp = {"skill": name} if input_obj is _UNSET else input_obj
     return {"type": "assistant", "message": {"role": "assistant", "content": [
-        {"type": "tool_use", "name": "Skill", "id": uid, "input": {"skill": name}}]}}
+        {"type": "tool_use", "name": "Skill", "id": uid, "input": inp}]}}
 def stub(uid="su1", is_error=False, content=None):
     if content is None:
         content = "Launching skill: prflow:review"
@@ -24988,6 +25070,53 @@ scenarios = {
                     skill_use("prflow:implement", "su2"),
                     stub("su2", content="Launching skill: prflow:implement"),
                     body_rec(body)],
+    # Do not collapse this to one load: the containing name recorded FIRST is what a
+    # bare-substring first-match binds the review root to, and nothing else exhibits it.
+    "contains_name_first": [skill_use("prflow:review-and-fix", "su1"),
+                            stub("su1", content="Launching skill: prflow:review-and-fix"),
+                            body_rec(raf_body, base=raf_dir),
+                            skill_use("prflow:review", "su2"), stub("su2"), body_rec(body)],
+    # The same pair in the OTHER order. Keep both: a match that scanned in reverse, or kept the
+    # LAST match rather than the first, would resolve one order and fail the other.
+    "contains_name_second": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
+                             skill_use("prflow:review-and-fix", "su2"),
+                             stub("su2", content="Launching skill: prflow:review-and-fix"),
+                             body_rec(raf_body, base=raf_dir)],
+    # An ARGUMENT string that is exactly another root's name.
+    "arg_equals_other_root": [skill_use("prflow:implement", "su1",
+                                        input_obj={"skill": "prflow:implement",
+                                                   "args": "prflow:review"}),
+                              stub("su1", content="Launching skill: prflow:implement"),
+                              body_rec(impl_body, base=impl_dir)],
+    # A root recorded TWICE, the first load errored and the second delivering a whole body.
+    "retry_after_error": [skill_use("prflow:review", "su1"),
+                          stub("su1", is_error=True, content="permission denied"),
+                          skill_use("prflow:review", "su2"), stub("su2"), body_rec(body)],
+    # THREE recorded loads of which TWO match, so the ambiguity reason's count operand is
+    # distinguishable from the total: swap it for len(pairs) and the digit renders 3, not 2.
+    "ambiguous_among_three": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
+                              skill_use("prflow:implement", "su2"),
+                              stub("su2", content="Launching skill: prflow:implement"),
+                              body_rec(impl_body, base=impl_dir),
+                              skill_use("prflow:review", "su3"), stub("su3"), body_rec(body)],
+    # Two body records in one window, both naming the review directory, the second truncated:
+    # keeping the first answers delivered-whole and keeping the last short-delivery.
+    "two_bodies_one_window": [skill_use("prflow:review", "su1"), stub("su1"),
+                              body_rec(body), body_rec(body.rsplit("\n", 2)[0])],
+    # A successful load plus a load whose argument text mentions this root's name: two matches.
+    "success_plus_arg_mention": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
+                                 skill_use("prflow:implement", "su2",
+                                           input_obj={"skill": "prflow:implement",
+                                                      "args": "prflow:review"}),
+                                 stub("su2", content="Launching skill: prflow:implement")],
+    # A duplicated tool_use_id whose second result is clean: last-write-wins would erase the
+    # first result's error flag.
+    "duplicate_result_id": [skill_use("prflow:review", "su1"),
+                            stub("su1", is_error=True, content="permission denied"),
+                            stub("su1"), body_rec(body)],
+    # A Skill tool_use carrying NO input at all.
+    "null_input":  [skill_use("prflow:review", "su1", input_obj=None), stub("su1"),
+                    body_rec(body)],
 }
 if scen == "unparseable":
     open(out, "w", encoding="utf-8").write("{ not json at all\n")
@@ -25027,28 +25156,60 @@ PY_SBL
   _sbl_rc=$?
   [ "$_sbl_rc" -eq 0 ] && [ -s "$SBL_TMP/exec.jsonl" ]
 }
-sbl() {  # $1 scenario -> the first per-root VERDICT token (single-root fixtures)
-  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
-  local _out
-  _out="$(python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"
+sbl_run() {  # the single invocation point for spawning THE HELPER: audit args -> its stdout
+  # Route helper spawns through this one point so a site added later cannot omit the colour
+  # neutralisation, and do not discard stderr in a caller that reads stdout — a traceback would
+  # vanish and the crash read as a grep miss. A caller reading only the exit status may discard.
+  NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$@"
+}
+sbl_verdict_token() {  # $1 the helper's stdout -> the FIRST per-root VERDICT token
   # Pure parameter expansion (CLAUDE.md guard-class 2: no tr/sed/cut, which would fail OPEN).
   # The audit summary line is `AUDIT: …` (not `AUDIT VERDICT:`), so the first `VERDICT: `
   # match is a per-root verdict, never the summary.
-  case "$_out" in
-    *'VERDICT: '*) local _v="${_out#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
+  case "$1" in
+    *'VERDICT: '*) local _v="${1#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
     *) printf 'NO_VERDICT' ;;
   esac
+}
+sbl_says() {  # $1 scenario, $2 pattern -> yes|no, whether the review root's report carries $2
+  # A build OR helper failure prints its OWN token, never 'no': inverted by sbl_denies, a 'no'
+  # would become the expected 'yes' and turn a fixture or a crash into a green assertion. Gate
+  # on the helper's exit status BEFORE the grep — a crash produces no stdout, which greps as a
+  # plain miss.
+  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
+  local _out
+  if ! _out="$(sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW")"; then
+    printf 'HELPER_FAILED'; return 0
+  fi
+  printf '%s' "$_out" | grep -q "$2" && printf 'yes' || printf 'no'
+}
+sbl_denies() {  # the NEGATED sbl_says. A separate name, never an inverted echo pair inline:
+                # a reader must not have to spot `echo no || echo yes` to see the inversion.
+  local _r
+  _r="$(sbl_says "$1" "$2")"
+  case "$_r" in yes) printf 'no' ;; no) printf 'yes' ;; *) printf '%s' "$_r" ;; esac
+}
+sbl_rel_denies() {  # $1 scenario, $2 pattern -> yes when the REPO-RELATIVE-root report lacks $2
+  # Never `grep -q … && echo no || echo yes` inline: that expects grep's FAILURE arm, so a helper
+  # crash greps as a miss and passes the assertion green. Gate on the exit status first.
+  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
+  local _out
+  if ! _out="$(cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md")"; then
+    printf 'HELPER_FAILED'; return 0
+  fi
+  printf '%s' "$_out" | grep -q "$2" && printf 'no' || printf 'yes'
+}
+sbl() {  # $1 scenario -> the first per-root VERDICT token (single-root fixtures)
+  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
+  sbl_verdict_token "$(sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW")"
 }
 sbl_rel() {  # $1 scenario -> first VERDICT token, run from the repo root with a REPO-RELATIVE
              # --root. Do not switch this to an absolute --root: the relative form is what makes
              # dirs_match take its production suffix branch instead of the equality branch.
   if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
   local _out
-  _out="$(cd "$LIB/.." && python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null)"
-  case "$_out" in
-    *'VERDICT: '*) local _v="${_out#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
-    *) printf 'NO_VERDICT' ;;
-  esac
+  _out="$(cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md")"
+  sbl_verdict_token "$_out"
 }
 # NEGATIVE CONTROL — an unrecognised scenario must FAIL the build, or the sweep is vacuous.
 assert_eq "#1618 skill-body: an unrecognised fixture scenario fails the build" "failed" \
@@ -25068,10 +25229,9 @@ assert_eq "#1618 skill-body: tail present but interior gone -> short-delivery" \
 assert_eq "#1618 skill-body: a cap/truncation notice in the body -> short-delivery" \
   "short-delivery" "$(sbl trunc_marker)"
 
-# Every degraded arm is `unestablished`, never `delivered-whole`: a body that was never
-# loaded, a load that errored, an unpaired call, or a wrong-shape/unreadable file is
-# unknown — not whole. Collapsing any of them onto delivered-whole is the fail-open the
-# arm ordering exists to prevent.
+# Each degraded arm asserted below reads `unestablished`, never `delivered-whole`; the
+# helper's docstring enumerates the arms. Collapsing any onto delivered-whole is the
+# fail-open the arm ordering exists to prevent.
 assert_eq "#1618 skill-body: no Skill tool_use -> unestablished (never loaded)" \
   "unestablished" "$(sbl no_skill)"
 assert_eq "#1618 skill-body: Skill load returned an error -> unestablished (abort mode)" \
@@ -25090,7 +25250,7 @@ assert_eq "#1618 skill-body: unparseable execution file -> unestablished" \
   "unestablished" "$(sbl unparseable)"
 assert_eq "#1618 skill-body: an absent execution file -> unestablished" \
   "unestablished" \
-  "$(_o="$(python3 "$SBL" "$SBL_TMP/definitely-not-here.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
+  "$(_o="$(sbl_run "$SBL_TMP/definitely-not-here.jsonl" --tier review --root "prflow:review=$SBL_REVIEW")"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
 
 # A tool_result whose content is a list of text blocks is still only the launch stub; the
 # following body record is what carries the delivery.
@@ -25113,37 +25273,199 @@ assert_eq "#1618 skill-body: partially-corrupt execution file -> unestablished (
 # refused one arm earlier by the base-directory match and never reach read_controls.
 assert_eq "#1618 skill-body: unreadable on-disk control file -> unestablished" \
   "unestablished" \
-  "$(sbl_build whole >/dev/null 2>&1; _o="$(python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$LIB/../skills/review/DEFINITELY-NOT-HERE.md" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
+  "$(sbl_build whole >/dev/null 2>&1; _o="$(sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$LIB/../skills/review/DEFINITELY-NOT-HERE.md")"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
 assert_eq "#1618 skill-body: the control-file arm is reached, not the missing-body arm" "yes" \
-  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$LIB/../skills/review/DEFINITELY-NOT-HERE.md" 2>/dev/null | grep -q 'could not be read for controls' && echo yes || echo no)"
+  "$(sbl_build whole >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$LIB/../skills/review/DEFINITELY-NOT-HERE.md" | grep -q 'could not be read for controls' && echo yes || echo no)"
 # Multi-root audit (the shape both workflow jobs actually use): two --root operands emit two
 # per-root VERDICT lines. The `whole` fixture carries a prflow:review pair only, so review reads
 # delivered-whole and implement (no pair) reads unestablished — proving the loop runs per root
 # rather than short-circuiting on the first. Counted with grep -c (a missing count fails the
 # assert loudly), never a selection-determining tr/sed pipeline.
 assert_eq "#1618 skill-body: multi-root audit emits a delivered-whole for the present root" "1" \
-  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+  "$(sbl_build whole >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" | grep -c 'VERDICT: delivered-whole')"
 assert_eq "#1618 skill-body: multi-root audit emits an unestablished for the absent root" "1" \
-  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" 2>/dev/null | grep -c 'VERDICT: unestablished')"
+  "$(sbl_build whole >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" | grep -c 'VERDICT: unestablished')"
 
 # MULTI-LOAD ATTRIBUTION — the position window (stop = use_positions[n+1]) claims every body
 # record between one Skill tool_use and the NEXT. Both bounds are driven here: every other
 # fixture carries a single load and leaves an off-by-one or an unbounded window green.
 assert_eq "#1618 skill-body: two Skill loads in one transcript -> each root delivered-whole" "2" \
-  "$(sbl_build two_skill_loads >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=$SBL_IMPLEMENT" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+  "$(sbl_build two_skill_loads >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=$SBL_IMPLEMENT" | grep -c 'VERDICT: delivered-whole')"
 # Stop bound: a body arriving after a LATER tool_use belongs to neither load — the earlier load's
 # window has closed and the later load's own window holds a body naming another skill's directory.
 # An unbounded window credits it to the earlier load and this count rises to 1.
 assert_eq "#1618 skill-body: a body after a later Skill tool_use is credited to neither load" "0" \
-  "$(sbl_build late_body >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=$SBL_IMPLEMENT" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+  "$(sbl_build late_body >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=$SBL_IMPLEMENT" | grep -c 'VERDICT: delivered-whole')"
 # ATTRIBUTED REJECTION: the review root must be refused by the no-following-body arm specifically,
 # not by an unrelated precondition (never-loaded / no-result / error) upstream of it.
 assert_eq "#1618 skill-body: the late body is refused by the no-following-body arm" "yes" \
-  "$(sbl_build late_body >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'no following body record naming its own' && echo yes || echo no)"
+  "$(sbl_says late_body 'no following body record naming its own')"
 # POSITIVE CONTROL on that same fixture: both loads WERE recorded and paired, so the refusal above
 # is the window closing rather than a fixture the helper could not read.
 assert_eq "#1618 skill-body: the late-body fixture still records both Skill loads" "yes" \
-  "$(sbl_build late_body >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'recorded Skill tool_use pairs: 2' && echo yes || echo no)"
+  "$(sbl_says late_body 'recorded Skill tool_use pairs: 2')"
+
+# NAME BINDING (#1897) — do not narrow this to one load order: a bare-substring match binds
+# the review root to the `prflow:review-and-fix` load and answers `unestablished`, and a fix
+# that scanned in reverse would resolve one order while leaving the other broken.
+for _sbl_order in contains_name_first contains_name_second; do
+  assert_eq "#1618/#1897 skill-body: a containing name does not claim the root's load ($_sbl_order)" "2" \
+    "$(sbl_build "$_sbl_order" >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:review-and-fix=$SBL_RAF" | grep -c 'VERDICT: delivered-whole')"
+  # POSITIVE CONTROL: both loads WERE recorded, so a red above is the binding rather than a
+  # fixture the helper could not read.
+  assert_eq "#1618/#1897 skill-body: the $_sbl_order fixture records both Skill loads" "yes" \
+    "$(sbl_says "$_sbl_order" 'recorded Skill tool_use pairs: 2')"
+done
+# RESIDUE the quoted form does not remove: an argument equal to another root's name is
+# quote-delimited like the skill name, so that load still matches. Do not "fix" it by reading a
+# named input field: one committed transcript is a dated observation, not a schema contract.
+assert_eq "#1618/#1897 skill-body: an argument equal to another root's name yields no verdict for it" \
+  "unestablished" "$(sbl arg_equals_other_root)"
+assert_eq "#1618/#1897 skill-body: that root is refused by the no-following-body arm" "yes" \
+  "$(sbl_says arg_equals_other_root 'no following body record naming its own')"
+# POSITIVE CONTROL on that same fixture: the load's OWN root resolves, so the refusal above is
+# the argument string failing to bind rather than a fixture the helper could not read.
+assert_eq "#1618/#1897 skill-body: that fixture's own root still resolves" "1" \
+  "$(sbl_build arg_equals_other_root >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:implement=$SBL_IMPLEMENT" | grep -c 'VERDICT: delivered-whole')"
+# AMBIGUITY — more than one recorded load matches, so the root resolves to none of them. The
+# reason must NAME the ambiguity: an unestablished that reads like a genuine non-result is the
+# defect class this arm exists to end.
+assert_eq "#1618/#1897 skill-body: a root recorded twice -> unestablished" "unestablished" \
+  "$(sbl retry_after_error)"
+assert_eq "#1618/#1897 skill-body: the twice-recorded root's reason names the ambiguity" "yes" \
+  "$(sbl_says retry_after_error 'recorded Skill loads name prflow:review')"
+# The ambiguity reason counts the loads that MATCHED, not the transcript's total. This fixture
+# records three loads of which two match, so swapping the operand for len(pairs) renders 3 here
+# and goes RED — on retry_after_error the two counts coincide and the swap is invisible.
+assert_eq "#1618/#1897 skill-body: the ambiguity reason counts the matching loads, not the total" "yes" \
+  "$(sbl_says ambiguous_among_three '2 recorded Skill loads name prflow:review')"
+assert_eq "#1618/#1897 skill-body: that fixture records three loads in total" "yes" \
+  "$(sbl_says ambiguous_among_three 'recorded Skill tool_use pairs: 3')"
+# ATTRIBUTED REJECTION: the refusal is the ambiguity arm, not the error arm one step above it.
+assert_eq "#1618/#1897 skill-body: the twice-recorded root is not refused by the error arm" "yes" \
+  "$(sbl_denies retry_after_error 'returned an error tool_result')"
+# Do not revert either selection half to a first-match: keeping the first of several makes the
+# verdict depend on record order.
+assert_eq "#1618/#1897 skill-body: two bodies naming one directory -> unestablished" "unestablished" \
+  "$(sbl two_bodies_one_window)"
+assert_eq "#1618/#1897 skill-body: that reason names the body-record ambiguity, not a missing body" "yes" \
+  "$(sbl_says two_bodies_one_window '2 body records in the Skill load bound to prflow:review')"
+# The disclosed residue of matching a quoted name against the serialised input: report the
+# collision, never measure one of the colliding loads.
+assert_eq "#1618/#1897 skill-body: a successful load plus an argument mention -> unestablished" "unestablished" \
+  "$(sbl success_plus_arg_mention)"
+assert_eq "#1618/#1897 skill-body: that pair is refused by the ambiguity arm" "yes" \
+  "$(sbl_says success_plus_arg_mention '2 recorded Skill loads name prflow:review')"
+# A duplicated tool_use_id must not let a later clean result erase an earlier error flag.
+assert_eq "#1618/#1897 skill-body: a duplicated tool_use_id keeps the error flag" "unestablished" \
+  "$(sbl duplicate_result_id)"
+assert_eq "#1618/#1897 skill-body: that load is refused by the error arm, not measured" "yes" \
+  "$(sbl_says duplicate_result_id 'returned an error tool_result')"
+# A tool_use with NO input serialises to the bare literal `null`, which no quoted name occurs
+# inside — the fail-closed direction is never-loaded, never a body credited to it.
+assert_eq "#1618/#1897 skill-body: a Skill tool_use with no input -> unestablished" "unestablished" \
+  "$(sbl null_input)"
+assert_eq "#1618/#1897 skill-body: the no-input load is refused by the never-loaded arm" "yes" \
+  "$(sbl_says null_input 'no recorded Skill tool_use names prflow:review')"
+# The never-loaded reason carries the TOTAL recorded load count, which is what separates a
+# transcript that recorded nothing from one whose loads all bound another name. Swap the operand
+# for the match count and both assertions below go RED.
+assert_eq "#1618/#1897 skill-body: the never-loaded reason reports one recorded load for null_input" "yes" \
+  "$(sbl_says null_input '1 Skill load(s) were recorded in total')"
+assert_eq "#1618/#1897 skill-body: the never-loaded reason reports zero recorded loads for no_skill" "yes" \
+  "$(sbl_says no_skill '0 Skill load(s) were recorded in total')"
+# The same --root supplied TWICE: argparse append accepts it with no uniqueness check, so the
+# audit reports that root once per operand. Two identical operands must not read as two roots
+# measured, nor make either reading disagree with the single-operand one.
+assert_eq "#1618/#1897 skill-body: a duplicated --root emits one verdict per operand" "2" \
+  "$(sbl_build whole >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:review=$SBL_REVIEW" | grep -c 'VERDICT: delivered-whole')"
+# The no-following-body reason names the DIRECTORY it compared. Do not revert the operand to the
+# --root path: the sentence says directory, and the pair below pins that it is one.
+assert_eq "#1618/#1897 skill-body: the no-following-body reason names the compared directory" "yes" \
+  "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md") | grep -q "directory ('skills/review')" && echo yes || echo no)"
+assert_eq "#1618/#1897 skill-body: that reason no longer names the SKILL.md file path" "yes" \
+  "$(sbl_rel_denies boundary_dir "directory ('skills/review/SKILL.md')")"  # raw-guard-ok: sbl_rel_denies greps the helper's rendered stdout, not a SKILL file's text; the SKILL.md token is the operand under test
+# Do not rebuild this fixture from the builder above: it is a REAL captured transcript, and a
+# fixture built from the instrument's own assumptions cannot contradict the instrument — which
+# is how this file's defect family survived a green suite. Provenance is in the fixture header.
+SBL_OBS="$LIB/test/fixtures/skill-body-load-transcript.observed.txt"
+assert_eq "#1618/#1897 skill-body: the committed real transcript records exactly one Skill load" "yes" \
+  "$(sbl_run "$SBL_OBS" --tier review --root "prflow:review=$SBL_REVIEW" | grep -q 'recorded Skill tool_use pairs: 1' && echo yes || echo no)"
+# AC8's promise is that the recorded measurement is re-derivable from committed bytes, so drive
+# the documented recipe: the review body AT THE MEASURED HEAD, laid out as skills/review/, must
+# still read delivered-whole. A shallow clone lacking that blob prints its own token rather than
+# a silent pass.
+assert_eq "#1618/#1897 skill-body: the committed transcript re-derives delivered-whole at the measured head" "delivered-whole" \
+  "$(mkdir -p "$SBL_TMP/rederive/skills/review" && NO_COLOR=1 PYTHON_COLORS=0 git -C "$LIB/.." show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > "$SBL_TMP/rederive/skills/review/SKILL.md" 2>/dev/null || { printf 'GIT_OBJECT_MISSING'; false; } && sbl_verdict_token "$(cd "$SBL_TMP/rederive" && sbl_run "$SBL_OBS" --tier review --root "prflow:review=skills/review/SKILL.md")")"
+# Do not point this at a path outside the matching directory: the controls arm is reached only
+# after the name binding and the directory selection both resolve, so a root elsewhere would be
+# refused upstream and prove neither.
+assert_eq "#1618/#1897 skill-body: the real transcript binds the review root and selects its body" "yes" \
+  "$(cd "$LIB/.." && sbl_run "$SBL_OBS" --tier review --root "prflow:review=skills/review/DEFINITELY-NOT-HERE.md" | grep -q 'could not be read for controls' && echo yes || echo no)"
+# ONE-CONTROL ARM. read_controls finds no interior control when every non-tail line is under 20
+# characters, so the delivered-whole reason must say only the tail was checked. Drop the
+# conditional and this goes RED — nothing else reaches that arm, since every engine root has a
+# long interior line. The scratch root lives beside the fixture's own base directory so the
+# directory match resolves.
+assert_eq "#1618/#1897 skill-body: a root with no interior control says only the tail was checked" "yes" \
+  "$(mkdir -p "$SBL_TMP/skills/review" && printf 'a\nb\nTHE FINAL LINE OF THE ONE-CONTROL FIXTURE\n' > "$SBL_TMP/skills/review/SKILL.md" && NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL_TMP" <<'PY_SBL_ONE'
+import json, os, sys
+root = sys.argv[1]
+body = open(os.path.join(root, "skills", "review", "SKILL.md"), encoding="utf-8").read()
+PREFIX = "Base directory for this skill: "
+recs = [
+    {"type": "assistant", "message": {"role": "assistant", "content": [
+        {"type": "tool_use", "name": "Skill", "id": "s1", "input": {"skill": "prflow:review"}}]}},
+    {"type": "user", "message": {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "s1", "content": "Launching skill: prflow:review"}]}},
+    {"type": "user", "message": {"role": "user", "content": [
+        {"type": "text", "text": PREFIX + os.path.join(root, "skills", "review") + "\n\n" + body}]}},
+]
+with open(os.path.join(root, "one-control.jsonl"), "w", encoding="utf-8") as fh:
+    for r in recs:
+        fh.write(json.dumps(r) + "\n")
+PY_SBL_ONE
+sbl_run "$SBL_TMP/one-control.jsonl" --tier review --root "prflow:review=$SBL_TMP/skills/review/SKILL.md" | grep -q 'only the tail was checked' && echo yes || echo no)"
+# POSITIVE CONTROL: that same fixture reaches delivered-whole, so the assertion above is the
+# one-control wording rather than a fixture the helper could not read.
+assert_eq "#1618/#1897 skill-body: the one-control fixture still reads delivered-whole" "1" \
+  "$(sbl_run "$SBL_TMP/one-control.jsonl" --tier review --root "prflow:review=$SBL_TMP/skills/review/SKILL.md" | grep -c 'VERDICT: delivered-whole')"
+# dirs_match under the WINDOWS path module. Every fixture above runs under the host's own
+# os.path, so a POSIX-only host leaves the ntpath reading unexercised — and there the
+# separator cleanup was undone by normpath, so every root read unestablished.
+sbl_dirs_match_both_modules() {  # $1 body base dir, $2 root dir (default skills/review)
+                                 #   -> "<posixpath result> <ntpath result>"
+  # dirs_match reads the module-level os.path, so swapping it is what exercises the Windows
+  # reading on a POSIX host. Keep each call site below its own assertion: one spawn each buys
+  # a per-case label that a fused multi-value print would cost.
+  NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL" "$1" "${2:-skills/review}" <<'PY_SBL_NT'
+import importlib.util, ntpath, posixpath, sys
+spec = importlib.util.spec_from_file_location("sbl", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+out = []
+for mod in (posixpath, ntpath):
+    m.os.path = mod
+    out.append(str(m.dirs_match(sys.argv[2], sys.argv[3])))
+print(" ".join(out))
+PY_SBL_NT
+}
+assert_eq "#1618/#1897 skill-body: dirs_match resolves identically under posixpath and ntpath" "True True" \
+  "$(sbl_dirs_match_both_modules /home/runner/work/prflow/prflow/skills/review)"
+# The component-boundary guard must survive that fix under each of the two stdlib path modules
+# `os.path` can resolve to, or the ntpath repair resolves `myskills/review` against `skills/review`.
+assert_eq "#1618/#1897 skill-body: the component-boundary guard holds under both path modules" "False False" \
+  "$(sbl_dirs_match_both_modules /home/runner/work/prflow/prflow/myskills/review)"
+# A backslash-bearing base dir is the form a real Windows runner records. Keep it alongside the
+# forward-slash probe rather than in place of it: that one reaches the same normalisation via
+# ntpath.normpath, while this one pins the input shape production actually sees.
+assert_eq "#1618/#1897 skill-body: a backslash-bearing runner directory resolves under both modules" "True True" \
+  "$(sbl_dirs_match_both_modules 'C:\runners\work\prflow\prflow\skills\review')"
+# EMPTY-OPERAND GUARD. `.` is what root_dir_for returns for a bare-filename --root, so a blank
+# base directory against it is reachable from production. Move the emptiness test back after
+# normpath and this returns True — normpath maps "" to "." — crediting an unrelated body.
+assert_eq "#1618/#1897 skill-body: a blank base directory matches no root under either module" "False False" \
+  "$(sbl_dirs_match_both_modules '' '.')"
 
 # DIRECTORY MATCH — every fixture above builds the body's base dir from the same on-disk path
 # the --root spec names, so they drive dirs_match's equality branch only. Production never takes
@@ -25158,7 +25480,7 @@ assert_eq "#1618 skill-body: a bare-suffix directory does not satisfy the root -
 # precondition. abs_suffix_dir is the same fixture shape one directory component apart and it
 # resolves, so it is the positive control proving the `/` guard is what refused this one.
 assert_eq "#1618 skill-body: the bare-suffix body is refused by the no-following-body arm" "yes" \
-  "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null) | grep -q 'no following body record naming its own' && echo yes || echo no)"
+  "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md") | grep -q 'no following body record naming its own' && echo yes || echo no)"
 
 # Only the LEADING blank/`#` run is stripped: the caveat line and the blank after it go, while a
 # `#` line INSIDE the file stays unparseable and forces unestablished. A stripper that dropped
@@ -25170,18 +25492,21 @@ assert_eq "#1618 skill-body: a # line inside the file is not stripped -> unestab
 # reading as an audit that found nothing is this defect one level up. No --root -> exit !=0,
 # NO-ROOTS, and never a delivered-whole line.
 assert_eq "#1618 skill-body: empty selection (no --root) exits non-zero" "nonzero" \
-  "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" >/dev/null 2>&1 && echo zero || echo nonzero)"
+  "$(sbl_run "$SBL_TMP/exec.jsonl" >/dev/null 2>&1 && echo zero || echo nonzero)"
 assert_eq "#1618 skill-body: empty selection prints NO-ROOTS, not a clean pass" "yes" \
-  "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" 2>/dev/null | grep -q 'AUDIT: NO-ROOTS' && echo yes || echo no)"
-assert_eq "#1618 skill-body: empty selection prints no delivered-whole verdict" "yes" \
-  "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" 2>/dev/null | grep -q 'VERDICT: delivered-whole' && echo no || echo yes)"
+  "$(sbl_run "$SBL_TMP/exec.jsonl" | grep -q 'AUDIT: NO-ROOTS' && echo yes || echo no)"
+# Exit-status gating is unavailable here (the no-roots path deliberately exits 2), so require the
+# header PRESENT and the verdict line ABSENT from ONE capture: a traceback prints neither, so it
+# fails the present half rather than passing on the absent one.
+assert_eq "#1618 skill-body: empty selection prints NO-ROOTS and no delivered-whole verdict" "yes" \
+  "$(_o="$(sbl_run "$SBL_TMP/exec.jsonl" 2>/dev/null)"; case "$_o" in *'AUDIT: NO-ROOTS'*) case "$_o" in *'VERDICT: delivered-whole'*) echo no ;; *) echo yes ;; esac ;; *) echo no ;; esac)"
 
 # COUPLED SITES: the two workflow jobs and the helper are one contract. Each job must load
 # the prflow plugin, capture the full output, invoke the helper, and audit BOTH engine roots
 # at their real on-disk paths — a job that dropped a --root would silently measure nothing
 # for that root while the suite stayed green.
 assert_eq "#1618 skill-body: matcher-probe jobs and helper are coupled" "coupled" \
-  "$(python3 - "$LIB/../.github/workflows/matcher-probe.yml" <<'PY_SBL_COUPLED'
+  "$(NO_COLOR=1 PYTHON_COLORS=0 python3 - "$LIB/../.github/workflows/matcher-probe.yml" <<'PY_SBL_COUPLED'
 import sys, yaml
 wf_path = sys.argv[1]
 jobs = yaml.safe_load(open(wf_path, encoding="utf-8"))["jobs"] or {}

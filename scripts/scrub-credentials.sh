@@ -54,14 +54,15 @@ if ! printf 'x\n' | sed -E 's/x/x/' >/dev/null 2>&1; then
   exit 3
 fi
 
-# The blocklist. Identical rule set to devflow-runner.yml's historical inline scrub
-# (issue #409 item 4 for the two Authorization forms), now single-sourced here.
+# Never widen these two token groups to match a bare `\` and never relax `{4,}` back to `+`:
+# a bare `\` swallows the JSON escape before a closing quote and truncates the document, while
+# `+` matches the bare `//` of a recorded `sed 's/AUTHORIZATION: basic //'` as if it were a token.
 if ! sed -E \
   -e 's/gh[pousr]_[A-Za-z0-9_]{20,}/[REDACTED-GH-TOKEN]/g' \
   -e 's/github_pat_[A-Za-z0-9_]{20,}/[REDACTED-GH-PAT]/g' \
   -e 's/sk-ant-[A-Za-z0-9_-]{20,}/[REDACTED-ANTHROPIC-KEY]/g' \
-  -e 's/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][":[:space:]]*)[Bb]earer [A-Za-z0-9._~+\/=-]+/\1Bearer [REDACTED]/g' \
-  -e 's/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][":[:space:]]*)[Bb]asic [A-Za-z0-9+\/=]+/\1basic [REDACTED]/g'; then
+  -e 's#([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][":[:space:]]*)[Bb][Ee][Aa][Rr][Ee][Rr] ([A-Za-z0-9._~+/=-]|\\\\|\\/){4,}#\1Bearer [REDACTED]#g' \
+  -e 's#([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][":[:space:]]*)[Bb][Aa][Ss][Ii][Cc] ([A-Za-z0-9+/=]|\\\\|\\/){4,}#\1basic [REDACTED]#g'; then
   echo "devflow: scrub-credentials.sh: sed exited non-zero on the input — emitting nothing (fail-closed)" >&2
   exit 4
 fi

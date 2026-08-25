@@ -668,9 +668,20 @@ def _validate(args) -> "tuple[str, str]":
     internal failure (exit 2, no verdict line)."""
     context = args.context
 
+    # A CI-derived record (issue #1898) supplies the stale-candidate and
+    # verification-pass evidence in place of --verification-record: a reception or
+    # fix-loop pass that pushed and read CI reaches the same validation the marker route
+    # uses. When one is supplied, --verification-record is not required; the findings and
+    # deferral classes below still run and can still refuse.
+    ci_record = (
+        _require_object(args.ci_record, "ci-record")
+        if getattr(args, "ci_record", None) else None
+    )
+
     # 1) missing-evidence — presence, parseability, and binding of the session
     #    anchors and the verification record, before ANY value comparison.
-    vrecord = _require_object(args.verification_record, "verification-record")
+    if ci_record is None:
+        vrecord = _require_object(args.verification_record, "verification-record")
 
     # The preflight identity artifact is a DIRECT-session anchor (the session's
     # opening record). The loop has no such anchor — the verification handle itself
@@ -694,17 +705,18 @@ def _validate(args) -> "tuple[str, str]":
     else:
         ledger = findings_inventory
 
-    # Claim-time identity — re-derived (or pinned) — needed for the stale compare.
-    claim_identity = _claim_time_identity(args.claim_identity, args.repo_root)
-
-    # 2) stale-candidate — currency of the verification record.
-    _check_stale_candidate(vrecord, claim_identity)
-
-    # 3) verification-not-pass — the record's result value.
-    _check_verification_pass(vrecord)
-
-    # 4) skipped-checks-present — blocking / unclassified skips.
-    _check_skipped_checks(vrecord)
+    # 2/3/4) currency + pass + skips. The skipped-checks class is scoped OUT of the CI
+    # route (issue #1898): do not re-add a _check_skipped_checks call for the CI branch
+    # below. Its stale-candidate and verification-not-pass classes come from
+    # _validate_ci_record.
+    if ci_record is None:
+        # Claim-time identity — re-derived (or pinned) — needed for the stale compare.
+        claim_identity = _claim_time_identity(args.claim_identity, args.repo_root)
+        _check_stale_candidate(vrecord, claim_identity)
+        _check_verification_pass(vrecord)
+        _check_skipped_checks(vrecord)
+    else:
+        _validate_ci_record(ci_record, args.repo_root)
 
     # 5) undischarged-findings — effective fix set vs disposition traces.
     _check_undischarged_findings(args, findings_inventory, ledger)
@@ -714,7 +726,8 @@ def _validate(args) -> "tuple[str, str]":
 
     # pass — every class resolved affirmatively.
     detail = "all completion evidence current, bound, and durable"
-    detail += _host_skip_detail(vrecord)
+    if ci_record is None:
+        detail += _host_skip_detail(vrecord)
     return TOK_PASS, detail
 
 
@@ -842,14 +855,24 @@ def validate_implement_completion(
 # family: a local run that established a green required check for the commit it
 # pushed records that reading, and this validator accepts it — OFFLINE and
 # DETERMINISTICALLY. It performs no network call and no `gh` invocation: the decision
-# is a function of the record's fields, `git rev-parse HEAD`, and
-# `git status --porcelain` alone. It mints NO ninth token; every refusal maps onto
+# is a function of the record's fields, `git rev-parse HEAD`, `git status --porcelain`,
+# and the required-check set declared in `.github/workflows/ci.yml` alone. It mints NO ninth token; every refusal maps onto
 # the closed ORDERED_TOKENS set in the same first-failing-class order the flight
 # context uses (missing -> stale -> not-pass). A malformed field shape is
 # missing-evidence; a SHA that does not match the current head, or a dirty tree, is
 # stale-candidate; a non-success conclusion is verification-not-pass.
 CI_SUCCESS_CONCLUSION = "success"
-_CI_REQUIRED_FIELDS = ("head_sha", "check_name", "conclusion", "run_url")
+# The tier that OWNS the CI-derived evidence family. A cloud run owes an in-environment
+# result (issue #1607), so a record whose tier is `cloud` — or which names no tier — is
+# refused; `local` is the sole accepted value and any other value fails closed.
+CI_LOCAL_TIER = "local"
+CI_CLOUD_TIER = "cloud"
+# The scalar string fields every CI record must carry. The check pairs are a separate
+# non-empty `checks` list of {name, conclusion} objects, validated below.
+_CI_REQUIRED_FIELDS = ("head_sha", "tier", "run_url")
+# The single declared source of the required-check set is `.github/workflows/ci.yml`: the
+# `name:` of every job marked with this line, read by _required_checks (issue #1898).
+_REQUIRED_CHECK_MARKER = "# prflow:required-check"
 
 
 def _is_full_hex_sha(value: object) -> bool:
@@ -882,17 +905,49 @@ def _ci_git_read(repo_root: "str | None", argv: "list[str]") -> str:
         raise _Internal(f"ci_git:{exc.reason}")
 
 
+def _required_checks(repo_root: "str | None") -> "frozenset[str]":
+    """The required-check set, read from the single declared source
+    `.github/workflows/ci.yml` under `repo_root`: the `name:` of every job marked with a
+    `# prflow:required-check` line. An absent ci.yml declares no required checks (an empty
+    set, so coverage is vacuous); an unreadable one is an internal failure of the check
+    itself (`_Internal`, exit 2), never a silent empty set that would un-gate coverage."""
+    path = Path(repo_root or os.getcwd()) / ".github" / "workflows" / "ci.yml"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return frozenset()
+    except OSError as exc:
+        raise _Internal(f"required_checks:unreadable:{exc.__class__.__name__}")
+    names: "set[str]" = set()
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() != _REQUIRED_CHECK_MARKER:
+            continue
+        # The next non-blank line is the marked job's `name:` mapping; take its value.
+        for nxt in lines[i + 1:]:
+            stripped = nxt.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("name:"):
+                val = stripped[len("name:"):].strip().strip('"').strip("'")
+                if val:
+                    names.add(val)
+            break
+    return frozenset(names)
+
+
 def _validate_ci_record(record: object, repo_root: "str | None") -> "tuple[str, str]":
     """The strict CI-derived completion checks over a decoded `record`.
 
     Raises a Verdict on the first failing class; returns (TOK_PASS, detail) when the
-    record's fields are well-formed, its recorded head SHA equals `git rev-parse HEAD`
-    over a clean tree, and its recorded conclusion is a success. `record` is the
-    already-decoded payload object (any JSON type); a non-object and each missing or
-    malformed field are missing-evidence, so the caller may hand this any shape the
-    best-effort payload decoder produced.
+    record is a well-formed `local`-tier record whose recorded checks cover the required
+    set with every conclusion a success, and whose head SHA equals `git rev-parse HEAD`
+    over a clean tree. `record` is the already-decoded payload object (any JSON type); a
+    non-object and each missing or malformed field are missing-evidence, so the caller may
+    hand this any shape the best-effort payload decoder produced. The first-failing-class
+    order is the module's own: missing-evidence -> stale-candidate -> verification-not-pass.
     """
-    # 1) missing-evidence — object shape and the presence/shape of every field.
+    # 1) missing-evidence — object shape and the presence/shape of the scalar fields.
     if not isinstance(record, dict):
         raise Verdict(
             TOK_MISSING,
@@ -914,7 +969,62 @@ def _validate_ci_record(record: object, repo_root: "str | None") -> "tuple[str, 
             f"characters ({head_sha!r})",
         )
 
-    # 2) stale-candidate — the recorded head must equal the current head over a
+    # 2) missing-evidence — the tier must be `local`. A `cloud` tier owes an in-env
+    #    result, and any other value (or the absent tier caught above) is refused,
+    #    naming the tier so the refusal is legible.
+    tier = record["tier"]
+    if tier != CI_LOCAL_TIER:
+        if tier == CI_CLOUD_TIER:
+            raise Verdict(
+                TOK_MISSING,
+                "CI completion record tier is 'cloud' — a cloud run owes an "
+                "in-environment result, not a CI-derived reading",
+            )
+        raise Verdict(
+            TOK_MISSING,
+            f"CI completion record tier is {tier!r}, not {CI_LOCAL_TIER!r}",
+        )
+
+    # 3) missing-evidence — a non-empty `checks` list of {name, conclusion} objects.
+    checks = record.get("checks")
+    if not isinstance(checks, list) or not checks:
+        raise Verdict(
+            TOK_MISSING,
+            "CI completion record carries no nonempty 'checks' list of "
+            "name/conclusion pairs",
+        )
+    for entry in checks:
+        if not isinstance(entry, dict):
+            raise Verdict(
+                TOK_MISSING,
+                "a CI completion 'checks' entry is not a JSON object",
+            )
+        name = entry.get("name")
+        concl = entry.get("conclusion")
+        if not isinstance(name, str) or not name.strip():
+            raise Verdict(
+                TOK_MISSING,
+                "a CI completion check entry has no nonempty 'name'",
+            )
+        if not isinstance(concl, str) or not concl.strip():
+            raise Verdict(
+                TOK_MISSING,
+                f"CI completion check {name!r} has no nonempty 'conclusion'",
+            )
+
+    # 4) missing-evidence — the recorded checks must cover the required-check set read
+    #    from the single declared source (ci.yml), naming the first missing member.
+    recorded_names = {e["name"] for e in checks}
+    required = _required_checks(repo_root)
+    missing = sorted(required - recorded_names)
+    if missing:
+        raise Verdict(
+            TOK_MISSING,
+            f"CI completion record does not cover required check {missing[0]!r} "
+            "(declared in .github/workflows/ci.yml)",
+        )
+
+    # 5) stale-candidate — the recorded head must equal the current head over a
     #    clean tree, so the reading describes the tree being finalized.
     current_head = _ci_git_read(repo_root, ["rev-parse", "HEAD"]).strip()
     if head_sha != current_head:
@@ -931,15 +1041,18 @@ def _validate_ci_record(record: object, repo_root: "str | None") -> "tuple[str, 
             "(git status --porcelain is non-empty)",
         )
 
-    # 3) verification-not-pass — the recorded conclusion must be a success.
-    if record["conclusion"] != CI_SUCCESS_CONCLUSION:
-        raise Verdict(
-            TOK_NOT_PASS,
-            f"CI check conclusion is {record['conclusion']!r}, "
-            f"not {CI_SUCCESS_CONCLUSION!r}",
-        )
+    # 6) verification-not-pass — every recorded conclusion must be a success.
+    for entry in checks:
+        if entry["conclusion"] != CI_SUCCESS_CONCLUSION:
+            raise Verdict(
+                TOK_NOT_PASS,
+                f"CI check {entry['name']!r} conclusion is {entry['conclusion']!r}, "
+                f"not {CI_SUCCESS_CONCLUSION!r}",
+            )
 
-    return TOK_PASS, "CI-derived completion evidence current, clean, and successful"
+    return TOK_PASS, (
+        "CI-derived completion evidence current, clean, tier-scoped, and successful"
+    )
 
 
 def validate_implement_completion_ci(
@@ -951,10 +1064,11 @@ def validate_implement_completion_ci(
 
     `record` is the decoded payload object (workpad.py decodes the marker payload and
     hands the result here). Returns (token, detail) — `token == TOK_PASS` only when
-    every class resolved affirmatively. A non-object and each missing/malformed field
-    are TOK_MISSING; a stale head or dirty tree is TOK_STALE; a non-success conclusion
-    is TOK_NOT_PASS. Raises `_Internal` (exit 2, no verdict) only when a git read
-    fails — an internal failure of the check, never a verdict about the record.
+    every class resolved affirmatively. A non-object, a non-`local` tier, a checks list
+    that does not cover the required set, and each missing/malformed field are TOK_MISSING;
+    a stale head or dirty tree is TOK_STALE; any non-success conclusion is TOK_NOT_PASS.
+    Raises `_Internal` (exit 2, no verdict) only when a git read or the required-check
+    source read fails — an internal failure of the check, never a verdict about the record.
     """
     try:
         return _validate_ci_record(record, repo_root)
@@ -1009,6 +1123,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--claim-identity", default=None,
                         help="Pin the claim-time candidate identity (the loop "
                              "passes what it computed); default re-derives it.")
+    parser.add_argument("--ci-record", default=None,
+                        help="loop/direct context: a JSON CI-derived completion record "
+                             "(tier + head_sha + run_url + a nonempty checks list). When "
+                             "supplied, the stale-candidate and verification-pass classes "
+                             "are decided from this record via the CI validator (issue "
+                             "#1898) instead of --verification-record; the "
+                             "undischarged-findings and deferral-durability classes still "
+                             "run and can still refuse.")
     parser.add_argument("--own-repo", default=None,
                         help="Override the resolved owner/repo slug (tests).")
     return parser
