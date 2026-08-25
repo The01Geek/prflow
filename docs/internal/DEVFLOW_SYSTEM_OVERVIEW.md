@@ -1099,7 +1099,7 @@ The local tier needs **no config**. To customize, `/prflow:init` scaffolds `.prf
 |---|---|
 | `base_branch` | Review/merge base (default `main`). |
 | `claude_model` | Default model (default `claude-opus-5`). |
-| `providers.<name>` | Cloud-tier (opt-in): third-party model routes — `base_url`, `auth` (`bearer`\|`api_key`\|`bedrock_api_key`), `timeout_ms`, `effort_supported`, and an `env` map whose keys are name-filtered before export (a denied name refuses the run). A `bearer`/`api_key` route is an **Anthropic-compatible** HTTP endpoint (requires `base_url`, exported as `ANTHROPIC_BASE_URL`); a `bedrock_api_key` route reaches **Amazon Bedrock** with a long-lived Bedrock API key (no `base_url`; exported as `AWS_BEARER_TOKEN_BEDROCK` with `use_bedrock: true`, and requires `AWS_REGION` in the `env` map). The API credential is never named in config — it is always the fixed `DEVFLOW_PROVIDER_API_KEY` repo secret, reused by both route kinds. See §14 / `docs/internal/cloud-setup.md`. |
+| `providers.<name>` | Cloud-tier (opt-in): third-party model routes — `base_url`, `auth` (`bearer`\|`api_key`\|`bedrock_api_key`), `timeout_ms`, `effort_supported`, and an `env` map whose keys are name-filtered before export (a denied name refuses the run; separately, a beside-it warn block prints one `::warning::` and **continues** — not refuse — when the map names any of four watched keys `ANTHROPIC_BASE_URL`, `API_TIMEOUT_MS`, `HOME`, `RUNNER_TEMP`, whose map value still wins). A `bearer`/`api_key` route is an **Anthropic-compatible** HTTP endpoint (requires `base_url`, exported as `ANTHROPIC_BASE_URL`); a `bedrock_api_key` route reaches **Amazon Bedrock** with a long-lived Bedrock API key (no `base_url`; exported as `AWS_BEARER_TOKEN_BEDROCK` with `use_bedrock: true`, and requires `AWS_REGION` in the `env` map). The API credential is never named in config — it is always the fixed `DEVFLOW_PROVIDER_API_KEY` repo secret, reused by both route kinds. See §14 / `docs/internal/cloud-setup.md`. |
 | `prflow.provider` / `prflow_implement.provider` / `prflow_runner.provider` (+ each section's `claude_model`) | Cloud-tier (opt-in): route that workflow section through a named `providers` entry and/or override its model, independently per section. Unset → today's Anthropic-OAuth default. |
 | `prflow_version` | Cloud-tier: git ref the workflows fetch the plugin from (thin install). |
 | `prflow.allowed_bots` / `allowed_users` | Trigger authorization (also the trusted-filer allowlist). |
@@ -1151,9 +1151,9 @@ The plugin install above runs **no installer script** — `install.sh` belongs t
 
 **Cloud tier (optional, from repo root)** — download, read, then run, with both refs pinned to a release tag:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.11/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.12/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.34.11 bash devflow-install.sh
+DEVFLOW_REF=v2.34.12 bash devflow-install.sh
 ```
 The URL ref fixes which installer bytes you review and run; `DEVFLOW_REF` (default `main`; a tag, SHA, or branch) fixes which ref the installer clones its payload from — pinning the URL alone leaves the payload on `main`. Substitute a newer tag in both places to move the pin; every version is tagged, so the [Tags page](https://github.com/The01Geek/prflow/tags) names the current one, while the [Releases page](https://github.com/The01Geek/prflow/releases) announces the feature releases — see [`docs/internal/install.md`](install.md#pinning-the-installer). Piping the download straight to `bash` works but forfeits the review step. Thin by default (installs workflows, actions, a local marketplace, a config scaffold, and pins `prflow_version`). `DEVFLOW_VENDOR=1` commits the tree instead.
 
