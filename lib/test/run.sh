@@ -14150,6 +14150,22 @@ assert_eq "#1440: missing parents_count treated as non-merge (human counted)" "1
   "$(_pbc '[{"author_login":"claude[bot]","committer_login":"web-flow"},{"author_login":"alice","committer_login":"alice"}]' someoneelse)"
 assert_eq "#1440: POSTBOT_SHAS excludes the blank-login SHA, keeps the human SHA" '["A"]' \
   "$(_pbs '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1,"sha":"X"},{"author_login":"","committer_login":"","parents_count":1,"sha":"B"},{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"A"}]' someoneelse)"
+# is_human's OR is is_human(author) OR is_human(committer); the two one-sided fixtures
+# below each blank one login and set the other to a human, so dropping either OR arm
+# would flip its count and go RED (the other rows all set author==committer).
+assert_eq "#1440: blank author + human committer → 1 (is_human committer arm)" "1" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"","committer_login":"alice","parents_count":1}]' someoneelse)"
+assert_eq "#1440: human author + blank committer → 1 (is_human author arm)" "1" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"alice","committer_login":"","parents_count":1}]' someoneelse)"
+# A tail commit by the PR author itself is not human rework: exercised end-to-end
+# (the anchor select captures a login==author commit, and is_human's `!= $author`
+# clause backs it up), so a fixture whose only post-bot commit is authored by the
+# PR-author login yields 0.
+assert_eq "#1440: a post-bot commit by the PR author itself → 0 (self-exclusion)" "0" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":1}]' alice)"
+# Coupled POSTBOT_SHAS carries the identical predicate: keep one OR-arm fixture on it too.
+assert_eq "#1440: POSTBOT_SHAS keeps a human-committer/blank-author SHA" '["A"]' \
+  "$(_pbs '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1,"sha":"X"},{"author_login":"","committer_login":"alice","parents_count":1,"sha":"A"}]' someoneelse)"
 unset _PBC_START _PBC_PROG _PBS_START _PBS_PROG
 
 # #4 / issue #895: the /review verdict parser is now exercised by EXECUTING the
