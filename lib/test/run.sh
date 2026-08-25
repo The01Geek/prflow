@@ -21551,7 +21551,9 @@ fi
 # The setup-project-env step is gated on the base-ref provision flag.
 assert_eq "provision: setup-project-env step present" "1" \
   "$(grep -c 'uses: ./.github/actions/setup-project-env' "$RUNNER" || true)"
-assert_eq "provision: setup-project-env gated on base provision_env" "1" \
+# TWO steps gate on the base provision flag: the #1388 setup-env hardening step
+# (materializes the trusted base-ref action body) and the provision step it protects.
+assert_eq "provision: setup-project-env gated on base provision_env" "2" \
   "$(grep -c "if: steps.baseprovision.outputs.provision_env == 'true'" "$RUNNER" || true)"
 
 # Coupling: the tool-profile guard and the provision step must read the SAME
@@ -22348,15 +22350,15 @@ assert_eq "provision: malformed/non-object base config warns + read-only (basepr
 # Trust boundary: the flag and setup block come from the base ref. BASE_REF is
 # sourced from the trusted event payload, fetched from origin, and read out of
 # FETCH_HEAD — never the checked-out PR head.
-# FOUR sites read the trusted BASE_REF from the event payload and fetch it (issue #908
-# review: was three before the new harden_guard step): the baseprovision step, the
-# #458 harden-stop-hooks step, the #874 baseversion step, and the #908 harden_guard
-# step (all under the same trusted-source rule — the guard's own trusted-copy
+# FIVE sites read the trusted BASE_REF from the event payload and fetch it (issue
+# #1388 added the fifth): the baseprovision step, the #458 harden-stop-hooks step,
+# the #874 baseversion step, the #908 harden_guard step, and the #1388 setup-env
+# hardening step (all under the same trusted-source rule — each trusted-copy
 # displacement needs its own independent fetch, for the same reason #874's baseversion
 # step does not rely on another step's FETCH_HEAD surviving).
-assert_eq "provision: base ref from trusted event payload (baseprovision + #458 harden + #874 baseversion + #908 harden_guard)" "4" \
+assert_eq "provision: base ref from trusted event payload (baseprovision + #458 harden + #874 baseversion + #908 harden_guard + #1388 setup-env harden)" "5" \
   "$(grep -c 'github.event.pull_request.base.ref || github.event.repository.default_branch' "$RUNNER" || true)"
-assert_eq "provision: base config fetched from origin BASE_REF (baseprovision + #458 harden + #874 baseversion + #908 harden_guard)" "4" \
+assert_eq "provision: base config fetched from origin BASE_REF (baseprovision + #458 harden + #874 baseversion + #908 harden_guard + #1388 setup-env harden)" "5" \
   "$(grep -c 'git fetch --depth=1 origin "\$BASE_REF"' "$RUNNER" || true)"
 # Two readers of the trusted base config: baseprovision (provision_env, allowed_tools,
 # setup) and the #874 baseversion step (prflow_version).

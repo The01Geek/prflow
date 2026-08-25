@@ -35793,8 +35793,8 @@ finally:
 
 
 # ── issue #1388: provision-lint-tools.sh fail-closed arms (driven end-to-end) ──
-import subprocess as _sp1388
-import tarfile as _tar1388
+import subprocess as _sp1388  # noqa: E402
+import tarfile as _tar1388  # noqa: E402
 
 _HELPER_1388 = SCRIPTS.parent / '.github' / 'actions' / 'setup-project-env' / 'provision-lint-tools.sh'
 
