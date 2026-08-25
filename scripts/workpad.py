@@ -4476,8 +4476,11 @@ def _review_roster_incoherence(record: dict, members: dict) -> str | None:
 
     The `roster` axis alone is a self-report (issue #1512): a narrow shadow that believes
     itself full writes `complete` and nothing downstream sees a roster to contradict it.
-    This cross-checks the axis against the per-member enumeration, checked identically at
-    write time and read time:
+    This cross-checks the axis against the per-member enumeration. It is enforced at write
+    time (a measured record cannot be stamped without a coherent enumeration) and re-run at
+    the read-time `Status: Complete` gate only when an enumeration is present, so a legacy
+    rosterless record — one predating this check — finalizes rather than being re-validated
+    retroactively:
 
     - `complete` requires every always-on member `dispatched` and no member `missing`; an
       always-on member absent, `missing`, or `gated-off` refuses it, naming the member.
