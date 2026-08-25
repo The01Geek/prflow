@@ -46,6 +46,11 @@ PIN_CORPUS_SOURCES = (
     # the tuple's LAST entry.
     "lib/test/modules/efficiency-trace-telemetry.sh",
     "lib/test/modules/review-and-fix-contract.sh",
+    # Added when issue #1934 extracted the workpad-cli module: it carries the one
+    # renamed devflow_module_pin_unique pin (the #338(T6) phase-3-ac-gate.md
+    # boundary literal), so leaving it out would drop that literal from the census
+    # and turn its still-present adjudication row into an "unknown adjudication key".
+    "lib/test/modules/workpad-cli.sh",
 )
 DEFAULT_SOURCES = PIN_CORPUS_SOURCES
 EXISTENCE_HELPERS = frozenset(
