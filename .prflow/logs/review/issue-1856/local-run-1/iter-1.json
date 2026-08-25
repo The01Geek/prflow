@@ -1,0 +1,76 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T00:00:00Z",
+  "fix_commit_sha": "3a1482e",
+  "fix_files": [
+    ".prflow/logs/pin-corpus-adjudication-changes/2026-08-25-issue-1856/adjudication-delta.tsv",
+    "lib/test/run.sh",
+    ".changeset/issue-1856-self-validating-helper-anchor.md"
+  ],
+  "loop_role": "fix",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:silent-failure-hunter"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:silent-failure-hunter"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Critical",
+      "description": "T5b adjudication-row deletion unauthorized; #810 mutation-routing-worktree gate RED",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "stale T5d comment naming T5b as a live pin (run.sh:32312)",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "changeset overclaims create-issue does the ls-validation",
+      "fix_decision": "applied"
+    }
+  ],
+  "shadow": {
+    "dispatch_mode": "inline",
+    "reviewed_sha": "3a1482e",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer"
+    ],
+    "checklist_skipped": "intentional",
+    "comparison": {
+      "shadow_total": 1,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
