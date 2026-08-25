@@ -50855,15 +50855,17 @@ if [ -n "$_1047_CMD" ] && [ "$_1047_CMD" != extractor-failed ]; then
   _1047_WS="$(mktemp -d)"
   mkdir -p "$_1047_WS/scripts" "$_1047_WS/emptybin"
   printf 'import sys\nsys.exit(9)\n' > "$_1047_WS/scripts/pretooluse-shape-guard.py"
-  # Pin CLAUDE_PROJECT_DIR: the hook falls back to it when `git rev-parse` fails, so an
-  # ambient value resolves $_g to the REAL guard and both arms stop testing the stub.
+  # Do NOT drop this `git init`: the hook resolves its root via `git rev-parse` FIRST, so a
+  # TMPDIR nested in any checkout resolves $_g to the real guard and both arms stop testing
+  # the stub. (GIT_CEILING_DIRECTORIES does not fix this — measured, it still resolved the repo.)
+  git init -q "$_1047_WS"
   # $BASH, not a bare `bash`: a PATH-prefixed assignment applies BEFORE command lookup, so
   # a bare head would itself be unfindable and the 127 would measure the harness, not the hook.
   ( cd "$_1047_WS" && CLAUDE_PROJECT_DIR="$_1047_WS" PATH="$_1047_WS/emptybin" "$BASH" -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
   _1047_RC_ABSENT=$?
   assert_eq "#1047: hook command fails OPEN (exit 0) when python3 is absent from PATH" "0" "$_1047_RC_ABSENT"
-  # ...and the probe must not have turned the hook into a no-op where python3 DOES exist:
-  # the stub guard exits 9, so 9 is the proof the interpreter was still reached.
+  # Anti-overreach only — the arm ABOVE is the regression signal (it alone goes RED on an
+  # unguarded exec). Do not delete that one as redundant with this one; they are not co-equal.
   ( cd "$_1047_WS" && CLAUDE_PROJECT_DIR="$_1047_WS" "$BASH" -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
   _1047_RC_PRESENT=$?
   assert_eq "#1047: hook command still reaches the guard when python3 IS present" "9" "$_1047_RC_PRESENT"
