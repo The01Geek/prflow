@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1942",
+  "generated_at": "2026-08-25T19:34:50Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.26",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 3.660418800000001,
+    "tokens": {
+      "input_tokens": 30,
+      "output_tokens": 24267,
+      "cache_read_input_tokens": 1972817,
+      "cache_creation_input_tokens": 163066,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 30,
+        "outputTokens": 24267,
+        "cacheReadInputTokens": 1972817,
+        "cacheCreationInputTokens": 163066,
+        "webSearchRequests": 0,
+        "costUSD": 3.2238935000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 18,
+        "outputTokens": 9301,
+        "cacheReadInputTokens": 385859,
+        "cacheCreationInputTokens": 106523,
+        "webSearchRequests": 0,
+        "costUSD": 0.43652529999999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 25,
+    "duration_ms": 417975
+  },
+  "permission_denials": {
+    "count": 1,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; echo \"---HEAD---\"; git rev-parse HEAD"
+    ],
+    "total": 1,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
