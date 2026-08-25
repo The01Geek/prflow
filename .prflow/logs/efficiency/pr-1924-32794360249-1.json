@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1924",
+  "generated_at": "2026-08-25T00:48:38Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.7",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.635045,
+    "tokens": {
+      "input_tokens": 54,
+      "output_tokens": 29326,
+      "cache_read_input_tokens": 3924258,
+      "cache_creation_input_tokens": 190420,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 94,
+        "outputTokens": 40710,
+        "cacheReadInputTokens": 4774900,
+        "cacheCreationInputTokens": 402448,
+        "webSearchRequests": 0,
+        "costUSD": 6.635045,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 42,
+    "duration_ms": 600316
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-1924/local-run; gh pr diff 1924 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1924/local-run/diff.patch | grep -c '^diff --git'",
+      "MARKER=$(printf '%s' \"<!-- prflow:review-progress run=local-manual-1 -->\"); echo \"$MARKER\"",
+      "/home/runner/work/prflow/prflow/skills/review/../../scripts/seed-review-progress.sh 1924 \"\" .prflow/tmp/review/pr-1924/local-run/review-wp.md ; echo \"seed-rc=$?\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"SNAPSHOT-FAILED\"\n  printf '%s\\n' disabled > \".prflow/tmp/review-dirty-tree-disabled\"\nfi",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; ls -la .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
