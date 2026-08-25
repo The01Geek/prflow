@@ -28,9 +28,9 @@ import argparse
 import importlib.util
 import json
 import re
-import subprocess
 import sys
 from collections import Counter
+from functools import lru_cache
 from pathlib import Path
 
 _GUARD_PATH = Path(__file__).resolve().parent / "coverage_map_guard.py"
@@ -79,6 +79,7 @@ def _label_re() -> "re.Pattern[str]":
     return _guard._LABEL_RE
 
 
+@lru_cache(maxsize=None)
 def _path_re(top_dirs: "frozenset[str]") -> "re.Pattern[str]":
     """A ``<top-dir>/<rest>`` repository-path matcher for the given top-dir set.
 
@@ -103,6 +104,7 @@ def _subject(path: str) -> str:
     return "/".join(path.split("/")[:2])
 
 
+@lru_cache(maxsize=None)
 def _basename_re(basenames: "frozenset[str]") -> "re.Pattern[str]":
     """A matcher for the given distinctive filename basenames used as bare mentions.
 
@@ -199,7 +201,7 @@ def dominant_subject(
     if not subjects:
         return NO_PATH_KEY
     top = max(subjects.values())
-    return sorted(subject for subject, count in subjects.items() if count == top)[0]
+    return min(subject for subject, count in subjects.items() if count == top)
 
 
 def group_labels(
@@ -235,17 +237,6 @@ def _sorted_groups(groups: "dict[str, list[str]]") -> "list[tuple[str, list[str]
     return sorted(groups.items(), key=lambda item: (-len(item[1]), item[0]))
 
 
-def _tracked_files(root: Path) -> "list[str]":
-    """Every git-tracked path under ROOT (an index read — shallow-clone-safe)."""
-    result = subprocess.run(
-        ["git", "-C", str(root), "ls-files"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return [line for line in result.stdout.split("\n") if line]
-
-
 def unmodularized_labels(coverage_map: dict) -> "set[str]":
     """The set of ``run_sh_blocks`` labels the coverage map marks ``unmodularized``."""
     blocks = coverage_map.get("run_sh_blocks", {})
@@ -275,7 +266,7 @@ def main(argv: "list[str] | None" = None) -> int:
         return 2
 
     restrict = unmodularized_labels(coverage_map)
-    basename_index = build_basename_index(_tracked_files(root))
+    basename_index = build_basename_index(_guard._git_tracked(root))
     groups = group_labels(run_sh_text, restrict=restrict, basename_index=basename_index)
     ordered = _sorted_groups(groups)
 
