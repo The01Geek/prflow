@@ -35792,6 +35792,164 @@ finally:
     shutil.rmtree(_d1388, ignore_errors=True)
 
 
+# ── issue #1388: provision-lint-tools.sh fail-closed arms (driven end-to-end) ──
+import subprocess as _sp1388
+import tarfile as _tar1388
+
+_HELPER_1388 = SCRIPTS.parent / '.github' / 'actions' / 'setup-project-env' / 'provision-lint-tools.sh'
+
+
+def _mk_archive_1388(root, member, version_report, *, valid=True):
+    """Build a tar.gz holding a fake `member` executable that reports
+    `version_report`; return (archive_path, sha256-digest). `valid=False`
+    writes non-archive bytes (a corrupt download whose digest still pins)."""
+    arc = root / "artifact.tar.gz"
+    if not valid:
+        arc.write_bytes(b"this is not a tar archive\n")
+    else:
+        tooldir = root / "tool"
+        tooldir.mkdir(exist_ok=True)
+        exe = tooldir / member
+        exe.write_text(f"#!/bin/sh\necho '{member} {version_report}'\n", encoding="utf-8")
+        exe.chmod(0o755)
+        with _tar1388.open(arc, "w:gz") as tf:
+            tf.add(exe, arcname=f"nested-{version_report}/{member}")
+    return arc, _install_state.digest_bytes(arc.read_bytes())
+
+
+def _mk_manifest_1388(digest, *, version="9.9.9"):
+    return {
+        "schema_version": 1,
+        "tools": {
+            "shellcheck": {"version": version, "timeout_seconds": 600,
+                           "artifacts": [{"os": "linux", "arch": "x86_64", "digest": digest,
+                                          "archive_type": "tar.gz", "member": "shellcheck",
+                                          "strategy": "extract-tar"}]},
+            "ruff": {"version": "1.0.0", "timeout_seconds": 600,
+                     "artifacts": [{"os": "linux", "arch": "x86_64", "digest": "sha256:" + "b" * 64,
+                                    "archive_type": "tar.gz", "member": "ruff",
+                                    "strategy": "extract-tar"}]},
+        },
+        "selectors": [{"id": "s", "language": "shell", "include_globs": ["**/*.sh"]}],
+        "full_profiles": [{"id": "p", "tool": "shellcheck", "selector": "s"}],
+    }
+
+
+def _run_helper_1388(root, *, tools="shellcheck", os_name="linux", arch="x86_64",
+                     archive=None, curl_rc=0, dest_bin=None, extra_env=None):
+    """Run provision-lint-tools.sh in fixture `root` with a fake curl that copies
+    `archive` (or exits `curl_rc`). Returns (returncode, stderr+stdout)."""
+    fakecurl = root / "fakecurl.sh"
+    if curl_rc != 0:
+        fakecurl.write_text(f"#!/bin/sh\nexit {curl_rc}\n", encoding="utf-8")
+    else:
+        fakecurl.write_text(
+            '#!/bin/sh\nout=""\nwhile [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; *) shift;; esac; done\n'
+            f'cp "{archive}" "$out"\n', encoding="utf-8")
+    fakecurl.chmod(0o755)
+    env = dict(os.environ)
+    env.pop("GITHUB_PATH", None)
+    env.update({
+        "LINT_MANIFEST": ".prflow/lint-manifest.json",
+        "INSTALL_STATE": ".prflow/install-state.json",
+        "INSTALLER_VERSION": "v0",
+        "DEST_BIN": str(dest_bin if dest_bin else (root / "bin")),
+        "TARGET_OS": os_name, "TARGET_ARCH": arch,
+        "SCRIPTS_DIR": str(SCRIPTS),
+        "TOOLS": tools,
+        "LINTPROV_CURL": str(fakecurl),
+    })
+    if extra_env:
+        env.update(extra_env)
+    proc = _sp1388.run(["bash", str(_HELPER_1388)], cwd=str(root), env=env,
+                       capture_output=True, text=True)
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+def _mk_repo_1388(tmp, manifest):
+    """Materialize a fixture repo with the manifest, a real helper component, and a
+    valid install-state marker binding both by digest."""
+    root = Path(tmp) / "repo"
+    (root / ".prflow").mkdir(parents=True)
+    (root / "scripts").mkdir()
+    (root / ".prflow" / "lint-manifest.json").write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+    (root / "scripts" / "lint_manifest.py").write_bytes((SCRIPTS / "lint_manifest.py").read_bytes())
+    state = _install_state.build_state("v0",
+        {"manifest": ".prflow/lint-manifest.json", "helper": "scripts/lint_manifest.py"},
+        repo_root=root)
+    (root / ".prflow" / "install-state.json").write_text(json.dumps(state) + "\n", encoding="utf-8")
+    return root
+
+
+_d1388b = Path(tempfile.mkdtemp())
+try:
+    # Happy path: valid archive whose digest the manifest pins; fake tool reports 9.9.9.
+    _arc, _dig = _mk_archive_1388(_d1388b, "shellcheck", "9.9.9")
+    _repo = _mk_repo_1388(_d1388b / "ok", _mk_manifest_1388(_dig))
+    _rc, _out = _run_helper_1388(_repo, archive=_arc)
+    assert_eq("#1388 helper: happy path installs + version-verifies (rc 0)", 0, _rc)
+    assert_eq("#1388 helper: reports version-verified install", True, "version-verified" in _out)
+    assert_eq("#1388 helper: installed the executable run-local", True, (_repo / "bin" / "shellcheck").exists())
+
+    # unsupported-lint-platform: no artifact for the requested (os,arch).
+    _rc, _out = _run_helper_1388(_repo, archive=_arc, arch="arm64")
+    assert_eq("#1388 helper: unsupported tuple fails closed", 1, _rc)
+    assert_eq("#1388 helper: unsupported names the tool + reason", True,
+              "shellcheck: unsupported-lint-platform" in _out)
+
+    # not-ready: corrupt a bound component so readiness refuses BEFORE any tool work.
+    _repo_nr = _mk_repo_1388(_d1388b / "nr", _mk_manifest_1388(_dig))
+    (_repo_nr / "scripts" / "lint_manifest.py").write_text("changed\n", encoding="utf-8")
+    _rc, _out = _run_helper_1388(_repo_nr, archive=_arc)
+    assert_eq("#1388 helper: readiness refusal fails closed", 1, _rc)
+    assert_eq("#1388 helper: readiness refusal names digest-mismatch", True, "digest-mismatch:helper" in _out)
+
+    # missing installer primitive: an absent downloader (fresh repo — no cache hit).
+    _repo_mp = _mk_repo_1388(_d1388b / "mp", _mk_manifest_1388(_dig))
+    _rc, _out = _run_helper_1388(_repo_mp, archive=_arc, extra_env={"LINTPROV_CURL": "/nonexistent/curl-xyz"})
+    assert_eq("#1388 helper: missing primitive fails closed", 1, _rc)
+    assert_eq("#1388 helper: missing primitive named", True, "installer primitive not found" in _out)
+
+    # network failure: downloader exits non-zero (fresh repo — no cache hit).
+    _repo_nf = _mk_repo_1388(_d1388b / "nf", _mk_manifest_1388(_dig))
+    _rc, _out = _run_helper_1388(_repo_nf, archive=_arc, curl_rc=7)
+    assert_eq("#1388 helper: network failure fails closed", 1, _rc)
+    assert_eq("#1388 helper: network failure names the tool", True, "shellcheck: network failure" in _out)
+
+    # checksum mismatch: manifest pins a digest the downloaded bytes do not match.
+    _repo_cm = _mk_repo_1388(_d1388b / "cm", _mk_manifest_1388("sha256:" + "e" * 64))
+    _rc, _out = _run_helper_1388(_repo_cm, archive=_arc)
+    assert_eq("#1388 helper: checksum mismatch fails closed", 1, _rc)
+    assert_eq("#1388 helper: checksum mismatch named", True, "checksum mismatch" in _out)
+
+    # archive mismatch: digest pins corrupt (non-archive) bytes; extraction fails.
+    _bad_arc, _bad_dig = _mk_archive_1388(_d1388b, "shellcheck", "x", valid=False)
+    _repo_am = _mk_repo_1388(_d1388b / "am", _mk_manifest_1388(_bad_dig))
+    _rc, _out = _run_helper_1388(_repo_am, archive=_bad_arc)
+    assert_eq("#1388 helper: archive mismatch fails closed", 1, _rc)
+    assert_eq("#1388 helper: archive mismatch named", True, "archive mismatch" in _out)
+
+    # wrong version: fake tool reports a version the manifest does not declare.
+    _wv_arc, _wv_dig = _mk_archive_1388(_d1388b, "shellcheck", "1.1.1")
+    _repo_wv = _mk_repo_1388(_d1388b / "wv", _mk_manifest_1388(_wv_dig, version="9.9.9"))
+    _rc, _out = _run_helper_1388(_repo_wv, archive=_wv_arc)
+    assert_eq("#1388 helper: wrong version fails closed", 1, _rc)
+    assert_eq("#1388 helper: wrong version named", True, "wrong version" in _out)
+
+    # unwritable target: DEST_BIN under a read-only directory.
+    _ro = _d1388b / "roparent"
+    _ro.mkdir()
+    _ro.chmod(0o555)
+    try:
+        _rc, _out = _run_helper_1388(_repo, archive=_arc, dest_bin=_ro / "sub" / "bin")
+        assert_eq("#1388 helper: unwritable target fails closed", 1, _rc)
+        assert_eq("#1388 helper: unwritable target named", True, "unwritable target" in _out)
+    finally:
+        _ro.chmod(0o755)
+finally:
+    shutil.rmtree(_d1388b, ignore_errors=True)
+
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
