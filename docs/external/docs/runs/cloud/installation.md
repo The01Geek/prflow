@@ -39,6 +39,7 @@ A first installation applies immediately unless you pass `--dry-run` or set `DEV
 - `.claude-plugin/marketplace.json`.
 - `.prflow/config.json`, `.prflow/config.schema.json`, `.prflow/.gitignore` and prompt-extension examples.
 - `.prflow/install-manifest.json`, when Python can record managed-artifact digests.
+- `.prflow/lint-manifest.json` and `.prflow/install-state.json`, which let issue-implementation runs provision their lint tools from a verified, digest-bound set before the agent starts.
 - Repository ignore rules for installer sidecars.
 
 Fresh installations do not receive `devflow-review.yml`, `devflow-runner.yml` or `telemetry-push.yml`. Automatic pull-request-triggered review is withdrawn from new installs. Use a collaborator's `/prflow:review` comment instead.

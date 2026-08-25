@@ -1274,6 +1274,62 @@ The `setup` block covers more than Python/Node, in this provisioning order
 can't infer. Review its additions before committing; service `env` and `install`
 lines run in CI from your committed (base-branch) config.
 
+### Lint-tool provisioning (`setup-project-env`'s `lint_mode`, issue #1388)
+
+`setup-project-env` also carries a closed `lint_mode` input — `provision` or
+`none`, and **any other value is refused** (`::error::`, before the model runs).
+It is **not** a `.prflow/config.json` key; the calling workflow sets it, and the
+three shipped workflows pass tested modes:
+
+| Workflow | `lint_mode` | Why |
+| --- | --- | --- |
+| `devflow-implement.yml` (`/prflow:implement`) | `provision` | Implement runs need ShellCheck/Ruff, so they start with verified tools instead of improvising installs in paid turns. |
+| `devflow.yml` (light `/prflow:*` command tier) | `none` | The command tier does no linting of its own. |
+| `devflow-runner.yml` (automated review runner) | `none` | The read-only reviewer takes in **no manifest-derived bytes** (a security boundary). |
+
+- **`provision`** — before the Claude action, the action installs the bounded
+  ShellCheck/Ruff toolchain named in `.prflow/lint-manifest.json`, gated on the
+  digest-bound `.prflow/install-state.json` marker. Installation is **run-local
+  (no `sudo`)**, verifies the pinned archive digest before extracting and the
+  executable version (whole-token) before treating the tool as ready, and
+  **fails closed** — before the model runs — on any readiness or verification
+  failure (`install-state-missing`, `digest-mismatch`, `component-missing`,
+  `manifest-missing`, an unsupported OS/arch, a checksum/archive/version
+  mismatch, a network failure, or an unwritable target, each naming the tool).
+  The toolchain is cached via `actions/cache` keyed on `{OS, arch, manifest +
+  marker hash}`; a cache-restored binary is re-verified under that key before
+  use. The closed OS/arch → artifact + trusted-download-URL mapping lives in the
+  trusted Python helpers (`scripts/lint_provision.py`), never in
+  manifest-supplied command strings or URLs — the manifest declares *what* to
+  install, never *how* (issue #1276 trust model).
+- **`none`** — no lint-tool work and **no manifest validation** at all.
+
+### The review runner never runs a PR-head setup action (issue #1388)
+
+`devflow-runner.yml` checks out the pull-request head, so a plain
+`uses: ./.github/actions/setup-project-env` would execute the **PR's own copy**
+of the action body — a PR editing that action could run its edit inside the
+read-only review job. Gated on the same `prflow_runner.provision_env` opt-in as
+the provisioning it protects, a hardening step runs first: it fetches the
+trusted **base ref** (the same `BASE_REF` derivation `baseprovision` uses),
+enumerates every file of the action directory as it exists on that base ref via
+`git ls-tree FETCH_HEAD`, materializes each over the workspace copy, and
+**prunes any PR-added file** not present on the base ref — so the subsequent
+`uses:` step executes trusted bytes only, and a file the action gains later is
+covered with no edit to this step. It **fails closed**: if the trusted bytes
+cannot be materialized (no base ref, a failed fetch, or the base ref carrying no
+`action.yml`), the whole job aborts rather than falling back to the PR-head
+copy. Combined with `lint_mode: none`, no manifest-derived bytes and no PR-head
+action body ever enter the review job.
+
+### CI validates the candidate manifest without write credentials
+
+A `lint-manifest` job in `.github/workflows/ci.yml` validates and exercises the
+candidate `.prflow/lint-manifest.json` on every PR under workflow-level
+`contents: read` (no repository write credentials), so a manifest change is
+proven before it becomes implement-active — which it only does after merge
+(workflow/config resolution is post-merge for the trigger-time channel).
+
 ## Extending the tool allowlist
 
 The light `/prflow:*` command path runs under a fixed `--allowed-tools` allowlist baked into the
