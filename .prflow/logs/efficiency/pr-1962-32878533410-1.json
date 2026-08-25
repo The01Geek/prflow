@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1962",
+  "generated_at": "2026-08-25T20:06:38Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.22",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 77.25733704999998,
+    "tokens": {
+      "input_tokens": 468,
+      "output_tokens": 299105,
+      "cache_read_input_tokens": 105671730,
+      "cache_creation_input_tokens": 696394,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 632,
+        "outputTokens": 362740,
+        "cacheReadInputTokens": 110274595,
+        "cacheCreationInputTokens": 1221317,
+        "webSearchRequests": 0,
+        "costUSD": 74.45366624999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 144,
+        "outputTokens": 29060,
+        "cacheReadInputTokens": 4037364,
+        "cacheCreationInputTokens": 682124,
+        "webSearchRequests": 0,
+        "costUSD": 2.8036707999999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 305,
+    "duration_ms": 9028885
+  },
+  "permission_denials": {
+    "count": 18,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset}\"; echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-unset}\"; ls .prflow/vendor/prflow/scripts/ >/dev/null 2>&1 && echo \"vendor exists\" || echo \"no vendor\"",
+      "printenv GITHUB_ACTIONS GITHUB_RUN_ID GITHUB_REPOSITORY 2>/dev/null; echo \"---base---\"; printf '%s\\n' \"$BASE\"; echo \"---toplevel---\"; git rev-parse --show-toplevel",
+      "printenv GITHUB_ACTIONS; printenv GITHUB_RUN_ID; printenv GITHUB_REPOSITORY",
+      "printenv GITHUB_ACTIONS",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || { echo \"prflow: base_branch read failed; falling back to main\" >&2; BASE=main; }\necho \"BASE=$BASE\"\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_ …[per-command-truncated]",
+      "/home/runner/work/prflow/prflow/lib/test/run-shard.sh --list-shards 2>&1",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1830 --note \"2.2.7 coupled-site map (searched via Grep tool): (1) the #671 CLI-absence skip line — emitted by run.sh skip() at run.sh:26821 & run.sh:26929 (both 'blocking-gate', reason contains 'claude CLI not on PATH'), fixtured at run.sh:50571 — is the surface the new helper's regex matches; helper regex <-> those skip lines are a coupled pair. (2) ci.yml install/verify 'if:' gating <-> new run.sh structural pins. (3) lib/test/run-shard.sh (calle …[per-command-truncated]",
+      "command -v claude && claude --version 2>&1 | head -1 || echo \"NO CLAUDE ON PATH\"",
+      "chmod +x .prflow/tmp/cga-sandbox/lib/test/run.sh\ncd .prflow/tmp/cga-sandbox\nCGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR=\"$PWD/t-rev\" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo \"reverted=zero\" || echo \"reverted=nonzero\"\nCGA_CASE=only434 DEVFLOW_SHARD_TALLY_DIR=\"$PWD/t-434\" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo \"only434=zero\" || echo \"only434=nonzero\"\nCGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR=\"$PWD/t-clean\" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && ec …[per-command-truncated]",
+      "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)\nmkdir -p \"$ROOT/.prflow/tmp\" 2>/dev/null || true\n[ -n \"${ZSH_VERSION:-}\" ] && setopt nonomatch || :\nset -- \"$ROOT\"/.prflow/tmp/review/*/*/iter-*.json\nif [ -e \"$1\" ]; then printf '%s\\n' \"$@\" | sort; else echo \"(no pre-existing iter-*.json)\"; fi",
+      "LOG=/home/runner/work/prflow/prflow/.prflow/tmp/shard-tally/monolith/log.txt\necho \"=== FAIL assertions ===\"; grep -nE '^ *FAIL' \"$LOG\" | head\necho \"=== NOTE/skip lines ===\"; grep -nE '^  (NOTE|SKIP)' \"$LOG\" | head\necho \"=== mutation-routing #1830 ===\"; grep -n '43749\\|MUTATION-ROUTING.*1830\\|raw-presence\\|#1830' \"$LOG\" | head",
+      "python3 lib/test/pin-corpus-lint.py mutation-routing-worktree . 2>&1 | head -20; echo \"rc=${PIPESTATUS[0]}\"",
+      "grep -rln \"devflow_render_test_summary()\" lib/ ; echo ===; f=$(grep -rln \"^devflow_render_test_summary() {\" lib/); echo \"$f\"",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py 2>&1 | tail -5\necho \"---status---\"\npython3 .prflow/vendor/prflow/scripts/verification-flight.py status --tree \"$(git rev-parse HEAD)\" 2>&1 | tail -20",
+      "cd /home/runner/work/prflow/prflow\necho \"=== extension ladder ===\"\nscripts/load-prompt-extension.sh pr-description 2>&1 | head -60\necho \"=== growth helper ===\"\nscripts/prompt-surface-growth.py 2>&1\necho \"=== workpad ===\"\nWID=$(scripts/workpad.py id 1830 2>/dev/null || true); echo \"id=$WID\"\nscripts/workpad.py body \"$WID\" 2>/dev/null | grep -iE '\\(post-merge\\)' || echo \"(no post-merge items)\"\necho \"=== deferrals ===\"\nls -la .prflow/tmp/review/pr-1962/deferrals.json 2>&1 || echo \"(no deferrals file …[per-command-truncated]",
+      "scripts/prompt-surface-growth.py 2>&1",
+      ".prflow/vendor/prflow/scripts/prompt-surface-growth.py 2>&1 || scripts/prompt-surface-growth.py 2>&1",
+      "WID=$(scripts/workpad.py id 1830 2>/dev/null); echo \"wid=$WID\"; scripts/workpad.py body \"$WID\" 2>/dev/null | grep -ciE '\\(post-merge\\)'; ls .prflow/tmp/review/pr-1962/deferrals.json 2>&1 || echo \"no-deferrals\""
+    ],
+    "total": 18,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
