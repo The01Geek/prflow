@@ -39,8 +39,8 @@
   # those — so preserving them here keeps an exempted note in the learnings instead
   # of dropping it. Byte-for-byte the bundle's flat string array; [] when absent.
   reflections: (.reflections // []),
-  # Diff-size fields echoed from the bundle (additive; schema_version 3), defaulting like the
-  # reflections line above; the #1827 CTX_CLEAN_FALSY test pins that a real 0 / [] survives.
+  # Diff-size fields echoed from the bundle (additive; existing schema_version 3), defaulting to
+  # null via `//` (unlike reflections' []); the #1827 CTX_CLEAN_FALSY test pins a real 0 / [] survives.
   additions: (.additions // null),
   deletions: (.deletions // null),
   changed_files: (.changed_files // null),
