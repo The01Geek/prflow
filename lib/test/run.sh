@@ -34766,7 +34766,7 @@ echo "#408 cloud review no-verdict auto-resume backstop + #414 post-and-annotate
 # module re-derives REPO_ROOT and rebuilds the review-engine bundle itself;
 # see its .inventory.md for the coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-stall-backstop.sh" \
-  "review-stall-backstop" 462; then
+  "review-stall-backstop" 469; then
   printf 'ERROR: review-stall-backstop boundary could not record its result\n'
   exit 1
 fi
