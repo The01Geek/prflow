@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1920",
+  "generated_at": "2026-08-25T01:20:03Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.7",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.578911499999998,
+    "tokens": {
+      "input_tokens": 56,
+      "output_tokens": 31074,
+      "cache_read_input_tokens": 4568390,
+      "cache_creation_input_tokens": 231521,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 176,
+        "outputTokens": 64638,
+        "cacheReadInputTokens": 8593718,
+        "cacheCreationInputTokens": 607523,
+        "webSearchRequests": 0,
+        "costUSD": 10.578911499999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 41,
+    "duration_ms": 709344
+  },
+  "permission_denials": {
+    "count": 14,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p .prflow/tmp\nif rm -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" &&\n   [ -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   [ ! -L \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   git hash-object \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\"; then\n  :\nelse\n  echo \"::warning::snap …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "cd /tmp && rm -rf sbltest && mkdir -p sbltest/skills/review && git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > /tmp/sbltest/skills/review/SKILL.md 2>&1; git show ec7de478b2d71312cff3aa0903a74c16a837d705:scripts/skill-body-load-probe-verdict.py > /tmp/probe.py; git show ec7de478b2d71312cff3aa0903a74c16a837d705:lib/test/fixtures/skill-body-load-transcript.observed.txt > /tmp/transcript.txt; cd /tmp/sbltest && python3 /tmp/probe.py /tmp/transcript.txt --tier review --root …[per-command-truncated]",
+      "rm -rf /tmp/sbltest && mkdir -p /tmp/sbltest/skills/review && git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > /tmp/sbltest/skills/review/SKILL.md && git show ec7de478b2d71312cff3aa0903a74c16a837d705:scripts/skill-body-load-probe-verdict.py > /tmp/probe.py && git show ec7de478b2d71312cff3aa0903a74c16a837d705:lib/test/fixtures/skill-body-load-transcript.observed.txt > /tmp/transcript.txt && (cd /tmp/sbltest && python3 /tmp/probe.py /tmp/transcript.txt --tier review --roo …[per-command-truncated]",
+      "rm -rf /tmp/sbltest; mkdir -p /tmp/sbltest/skills/review; git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > /tmp/sbltest/skills/review/SKILL.md; git show ec7de478b2d71312cff3aa0903a74c16a837d705:scripts/skill-body-load-probe-verdict.py > /tmp/probe.py; git show ec7de478b2d71312cff3aa0903a74c16a837d705:lib/test/fixtures/skill-body-load-transcript.observed.txt > /tmp/transcript.txt; cd /tmp/sbltest; python3 /tmp/probe.py /tmp/transcript.txt --tier review --root prflow:revi …[per-command-truncated]",
+      "rm -rf /tmp/sbltest; mkdir -p /tmp/sbltest/skills/review; git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > /tmp/sbltest/skills/review/SKILL.md; git show ec7de478b2d71312cff3aa0903a74c16a837d705:scripts/skill-body-load-probe-verdict.py > /tmp/probe.py; git show ec7de478b2d71312cff3aa0903a74c16a837d705:lib/test/fixtures/skill-body-load-transcript.observed.txt > /tmp/transcript.txt; echo done",
+      "mkdir -p /tmp/sbltest/skills/review",
+      "git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > /tmp/sbltest/skills/review/SKILL.md",
+      "git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > /home/runner/work/prflow/prflow/.prflow/tmp/sbltest/skills/review/SKILL.md",
+      "git show ec7de478b2d71312cff3aa0903a74c16a837d705:scripts/skill-body-load-probe-verdict.py > /home/runner/work/prflow/prflow/.prflow/tmp/probe.py",
+      "git show ec7de478b2d71312cff3aa0903a74c16a837d705:lib/test/fixtures/skill-body-load-transcript.observed.txt > /home/runner/work/prflow/prflow/.prflow/tmp/transcript.txt",
+      "git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > /home/runner/work/prflow/prflow/.prflow/tmp/sbltest/skills/review/SKILL.md; git show ec7de478b2d71312cff3aa0903a74c16a837d705:scripts/skill-body-load-probe-verdict.py > /home/runner/work/prflow/prflow/.prflow/tmp/probe.py; git show ec7de478b2d71312cff3aa0903a74c16a837d705:lib/test/fixtures/skill-body-load-transcript.observed.txt > /home/runner/work/prflow/prflow/.prflow/tmp/transcript.txt; ls -la /home/runner/work/prflow/ …[per-command-truncated]",
+      "git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > /home/runner/work/prflow/prflow/.prflow/tmp/sbltest/skills/review/SKILL.md",
+      "git show ec7de478b2d71312cff3aa0903a74c16a837d705:scripts/skill-body-load-probe-verdict.py > /home/runner/work/prflow/prflow/probe_tmp.py"
+    ],
+    "total": 14,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
