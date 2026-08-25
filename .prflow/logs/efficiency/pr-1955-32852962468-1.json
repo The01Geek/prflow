@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1955",
+  "generated_at": "2026-08-25T13:33:16Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.413095,
+    "tokens": {
+      "input_tokens": 30,
+      "output_tokens": 15133,
+      "cache_read_input_tokens": 1831954,
+      "cache_creation_input_tokens": 137674,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 98,
+        "outputTokens": 43301,
+        "cacheReadInputTokens": 3912455,
+        "cacheCreationInputTokens": 457212,
+        "webSearchRequests": 0,
+        "costUSD": 6.413095,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 22,
+    "duration_ms": 493030
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} SURFACE=${PROGRESS_SURFACE:-none} CSD=${CLAUDE_SKILL_DIR:-none}\"",
+      "/home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT:$?---\"",
+      "/home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh requesting-code-review",
+      "cd /tmp && cat > t_both.jsonl <<'EOF'\n{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"printf ENVPROBE_CONTROL_BEFORE\"}}\n{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"printf 'ENVPROBE_HOP1 %s' \\\"${DEVFLOW_PROMPT_EXTENSION_ROOT:-UNSET}\\\"\"}}\n{\"type\":\"tool_result\",\"tool_use_id\":\"h1\",\"content\":\"ENVPROBE_HOP1 DEVFLOW_ENVPROBE_SENTINEL_874\\n\",\"is_error\":false}\n{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874\"}}\n{\"type\":\"tool_use\",\"name\" …[per-command-truncated]",
+      "P=/home/runner/work/prflow/prflow/scripts/env-propagation-probe-verdict.py\necho \"BOTH:      $(python3 $P /tmp/t_both.jsonl | grep -o 'Verdict: .[A-Z_]*')\"\necho \"UNSET:     $(python3 $P /tmp/t_unset.jsonl | grep -o 'Verdict: .[A-Z_]*')\"\necho \"FALSEPOS:  $(python3 $P /tmp/t_falsepos.jsonl | grep -o 'Verdict: .[A-Z_]*')\"",
+      "git fetch origin pull/1955/head:pr1955 2>&1 | tail -2; git show pr1955:scripts/env-propagation-probe-verdict.py > /tmp/new_verdict.py 2>&1; echo exit=$?; grep -c \"_tool_result_text\" /tmp/new_verdict.py",
+      "git show pr1955:scripts/env-propagation-probe-verdict.py > /tmp/new_verdict.py; grep -c _tool_result_text /tmp/new_verdict.py",
+      "git show pr1955:scripts/env-propagation-probe-verdict.py > /tmp/new_verdict.py",
+      "git show pr1955:scripts/env-propagation-probe-verdict.py > /home/runner/work/prflow/prflow/.prflow/tmp/new_verdict.py"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
