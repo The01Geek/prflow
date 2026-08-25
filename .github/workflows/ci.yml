@@ -112,37 +112,28 @@ jobs:
       - name: Preflight (dependency check)
         run: bash lib/preflight.sh
 
-      # Install the Claude Code CLI so the #671 `claude plugin validate --strict`
-      # gate in lib/test/run.sh ARMS instead of self-skipping. That gate probes
-      # `command -v claude`; with no CLI it takes a `blocking-gate` skip, and a skip
-      # exits 0, so an unarmed gate would validate nothing while CI stayed green.
+      # Install the Claude Code CLI so the #671 `claude plugin validate --strict` gate in
+      # lib/test/run.sh ARMS instead of self-skipping: that gate probes `command -v claude`
+      # and with no CLI takes a `blocking-gate` skip, which exits 0.
       #
-      # Installed on the `monolith` shard ONLY: that shard is the sole CLI consumer
-      # (it runs run.sh, where the gate lives; the module and python-pool shards touch
-      # no CLI), so the other four shards make no network fetch from claude.ai. The
-      # silent-revert exposure this narrowing would otherwise reopen is closed loudly
-      # rather than accepted: lib/test/run-shard.sh scans every shard's log and FAILS the
-      # shard when the #671 gate self-skipped for CLI absence — keyed on the gate's own
-      # skip line, not a shard name, so a future migration of the gate to an install-less
-      # shard fails there instead of silently reverting to green-while-validating-nothing.
+      # Do not un-gate this from the `monolith` shard — that shard is the sole CLI consumer
+      # (it runs run.sh, where the gate lives), so the other four would fetch claude.ai for
+      # nothing. What keeps the narrowing safe is lib/test/run-shard.sh: it scans every
+      # shard's log and fails a CI shard whose #671 gate self-skipped for CLI absence, keyed
+      # on the gate's own skip line rather than a shard name.
       #
       # The gate stages the SHIPPED PAYLOAD (the tracked index minus
-      # .claude-plugin/marketplace.json, whose presence would route the CLI to
-      # marketplace mode) and DESCENDS into skills/ and agents/: a frontmatter block
-      # that is malformed, absent, empty, or valid-but-missing-a-required-key exits 1.
-      # That is asserted executably in lib/test/run.sh, not by this comment (deliberately
-      # count-free — an arm count here rots on the next arm added, the
-      # self-referential-ordinal class CLAUDE.md names).
+      # .claude-plugin/marketplace.json, whose presence would route the CLI to marketplace
+      # mode) and DESCENDS into skills/ and agents/. Both are asserted executably in
+      # lib/test/run.sh rather than by this comment.
       #
-      # Validation is auth-free and needs no secret, which matters because this job
-      # runs arbitrary PR code (see the `on:` comment on why not pull_request_target).
+      # Validation is auth-free, which matters because this job runs arbitrary PR code
+      # (see the `on:` comment on why not pull_request_target).
       #
-      # PINNED rather than `stable`/`latest`: here the CLI *is* the validator, so an
-      # unpinned upgrade that adds a warning would redden this REQUIRED check on an
-      # unrelated PR. Bump it deliberately. The pin is one level shallow — install.sh
-      # is refetched unpinned each run — so the version argument pins the CLI, not the
-      # installer; the blast radius is bounded (this job is `contents: read`, holds no
-      # secrets) and the verify step below asserts the version actually landed.
+      # Do not replace the pin with `stable`/`latest`: here the CLI *is* the validator, so an
+      # unpinned upgrade that adds a warning reddens this REQUIRED check on an unrelated PR.
+      # The pin is one level shallow — install.sh is refetched unpinned each run — so the
+      # version argument pins the CLI, not the installer.
       - name: Install Claude Code CLI (arms the #671 plugin-validate gate)
         if: matrix.shard == 'monolith'
         run: |
@@ -184,9 +175,10 @@ jobs:
       # separately pins that the env: key carries a version-SHAPED value (not the exact
       # literal, which would trap every deliberate bump) — that pin is what catches the
       # key being dropped OR emptied.
-      # `always() &&` so verify runs whenever the monolith shard runs, gated on the
-      # shard and NOT on the install step's outcome — a plain `if: matrix.shard == …`
-      # implies success() and would skip verify after a corrupt install, letting it pass.
+      # Do not drop the `always() &&` for the plain `if: matrix.shard == …`: that form
+      # carries an implicit success(), which re-couples this step to every earlier step in
+      # the job — the coupling issue #1830 AC2 forbids, since a verify that runs only on an
+      # otherwise-clean job is not gated on the shard alone.
       - name: Verify the claude CLI resolves on PATH at the pinned version
         if: always() && matrix.shard == 'monolith'
         run: |
