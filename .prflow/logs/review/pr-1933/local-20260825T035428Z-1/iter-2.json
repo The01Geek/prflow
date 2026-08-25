@@ -1,0 +1,283 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-25T04:10:00Z",
+  "fix_commit_sha": "1ecf144a9",
+  "fix_files": [
+    "docs/internal/implement-context.md"
+  ],
+  "loop_role": "fix",
+  "promotion_provenance": null,
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "dispatched_effort": [
+    {
+      "agent": "prflow:code-reviewer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Two snapshot rows (compact_boundary events, median/max turns per run) have no aggregate-summary key, so a maintainer re-deriving from the named command must hand-aggregate the per-run array.",
+      "defect_signature": {
+        "file": "docs/internal/implement-context.md",
+        "line_range": [
+          330,
+          333
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Line-wrap inconsistency in the added cloud-tier paragraph.",
+      "defect_signature": {
+        "file": "docs/internal/implement-context.md",
+        "line_range": [
+          363,
+          363
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Ungrammatical possessive in the Corpus root row (\"the sibling accounts' held no transcripts\").",
+      "defect_signature": {
+        "file": "docs/internal/implement-context.md",
+        "line_range": [
+          323,
+          323
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "1ecf144a9"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "1ecf144a9"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "1ecf144a9"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 10,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "parked_class_sweep": {
+    "classes": [],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-25T04:20:00Z",
+    "reviewed_sha": "1ecf144a9e562ddc74028ff32f1ac92df6fad51a",
+    "verdict": "APPROVE WITH ADVISORY NOTES",
+    "coverage": "full",
+    "prompt_addenda": null,
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": "intentional",
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "scripts/context_eval_shared.py's untallied non-.jsonl walk-level drop (re-raised independently).",
+        "defect_signature": {
+          "file": "scripts/context_eval_shared.py",
+          "line_range": [
+            118,
+            122
+          ],
+          "kind": "logic_error"
+        },
+        "disposition": "parked out-of-scope — the PR's branch delta touches no scripts/ path"
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "_iter_session_files' docstring asserts a closed set of two tallied walk-level drops while a third, silent one exists.",
+        "defect_signature": {
+          "file": "scripts/context_eval_shared.py",
+          "line_range": [
+            91,
+            102
+          ],
+          "kind": "comment_drift"
+        },
+        "disposition": "parked out-of-scope — same untouched file"
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "The section's opening 'these figures' points forward to the table below rather than back.",
+        "defect_signature": {
+          "file": "docs/internal/implement-context.md",
+          "line_range": [
+            313,
+            315
+          ],
+          "kind": "style"
+        },
+        "disposition": "advisory residual — surfaced, not resolved (a post-shadow hand-fix would be an unreviewed final edit)"
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 1,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": false
+  },
+  "verification_evidence": {
+    "focused_selection": "docs/internal/** has no coverage-map entry (the map covers lib/ and scripts/ only), so the touched surface is exempt on the no-entry ground; lib/test/test_implement_context_eval.py is run because acceptance criterion 14 names it and its secret scan reads the edited page. single_flight_consulted: yes."
+  },
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 20
+    },
+    "phase_0_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 2
+    },
+    "phase_1": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_1_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_2": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_3": {
+      "calls": 4,
+      "tokens": 325945,
+      "wall_clock_s": 146
+    },
+    "step_2_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 2,
+      "webfetches": 0
+    },
+    "step_2_6": {
+      "calls": 4,
+      "tokens": 311990,
+      "wall_clock_s": 115
+    },
+    "phase_4_x": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 3
+    }
+  },
+  "synthesized": false
+}
