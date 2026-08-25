@@ -5817,11 +5817,20 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                             f"line(s)): {_rc_disproof}. No PATCH was made."
                         )
                     # AC4: a confirmed write reports the measured values on success.
+                    # The engine-source clause is honest per §2.3.6: it names the arm
+                    # as verified only in this engine's own repo, where the arm was
+                    # actually evaluated; on any other repo the arm is excluded from the
+                    # predicate, so the breadcrumb says so rather than asserting a check
+                    # that did not run.
+                    _rc_engine_note = (
+                        'and non-engine-source: verified'
+                        if _is_engine_own_repo(_rc_repo_root)
+                        else '(engine-source arm not evaluated: not this engine\'s '
+                             'repository)')
                     sys.stderr.write(
                         'workpad.py: review-coverage skipped-intentional confirmed — '
                         f"{_rc_facts['files']} changed file(s), {_rc_facts['lines']} "
-                        'changed line(s), path-set config-only and non-engine-source: '
-                        'verified\n')
+                        f'changed line(s), path-set config-only {_rc_engine_note}\n')
         elif _rc_override:
             sys.stderr.write(
                 'workpad.py: --record-review-coverage-override is ignored — it applies '

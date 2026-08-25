@@ -12799,6 +12799,78 @@ assert_eq("#1509 AC3: a non-config extension in the diff is refused, naming the 
           True, _rc_py_msg is not None and "b.py" in _rc_py_msg
           and "non-config-only extension" in _rc_py_msg)
 
+
+def _rc_lines(n):
+    return '\n'.join(f'l{i}' for i in range(n)) + '\n'
+
+
+# AC3 ceiling boundaries (</<= off-by-one guards): 99 lines over 3 files is confirmed,
+# 100 lines is refused; 3 files is confirmed, 4 files is refused.
+_rc_99_repo, _rc_99_head = _rc_diff_repo(
+    'lines99', {'a.md': '', 'b.md': '', 'c.md': ''},
+    {'a.md': _rc_lines(33), 'b.md': _rc_lines(33), 'c.md': _rc_lines(33)})
+assert_eq("#1509 AC3: exactly 99 changed lines over 3 files is confirmed (below the 100 ceiling)",
+          None, _rc_intentional_write(_rc_99_repo, _rc_99_head))
+_rc_100_repo, _rc_100_head = _rc_diff_repo(
+    'lines100', {'a.md': '', 'b.md': '', 'c.md': ''},
+    {'a.md': _rc_lines(34), 'b.md': _rc_lines(33), 'c.md': _rc_lines(33)})
+_rc_100_msg = _rc_intentional_write(_rc_100_repo, _rc_100_head)
+assert_eq("#1509 AC3: exactly 100 changed lines is refused (the ceiling is strict <100)",
+          True, _rc_100_msg is not None and "100" in _rc_100_msg
+          and "line" in _rc_100_msg)
+_rc_4f_repo, _rc_4f_head = _rc_diff_repo(
+    '4file', {f'd{i}.md': 'x\n' for i in range(4)},
+    {f'd{i}.md': 'x\ny\n' for i in range(4)})
+_rc_4f_msg = _rc_intentional_write(_rc_4f_repo, _rc_4f_head)
+assert_eq("#1509 AC3: exactly 4 changed files is refused (the file ceiling is <=3)",
+          True, _rc_4f_msg is not None and "4" in _rc_4f_msg and "file" in _rc_4f_msg)
+
+# AC3 engine-source arms 2 (state-dir prompt extension) and 3 (root agent file), in
+# this engine's own repo: each forces the checklist on, so a skipped-intentional over
+# one is refused even though it is small and config-only.
+_rc_arm2_repo, _rc_arm2_head = _rc_diff_repo(
+    'arm2', {'.prflow/prompt-extensions/review.md': 'x\n'},
+    {'.prflow/prompt-extensions/review.md': 'x\ny\n'}, plugin=True)
+_rc_arm2_msg = _rc_intentional_write(_rc_arm2_repo, _rc_arm2_head)
+assert_eq("#1509 AC3: a .prflow/**.md change in this repo is refused (engine-source arm 2)",
+          True, _rc_arm2_msg is not None and "engine's own source set" in _rc_arm2_msg)
+_rc_arm3_repo, _rc_arm3_head = _rc_diff_repo(
+    'arm3', {'CLAUDE.md': 'x\n'}, {'CLAUDE.md': 'x\ny\n'}, plugin=True)
+_rc_arm3_msg = _rc_intentional_write(_rc_arm3_repo, _rc_arm3_head)
+assert_eq("#1509 AC3: a CLAUDE.md change in this repo is refused (engine-source arm 3)",
+          True, _rc_arm3_msg is not None and "engine's own source set" in _rc_arm3_msg)
+# The SAME arm-3 change on another repository is confirmed (engine arm excluded there).
+_rc_arm3c_repo, _rc_arm3c_head = _rc_diff_repo(
+    'arm3-consumer', {'CLAUDE.md': 'x\n'}, {'CLAUDE.md': 'x\ny\n'}, plugin=False)
+assert_eq("#1509 AC3: the same CLAUDE.md change on another repository is confirmed",
+          None, _rc_intentional_write(_rc_arm3c_repo, _rc_arm3c_head))
+
+# An empty diff (reviewed head == base, so merge_base == head) resolves and confirms
+# (0 files, 0 lines): the recomputation resolves rather than downgrading.
+_rc_empty = Path(tempfile.mkdtemp(prefix='rc1509-empty-'))
+_rc_git(['init', '-q', '-b', 'main', '.'], _rc_empty)
+(_rc_empty / 'a.md').write_text('x\n')
+_rc_git(['add', '--', 'a.md'], _rc_empty)
+_rc_git(['commit', '-q', '-m', 'base'], _rc_empty)
+_rc_git(['checkout', '-q', '-b', 'feat'], _rc_empty)  # no commit: feat == main
+_rc_empty_head = _rc_git(['rev-parse', 'HEAD'], _rc_empty).stdout.strip()
+assert_eq("#1509 AC1: an empty reviewed diff (head==base) resolves and confirms the skip",
+          None, _rc_intentional_write(_rc_empty, _rc_empty_head))
+
+# The override is a no-op on a non-skipped-intentional checklist and says so on stderr,
+# leaving the value unchanged (no recomputation runs).
+_rc_ign_buf = io.StringIO()
+with contextlib.redirect_stderr(_rc_ign_buf):
+    _rc_ign_body = apply_mut(_CP_BODY, make_args(
+        record_review_coverage=['full', 'attempted', 'complete', 'complete'],
+        record_review_coverage_head=_rc_ok_head,
+        record_review_coverage_override='not applicable here',
+        repo_root='/no/such/repo/path/1509'), [])
+assert_eq("#1509 AC13: --override on a non-skipped-intentional checklist is ignored (value unchanged)",
+          "complete", _rc_checklist_axis(_rc_ign_body))
+assert_eq("#1509 AC13: ...and the ignored override is announced on stderr",
+          True, "is ignored" in _rc_ign_buf.getvalue())
+
 # AC7: the bare `skipped` value is written unchanged — no recomputation, no new condition.
 # (A bad repo root would break a recomputation, proving none runs for bare `skipped`.)
 _rc_bare_body = apply_mut(_CP_BODY, make_args(
@@ -12845,9 +12917,18 @@ _p05_exts_m = re.search(r'extension in [^{]*\{([^}]+)\}', _p05_text)
 _p05_exts = (frozenset(x.strip() for x in _p05_exts_m.group(1).split(','))
              if _p05_exts_m else None)
 _p05_arm1 = re.search(r'`skills/\*\*`\s+OR\s+`agents/\*\*`\s+OR\s+`lib/\*\*`', _p05_text)
+# Arm 2 (state-directory prompt-extension) and arm 3 (root agent-instruction file):
+# AC12 pins the whole engine-source *arm set*, not only arm 1, so a coupled-mirror
+# drift on arm 2 (e.g. retiring the `.devflow/` sub-arm) or arm 3 must turn this RED.
+_p05_arm2 = re.search(
+    r'Arm 2 —.*?(?=\n\s+- Arm 3 —)', _p05_text, re.S)
+_p05_arm2_dirs = (tuple(sorted(set(re.findall(r'`(\.\w+)/`', _p05_arm2.group(0)))))
+                  if _p05_arm2 else None)
+_p05_arm3 = re.search(r'Arm 3 —.*?basename is `CLAUDE\.md`', _p05_text, re.S)
 assert_eq("#1509 AC12: phase-0-setup.md yields each profile-row arm (non-vacuous parse)",
           True, all(x is not None for x in
-                    (_p05_line, _p05_file, _p05_exts, _p05_arm1)))
+                    (_p05_line, _p05_file, _p05_exts, _p05_arm1, _p05_arm2,
+                     _p05_arm2_dirs, _p05_arm3)))
 assert_eq("#1509 AC12: the line ceiling matches phase-0-setup.md",
           int(_p05_line.group(1)), workpad._REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING)
 assert_eq("#1509 AC12: the file ceiling matches phase-0-setup.md",
@@ -12857,6 +12938,11 @@ assert_eq("#1509 AC12: the config-only extension set matches phase-0-setup.md",
 assert_eq("#1509 AC12: the engine-source arm-1 prefixes match phase-0-setup.md",
           ('skills/', 'agents/', 'lib/'),
           workpad._REVIEW_COVERAGE_ENGINE_SOURCE_PREFIXES)
+assert_eq("#1509 AC12: the engine-source arm-2 state dirs match phase-0-setup.md",
+          _p05_arm2_dirs, tuple(sorted(workpad._REVIEW_COVERAGE_ENGINE_STATE_DIRS)))
+assert_eq("#1509 AC12: the engine-source arm-3 root agent file matches phase-0-setup.md",
+          True, _p05_arm3 is not None
+          and workpad._REVIEW_COVERAGE_ENGINE_ROOT_AGENT_FILE == 'CLAUDE.md')
 
 # ── issue #1817: the terminal --status Complete extension-row gate ─────────────
 # The gate refuses a Complete write while any `prompt extension resolved:` row is
