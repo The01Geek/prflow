@@ -115,6 +115,20 @@ jobs:
           # with its bound components.
           python3 scripts/install_state.py verify --state .prflow/install-state.json --manifest .prflow/lint-manifest.json
           python3 lib/generate-install-state.py --check
+      - name: Exercise a real provisioning pass (linux-x86_64, real downloads + digest verify)
+        env:
+          LINT_MANIFEST: .prflow/lint-manifest.json
+          INSTALL_STATE: .prflow/install-state.json
+          DEST_BIN: ${{ runner.temp }}/lint-exercise-bin
+          TARGET_OS: linux
+          TARGET_ARCH: x86_64
+          SCRIPTS_DIR: scripts
+          LINTPROV_SKIP_PATH_REUSE: "1"
+        run: bash .github/actions/setup-project-env/provision-lint-tools.sh
+      - name: Assert the provisioned binaries run
+        run: |
+          "$RUNNER_TEMP"/lint-exercise-bin/shellcheck --version
+          "$RUNNER_TEMP"/lint-exercise-bin/ruff --version
 
   shard:
     name: shard (${{ matrix.shard }})

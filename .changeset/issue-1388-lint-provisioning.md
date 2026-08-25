@@ -13,4 +13,6 @@ type: Added
   review runner hardens its setup invocation by materializing trusted base-ref bytes over the
   composite-action directory before it runs, so the read-only review job executes the base-ref
   action body rather than a PR-head edit, and CI validates and exercises the candidate manifest
-  with no repository write credentials. (#1963)
+  with no repository write credentials. An unsupported platform degrades with a warning instead of
+  failing, and a version-verified pre-provisioned runner-image tool is reused instead of
+  downloaded. (#1963)

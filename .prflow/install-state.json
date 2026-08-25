@@ -4,7 +4,7 @@
   "components": {
     "manifest": {
       "path": ".prflow/lint-manifest.json",
-      "digest": "sha256:e5b5288dcd7d6c80ff21073e0376909d6869efe7295e970e80875f00ba62f700"
+      "digest": "sha256:b6bc3d678a1517156c4ed9c4bd0b75fe8ee3ca342410088da14435eee945028f"
     },
     "manifest-reader": {
       "path": "scripts/lint_manifest.py",
@@ -20,11 +20,11 @@
     },
     "setup-action": {
       "path": ".github/actions/setup-project-env/action.yml",
-      "digest": "sha256:2576f9564220c3729ae2ed0f30a87c912771644c76cf92e8b1ce99dc2d8054c2"
+      "digest": "sha256:743fcedfbe049d2c33d87c52f835c83fc690b197dcfc80da6a5ddec3b6870687"
     },
     "provision-helper": {
       "path": ".github/actions/setup-project-env/provision-lint-tools.sh",
-      "digest": "sha256:67d2000b5522a9feaee862db174a3493f4b256247eb0d390e261f08c0dfb4932"
+      "digest": "sha256:f252a5d84c349856364a02af2a97494ccb3cf5b7bba971cf018720b827777227"
     },
     "implement-workflow": {
       "path": ".github/workflows/devflow-implement.yml",
