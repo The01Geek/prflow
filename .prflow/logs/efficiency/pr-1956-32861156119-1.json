@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1956",
+  "generated_at": "2026-08-25T14:53:15Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.545341249999998,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 22438,
+      "cache_read_input_tokens": 3002234,
+      "cache_creation_input_tokens": 185645,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 104,
+        "outputTokens": 59796,
+        "cacheReadInputTokens": 4860980,
+        "cacheCreationInputTokens": 627722,
+        "webSearchRequests": 0,
+        "costUSD": 8.545341249999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 36,
+    "duration_ms": 546765
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNID---\"; echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"; echo \"---TREE---\"; git rev-parse HEAD",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null; echo \"---HEAD---\"; git -C /home/runner/work/prflow/prflow log --oneline -3 2>/dev/null; echo \"---branch---\"; git -C /home/runner/work/prflow/prflow branch -a 2>/dev/null | head"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
