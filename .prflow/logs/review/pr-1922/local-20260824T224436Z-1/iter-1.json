@@ -1,7 +1,7 @@
 {
   "iter": 1,
   "started_at": "2026-08-24T22:44:36Z",
-  "fix_commit_sha": "3c89c22aacd0dc9747b5719169da21929af007e6",
+  "fix_commit_sha": "335f10cd5",
   "fix_files": [
     "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
     "docs/internal/shadow-review.md",
@@ -356,7 +356,7 @@
     }
   ],
   "convergence_inputs": {
-    "fixes_applied": 8,
+    "fixes_applied": 16,
     "fix_diff_lines": 17,
     "new_corroborated_critical_count": 0
   },
@@ -411,5 +411,12 @@
     }
   ],
   "telemetry": "unavailable",
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
   "synthesized": false
 }
