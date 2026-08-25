@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1926",
+  "generated_at": "2026-08-25T03:21:24Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.11",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.7873449,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 30032,
+      "cache_read_input_tokens": 3229397,
+      "cache_creation_input_tokens": 209013,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 42,
+        "outputTokens": 30032,
+        "cacheReadInputTokens": 3229397,
+        "cacheCreationInputTokens": 209013,
+        "webSearchRequests": 0,
+        "costUSD": 4.455838499999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 114,
+        "outputTokens": 27021,
+        "cacheReadInputTokens": 3769592,
+        "cacheCreationInputTokens": 522860,
+        "webSearchRequests": 0,
+        "costUSD": 2.3315063999999994,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 35,
+    "duration_ms": 629441
+  },
+  "permission_denials": {
+    "count": 15,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID_ENV=${GITHUB_RUN_ID:-<none>}\"; echo \"ATTEMPT=${GITHUB_RUN_ATTEMPT:-<none>}\"; date -u +%Y%m%dT%H%M%SZ",
+      "for f in scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py; do echo \"=== $f ===\"; echo \"-- math. usages:\"; grep -n 'math\\.' \"$f\" || echo \"(none)\"; echo \"-- RESIDENCY_KEYS usages:\"; grep -n 'RESIDENCY_KEYS' \"$f\" || echo \"(none)\"; done",
+      "for f in scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py; do echo \"== $f ==\"; git show bc157565aa9be596008253a308ef6d82fce0e7f7:\"$f\" | grep -n \"math\\.\" ; done",
+      "git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/create_issue_eval.py > /tmp/cie.py\ngit show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/implement-context-eval.py > /tmp/ice.py\ngit show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/review-context-eval.py > /tmp/rce.py\ngit show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/context_eval_shared.py > /tmp/shared.py\ngit show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/create-issue-context-eval.py > /tmp/cice.py\ngrep -n \"math\\ …[per-command-truncated]",
+      "git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/create_issue_eval.py > /tmp/cie.py",
+      "mkdir -p .prflow/tmp/review-scratch && git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/create_issue_eval.py > .prflow/tmp/review-scratch/cie.py",
+      "for f in scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py; do echo \"== $f ==\"; git show bc157565aa9be596008253a308ef6d82fce0e7f7:$f | grep -n \"math\\.\" ; done",
+      "for f in scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py; do echo \"== $f ==\"; git show bc157565aa9be596008253a308ef6d82fce0e7f7:\"$f\" | grep -n \"math\\.\" ; done",
+      "git show fb27d089af17a351b9ddd0c808339598c6f98b83:scripts/create_issue_eval.py > /tmp/create_issue_eval_base.py\ngit show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/create_issue_eval.py > /tmp/create_issue_eval_head.py\ngit show fb27d089af17a351b9ddd0c808339598c6f98b83:scripts/implement-context-eval.py > /tmp/implement_base.py\ngit show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/implement-context-eval.py > /tmp/implement_head.py\ngit show fb27d089af17a351b9ddd0c808339598c6f98b83:scripts/ …[per-command-truncated]",
+      "git show fb27d089af17a351b9ddd0c808339598c6f98b83:scripts/create_issue_eval.py > /tmp/create_issue_eval_base.py; git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/create_issue_eval.py > /tmp/create_issue_eval_head.py; git show fb27d089af17a351b9ddd0c808339598c6f98b83:scripts/implement-context-eval.py > /tmp/implement_base.py; git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/implement-context-eval.py > /tmp/implement_head.py; git show fb27d089af17a351b9ddd0c808339598c6f98b83:scri …[per-command-truncated]",
+      "git show fb27d089af17a351b9ddd0c808339598c6f98b83:scripts/create_issue_eval.py > /tmp/create_issue_eval_base.py",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1926/scratch\ncd /home/runner/work/prflow/prflow\ngit show fb27d089af17a351b9ddd0c808339598c6f98b83:scripts/create_issue_eval.py > .prflow/tmp/review/pr-1926/scratch/create_base.py\ngit show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/create_issue_eval.py > .prflow/tmp/review/pr-1926/scratch/create_head.py\ngit show fb27d089af17a351b9ddd0c808339598c6f98b83:scripts/implement-context-eval.py > .prflow/tmp/review/pr-1926/scratch/impl_b …[per-command-truncated]",
+      "git show fb27d089af17a351b9ddd0c808339598c6f98b83:scripts/create_issue_eval.py > .prflow/tmp/review/pr-1926/scratch/create_base.py",
+      "mkdir -p /home/runner/work/prflow/prflow/tmp_review_scratch && git show fb27d089af17a351b9ddd0c808339598c6f98b83:scripts/create_issue_eval.py > /home/runner/work/prflow/prflow/tmp_review_scratch/create_base.py && echo OK",
+      "grep -n \"noqa\" /dev/null; git show bc157565aa9be596008253a308ef6d82fce0e7f7:scripts/create_issue_eval.py | sed -n '108,132p'"
+    ],
+    "total": 15,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
