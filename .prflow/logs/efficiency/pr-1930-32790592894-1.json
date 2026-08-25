@@ -304,5 +304,91 @@
       "iter": 3,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.7",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 103.7827690500001,
+    "tokens": {
+      "input_tokens": 472,
+      "output_tokens": 294031,
+      "cache_read_input_tokens": 115058510,
+      "cache_creation_input_tokens": 721798,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 926,
+        "outputTokens": 499818,
+        "cacheReadInputTokens": 132444020,
+        "cacheCreationInputTokens": 3088849,
+        "webSearchRequests": 0,
+        "costUSD": 100.73413875000011,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 142,
+        "outputTokens": 51301,
+        "cacheReadInputTokens": 5078469,
+        "cacheCreationInputTokens": 607857,
+        "webSearchRequests": 0,
+        "costUSD": 3.0486303,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 326,
+    "duration_ms": 12512467
+  },
+  "permission_denials": {
+    "count": 26,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/workpad.py handoff-state .prflow/tmp/implement-handoff-1925-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json --issue 1925 --run-id $GITHUB_RUN_ID --run-attempt $GITHUB_RUN_ATTEMPT",
+      "CUR=$(git branch --show-current); echo \"$CUR\"\n.prflow/vendor/prflow/scripts/workpad.py update 1925 --branch \"$CUR\" 2>&1",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1925 --note \"§2.2.7 coupled-site map (searches ran via Grep tool): (1) devflow-implement.yml <-> devflow.yml Start+Stop steps kept byte-identical; (2) installer-wiring floor at lib/test/run.sh:48601 ('installer-wiring' 287) <-> scripts/workflow-flight-recorder-registry.json:54 (minimum_assertions 287) compared exact-equal — bump together; (3) stop-refresher.sh pinned message literals asserted in lib/test/run.sh (#487 arms) + docs/internal/cloud-set …[per-command-truncated]",
+      "git diff --merge-base origin/main -U0 | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | tail -30; echo \"EXIT=${PIPESTATUS[1]}\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1925-refresher-reap-scope.md 2>/dev/null | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | tail -15",
+      "git merge-base HEAD origin/main && echo \"---DIFF STAT---\" && git diff --stat $(git merge-base HEAD origin/main) HEAD",
+      "git diff origin/main...HEAD > .prflow/tmp/review/pr-1930/32790592894-1/diff.patch; wc -l .prflow/tmp/review/pr-1930/32790592894-1/diff.patch; echo \"---STAT---\"; git diff --stat origin/main...HEAD",
+      "\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review}\"/../../scripts/load-prompt-extension.sh requesting-code-review",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review",
+      "git merge-base HEAD main && echo \"---HEAD---\" && git rev-parse HEAD && echo \"---DIFF STAT---\" && git diff --stat $(git merge-base HEAD main) HEAD",
+      ".prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh \"fix: pin Start<->Stop HANDLE equality (issue #1925 iteration 2), clarify containment comment\" lib/test/modules/installer-wiring.sh lib/test/run.sh scripts/workflow-flight-recorder-registry.json",
+      "cd /home/runner/work/prflow/prflow\nMB=$(git merge-base main HEAD); echo \"merge-base=$MB\"\necho \"---FILES---\"\ngit diff --stat \"$MB\"..HEAD\necho \"---HEAD---\"\ngit rev-parse HEAD",
+      "mkdir -p .prflow/tmp/review/pr-1930/32790592894-1\ngit diff 084b47a4b0bfb3b711866ae0fb94828cd08acc27..HEAD > .prflow/tmp/review/pr-1930/32790592894-1/diff.patch\nwc -l .prflow/tmp/review/pr-1930/32790592894-1/diff.patch\necho \"HEAD=$(git rev-parse HEAD)\"",
+      "git diff 084b47a4b0bfb3b711866ae0fb94828cd08acc27..HEAD > .prflow/tmp/review/pr-1930/32790592894-1/diff.patch; wc -l .prflow/tmp/review/pr-1930/32790592894-1/diff.patch",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT:$?\"",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1930/32790592894-1/diff.patch 2>/dev/null | wc -l; git -C /home/runner/work/prflow/prflow diff --merge-base origin/main --stat 2>/dev/null | tail -30",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/ac-evidence-1925.json << 'EOF'\n{\n  \"criteria\": [\n    {\"criterion\": 1, \"status\": \"satisfied\", \"evidence\": \"lib/test/run-shard.sh monolith test '#1925 AC1: a contained suite arm leaves a LIVE refresher in the real temp dir alive' PASSed (lib/test/run.sh:~48622-48650), aggregate 9929 passed, 0 failed on HEAD\",\n     \"dispositions\": {\n       \"type-decided\": \"yes (verification-command; the run.sh #19 …[per-command-truncated]",
+      "python3 - << 'PYEOF'\nimport json\n\ncriteria = []\n\ndef add(n, status, evidence, disp):\n    criteria.append({\"criterion\": n, \"status\": status, \"evidence\": evidence, \"dispositions\": disp})\n\ndef d(td, cr, sf, er):\n    return {\"type-decided\": td, \"command-run\": cr, \"single-flight\": sf, \"evidence-recorded\": er}\n\nadd(1, \"satisfied\",\n    \"lib/test/run-shard.sh monolith test '#1925 AC1: a contained suite arm leaves a LIVE refresher in the real temp dir alive' PASSed (lib/test/run.sh ~48622-48650), shard a …[per-command-truncated]",
+      "python3 - << 'PYEOF'\nimport json\n\ncriteria = []\n\ndef add(n, status, evidence, disp):\n    criteria.append({\"criterion\": n, \"status\": status, \"evidence\": evidence, \"dispositions\": disp})\n\ndef d(td, cr, sf, er):\n    return {\"type-decided\": td, \"command-run\": cr, \"single-flight\": sf, \"evidence-recorded\": er}\n\nadd(1, \"satisfied\",\n    \"lib/test/run-shard.sh monolith test AC1 (a contained suite arm leaves a LIVE refresher in the real temp dir alive) PASSed, shard aggregate 9929 passed, 0 failed on HEAD …[per-command-truncated]",
+      "cat << 'EOF' > /tmp/test1.txt\nhello world\nEOF\ncat /tmp/test1.txt",
+      "echo \"hello\" > /tmp/test2.txt && cat /tmp/test2.txt",
+      "echo \"hello\" > /tmp/test2.txt",
+      "echo hi > /home/runner/work/prflow/prflow/.prflow/tmp/test2.txt",
+      ".prflow/vendor/prflow/scripts/run-jq.sh '.criteria[0]' .prflow/tmp/ac-evidence-1925.json 2>/dev/null || (echo \"---not a .criteria wrapper, showing top keys---\"; .prflow/vendor/prflow/scripts/run-jq.sh 'if type==\"array\" then .[0] else (.criteria[0]? // .) end' .prflow/tmp/ac-evidence-1925.json)",
+      ".prflow/vendor/prflow/scripts/prompt-surface-growth.py 2>&1 || scripts/prompt-surface-growth.py 2>&1 || echo \"---both failed rc=$?---\"",
+      "PR_NUMBER=$(gh pr view --json number --jq '.number' 2>/dev/null); [ -n \"$PR_NUMBER\" ] || { echo \"ERROR: empty PR number\"; exit 1; }; echo \"PR=$PR_NUMBER\"; gh api --method PATCH \"repos/{owner}/{repo}/pulls/$PR_NUMBER\" -F body=@/home/runner/work/prflow/prflow/.prflow/tmp/pr-1930-body.md --jq '.number'"
+    ],
+    "total": 26,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
