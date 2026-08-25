@@ -3048,7 +3048,7 @@ def _decode_utf8(raw: bytes, flag: str, path: str) -> str:
     """Decode bytes as UTF-8, converting a `UnicodeDecodeError` (a `ValueError`
     the plain `except OSError` shape would let escape as a raw traceback) into
     the flag's clean `_UpdateError` contract. Single-sourced so the two file
-    readers below (`_read_section_file`, `_read_reflection_payload`) cannot drift
+    readers below (`_read_section_file`, `_read_file_payload`) cannot drift
     the decode-failure message shape apart."""
     try:
         return raw.decode('utf-8')
@@ -3070,27 +3070,29 @@ def _read_section_file(path: str, flag: str) -> str:
     return _decode_utf8(raw, flag, path)
 
 
-def _read_reflection_payload(path: str) -> str:
-    """Read a reflection payload for --reflection-file, bypassing shell
-    interpolation: bytes are read verbatim from a file, or from stdin when
-    `path` is `-`, and decoded via `_decode_utf8` (explicit UTF-8, no ambient
-    codec) so an em-dash or emoji round-trips byte-identical on any host. An
-    empty or whitespace-only payload is a structural failure — a blank reflection
-    bullet carries no signal — so it aborts before any PATCH. All failure modes
-    raise `_UpdateError`, so `_apply_mutations` aborts with no partial workpad
-    write."""
+def _read_file_payload(path: str, flag: str, thing: str) -> str:
+    """Read a `--*-file` bullet payload for `flag` (e.g. `--reflection-file`,
+    `--note-file`), bypassing shell interpolation: bytes are read verbatim from a
+    file, or from stdin when `path` is `-`, and decoded via `_decode_utf8`
+    (explicit UTF-8, no ambient codec) so backticks, `$`, quotes, an em-dash or an
+    emoji round-trip byte-identical on any host. An empty or whitespace-only
+    payload is a structural failure — a blank `thing` bullet carries no signal —
+    so it aborts before any PATCH. All failure modes raise `_UpdateError`, so
+    `_apply_mutations` aborts with no partial workpad write. Shared by both file
+    channels so a future fix to the read/decode/empty-guard contract cannot drift
+    one behind the other."""
     try:
         if path == '-':
             raw = sys.stdin.buffer.read()
         else:
             raw = Path(path).read_bytes()
     except OSError as e:
-        raise _UpdateError(f"--reflection-file: could not read {path!r}: {e}")
-    text = _decode_utf8(raw, '--reflection-file', path)
+        raise _UpdateError(f"{flag}: could not read {path!r}: {e}")
+    text = _decode_utf8(raw, flag, path)
     if not text.strip():
         raise _UpdateError(
-            "--reflection-file: payload is empty or whitespace-only; a "
-            "reflection bullet must carry text")
+            f"{flag}: payload is empty or whitespace-only; a "
+            f"{thing} bullet must carry text")
     return text
 
 
@@ -3103,51 +3105,28 @@ def _reflection_file_payload(args) -> str:
     when the PATCH drops it. The `-`/stdin arm can only be read once — a second read
     returns empty and would raise the empty-payload `_UpdateError` against a payload
     that was in fact fine — so the first read is cached and a later caller is served
-    from that cache. Failure modes are `_read_reflection_payload`'s unchanged
+    from that cache. Failure modes are `_read_file_payload`'s unchanged
     `_UpdateError` contract; only a SUCCESSFUL read is cached, so a caller that
     retries after a failure re-reads rather than seeing a half-populated cache."""
     cached = getattr(args, '_reflection_file_payload_cache', None)
     if cached is None:
-        cached = _read_reflection_payload(args.reflection_file)
+        cached = _read_file_payload(args.reflection_file, '--reflection-file', 'reflection')
         args._reflection_file_payload_cache = cached
     return cached
 
 
-def _read_note_payload(path: str) -> str:
-    """Read a `--note-file` payload, bypassing shell interpolation exactly as
-    `_read_reflection_payload` does for `--reflection-file`: bytes are read
-    verbatim from a file (or from stdin when `path` is `-`) and decoded via
-    `_decode_utf8` (explicit UTF-8, no ambient codec), so backticks, `$`, quotes,
-    an em-dash or an emoji round-trip byte-identical on any host. An empty or
-    whitespace-only payload is a structural failure — a blank note bullet carries
-    no signal — so it aborts before any PATCH. All failure modes raise
-    `_UpdateError`, so `_apply_mutations` aborts with no partial workpad write."""
-    try:
-        if path == '-':
-            raw = sys.stdin.buffer.read()
-        else:
-            raw = Path(path).read_bytes()
-    except OSError as e:
-        raise _UpdateError(f"--note-file: could not read {path!r}: {e}")
-    text = _decode_utf8(raw, '--note-file', path)
-    if not text.strip():
-        raise _UpdateError(
-            "--note-file: payload is empty or whitespace-only; a "
-            "note bullet must carry text")
-    return text
-
-
 def _note_file_payload(args) -> str:
     """Read `--note-file`'s payload at most once per invocation, memoized on
-    `args` — the note twin of `_reflection_file_payload`. Two consumers need the
-    SAME text: `_cmd_update_inner`'s failed-write buffering (which persists the
-    note when a PATCH drops it) and `_apply_mutations`, which renders the bullet.
-    The `-`/stdin arm can only be read once, so the first read is cached and a
-    later caller is served from that cache; only a SUCCESSFUL read is cached, so a
+    `args` — the note twin of `_reflection_file_payload` (both share
+    `_read_file_payload`). Two consumers need the SAME text:
+    `_cmd_update_inner`'s failed-write buffering (which persists the note when a
+    PATCH drops it) and `_apply_mutations`, which renders the bullet. The
+    `-`/stdin arm can only be read once, so the first read is cached and a later
+    caller is served from that cache; only a SUCCESSFUL read is cached, so a
     caller that retries after a failure re-reads rather than seeing a stale one."""
     cached = getattr(args, '_note_file_payload_cache', None)
     if cached is None:
-        cached = _read_note_payload(args.note_file)
+        cached = _read_file_payload(args.note_file, '--note-file', 'note')
         args._note_file_payload_cache = cached
     return cached
 
