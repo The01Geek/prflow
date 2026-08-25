@@ -1,0 +1,123 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T18:00:00Z",
+  "fix_commit_sha": "e0625c7eac6bfdbc60d0f9e21985686192550ceb",
+  "fix_files": [
+    ".gitignore",
+    "lib/test/test_verification_flight.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "dispatch_mode": null,
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "non-object valid-JSON --payload branch untested",
+      "defect_signature": {
+        "file": "scripts/verification-flight.py",
+        "line_range": [
+          175,
+          180
+        ],
+        "kind": "untested-error-branch"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": ".prflow/logs/phase-events/ not re-ignored",
+      "defect_signature": {
+        "file": ".gitignore",
+        "line_range": [
+          21,
+          22
+        ],
+        "kind": "missing-ignore"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "default-location test was constant-shape",
+      "defect_signature": {
+        "file": "lib/test/test_verification_flight.py",
+        "line_range": [
+          1786,
+          1788
+        ],
+        "kind": "vacuous-assertion"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "reserved-key drop no breadcrumb; os.write partial write",
+      "defect_signature": {
+        "file": "scripts/verification-flight.py",
+        "line_range": [
+          169,
+          189
+        ],
+        "kind": "low-hardening"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "e0625c7eac6bfdbc60d0f9e21985686192550ceb"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "e0625c7eac6bfdbc60d0f9e21985686192550ceb"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "e0625c7eac6bfdbc60d0f9e21985686192550ceb"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "advisory",
+      "source_file": "scripts/verification-flight.py",
+      "claim_text": "reserved-key silent drop / unchecked os.write partial write",
+      "skip_category": "advisory-parked",
+      "evidence": "silent-failure-hunter graded both LOW/informational: anti-spoofing by design; partial write unreachable for small single-line records on regular files"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 34,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
