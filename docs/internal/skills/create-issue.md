@@ -92,7 +92,8 @@ The obsolete `step-3-6-audit.md` size exemption was removed from `lib/test/refer
 
 ## Boundaries and failure paths
 
-- A docs-verify peer must finish and return its structured findings before clarification begins.
+- A docs-verify peer is dispatched through the Agent tool synchronously, so the dispatch blocks until the peer's completed findings are in hand and a launch acknowledgment is never treated as the findings report; a background fork is excluded, since it can die on resume and lose the verification. The findings must be complete and captured before clarification begins.
+- Each leg reaches its peer as a literal `--search-space <pathspec>` operand written verbatim into the peer's docs-verify invocation, never as dispatch-prompt narrative the peer's own contract overrides. The peer states in its return the `--search-space` operand it actually ran under, and the orchestrator compares that against the pathspec the leg dispatched: a return that omits the operand or whose stated value does not match records that leg unestablished (escalating shallow→deep like any unestablished duty), so a peer that silently defaulted the operand is detected rather than trusted.
 - An absent internal-doc location is an established absence; a location that exists but cannot be read, or holds no git-index entries, is recorded unestablished rather than silently treated as no documentation.
 - A report-only peer does not write, commit, push, or dispatch another peer.
 - A documentation claim that cannot be confirmed against code remains unconfirmed in the findings and cannot be promoted into the issue as fact.
