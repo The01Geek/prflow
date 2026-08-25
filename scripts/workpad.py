@@ -4243,10 +4243,10 @@ _REVIEW_COVERAGE_AXIS_GAP = {s['name']: s['gap'] for s in _REVIEW_COVERAGE_AXIS_
 # table's own order rather than a hand-maintained second one.
 _REVIEW_COVERAGE_GAPS = tuple(
     dict.fromkeys(s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS))
-# issue #1510: the record's optional as-of anchor — two trailing colon-joined fields,
-# `<head>:<asof>`, appended after the four axes. Both are colon-free so they round-trip
-# the payload split and the `[A-Za-z0-9._:-]` checkpoint-key grammar; a colon-bearing
-# ISO time here would be re-read as extra axis fields and break every record.
+# issue #1510: the record's optional as-of anchor — the trailing `<head>:<asof>` fields
+# appended after the axes. Both are colon-free so they round-trip the payload split and
+# the `[A-Za-z0-9._:-]` checkpoint-key grammar; a colon-bearing ISO time here would be
+# re-read as an axis field and break the record.
 _REVIEW_COVERAGE_ANCHOR_FIELDS = 2
 _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED = 'unestablished'
 _REVIEW_COVERAGE_ANCHOR_HEAD_RE = re.compile(
@@ -4326,8 +4326,8 @@ def _parse_review_coverage_payload(payload: str):
     for axes it never carried.
 
     A record written before issue #1510 has exactly len(_REVIEW_COVERAGE_AXES) fields
-    and no anchor; an anchored record appends two trailing anchor fields. Both parse to
-    the SAME four-axis dict here — the anchor is metadata read by
+    and no anchor; an anchored record appends the trailing `<head>:<asof>` fields. Both
+    parse to the same axis dict here — the anchor is metadata read by
     `_parse_review_coverage_anchor`, never a fifth axis — so the gate and every existing
     reader are unchanged, and the pre-anchor field count still parses (AC4)."""
     fields = (payload or '').split(':')
@@ -6545,8 +6545,11 @@ def main():
                    metavar=('COVERAGE', 'DISPATCH', 'ROSTER', 'CHECKLIST'),
                    help='Record this run\'s resolved Phase 3 review-coverage state '
                         '(issue #1453) as a machine-readable "<!-- prflow:checkpoint '
-                        'review-coverage:<coverage>:<dispatch>:<roster>:<checklist> '
-                        '-->" ## Progress row, replacing any prior one. COVERAGE: '
+                        'review-coverage:<coverage>:<dispatch>:<roster>:<checklist>'
+                        '[:<head>:<asof>] '
+                        '-->" ## Progress row, replacing any prior one. The optional '
+                        '[:<head>:<asof>] as-of anchor (issue #1510) is stamped from '
+                        '--record-review-coverage-head + the UTC write time. COVERAGE: '
                         + '|'.join(_REVIEW_COVERAGE_VOCABULARY['coverage'])
                         + '. DISPATCH (was a shadow fan-out attempted): '
                         + '|'.join(_REVIEW_COVERAGE_VOCABULARY['dispatch'])

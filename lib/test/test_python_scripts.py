@@ -12332,8 +12332,8 @@ assert_eq("#1510 AC1: the anchored payload still parses to the SAME four axes "
 assert_eq("#1510 AC1: the visible ## Progress row surfaces the anchor to a human reader",
           True, ("head " + _rc_head[:12]) in _rc_anchored and _rc_asof in _rc_anchored)
 
-# AC4: a record written BEFORE this change — four fields, no anchor — still parses and
-# is not refused; the gate reads the same four axes and the anchor is simply absent.
+# AC4: a record written BEFORE this change — the pre-anchor payload, no anchor — still
+# parses and is not refused; the gate reads the same axes and the anchor is simply absent.
 assert_eq("#1510 AC4: a pre-change 4-field anchor-less payload still parses",
           {"coverage": "full", "dispatch": "attempted", "roster": "complete",
            "checklist": "complete"},
