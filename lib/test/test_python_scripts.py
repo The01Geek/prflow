@@ -12679,8 +12679,19 @@ assert_eq("#1510 AC4: a pre-change 4-field anchor-less payload still parses",
           workpad._parse_review_coverage_payload("full:attempted:complete:complete"))
 assert_eq("#1510 AC4: a pre-change payload has no anchor (None), never a parse error",
           None, workpad._parse_review_coverage_anchor("full:attempted:complete:complete"))
-assert_eq("#1510 AC4: a legacy anchor-less full record still satisfies the Complete gate",
+# #1512 tightened the read-time Complete gate: a `complete` roster now REQUIRES a per-member
+# enumeration. So a modern anchor-less full record carrying its roster rows still satisfies
+# the gate, while a genuinely-legacy record with NO roster rows is refused — the intentional
+# backward-incompatibility (a pre-#1512 workpad resumed to finalize must re-record coverage).
+# Passing members=[] omits the enumeration to exercise the true legacy shape; the default
+# _rc_row auto-injects a coherent roster, which is the MODERN record.
+assert_eq("#1510/#1512 AC4: a modern anchor-less full record with its roster enumeration "
+          "satisfies the Complete gate",
           None, _rc_complete(_rc_row("full:attempted:complete:complete")))
+assert_eq("#1512 AC4: a genuinely-legacy rosterless full record is now REFUSED at the "
+          "Complete gate (roster=complete requires a per-member enumeration)",
+          True, "is a measured value" in (_rc_complete(_rc_row(
+              "full:attempted:complete:complete", members=[])) or ""))
 
 # AC3/AC2: declare a gap on an anchored record, then a later standalone review closes it.
 # The gap wording is scoped to the run's own review pass at the anchor, and the record
