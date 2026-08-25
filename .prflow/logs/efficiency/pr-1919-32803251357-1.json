@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1919",
+  "generated_at": "2026-08-25T03:06:23Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.11",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.077917749999997,
+    "tokens": {
+      "input_tokens": 40,
+      "output_tokens": 29832,
+      "cache_read_input_tokens": 2757591,
+      "cache_creation_input_tokens": 183654,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 114,
+        "outputTokens": 58498,
+        "cacheReadInputTokens": 4729903,
+        "cacheCreationInputTokens": 569799,
+        "webSearchRequests": 0,
+        "costUSD": 8.077917749999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 36,
+    "duration_ms": 514780
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"run_id=${GITHUB_RUN_ID:-UNSET} attempt=${GITHUB_RUN_ATTEMPT:-UNSET}\"; echo \"---BASE---\"; scripts/config-get.sh .base_branch main",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"SNAPSHOT-FAILED\" >&2\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disabled > \".prflow …[per-command-truncated]",
+      "for f in devflow-implement devflow-runner devflow.yml; do\n  fn=\".github/workflows/$f\"; [ \"$f\" = \"devflow.yml\" ] && fn=\".github/workflows/devflow.yml\"\n  git show 653b81db49c7935d6c44eb6c154165a86886feae:$fn | grep -A4 'warned_env_keys=' | sha256sum\ndone",
+      "cd /home/runner/work/prflow/prflow\nfor f in devflow-implement.yml devflow-runner.yml devflow.yml; do\n  echo \"=== $f ===\"\n  git show 653b81db49c7935d6c44eb6c154165a86886feae:.github/workflows/$f | grep -n 'warned_env_keys\\|denied_env_keys\\|Inject-provider' | head -20\ndone",
+      "git show 653b81db49c7935d6c44eb6c154165a86886feae:.github/workflows/devflow-implement.yml > /tmp/imp.yml && git show 653b81db49c7935d6c44eb6c154165a86886feae:.github/workflows/devflow-runner.yml > /tmp/run.yml && git show 653b81db49c7935d6c44eb6c154165a86886feae:.github/workflows/devflow.yml > /tmp/dev.yml && echo done",
+      "git show 653b81db49c7935d6c44eb6c154165a86886feae:.github/workflows/devflow-implement.yml > /tmp/imp.yml; echo done",
+      "git show 653b81db49c7935d6c44eb6c154165a86886feae:.github/workflows/devflow-runner.yml > /tmp/run.yml; echo done",
+      "git show 653b81db49c7935d6c44eb6c154165a86886feae:.github/workflows/devflow.yml > /tmp/dev.yml; echo done",
+      "mkdir -p .prflow/tmp/review/pr-1919/work\ngit show 653b81db49c7935d6c44eb6c154165a86886feae:.github/workflows/devflow-implement.yml > .prflow/tmp/review/pr-1919/work/imp.yml; echo done",
+      "for f in devflow-implement.yml devflow-runner.yml devflow.yml; do\n  echo \"=== $f ===\"\n  git show \"653b81db49c7935d6c44eb6c154165a86886feae:.github/workflows/$f\" | grep -A3 'warned_env_keys=' | md5sum\ndone",
+      "for f in devflow-implement.yml devflow-runner.yml devflow.yml; do git show 653b81db49c7935d6c44eb6c154165a86886feae:.github/workflows/$f | grep -A1 'warned_env_keys=' | grep -c 'ANTHROPIC_BASE_URL\",\"API_TIMEOUT_MS\",\"HOME\",\"RUNNER_TEMP'; done; echo \"---run.sh anchors at head---\"; git show 653b81db49c7935d6c44eb6c154165a86886feae:lib/test/run.sh | grep -c \"denied_env_keys=/s/.*ascii_upcase\"; git show 653b81db49c7935d6c44eb6c154165a86886feae:lib/test/run.sh | grep -c \"warned_env_keys=/s/.*ascii_upc …[per-command-truncated]"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
