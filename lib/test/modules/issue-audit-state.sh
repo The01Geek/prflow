@@ -222,7 +222,7 @@ LEDGER-EOF
     # of the new field; assert the recorded value directly from the state file (the
     # second, coordinate-less line proves the field stays absent when not supplied).
     IAS889_RC=0
-    PATH="$RESTRICTED" python3 -c 'import json,sys; d=json.load(open(".prflow/tmp/issue-audit-state-rt.json")); f=[r for r in d["rounds"] if r["round"]==1][0]["findings"]; sys.exit(0 if f[0].get("quoted_draft_line")==12 and "quoted_draft_line" not in f[1] else 1)' || IAS889_RC=$?
+    PATH="$RESTRICTED" python3 -c 'import json,sys; d=json.load(open(".prflow/tmp/create-issue/rt/issue-audit-state-rt.json")); f=[r for r in d["rounds"] if r["round"]==1][0]["findings"]; sys.exit(0 if f[0].get("quoted_draft_line")==12 and "quoted_draft_line" not in f[1] else 1)' || IAS889_RC=$?
     assert_eq "issue #889: ledger records the per-finding quoted_draft_line coordinate" "0" "$IAS889_RC"
     # issue #889: the PRODUCER round-trip. Every committed states/ fixture is
     # hand-authored, so a field rename on the writer side would leave the eval's own
@@ -235,7 +235,7 @@ LEDGER-EOF
 import importlib.util, os, sys
 spec = importlib.util.spec_from_file_location("cice", os.path.join(sys.argv[1], "scripts", "create-issue-context-eval.py"))
 m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-st = m.read_state(".prflow/tmp/issue-audit-state-rt.json")
+st = m.read_state(".prflow/tmp/create-issue/rt/issue-audit-state-rt.json")
 if st is None: sys.exit(2)                                   # the reader rejected a real producer file
 if st[1]["kind"] != "discovery": sys.exit(3)                 # round->kind labelling resolved
 f = st[1]["findings"]
@@ -296,7 +296,7 @@ if m._finding_count(st) != 2: sys.exit(8)                    # never the UNESTAB
     # scope-escape proxy's comparand). Assert the recorded shape directly from the state
     # file: a two-element ordered non-bool int list.
     IAS1105_RC=0
-    PATH="$RESTRICTED" python3 -c 'import json,sys; d=json.load(open(".prflow/tmp/issue-audit-state-rt.json")); s=[r for r in d["rounds"] if r["round"]==2][0]["scope"]["draft_lines"]; sys.exit(0 if isinstance(s,list) and len(s)==2 and all(isinstance(x,int) and not isinstance(x,bool) for x in s) and s[0]<=s[1] else 1)' || IAS1105_RC=$?
+    PATH="$RESTRICTED" python3 -c 'import json,sys; d=json.load(open(".prflow/tmp/create-issue/rt/issue-audit-state-rt.json")); s=[r for r in d["rounds"] if r["round"]==2][0]["scope"]["draft_lines"]; sys.exit(0 if isinstance(s,list) and len(s)==2 and all(isinstance(x,int) and not isinstance(x,bool) for x in s) and s[0]<=s[1] else 1)' || IAS1105_RC=$?
     assert_eq "issue #1105: a targeted dispatch freezes a two-element ordered draft_lines span on its scope" "0" "$IAS1105_RC"
 
     # The CONFIRMING whole-draft round (round 3), funded from its own counter. It carries the
@@ -342,7 +342,7 @@ if m._finding_count(st) != 2: sys.exit(8)                    # never the UNESTAB
     PATH="$RESTRICTED" python3 "$IAS" query-summary rt --nonce "$NONCE" \
       --draft-file draft.md > .rt-summary
     PATH="$RESTRICTED" python3 "$IAS" emit-body rt --nonce "$NONCE" --draft-file draft.md > .rt-body
-    printf '%s\n' "$(ls .prflow/tmp)" > .rt-files
+    printf '%s\n' "$(ls .prflow/tmp/create-issue/rt)" > .rt-files
   )
 
   assert_eq "#546 cli_roundtrip_restricted_path: query-arm routes a landed write to the file arm" \
@@ -478,8 +478,9 @@ if [ -d "$MD_SB" ]; then
     cd "$MD_SB" || exit 1
     git init -q .
     mkdir -p .prflow/tmp
+    mkdir -p .prflow/tmp/create-issue/legacy
     printf 'round 1 dispatched (file arm), digest abc123\nrevised after round 1\n' \
-      > .prflow/tmp/issue-audit-state-legacy.md
+      > .prflow/tmp/create-issue/legacy/issue-audit-state-legacy.md
     python3 "$IAS" query-eligibility legacy --nonce whatever --mode approve > .md-elig 2>/dev/null
     python3 "$IAS" query-triggers legacy --nonce whatever > .md-trig 2>/dev/null
   )
@@ -506,13 +507,13 @@ if [ -d "$QM_SB" ]; then
       # the malformed file written here is then never read, and every row passes vacuously
       # while exercising nothing.
       git init -q . 2>/dev/null
-      mkdir -p .prflow/tmp
+      mkdir -p .prflow/tmp/create-issue/m
       case "$SHAPE" in
-        missing)   rm -f .prflow/tmp/issue-audit-state-m.json ;;
-        empty)     : > .prflow/tmp/issue-audit-state-m.json ;;
-        malformed) printf '{not json' > .prflow/tmp/issue-audit-state-m.json ;;
-        array)     printf '[]' > .prflow/tmp/issue-audit-state-m.json ;;
-        scalar)    printf '"nope"' > .prflow/tmp/issue-audit-state-m.json ;;
+        missing)   rm -f .prflow/tmp/create-issue/m/issue-audit-state-m.json ;;
+        empty)     : > .prflow/tmp/create-issue/m/issue-audit-state-m.json ;;
+        malformed) printf '{not json' > .prflow/tmp/create-issue/m/issue-audit-state-m.json ;;
+        array)     printf '[]' > .prflow/tmp/create-issue/m/issue-audit-state-m.json ;;
+        scalar)    printf '"nope"' > .prflow/tmp/create-issue/m/issue-audit-state-m.json ;;
       esac
       printf '# T\n\nB\n' > d.md
       for Q in "query-eligibility m --nonce n --mode approve --draft-file d.md" \
@@ -882,7 +883,7 @@ if [ -d "$NA_SB" ]; then
     python3 "$IAS" record-return nu --nonce "$NU" --round 1 --verdict DRAFT-UNREADABLE > /dev/null
     python3 "$IAS" query-next-action nu --nonce "$NU" --round 1 > .na-unreadable-2
     python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))['rounds']))" \
-      .prflow/tmp/issue-audit-state-nu.json > .na-rounds
+      .prflow/tmp/create-issue/nu/issue-audit-state-nu.json > .na-rounds
 
     # The inline arm past both defined retries closes the round verdict-less rather than
     # looping — the termination invariant.
@@ -992,7 +993,7 @@ print(m._USER_ROUND_CAP)" "$IAS" 2>/dev/null)"
     # accepted rounds only, so a decline can always be recorded (it is how the run proceeds).
     python3 "$IAS" record-offer uc --nonce "$N" > /dev/null 2>&1 || printf 'DECLINE-REFUSED\n' > .uc-decline
     python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['user_rounds_used'])" \
-      .prflow/tmp/issue-audit-state-uc.json > .uc-used
+      .prflow/tmp/create-issue/uc/issue-audit-state-uc.json > .uc-used
   )
   assert_eq "#546 user_round_cap_rows: the module exposes a per-run user-round cap" \
     "1" "$([ -n "$UC_CAP" ] && echo 1 || echo 0)"
@@ -1326,7 +1327,8 @@ if [ -d "$I3_SB" ]; then
     python3 "$IAS" record-override it6 --nonce "$N6" --kind cap-reached \
       --draft-file draft.md > /dev/null 2> .i3-cap; printf '%s' "$?" > .i3-cap-rc
 
-    printf 'not json' > .prflow/tmp/issue-audit-state-it7.json
+    mkdir -p .prflow/tmp/create-issue/it7
+    printf 'not json' > .prflow/tmp/create-issue/it7/issue-audit-state-it7.json
     python3 "$IAS" init it7 --nonce deadbeef > /dev/null 2> .i3-corrupt; printf '%s' "$?" > .i3-corrupt-rc
 
     python3 "$IAS" init 'a/b' > /dev/null 2> .i3-slug; printf '%s' "$?" > .i3-slug-rc
@@ -1376,7 +1378,7 @@ if [ -d "$I4_SB" ]; then
     mkdir -p nogit-bin nogit-cwd
     ln -sf "$(command -v python3)" nogit-bin/python3
     ( cd nogit-cwd && PATH="$I4_SB/nogit-bin" python3 "$IAS" init fb > ../.i4-fb-out 2> ../.i4-fb-err )
-    ls nogit-cwd/.prflow/tmp > .i4-fb-files 2>/dev/null
+    ls nogit-cwd/.prflow/tmp/create-issue/fb > .i4-fb-files 2>/dev/null
   )
   assert_eq "#546 iter4_variance_rows: a negative --findings-count refuses at the mutation seam" \
     "1" "$(cat "$I4_SB/.i4-neg-rc" 2>/dev/null)"
@@ -1610,14 +1612,14 @@ if [ -d "$CS_SB" ]; then
 
     # unpersistable state: a read-only .prflow/tmp makes the mutation exit non-zero
     # with the named breadcrumb, and a QUERY still answers (read-only contract)
-    chmod 555 .prflow/tmp
+    chmod 555 .prflow/tmp/create-issue/cs3
     # issue #705: the round dispatched on the file arm, so record-revision requires
     # --stdin-digest. The arm guard and the stdin read both precede save_state, so the
     # unpersistable failure still surfaces with its could-not-persist breadcrumb.
     printf '# T\n\nrevised\n' | python3 "$IAS" record-revision cs3 --nonce "$N3" \
       --after-round 1 --stdin-digest > /dev/null 2> .cs-nopersist; printf '%s' "$?" > .cs-nopersist-rc
     python3 "$IAS" query-triggers cs3 --nonce "$N3" > .cs-nopersist-query 2>/dev/null
-    chmod 755 .prflow/tmp
+    chmod 755 .prflow/tmp/create-issue/cs3
 
     # query-nonce happy path: the minted nonce round-trips exactly
     printf 'nonce=%s\n' "$N3" > .cs-nonce-expected
@@ -1673,7 +1675,7 @@ if [ -d "$OP_SB" ]; then
     # corrupt/older state file cannot smuggle it past the gate either.
     python3 - <<'PY' > /dev/null 2>&1
 import json, pathlib
-p = pathlib.Path('.prflow/tmp/issue-audit-state-op1.json')
+p = pathlib.Path('.prflow/tmp/create-issue/op1/issue-audit-state-op1.json')
 d = json.loads(p.read_text())
 d['overrides'].append({'kind': 'user-decline', 'surface': 't1t2-boundary',
                        'recorded_at_ordinal': 0, 'draft_digest': None})
@@ -1727,7 +1729,7 @@ PY
       --findings-count 1 --carriage-object-id "$OID" > /dev/null 2>&1
     python3 - <<'PY' > /dev/null 2>&1
 import json, pathlib
-p = pathlib.Path('.prflow/tmp/issue-audit-state-op2b.json')
+p = pathlib.Path('.prflow/tmp/create-issue/op2b/issue-audit-state-op2b.json')
 d = json.loads(p.read_text())
 d['overrides'].append({'kind': 'user-decline', 'surface': 't1t2-boundary',
                        'recorded_at_ordinal': 0, 'draft_digest': None})
@@ -1918,8 +1920,8 @@ if [ -d "$RD_SB" ]; then
     python3 "$IAS" record-offer rd7 --nonce "$N7" --accepted > /dev/null
     printf '# T\n\nORIG\n' | python3 "$IAS" record-dispatch --kind discovery rd7 --nonce "$N7" --round 1 \
       --arm embed --marker write-failed > /dev/null 2>&1
-    RD7_OPEN="$(python3 -c "import json,pathlib;print(json.loads(pathlib.Path('.prflow/tmp/issue-audit-state-rd7.json').read_text())['rounds'][0]['attempts'][-1]['sentinel_open'])")"
-    RD7_CLOSE="$(python3 -c "import json,pathlib;print(json.loads(pathlib.Path('.prflow/tmp/issue-audit-state-rd7.json').read_text())['rounds'][0]['attempts'][-1]['sentinel_close'])")"
+    RD7_OPEN="$(python3 -c "import json,pathlib;print(json.loads(pathlib.Path('.prflow/tmp/create-issue/rd7/issue-audit-state-rd7.json').read_text())['rounds'][0]['attempts'][-1]['sentinel_open'])")"
+    RD7_CLOSE="$(python3 -c "import json,pathlib;print(json.loads(pathlib.Path('.prflow/tmp/create-issue/rd7/issue-audit-state-rd7.json').read_text())['rounds'][0]['attempts'][-1]['sentinel_close'])")"
     python3 "$IAS" record-return rd7 --nonce "$N7" --round 1 --verdict FILE \
       --findings-count 0 --carriage-sentinel-open "$RD7_OPEN" \
       --carriage-sentinel-close "$RD7_CLOSE" > /dev/null 2>&1
@@ -1927,7 +1929,7 @@ if [ -d "$RD_SB" ]; then
     printf '# T\n\nREVISED never audited\n' > d7.md
     python3 - <<'PY' > /dev/null 2>&1
 import json, pathlib
-p = pathlib.Path('.prflow/tmp/issue-audit-state-rd7.json')
+p = pathlib.Path('.prflow/tmp/create-issue/rd7/issue-audit-state-rd7.json')
 d = json.loads(p.read_text())
 d['revisions'][0]['after_round'] = 0        # below the floor recorded with it
 p.write_text(json.dumps(d))
@@ -2162,22 +2164,22 @@ if [ -d "$DB_SB" ]; then
     python3 "$IAS" init 'do' > /dev/null 2>&1
     NO="$(python3 "$IAS" query-nonce 'do' | sed -n '1s/nonce=//p')"
     BR="$DB_SB/boundroot"
-    mkdir -p "$BR/.prflow/tmp"
-    printf '# Draft title\n\nBOUND BODY\n' > "$BR/.prflow/tmp/issue-draft-do.md"
+    mkdir -p "$BR/.prflow/tmp/create-issue/do"
+    printf '# Draft title\n\nBOUND BODY\n' > "$BR/.prflow/tmp/create-issue/do/issue-draft-do.md"
     printf '# Draft title\n\nDRIFTED BODY\n' > drift.md
     python3 "$IAS" record-draft-binding 'do' --nonce "$NO" --path "$BR" --tier main-root \
       > /dev/null 2>&1
     # issue #709: the anti-drift rows below assert a LIVE clean-ground answer, which now
     # requires established steering — so this epoch establishes it against the BOUND file
     # (the one the readers must resolve to), never the drifted one.
-    IOIDO="$(ias_instructions "$DB_SB" 'do' "$BR/.prflow/tmp/issue-draft-do.md")"
-    ias_stage 'do' "$NO" "$BR/.prflow/tmp/issue-draft-do.md"
+    IOIDO="$(ias_instructions "$DB_SB" 'do' "$BR/.prflow/tmp/create-issue/do/issue-draft-do.md")"
+    ias_stage 'do' "$NO" "$BR/.prflow/tmp/create-issue/do/issue-draft-do.md"
     python3 "$IAS" record-offer 'do' --nonce "$NO" --accepted > /dev/null
     python3 "$IAS" record-dispatch --kind discovery 'do' --nonce "$NO" --round 1 --arm file \
-      --draft-file "$BR/.prflow/tmp/issue-draft-do.md" \
+      --draft-file "$BR/.prflow/tmp/create-issue/do/issue-draft-do.md" \
       --instructions-file "$DB_SB/instr-do.md" \
-      --instructions-draft-path "$BR/.prflow/tmp/issue-draft-do.md" > /dev/null 2>&1
-    OIDO="$(git hash-object --stdin --no-filters < "$BR/.prflow/tmp/issue-draft-do.md")"
+      --instructions-draft-path "$BR/.prflow/tmp/create-issue/do/issue-draft-do.md" > /dev/null 2>&1
+    OIDO="$(git hash-object --stdin --no-filters < "$BR/.prflow/tmp/create-issue/do/issue-draft-do.md")"
     python3 "$IAS" record-return 'do' --nonce "$NO" --round 1 --verdict FILE \
       --findings-count 0 --carriage-object-id "$OIDO" \
       --instructions-object-id "$IOIDO" --extra-dispatch-content no > /dev/null 2>&1
@@ -2311,7 +2313,7 @@ fi
 # ────────────────────────────────────────────────────────────────────────────
 # issue #569: the record-dispatch file-arm --write-path cross-check. When a run has bound a
 # canonical-draft root and the skill reports its landed write path, the tool cross-checks
-# that path against `<bound-root>/.prflow/tmp/issue-draft-<slug>.md` (the path it derives
+# that path against `<bound-root>/.prflow/tmp/create-issue/<slug>/issue-draft-<slug>.md` (the path it derives
 # from the recorded binding) and fails closed with `write-path-mismatch` on divergence. The
 # check is additive: an unbound run and a bound run that omits --write-path both proceed — but
 # a present-but-EMPTY --write-path is an unestablished report, refused as `write-path-empty`
@@ -2330,18 +2332,18 @@ if [ -d "$WP_SB" ]; then
     ias_stage wp "$N" d.md
     python3 "$IAS" record-offer wp --nonce "$N" --accepted > /dev/null
     python3 "$IAS" record-dispatch --kind discovery wp --nonce "$N" --round 1 --arm file \
-      --write-path "$WP_SB/.prflow/tmp/issue-draft-wp.md" --draft-file d.md > .wp-match 2>&1
+      --write-path "$WP_SB/.prflow/tmp/create-issue/wp/issue-draft-wp.md" --draft-file d.md > .wp-match 2>&1
     printf '%s' "$?" > .wp-match-rc
     # A NEW run (its own binding at the same root; a drifted write path, round 1) is refused.
     # Bindings are per-slug and immutable — wp2 records its own, it does not share wp's. The
-    # bound canonical file for slug wp2 is $WP_SB/.prflow/tmp/issue-draft-wp2.md; report a
+    # bound canonical file for slug wp2 is $WP_SB/.prflow/tmp/create-issue/wp2/issue-draft-wp2.md; report a
     # divergent /elsewhere path and expect the named breadcrumb + non-zero exit.
     N2="$(python3 "$IAS" init wp2 | sed -n '1s/nonce=//p')"
     python3 "$IAS" record-draft-binding wp2 --nonce "$N2" --path "$WP_SB" --tier worktree-root > /dev/null
     ias_stage wp2 "$N2" d.md
     python3 "$IAS" record-offer wp2 --nonce "$N2" --accepted > /dev/null
     python3 "$IAS" record-dispatch --kind discovery wp2 --nonce "$N2" --round 1 --arm file \
-      --write-path /elsewhere/.prflow/tmp/issue-draft-wp2.md --draft-file d.md \
+      --write-path /elsewhere/.prflow/tmp/create-issue/wp2/issue-draft-wp2.md --draft-file d.md \
       > /dev/null 2> .wp-mismatch; printf '%s' "$?" > .wp-mismatch-rc
     # A bound run that OMITS --write-path proceeds unchanged (the cross-check is additive).
     N3="$(python3 "$IAS" init wp3 | sed -n '1s/nonce=//p')"
@@ -2395,7 +2397,7 @@ if [ -d "$WP_SB" ]; then
     ias_stage wpa "$NA" d.md
     python3 "$IAS" record-offer wpa --nonce "$NA" --accepted > /dev/null
     python3 "$IAS" record-dispatch --kind discovery wpa --nonce "$NA" --round 1 --arm file \
-      --write-path "$WP_SB/.prflow/tmp/issue-draft-otherslug.md" --draft-file d.md \
+      --write-path "$WP_SB/.prflow/tmp/create-issue/otherslug/issue-draft-otherslug.md" --draft-file d.md \
       > /dev/null 2> .wp-slug; printf '%s' "$?" > .wp-slug-rc
     # The shipped skill binds --tier main-root (tier-2/tier-3 selection is the deferred half),
     # so pin the tier the production path actually uses, not only worktree-root: a matching
@@ -2405,7 +2407,7 @@ if [ -d "$WP_SB" ]; then
     ias_stage wp6 "$N6" d.md
     python3 "$IAS" record-offer wp6 --nonce "$N6" --accepted > /dev/null
     python3 "$IAS" record-dispatch --kind discovery wp6 --nonce "$N6" --round 1 --arm file \
-      --write-path "$WP_SB/.prflow/tmp/issue-draft-wp6.md" --draft-file d.md > /dev/null 2>&1
+      --write-path "$WP_SB/.prflow/tmp/create-issue/wp6/issue-draft-wp6.md" --draft-file d.md > /dev/null 2>&1
     printf '%s' "$?" > .wp-mainroot-rc
     # The cross-check is deliberately scoped INSIDE the file arm: an embed-arm dispatch ignores
     # --write-path entirely. Pin that scoping so a later refactor that HOISTS the check out of
@@ -2460,10 +2462,10 @@ fi
 SL_SB="$(git_sandbox '#1040 cli_stale_break_exit_and_breadcrumb')"
 (
   cd "$SL_SB" || exit 1
-  mkdir -p .prflow/tmp
+  mkdir -p .prflow/tmp/create-issue/s .prflow/tmp/create-issue/s3
   # (1) stale break: plant a sentinel, age it past a sub-second stale_after_s, then run a
   #     real mutation. It must break the stale sentinel, proceed, and exit 0.
-  printf '4242' > .prflow/tmp/issue-audit-state-s.json.lock
+  printf '4242' > .prflow/tmp/create-issue/s/issue-audit-state-s.json.lock
   sleep 0.2
   DEVFLOW_IAS_STALE_AFTER_S=0.05 DEVFLOW_IAS_ACQUIRE_WINDOW_S=0.5 \
     python3 "$IAS" init s > .sl-out 2> .sl-err
@@ -2471,12 +2473,12 @@ SL_SB="$(git_sandbox '#1040 cli_stale_break_exit_and_breadcrumb')"
   # (2) contention refusal: a FRESH sentinel with INVERTED bounds (window < stale) is never
   #     broken, so acquisition exhausts the window → exit non-zero, no state persisted, and
   #     the could-not-persist breadcrumb (the routing class the skill already carries).
-  printf '9999' > .prflow/tmp/issue-audit-state-s3.json.lock
+  printf '9999' > .prflow/tmp/create-issue/s3/issue-audit-state-s3.json.lock
   DEVFLOW_IAS_ACQUIRE_WINDOW_S=0.2 DEVFLOW_IAS_STALE_AFTER_S=30 \
     python3 "$IAS" init s3 > .sl3-out 2> .sl3-err
   printf '%s' "$?" > .sl3-rc
   # the refused mutation left no state file for s3
-  [ -f .prflow/tmp/issue-audit-state-s3.json ] && printf 'yes' > .sl3-state || printf 'no' > .sl3-state
+  [ -f .prflow/tmp/create-issue/s3/issue-audit-state-s3.json ] && printf 'yes' > .sl3-state || printf 'no' > .sl3-state
 ) || true
 assert_eq "#1040 cli_stale_break_exit_and_breadcrumb: the mutation breaks the stale sentinel and exits 0" \
   "0" "$(cat "$SL_SB/.sl-rc" 2>/dev/null)"
@@ -2501,14 +2503,14 @@ RO_SB="$(git_sandbox '#1040 readers_are_not_serialized_while_held')"
   cd "$RO_SB" || exit 1
   python3 "$IAS" init s >/dev/null 2>&1
   mkdir -p .prflow/tmp
-  printf '4242' > .prflow/tmp/issue-audit-state-s.json.lock
+  printf '4242' > .prflow/tmp/create-issue/s/issue-audit-state-s.json.lock
   python3 "$IAS" query-nonce s > .ro-out 2> .ro-err
   printf '%s' "$?" > .ro-rc
 ) || true
 assert_eq "#1040 readers_are_not_serialized: query-nonce exits 0 while a sentinel is held" \
   "0" "$(cat "$RO_SB/.ro-rc" 2>/dev/null)"
 assert_eq "#1040 readers_are_not_serialized: the held sentinel is left untouched by the reader" \
-  "1" "$( [ -f "$RO_SB/.prflow/tmp/issue-audit-state-s.json.lock" ] && echo 1 || echo 0 )"
+  "1" "$( [ -f "$RO_SB/.prflow/tmp/create-issue/s/issue-audit-state-s.json.lock" ] && echo 1 || echo 0 )"
 rm -rf "$RO_SB"
 
 # zero_round_decline_rows (#1751) — a run whose user declines every audit offer files its
