@@ -825,7 +825,14 @@ branch without opting in.** Two things bound the exposure and one turns it off:
   (`scripts/scrub-credentials.sh`: GitHub tokens/PATs, Anthropic keys, and both
   Authorization header forms) before it is written, and every record discloses
   `scrub.blocklist_incomplete: true` — a novel third-party credential shape can survive, so
-  treat the branch as sensitive.
+  treat the branch as sensitive. The `Bearer` and `basic` rules each match their scheme keyword
+  case-insensitively and redact a token of **four or more** units — class
+  members plus the JSON escape units `\/` and `\\` — so an escaped slash inside a token is
+  redacted while a lone `\` before a closing quote is left to the document it belongs to
+  (issue #1915: matching that `\` swallowed the JSON escape and left the published
+  execution-transcript artifact unparseable). A run of fewer than four units after the scheme
+  keyword is deliberately left alone, so a recorded `sed 's/AUTHORIZATION: basic //'` is not
+  taken for a credential.
 - The field is bounded (per-command and list caps) and command-only — never a whole
   transcript.
 - **To disable it, set `.prflow.execution_denial_commands_enabled` to `false`** in
