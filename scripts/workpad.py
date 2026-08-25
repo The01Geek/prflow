@@ -4413,7 +4413,11 @@ def _review_roster_incoherence(record: dict, members: dict) -> str | None:
       any measured roster (`complete` or `short`) is incoherent and refused.
     - `complete`/`short` are measured values and require a non-empty enumeration;
       `not-applicable`/`unestablished` measured no roster and must carry none.
-    - An unknown member or status, or a duplicated member row, fails closed."""
+    - An unknown member or status, or a duplicated member row, fails closed.
+
+    It enforces the always-on floor — no always-on member missing or gated-off on a
+    `complete` roster — not full expected-roster dispatch: a gated analyzer's own
+    dispatch remains self-reported by design (issue #1512 AC3)."""
     roster = record['roster']
     dup = sorted(m for m, s in members.items() if s is _REVIEW_ROSTER_DUPLICATE)
     if dup:

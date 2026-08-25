@@ -12226,6 +12226,32 @@ except workpad._UpdateError as _e:
     _1512_smuggle = str(_e)
 assert_eq("#1512: a --note carrying a forged review-roster marker is refused",
           True, _1512_smuggle is not None and "reserved review-coverage" in _1512_smuggle)
+# Positive control: a gated analyzer whose gate was TRUE and which WAS dispatched
+# (recorded `dispatched`, not `gated-off`) does not block complete.
+assert_eq("#1512: a gated analyzer recorded dispatched does not block complete",
+          None, _rc_write(["full", "attempted", "complete", "complete"],
+                          _1512_full + [["pr-test-analyzer", "dispatched"]]))
+# Read-time parity: the write-time refusals also fire at the Complete gate, since
+# _review_roster_incoherence runs unconditionally at read time.
+assert_eq("#1512: short with no missing member is refused at read time too",
+          True, "at least one missing" in (_rc_complete(_rc_row(
+              "not-verified:attempted:short:complete",
+              members=[(m, "dispatched") for m in _1512_ALWAYS])) or ""))
+assert_eq("#1512: an always-on member gated-off is refused at read time too",
+          True, "never applicability-gated" in (_rc_complete(_rc_row(
+              "full:attempted:complete:complete",
+              members=[(_1512_ALWAYS[0], "gated-off")]
+                      + [(m, "dispatched") for m in _1512_ALWAYS[1:]])) or ""))
+assert_eq("#1512: a not-applicable roster carrying an enumeration is refused at read time",
+          True, "measured no roster" in (_rc_complete(_rc_row(
+              "not-applicable:not-applicable:not-applicable:not-applicable",
+              members=[(m, "dispatched") for m in _1512_ALWAYS])) or ""))
+# Strip parity: re-recording complete -> not-applicable (the rosterless axis that must
+# carry NO enumeration) strips the prior complete roster rows, leaving none behind.
+_1512_strip_na = apply_mut(_rc_row("full:attempted:complete:complete"),
+                           make_args(record_review_coverage=["not-applicable"] * 4))
+assert_eq("#1512: re-record complete->not-applicable strips the prior roster enumeration",
+          {}, workpad._review_roster_members(_1512_strip_na))
 
 # ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
 
