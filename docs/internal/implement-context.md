@@ -345,8 +345,8 @@ python3 scripts/implement-context-eval.py <transcript-dir> --format json
 
 The command shape is identical to the fixture reproduction above; what differs is the
 directory it is pointed at — a real transcript corpus rather than the committed synthetic
-one. The operand must be a directory the tool can walk, not a glob. The corpus directory is
-deliberately not written out here: `lib/test/test_implement_context_eval.py` scans this page
+one. The operand must be a directory the tool can walk, not a glob. The absolute corpus path
+is deliberately not written out here: `lib/test/test_implement_context_eval.py` scans this page
 against a fixed owner-identifying pattern set, so a path naming a machine owner turns the
 suite red.
 
@@ -359,7 +359,8 @@ its scrubbed transcript under a name ending `.json`, while the collector in
 `scripts/context_eval_shared.py` accepts only names ending `.jsonl` — so a cloud transcript
 is skipped with no error at all, and the corpus above is local/interactive by construction.
 The drop is untallied, so a corpus of wrong-suffixed files reports zero runs and exits 0
-rather than saying anything was skipped. Renaming the artifact would not be enough on its
+rather than saying anything was skipped — and a mixed corpus silently under-counts by
+however many of its transcripts carry the other suffix. Renaming the artifact would not be enough on its
 own: `scripts/scrub-transcript.sh` prepends a `#`-comment caveat header to it, and
 `scripts/extract-execution-cost.py` records its observed shapes as a single object, a JSON
 array, or JSONL — so the suffix is the first barrier, not the only one.
