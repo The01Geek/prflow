@@ -39,7 +39,10 @@ read):
 Fail-open hardening (issue #415 review, finding #2; tightened for issue #1527): the
 ScheduleWakeup attempt match is case-INSENSITIVE and keyed on the recorded tool_use
 NAME, never the `input` JSON — so a `ToolSearch` query naming ScheduleWakeup is NOT a
-false attempt. A tool_use node is recorded even when it carries no `input` key, so a
+false attempt. The denial match is likewise keyed on the `permission_denials` entry's
+tool-name field, so the token nested in a denial's input never falsely gates a SHIP
+verdict; an unrecognized denial shape yields no name and fails safe (no ship). A tool_use
+node is recorded even when it carries no `input` key, so a
 tool recorded under a lower-cased / decorated / input-less NAME still reads as present
 (-> AVAILABLE, do NOT ship) rather than absent — the fail-open in the dangerous
 direction. Raw tool_use names are dumped in the table so an operator can confirm the
@@ -107,16 +110,18 @@ def parse_execution_file(exec_file):
 
 
 def collect(parsed):
-    """Walk the parsed structure and return (denials, tool_uses, tool_use_names) as
-    text lists. tool_use_names is the recorded `name` of each tool_use, collected
-    separately so the attempt predicate can key on the name alone (issue #1527) rather
-    than substring-matching the input JSON.
+    """Walk the parsed structure and return (denials, tool_uses, tool_use_names,
+    denial_names) as text lists. tool_use_names is the recorded `name` of each tool_use
+    and denial_names the tool-name field of the recorded `permission_denials` entries,
+    collected separately so the attempt and denial predicates key on the name (issue #1527)
+    rather than substring-matching the serialized input/record.
 
     A tool_use node is recorded even when it carries no `input` key, so an
     input-less ScheduleWakeup call is not silently dropped (issue #415 finding #2)."""
     denials = []
     tool_uses = []
     tool_use_names = []
+    denial_names = []
 
     def walk(o):
         if isinstance(o, dict):
@@ -128,6 +133,17 @@ def collect(parsed):
             if isinstance(pd, list):
                 for d in pd:
                     denials.append(json.dumps(d))
+                    # Record the denied tool's NAME field only, so the denial predicate
+                    # (which gates SHIP) keys on the name and not on the token appearing
+                    # anywhere in the serialized record (issue #1527) — the same
+                    # false-positive vector the attempt predicate closes. An unrecognized
+                    # shape yields no name and fails safe (no ship), never a false one.
+                    if isinstance(d, dict):
+                        denial_names.append(
+                            " ".join(str(d.get(k, "")) for k in ("tool", "tool_name", "name"))
+                        )
+                    else:
+                        denial_names.append(str(d))
             for v in o.values():
                 walk(v)
         elif isinstance(o, list):
@@ -136,21 +152,21 @@ def collect(parsed):
 
     if parsed is not None:
         walk(parsed)
-    return denials, tool_uses, tool_use_names
+    return denials, tool_uses, tool_use_names, denial_names
 
 
-def compute_verdict(denials, tool_uses, tool_use_names, note_top):
+def compute_verdict(tool_uses, tool_use_names, denial_names, note_top):
     """Return (verdict, ship, sw_denied, sw_attempted, control_before,
     control_after)."""
-    denial_text = "\n".join(denials).lower()
     tooluse_text = "\n".join(tool_uses).lower()
     names_text = "\n".join(tool_use_names).lower()
+    denial_names_text = "\n".join(denial_names).lower()
 
-    sw_denied = "schedulewakeup" in denial_text
-    # Count an attempt ONLY from a tool_use NAME, never the token inside another tool's
-    # input JSON (a ToolSearch query "select:ScheduleWakeup") — else that query reads as
-    # a false attempt (issue #1527). Case-insensitive keeps a lower-cased/input-less name
-    # present (issue #415 finding #2).
+    # Key both signals on the recorded NAME field, never the token appearing anywhere in
+    # the serialized input/record — a ToolSearch query "select:ScheduleWakeup" or a denial
+    # record with the token nested in its input is not a real ScheduleWakeup call (issue
+    # #1527). Case-insensitive keeps a lower-cased/input-less name present (issue #415 #2).
+    sw_denied = "schedulewakeup" in denial_names_text
     sw_attempted = "schedulewakeup" in names_text
     control_before = "/etc/hosts" in tooluse_text       # Action 1 ran
     control_after = "/etc/os-release" in tooluse_text    # Action 3 ran -> passed Action 2
@@ -175,10 +191,10 @@ def compute_verdict(denials, tool_uses, tool_use_names, note_top):
 
 def render(exec_file):
     parsed, note_top = parse_execution_file(exec_file)
-    denials, tool_uses, tool_use_names = collect(parsed)
+    denials, tool_uses, tool_use_names, denial_names = collect(parsed)
     (verdict, ship, sw_denied, sw_attempted,
      control_before, control_after) = compute_verdict(
-         denials, tool_uses, tool_use_names, note_top)
+         tool_uses, tool_use_names, denial_names, note_top)
 
     inconclusive = verdict == "INCONCLUSIVE"
     if ship:
@@ -244,9 +260,9 @@ def render(exec_file):
         out.append("_No permission_denials entries found in the execution file._")
 
     # Dump the recorded tool_use entries so the operator can confirm the harness's
-    # actual ScheduleWakeup tool name on the first live run — the name-agnostic,
-    # case-insensitive match above trusts that the token only appears via the real
-    # attempt, and this is how that assumption is checked rather than assumed.
+    # actual ScheduleWakeup tool name on the first live run — the name-scoped match above
+    # keys on the recorded name field, so this dump is how that field's real spelling is
+    # confirmed rather than assumed.
     out.append("")
     out.append("### Raw tool_use entries (%d)" % len(tool_uses))
     out.append("")

@@ -1271,17 +1271,17 @@ jobs:
   # promising a re-invocation that never happens under `claude -p`. This is ONE
   # extra claude-code-action invocation with the flag under test, isolated in its
   # own job so the flag never perturbs the 15-shape matcher probe above. The verdict
-  # is derived DETERMINISTICALLY from the execution file (permission_denials /
-  # recorded tool_use NAME= / tool absence), never the model's text, by the
-  # unit-tested helper scripts/schedulewakeup-probe-verdict.py (extracted so every
-  # arm and the fail-open name-match are driven in lib/test/run.sh — #415 review). TWO positive-
-  # control grep calls bracket the ScheduleWakeup attempt (before AND after Action 2):
-  # the AFTER control proves the model reached and passed Action 2, so an absence of
-  # any ScheduleWakeup tool_use reads as REMOVED-from-context only when both controls
-  # ran — otherwise the run is INCONCLUSIVE (an unmeasured run never collapses onto the
-  # shippable REMOVED). ScheduleWakeup is granted in --allowed-tools so the allowlist
-  # can never be the thing that removes it — a DENIED/REMOVED is attributable to
-  # --disallowedTools alone.
+  # is derived DETERMINISTICALLY from the execution file, never the model's text, by
+  # the unit-tested helper scripts/schedulewakeup-probe-verdict.py (extracted so every
+  # arm and the name-scoped match are driven in lib/test/run.sh — #415 review, #1527):
+  # a permission_denials naming ScheduleWakeup with a recorded attempt is DENIED and
+  # without one is REMOVED; a recorded ScheduleWakeup tool_use not denied is AVAILABLE;
+  # any other run is INCONCLUSIVE. A SHIP verdict requires a positive permission_denials
+  # record — both controls running is NO LONGER evidence of removal (that case is now
+  # INCONCLUSIVE, #1527), so the TWO positive-control grep calls bracketing Action 2
+  # supply diagnostic context only, not a REMOVED trigger. ScheduleWakeup is granted in
+  # --allowed-tools so the allowlist can never be the thing that removes it — a
+  # DENIED/REMOVED is attributable to --disallowedTools alone.
   # Verdict → claude_args mapping (issue #415 AC4, executed by the implementer):
   #   DENIED or REMOVED → ship `--disallowedTools ScheduleWakeup` in
   #                       devflow-implement.yml's claude step + its run.sh pin.
