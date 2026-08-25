@@ -2,7 +2,7 @@
   "_comment": "issue #1693 AC5 — the pre-change quality checklist maps completely to the core checklist and the five advanced groups the #1693 relocation targeted (issue #1692 later added a sixth group, quality-group-compatibility, carrying new non-relocated obligations that are not part of this map); every protection retains its strength and appears once. Each entry maps one pre-change checklist obligation to its single post-change owner, keyed on a distinctive phrase PRESENT in that owner. lib/test/modules/create-issue-contract.sh asserts: the phrase is present in its owner; a group-owned obligation's phrase is ABSENT from the always-loaded set (SKILL.md + issue-template.md), proving it left the always-loaded path and appears once behind the router; a core-owned obligation's phrase is present in issue-template.md. Owner is `core` (issue-template.md) or a quality-group stem.",
   "entries": [
     { "owner": "core", "phrase": "Title is clear, action-oriented, and scoped to one feature/fix" },
-    { "owner": "core", "phrase": "Problem statement explains the \"why\" and names who benefits" },
+    { "owner": "core", "phrase": "explains the \"why\" and names who benefits" },
     { "owner": "core", "phrase": "Desired Behavior is stated as one decided behavior, not a menu" },
     { "owner": "core", "phrase": "Technical Context opens with the standardized scope note, included verbatim" },
     { "owner": "core", "phrase": "Technical context cites real file paths / class names from this project" },
