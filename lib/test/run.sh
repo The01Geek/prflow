@@ -4219,8 +4219,8 @@ IMPL_DOC="$LIB/../docs/internal/implement-skill.md"
 # phase's load step (which would make the engine improvise that phase from its thin stub).
 IMPL_ORCH="$LIB/../skills/implement/SKILL.md"
 IMPL_PHASES_DIR="$LIB/../skills/implement/phases"
-# Shared phase-file path, colocated with its parent IMPL_PHASES_DIR so the #232 and #230
-# pin blocks below reference one source of truth for the path (not two differently-named locals).
+# Shared phase-file path, colocated with its parent IMPL_PHASES_DIR so the pin blocks
+# below reference one source of truth for the path (not two differently-named locals).
 P4_FILE="$IMPL_PHASES_DIR/phase-4-documentation.md"
 IMPL_REFS_DIR="$LIB/../skills/implement/references"
 # Issue #1374 relocated §4.0.5's filing procedure out of the phase file and behind a
@@ -10474,7 +10474,7 @@ assert_eq "#1515 proceed plus unmatched projection is unusable and runs the inli
   "$(_issue1515_projection_route proceed unmatched 'Desired Behavior: exports retain stable ordering')"
 assert_eq "#1515 proceed with missing projection fields is unusable and runs the inline audit fallback" \
   "inline-audit-fallback" "$(_issue1515_projection_route proceed missing missing)"
-# P4_FILE is defined once next to IMPL_PHASES_DIR above (shared by the #232 and #230 blocks).
+# P4_FILE is defined once next to IMPL_PHASES_DIR above (shared by the pin blocks above).
 # AC1's operational prohibition remains covered directly.
 assert_pin_unique "#230: phase-2 §2.1 keeps the operational 'narrow or suppress' prohibition (AC1 meaning)" \
   'narrow or suppress' "$P2_FILE"
