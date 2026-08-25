@@ -3377,5 +3377,41 @@ assert_eq "#1828 AC3: the zero-coverage pattern still passes the min_occurrences
 assert_eq "#1828: the zero-coverage pattern carries null cost, not 0" "true" \
   "$(printf '%s' "$RL_RANK" | jq -e '.[] | select(.tag=="lenient-verdict") | .cost_mean_iterations == null' >/dev/null 2>&1 && echo true || echo false)"
 
+# AC2 tiebreaks: two COVERED patterns with EQUAL cost rank by occurrence count desc
+# (exercises the -(.occurrence_count) covered tiebreak key, which distinct-cost fixtures
+# leave dead), and two ZERO-COVERAGE patterns order among themselves by occurrence count
+# desc (exercises the uncovered ordering with more than one uncovered pattern).
+mkdir -p "$RL_TMP/rank2"
+printf '%s\n' \
+  '{"schema_version":2,"kind":"implementation","pr":1,"merged_at":"2026-04-01T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":2,"merged_at":"2026-04-02T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":3,"merged_at":"2026-04-03T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":4,"merged_at":"2026-04-04T00:00:00Z","verdict":"imperfect","categories":["unverified-assumption"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":5,"merged_at":"2026-04-05T00:00:00Z","verdict":"imperfect","categories":["unverified-assumption"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":6,"merged_at":"2026-04-06T00:00:00Z","verdict":"imperfect","categories":["lenient-verdict"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":7,"merged_at":"2026-04-07T00:00:00Z","verdict":"imperfect","categories":["lenient-verdict"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":8,"merged_at":"2026-04-08T00:00:00Z","verdict":"imperfect","categories":["lenient-verdict"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":9,"merged_at":"2026-04-09T00:00:00Z","verdict":"imperfect","categories":["doc-accuracy"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":10,"merged_at":"2026-04-10T00:00:00Z","verdict":"imperfect","categories":["doc-accuracy"]}' \
+  > "$RL_TMP/rank2/retrospectives.jsonl"
+# incomplete-edit: 3 occ, cost 4 (covered). unverified-assumption: 2 occ, cost 4 (covered,
+# EQUAL cost -> ranks below incomplete-edit by occurrence count). lenient-verdict: 3 occ,
+# uncovered. doc-accuracy: 2 occ, uncovered (ranks below lenient-verdict by occurrence count).
+printf '%s\n' \
+  '{"pr":1,"efficiency_runs":[{"iterations":4}]}' \
+  '{"pr":2,"efficiency_runs":[{"iterations":4}]}' \
+  '{"pr":3,"efficiency_runs":[{"iterations":4}]}' \
+  '{"pr":4,"efficiency_runs":[{"iterations":4}]}' \
+  '{"pr":5,"efficiency_runs":[{"iterations":4}]}' \
+  > "$RL_TMP/rank2/experiment-records.jsonl"
+printf '%s' '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$RL_TMP/rank2/ov.json"
+RL_RANK2="$(DEVFLOW_GH="$RL_TMP/gh-ap.sh" DEVFLOW_CONFIG_FILE="$REPO_ROOT/lib/test/fixtures/config.json" \
+  bash "$RL_AP" "$RL_TMP/rank2/retrospectives.jsonl" "$RL_TMP/rank2/ov.json" 2>/dev/null)"
+assert_eq "#1828 AC2 tiebreak: equal-cost covered patterns order by occurrence count desc; multiple zero-coverage order by occurrence count desc" \
+  "incomplete-edit|unverified-assumption|lenient-verdict|doc-accuracy" \
+  "$(printf '%s' "$RL_RANK2" | jq -r '[.[].tag] | join("|")')"
+assert_eq "#1828 AC2 tiebreak: both covered patterns share the equal cost aggregate (4)" "4|4" \
+  "$(printf '%s' "$RL_RANK2" | jq -r '[.[] | select(.covered_occurrence_count > 0) | .cost_mean_iterations] | join("|")')"
+
 rm -rf "$RL_TMP"
 trap - RETURN
