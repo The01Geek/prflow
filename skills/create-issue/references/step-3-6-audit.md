@@ -4,7 +4,7 @@
 
 After Step 3.5 passes and before Step 4 presents anything, a fresh-context audit subagent is available. Every audit round is offered to the user before it opens, at Step 4's single pre-approval pause after the rendered draft is on screen; a user who is satisfied elects none, and a run that elects none is audited by none and files unaudited. This step supplies the round machinery; the election that opens any round lives at that pause.
 
-Step 3.5-record entry gate (blocks the audit dispatch only). Before anything below runs, confirm this run's latest `## Steelman record` `### pass <n>` entry in `.prflow/tmp/issue-derivation-<slug>.md` per the entry-confirmation contract (item 9) of `references/step-3-5-steelman.md`. A missing or stale entry is a skipped Step 3.5 and blocks only this dispatch, not issue creation.
+Step 3.5-record entry gate (blocks the audit dispatch only). Before anything below runs, confirm this run's latest `## Steelman record` `### pass <n>` entry in `.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md` per the entry-confirmation contract (item 9) of `references/step-3-5-steelman.md`. A missing or stale entry is a skipped Step 3.5 and blocks only this dispatch, not issue creation.
 #### The bootstrap member, and the deferred audit-round members
 
 This step is delivered as an ordered set — this entry plus three procedure members — but the members load at two different times:
