@@ -948,13 +948,30 @@ the fresh token and only the gh token file (surface 2) then fails to write, the 
 surfaces diverge (surface 1 fresh, surface 2 stale); the cycle warns naming that
 divergence and the next 2-minute backoff retry re-converges them. Because a background process's `::warning::` lines are
 inert in the Actions UI, an `if: always()` **Stop credential refresher** step
-(`scripts/stop-refresher.sh`) retires the refresher by pidfile, tails its detached log
+(`scripts/stop-refresher.sh`) tears the refresher down in two stages. Its **first**
+action is a cross-job **sweep**: it expands a glob of job-scoped pidfiles across the
+whole temporary directory and reaps any live orphan whose command line identifies it as
+a refresher but whose pidfile is not this step's own. It derives that glob from the
+temporary directory, which it first **normalizes** through `lib/normalize-path.sh`
+(issue #1925) — and when that value cannot be expressed as a POSIX glob root (a
+Windows-form path with no `wslpath`/`cygpath` and no WSL/MSYS signal, or a UNC path) it
+reaps **nothing**, composing an empty pattern and emitting a `::warning::` breadcrumb
+naming the unusable value rather than signalling a process whose scope it cannot
+establish. An explicitly-supplied `DEVFLOW_REFRESH_REAP_GLOB` is used verbatim, with no
+conversion. It then retires **this** step's refresher by pidfile, tails its detached log
 into the step output, and re-emits **one** live `::warning::` when the refresher was
 actually defeated (never started/crashed before its first cycle, died mid-run — the
 pidfile's pid no longer running, so a stale `cycle OK` in the log does not mask a death
 after that cycle; the pidfile present but empty — the loop could not record its PID, so
 its liveness cannot be verified — or its most recent cycle failed) — so a run that silently lost its
-credentials is visible without log archaeology. The agent-side wrapper degrades loudly
+credentials is visible without log archaeology. The defeat warning is **suppressed** when
+the self-test marker is present, because a genuine signing-fault self-test failure is
+reported by its own attribution branch rather than as a defeat. The Stop step derives
+that marker path **itself**, from the same handle the Start step uses, rather than
+inheriting it from the environment: the writer workflows no longer publish
+`DEVFLOW_REFRESH_SELFTEST_FAILED` job-wide (issue #1925), mirroring the earlier
+`DEVFLOW_GH` decision, because a job-wide value would persist into every later job step
+and outrank fixture PATH stubs in the repository test suite. The agent-side wrapper degrades loudly
 too: a substitute decision that finds no token file (a refresher defeated at startup
 never writes one) emits a stderr breadcrumb before riding the ambient token.
 

@@ -247,6 +247,12 @@ _ac10_count533() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; gr
 # Whole-workflow sibling: counts process-global DEVFLOW_GH assignments anywhere
 # in a file — shell '=' or YAML env ':' form — with whole-line comments stripped.
 _ac10_wf_count533() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -cE 'DEVFLOW_GH[=:]'; }
+# The AC9 (#1925) counter: the self-test marker path must not be PUBLISHED job-wide into $GITHUB_ENV
+# (the fixture-stub-outranking hazard the DEVFLOW_GH check guards). Both job-wide publication forms
+# stay counted — the shell `echo "NAME=` redirect AND a YAML `env:` `NAME:` entry: matching only the
+# shell form would leave a re-introduced job-level env: block green, recreating the hazard. Comments
+# stripped; the Stop step's in-body `export NAME=` is not a publication and is not matched.
+_ac1925_pub_count() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -cE '(echo "DEVFLOW_REFRESH_SELFTEST_FAILED=|^[[:space:]]*DEVFLOW_REFRESH_SELFTEST_FAILED:)'; }
 assert_eq "#533 AC10: install-gh-wrapper.sh writes no bare DEVFLOW_GH= (only DEVFLOW_GH_REAL=)" "0" \
   "$(_ac10_count533 "$INSTALL533")"
 
@@ -270,6 +276,21 @@ for _wf533 in devflow-implement devflow; do
   # keep passing it in its env: block, or output 5 fails on every App-enabled run.
   assert_eq "#533 AC14: $_wf533.yml install step passes APP_TOKEN in its env: block" "1" \
     "$(printf '%s\n' "$(mint_blk 'Install fresh-gh wrapper (optional)' "$WF/$_wf533.yml")" | grep -cF 'APP_TOKEN: ${{ steps.app-token.outputs.token }}')"
+  # AC9 (#1925): the self-test marker path is no longer published job-wide anywhere in the
+  # file (the fixture-stub-outranking hazard the DEVFLOW_GH check guards).
+  assert_eq "#1925 AC9: $_wf533.yml publishes no DEVFLOW_REFRESH_SELFTEST_FAILED to \$GITHUB_ENV (count 0)" "0" \
+    "$(_ac1925_pub_count "$WF/$_wf533.yml")"
+  # AC10 (#1925): the Stop step derives the marker path in its OWN body, from the same HANDLE
+  # the Start step uses, replacing the retired job-wide publication.
+  # structural-pin-ok: cross-file-phase-contract -- the Stop step's self-derivation is the cross-step contract that replaced the retired job-wide publication; it pins a machine-consumed boundary (the env var stop-refresher.sh reads), not prose.
+  assert_eq "#1925 AC10: $_wf533.yml Stop step derives DEVFLOW_REFRESH_SELFTEST_FAILED from HANDLE in its own body" "1" \
+    "$(printf '%s\n' "$(mint_blk 'Stop credential refresher (optional)' "$WF/$_wf533.yml")" | grep -cF 'export DEVFLOW_REFRESH_SELFTEST_FAILED="$RUNNER_TEMP/devflow-refresh-$HANDLE.selftest-failed"')"
+  # AC10 (#1925): the Stop step now re-derives HANDLE independently, so its marker path diverges
+  # from the Start step's — silently breaking the #1882 signing-fault attribution — if a one-sided
+  # edit changes one HANDLE formula and not the other. Require the identical formula in both steps.
+  # structural-pin-ok: cross-file-phase-contract -- Start<->Stop HANDLE equality is the cross-step contract the retired job-wide publication used to guarantee; a machine-consumed boundary (the derived marker path), not prose.
+  assert_eq "#1925 AC10: $_wf533.yml Start and Stop steps both derive HANDLE with the identical formula" "1 1" \
+    "$(printf '%s\n' "$(mint_blk 'Start credential refresher (optional)' "$WF/$_wf533.yml")" | grep -cF 'HANDLE="${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-0}-${GITHUB_JOB:-job}"') $(printf '%s\n' "$(mint_blk 'Stop credential refresher (optional)' "$WF/$_wf533.yml")" | grep -cF 'HANDLE="${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-0}-${GITHUB_JOB:-job}"')"
 done
 # Positive controls for the whole-file recipe: a regex typo must not leave the
 # guard green forever. Plant each re-introduction shape in a scratch fixture and
@@ -282,6 +303,18 @@ assert_eq "#533 AC22: the whole-file AC10 recipe fires on a planted shell DEVFLO
 printf '      # prose mentioning DEVFLOW_GH=old-export never fires the guard\n' > "$_t533k"
 assert_eq "#533 AC22: the whole-file AC10 recipe stays 0 on a whole-line comment mention" "0" "$(_ac10_wf_count533 "$_t533k")"
 rm -f "$_t533k"
+# Positive controls for the #1925 publication recipe: a planted publication fires (1), a
+# whole-line comment mention stays 0 — so a quoting/regex typo cannot leave the guard green.
+_t1925k="$(probe_tmp '#1925 AC9 self-test-marker publication guard positive control setup')"
+printf '          {\n            echo "DEVFLOW_REFRESH_SELFTEST_FAILED=$STMARK"\n          } >> "$GITHUB_ENV"\n' > "$_t1925k"
+assert_eq "#1925 AC9: the publication recipe fires on a planted DEVFLOW_REFRESH_SELFTEST_FAILED publication" "1" "$(_ac1925_pub_count "$_t1925k")"
+printf 'jobs:\n  claude:\n    env:\n      DEVFLOW_REFRESH_SELFTEST_FAILED: /tmp/leaked\n' > "$_t1925k"
+assert_eq "#1925 AC9: the publication recipe fires on a planted YAML env DEVFLOW_REFRESH_SELFTEST_FAILED: entry" "1" "$(_ac1925_pub_count "$_t1925k")"
+printf '          export DEVFLOW_REFRESH_SELFTEST_FAILED="$RUNNER_TEMP/devflow-refresh-$HANDLE.selftest-failed"\n' > "$_t1925k"
+assert_eq "#1925 AC9: the publication recipe stays 0 on the Stop step in-body export (self-derivation is not publication)" "0" "$(_ac1925_pub_count "$_t1925k")"
+printf '          # echo "DEVFLOW_REFRESH_SELFTEST_FAILED=$STMARK" (retired publication, mentioned only in prose)\n' > "$_t1925k"
+assert_eq "#1925 AC9: the publication recipe stays 0 on a whole-line comment mention" "0" "$(_ac1925_pub_count "$_t1925k")"
+rm -f "$_t1925k"
 
 # AC14 — the seven validated outputs: each induced failure exits 1 with a
 # diagnostic naming that output; the full-success arm lands all seven.
