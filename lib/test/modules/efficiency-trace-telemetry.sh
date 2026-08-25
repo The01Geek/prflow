@@ -4333,7 +4333,7 @@ printf '{}' > "$LR_CLEAN/.prflow/logs/efficiency/pr-80-run-n.json"
 # assertion below cover that path, and turns RED if the evidence-shape arm is ever
 # widened past `.synthesized == true` "for symmetry" and starts warning on every
 # ordinary iteration that ran the gate.
-printf '%s' '{"iter":1,"started_at":"t","fix_commit_sha":"abc","fix_files":[],"loop_role":"fix","sweep_defs_read":[],"sweep_evidence":{"status":"not-run","reason":"no fixes applied"},"reference_reads":{"fix_delta":{"status":"verified","outcome":"clean","reason":null}},"checklist":[],"phase3_dispatched":3,"expected_reviewers":[],"dispatched_effort":[],"diff_profile":"x","phase3_findings":[],"fix_decisions":[],"convergence_inputs":{},"cap_drops":[],"telemetry":{}}' \
+printf '%s' '{"iter":1,"started_at":"t","fix_commit_sha":"abc","fix_files":[],"loop_role":"fix","sweep_defs_read":[],"sweep_evidence":{"status":"not-run","reason":"no fixes applied"},"reference_reads":{"fix_delta":{"status":"verified","outcome":"clean","reason":null}},"checklist":[],"phase3_dispatched":3,"phase3_failed_agents":[],"expected_reviewers":[],"dispatched_effort":[],"diff_profile":"x","phase3_findings":[],"fix_decisions":[],"convergence_inputs":{},"cap_drops":[],"telemetry":{}}' \
   > "$LR_CLEAN_RUN/iter-1.json"
 LR_CLEAN_OUT="$( ( cd "$LR_CLEAN" && bash "$LIB/efficiency-trace.sh" --self-check --workpad-dir "$LR_CLEAN_RUN" --slug pr-80 ) 2>&1 )"; LR_CLEAN_RC=$?
 assert_eq "loop_role #177: --self-check exits 0 on a complete iter (all fields present)" "0" "$LR_CLEAN_RC"

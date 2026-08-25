@@ -114,6 +114,7 @@ This skill skips /prflow:review's Phase 4.4 entirely — no formal review and no
     "prflow:type-design-analyzer",
     "prflow:pr-test-analyzer"
   ],
+  "phase3_failed_agents": ["prflow:type-design-analyzer"], /* unconditional: dispatched agents that did not return a usable result ([] when all returned); same identifier strings as phase3_dispatched */
   "diff_profile": {
     "small_diff": false,
     "config_only": false,
