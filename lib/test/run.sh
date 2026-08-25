@@ -44771,13 +44771,15 @@ assert_eq "#1219 negative-pattern control: the bare mutated copy lost its fetch-
   "$(devflow_wf_job_has claude 'fetch-depth:[[:space:]]*0[[:space:]]*$' "$_I1219_MUT/bare.yml")"
 unset _I1219_IMPL_YML _I1219_CMD_YML _I1219_MUT
 #
-# ci.yml: the shard job installs the Claude Code CLI, which is what ARMS the #671
-# `claude plugin validate --strict` gate earlier in this file. Same failure class as the
-# fetch-depth: 0 pin above. With no CLI on PATH that gate takes its blocking-gate skip
-# branch, and a skip exits 0, so dropping this step would silently retire the CLI's
-# strict plugin-tree validation while CI stayed green. Scope note: the PyYAML frontmatter
-# and JSON manifest gates sit OUTSIDE that `command -v claude` branch and keep running
-# regardless — only the strict plugin-tree layer is disarmed.
+# ci.yml: the shard job installs the Claude Code CLI on the `monolith` shard, which
+# ARMS the #671 `claude plugin validate --strict` gate earlier in this file. Same
+# failure class as the fetch-depth: 0 pin above. With no CLI on PATH that gate takes its
+# blocking-gate skip branch; the install is monolith-only (issue #1830), and
+# lib/test/run-shard.sh now FAILS any shard whose log shows that CLI-absence skip, so
+# dropping this step reddens the shard rather than retiring the validation silently.
+# Scope note: the PyYAML frontmatter and JSON manifest
+# gates sit OUTSIDE that `command -v claude` branch and keep running regardless — only
+# the strict plugin-tree layer is disarmed.
 # Two lines are pinned because they fail independently: the installer fetches the binary,
 # and the GITHUB_PATH append is what actually puts it on PATH for later steps — an
 # install whose PATH export was dropped leaves the gate skipping just as surely. Matching
@@ -44922,6 +44924,52 @@ assert_eq "#671 ci.yml: the install goes through the retry wrapper" "yes" \
 # structural-pin-ok: cross-file-phase-contract -- pipefail is what turns a failed download into a failed step; without it the install reports success and the #671 gate silently self-skips again
 assert_eq "#671 ci.yml: the install command string sets pipefail" "yes" \
   "$(devflow_ci_shard_has 'set -o pipefail')"
+#
+# ── issue #1830: monolith-only CLI install + the fail-loud gate-armed backstop ──
+# The CLI install and verify steps now run on the `monolith` shard only (the sole CLI
+# consumer), so the other four shards make no claude.ai fetch. lib/test/run-shard.sh
+# scans every shard's log and FAILS a shard whose log shows the #671 plugin-validate gate
+# self-skipped for CLI absence, closing the silent-revert exposure that narrowing reopens.
+# structural-pin-ok: cross-file-phase-contract -- the `if:` is what confines the CLI install to the one consuming shard; dropped, the install reverts to all five shards (issue #1830 AC1)
+assert_eq "#1830 ci.yml: the CLI install step is gated on the monolith shard" "yes" \
+  "$(devflow_ci_shard_has "if: matrix[.]shard == 'monolith'")"
+# always() keeps verify running after a corrupt install (gated on the shard, not the
+# install's outcome), so a wrong-version CLI can never pass unverified.
+# structural-pin-ok: cross-file-phase-contract -- always() is what makes verify run independent of the install step's outcome; without it a failed-then-skipped verify lets a corrupt install pass (issue #1830 AC2)
+assert_eq "#1830 ci.yml: the verify step runs on monolith independent of the install outcome" "yes" \
+  "$(devflow_ci_shard_has "if: always[(][)] && matrix[.]shard == 'monolith'")"
+# Negative control: the matcher is not vacuously `yes` — a shard never gated for reads `no`.
+assert_eq "#1830 ci.yml gate control: an unused shard condition is NOT present" "no" \
+  "$(devflow_ci_shard_has "if: matrix[.]shard == 'no-such-shard'")"
+# The fail-loud backstop, driven end-to-end (RED/GREEN without a live CLI outage): a
+# fixture tree whose stub run.sh emits the crafted monolith log, so run-shard.sh's own
+# detection decides the shard's exit. The #671 CLI-absence skip FAILS the shard; an
+# unrelated #434 blocking-gate skip and a clean log pass — proving the #671 scope. Each
+# log carries a clean `1 passed, 0 failed` tally, so the exit turns ONLY on the backstop
+# (shard-tally.py extract returns 1 on a nonzero shard_rc even with a clean tally).
+CGA_TREE="$(mktemp -d)"
+[ -n "$CGA_TREE" ] && [ -d "$CGA_TREE" ] || { printf 'FATAL: mktemp -d failed for the #1830 gate-armed controls\n' >&2; exit 1; }
+mkdir -p "$CGA_TREE/lib/test"
+cp "$LIB/test/run-shard.sh" "$CGA_TREE/lib/test/run-shard.sh"
+cp "$LIB/test/shard-tally.py" "$CGA_TREE/lib/test/shard-tally.py"
+chmod +x "$CGA_TREE/lib/test/run-shard.sh"
+# Stub run.sh: emit the crafted log line its CGA_CASE names, then a clean passing tally.
+cat > "$CGA_TREE/lib/test/run.sh" <<'CGA_EOF'
+#!/usr/bin/env bash
+case "${CGA_CASE:-clean}" in
+  reverted) printf '  SKIP  #671 claude plugin validate --strict (plugin tree + descent matrix) [blocking-gate] — claude CLI not on PATH — not run\n' ;;
+  only434)  printf '  SKIP  #434 stale-prose self-scan [blocking-gate] — working tree dirty (grades committed HEAD)\n' ;;
+esac
+printf '1 passed, 0 failed\n'
+CGA_EOF
+chmod +x "$CGA_TREE/lib/test/run.sh"
+assert_eq "#1830 run-shard: the #671 CLI-absence skip FAILS the monolith shard" "nonzero" \
+  "$(cd "$CGA_TREE" && CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-rev" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+assert_eq "#1830 run-shard: an unrelated #434 blocking-gate skip does NOT fail the monolith shard" "zero" \
+  "$(cd "$CGA_TREE" && CGA_CASE=only434 DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-434" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+assert_eq "#1830 run-shard: a clean log passes the monolith shard" "zero" \
+  "$(cd "$CGA_TREE" && CGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-clean" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+rm -rf "$CGA_TREE"
 #
 # ── scripts/assert-cli-version.sh: every arm of the extracted version check ──
 # The decision this helper makes used to be inline workflow shell, which no assertion

@@ -141,6 +141,14 @@ cat "$LOG_FILE" || true
 LOG_FILE_ABS="$(cd "${LOG_FILE%/*}" && pwd -P)/${LOG_FILE##*/}"
 printf 'run-shard.sh: retained log: %s\n' "$LOG_FILE_ABS"
 
+# Fail the shard when the #671 plugin-validate gate self-skipped for CLI absence — a skip
+# exits 0, so this is what stops a silent revert (issue #1830). Run on EVERY shard: do NOT
+# scope to `monolith` by name (breaks migration-detection) nor widen past #671+CLI-absence (the #434 skip must not trip it).
+if grep -Eq -- '#671 claude plugin validate --strict.*blocking-gate.*claude CLI not on PATH' "$LOG_FILE"; then
+  printf 'run-shard.sh: ::error:: the #671 plugin-validate gate self-skipped for CLI absence on shard %s — the claude CLI must be installed on whichever shard hosts that gate (see .github/workflows/ci.yml). Failing loudly rather than reverting the gate silently (issue #1830).\n' "$SHARD" >&2
+  shard_rc=1
+fi
+
 # Extract the tally. shard-tally.py fails closed: a non-zero shard_rc with no
 # parsed failure still records a failure, so a crashed shard never recombines green.
 python3 "$SCRIPT_DIR/shard-tally.py" extract \
