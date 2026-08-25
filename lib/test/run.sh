@@ -16693,6 +16693,31 @@ assert_eq "clean-entry categories=[]"       "0"     "$(echo "$E" | jq '.categori
 assert_eq "clean-entry descriptors=[]"      "0"     "$(echo "$E" | jq '.descriptors|length')"
 assert_eq "clean-entry no theme_tags field" "true"  "$(echo "$E" | jq 'has("theme_tags") | not')"
 assert_eq "clean-entry signals carried"     "0"     "$(echo "$E" | jq -r .signals.post_bot_commits)"
+# #1827: diff-size fields (additions/deletions/changed_files) survive cleaning when present,
+# and a bundle lacking them still cleans without error (fields default to null).
+CTX_CLEAN_SZ='{"pr":42,"kind":"implementation","issue_number":40,"merged_at":"2026-05-01T00:00:00Z","branch":"claude/issue-40-x","head_sha":"abc","merge_commit_sha":"def","additions":120,"deletions":34,"changed_files":["lib/a.sh","lib/b.jq"],"signals":{"review_comments_count":0,"post_bot_commits":0,"ci_failures_during_pr":0,"workpad_final_status":"Complete","review_reject_outstanding":false}}'
+ESZ="$(echo "$CTX_CLEAN_SZ" | jq -c -f "$LIB/clean-entry.jq")"
+assert_eq "#1827 clean-entry additions survives"      "120"      "$(echo "$ESZ" | jq -r .additions)"
+assert_eq "#1827 clean-entry deletions survives"      "34"       "$(echo "$ESZ" | jq -r .deletions)"
+# changed_files survives verbatim (contents + order), not merely by length — a reorder/dedupe/rewrite must fail.
+assert_eq "#1827 clean-entry changed_files survives verbatim" '["lib/a.sh","lib/b.jq"]' "$(echo "$ESZ" | jq -c '.changed_files')"
+# The size-field-less CTX_CLEAN cleans without error and defaults the fields to null.
+assert_eq "#1827 clean-entry additions null when absent"     "null" "$(echo "$E" | jq -r .additions)"
+assert_eq "#1827 clean-entry deletions null when absent"     "null" "$(echo "$E" | jq -r .deletions)"
+assert_eq "#1827 clean-entry changed_files null when absent" "null" "$(echo "$E" | jq -r .changed_files)"
+# schema_version 3 always emits the keys (present even when null), so a reader can distinguish a v3
+# entry that lacked size data from a v2 entry that never had the fields — has() pins that contract.
+assert_eq "#1827 clean-entry additions key present when absent"     "true" "$(echo "$E" | jq 'has("additions")')"
+assert_eq "#1827 clean-entry deletions key present when absent"     "true" "$(echo "$E" | jq 'has("deletions")')"
+assert_eq "#1827 clean-entry changed_files key present when absent" "true" "$(echo "$E" | jq 'has("changed_files")')"
+# Valid-falsy passthrough: a real 0 / [] must survive (jq's // treats 0 and [] as truthy), so a
+# future naive `if .additions then` rewrite that nulls a real 0 would go RED here.
+CTX_CLEAN_FALSY='{"pr":42,"kind":"implementation","additions":0,"deletions":0,"changed_files":[],"signals":{"review_comments_count":0,"post_bot_commits":0,"ci_failures_during_pr":0,"workpad_final_status":"Complete","review_reject_outstanding":false}}'
+EFALSY="$(echo "$CTX_CLEAN_FALSY" | jq -c -f "$LIB/clean-entry.jq")"
+assert_eq "#1827 clean-entry additions 0 survives (not nulled)"       "0"  "$(echo "$EFALSY" | jq -r .additions)"
+assert_eq "#1827 clean-entry deletions 0 survives (not nulled)"       "0"  "$(echo "$EFALSY" | jq -r .deletions)"
+assert_eq "#1827 clean-entry changed_files [] survives (not nulled)"  "0"  "$(echo "$EFALSY" | jq '.changed_files|length')"
+assert_eq "#1827 clean-entry changed_files [] is an array not null"   "array" "$(echo "$EFALSY" | jq -r '.changed_files|type')"
 
 # ── #1829 clean-entry.jq records analysis_provenance from the bundle ──────────
 # A live Stage A run's gate-skipped entry records what evidence the bundle
