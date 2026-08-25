@@ -20,7 +20,7 @@ python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports 
 It answers `kind=discovery|targeted reason=<token> …`. Obey the answer, never choose a kind. On `kind=targeted` only, write the round's dispatch-scope file next:
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py write-dispatch-scope "<slug>" --nonce "<nonce>" --draft-file "<canonical>" --path "<bound-root>/.prflow/tmp/issue-audit-scope-<slug>.<digest>.md"
+python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py write-dispatch-scope "<slug>" --nonce "<nonce>" --draft-file "<canonical>" --path "<bound-root>/.prflow/tmp/create-issue/<slug>/issue-audit-scope-<slug>.<digest>.md"
 ```
 
 It prints `scope_path= scope_digest= basis_digest=`. Pass `--scope-file "<scope_path>"` to the renderer. `record-dispatch` requires `--kind <the kind query-round-kind answered>` on every round, plus `--scope-file` on a targeted one.
@@ -51,16 +51,16 @@ Information diet (the whole mechanism — do not widen it). On the file arm the 
 
 Reasoning artifacts are out of bounds; the draft file is not. On the file arm the generated instruction file — never a clause you add to the dispatch prompt — must declare this run's reasoning artifacts out of bounds, naming exactly these 8 paths and stating that any finding derived from those files is void:
 
-- `.prflow/tmp/issue-derivation-<slug>.md` — the Step 2 derivation record plus this run's evidence-bundle, steelman, and revision-delta sections.
-- `.prflow/tmp/issue-step1-<slug>.md` — the Step 1 evidence artifact.
-- `.prflow/tmp/issue-audit-<slug>.md` — the audit report.
-- `.prflow/tmp/issue-audit-state-<slug>.json` — the state owner's record.
-- `.prflow/tmp/issue-audit-state-<slug>.md` — the retired event log. The retired `.md` path stays named even though this skill no longer writes it.
-- `.prflow/tmp/issue-draft-<slug>.*.staged.md` — any staged canonical-draft artifact.
-- `.prflow/tmp/issue-record-<slug>.md` — the investigation record.
-- `.prflow/tmp/issue-audit-scope-<slug>.*.md` — any dispatch-scope artifact. It must persist, its digest being recompared at `record-return`. The glob is total, covering a round's own scope file too.
+- `.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md` — the Step 2 derivation record plus this run's evidence-bundle, steelman, and revision-delta sections.
+- `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md` — the Step 1 evidence artifact.
+- `.prflow/tmp/create-issue/<slug>/issue-audit-<slug>.md` — the audit report.
+- `.prflow/tmp/create-issue/<slug>/issue-audit-state-<slug>.json` — the state owner's record.
+- `.prflow/tmp/create-issue/<slug>/issue-audit-state-<slug>.md` — the retired event log. The retired `.md` path stays named even though this skill no longer writes it.
+- `.prflow/tmp/create-issue/<slug>/issue-draft-<slug>.*.staged.md` — any staged canonical-draft artifact.
+- `.prflow/tmp/create-issue/<slug>/issue-record-<slug>.md` — the investigation record.
+- `.prflow/tmp/create-issue/<slug>/issue-audit-scope-<slug>.*.md` — any dispatch-scope artifact. It must persist, its digest being recompared at `record-return`. The glob is total, covering a round's own scope file too.
 
-The generated instruction file `.prflow/tmp/issue-audit-dispatch-<slug>.md` and `issue-draft-<slug>.md` are not on this list; the embed arm names both, per `references/fallback-audit-dispatch-arms.md`.
+The generated instruction file `.prflow/tmp/create-issue/<slug>/issue-audit-dispatch-<slug>.md` and `issue-draft-<slug>.md` are not on this list; the embed arm names both, per `references/fallback-audit-dispatch-arms.md`.
 
 #### Carriage / identity check (file arm)
 
@@ -78,7 +78,7 @@ The audit prompt is rendered by `scripts/render-audit-prompt.py`, not hand-emitt
 
 Consumption categories (complete by construction). (i) Every state-owner-routed file-arm audit dispatch — the first elected round, same-round retries, boundary-offer rounds, confirming whole-draft rounds, and Step 4 sub-step 4 re-audits — takes the generated-instructions transport below: the authorized instructions are exactly what the generator emits, and the Agent-tool prompt string is a **generated pointer** naming the instruction file and the draft file and nothing else, so add no framing or scoping to it. (ii) The degraded inline arm and (iii) Step 3.5 item 6's self-check run the renderer orchestrator-side, consuming its stdout under the same positional check. (iv) Step 2's `## Evidence axes` forwarding consumes the renderer's section-extraction mode. (v) The `state-owner unavailable` fallback's single audit round splits by that fallback's two entry classes. The embed arm keeps its own transport in `references/fallback-audit-dispatch-arms.md`.
 
-Generate the canonical dispatch instructions, then write them (file arm). Substitute the bound `<slug>` and the absolute paths you hold; `<instructions path>` is `<the bound draft root>/.prflow/tmp/issue-audit-dispatch-<slug>.md`. Write the renderer's stdout to the instruction path with a shell redirect in the bash fence itself. The redirect truncates the target before the generator runs, so no separate delete-leftover step is needed. The write has landed when the generator exits zero and the file at the instruction path is non-empty; a non-zero exit or an empty file is the instructions-generation-failure route below:
+Generate the canonical dispatch instructions, then write them (file arm). Substitute the bound `<slug>` and the absolute paths you hold; `<instructions path>` is `<the bound draft root>/.prflow/tmp/create-issue/<slug>/issue-audit-dispatch-<slug>.md`. Write the renderer's stdout to the instruction path with a shell redirect in the bash fence itself. The redirect truncates the target before the generator runs, so no separate delete-leftover step is needed. The write has landed when the generator exits zero and the file at the instruction path is non-empty; a non-zero exit or an empty file is the instructions-generation-failure route below:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-audit-prompt.py dispatch-instructions --slug "<slug>" --draft-path "<absolute issue-draft-<slug>.md path>" --instructions-path "<instructions path>" > "<instructions path>" && test -s "<instructions path>"
