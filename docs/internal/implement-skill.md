@@ -893,6 +893,12 @@ exact remedy. See [`cloud-setup.md`](cloud-setup.md#extending-the-tool-allowlist
 is live only after that PR merges, because the workflows resolve config grants at trigger time from the default branch, not from the PR's own head.
 So a run must not rely on a grant its own PR ships: grant the command in a prior merged change, or
 leave that verification for after merge.
+The runtime home of this rule for a **bundled helper the run's own branch introduces or modifies** is
+the shipped skill body — `skills/implement/SKILL.md`'s *Cloud command-shape discipline* section — which
+directs the run, on that helper's first failed invocation, to route the dependent step to the existing
+deferral/Blocked path (naming post-merge grant/vendor timing), treating rc-127 and a silent denial
+identically. That skill-body rule narrows the introduced-helper case; this paragraph remains the broader
+statement about `allowed_tools` grants generally.
 The shared review engine, executed inline by Phase 3.3, takes its **test evidence from the orchestrator's
 own in-env suite/lint results** for the current HEAD — never a CI conclusion. (The read-only `review`
 runner is a separate, unchanged case: its wait-for-CI-then-review posture is the correct *post-PR*
