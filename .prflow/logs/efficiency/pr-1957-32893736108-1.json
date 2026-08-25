@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1957",
+  "generated_at": "2026-08-25T20:20:57Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.27",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.928925500000003,
+    "tokens": {
+      "input_tokens": 38,
+      "output_tokens": 19760,
+      "cache_read_input_tokens": 2439294,
+      "cache_creation_input_tokens": 161913,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 174,
+        "outputTokens": 47582,
+        "cacheReadInputTokens": 6485551,
+        "cacheCreationInputTokens": 462169,
+        "webSearchRequests": 0,
+        "costUSD": 7.928925500000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 29,
+    "duration_ms": 566022
+  },
+  "permission_denials": {
+    "count": 12,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} ACTIONS=${GITHUB_ACTIONS:-unset}\"",
+      "git apply --numstat .prflow/tmp/review/pr-1957/local/diff.patch 2>/dev/null; grep -nE '^\\+\\+\\+ |^diff ' .prflow/tmp/review/pr-1957/local/diff.patch | head -50",
+      "git show a9efc1d7ca13758470d9e78c8b891e89d8b82f7a:scripts/issue-audit-state.py > /tmp/ias.py; grep -nE 'mkdir|state_path|\\.write_text|open\\(|_atomic|parent' /tmp/ias.py | head -60",
+      "git show a9efc1d7ca13758470d9e78c8b891e89d8b82f7a:scripts/issue-audit-state.py > /tmp/ias.py",
+      "git show a9efc1d7ca13758470d9e78c8b891e89d8b82f7a:scripts/issue-audit-state.py > ./.prflow/tmp/ias.py",
+      "/home/runner/work/prflow/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review; echo \"---EXIT $?---\"",
+      "/home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh requesting-code-review; echo \"---EXIT $?---\"",
+      "/home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT ${PIPESTATUS[0]}---\"",
+      "/home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh requesting-code-review",
+      "for f in $(git show a9efc1d7ca13758470d9e78c8b891e89d8b82f7a:skills/create-issue --name-only 2>/dev/null; git ls-tree -r --name-only a9efc1d7ca13758470d9e78c8b891e89d8b82f7a skills/create-issue scripts/issue-audit-state.py scripts/cleanup-create-issue-run.sh docs/internal/create-issue-context.md); do :; done; git ls-tree -r --name-only a9efc1d7ca13758470d9e78c8b891e89d8b82f7a skills/create-issue",
+      "git ls-tree -r --name-only a9efc1d7ca13758470d9e78c8b891e89d8b82f7a skills/create-issue",
+      "git ls-tree -r --name-only a9efc1d7ca13758470d9e78c8b891e89d8b82f7a -- skills/create-issue"
+    ],
+    "total": 12,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
