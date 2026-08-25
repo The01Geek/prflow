@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1953",
+  "generated_at": "2026-08-25T13:37:42Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.692953850000004,
+    "tokens": {
+      "input_tokens": 68,
+      "output_tokens": 41981,
+      "cache_read_input_tokens": 5525904,
+      "cache_creation_input_tokens": 232224,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 132,
+        "outputTokens": 59386,
+        "cacheReadInputTokens": 7147258,
+        "cacheCreationInputTokens": 487707,
+        "webSearchRequests": 0,
+        "costUSD": 8.97794775,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 92,
+        "outputTokens": 13990,
+        "cacheReadInputTokens": 2058423,
+        "cacheCreationInputTokens": 465295,
+        "webSearchRequests": 0,
+        "costUSD": 1.7150061,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 63,
+    "duration_ms": 798403
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNID---\"; echo \"${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null; echo \"---\"; git -C /home/runner/work/prflow/prflow show fac4287af3a6f1e44f22b3720fe5b5858b3fa8fb:skills/create-issue/SKILL.md > /tmp/skillmd.txt; wc -l /tmp/skillmd.txt",
+      "mkdir -p .prflow/tmp/review/pr-1953/32852955146-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1953/32852955146-1/verdicts/iter-1/VC-9-m3v8qw.json << 'EOF'\n{\"id\": \"VC-9\", \"verdict\": \"PASS\", \"evidence\": \"skills/create-issue/SKILL.md line 202-205 (per git show fac4287a) reads: 'the orchestrator compares that returned operand against the pathspec that leg dispatched, and records the leg unestablished with a breadcrumb ... when the return omits the operand or its stated value does not match, rather t …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::devflow review: could not create a regular working-tree snapshot before dispatch; dirty-tree backstop DI …[per-command-truncated]",
+      "rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before",
+      "git show fac4287af3a6f1e44f22b3720fe5b5858b3fa8fb:skills/docs-verify/SKILL.md 2>/dev/null | grep -n -- \"--search-space\\|--report-only\\|report-only\\|search-space\" | head -30; echo \"---glob---\"; git ls-tree -r --name-only fac4287af3a6f1e44f22b3720fe5b5858b3fa8fb | grep -i docs-verify",
+      "git ls-tree -r --name-only fac4287af3a6f1e44f22b3720fe5b5858b3fa8fb | grep -i docs-verify"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
