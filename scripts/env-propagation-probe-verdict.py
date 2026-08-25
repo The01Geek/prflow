@@ -84,13 +84,13 @@ CONTROL_AFTER = "ENVPROBE_CONTROL_AFTER"
 _OBSERVED = {SENTINEL, "UNSET"}
 
 
-def _hop_values(tool_uses, marker):
+def _hop_values(entries, marker):
     """Return the set of OBSERVED values recorded for a hop marker.
 
     Matches `<marker> <token>` and keeps only tokens the probe can actually observe.
     A `%s` template (the unexpanded printf the instructions carry) yields nothing."""
     pat = re.compile(re.escape(marker) + r"\s+([^\s\"'\\]+)")
-    return {v for t in tool_uses for v in pat.findall(t)} & _OBSERVED
+    return {v for t in entries for v in pat.findall(t)} & _OBSERVED
 
 
 def parse_execution_file(exec_file):
@@ -177,7 +177,7 @@ def collect(parsed):
     return entries
 
 
-def compute_verdict(tool_uses, note_top):
+def compute_verdict(entries, note_top):
     """Return (verdict, reason, record_it).
 
     A hop counts as PROPAGATED only when its marker is recorded alongside the sentinel
@@ -185,21 +185,21 @@ def compute_verdict(tool_uses, note_top):
     sentinel leaking in from the OTHER hop's entry and crediting a hop that never saw
     it; requiring an OBSERVED value (see `_hop_values`) is what stops the probe's own
     unexpanded instruction text from being counted as a report."""
-    hop1_values = _hop_values(tool_uses, HOP1)
-    hop2_values = _hop_values(tool_uses, HOP2)
+    hop1_values = _hop_values(entries, HOP1)
+    hop2_values = _hop_values(entries, HOP2)
     hop1 = SENTINEL in hop1_values
     hop2 = SENTINEL in hop2_values
     hop1_reported = bool(hop1_values)
     hop2_reported = bool(hop2_values)
-    before = any(CONTROL_BEFORE in t for t in tool_uses)
-    after = any(CONTROL_AFTER in t for t in tool_uses)
+    before = any(CONTROL_BEFORE in t for t in entries)
+    after = any(CONTROL_AFTER in t for t in entries)
 
     # Ordered, and the degraded arms come FIRST. A measurement that did not run must
     # never be read as a measurement that came back negative — collapsing "we could not
     # look" onto "it does not propagate" is the fail-open this ordering exists to stop.
     if note_top:
         return "INCONCLUSIVE", "the execution file could not be read cleanly: " + note_top, False
-    if not tool_uses:
+    if not entries:
         return "INCONCLUSIVE", "no tool_use or tool_result entries were recorded, so nothing was measured", False
     if not (before and after):
         return (
@@ -249,13 +249,13 @@ def compute_verdict(tool_uses, note_top):
 def render(exec_file):
     parsed, note_top = parse_execution_file(exec_file)
     try:
-        tool_uses = collect(parsed)
+        entries = collect(parsed)
     except RecursionError:
         note_top = (note_top + "; " if note_top else "") + (
             "execution file nested too deeply to walk"
         )
-        tool_uses = []
-    verdict, reason, record_it = compute_verdict(tool_uses, note_top)
+        entries = []
+    verdict, reason, record_it = compute_verdict(entries, note_top)
 
     out = []
     out.append("## Step-level `env:` propagation probe (issue #874)")
@@ -280,11 +280,11 @@ def render(exec_file):
             "Re-dispatch the probe."
         )
     out.append("")
-    out.append("### Raw recorded entries — tool_use inputs + tool_result outputs (%d)" % len(tool_uses))
+    out.append("### Raw recorded entries — tool_use inputs + tool_result outputs (%d)" % len(entries))
     out.append("")
-    if tool_uses:
+    if entries:
         out.append("```")
-        for t in tool_uses:
+        for t in entries:
             out.append(t[:400])
         out.append("```")
     else:
