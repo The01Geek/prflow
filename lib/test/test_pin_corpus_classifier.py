@@ -196,7 +196,7 @@ assert_eq "counted" "0" "$(raf_illegal_count "$LIB/c.md")"
         self.assertEqual("lib/a.md", rows[0].resolved_target)
         self.assertFalse(rows[0].target_defaulted)
         self.assertEqual(
-            "lib/test/modules/review-and-fix-contract.sh",
+            "lib/test/modules/workpad-cli.sh",
             self.mod.PIN_CORPUS_SOURCES[-1],
         )
 
