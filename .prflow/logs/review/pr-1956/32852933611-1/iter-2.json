@@ -1,0 +1,109 @@
+{
+  "iter": 2,
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "dispatch_mode": "unavailable",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "dispatch_mode": "unavailable",
+    "ran_at": "2026-08-25T14:00:00Z",
+    "reviewed_sha": "3dfe163be",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Critical",
+        "description": "exact floor 983 stale vs measured 987 after iter-5 +4 assertions",
+        "defect_signature": {
+          "file": "scripts/workflow-flight-recorder-registry.json",
+          "line_range": [
+            90,
+            90
+          ],
+          "kind": "generated_artifact_drift"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Important",
+        "description": "empty-array [] none-failed establishment path untested",
+        "defect_signature": {
+          "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+          "line_range": [
+            272,
+            272
+          ],
+          "kind": "test_coverage_gap"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 8,
+      "overlap_with_iter_N": 0,
+      "new": 2,
+      "new_critical": 1,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": true
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

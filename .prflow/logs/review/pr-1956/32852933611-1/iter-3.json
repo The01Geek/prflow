@@ -1,0 +1,87 @@
+{
+  "iter": 3,
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "loop-exit",
+  "fix_commit_sha": "138f37535",
+  "fix_files": [
+    "lib/test/modules/efficiency-trace-telemetry.sh",
+    "lib/test/run.sh",
+    "scripts/workflow-flight-recorder-registry.json"
+  ],
+  "dispatch_mode": "unavailable",
+  "phase3_dispatched": [
+    "prflow:pr-test-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Critical",
+      "description": "stale exact floor 983 vs measured 987 (promoted from shadow)",
+      "defect_signature": {
+        "file": "scripts/workflow-flight-recorder-registry.json",
+        "line_range": [
+          90,
+          90
+        ],
+        "kind": "generated_artifact_drift"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "empty-array none-failed establishment path untested (promoted from shadow)",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [
+          272,
+          272
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "applied",
+      "commit": "138f37535"
+    },
+    {
+      "finding_id": "S-2",
+      "decision": "applied",
+      "commit": "138f37535"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 17,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": "post-shadow delta review (prflow:pr-test-analyzer) over 3dfe163be..138f37535 returned APPROVE with no findings; floor 989 == measured, empty-array fixture RED-meaningful"
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

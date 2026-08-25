@@ -1,0 +1,60 @@
+{
+  "verdict": "REJECT",
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The authoritative failed-set establishment flag $failed_direct_present keys on container type only (($failed_raw | type) == \"array\"), not element validity. A present phase3_failed_agents array whose elements are malformed (e.g. [{\"agent\":\"x\"}] or [\"real\", 7]) is dropped by the `strings` filter into $failed_direct=[], yet $failed_direct_present stays true and is used as the blanket 'failed set established for every dispatched agent' signal ($failed_established) and re-exported as the durable phase3_failed_agents_present honesty flag. Result: a genuinely-failed or silent agent uncovered by the lossy parse reads disposition=silent (else arm) instead of unestablished. This is asymmetric with the shadow channel, which establishes coverage per-valid-entry via select(type==object and returned:boolean and agent:string), and it contradicts the docstring's own claim (jq lines ~84-89) that 'A malformed present value on either channel establishes nothing for the agents it fails to cover'. It re-collapses onto `silent` in exactly the unknown-is-not-zero case this change exists to prevent. Fix direction: derive $failed_direct_present (and the durable flag) from element-level well-formedness, mirroring the shadow channel's per-entry select, so a lossy parse does not read as full establishment. Note: debatable in that the direct sink's contract is that a well-formed array lists ALL non-returning agents; the fix loop should adjudicate whether an element-malformed array should establish nothing vs. still cover its valid entries.",
+      "file": "lib/efficiency-trace.jq",
+      "line_range": [262, 373],
+      "fix_decision_suggestion": "Make direct-channel establishment element-aware (mirror the shadow per-entry select), and add a fixture for a present-array-with-malformed-elements shape asserting unestablished; alternatively push back with a disclosure that a well-formed-container array is contractually total and element-malformation is out of the honesty guarantee."
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The returned-wins-over-failed precedence in agent_disposition (if $returned then \"returned\" is checked before $is_failed) is untested: no fixture has an agent present in BOTH phase3_findings and the failed set. A regression reordering the arms would misclassify a returning agent as failed and stay green.",
+      "file": "lib/efficiency-trace.jq",
+      "line_range": [103, 108],
+      "fix_decision_suggestion": "Add a fixture where an agent both returns findings and is named in phase3_failed_agents, asserting disposition=returned."
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The fix_decisions roll-up dedup (unique), sort, and strings type-guard are unexercised: only single-value ([\"deferred\"]) and empty ([]) rolls are asserted. A regression dropping unique/strings/sort (e.g. two findings sharing a decision, or a non-string fix_decision) would not be caught.",
+      "file": "lib/efficiency-trace.jq",
+      "line_range": [356, 372],
+      "fix_decision_suggestion": "Add a fixture with an agent carrying two findings (duplicate + distinct fix_decision, plus a non-string one) asserting the sorted-unique string set."
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The adversarial matrix over the shadow per_reviewer_assessment channel is partial: object/scalar/malformed-entry shapes are covered (iters 7-9), but the valid-falsy empty-array [] (the realistic 'shadow ran, captured no reviewers' case) and a non-object shadow block itself (scalar/array, guarded only by | objects) are not asserted.",
+      "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+      "line_range": [248, 290],
+      "fix_decision_suggestion": "Add fixtures for shadow.per_reviewer_assessment=[] and a non-object shadow block, asserting the agents read unestablished and the filter exits 0."
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The 'Denominator confound' paragraph in the jq header (lines ~68-72) is design/analysis narrative that restates in substance the paragraph added at docs/internal/efficiency-trace.md, while itself ending with '(see docs/internal/efficiency-trace.md)'. Per the comment-discipline rule, design narrative belongs in internal docs (the single home); trim the jq header to the pointer.",
+      "file": "lib/efficiency-trace.jq",
+      "line_range": [68, 72],
+      "fix_decision_suggestion": "Reduce the jq header confound paragraph to the doc pointer alone."
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The 'null collapses opposite states' motivation is restated across the verdict_for header region (~58-61) and again opening the agent_disposition docstring (~111-115). The §2.3.4a restatement rule routes a fact stated in one added comment away from restatement in another; the docstring's load-bearing four-value spec should stay, the duplicated motivation preamble can be reduced to a cross-reference.",
+      "file": "lib/efficiency-trace.jq",
+      "line_range": [58, 115],
+      "fix_decision_suggestion": "Drop or cross-reference the duplicated motivation preamble in the agent_disposition docstring."
+    }
+  ],
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer"],
+  "phase3_failed_agents": ["prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "diff_profile": {"small_diff": false, "config_only": false, "has_new_types": false, "engine_self_modifying": true, "checklist_skipped": null},
+  "cap_drops": {"count": 0, "by_category": {}},
+  "checklist_summary": "Engine-self-modifying additive-telemetry diff; verifiable claims (jq type-guards, ITER_EXPECTED_FIELDS mirror, assertion-floor coupling 951->983, schema mirrors across 5 prose surfaces) resolved directly against the diff and the executable test matrix. All PASS; no FAILs.",
+  "report_markdown": "## Review — PR #1956 (issue #1849): decompose the null review-verdict residual\n\n**Verdict: REJECT** (1 Important, 5 Suggestions). Mature resumed change (4 prior iterations + shadow); the core jq derivation and its test matrix are high quality.\n\n### What was reviewed\nBranch delta of `issue-1849-...` vs `origin/main`: lib/efficiency-trace.jq (per-agent `disposition` + `fix_decisions` roll-up decomposing the derived `null` class; agent_disposition ladder gated on established roster/failed-set), lib/efficiency-trace.sh (ITER_EXPECTED_FIELDS gains `phase3_failed_agents`), the schema mirrors in skills/review-and-fix/{SKILL.md,references/loop-control.md,references/fixing.md,references/shadow-review.md}, the failed-disposition sink note in skills/review/phases/phase-3-agents.md, docs/internal/efficiency-trace.md, a changeset, coverage-map + registry, and 32 new assertions (floor 951->983 in lockstep across run.sh and workflow-flight-recorder-registry.json).\n\n### Gates\n- Prompt-surface writing-skills evidence gate: DISCHARGED — the issue #1849 workpad carries `Writing-skills evidence:` markers covering every touched skill file, each with all four slots (skill-loaded/guidance-applied/pressure-scenario/micro-tests) explicitly recorded.\n- No new PRFlow-internal doc references introduced into any skills/** body.\n\n### Important finding\n**agent_disposition establishment keys on array container type, not element validity** (lib/efficiency-trace.jq). `$failed_direct_present = (($failed_raw|type)==\"array\")` treats a present-but-element-malformed `phase3_failed_agents` array (e.g. array of objects/numbers) as fully establishing the failed set for every agent, while `strings` silently drops the malformed elements. A silent/failed agent uncovered by the lossy parse then reads `disposition: silent` instead of `unestablished`, and the durable `phase3_failed_agents_present` honesty flag reads true over a lossy parse. This is asymmetric with the shadow channel (which establishes per valid entry) and contradicts the docstring's own 'a malformed present value establishes nothing for the agents it fails to cover' claim — re-collapsing onto `silent` in exactly the unknown-is-not-zero case the change exists to prevent. Debatable vs. the direct sink's totality contract; routed to the fix loop / receiving-code-review to adjudicate.\n\n### Suggestions\n1. Untested returned-wins-over-failed arm precedence (no agent in both findings and failed set).\n2. Untested fix_decisions roll-up dedup/sort/strings guard (only single + empty rolls asserted).\n3. Partial shadow per_reviewer_assessment adversarial matrix (missing empty-array [] and non-object shadow block).\n4. Denominator-confound narrative duplicated between jq header and docs/internal/efficiency-trace.md (trim header to pointer).\n5. null-collapse motivation restated across two jq comment blocks (§2.3.4a restatement).\n\n### Notes\n- code-reviewer returned clean (jq branch ordering sound, all operands type-guarded, coupled sites consistent).\n- The final-pass reviewer (prflow:requesting-code-review) could not be dispatched — it is a Skill, not an Agent subagent type — so it is recorded as a failed disposition rather than a silent one; the four specialist reviewers provided full coverage.\n- Acceptance criteria AC1-AC5 and AC7 are each covered by executable assertions landing every input shape in a specific arm; AC6/AC8 are documentation/negative-scope and correctly carry no executable pin. AC8 (no roster/model/effort change) holds — no agent_overrides or roster edits in the diff."
+}
