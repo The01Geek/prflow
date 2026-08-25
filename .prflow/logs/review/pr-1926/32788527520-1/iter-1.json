@@ -1,0 +1,189 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-24T23:55:00Z",
+  "fix_commit_sha": "68429bbd7265fc4a3150ea448aaf030be108f70f",
+  "fix_files": [
+    "lib/test/test_context_eval_shared.py",
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "early_shadow",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "dispatch_mode": "unavailable",
+  "checklist": [
+    {
+      "id": "VC-1",
+      "claim": "sys.path-insert sibling import resolves to the same cached module object under importlib-by-path loading (identity holds)",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "evidence": "test_context_eval_shared.py identity test passes; shim resolution check printed _context_tokens=None"
+    },
+    {
+      "id": "VC-3",
+      "claim": "implement-context-eval.py no longer references RESIDENCY_KEYS",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "evidence": "grep + ruff clean"
+    },
+    {
+      "id": "VC-5",
+      "claim": "import math removed from all three; no residual math. reference",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "evidence": "ruff clean; grep confirmed math. only in shared module"
+    },
+    {
+      "id": "VC-8",
+      "claim": "config grants Bash(lib/test/test_context_eval_shared.py:*)",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "evidence": "present in .prflow/config.json"
+    },
+    {
+      "id": "VC-9",
+      "claim": "coverage-map focused_test value present",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "evidence": "coverage_map_guard.py clean"
+    }
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "run.sh block comment ran 4 physical lines, over the 3-line comment-discipline cap",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          66,
+          69
+        ],
+        "kind": "comment_cap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "test_shared_module_does_not_define_force_utf8_streams used a whole-file source-substring assertNotIn (brittle; source-presence pin discouraged)",
+      "defect_signature": {
+        "file": "lib/test/test_context_eval_shared.py",
+        "line_range": [
+          213,
+          216
+        ],
+        "kind": "brittle_source_pin"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "RESIDENCY_KEYS single-sourcing not asserted (completeness gap in the identity set)",
+      "defect_signature": {
+        "file": "lib/test/test_context_eval_shared.py",
+        "line_range": [
+          52,
+          58
+        ],
+        "kind": "coverage_completeness"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "_iter_session_files had no direct behavioral test (covered only transitively)",
+      "defect_signature": {
+        "file": "lib/test/test_context_eval_shared.py",
+        "line_range": [
+          1,
+          1
+        ],
+        "kind": "coverage_completeness"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "blanket # noqa: F401 on the import blocks also silences future genuinely-unused imports",
+      "defect_signature": {
+        "file": "scripts/create_issue_eval.py",
+        "line_range": [
+          120,
+          128
+        ],
+        "kind": "lint_suppression_breadth"
+      },
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "e9b50ea715d9a055a9cfe2823c546ccc0b51d7ab"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "e9b50ea715d9a055a9cfe2823c546ccc0b51d7ab"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "e9b50ea715d9a055a9cfe2823c546ccc0b51d7ab"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "68429bbd7265fc4a3150ea448aaf030be108f70f"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "pushed_back",
+      "source_file": "scripts/create_issue_eval.py",
+      "claim_text": "blanket noqa:F401 silences future unused imports",
+      "skip_category": "claim-quality",
+      "evidence": "the F401 suppression is required for the intentional re-exports the SingleSourceIdentityTest asserts (AC1 'reachable by all three instruments'); narrowing to per-name noqa is more fragile and the reviewer graded this low-confidence-warrants-change",
+      "parking_evidence": {
+        "basis": "the noqa:F401 is intentional and required by the identity-test contract; not a defect",
+        "failing_input": "a hypothetical future unused import added to the same block",
+        "source": "lib/test/test_context_eval_shared.py SingleSourceIdentityTest",
+        "finding_ref": {
+          "iter": 1,
+          "index": 4
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 4,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
