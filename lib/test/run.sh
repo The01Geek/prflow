@@ -10474,7 +10474,7 @@ assert_eq "#1515 proceed plus unmatched projection is unusable and runs the inli
   "$(_issue1515_projection_route proceed unmatched 'Desired Behavior: exports retain stable ordering')"
 assert_eq "#1515 proceed with missing projection fields is unusable and runs the inline audit fallback" \
   "inline-audit-fallback" "$(_issue1515_projection_route proceed missing missing)"
-# P4_FILE is defined once next to IMPL_PHASES_DIR above (shared by the pin blocks above).
+# P4_FILE is defined once next to IMPL_PHASES_DIR near the top (shared by pin blocks in this file).
 # AC1's operational prohibition remains covered directly.
 assert_pin_unique "#230: phase-2 §2.1 keeps the operational 'narrow or suppress' prohibition (AC1 meaning)" \
   'narrow or suppress' "$P2_FILE"
