@@ -46,11 +46,10 @@
 # description of the bounded lint toolchain (exact ShellCheck/Ruff versions, per
 # platform artifact digests, selectors, exclusions, special-invocation IDs,
 # timeout bounds, full-profile IDs). Re-included past the /.prflow/* rule so a
-# clean checkout / ordinary `git add -A` keeps it tracked. It is NOT shipped to
-# consumers: devflow_copy_slice copies an explicit three-file list from .prflow/
-# (config.example.json, config.schema.json, tool-presets.json), so a consumer
-# installs scripts/lint_manifest.py with no manifest for it to read. Whether the
-# manifest should ship is issue #1388's decision.
+# clean checkout / ordinary `git add -A` keeps it tracked. Since issue #1388 it
+# SHIPS to consumers: devflow_copy_slice copies it (and install-state.json) beside
+# config.example.json/config.schema.json/tool-presets.json, and install.sh copies
+# it to the consumer's .prflow/lint-manifest.json so the setup action can read it.
 !/.prflow/lint-manifest.json
 # Committed digest-bound compatibility-tuple marker (issue #1388) — binds the lint
 # manifest, its readers, the setup action, the provisioning helper, and the shipped

@@ -70,6 +70,52 @@ jobs:
   # work it had run out of shell assertions to overlap with. Splitting it out moves that
   # cost onto a concurrent shard rather than removing any assertion: the same pool, the
   # same membership, the same reconciliation, counted in exactly one shard either way.
+  # Validate and EXERCISE the candidate lint manifest with NO repository write
+  # credentials (issue #1388). It runs under the workflow-level `permissions:
+  # contents: read` above and mints no App token, so the candidate manifest's
+  # behavior is proven on the PR head before merge without any write capability;
+  # the candidate becomes implement-active only once merged (the setup action on
+  # `main` reads the merged bytes). Distinct from the full suite so the manifest
+  # gate is a legible, standalone CI check.
+  lint-manifest:
+    name: lint-manifest (validate + exercise, no write creds)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Validate the candidate manifest (strict reader/validator)
+        run: python3 scripts/lint_manifest.py .prflow/lint-manifest.json
+      - name: Exercise the candidate manifest (platform matrix + marker readiness + drift gate)
+        run: |
+          set -euo pipefail
+          # Every declared (tool, os, arch) resolves deterministically to an
+          # `established` plan or `unsupported-lint-platform` — never a crash.
+          python3 - <<'PY'
+          import importlib.util, itertools, sys
+          from pathlib import Path
+          def _load(name, path):
+              spec = importlib.util.spec_from_file_location(name, path)
+              m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+          lp = _load("lint_provision", Path("scripts/lint_provision.py"))
+          manifest = Path(".prflow/lint-manifest.json")
+          established = 0
+          for tool, os_name, arch in itertools.product(lp.KNOWN_TOOLS, lp.KNOWN_OS, lp.KNOWN_ARCH):
+              plan = lp.build_plan(manifest, tool, os_name, arch)
+              assert plan.status in ("established", "unsupported"), (tool, os_name, arch, plan.status, plan.reason)
+              if plan.status == "established":
+                  assert plan.url and plan.digest.startswith("sha256:")
+                  established += 1
+          assert established > 0, "no (tool, os, arch) tuple resolved — manifest declares no artifacts"
+          print(f"exercised the manifest matrix: {established} established tuples")
+          PY
+          # The compatibility marker is READY against the tree, and it is in sync
+          # with its bound components.
+          python3 scripts/install_state.py verify --state .prflow/install-state.json --manifest .prflow/lint-manifest.json
+          python3 lib/generate-install-state.py --check
+
   shard:
     name: shard (${{ matrix.shard }})
     runs-on: ubuntu-latest
