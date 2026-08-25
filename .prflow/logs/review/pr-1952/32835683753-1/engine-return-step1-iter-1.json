@@ -1,0 +1,22 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "report": "# PRFlow Review — PR #1952\n\n**Verdict: APPROVE**\n\n**Reviewed HEAD:** 50a02cfc04021f25c6faa35ae558e5250a4c6a25 (local, == PR head)\n**Diff profile:** small_diff + config_only + engine_self_modifying (engine_self_modifying overrides checklist → full Phase 1+2 checklist run)\n\n## Diff under review\n\nThree Markdown files, 31 insertions / 14 deletions:\n- `.changeset/issue-1833-vendored-upstream-pins.md` — new changeset (bump: patch, type: Changed), well-formed, uniquely named, cites #1952, does not touch plugin.json/CHANGELOG.\n- `LICENSES/README.md` — adds a \"Last reconciled against\" provenance column to two vendored-file tables (7 Anthropic-plugin agent rows → claude-plugins-official commit b819188d2eea14e0400556ca29dbd1179a7c595b; 3 superpowers rows → `superpowers 6.3.0`) plus an explanatory paragraph disclosing that no automated drift check maintains the column.\n- `skills/requesting-code-review/code-reviewer.md` — adds a \"## Review In Multiple Passes Yourself\" section to the vendored reviewer prompt (never dispatch a subagent for part of the diff or a second opinion; review in multiple passes yourself; names the cost consequence).\n\n## Issue Compliance (issue #1833, 8 acceptance criteria — source: workpad)\n\nAll 8 satisfied:\n1. LICENSES/README.md records last-reconciled upstream revision for every vendored row (10 rows) — SATISFIED.\n2. Existing upstream/license/Apache §4(b) content preserved (diff only widens tables + inserts one paragraph) — SATISFIED.\n3. code-reviewer.md directs no-sub-reviewer (part-of-diff and second-opinion), multi-pass self-review, and names the cost consequence — SATISFIED.\n4. Added section is repo-agnostic (no PRFlow suite commands, step numbers, or CLAUDE.md citation) — verified by grep — SATISFIED.\n5. No upstream `## Common Rationalizations` table content introduced — verified absent — SATISFIED.\n6. Existing local adaptations of code-reviewer.md (read-only rewording, removed praise sections) preserved — SATISFIED.\n7. No drift-check workflow/script/job and no new agent file under agents/ — verified via --name-only — SATISFIED.\n8. No lib/test pin exists over the edited prose; the two existing run.sh pins on code-reviewer.md target the untouched mutation-guard sentences — nothing to reconcile — SATISFIED.\n\n## Phase 3 review agents\n\nFour reviewers dispatched (fanned-out), all returned clean:\n- code-reviewer: clean — repo-agnostic vendored body confirmed, changeset conforms, existing content pins untouched.\n- silent-failure-hunter: clean — no executable code; added prose introduces no silent-failure hazard; manual-pin absence honestly disclosed.\n- comment-analyzer: clean — explanatory paragraph consistent with actual table populations/kinds; manual-pin rot risk explicitly disclosed.\n- requesting-code-review (final-pass): APPROVE — all 8 ACs verified against tree, changeset well-formed.\n\nGated out of the Phase 3 roster: type-design-analyzer (has_new_types=false), pr-test-analyzer (config_only test-relevance predicate skips).\n\n## Verdict\n\nAPPROVE. A clean, well-scoped documentation/provenance change with an honest disclosure of the manual (undriven) nature of the new pin column. No findings at any severity.",
+  "phase3_findings": [],
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 2,
+    "by_category": {
+      "type-design-analyzer:no-new-types": 1,
+      "pr-test-analyzer:config-only-test-relevance": 1
+    }
+  }
+}
