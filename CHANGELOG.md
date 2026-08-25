@@ -4,6 +4,22 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.21] — 2026-08-25
+
+### Changed
+- **Self-validating portable-helper anchor on non-Claude-Code runners.** The shared
+  "Portable helper anchor" paragraph in the 17 identity-pinned `skills/*/SKILL.md` copies now
+  locates the skill directory by validating a candidate against the filesystem — accepting it
+  only once `ls <candidate>/../../scripts/` succeeds in the same shell — instead of computing a
+  path from a runner-reported value and never checking it, and a runner that validates no
+  candidate stops and reports rather than running a broken path. Across all 18 copies (those 17
+  plus `skills/create-issue/SKILL.md`'s variant) the optional `wslpath`/`cygpath` probe is kept
+  (tried in order, no platform branch, output used only on success with non-empty output) while
+  the tool-less drive-letter arithmetic, the WSL-vs-MSYS2 branch, and the platform guess are
+  removed. `create-issue` keeps its degrade-never-block carve-out unchanged — it does not add
+  the filesystem check and instead lets an unresolvable anchor surface downstream rather than
+  blocking issue creation. (#1940)
+
 ## [2.34.20] — 2026-08-25
 
 ### Fixed
