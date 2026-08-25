@@ -43724,13 +43724,15 @@ assert_eq "#1219 negative-pattern control: the bare mutated copy lost its fetch-
   "$(devflow_wf_job_has claude 'fetch-depth:[[:space:]]*0[[:space:]]*$' "$_I1219_MUT/bare.yml")"
 unset _I1219_IMPL_YML _I1219_CMD_YML _I1219_MUT
 #
-# ci.yml: the shard job installs the Claude Code CLI, which is what ARMS the #671
-# `claude plugin validate --strict` gate earlier in this file. Same failure class as the
-# fetch-depth: 0 pin above. With no CLI on PATH that gate takes its blocking-gate skip
-# branch, and a skip exits 0, so dropping this step would silently retire the CLI's
-# strict plugin-tree validation while CI stayed green. Scope note: the PyYAML frontmatter
-# and JSON manifest gates sit OUTSIDE that `command -v claude` branch and keep running
-# regardless — only the strict plugin-tree layer is disarmed.
+# ci.yml: the shard job installs the Claude Code CLI on the `monolith` shard, which
+# ARMS the #671 `claude plugin validate --strict` gate earlier in this file. Same
+# failure class as the fetch-depth: 0 pin above. With no CLI on PATH that gate takes its
+# blocking-gate skip branch; the install is monolith-only (issue #1830), and
+# lib/test/run-shard.sh now FAILS any CI shard whose log shows that CLI-absence skip, so
+# dropping this step reddens the shard rather than retiring the validation silently.
+# Scope note: the PyYAML frontmatter and JSON manifest gates sit OUTSIDE that
+# `command -v claude` branch and keep running regardless — only the strict
+# plugin-tree layer is disarmed.
 # Two lines are pinned because they fail independently: the installer fetches the binary,
 # and the GITHUB_PATH append is what actually puts it on PATH for later steps — an
 # install whose PATH export was dropped leaves the gate skipping just as surely. Matching
@@ -43875,6 +43877,165 @@ assert_eq "#671 ci.yml: the install goes through the retry wrapper" "yes" \
 # structural-pin-ok: cross-file-phase-contract -- pipefail is what turns a failed download into a failed step; without it the install reports success and the #671 gate silently self-skips again
 assert_eq "#671 ci.yml: the install command string sets pipefail" "yes" \
   "$(devflow_ci_shard_has 'set -o pipefail')"
+#
+# ── issue #1830: monolith-only CLI install + the fail-loud gate-armed backstop ──
+# Step-scoped variant of devflow_ci_shard_has: matches only the UNCOMMENTED lines of the
+# named step, up to the next step. Do not pin a per-step `if:` with the job-scoped form —
+# it answers yes for a condition carried by ANY step in the job, so moving the gate from
+# the install step to another one keeps the pin green with the gate itself gone.
+devflow_ci_step_has() {  # $1 = step-name literal, $2 = ERE matched inside that step only
+  local _out _f="$LIB/../.github/workflows/ci.yml"
+  [ -s "$_f" ] || { printf 'unreadable'; return; }
+  _out="$(awk -v job='^  shard:[[:space:]]*$' -v s="$1" -v pat="$2" '
+    $0 ~ job {ins=1; next}
+    /^  [A-Za-z_][A-Za-z0-9_-]*:/{ins=0; inb=0}
+    ins && /^      - name:/ {inb = (index($0, s) > 0) ? 1 : 0; next}
+    inb && /^[[:space:]]*#/{next}
+    inb && $0 ~ pat {f=1}
+    END{print (f?"yes":"no")}' "$_f")" || { printf 'awk-failed'; return; }
+  case "$_out" in
+    yes|no) printf '%s' "$_out" ;;
+    *)      printf 'unexpected-output' ;;
+  esac
+}
+E1830_INSTALL_STEP='Install Claude Code CLI (arms the #671 plugin-validate gate)'
+E1830_VERIFY_STEP='Verify the claude CLI resolves on PATH at the pinned version'
+# structural-pin-ok: cross-file-phase-contract -- the install STEP's own `if:` is what confines the CLI install to the one consuming shard; carried by any other step instead, the install reverts to all five shards (issue #1830 AC1)
+assert_eq "#1830 ci.yml: the CLI install step itself carries the monolith-shard gate" "yes" \
+  "$(devflow_ci_step_has "$E1830_INSTALL_STEP" "if: matrix[.]shard == 'monolith'")"
+# structural-pin-ok: cross-file-phase-contract -- the plain `if: matrix.shard == …` carries an implicit success() that re-couples verify to every earlier step in the job; always() is what keeps it gated on the shard alone (issue #1830 AC2)
+assert_eq "#1830 ci.yml: the verify step itself is gated on the shard alone, not on the install outcome" "yes" \
+  "$(devflow_ci_step_has "$E1830_VERIFY_STEP" "if: always[(][)] && matrix[.]shard == 'monolith'")"
+# Two controls, because a `no` is conflated (absent pattern OR unmatched step anchor). The
+# first proves the matcher is not vacuously `yes`; the second proves it is step-SCOPED — the
+# verify step carries `always() && matrix.shard == …`, so the install step's own unprefixed
+# pattern must NOT match there, which is exactly what the job-scoped form got wrong.
+assert_eq "#1830 ci.yml gate control: the install step does NOT carry an unused shard condition" "no" \
+  "$(devflow_ci_step_has "$E1830_INSTALL_STEP" "if: matrix[.]shard == 'no-such-shard'")"
+assert_eq "#1830 ci.yml scope control: the install step's bare condition does NOT match inside the verify step" "no" \
+  "$(devflow_ci_step_has "$E1830_VERIFY_STEP" "if: matrix[.]shard == 'monolith'")"
+# The backstop is driven end-to-end through a fixture tree, so run-shard.sh's own detection
+# decides each exit. Keep every stub log's tally clean (`1 passed, 0 failed`): a fixture that
+# also fails a test would make these assertions pass without the backstop firing at all.
+CGA_TREE="$(mktemp -d)"
+[ -n "$CGA_TREE" ] && [ -d "$CGA_TREE" ] || { printf 'FATAL: mktemp -d failed for the #1830 gate-armed controls\n' >&2; exit 1; }
+mkdir -p "$CGA_TREE/lib/test"
+cp "$LIB/test/run-shard.sh" "$CGA_TREE/lib/test/run-shard.sh"
+cp "$LIB/test/shard-tally.py" "$CGA_TREE/lib/test/shard-tally.py"
+chmod +x "$CGA_TREE/lib/test/run-shard.sh"
+# Stub run.sh: emit the crafted log line its CGA_CASE names, then a clean passing tally.
+cat > "$CGA_TREE/lib/test/run.sh" <<'CGA_EOF'
+#!/usr/bin/env bash
+case "${CGA_CASE:-clean}" in
+  reverted) printf '  SKIP  #671 claude plugin validate --strict (plugin tree + descent matrix) [blocking-gate] — claude CLI not on PATH — not run\n' ;;
+  only434)  printf '  SKIP  #434 stale-prose self-scan [blocking-gate] — working tree dirty (grades committed HEAD)\n' ;;
+  quote)    printf '  info: the #671 claude plugin validate --strict check (blocking-gate kind) mentioned claude CLI not on PATH — a diagnostic line with no NOTE or SKIP emission prefix\n' ;;
+  realnote) cat "${CGA_REAL_PATH:-/dev/null}" ;;
+esac
+printf '1 passed, 0 failed\n'
+CGA_EOF
+chmod +x "$CGA_TREE/lib/test/run.sh"
+# Stub run-module.sh: a MODULE shard runs this, not run.sh, so it needs no CGA_CASE arm — it
+# emits the #671 CLI-absence skip unconditionally, which is what lets the module-shard
+# assertion below prove the backstop is not scoped to `monolith` by name.
+cat > "$CGA_TREE/lib/test/run-module.sh" <<'CGA_EOF'
+#!/usr/bin/env bash
+printf 'Module %s: 1 passed, 0 failed\n' "${1:-stub}"
+printf '  SKIP  #671 claude plugin validate --strict (plugin tree + descent matrix) [blocking-gate] — claude CLI not on PATH — not run\n'
+CGA_EOF
+chmod +x "$CGA_TREE/lib/test/run-module.sh"
+# Drive the REAL skip() rather than hand-authoring its line, so a drift between skip()'s output
+# format and the backstop regex reddens here. Keep SKIPS_FILE redirected to the sink: an
+# unredirected call would add a phantom skip to the suite's own tally.
+( SKIPS_FILE="$CGA_TREE/skips-sink"; skip "#671 claude plugin validate --strict (coupling probe)" blocking-gate "claude CLI not on PATH (coupling probe)" ) > "$CGA_TREE/real-note.txt"
+# Every invocation below pins GITHUB_ACTIONS explicitly. Do not let it default to the host's:
+# run-shard.sh fails only the CI arm, so an unpinned fixture asserts one tier at the desk and
+# the other on CI, and whichever arm the host does not take goes untested there.
+assert_eq "#1830 run-shard: the #671 CLI-absence skip FAILS the monolith shard on CI" "nonzero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-rev" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+assert_eq "#1830 run-shard: an unrelated #434 blocking-gate skip does NOT fail the monolith shard" "zero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=only434 DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-434" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+assert_eq "#1830 run-shard: a clean log passes the monolith shard" "zero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-clean" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+# False-positive control: a log line that merely QUOTES the pattern (e.g. a mutation-routing
+# gate finding echoing it) but lacks skip()'s NOTE/SKIP emission prefix must NOT trip the
+# backstop — this is what the `(NOTE|SKIP)  ` anchor in run-shard.sh guards.
+assert_eq "#1830 run-shard: a line quoting the pattern without the NOTE/SKIP prefix does NOT fail the shard" "zero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=quote DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-quote" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+# Migration-detection: the backstop runs on EVERY shard, not just monolith. A MODULE shard
+# whose log carries the #671 CLI-absence skip must ALSO fail — a regression scoping the guard
+# to `monolith` by name would pass every case above while silently reverting this property.
+assert_eq "#1830 run-shard: a non-monolith (module) shard whose log carries the #671 skip ALSO fails" "nonzero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-mig" bash lib/test/run-shard.sh modules-pin >/dev/null 2>&1 && echo zero || echo nonzero)"
+# skip()'s genuine emission (captured above) must trip the backstop — this couples the
+# run-shard.sh regex to run.sh's real skip() format, not to a hand-authored fixture line.
+assert_eq "#1830 run-shard: skip()'s REAL #671 CLI-absence emission trips the backstop" "nonzero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=realnote CGA_REAL_PATH="$CGA_TREE/real-note.txt" DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-real" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+# Tier arms. AC3 requires the FAILURE on a CI run only: `lib/test/run.sh` on this same commit
+# exits 0 on a CLI-less desk (the gate self-skips), so failing the shard there too would make
+# two CLAUDE.md-sanctioned local instruments disagree. The non-CI arm warns and passes.
+assert_eq "#1830 run-shard: the same #671 skip does NOT fail a non-CI run" "zero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS='' CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-local" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+# ...and it is not silent either: pin the warning, or "passes" and "never noticed" become the
+# same observation and a genuinely disarmed local gate reads as clean.
+assert_eq "#1830 run-shard: the non-CI arm still names the CLI-absence cause on stderr" "yes" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS='' CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-local2" bash lib/test/run-shard.sh monolith 2>&1 >/dev/null | grep -q 'WARNING.*self-skipped for CLI absence' && echo yes || echo no)"
+# The CI arm's cause must reach the LOG, not only stderr: shard-tally.py derives failure_names
+# from `Failure recap:` bullets, so a stderr-only cause recombines as a generic synthetic
+# failure and the required check names nothing actionable.
+assert_eq "#1830 run-shard: the CI arm records the cause as a Failure recap bullet in the shard log" "yes" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-recap" bash lib/test/run-shard.sh monolith >/dev/null 2>&1; grep -q '^  - run-shard.sh: the #671 plugin-validate gate self-skipped' "$CGA_TREE/t-recap/log.txt" && echo yes || echo no)"
+assert_eq "#1830 run-shard: that cause is carried into the shard's extracted failure names" "yes" \
+  "$(grep -q 'self-skipped for CLI absence' "$CGA_TREE/t-recap/names" 2>/dev/null && echo yes || echo no)"
+# Fail-closed arm for an UNSCANNABLE log (log.txt pre-created as a DIRECTORY, so grep reports a
+# scan error). Assert the guard's OWN breadcrumb, never the exit code: the same fixture breaks
+# run-shard.sh's log truncation and dispatch redirect, which fail the shard on their own — an
+# exit-code assertion here stays green with this entire guard deleted.
+mkdir -p "$CGA_TREE/t-unscan/log.txt"
+grep -Eq -- 'x' "$CGA_TREE/t-unscan/log.txt" 2>/dev/null
+CGA_UNSCAN_RC=$?
+if [ "$CGA_UNSCAN_RC" -gt 1 ]; then
+  assert_eq "#1830 run-shard: an unscannable log is reported by the guard, not read as clean" "yes" \
+    "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-unscan" bash lib/test/run-shard.sh monolith 2>&1 >/dev/null | grep -q 'could not scan shard monolith log' && echo yes || echo no)"
+  # Positive control on the same fixture shape: a SCANNABLE log emits no scan-error breadcrumb,
+  # so the assertion above cannot be satisfied by an unrelated always-on emission.
+  assert_eq "#1830 run-shard control: a scannable log emits no scan-error breadcrumb" "no" \
+    "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-scan-ok" bash lib/test/run-shard.sh monolith 2>&1 >/dev/null | grep -q 'could not scan shard monolith log' && echo yes || echo no)"
+else
+  skip "#1830 run-shard unscannable-log fail-closed arm" host-capability "this host's grep returns $CGA_UNSCAN_RC (not >1) on an unreadable target, so the scan-error condition is not reproducible here"
+fi
+unset CGA_UNSCAN_RC
+# Do not stop at the probe above: its name/reason are CRAFTED, so it couples the backstop regex
+# to skip()'s FORMAT only, and renaming either real gate call-site would disarm the guard with
+# every assertion here still green. Re-drive the real call-sites' own literals instead.
+# structural-pin-ok: cross-file-phase-contract -- these two `skip` calls are the producers run-shard.sh's backstop regex consumes; a count change means a rename or rewrap the extraction below can no longer drive (issue #1830)
+CGA_SITES="$CGA_TREE/sites.txt"
+grep '^  skip "#671 claude plugin validate --strict' "$LIB/test/run.sh" > "$CGA_SITES" || true
+assert_eq "#1830 coupling: both real #671 CLI-absence gate call-sites are single-line and extractable" "2" \
+  "$(grep -c . "$CGA_SITES" || true)"
+CGA_N=0
+while IFS= read -r _cga_site || [ -n "$_cga_site" ]; do
+  CGA_N=$((CGA_N + 1))
+  # Split `  skip "NAME" KIND "REASON"` with builtins only — a non-preflight PATH tool would
+  # empty these operands silently and stamp the coupling assertions green on nothing.
+  _cga_rest="${_cga_site#*skip \"}"
+  _cga_name="${_cga_rest%%\"*}"
+  _cga_rest="${_cga_rest#*\" }"
+  _cga_kind="${_cga_rest%% *}"
+  _cga_reason="${_cga_rest#* \"}"
+  _cga_reason="${_cga_reason%\"*}"
+  # Both real producers of the scanned log: skip()'s own NOTE line, and the `  SKIP  ` line
+  # lib/test/summary.sh renders for each self-skip at end of run. The backstop regex accepts
+  # both prefixes because a real monolith log carries both, so both are driven here.
+  ( SKIPS_FILE="$CGA_TREE/site-skips-$CGA_N"; skip "$_cga_name" "$_cga_kind" "$_cga_reason" ) > "$CGA_TREE/site-note-$CGA_N.txt"
+  devflow_render_test_summary 1 0 1 "$CGA_TREE/site-skips-$CGA_N" > "$CGA_TREE/site-skip-$CGA_N.txt"
+  assert_eq "#1830 coupling: real gate call-site $CGA_N — skip()'s NOTE emission trips the backstop" "nonzero" \
+    "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=realnote CGA_REAL_PATH="$CGA_TREE/site-note-$CGA_N.txt" DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-site-n$CGA_N" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+  assert_eq "#1830 coupling: real gate call-site $CGA_N — the rendered SKIP summary line trips the backstop" "nonzero" \
+    "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=realnote CGA_REAL_PATH="$CGA_TREE/site-skip-$CGA_N.txt" DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-site-s$CGA_N" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+done < "$CGA_SITES"
+unset _cga_site _cga_rest _cga_name _cga_kind _cga_reason CGA_SITES CGA_N
+rm -rf "$CGA_TREE"
 #
 # ── scripts/assert-cli-version.sh: every arm of the extracted version check ──
 # The decision this helper makes used to be inline workflow shell, which no assertion
