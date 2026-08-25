@@ -365,6 +365,70 @@ classify) and any **multi-reviewer** failure are
 immediate `not_verified` with no retry — they will not recover on a re-run. This is a single bounded
 retry, not a fall-back to the lenient "treat as inconclusive and proceed" path.
 
+### The roster axis is cross-checked against a per-member enumeration, not self-reported (issue #1512)
+
+Everything above computes the expected roster *inside the pass* and compares the dispatched roster
+against it. But that comparison result reaches the `/prflow:implement` orchestrator's terminal
+`Status: Complete` gate only as the summary `roster` axis of the four-axis coverage record
+(`--record-review-coverage <coverage> <dispatch> <roster> <checklist>`, `<roster>` being one of
+`complete` / `short` / `not-applicable` / `unestablished`). On its own that axis is a **self-report**:
+a shadow that dispatched only three of the four always-on reviewers but *believed* itself full writes
+`roster=complete`, and nothing downstream held a per-member roster to contradict it. Issue #1512 was
+exactly this hole — a shadow pass narrower than the expected roster recorded `roster=complete`, and the
+shipped gate keyed on *dispatch* (was a fan-out attempted?) rather than on *roster completeness* (did the
+right reviewers return?).
+
+The fix cross-checks the axis against a per-member enumeration recorded beside it. `scripts/workpad.py`
+gains a `--record-roster-member <member> <status>` flag (one row per expected roster member, `<status>`
+one of `dispatched` / `gated-off` / `missing`) and a `_review_roster_incoherence` validator that mirrors
+`_review_coverage_incoherence`. It is **enforced at write time** — a `complete`/`short` record cannot be
+stamped without a coherent enumeration, closing the self-report hole at the source — and **re-run at the
+read-time `Status: Complete` gate only when an enumeration is present**. A record reaching finalize with
+no enumeration therefore predates this change (a legacy workpad), and is grandfathered rather than
+re-validated retroactively; a record whose enumeration *is* present stays cross-checked as
+defense-in-depth. The rules the validator enforces:
+
+- **`roster=complete` requires every always-on member recorded `dispatched` and no member `missing`.**
+  The always-on set is `code-reviewer`, `silent-failure-hunter`, `comment-analyzer`,
+  `requesting-code-review` (the same four the expected-roster rule names — `requesting-code-review` is a
+  first-party PRFlow skill, so it is always present and a three-of-four roster is never complete). An
+  always-on member absent from the enumeration, recorded `missing`, or recorded `gated-off` refuses the
+  `complete` claim and names the offending member.
+- **A member excluded by its applicability gate does not block complete.** The two gated analyzers
+  (`type-design-analyzer`, `pr-test-analyzer`) may be recorded `gated-off` when the shadow's own Phase 3.1
+  gate excluded them; that is not a shortfall. The validator enforces the **always-on floor**, not full
+  expected-roster dispatch — a gated analyzer's own dispatch stays self-reported by design (issue #1512
+  AC3), because the `expected_reviewers`-vs-`reviewers_dispatched` join inside the pass already guards it
+  and re-deriving the test-relevance predicate at the terminal gate is not possible.
+- **The measured/non-measured split must agree with the enumeration.** `complete` and `short` are
+  measured values and require a non-empty enumeration; `not-applicable` and `unestablished` measured no
+  roster and must carry none. A `short` roster must name at least one `missing` member — a `short` with
+  none is really complete, so refusing it keeps the axis honest.
+- **Fail-closed on any ambiguity.** An unknown member, an unknown status, or a member enumerated twice
+  (its status is then unresolvable) is refused — the same posture the coverage validator takes for a
+  duplicated gap.
+
+The enumeration is read back from the `## Progress` marker rows rather than trusted from the writing
+call, so an enumeration recorded at the Phase 3.3 review exit still reaches the Phase 4.3 finalize call,
+which repeats no coverage flags; the roster marker rows are stripped together with the coverage record
+and disposition rows when a fresh record supersedes the previous one or on the Phase 1.3 resume strip.
+The net effect: a shadow narrower than the expected roster can no longer record `roster=complete` and
+ride out as a fully-audited pass.
+
+### The shadow roster and the primary in-loop Phase 3 roster are separate, non-substitutable obligations
+
+The shipped prose (`skills/review-and-fix/references/shadow-review.md` and
+`skills/implement/phases/phase-3-fix-loop.md`) now states this explicitly, because the two rosters are
+easy to conflate. The **primary in-loop Phase 3 roster** is the reviewer fan-out each fix iteration runs
+to *find and fix* defects; the **shadow roster** is the blinded convergence-time (and early-trigger)
+re-run that *audits* that loop. Both include the `requesting-code-review` final-pass slot, and each owes
+it independently: a shadow verdict does not discharge the primary pass's own final-pass slot, nor does a
+primary pass discharge the shadow's — **folding one roster into the other leaves both short**. The
+`/prflow:implement` `<roster>` axis is derived from the shadow block's actual
+`reviewers_dispatched`-vs-`expected_reviewers` join on every arm where a shadow was owed (including the
+clean `CLEAN-FULL` arm), never from the loop-verdict marker's summary token alone, so the per-member
+enumeration above measures the shadow roster specifically rather than borrowing the primary pass's result.
+
 ### Fail-closed on coverage, block presence, and prompt composition
 
 Coverage remains a pure reviewer-roster measurement. Prompt composition is fail-closed as a separate operand:

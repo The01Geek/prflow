@@ -4272,6 +4272,26 @@ _REVIEW_COVERAGE_AXIS_GAP = {s['name']: s['gap'] for s in _REVIEW_COVERAGE_AXIS_
 # table's own order rather than a hand-maintained second one.
 _REVIEW_COVERAGE_GAPS = tuple(
     dict.fromkeys(s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS))
+# Shadow-review roster membership (issue #1512): the per-member dispatch enumeration
+# `_review_roster_incoherence` cross-checks the summary `roster` axis against, so a
+# `complete` claim omitting an always-on member is refused rather than self-reported.
+_SHADOW_ALWAYS_ON_MEMBERS = (
+    'code-reviewer', 'silent-failure-hunter', 'comment-analyzer',
+    'requesting-code-review')
+_SHADOW_GATED_MEMBERS = ('type-design-analyzer', 'pr-test-analyzer')
+_SHADOW_ROSTER_MEMBERS = _SHADOW_ALWAYS_ON_MEMBERS + _SHADOW_GATED_MEMBERS
+_ROSTER_MEMBER_STATUSES = ('dispatched', 'gated-off', 'missing')
+_REVIEW_ROSTER_KEY_PREFIX = 'review-roster:'
+# Composed from `_MARKER_NS_RE` like the coverage grammars, so the confirmation-gated
+# retirement of the superseded namespace reaches it too. The capture holds
+# `<member>:<status>`; neither token carries a colon, so one split on ':' is unambiguous.
+_REVIEW_ROSTER_MARKER_RE = re.compile(
+    _MARKER_NS_RE + r'checkpoint review-roster:([^\s]+?) -->'
+)
+# A member enumerated twice resolves to this sentinel, whose status is unresolvable, so
+# `_review_roster_incoherence` refuses it — the fail-closed posture
+# `_review_coverage_dispositions` takes for a duplicated gap.
+_REVIEW_ROSTER_DUPLICATE = object()
 # issue #1510: the record's optional as-of anchor — the trailing `<head>:<asof>` fields
 # appended after the axes. Both are colon-free because the payload is re-split on `:`, so a
 # colon-bearing ISO time here would be re-read as an axis field and break the record.
@@ -4312,7 +4332,7 @@ _REVIEW_COVERAGE_BOILERPLATE = frozenset({
 # Either family's marker, in either namespace — the pattern the free-text guard
 # below screens for, so no free-text field can smuggle one into `## Progress`.
 _REVIEW_COVERAGE_ANY_MARKER_RE = re.compile(
-    _MARKER_NS_RE + r'checkpoint review-coverage(?:-disposition)?:'
+    _MARKER_NS_RE + r'checkpoint (?:review-coverage(?:-disposition)?|review-roster):'
 )
 
 
@@ -4429,6 +4449,103 @@ def _review_coverage_incoherence(record: dict) -> str | None:
             f"pass, so it is legal on all {len(_REVIEW_COVERAGE_AXES)} axes or none; "
             f"here it is held only by {', '.join(na)}")
     return None
+
+
+def _review_roster_members(progress_content: str) -> dict:
+    """The enumerated shadow roster as `{member: status}`, read from the `## Progress`
+    content — one `review-roster:<member>:<status>` marker row per member. A member with
+    more than one row maps to `_REVIEW_ROSTER_DUPLICATE` (separately refused as a duplicate);
+    a malformed payload (not `<member>:<status>`) is skipped, so that member reads as absent
+    and a `complete` claim that needed it is refused. Read back
+    here rather than trusted from the writing call, so an enumeration recorded at the
+    Phase 3.3 review exit still reaches the Phase 4.3 finalize call, which repeats no
+    coverage flags."""
+    out: dict = {}
+    for payload in _review_coverage_marker_rows(
+            progress_content, _REVIEW_ROSTER_MARKER_RE):
+        fields = payload.split(':')
+        if len(fields) != 2:
+            continue
+        member, status = fields
+        out[member] = _REVIEW_ROSTER_DUPLICATE if member in out else status
+    return out
+
+
+def _review_roster_incoherence(record: dict, members: dict) -> str | None:
+    """Why the roster axis value is incoherent with the enumerated members, or None.
+
+    The `roster` axis alone is a self-report (issue #1512): a narrow shadow that believes
+    itself full writes `complete` and nothing downstream sees a roster to contradict it.
+    This cross-checks the axis against the per-member enumeration. It is enforced at write
+    time (a measured record cannot be stamped without a coherent enumeration) and re-run at
+    the read-time `Status: Complete` gate only when an enumeration is present, so a legacy
+    rosterless record — one predating this check — finalizes rather than being re-validated
+    retroactively:
+
+    - `complete` requires every always-on member `dispatched` and no member `missing`; an
+      always-on member absent, `missing`, or `gated-off` refuses it, naming the member.
+    - `short` must name at least one `missing` member — a `short` with none is really
+      complete, so refusing it keeps the axis honest.
+    - an always-on member is never applicability-gated, so recording one `gated-off` on
+      any measured roster (`complete` or `short`) is incoherent and refused.
+    - `complete`/`short` are measured values and require a non-empty enumeration;
+      `not-applicable`/`unestablished` measured no roster and must carry none.
+    - An unknown member or status, or a duplicated member row, fails closed.
+
+    It enforces the always-on floor — no always-on member missing or gated-off on a
+    `complete` roster — not full expected-roster dispatch: a gated analyzer's own
+    dispatch remains self-reported by design (issue #1512 AC3)."""
+    roster = record['roster']
+    dup = sorted(m for m, s in members.items() if s is _REVIEW_ROSTER_DUPLICATE)
+    if dup:
+        return (f"the roster enumeration lists member(s) {', '.join(dup)} more than "
+                "once, so which dispatch outcome applies is unresolvable")
+    for member in sorted(members):
+        if member not in _SHADOW_ROSTER_MEMBERS:
+            return (f"the roster enumeration names unknown member {member!r}; expected "
+                    f"one of {', '.join(_SHADOW_ROSTER_MEMBERS)}")
+        if members[member] not in _ROSTER_MEMBER_STATUSES:
+            return (f"roster member {member!r} carries unknown status "
+                    f"{members[member]!r}; expected one of "
+                    f"{', '.join(_ROSTER_MEMBER_STATUSES)}")
+    measured = roster in ('complete', 'short')
+    if members and not measured:
+        return (f"roster={roster} measured no roster, so it must carry no per-member "
+                f"enumeration, but {len(members)} review-roster row(s) are present")
+    if measured and not members:
+        return (f"roster={roster} is a measured value, so it must enumerate the shadow's "
+                "per-member dispatch outcomes, but no review-roster row is present")
+    if measured:
+        ao_gated = [m for m in _SHADOW_ALWAYS_ON_MEMBERS
+                    if members.get(m) == 'gated-off']
+        if ao_gated:
+            return ("an always-on member is never applicability-gated, so it cannot be "
+                    f"recorded gated-off: {', '.join(ao_gated)}")
+    if roster == 'complete':
+        bad = [f'{m}={members.get(m) or "not-enumerated"}'
+               for m in _SHADOW_ALWAYS_ON_MEMBERS
+               if members.get(m) != 'dispatched']
+        bad += [f'{m}=missing' for m in _SHADOW_GATED_MEMBERS
+                if members.get(m) == 'missing']
+        if bad:
+            return ("roster=complete requires every always-on member "
+                    f"({', '.join(_SHADOW_ALWAYS_ON_MEMBERS)}) dispatched and no member "
+                    f"missing, but {', '.join(bad)}")
+    if roster == 'short' and not any(s == 'missing' for s in members.values()):
+        return ("roster=short must name at least one missing roster member, but the "
+                "enumeration lists none")
+    return None
+
+
+def _review_roster_marker(member: str, status: str) -> str:
+    """The hidden marker a review-roster enumeration row carries."""
+    return _checkpoint_marker(f'{_REVIEW_ROSTER_KEY_PREFIX}{member}:{status}')
+
+
+def _render_review_roster_member(member: str, status: str) -> str:
+    """The roster-member row's visible text, coupled to `_review_roster_members`'
+    read-back."""
+    return f'review roster member {member}={status}'
 
 
 # issue #1509: the diff-profile row that authorizes a `skipped-intentional` checklist
@@ -4684,15 +4801,17 @@ def _strip_review_coverage_reflection_bullets(content: str) -> str:
 
 
 def _strip_review_coverage_marker_rows(content: str) -> str:
-    """Remove the `## Progress` review-coverage record row and EVERY disposition row.
+    """Remove the `## Progress` review-coverage record row, EVERY disposition row, and
+    EVERY roster-member enumeration row.
 
-    Called both when a fresh record supersedes the previous one — a surviving
-    disposition would answer for a gap the new record may not report — and by the
-    Phase 1.3 resume strip, because a coverage record describes *this* attempt and a
-    resumed run must not inherit an earlier attempt's answer."""
+    Called both when a fresh record supersedes the previous one — a surviving disposition
+    or roster row would answer for a gap or a member the new record may not report — and
+    by the Phase 1.3 resume strip, because a coverage record describes *this* attempt and
+    a resumed run must not inherit an earlier attempt's answer."""
     kept = [ln for ln in content.splitlines(keepends=True)
             if not _REVIEW_COVERAGE_MARKER_RE.search(ln)
-            and not _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(ln)]
+            and not _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(ln)
+            and not _REVIEW_ROSTER_MARKER_RE.search(ln)]
     return ''.join(kept)
 
 
@@ -4717,6 +4836,7 @@ def _strip_review_coverage_disposition_rows(content: str, gaps) -> str:
 # any of them, so a family's validation cannot be bypassed through the generic head.
 _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX, '`--review-coverage-disposition`'),
+    (_REVIEW_ROSTER_KEY_PREFIX, '`--record-roster-member`'),
     (_REVIEW_COVERAGE_KEY_PREFIX, '`--record-review-coverage`'),
     (_COMPLETION_MARKER_KEY_PREFIX, '`--record-completion-evidence`'),
     (_COMPLETION_CI_MARKER_KEY_PREFIX, '`--record-completion-evidence-ci`'),
@@ -4894,6 +5014,24 @@ def _review_coverage_verdict(progress_content: str) -> None:
             f"{incoherent}, so the run's review coverage is UNESTABLISHED "
             "[review-coverage-unestablished]. Re-stamp it at the Phase 3.3 review "
             "exit. No PATCH was made."
+        )
+    # The roster cross-check is enforced at WRITE time (a `complete`/`short` record
+    # cannot be recorded without a coherent per-member enumeration), so a record that
+    # reaches finalize carrying NO enumeration predates issue #1512 — a legacy workpad,
+    # which the issue does not re-validate retroactively. Re-run the check here only when
+    # an enumeration is present, so a legacy `complete` record still finalizes while a
+    # record whose enumeration IS present stays cross-checked as defense-in-depth.
+    roster_members = _review_roster_members(progress_content)
+    roster_incoherent = (_review_roster_incoherence(record, roster_members)
+                         if roster_members else None)
+    if roster_incoherent:
+        raise _UpdateError(
+            "refusing to finalize Status: Complete — the review-coverage record "
+            f"({_render_review_coverage_state(record)}) is incoherent with the shadow "
+            f"roster enumeration: {roster_incoherent}, so the run's review coverage is "
+            "UNESTABLISHED [review-coverage-unestablished]. Enumerate the shadow's "
+            "per-member dispatch outcomes with `--record-roster-member <member> "
+            "<status>` at the Phase 3.3 review exit. No PATCH was made."
         )
     gaps = _review_coverage_gaps(record)
     if not gaps:
@@ -5839,6 +5977,43 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         _anchor_asof = _utc_now_compact()
         review_coverage_payload = ':'.join(
             list(review_coverage) + [_anchor_head, _anchor_asof])
+    # Shadow-review roster enumeration (issue #1512): validated before any body mutation
+    # and cross-checked against the roster axis. Read via getattr so an older arg shape
+    # (no --record-roster-member) degrades to "flag absent" rather than raising.
+    roster_member_pairs = list(getattr(args, 'record_roster_member', None) or [])
+    roster_members: dict = {}
+    if roster_member_pairs and not review_coverage_payload:
+        raise _UpdateError(
+            "--record-roster-member must accompany --record-review-coverage, whose "
+            "roster axis it cross-checks. No PATCH was made."
+        )
+    for _pair in roster_member_pairs:
+        _require_arity('--record-roster-member', _pair, 2, ('member', 'status'))
+    for member, status in roster_member_pairs:
+        if member not in _SHADOW_ROSTER_MEMBERS:
+            raise _UpdateError(
+                f"--record-roster-member: unknown member {member!r}; expected one of "
+                f"{', '.join(_SHADOW_ROSTER_MEMBERS)}. No PATCH was made."
+            )
+        if status not in _ROSTER_MEMBER_STATUSES:
+            raise _UpdateError(
+                f"--record-roster-member: unknown status {status!r} for member "
+                f"{member!r}; expected one of {', '.join(_ROSTER_MEMBER_STATUSES)}. "
+                "No PATCH was made."
+            )
+        if member in roster_members:
+            raise _UpdateError(
+                f"--record-roster-member: member {member!r} given more than once; pass "
+                "one status per member. No PATCH was made."
+            )
+        roster_members[member] = status
+    if review_coverage_payload:
+        _roster_incoherent = _review_roster_incoherence(
+            dict(zip(_REVIEW_COVERAGE_AXES, review_coverage)), roster_members)
+        if _roster_incoherent:
+            raise _UpdateError(
+                f"--record-review-coverage: {_roster_incoherent}. No PATCH was made."
+            )
     review_dispositions = list(getattr(args, 'review_coverage_disposition', []) or [])
     _seen_gaps: set[str] = set()
     for _pair in review_dispositions:
@@ -6220,6 +6395,11 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             f'at {_anchor_asof}) '
             f'{_review_coverage_marker(review_coverage_payload)}'
         )
+    for _member, _status in roster_members.items():
+        _review_coverage_rows.add(
+            f'{_render_review_roster_member(_member, _status)} '
+            f'{_review_roster_marker(_member, _status)}'
+        )
     for _gap, _reason in review_dispositions:
         _review_coverage_rows.add(
             f'{_render_review_coverage_disposition(_gap, _reason)} '
@@ -6268,6 +6448,9 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         ) + (
             ['review-coverage disposition']
             if _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(_joined) else []
+        ) + (
+            ['review-roster enumeration']
+            if _REVIEW_ROSTER_MARKER_RE.search(_joined) else []
         )
         _survivors = _rc_survivors + sorted(
             v for v in _REQUIRED_ARTIFACT_MARKER_VARIANTS
@@ -6892,6 +7075,23 @@ def main():
                           'a clean value. A later "--status Complete" write is refused '
                           'unless this record is complete or every gap it reports '
                           'carries a --review-coverage-disposition.')
+    u.add_argument('--record-roster-member', nargs=2, action='append', default=None,
+                   metavar=('MEMBER', 'STATUS'),
+                   help='Enumerate one shadow-review roster member and its dispatch '
+                        'outcome (issue #1512), as a "<!-- prflow:checkpoint '
+                        'review-roster:<member>:<status> -->" ## Progress row beside the '
+                        '--record-review-coverage record. MEMBER: '
+                        + '|'.join(_SHADOW_ROSTER_MEMBERS)
+                        + '. STATUS: '
+                        + '|'.join(_ROSTER_MEMBER_STATUSES)
+                        + '. Repeatable — one per member; must accompany '
+                          '--record-review-coverage. The roster axis is cross-checked '
+                          'against this enumeration: roster=complete is refused unless '
+                          'every always-on member ('
+                        + '|'.join(_SHADOW_ALWAYS_ON_MEMBERS)
+                        + ') is dispatched and no member is missing, while a member its '
+                          'applicability gate excluded (gated-off) does not block '
+                          'complete; roster=short must name a missing member.')
     u.add_argument('--record-review-coverage-head', default=None, metavar='SHA',
                    help='The reviewed head SHA the review-coverage record is derived '
                         'from (issue #1510), stamped as the record\'s as-of anchor '
