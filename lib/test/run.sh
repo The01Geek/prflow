@@ -14136,6 +14136,8 @@ _pbs() {  # $1=COMMITS json  $2=PR-author login ; runs the SHIPPED SHA block, co
 }
 assert_eq "#1440: blank-login tail → 0 (agent-side, not human)" "0" \
   "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"","committer_login":"","parents_count":1}]' someoneelse)"
+assert_eq "#1440: whitespace-only login tail → 0 (blank, not human)" "0" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":" ","committer_login":"\t","parents_count":1}]' someoneelse)"
 assert_eq "#1440: mixed tail with one named human → 1 (blank not counted)" "1" \
   "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"","committer_login":"","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":1}]' someoneelse)"
 assert_eq "#1440: null login does not abort the filter (human still counted)" "1" \

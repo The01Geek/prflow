@@ -249,8 +249,9 @@ REVIEW_COMMENTS_COUNT="$(echo "$REVIEW_COMMENTS" | "$DEVFLOW_JQ" 'length')"
 
 # post_bot_commits: count non-merge commits AFTER the last bot/PR-author commit
 # that are positively human-attributable — author_login or committer_login is a
-# non-blank string that neither ends in [bot] nor equals the [bot]-stripped PR
-# author. Both logins blank/absent/non-string are classified agent-side, never
+# non-blank string (at least one non-whitespace character) that neither ends in
+# [bot] nor equals the [bot]-stripped PR author. Both logins blank, whitespace-
+# only, absent, or non-string are classified agent-side, never
 # human (unknown is not a human): local-tier agent commits carry a git identity
 # GitHub cannot resolve to an account, so their login returns blank and must not
 # read as human rework. The "last bot commit" anchor (below) is unchanged. Pure
@@ -260,7 +261,7 @@ REVIEW_COMMENTS_COUNT="$(echo "$REVIEW_COMMENTS" | "$DEVFLOW_JQ" 'length')"
 # still counted: a small human correction is a real, if minor, signal.)
 POST_BOT_COMMITS="$(echo "$COMMITS" | "$DEVFLOW_JQ" --arg author "$AUTHOR" '
     def ends_bot($l): (($l | type) == "string") and ($l | endswith("[bot]"));
-    def is_human($l): (($l | type) == "string") and ($l != "") and ((ends_bot($l)) | not) and ($l != $author);
+    def is_human($l): (($l | type) == "string") and ($l | test("[^[:space:]]")) and ((ends_bot($l)) | not) and ($l != $author);
     to_entries
     | [.[] | select(
         ends_bot(.value.author_login)
@@ -768,7 +769,7 @@ HUMAN_POSTBOT_DIFF="null"
 if [ "$POST_BOT_COMMITS" -gt 0 ]; then
     POSTBOT_SHAS="$(echo "$COMMITS" | "$DEVFLOW_JQ" --arg author "$AUTHOR" '
         def ends_bot($l): (($l | type) == "string") and ($l | endswith("[bot]"));
-        def is_human($l): (($l | type) == "string") and ($l != "") and ((ends_bot($l)) | not) and ($l != $author);
+        def is_human($l): (($l | type) == "string") and ($l | test("[^[:space:]]")) and ((ends_bot($l)) | not) and ($l != $author);
         to_entries
         | [.[] | select(
             ends_bot(.value.author_login)
