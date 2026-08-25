@@ -243,6 +243,8 @@ def make_args(**overrides):
         strip_inherited_checkpoints=False,
         # issue #1453 review-coverage record + dispositions — read on every call.
         record_review_coverage=None, review_coverage_disposition=[],
+        # issue #1512 shadow-roster per-member enumeration — read on every call.
+        record_roster_member=None,
         # issue #1462 prompt-extension row reconciliation — read on every call.
         reconcile_extension_rows=False,
         # issue #1876 mid-phase resume-point record — read on every call.
@@ -11501,13 +11503,42 @@ _RC_REASONS = {
 }
 
 
-def _rc_row(payload):
-    """A ## Progress body carrying one review-coverage record for `payload`."""
+def _rc_members_for(roster):
+    """Default per-member roster rows coherent with a roster axis value (issue #1512),
+    so existing `complete`/`short` call sites carry an enumeration the gate accepts."""
+    if roster == "complete":
+        return [(m, "dispatched") for m in workpad._SHADOW_ALWAYS_ON_MEMBERS]
+    if roster == "short":
+        return ([(workpad._SHADOW_ALWAYS_ON_MEMBERS[0], "missing")]
+                + [(m, "dispatched") for m in workpad._SHADOW_ALWAYS_ON_MEMBERS[1:]])
+    return []
+
+
+def _rc_roster_rows(members):
+    """The ## Progress roster-member bullets for `members` (a list of (member, status))."""
+    return "".join(
+        "\n  - 03:00:0%d — %s %s" % (
+            i + 1,
+            workpad._render_review_roster_member(m, s),
+            workpad._review_roster_marker(m, s))
+        for i, (m, s) in enumerate(members))
+
+
+def _rc_row(payload, members=None):
+    """A ## Progress body carrying one review-coverage record for `payload`, plus a
+    per-member roster enumeration (issue #1512). `members` defaults to one coherent with
+    the payload's roster axis so existing call sites keep passing; pass `members=[]` to
+    omit the enumeration, or an explicit list to test a specific fan-out."""
+    fields = payload.split(":")
+    roster = fields[2] if len(fields) == 4 else None
+    if members is None:
+        members = _rc_members_for(roster)
     return _RC_BASE.replace(
         "  - 02:00:00 — /devflow:implement run started",
         "  - 02:00:00 — /devflow:implement run started\n"
         "  - 03:00:00 — review coverage recorded "
-        + workpad._review_coverage_marker(payload))
+        + workpad._review_coverage_marker(payload)
+        + _rc_roster_rows(members))
 
 
 def _rc_complete(body, **overrides):
@@ -11604,7 +11635,9 @@ assert_eq("#1453 AC9: the two reason rejections are separately attributable",
 # AC1/AC7: the producer writes exactly one marker-carrying row, and a full record
 # then satisfies the gate through the ordinary call path (the positive control).
 _rc_full = apply_mut(_CP_BODY, make_args(
-    record_review_coverage=["full", "attempted", "complete", "complete"]))
+    record_review_coverage=["full", "attempted", "complete", "complete"],
+    record_roster_member=[[m, "dispatched"]
+                          for m in workpad._SHADOW_ALWAYS_ON_MEMBERS]))
 assert_eq("#1453 AC1: the producer writes exactly one review-coverage marker",
           1, _rc_full.count(
               workpad._review_coverage_marker("full:attempted:complete:complete")))
@@ -11817,7 +11850,13 @@ for _terminal in ("Blocked", "Failed"):
 assert_eq("#1453: the verdict returns None on a complete record",
           None, workpad._review_coverage_verdict(
               "- 03:00:00 — "
-              + workpad._review_coverage_marker("full:attempted:complete:complete")))
+              + workpad._review_coverage_marker("full:attempted:complete:complete")
+              + "".join(
+                  "\n- 03:00:0%d — %s %s" % (
+                      i + 1,
+                      workpad._render_review_roster_member(m, "dispatched"),
+                      workpad._review_roster_marker(m, "dispatched"))
+                  for i, m in enumerate(workpad._SHADOW_ALWAYS_ON_MEMBERS))))
 assert_raises("#1453: the verdict raises _UpdateError on an absent record",
               workpad._UpdateError,
               lambda: workpad._review_coverage_verdict("- 03:00:00 — nothing here"))
@@ -11875,7 +11914,8 @@ assert_eq("#1453: a planted, well-formed disposition is accepted (positive contr
 # The record REPLACES rather than accumulates — the invariant the "exactly one record"
 # read rests on. Re-record a DIFFERENT payload over an existing one.
 _rc_rerecord = apply_mut(_rc_row("full:attempted:complete:complete"), make_args(
-    record_review_coverage=["not-verified", "attempted", "short", "complete"]))
+    record_review_coverage=["not-verified", "attempted", "short", "complete"],
+    record_roster_member=_rc_members_for("short")))
 assert_eq("#1453: re-recording replaces the prior record rather than accumulating",
           ["not-verified:attempted:short:complete"],
           workpad._review_coverage_payloads(_rc_rerecord))
@@ -11884,7 +11924,8 @@ assert_eq("#1453: re-recording replaces the prior record rather than accumulatin
 _rc_rerecord2 = apply_mut(
     _planted_disposition("roster", workpad._render_review_coverage_disposition(
         "roster", _RC_REASONS["roster"])),
-    make_args(record_review_coverage=["full", "attempted", "complete", "complete"]))
+    make_args(record_review_coverage=["full", "attempted", "complete", "complete"],
+              record_roster_member=_rc_members_for("complete")))
 assert_eq("#1453: a fresh record strips the superseded dispositions and their bullets",
           ({}, False),
           (workpad._review_coverage_dispositions(_rc_rerecord2),
@@ -12018,7 +12059,8 @@ for _fld, _kw in (
 # ...while the producer's OWN validated rows still write through the same chokepoint.
 assert_eq("#1453: the validated producer's rows are still admitted (positive control)",
           1, len(workpad._review_coverage_payloads(apply_mut(_CP_BODY, make_args(
-              record_review_coverage=["full", "attempted", "complete", "complete"])))))
+              record_review_coverage=["full", "attempted", "complete", "complete"],
+              record_roster_member=_rc_members_for("complete"))))))
 # Read-time isolation: a marker buried mid-sentence, or on a non-bullet line, is not
 # a record. (The producer refuses to write either; this is the defence in depth.)
 _MK_RC = workpad._review_coverage_marker("full:attempted:complete:complete")
@@ -12030,6 +12072,117 @@ assert_eq("#1453: a marker on a non-bullet line is not read as a record",
 assert_eq("#1453: the canonical trailing-marker bullet IS read (positive control)",
           ["full:attempted:complete:complete"],
           workpad._review_coverage_payloads("  - 03:00:00 — recorded " + _MK_RC))
+
+# ── issue #1512: the roster axis is cross-checked against a per-member enumeration ──
+# The roster axis alone is a self-report: a shadow narrower than the expected roster can
+# write roster=complete and nothing downstream sees a roster to contradict it. The record
+# now carries a per-member dispatch enumeration and workpad.py refuses a `complete` axis
+# whose enumeration omits an always-on member.
+_1512_ALWAYS = list(workpad._SHADOW_ALWAYS_ON_MEMBERS)
+
+
+def _rc_write(coverage, members=None):
+    """Drive a `--record-review-coverage` write, returning the _UpdateError message or
+    None when it applied cleanly."""
+    try:
+        apply_mut(_CP_BODY, make_args(
+            record_review_coverage=coverage, record_roster_member=members), [])
+    except workpad._UpdateError as _e:
+        return str(_e)
+    return None
+
+
+assert_eq("#1512: the always-on roster is exactly the four independent-audit members",
+          ("code-reviewer", "silent-failure-hunter", "comment-analyzer",
+           "requesting-code-review"), workpad._SHADOW_ALWAYS_ON_MEMBERS)
+assert_eq("#1512: the gated members are the two applicability-gated analyzers",
+          ("type-design-analyzer", "pr-test-analyzer"), workpad._SHADOW_GATED_MEMBERS)
+# A complete roster whose enumeration covers every always-on member (all dispatched)
+# writes cleanly AND round-trips through the read-time gate — the positive control.
+_1512_full = [[m, "dispatched"] for m in _1512_ALWAYS]
+assert_eq("#1512: complete + a full always-on enumeration writes cleanly",
+          None, _rc_write(["full", "attempted", "complete", "complete"], _1512_full))
+assert_eq("#1512: ...and round-trips through the read-time Complete gate",
+          None, _rc_complete(_rc_row("full:attempted:complete:complete",
+                                     members=[(m, "dispatched") for m in _1512_ALWAYS])))
+# AC2: a shadow that did not dispatch an always-on member cannot record complete, and the
+# refusal names the missing member — the defect against today's code (accepted before).
+_1512_missing = _rc_write(["full", "attempted", "complete", "complete"],
+                          [[m, "dispatched"] for m in _1512_ALWAYS[:3]])
+assert_eq("#1512 AC2: complete missing an always-on member is refused at write time",
+          True, _1512_missing is not None
+          and "requesting-code-review" in _1512_missing
+          and "roster=complete requires every always-on member" in _1512_missing)
+# ...and equally at read time, over a persisted three-of-four enumeration.
+_1512_missing_read = _rc_complete(_rc_row(
+    "full:attempted:complete:complete",
+    members=[(m, "dispatched") for m in _1512_ALWAYS[:3]]))
+assert_eq("#1512 AC2: complete missing an always-on member is refused at read time",
+          True, _1512_missing_read is not None
+          and "requesting-code-review" in _1512_missing_read
+          and "[review-coverage-unestablished]" in _1512_missing_read)
+# AC2: an always-on member explicitly marked missing is likewise refused, naming it.
+assert_eq("#1512 AC2: an always-on member marked missing refuses complete, naming it",
+          True, (_rc_write(["full", "attempted", "complete", "complete"],
+                           [[_1512_ALWAYS[0], "missing"]]
+                           + [[m, "dispatched"] for m in _1512_ALWAYS[1:]]) or "")
+          .find(_1512_ALWAYS[0]) >= 0)
+# AC3: a member its applicability gate excluded (gated-off) does NOT block complete.
+assert_eq("#1512 AC3: a gated-off analyzer does not prevent roster=complete",
+          None, _rc_write(["full", "attempted", "complete", "complete"],
+                          _1512_full + [["type-design-analyzer", "gated-off"]]))
+# ...but a gated analyzer marked *missing* (its gate was true and it was not dispatched)
+# does block complete.
+assert_eq("#1512 AC3: a gated analyzer marked missing still blocks complete",
+          True, _rc_write(["full", "attempted", "complete", "complete"],
+                          _1512_full + [["type-design-analyzer", "missing"]]) is not None)
+# A `short` axis must name at least one missing member; a `short` with none is incoherent.
+assert_eq("#1512: short naming a missing member writes cleanly",
+          None, _rc_write(["not-verified", "attempted", "short", "complete"],
+                          [[_1512_ALWAYS[0], "missing"]]
+                          + [[m, "dispatched"] for m in _1512_ALWAYS[1:]]))
+assert_eq("#1512: short with no missing member is refused",
+          True, (_rc_write(["not-verified", "attempted", "short", "complete"], _1512_full)
+                 or "").find("at least one missing") >= 0)
+# A measured axis requires an enumeration; a self-reported complete with none is refused.
+assert_eq("#1512 AC1: roster=complete with no per-member enumeration is refused",
+          True, "no review-roster row is present"
+          in (_rc_write(["full", "attempted", "complete", "complete"], None) or ""))
+assert_eq("#1512 AC1: ...and identically at read time (self-report, no enumeration)",
+          True, "[review-coverage-unestablished]"
+          in (_rc_complete(_rc_row("full:attempted:complete:complete", members=[]))
+              or ""))
+# not-applicable/unestablished measured no roster, so they must carry NO enumeration.
+assert_eq("#1512: a member enumeration on a not-applicable roster is refused",
+          True, "measured no roster" in (_rc_write(
+              ["not-applicable", "not-applicable", "not-applicable", "not-applicable"],
+              _1512_full) or ""))
+# Fail-closed shapes: unknown member, unknown status, duplicate, and a roster member
+# with no coverage record.
+assert_eq("#1512: an unknown roster member is refused",
+          True, "unknown member" in (_rc_write(
+              ["full", "attempted", "complete", "complete"],
+              _1512_full + [["nonexistent-agent", "dispatched"]]) or ""))
+assert_eq("#1512: an unknown member status is refused",
+          True, "unknown status" in (_rc_write(
+              ["full", "attempted", "complete", "complete"],
+              [[m, "sent"] for m in _1512_ALWAYS]) or ""))
+assert_eq("#1512: a member enumerated twice is refused",
+          True, "more than once" in (_rc_write(
+              ["full", "attempted", "complete", "complete"],
+              _1512_full + [[_1512_ALWAYS[0], "dispatched"]]) or ""))
+assert_eq("#1512: roster members without a coverage record are refused",
+          True, "must accompany --record-review-coverage" in (
+              _rc_write(None, _1512_full) or ""))
+# The `--checkpoint` head cannot forge a roster row, bypassing the cross-check.
+_1512_forge = None
+try:
+    apply_mut(_RC_BASE, make_args(
+        checkpoint=[["review-roster:code-reviewer:dispatched", "forged"]]), [])
+except workpad._UpdateError as _e:
+    _1512_forge = str(_e)
+assert_eq("#1512: --checkpoint refuses the reserved review-roster key",
+          True, _1512_forge is not None and "reserved" in _1512_forge)
 
 # ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
 
@@ -12046,6 +12199,7 @@ _MM_BODY = _CP_BODY.replace(
 _mm_code, _, _, _mm_patched = _drive_cmd_update(
     _MM_BODY,
     record_review_coverage=["not-verified", "never", "short", "skipped"],
+    record_roster_member=_rc_members_for("short"),
     status="Blocked",
     tick_progress=[_MM_ROW_A[1], _MM_ROW_B[1]])
 assert_eq("#1722: the combined coverage+Blocked+two-tick call takes the clean exit",
@@ -12248,7 +12402,8 @@ _replay_body = apply_mut(_CP_BODY, make_args(checkpoint=[["some-key", "first"]])
 assert_eq("#1453: a coverage record is not swallowed by the no-op replay path",
           1, len(workpad._review_coverage_payloads(apply_mut(_replay_body, make_args(
               checkpoint=[["some-key", "first"]],
-              record_review_coverage=["full", "attempted", "complete", "complete"])))))
+              record_review_coverage=["full", "attempted", "complete", "complete"],
+              record_roster_member=_rc_members_for("complete"))))))
 
 # The process-level positive twin of AC2's no-PATCH negative: a clean record PATCHes.
 _code, _out, _err, _patched = _drive_cmd_update(
