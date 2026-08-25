@@ -299,8 +299,10 @@ and the read failure; the return stays exactly one JSON object with nothing else
 stdout. Omit the key entirely in every other case.
 
 Required `analysis_provenance` object (evidence the bundle actually carried).
-Every entry a live Stage A run writes carries this object, recording the three
-booleans derived from the bundle it was handed: `bundle_diff_present` (the
+This object is a required field on a live Stage A entry — both the gate-skipped
+clean-path entry (`lib/clean-entry.jq`) and an LLM-judged entry (the construction
+below) emit it — recording the three booleans derived from the bundle it was
+handed: `bundle_diff_present` (the
 bundle's `diff` is non-null and `diff_truncated` is not true — a diff suppressed
 by `diff_byte_cap` arrives as `diff:null` / `diff_truncated:true` → false),
 `bundle_workpad_body_present` (the bundle's `workpad_body` is non-null), and

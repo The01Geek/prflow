@@ -26,10 +26,8 @@
   categories: [],
   descriptors: [],
   signals: .signals,
-  # What evidence the writing run actually had, so diff-present and diff-absent
-  # entries no longer pool blind (field names join the backfill cohort). Keep the
-  # `//` fallback: an incoming object is preserved intact; collapsing to the
-  # constructed form alone would drop a bundle's own analysis_provenance.
+  # Keep the `//` fallback: an incoming analysis_provenance is preserved intact;
+  # collapsing to the constructed form alone would drop a bundle's own object.
   analysis_provenance: (.analysis_provenance // {
     bundle_diff_present: (.diff != null and (.diff_truncated // false) != true),
     bundle_workpad_body_present: (.workpad_body != null),
