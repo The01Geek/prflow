@@ -287,6 +287,9 @@ newlines that break naive serialization).
   "descriptors": ["...", "..."],
   "signals": <bundle.signals verbatim>,
   "analysis_provenance": {"bundle_diff_present": <bool>, "bundle_workpad_body_present": <bool>, "bundle_issue_comments_present": <bool>},
+  "additions": <bundle.additions>,
+  "deletions": <bundle.deletions>,
+  "changed_files": <bundle.changed_files verbatim>,
   "summary": "...",
   "suggested_interventions": [{"summary":"...","candidate_targets":[...],"change_type":"...","confidence":"..."}]
 }
@@ -315,7 +318,8 @@ what it measured from its own bundle and never fabricates the backfill cohort's
 
 `categories` must be drawn from the fixed vocabulary above; `descriptors` is
 free text. Echo `pr`, `issue`, `branch`, `head_sha`, `merge_commit_sha`,
-`merged_at`, and `signals` straight from the bundle — do not recompute them.
+`merged_at`, `signals`, `additions`, `deletions`, and `changed_files` straight
+from the bundle — do not recompute them.
 
 An analyst-graded `clean` entry is a fully analyzed entry: it populates
 `categories`, `descriptors`, `summary`, and `suggested_interventions` exactly as
@@ -353,6 +357,9 @@ Example construction:
       bundle_workpad_body_present: ($bundle.workpad_body != null),
       bundle_issue_comments_present: (($bundle.issue.comments // []) | length > 0)
     },
+    additions: $bundle.additions,
+    deletions: $bundle.deletions,
+    changed_files: $bundle.changed_files,
     summary: $summary,
     suggested_interventions: $suggested_interventions
   }'
