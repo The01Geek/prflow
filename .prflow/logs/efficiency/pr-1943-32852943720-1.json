@@ -129,5 +129,93 @@
         }
       }
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 47.94774154999999,
+    "tokens": {
+      "input_tokens": 256,
+      "output_tokens": 114501,
+      "cache_read_input_tokens": 46217837,
+      "cache_creation_input_tokens": 496743,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 554,
+        "outputTokens": 227885,
+        "cacheReadInputTokens": 56749138,
+        "cacheCreationInputTokens": 1693772,
+        "webSearchRequests": 0,
+        "costUSD": 46.52332525,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 108,
+        "outputTokens": 19382,
+        "cacheReadInputTokens": 3231189,
+        "cacheCreationInputTokens": 233657,
+        "webSearchRequests": 0,
+        "costUSD": 1.4244162999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 153,
+    "duration_ms": 5282539
+  },
+  "permission_denials": {
+    "count": 28,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GHA=$GITHUB_ACTIONS RUNID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT\"\n.prflow/vendor/prflow/scripts/workpad.py status 1817; echo \"STATUS_EXIT=$?\"",
+      "printf 'GHA=%s\\n' \"${GITHUB_ACTIONS:-}\"; printf 'RUNID=%s\\n' \"${GITHUB_RUN_ID:-}\"; printf 'ATTEMPT=%s\\n' \"${GITHUB_RUN_ATTEMPT:-}\"; printf 'SERVER=%s\\n' \"${GITHUB_SERVER_URL:-}\"; printf 'REPO=%s\\n' \"${GITHUB_REPOSITORY:-}\"",
+      "WP_BRANCH=\"issue-1817-a-prompt-extension-row-that-was-resolved-but\"\nPR_JSON=$(gh pr list --head \"$WP_BRANCH\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''\necho \"PR_JSON1=$PR_JSON\"\nif [ \"$PR_JSON\" = \"[]\" ]; then\n  PR_JSON=$(gh pr list --search \"1817 in:body\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''\n  echo \"PR_JSON2=$PR_JSON\"\nfi",
+      "CO_ERR=$( { git fetch origin \"issue-1817-a-prompt-extension-row-that-was-resolved-but\" && git checkout \"issue-1817-a-prompt-extension-row-that-was-resolved-but\"; } 2>&1 1>/dev/null ) || true\necho \"CO_ERR=$CO_ERR\"\nLANDED=no\nCUR=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)\n[ \"$CUR\" = \"issue-1817-a-prompt-extension-row-that-was-resolved-but\" ] && LANDED=yes\necho \"LANDED=$LANDED CUR=$CUR\"",
+      "RUN_URL=\"https://github.com/The01Geek/prflow/actions/runs/32852943720\"\nPR_NUMBER=1943\nif ! PR_BODY=$(gh api \"repos/The01Geek/prflow/pulls/1943\" --jq '.body' 2>/dev/null); then\n  PR_BODY=\"\"\n  echo \"::warning::could not read PR body\"\nfi\necho \"len=${#PR_BODY}\"\necho \"$PR_BODY\" | grep -o '\\[View run\\](' | head -1",
+      "gh api \"repos/The01Geek/prflow/pulls/1943\" --jq '.body' > .prflow/tmp/pr1943-body.txt 2>/dev/null; grep -c 'View run' .prflow/tmp/pr1943-body.txt; grep -n 'View run' .prflow/tmp/pr1943-body.txt",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review 2>&1 || true",
+      "for t in \"Classify diff\" \"Generate verification checklist\" \"Verify checklist\" \"Review agents\" \"Aggregate & verdict\"; do scripts/workpad.py update 1817 --tick-progress \"$t\" 2>&1 | tail -1; done",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1943\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1943/32852943720-1/parked-class-sweep.json <<'EOF'\n{\n  \"status\": \"complete\",\n  \"findings\": [\n    {\n      \"site\": \"lib/test/test_python_scripts.py ~14-18\",\n      \"kind_literal\": \"style\",\n      \"severity\": \"Suggestion\",\n      \"description\": \"The `# ── issue #1817: the terminal --status Complete extension-row gate ─` section-header comment block spans 5 physical lines (hea …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1943/32852943720-1 && git diff main...HEAD > .prflow/tmp/review/pr-1943/32852943720-1/diff.patch 2>/dev/null; wc -l .prflow/tmp/review/pr-1943/32852943720-1/diff.patch && echo \"===DIFF===\" && cat .prflow/tmp/review/pr-1943/32852943720-1/diff.patch",
+      "mkdir -p .prflow/tmp && rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null && git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review",
+      "git rev-parse HEAD; echo len:${#$(git rev-parse HEAD)}\n.prflow/vendor/prflow/scripts/checkout-fingerprint.py",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp\nCHECKOUT=$(.prflow/vendor/prflow/scripts/checkout-fingerprint.py)\npython3 - \"$CHECKOUT\" <<'EOF' > /home/runner/work/prflow/prflow/.prflow/tmp/flight-decl-1817.json\nimport json,sys\ncheckout = json.loads(sys.argv[1])\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/test_python_scripts.py\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\":  …[per-command-truncated]",
+      "cat > /home/runner/work/prflow/prflow/.prflow/tmp/flight-decl-1817.json <<'JSONEOF'\n{\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/test_python_scripts.py\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_services\": \"none\"\n  },\n  \"checkout\": {\n    \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n    \"head\": \"b51f1b4f78461572e0edcf6526d4abc767d540 …[per-command-truncated]",
+      "printf '%s' '{\"schema_version\":1,\"profile\":{\"profile_version\":1,\"argv\":[\"lib/test/test_python_scripts.py\"],\"cwd\":\"/home/runner/work/prflow/prflow\",\"environment\":{},\"toolchain\":{},\"dependencies\":{},\"output_roots\":[],\"external_services\":\"none\"},\"checkout\":{\"checkout_id\":\"/home/runner/work/prflow/prflow/.git\",\"head\":\"b51f1b4f78461572e0edcf6526d4abc767d54059\",\"index_digest\":\"3c25223d430e1c3c89fbd6bd73260e80a5a0d1bd\",\"tracked_digest\":\"3c25223d430e1c3c89fbd6bd73260e80a5a0d1bd\",\"untracked_digest\":\"4b82 …[per-command-truncated]",
+      "echo test > /home/runner/work/prflow/prflow/.prflow/tmp/probe.txt 2>&1; cat /home/runner/work/prflow/prflow/.prflow/tmp/probe.txt 2>&1",
+      "echo test > .prflow/tmp/probe.txt 2>&1; cat .prflow/tmp/probe.txt",
+      "cp /dev/null /home/runner/work/prflow/prflow/.prflow/tmp/x.txt 2>&1",
+      "python3 -c \"\nimport json\nsummary = {\n  'exit_status': 0,\n  'command': 'lib/test/test_python_scripts.py',\n  'aggregate': '5633 passed, 0 failed',\n  'ac1817': '15/15 PASS'\n}\nwith open('.prflow/tmp/flight-summary-1817.json', 'w') as f:\n    json.dump(summary, f)\n\"\nFLIGHT=b69434eacf11357a11a17f69a06dbda9e45c7c28125cc31e5adfcca236d3c8bc\nTOKEN=1fa0c7f83f3d550446fc439dbe0c550a27d4df3b4bf88bb687f843b5592c7531\n.prflow/vendor/prflow/scripts/verification-flight.py finish --flight \"$FLIGHT\" --token \"$TOKEN\"  …[per-command-truncated]",
+      "python3 -c \"\nimport json\nreport = {\n  'flight_finish_summary': {\n    'flight_key': 'b69434eacf11357a11a17f69a06dbda9e45c7c28125cc31e5adfcca236d3c8bc',\n    'state': 'passed',\n    'ok': True,\n    'summary': {'exit_status': 0, 'command': 'lib/test/test_python_scripts.py', 'aggregate': '5633 passed, 0 failed', 'ac1817': '15/15 PASS'}\n  },\n  'criteria': []\n}\nprint(json.dumps(report))\n\" > /tmp/x.json 2>&1 || echo FAILEDPRINT",
+      ".prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py --evidence-file .prflow/tmp/ac-evidence-1817.json --claim-file .prflow/tmp/ac-claim-1817.json 2>/dev/null | .prflow/vendor/prflow/scripts/run-jq.sh -c '{all_satisfied, blocking, statuses: [.criteria[] | {c: .criterion, status, blocks, undischarged: (.undischarged_slots|length)}]}'; echo \"RECONCILE_EXIT=${PIPESTATUS[0]}\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs; echo \"---EXIT:$?---\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"RC=$?\"",
+      "scripts/prompt-surface-growth.py",
+      "PR_NUMBER=$(gh pr view --json number --jq '.number' 2>/dev/null)\nif [ -z \"$PR_NUMBER\" ]; then echo \"ERROR: could not resolve PR number\"; exit 1; fi\necho \"PR: $PR_NUMBER\"\ngh api --method PATCH \"repos/{owner}/{repo}/pulls/$PR_NUMBER\" -F body=@/home/runner/work/prflow/prflow/.prflow/tmp/pr-1943-body.md --jq '.number' ",
+      "env | grep -E '^GITHUB_EVENT_PATH=' | sed 's/=.*/=<set>/'\n.prflow/vendor/prflow/scripts/run-jq.sh -r '.comment.id // empty' \"$GITHUB_EVENT_PATH\" 2>/dev/null || echo \"NO_EVENT_COMMENT\""
+    ],
+    "total": 28,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
