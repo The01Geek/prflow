@@ -16,7 +16,7 @@
     },
     "install-state-reader": {
       "path": "scripts/install_state.py",
-      "digest": "sha256:a4a402dea6f733b5a4619b188be5415892bae91b37d3437b96f952c4be8fcfff"
+      "digest": "sha256:8772bce1f2670b90a795a0a10c9ec5da0207bebc83af04e4a9a0aee492563392"
     },
     "setup-action": {
       "path": ".github/actions/setup-project-env/action.yml",

@@ -1528,6 +1528,42 @@ JSON
     fi
   done
 
+  # 4b. Lint provisioning (issue #1388). Ship the declarative lint manifest, then
+  #     publish the digest-bound compatibility marker LAST — only after validating
+  #     the staged manifest — so the setup action's provisioning phase can gate on a
+  #     tuple whose components (manifest, readers, setup action, provisioning helper,
+  #     implement workflow) all agree by sha256. The readers ship via the runtime
+  #     vendor fetch (.prflow/vendor/prflow/scripts/…), the manifest/action/workflow
+  #     via this copy loop — the install-channel skew the digest tuple exists to
+  #     reconcile — so we digest the SOURCE bytes here and record the RUNTIME path
+  #     each component will occupy; the pinned ref guarantees identical bytes.
+  if [ -f "$SRC/.prflow/lint-manifest.json" ] && [ -f "$SRC/scripts/install_state.py" ]; then
+    install_managed ".prflow/lint-manifest.json" "$SRC/.prflow/lint-manifest.json"
+    if python3 "$SRC/scripts/lint_manifest.py" "$SRC/.prflow/lint-manifest.json" >/dev/null 2>&1; then
+      if python3 "$SRC/scripts/install_state.py" build \
+          --out ".prflow/install-state.json" \
+          --installer-version "$pin" \
+          --repo-root "$SRC" \
+          --component "manifest=.prflow/lint-manifest.json" \
+          --component "manifest-reader=scripts/lint_manifest.py" \
+          --component "lint-provision=scripts/lint_provision.py" \
+          --component "install-state-reader=scripts/install_state.py" \
+          --component "setup-action=.github/actions/setup-project-env/action.yml" \
+          --component "provision-helper=.github/actions/setup-project-env/provision-lint-tools.sh" \
+          --component "implement-workflow=.github/workflows/devflow-implement.yml" \
+          --record-path "manifest-reader=.prflow/vendor/prflow/scripts/lint_manifest.py" \
+          --record-path "lint-provision=.prflow/vendor/prflow/scripts/lint_provision.py" \
+          --record-path "install-state-reader=.prflow/vendor/prflow/scripts/install_state.py" \
+          >/dev/null 2>&1; then
+        log "published .prflow/install-state.json (lint provisioning compatibility marker)"
+      else
+        log "warning: could not publish .prflow/install-state.json; lint provisioning will fail closed (setup refuses provisioning without the marker) until the installer is re-run."
+      fi
+    else
+      log "warning: .prflow/lint-manifest.json did not validate; NOT publishing the install-state marker (fail-closed: setup will refuse lint provisioning)."
+    fi
+  fi
+
   # 5. config scaffold — delegated to the ONE shared scaffolder so the cloud tier
   #    and the /devflow:init skill can never drift. It never overwrites a value the
   #    user has set (it only backfills keys newly added to the example) and always

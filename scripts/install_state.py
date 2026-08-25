@@ -221,18 +221,24 @@ def validate_state(data) -> StateResult:
     return StateResult("established", state=data)
 
 
-def build_state(installer_version: str, components: dict, repo_root=".") -> dict:
-    """Build a marker dict from `components` (name → repo-relative path), computing
-    each component's digest from disk under `repo_root`. Raises `FileNotFoundError`
-    (via `digest_file` → None) surfaced as a ValueError for an unreadable component
-    so the installer fails BEFORE publishing a marker binding a file it cannot read."""
+def build_state(installer_version: str, components: dict, repo_root=".",
+                record_paths=None) -> dict:
+    """Build a marker dict from `components` (name → the path DIGESTED, resolved
+    under `repo_root`). Each component's recorded path defaults to the digested
+    path; `record_paths` (name → recorded path) overrides it, so the installer can
+    digest a SOURCE-tree file while recording the RUNTIME path a thin consumer will
+    verify (the install-channel skew: workflows/manifest ship via install.sh's copy
+    loop, helpers via the runtime vendor fetch — identical bytes at the pinned ref).
+    Raises `ValueError` for an unreadable component so the installer fails BEFORE
+    publishing a marker binding a file it cannot read."""
     root = Path(repo_root)
+    record_paths = record_paths or {}
     out = {}
     for name, rel in components.items():
         dig = digest_file(root / rel)
         if dig is None:
             raise ValueError(f"cannot digest component {name!r} at {rel!r}")
-        out[name] = {"path": rel, "digest": dig}
+        out[name] = {"path": record_paths.get(name, rel), "digest": dig}
     return {
         "schema_version": 1,
         "installer_version": installer_version,
@@ -299,6 +305,7 @@ def main(argv=None) -> int:
     pb.add_argument("--out", required=True)
     pb.add_argument("--installer-version", required=True)
     pb.add_argument("--component", action="append", default=[], metavar="NAME=PATH")
+    pb.add_argument("--record-path", action="append", default=[], metavar="NAME=PATH")
     pb.add_argument("--repo-root", default=".")
 
     pv = sub.add_parser("verify")
@@ -322,8 +329,15 @@ def main(argv=None) -> int:
         if not components:
             print("usage: build needs at least one --component", file=sys.stderr)
             return 1
+        record_paths = {}
+        for spec in args.record_path:
+            if "=" not in spec:
+                print(f"usage: --record-path expects NAME=PATH, got {spec!r}", file=sys.stderr)
+                return 1
+            name, rel = spec.split("=", 1)
+            record_paths[name] = rel
         try:
-            state = build_state(args.installer_version, components, args.repo_root)
+            state = build_state(args.installer_version, components, args.repo_root, record_paths)
         except ValueError as exc:
             print(f"build failed: {exc}", file=sys.stderr)
             return 1

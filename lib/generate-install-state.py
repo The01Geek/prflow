@@ -71,7 +71,16 @@ def build(repo_root: Path) -> dict:
     return install_state.build_state(_installer_version(repo_root), COMPONENTS, repo_root=repo_root)
 
 
+def _force_utf8_streams():
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv=None) -> int:
+    _force_utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
     check = "--check" in argv
     fresh = build(_REPO_ROOT)

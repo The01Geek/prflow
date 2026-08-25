@@ -75,8 +75,12 @@ devflow_copy_slice() {
   # Only the committed templates/registry — not the whole .prflow/ tree (which
   # would drag in learnings/ and a possibly-dirty config.json).
   mkdir -p "$stage/.prflow"
+  # The lint manifest and its digest-bound compatibility marker ship (issue #1388):
+  # the setup action's provisioning phase reads .prflow/lint-manifest.json and gates
+  # on .prflow/install-state.json, so a consumer that lacks them cannot provision.
   cp "$src/.prflow/config.example.json" "$src/.prflow/config.schema.json" \
-     "$src/.prflow/tool-presets.json" \
+     "$src/.prflow/tool-presets.json" "$src/.prflow/lint-manifest.json" \
+     "$src/.prflow/install-state.json" \
      "$stage/.prflow/"
   # The vendored copy is a plugin, not a marketplace — keep only plugin.json.
   rm -f "$stage/.claude-plugin/marketplace.json"

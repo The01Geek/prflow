@@ -36014,6 +36014,48 @@ _drift_1388 = _sp1388.run(
 assert_eq("#1388 marker: install-state marker is in sync with its bound components", 0, _drift_1388.returncode)
 
 
+# ── issue #1388: install.sh publish path — digest SOURCE, record RUNTIME (skew) ──
+_d1388c = Path(tempfile.mkdtemp())
+try:
+    _src = _d1388c / "src"
+    (_src / ".prflow").mkdir(parents=True)
+    (_src / "scripts").mkdir()
+    (_src / ".prflow" / "lint-manifest.json").write_bytes(_MANIFEST_1388.read_bytes())
+    (_src / "scripts" / "lint_manifest.py").write_text("READER-BYTES\n", encoding="utf-8")
+    _sk = _install_state.build_state(
+        "abc123",
+        {"manifest": ".prflow/lint-manifest.json", "reader": "scripts/lint_manifest.py"},
+        repo_root=_src,
+        record_paths={"reader": ".prflow/vendor/prflow/scripts/lint_manifest.py"})
+    assert_eq("#1388 publish: records the RUNTIME path, not the source path",
+              ".prflow/vendor/prflow/scripts/lint_manifest.py", _sk["components"]["reader"]["path"])
+    # A consumer tree laid out at the runtime paths with IDENTICAL bytes verifies READY.
+    _con = _d1388c / "consumer"
+    (_con / ".prflow" / "vendor" / "prflow" / "scripts").mkdir(parents=True)
+    (_con / ".prflow" / "lint-manifest.json").write_bytes(_MANIFEST_1388.read_bytes())
+    (_con / ".prflow" / "vendor" / "prflow" / "scripts" / "lint_manifest.py").write_text("READER-BYTES\n", encoding="utf-8")
+    _mk = _con / ".prflow" / "install-state.json"
+    _mk.write_text(json.dumps(_sk) + "\n", encoding="utf-8")
+    assert_eq("#1388 publish: runtime tree with identical bytes is READY", True,
+              _install_state.check_readiness(_mk, _con / ".prflow" / "lint-manifest.json", repo_root=_con).ready)
+    # A runtime helper whose bytes drifted from the pinned source -> digest-mismatch.
+    (_con / ".prflow" / "vendor" / "prflow" / "scripts" / "lint_manifest.py").write_text("DRIFTED\n", encoding="utf-8")
+    assert_eq("#1388 publish: drifted runtime helper -> digest-mismatch names it",
+              "digest-mismatch:reader",
+              _install_state.check_readiness(_mk, _con / ".prflow" / "lint-manifest.json", repo_root=_con).reason)
+finally:
+    shutil.rmtree(_d1388c, ignore_errors=True)
+
+# AC1: install.sh ships the manifest and publishes the marker after validating it.
+_INSTALL_1388 = (SCRIPTS.parent / "install.sh").read_text(encoding="utf-8")
+assert_eq("#1388 installer: ships the lint manifest", True,  # structural-pin-ok: routing-dispatch-contract -- installer copy of the manifest
+          'install_managed ".prflow/lint-manifest.json"' in _INSTALL_1388)
+assert_eq("#1388 installer: publishes the install-state marker via install_state.py build", True,  # structural-pin-ok: routing-dispatch-contract -- marker publication call
+          'scripts/install_state.py" build' in _INSTALL_1388)
+assert_eq("#1388 installer: validates the manifest before publishing (fail-closed order)", True,  # structural-pin-ok: security-credential-boundary -- publish gated on validation
+          'lint-manifest.json did not validate' in _INSTALL_1388)
+
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

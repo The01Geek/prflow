@@ -25712,6 +25712,8 @@ mkdir -p "$VS_REMOTE/docs/site" "$VS_REMOTE/docs/external" "$VS_REMOTE/docs/inte
 printf '{}' > "$VS_REMOTE/.prflow/config.example.json"
 printf '{}' > "$VS_REMOTE/.prflow/config.schema.json"
 printf '{}' > "$VS_REMOTE/.prflow/tool-presets.json"
+printf '{}' > "$VS_REMOTE/.prflow/lint-manifest.json"   # #1388: shipped by devflow_copy_slice
+printf '{}' > "$VS_REMOTE/.prflow/install-state.json"   # #1388: the compatibility marker ships too
 ( cd "$VS_REMOTE" && git init -q -b main && git add -A \
     && git -c user.email=t@t -c user.name=t commit -qm fixture ) >/dev/null 2>&1
 # Capture the BASE (non-tip) commit, then add a second commit carrying a
@@ -25834,6 +25836,9 @@ assert_eq "vendor: self ships no docs/ tree after pruning" "no" "$(vexists "$VS_
 assert_eq "vendor: self copies lib/" "yes" "$(vexists "$VS_SELF/lib")"
 assert_eq "vendor: self copies skills/" "yes" "$(vexists "$VS_SELF/skills")"
 assert_eq "vendor: self copies .prflow/tool-presets.json" "yes" "$(vexists "$VS_SELF/.prflow/tool-presets.json")"
+# #1388: the lint manifest and its digest-bound compatibility marker ship to consumers.
+assert_eq "#1388 vendor: self ships .prflow/lint-manifest.json" "yes" "$(vexists "$VS_SELF/.prflow/lint-manifest.json")"
+assert_eq "#1388 vendor: self ships .prflow/install-state.json marker" "yes" "$(vexists "$VS_SELF/.prflow/install-state.json")"
 
 # #677 exclusions: the produced slice must ship neither the published GitHub Pages
 # HTML (docs/site), the Mintlify source (docs/external), nor DevFlow's own test suite
@@ -25945,6 +25950,11 @@ mkdir -p "$VS_FLOORSRC"/.claude-plugin "$VS_FLOORSRC"/agents "$VS_FLOORSRC"/docs
 printf '{}' > "$VS_FLOORSRC/.prflow/config.example.json"
 printf '{}' > "$VS_FLOORSRC/.prflow/config.schema.json"
 printf '{}' > "$VS_FLOORSRC/.prflow/tool-presets.json"
+# #1388: lint-manifest.json + install-state.json are now copy-list members too, so
+# this fixture must carry them or the .prflow cp aborts BEFORE the floor and case (b)
+# silently degrades into case (a) — the exact hazard the comment below guards against.
+printf '{}' > "$VS_FLOORSRC/.prflow/lint-manifest.json"
+printf '{}' > "$VS_FLOORSRC/.prflow/install-state.json"
 VS_FLOORSRC_DEST="$(mktemp -d)/dest"
 VS_FLOORSRC_RC=0
 # Capture stderr (the die stream) so we can assert the abort came from the FLOOR,
