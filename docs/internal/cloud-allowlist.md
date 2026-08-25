@@ -491,10 +491,22 @@ from a silent hop one.
 What this changes is the remedy. The probe most likely needs a **design fix** before it
 can yield a verdict, so a blind re-run would probably return `INCONCLUSIVE` again. What
 is established is only that hop one produced **no reading at all** in the execution file
-the helper reads; *why* — the hop's command never ran, ran and emitted nothing, or ran
-and its output never reached that file — is itself unestablished and is the first thing
-to determine. Diagnosing and repairing the hop-one reporting path (a `matcher-probe.yml`
-change) is the actual next step, not another run.
+the helper reads.
+
+**Cause diagnosed and fixed (issue #1321).** Hop one's genuine reading is the
+shell-EXPANDED value Action 2 prints (`printf 'ENVPROBE_HOP1 %s\n' "${VAR}"`), recorded by
+the harness as that Bash call's `tool_result` **output**. The verdict helper's `collect`
+read only `tool_use` **inputs**, where the variable is unexpanded by design, so hop one was
+reported only if the model-performed Action-3 echo-back copied the value into a later
+`tool_use` input. In run `30956039324` that echo-back did not land (hop two's did, which is
+why only hop two reported). The owning surface was the helper's hop-one derivation, not the
+prompt: `scripts/env-propagation-probe-verdict.py`'s `collect` now also reads Bash
+`tool_result` outputs, so hop one is derived from Action 2's recorded output directly,
+independent of the echo-back. The `_OBSERVED` guard is unweakened — the unexpanded
+instruction text lives only in a `tool_use` input, never in a `tool_result` output. The fix
+is helper-only and touches no workflow, so it spends no probe dispatch; the next batched
+`matcher-probe.yml` dispatch runs the fixed verdict step and can finally yield a real
+verdict.
 
 Until a verdict exists, the claim that a consumer's committed base-ref
 extension keeps working is an **expectation, not a guarantee**. The failure direction

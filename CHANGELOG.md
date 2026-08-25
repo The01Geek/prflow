@@ -4,6 +4,47 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.18] — 2026-08-25
+
+### Fixed
+- **`env-propagation-probe-verdict.py` now reads hop one from Action 2's `tool_result` output.** The verdict helper derived hop values only from `tool_use` inputs, where hop one's variable is unexpanded by design, so hop one was reported only if the model's manual echo-back landed — leaving run 30956039324's genuine reading (recorded in Action 2's Bash `tool_result` output) invisible and the verdict stuck at INCONCLUSIVE. `collect` now also reads `tool_result` outputs; the `_OBSERVED` guard is unweakened, since unexpanded instruction text lives only in a `tool_use` input. (#1955)
+
+## [2.34.17] — 2026-08-25
+
+### Added
+- **Retrospective entries now record `analysis_provenance`.** A live Stage A retrospective run
+  records an `analysis_provenance` object — booleans `bundle_diff_present`,
+  `bundle_workpad_body_present`, and `bundle_issue_comments_present` — on the entries it writes
+  (both the gate-skipped clean-path entry in `lib/clean-entry.jq` and an LLM-judged entry),
+  each reflecting what the analyst's context bundle actually contained. The field names match
+  the existing backfill cohort's, so diff-present and diff-absent entries can be segmented
+  rather than pooled indistinguishably; `schema_version` is bumped to 3. Existing entries are
+  left byte-unchanged. (#1950)
+
+### Changed
+- **`/prflow:implement` Phase 4 now resumes directly after a documentation or PR-description subagent returns.** These are Agent-tool dispatches whose returns enter the orchestrator's context as a report only, so the run proceeds to the next sub-step without re-reading the whole phase file — dropping the repeated full re-read that runs were truncating. The prompt-extension re-load still fires at both boundaries, and the full re-read stays mandatory at every phase entry, every mid-phase Skill-tool return, and the nested-skill completion re-anchor. (#1954)
+
+## [2.34.16] — 2026-08-25
+
+### Changed
+- **The create-issue template now opens every issue's Problem Statement with a mandated user-story sentence.** `skills/create-issue/references/issue-template.md` instructs the drafter to open `## Problem Statement` with one sentence in the form `As a <role>, I want <capability>, so that <outcome>.` before the free-prose narrative, on every issue; the no-options rule's carve-out set names that sentence so its "I want" phrasing is never flagged as hedge language, and the worked example and quality checklist are updated to match. (#1948)
+
+## [2.34.15] — 2026-08-25
+
+### Changed
+- **Record the upstream revision each vendored third-party skill and agent was last reconciled against, and stop the vendored reviewer from spawning sub-reviewers.** `LICENSES/README.md` now carries a per-file "Last reconciled against" column (`superpowers 6.3.0` for the superpowers-derived skills; a `claude-plugins-official` commit SHA for the seven Anthropic-plugin agents), so a future refresh starts from a recorded pin instead of git archaeology. The vendored reviewer prompt (`skills/requesting-code-review/code-reviewer.md`) now directs the reviewer to review the whole diff itself in multiple passes and never dispatch a subagent for part of the diff or a second opinion, since a spawned sub-reviewer duplicates a reviewer seat at full cost while its verdict counts for nothing. (#1952)
+
+### Fixed
+- **`/prflow:create-issue` Step 1 now makes its docs-verify peer dispatch executable.** Step 1
+  asserted that each leg reaches its peer as a real `--search-space <pathspec>` operand and that
+  the dispatch waits synchronously, but gave the orchestrator no form to carry either out — so a
+  peer could silently run under the defaults (collapsing the deep-arm leg disjointness) and a
+  background fork could die on resume. Step 1 now names the Agent-tool synchronous dispatch form
+  (background dispatch excluded, mirroring Step 3.6), instructs the orchestrator to place each
+  leg's pathspec as a literal `--search-space <pathspec>` operand in the invocation arguments, and
+  requires each peer to confirm in its return the operand it ran under — recording a leg
+  unestablished when it does not. The degrade-never-block contract is unchanged. (#1953)
+
 ## [2.34.14] — 2026-08-25
 
 ### Fixed
