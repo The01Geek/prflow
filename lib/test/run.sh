@@ -48247,8 +48247,8 @@ _stop_sh_guarded() {
   _ssg_reap="${DEVFLOW_REFRESH_REAP_GLOB:-${RUNNER_TEMP:-/tmp}/devflow-refresh-*.pid}"
   _ssg_st="${DEVFLOW_REFRESH_SELFTEST_FAILED:-}"
   if ! _refresher_scratch_guard "$1" "$D487" "$_ssg_pid" "$_ssg_log" "$_ssg_reap" "$_ssg_st"; then
-    record_fail "#1925 refresher-guard: arm '$1' resolved a refresher path outside the scratch dir $D487"
     echo FAIL >> "$RESULTS_FILE"
+    record_fail "#1925 refresher-guard: arm '$1' resolved a refresher path outside the scratch dir $D487"
   fi
   bash "$STOP_SH"
 }
@@ -48485,7 +48485,7 @@ MINBIN1882="$D487/minbin1882"; mkdir -p "$MINBIN1882"
 for _t1882 in bash cat mktemp dirname sleep kill; do _p1882="$(command -v "$_t1882" || true)"; [ -n "$_p1882" ] && ln -sf "$_p1882" "$MINBIN1882/$_t1882"; done
 printf 'refresh-app-credentials: cycle OK\n' > "$D487/log1882k"
 _s1882k="$(env "PATH=$MINBIN1882" DEVFLOW_REFRESH_PIDFILE="$D487/dead1882.pid" DEVFLOW_REFRESH_STARTED=skipped \
-  DEVFLOW_REFRESH_LOG="$D487/log1882k" DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapk-*.pid" _stop_sh_guarded arm1882k 2>&1)"
+  DEVFLOW_REFRESH_LOG="$D487/log1882k" DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapk-*.pid" bash "$STOP_SH" 2>&1)"
 assert_eq "#1882 arm1882k: unavailable grep/tail fails closed (defeated + warn, not silent)" "yes" \
   "$(printf '%s' "$_s1882k" | grep -qF 'grep/tail) are unavailable' && echo yes || echo no)"
 
