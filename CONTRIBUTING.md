@@ -661,6 +661,13 @@ edit — the registry stays the sole enumeration point.
 
 ### Authoring a new focused module
 
+To pick the next subject to extract, run
+`python3 lib/test/group_labels_by_subject.py` — it groups every `unmodularized`
+`lib/test/run.sh` assertion label by the dominant repository path its assertions
+name, with per-group counts, so modules are extracted subject by subject in
+descending volume rather than by the hottest label or a co-edit cluster (issue
+#1928). Pass `--json` for a machine-readable form.
+
 When you extract a cohesive block of `lib/test/run.sh` coverage into a new
 selectable module, complete all of the following in the same PR:
 
