@@ -247,6 +247,13 @@ _ac10_count533() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; gr
 # Whole-workflow sibling: counts process-global DEVFLOW_GH assignments anywhere
 # in a file — shell '=' or YAML env ':' form — with whole-line comments stripped.
 _ac10_wf_count533() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -cE 'DEVFLOW_GH[=:]'; }
+# The AC9 (#1925) counter: the self-test marker path must not be PUBLISHED job-wide into
+# $GITHUB_ENV — a job-wide publication persists into every later step and outranks fixture
+# stubs in the repository test suite, the same hazard the DEVFLOW_GH check above guards. Count
+# only the publication form (`echo "DEVFLOW_REFRESH_SELFTEST_FAILED=`), whole-line comments
+# stripped, so the legit uses (the Start step's selftest env-prefix and the Stop step's own
+# derivation) are not miscounted; fail closed on an unreadable file like _ac10_count533.
+_ac1925_pub_count() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -cF 'echo "DEVFLOW_REFRESH_SELFTEST_FAILED='; }
 assert_eq "#533 AC10: install-gh-wrapper.sh writes no bare DEVFLOW_GH= (only DEVFLOW_GH_REAL=)" "0" \
   "$(_ac10_count533 "$INSTALL533")"
 
@@ -270,6 +277,15 @@ for _wf533 in devflow-implement devflow; do
   # keep passing it in its env: block, or output 5 fails on every App-enabled run.
   assert_eq "#533 AC14: $_wf533.yml install step passes APP_TOKEN in its env: block" "1" \
     "$(printf '%s\n' "$(mint_blk 'Install fresh-gh wrapper (optional)' "$WF/$_wf533.yml")" | grep -cF 'APP_TOKEN: ${{ steps.app-token.outputs.token }}')"
+  # AC9 (#1925): the self-test marker path is no longer published job-wide anywhere in the
+  # file (the fixture-stub-outranking hazard the DEVFLOW_GH check guards).
+  assert_eq "#1925 AC9: $_wf533.yml publishes no DEVFLOW_REFRESH_SELFTEST_FAILED to \$GITHUB_ENV (count 0)" "0" \
+    "$(_ac1925_pub_count "$WF/$_wf533.yml")"
+  # AC10 (#1925): the Stop step derives the marker path in its OWN body, from the same HANDLE
+  # the Start step uses, replacing the retired job-wide publication.
+  # structural-pin-ok: cross-file-phase-contract -- the Stop step's self-derivation is the cross-step contract that replaced the retired job-wide publication; it pins a machine-consumed boundary (the env var stop-refresher.sh reads), not prose.
+  assert_eq "#1925 AC10: $_wf533.yml Stop step derives DEVFLOW_REFRESH_SELFTEST_FAILED from HANDLE in its own body" "1" \
+    "$(printf '%s\n' "$(mint_blk 'Stop credential refresher (optional)' "$WF/$_wf533.yml")" | grep -cF 'export DEVFLOW_REFRESH_SELFTEST_FAILED="$RUNNER_TEMP/devflow-refresh-$HANDLE.selftest-failed"')"
 done
 # Positive controls for the whole-file recipe: a regex typo must not leave the
 # guard green forever. Plant each re-introduction shape in a scratch fixture and
@@ -282,6 +298,14 @@ assert_eq "#533 AC22: the whole-file AC10 recipe fires on a planted shell DEVFLO
 printf '      # prose mentioning DEVFLOW_GH=old-export never fires the guard\n' > "$_t533k"
 assert_eq "#533 AC22: the whole-file AC10 recipe stays 0 on a whole-line comment mention" "0" "$(_ac10_wf_count533 "$_t533k")"
 rm -f "$_t533k"
+# Positive controls for the #1925 publication recipe: a planted publication fires (1), a
+# whole-line comment mention stays 0 — so a quoting/regex typo cannot leave the guard green.
+_t1925k="$(probe_tmp '#1925 AC9 self-test-marker publication guard positive control setup')"
+printf '          {\n            echo "DEVFLOW_REFRESH_SELFTEST_FAILED=$STMARK"\n          } >> "$GITHUB_ENV"\n' > "$_t1925k"
+assert_eq "#1925 AC9: the publication recipe fires on a planted DEVFLOW_REFRESH_SELFTEST_FAILED publication" "1" "$(_ac1925_pub_count "$_t1925k")"
+printf '          # echo "DEVFLOW_REFRESH_SELFTEST_FAILED=$STMARK" (retired publication, mentioned only in prose)\n' > "$_t1925k"
+assert_eq "#1925 AC9: the publication recipe stays 0 on a whole-line comment mention" "0" "$(_ac1925_pub_count "$_t1925k")"
+rm -f "$_t1925k"
 
 # AC14 — the seven validated outputs: each induced failure exits 1 with a
 # diagnostic naming that output; the full-success arm lands all seven.
