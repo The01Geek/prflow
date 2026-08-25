@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1959",
+  "generated_at": "2026-08-25T18:51:32Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.25",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 2.7882545,
+    "tokens": {
+      "input_tokens": 34,
+      "output_tokens": 12176,
+      "cache_read_input_tokens": 2064109,
+      "cache_creation_input_tokens": 145163,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 34,
+        "outputTokens": 12176,
+        "cacheReadInputTokens": 2064109,
+        "cacheCreationInputTokens": 145163,
+        "webSearchRequests": 0,
+        "costUSD": 2.7882545,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 22,
+    "duration_ms": 208814
+  },
+  "permission_denials": {
+    "count": 1,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; echo \"---NAMESTATUS---\"; gh pr diff 1959 --name-only; echo \"---STAT---\"; gh pr diff 1959 | grep -cE '^\\+' ; echo \"---FILES---\"; gh pr diff 1959 --patch | grep -E '^diff --git' | wc -l"
+    ],
+    "total": 1,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
