@@ -1,0 +1,154 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T05:50:00Z",
+  "fix_commit_sha": "b51f1b4f78461572e0edcf6526d4abc767d54059",
+  "fix_files": [
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC1 plural multi-row path untested (len(offending) pluralization + multi-row join)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          12401,
+          12430
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "note row-substring keying not proven load-bearing (no wrong-row note test)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          12401,
+          12430
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "b51f1b4f78461572e0edcf6526d4abc767d54059"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "b51f1b4f78461572e0edcf6526d4abc767d54059"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 33,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "base_checkpoint": {
+    "token": "UP_TO_DATE",
+    "behind_by": null
+  },
+  "stale_prose_check": {
+    "result": "no-stale",
+    "note": "8 UNRESOLVABLE recognition-only CU rows (informational, non-gating); no STALE rows; exit 0"
+  },
+  "verification_evidence": {
+    "command": "lib/test/test_python_scripts.py",
+    "result": "pass",
+    "duration_s": null,
+    "skipped_checks": []
+  },
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b",
+        "2.3.0c",
+        "2.3.0d"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a",
+        "2.3.4b",
+        "2.3.5",
+        "2.3.6"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "fix delta is test-only additions to test_python_scripts.py; always-on sweeps + 2.3.4b (adds prose) run: no new coverage universals, no silent failure, convention-compliant; no gated contract/enum/deletion sweeps triggered by test additions"
+  },
+  "test_first_gate": [
+    {
+      "decision": "coverage-strengthening (no new production behavior)",
+      "command": "lib/test/test_python_scripts.py",
+      "result": "pass",
+      "evidence": "2 new regression tests added for existing gate behavior; copy-based source-level mutation check: MUT1 (only-first-row) and MUT2 (drop-substr-conjunct) each flip their assertion RED, real code GREEN"
+    }
+  ],
+  "telemetry": "unavailable",
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false
+}

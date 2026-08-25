@@ -1,0 +1,96 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "report": "## Verdict: APPROVE with notes (issue #1817 extension-row Complete gate is correct and covered on its ACs; secondary test-coverage gaps noted, none verdict-gating at the default `critical` threshold)\n\n## Issue Compliance\nReviewed against issue #1817: extension-row `--status Complete` gate — criteria from workpad; scope unchanged. Requirement-based checklist items are included in the verification results below.\nCriteria came from the `/prflow:implement` workpad comment — this run's authoritative set, possibly narrowed from the issue.\nNo divergence between the workpad's criteria and the issue body's.\n\nAll five acceptance criteria are met by the shipped code and directly exercised by the #1817 test block: (AC1) an unticked, un-noted `prompt extension resolved:` row refuses Complete, tagged `[extension-row-unrecorded]` and naming the row; (AC2) an all-ticked workpad and an unticked+`state not established`-noted row both finalize; (AC3) Blocked/Failed accepted over unticked rows (gate fires only on the `🎉` glyph); (AC4) the refusal raises `_UpdateError` before the PATCH block, so no PATCH and a non-zero exit; (AC5) the suite covers the refusal arm, the note-satisfied arm, and the pure-read invariant directly.\n\n## Verification Checklist Results\nKey structural claims verified against HEAD: `_EXTENSION_ROWS` is a 3-tuple `(phase, text, substr)` matching the verdict's unpacking; `_CHECKBOX_ROW_RE` group(2)=checkbox / group(4)=label, matching `row.group(2) != '[ ]'` and `m.group(4)`; the row detector reuses the exact idiom `_reconcile_extension_rows` uses; note-detection excludes checkbox lines so a row cannot self-satisfy; `_extension_row_verdict` is wired into `_terminal_complete_gate` beside the three sibling verdicts and the gate runs only on Complete. No FAIL, no INCONCLUSIVE.\n\n## Code Review Findings\n\n### 🟠 Important / Major\n1. AC1's \"name *each* offending row\" (plural) path is untested — every refusal test unticks exactly one row (`fix loop`), so the `len(offending)` pluralization and multi-line `'\\n'.join(...)` over multiple offending entries never execute; a regression dropping all-but-one row, mis-counting, or malforming the multi-row join would pass the suite. Add a two-unticked-row case asserting both texts appear and the count is 2. (raised by 1/5 agents) [suspected over-grade: shape 3 — single-source pr-test-analyzer test_gap, no corroboration and no Phase-2 FAIL; observable impact is a missing secondary-branch test, milder than the Important label]\n2. The note's row-substring keying is never proven load-bearing — every positive note test supplies the correct substring, so the branch rejecting a note that bears `state not established` but names the wrong row (or no row) is untested; were the `substr` conjunct dropped, a stray phrase anywhere in `## Progress` would satisfy every unticked row and the suite would stay green. Add a wrong-row-note and a bare-phrase-note case that must still raise. (raised by 1/5 agents) [suspected over-grade: shape 3 — single-source pr-test-analyzer test_gap, no corroboration and no Phase-2 FAIL]\n\n### 🟡 Suggestion / Minor\n1. Note-detection is an unanchored per-line token co-occurrence (workpad.py note check): any non-checkbox `## Progress` line containing both the row substring and `state not established` discharges the gate, in any order/position. Documented as intentional; non-overlapping substrings make accidental satisfaction unlikely — worth noting only. (raised by 1/5 agents)\n2. A partially-present modern row set is tolerated per-row: `if row is None: continue` cannot distinguish a genuine pre-#1462 workpad (no rows) from a modern workpad that lost one row upstream, so a single dropped row escapes the gate — the fail direction is toward silently passing. Inherent to a per-row scan with no expected-population baseline; a one-line docstring acknowledgement (reconcile pass is the compensating control) would suffice. (raised by 1/5 agents)\n3. Case-insensitivity of the row/note `.lower()` folding is asserted nowhere. Low risk (exact-case is the real producer path). (raised by 1/5 agents)\n4. A partial-absent row set (some rows present, one absent) is untested — realistic after a partial `--reconcile-extension-rows`; one assertion would confirm the per-row tolerance skips only the absent row. (raised by 1/5 agents)\n5. The two new test-file comment blocks (module-load bypass; in-block gate description) run to 5 physical lines each, over the three-line prevention-only cap — but they byte-parallel the pre-existing #1348/#1453 bypass comments (coupled-mirror convention) and each names the wrong change it prevents, so defensible. (raised by 1/5 agents)\n\nover-grade annotation: findings flagged — Important 1 and 2 (shape 3, advisory only; verdict unchanged).\ntruthfulness sweep: no finding promoted.\nintra-diff contradiction scan: no contradiction found.\n\n## Verdict Criteria\nNo checklist FAIL/INCONCLUSIVE; no Critical findings; no self-contradicting-diff / documented_falsehood findings (all agents verified the docstrings, the changeset, and the phase-1-setup.md sentence accurate against HEAD). Only findings below the default `critical` verdict threshold are present → APPROVE with notes. The two Important test-coverage gaps are worth addressing in this change but do not gate the verdict at `critical`.\n\nNote: the final-pass reviewer reported `EXTENSION-STATUS: loaded-empty resolved-root=unset` — expected on the local/interactive tier (present-empty extension, no trusted root), not an extension-load failure.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC1's plural 'name each offending row' path is untested: every refusal test unticks exactly one row, so the len(offending) pluralization and multi-line join over multiple offending entries never execute. Add a two-unticked-row case asserting both texts appear and the count is 2.",
+      "defect_signature": {"file": "lib/test/test_python_scripts.py", "line_range": [78, 96], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "fix_decision": "fix"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The note's row-substring keying is never proven load-bearing: no test supplies a note bearing 'state not established' but naming the wrong row (or no row). Dropping the substr conjunct would silently satisfy every unticked row with the suite green. Add wrong-row-note and bare-phrase-note cases that must still raise.",
+      "defect_signature": {"file": "scripts/workpad.py", "line_range": [4739, 4746], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "fix_decision": "fix"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Note-detection is an unanchored per-line token co-occurrence: any non-checkbox Progress line containing both the row substring and 'state not established' discharges the gate. Documented as intentional; low real-world risk given non-overlapping substrings.",
+      "defect_signature": {"file": "scripts/workpad.py", "line_range": [4739, 4744], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "fix_decision": "skip"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "A partially-present modern row set is tolerated per-row (if row is None: continue) and cannot distinguish a genuine pre-#1462 workpad from a modern one that lost a row upstream, so a single dropped row escapes the gate. A one-line docstring acknowledgement of the reconcile pass as compensating control would suffice.",
+      "defect_signature": {"file": "scripts/workpad.py", "line_range": [4735, 4736], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "fix_decision": "consider"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Case-insensitivity of the row/note .lower() folding is asserted nowhere; low risk since exact-case is the real producer path.",
+      "defect_signature": {"file": "scripts/workpad.py", "line_range": [4731, 4742], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "fix_decision": "skip"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "A partial-absent row set (some rows present, one absent) is untested; one assertion would confirm the per-row tolerance skips only the absent row while gating present-but-unticked rows.",
+      "defect_signature": {"file": "scripts/workpad.py", "line_range": [4726, 4736], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "fix_decision": "consider"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "New test-file comment block (module-load bypass) runs to 5 physical lines, over the three-line prevention-only cap, but byte-parallels the pre-existing #1348/#1453 bypass comments and names the wrong change it prevents; defensible, no change required.",
+      "defect_signature": {"file": "lib/test/test_python_scripts.py", "line_range": [21, 25], "kind": "style"},
+      "corroboration_count": 1,
+      "fix_decision": "skip"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "New in-block gate-description comment runs to 5 physical lines, over the three-line cap, but parallels the coupled-mirror convention and names what it prevents; defensible, no change required.",
+      "defect_signature": {"file": "lib/test/test_python_scripts.py", "line_range": [35, 39], "kind": "style"},
+      "corroboration_count": 1,
+      "fix_decision": "skip"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  }
+}
