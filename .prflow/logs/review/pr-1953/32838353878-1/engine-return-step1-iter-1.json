@@ -1,0 +1,63 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "diff_profile": "engine_self_modifying",
+  "checklist_skipped": null,
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Operand-confirmation guard (skills/create-issue/SKILL.md lines 201-204) says each peer must 'confirm the leg's operand', which can be read as presence-only (the return merely states some --search-space value) rather than a value-match of the returned operand against the pathspec the orchestrator dispatched. Under the presence-only reading a peer that silently defaulted its search-space but echoes back a --search-space value would read as 'confirmed', escaping the unestablished/breadcrumb path — so the guarantee 'a peer that silently defaulted the operand is detected, not trusted' is not fully delivered. Tighten the wording to require the orchestrator to match the returned operand against the leg's resolved pathspec (value equality). Single-source; flagged as prose-clarity hardening, not a fail-open runtime defect.",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [201, 204],
+        "kind": "logic_error"
+      }
+    }
+  ],
+  "checklist_results": {
+    "passed": 9,
+    "failed": 1,
+    "inconclusive": 0,
+    "lite": 0,
+    "agent": 10,
+    "normalized": 0,
+    "fail_items": [
+      {
+        "id": "VC-9",
+        "verdict": "FAIL",
+        "inaccuracy_scope": "source_authored_text",
+        "property_proven": false,
+        "claim": "The absolute guarantee 'a peer that silently defaulted the operand is detected, not trusted' (skills/create-issue/SKILL.md:201-204).",
+        "evidence": "The prose instructs each peer to STATE the --search-space operand it ran under and records a leg unestablished when a return 'does not confirm the leg's operand', but never instructs the orchestrator to compare the returned operand against the pathspec it dispatched (the value-match). Under a presence-only reading the guarantee is falsifiable, so the source-authored absolute claim overstates what the described mechanism achieves.",
+        "file_checked": "skills/create-issue/SKILL.md"
+      }
+    ]
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "acceptance_criteria_source": "workpad",
+  "phase_0_6_stale_prose": {
+    "stale": 0,
+    "unresolvable": 3,
+    "verified": 0,
+    "note": "3 UNRESOLVABLE coverage-universal (recognition-only) rows; informational only, no verdict impact."
+  },
+  "report": "## Verdict: REJECT (a checklist item FAILs — a diff-added absolute guarantee overstates the mechanism the same change describes)\n\n## Issue Compliance\nReviewed against issue #1839: create-issue Step 1's peer-dispatch asserts a --search-space operand but gives the orchestrator no executable form to carry it out — criteria from the /prflow:implement workpad comment; scope unchanged. Requirement-based checklist items are included in the verification results below.\nCriteria came from the `/prflow:implement` workpad comment — this run's authoritative set, possibly narrowed from the issue.\nNo divergence between the workpad's criteria and the issue body's.\n\n## Verification Checklist Results\n9 passed, 1 failed, 0 inconclusive — 0 via lite probe, 10 via agent.\n- VC-9: FAIL — the diff-added absolute guarantee 'a peer that silently defaulted the operand is detected, not trusted' (skills/create-issue/SKILL.md:201-204) is falsifiable: the prose requires each peer to STATE the --search-space operand it ran under, but never instructs the orchestrator to value-match the returned operand against the pathspec it dispatched, so a peer that defaulted yet echoes some --search-space value reads as 'confirmed'. inaccuracy_scope=source_authored_text (not a wording-only generated-claim mismatch), so it is not normalized to PASS.\n\n<details><summary>✅ Passed items (9 of 10) — click to expand</summary>\n\n- VC-1: Step 1 names the Agent-tool synchronous dispatch form and excludes background dispatch, mirroring Step 3.6 [skills/create-issue/SKILL.md:224-229]\n- VC-2: Step 1 instructs writing each leg's resolved pathspec verbatim as a literal `--search-space <pathspec>` operand beside the never-as-prose sentence [skills/create-issue/SKILL.md:184-188]\n- VC-3: the dispatch instructs each peer to state the operand it ran under; a non-confirming return records the leg unestablished [skills/create-issue/SKILL.md:201-204]\n- VC-4: the degrade-never-block contract is unchanged; no new run-terminating arm [skills/create-issue/SKILL.md:219-222]\n- VC-5: the create-issue-contract module passes after the change (ran run-module: 397 passed, 0 failed) [lib/test/modules/create-issue-contract.sh]\n- VC-6: no repository-private path or issue number in the added skills/create-issue/** wording [skills/create-issue/SKILL.md]\n- VC-7: the example invocation `/prflow:docs-verify --report-only --search-space <pathspec> <topic>` matches docs-verify's declared grammar and flag order [skills/docs-verify/SKILL.md:286]\n- VC-8: subagent_type: general-purpose / run_in_background: false match the Step 3.6 dispatch reference [skills/create-issue/references/step-3-6-audit-dispatch.md:8]\n- VC-10: changeset frontmatter bump: patch / type: Fixed are valid schema values [scripts/consolidate-changesets.py:76-82]\n\n</details>\n\n## Code Review Findings\n\n### 🟡 Suggestion / Minor\n1. Operand-confirmation guard (skills/create-issue/SKILL.md:201-204) says each peer must 'confirm the leg's operand', which can be read as presence-only rather than a value-match of the returned operand against the dispatched pathspec; a peer that silently defaulted its search-space but echoes back a --search-space value would read as 'confirmed', so the guarantee 'detected, not trusted' is not fully delivered. Tighten to require the orchestrator to match the returned operand against the leg's resolved pathspec. (raised by 1/4 agents) [suspected over-grade context: filed as prose-clarity hardening, not a fail-open runtime defect — but the same wording drives the VC-9 checklist FAIL above, which is what gates the verdict]\n\nover-grade annotation: no finding flagged (the single Suggestion is not at/above the critical threshold; the REJECT is driven by the VC-9 checklist FAIL under Phase 4.2 rule 1, not by a review-agent severity).\ntruthfulness sweep: no finding promoted (the VC-9 concern is captured as a checklist FAIL, not a Phase-3 documented_falsehood; no additional diff-added prose contradicts HEAD).\nintra-diff contradiction scan: no contradiction found.\n\n## Verdict Criteria\n- Any FAIL in verification checklist → REJECT. VC-9 FAILed (Phase 4.2 rule 1). This is the deciding rule.\n- The three other review agents (code-reviewer, comment-analyzer, requesting-code-review final pass) returned clean APPROVE assessments; the sole Phase-3 finding is a single-source Suggestion on the same lines and is below the critical verdict threshold.\n- The diff-added invocation grammar, Step 3.6 mirroring, degrade-never-block contract, changeset schema, and repo-agnostic constraint all verified accurate against HEAD.\n\n**Fix guidance for the loop:** tighten skills/create-issue/SKILL.md:201-204 so the orchestrator is instructed to compare each peer's returned `--search-space` operand against the pathspec that leg dispatched (value equality), and record the leg unestablished on any mismatch — not merely on an absent statement. That makes the absolute guarantee 'a peer that silently defaulted the operand is detected, not trusted' true against the described mechanism and clears the VC-9 FAIL."
+}
