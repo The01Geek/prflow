@@ -86,10 +86,6 @@
 
 set -u
 
-# issue #1808: SECONDS is a bash builtin, so the elapsed line in the terminal block needs
-# no program outside git/gh/jq/python3 (AC2). Captured here so it spans all setup work.
-START_SECONDS=$SECONDS
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
 
@@ -600,8 +596,8 @@ printf '\n'
 printf 'run-parallel: shard roster:%s\n' "$(printf ' %s' $SHARDS)"
 printf 'run-parallel: retained logs: %s\n' "$RUN_ROOT/logs"
 # issue #1808: placed before the AGGREGATE_RC branch below so the branch cannot skip it;
-# pure printf + SECONDS (a bash builtin), so no program outside the guaranteed set (AC2).
-printf 'run-parallel: elapsed %ss\n' "$((SECONDS - START_SECONDS))"
+# SECONDS is a bash builtin counting from process start, so no program outside the set (AC2).
+printf 'run-parallel: elapsed %ss\n' "$SECONDS"
 if [ "$AGGREGATE_RC" -eq 0 ]; then
   printf 'run-parallel: aggregate CLEAN\n'
 else
