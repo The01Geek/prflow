@@ -247,12 +247,9 @@ _ac10_count533() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; gr
 # Whole-workflow sibling: counts process-global DEVFLOW_GH assignments anywhere
 # in a file — shell '=' or YAML env ':' form — with whole-line comments stripped.
 _ac10_wf_count533() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -cE 'DEVFLOW_GH[=:]'; }
-# The AC9 (#1925) counter: the self-test marker path must not be PUBLISHED job-wide into
-# $GITHUB_ENV — a job-wide publication persists into every later step and outranks fixture
-# stubs in the repository test suite, the same hazard the DEVFLOW_GH check above guards. Count
-# only the publication form (`echo "DEVFLOW_REFRESH_SELFTEST_FAILED=`), whole-line comments
-# stripped, so the legit uses (the Start step's selftest env-prefix and the Stop step's own
-# derivation) are not miscounted; fail closed on an unreadable file like _ac10_count533.
+# The AC9 (#1925) counter: the self-test marker path must not be PUBLISHED job-wide into $GITHUB_ENV
+# (the fixture-stub-outranking hazard the DEVFLOW_GH check guards). Count only the publication form
+# (`echo "DEVFLOW_REFRESH_SELFTEST_FAILED=`), comments stripped; fail closed on an unreadable file.
 _ac1925_pub_count() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -cF 'echo "DEVFLOW_REFRESH_SELFTEST_FAILED='; }
 assert_eq "#533 AC10: install-gh-wrapper.sh writes no bare DEVFLOW_GH= (only DEVFLOW_GH_REAL=)" "0" \
   "$(_ac10_count533 "$INSTALL533")"

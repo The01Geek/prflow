@@ -47559,11 +47559,9 @@ _d487_sha() {
 }
 
 D487=$(mktemp -d)
-# Region scratch-containment (issue #1925): keep this region's refresher paths inside
-# $D487, never the live job's $RUNNER_TEMP. Save the ambient
-# RUNNER_TEMP, drop the job-wide refresher paths the Start step publishes into $GITHUB_ENV
-# (so an arm that omits an override cannot inherit a live path), and point RUNNER_TEMP at
-# the scratch dir. Restored just before `rm -rf "$D487"` at the end of the region.
+# Region scratch-containment (issue #1925): save the ambient RUNNER_TEMP, drop the job-wide refresher
+# paths the Start step publishes into $GITHUB_ENV, and point RUNNER_TEMP at $D487 — so an arm that omits
+# an override cannot inherit a live path. Restored just before `rm -rf "$D487"` at the region's end.
 _RT_WAS_SET_1925="${RUNNER_TEMP+set}"; _RT_SAVED_1925="${RUNNER_TEMP:-}"
 unset DEVFLOW_REFRESH_PIDFILE DEVFLOW_REFRESH_LOG DEVFLOW_REFRESH_SELFTEST_FAILED \
       DEVFLOW_REFRESH_REAP_GLOB DEVFLOW_REFRESH_JOB_POINTER DEVFLOW_GH_TOKEN_FILE 2>/dev/null || true
@@ -48222,13 +48220,9 @@ assert_eq "#491 arm30: the successful call preserves rc 0" "0" "$_a30_rc"
 # demands a running pid); stop-refresher.sh itself retires it via the pidfile.
 STOP_SH="$LIB/../scripts/stop-refresher.sh"
 _defeat487() { printf '%s' "$1" | grep -qF 'credential refresher may not have kept credentials fresh' && echo yes || echo no; }
-# Region scratch-containment guard (issue #1925): a stop-refresher arm that resolves any
-# path outside $D487 (e.g. one that omits the reap-pattern override so the default falls
-# back to a live $RUNNER_TEMP) is caught here instead of silently reaching live job state.
-# _refresher_scratch_guard returns 1 (naming the arm and the offending path) when a path it
-# is given falls outside <scratch>; _stop_sh_guarded derives stop-refresher's effective
-# paths, runs the guard (failing the suite via record_fail on a violation), then invokes the
-# helper with its stdout and exit code passed through, so a routed arm's capture is unchanged.
+# Region scratch-containment guard (issue #1925): _refresher_scratch_guard returns 1 (naming the arm
+# and offending path) for a path outside $D487; _stop_sh_guarded guards stop-refresher's effective paths
+# and fails the suite on a violation, so an arm that reaches a live $RUNNER_TEMP is caught, not run silently.
 _refresher_scratch_guard() {
   _rsg_label="$1"; _rsg_scratch="$2"; shift 2
   _rsg_rc=0
@@ -48717,6 +48711,37 @@ _s1925d="$(env -u MSYSTEM "PATH=$_minb1925" RUNNER_TEMP='D:\a\_work\_temp' DEVFL
 assert_eq "#1925 AC6: a drive-letter value with no converter/signal fails closed naming the value" "yes" \
   "$(printf '%s' "$_s1925d" | grep -qF 'could not be normalized into a POSIX glob root' && echo yes || echo no)"
 assert_eq "#1925 AC13: stop-refresher exits 0 on the drive-letter fail-closed arm" "0" "$_s1925d_rc"
+
+# #1925 (normalizer-unsourceable fail-closed): a stop-refresher copy with no sibling
+# ../lib/normalize-path.sh cannot source the normalizer, so it fails closed (the empty-base
+# REAP_GLOB="" arm) and reaps nothing — a mutant inverting the [ -r ] guard would source and reap.
+_nolib1925="$D487/nolib"; mkdir -p "$_nolib1925"
+cp "$STOP_SH" "$_nolib1925/stop-refresher.sh"
+_srcfail1925="$D487/srcfail"; mkdir -p "$_srcfail1925"
+printf '#!/usr/bin/env bash\nsleep 60\n' > "$_srcfail1925/refresh-app-credentials.sh"; chmod +x "$_srcfail1925/refresh-app-credentials.sh"
+bash "$_srcfail1925/refresh-app-credentials.sh" & _orp1925sf=$!
+printf '%s\n' "$_orp1925sf" > "$_srcfail1925/devflow-refresh-orphan.pid"
+_s1925sf="$(RUNNER_TEMP="$_srcfail1925" DEVFLOW_REFRESH_PIDFILE="$D487/sf-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$_nolib1925/stop-refresher.sh" 2>&1)"; _s1925sf_rc=$?
+sleep 0.3
+assert_eq "#1925 source-failure: an unsourceable normalizer fails closed (breadcrumb names the normalizer)" "yes" \
+  "$(printf '%s' "$_s1925sf" | grep -qF 'could not source the path normalizer' && echo yes || echo no)"
+assert_eq "#1925 source-failure: the empty-base arm reaps nothing (a live orphan is untouched)" "yes" \
+  "$(kill -0 "$_orp1925sf" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the source-failure fail-closed arm" "0" "$_s1925sf_rc"
+kill "$_orp1925sf" 2>/dev/null; wait "$_orp1925sf" 2>/dev/null || true
+
+# #1925 (forward-slash & drive-relative fail-closed): a C:/… value and a separator-less C:foo
+# value, with no converter/signal (minbin), each carry a colon-drive an unquoted glob cannot
+# express and are refused by the [A-Za-z]:* case arm — distinctly exercising it (a mutant
+# dropping that arm falls through to *) and composes a relative glob with no breadcrumb).
+_s1925fs="$(env -u MSYSTEM "PATH=$_minb1925" RUNNER_TEMP='C:/nosignal' DEVFLOW_REFRESH_PIDFILE="$D487/fs-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925fs_rc=$?
+assert_eq "#1925: a forward-slash drive value (C:/…) with no converter/signal fails closed" "yes" \
+  "$(printf '%s' "$_s1925fs" | grep -qF 'could not be normalized into a POSIX glob root' && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the forward-slash-drive fail-closed arm" "0" "$_s1925fs_rc"
+_s1925dr="$(env -u MSYSTEM "PATH=$_minb1925" RUNNER_TEMP='C:norel' DEVFLOW_REFRESH_PIDFILE="$D487/dr-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925dr_rc=$?
+assert_eq "#1925: a separator-less drive-relative value (C:foo) is refused, not swept as a relative glob" "yes" \
+  "$(printf '%s' "$_s1925dr" | grep -qF 'could not be normalized into a POSIX glob root' && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the drive-relative fail-closed arm" "0" "$_s1925dr_rc"
 
 # AC7: an explicit DEVFLOW_REFRESH_REAP_GLOB is used exactly as given and takes NO conversion —
 # a POSIX explicit glob with an orphan is reaped; an explicit Windows-form glob is used

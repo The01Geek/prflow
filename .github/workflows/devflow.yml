@@ -1248,11 +1248,9 @@ jobs:
           STMARK="$RUNNER_TEMP/devflow-refresh-$HANDLE.selftest-failed"
           printf '%s' "$HANDLE" > "$PTR"
           rm -f "$STMARK" 2>/dev/null || true
-          # Publish the job-scoped paths to later steps: gh-fresh reads the token file,
-          # the teardown reads the pidfile/log/job pointer. The self-test marker path is
-          # NOT published job-wide (issue #1925) — the Stop step derives it from the same
-          # HANDLE, mirroring the DEVFLOW_GH decision, so it never persists into every
-          # later job step and outrank fixture stubs in the repository test suite.
+          # Publish the job-scoped paths to later steps: gh-fresh reads the token file, the teardown
+          # reads the pidfile/log/job pointer. The self-test marker path is NOT published job-wide
+          # (issue #1925) — the Stop step derives it from the same HANDLE, mirroring the DEVFLOW_GH decision.
           {
             echo "DEVFLOW_GH_TOKEN_FILE=$TOK"
             echo "DEVFLOW_REFRESH_PIDFILE=$PID"

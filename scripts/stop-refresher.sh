@@ -85,11 +85,9 @@ if [ -n "${DEVFLOW_REFRESH_REAP_GLOB:-}" ]; then
   # conversion (issue #1925): the caller already chose the form its shell expresses.
   REAP_GLOB="$DEVFLOW_REFRESH_REAP_GLOB"
 else
-  # Normalize the derived temp dir to the running shell's POSIX form FIRST (issue
-  # #1925): an unquoted glob consumes the backslashes of a Windows-form $RUNNER_TEMP,
-  # so the raw value names nothing and the reaper silently sweeps zero files. Reap
-  # nothing (empty pattern → the loop below is a no-op) rather than sweep the wrong
-  # directory when the value cannot be brought to a POSIX glob root.
+  # Normalize the derived temp dir to the running shell's POSIX form first (issue #1925):
+  # an unquoted glob eats a Windows-form $RUNNER_TEMP's backslashes and sweeps zero files;
+  # reap nothing (empty pattern) rather than sweep the wrong directory when it cannot.
   _reap_base="${RUNNER_TEMP:-/tmp}"
   _reap_lib="$(dirname "${BASH_SOURCE[0]}")/../lib/normalize-path.sh"
   # shellcheck source=../lib/normalize-path.sh
@@ -98,17 +96,16 @@ else
   else
     # The normalizer decides which directory is swept, so its absence is not a value
     # to guess past — reap nothing rather than sweep from an unnormalized value.
-    echo "skipped cross-job orphan reap: could not source the path normalizer ($_reap_lib) to establish the reap directory from RUNNER_TEMP '${RUNNER_TEMP:-/tmp}' — nothing signalled (fail-safe)"
+    echo "::warning::skipped cross-job orphan reap: could not source the path normalizer ($_reap_lib) to establish the reap directory from RUNNER_TEMP '${RUNNER_TEMP:-/tmp}' — nothing signalled (fail-safe)"
     _reap_base=""
   fi
   case "$_reap_base" in
     "") REAP_GLOB="" ;;
-    # A drive-letter path with no WSL/MSYS signal, or a UNC path, survives
-    # normalization still carrying a forward-slash drive (C:/…) or backslashes an
-    # unquoted glob cannot express — refuse it rather than sweep nothing silently.
-    # (C:\… is caught by the backslash catch-all; only the forward-slash drive needs its own arm.)
-    [A-Za-z]:/*|*\\*)
-      echo "skipped cross-job orphan reap: RUNNER_TEMP '${RUNNER_TEMP:-/tmp}' could not be normalized into a POSIX glob root (resolved to '$_reap_base') — nothing signalled (fail-safe)"
+    # A Windows-form value (any drive-letter path, or a UNC path) survives normalization
+    # carrying a colon-drive or backslashes an unquoted glob cannot express — refuse it
+    # rather than sweep nothing silently.
+    [A-Za-z]:*|*\\*)
+      echo "::warning::skipped cross-job orphan reap: RUNNER_TEMP '${RUNNER_TEMP:-/tmp}' could not be normalized into a POSIX glob root (resolved to '$_reap_base') — nothing signalled (fail-safe)"
       REAP_GLOB="" ;;
     *) REAP_GLOB="$_reap_base/devflow-refresh-*.pid" ;;
   esac
