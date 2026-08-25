@@ -706,8 +706,12 @@ cp "$LIB/resolve-jq.sh" "$LIB/resolve-bin.sh" "$LIB/rename-map.json" \
 # resolves it from ($SELF_DIR/../.prflow/tool-presets.json). Copying it to scripts/
 # left the fixture source tree missing it, so these arms silently drove the
 # presets-absent degraded path instead of the shipped one.
+# #1388: lint-manifest.json + install-state.json are now devflow_copy_slice copy-list
+# members, so the offline source tree must carry them or a DEVFLOW_VENDOR=1 install's
+# slice copy aborts before the vendored tree lands.
 cp "$LIB/../.prflow/config.example.json" "$LIB/../.prflow/config.schema.json" \
-   "$LIB/../.prflow/tool-presets.json" "$IU_SRC/.prflow/"
+   "$LIB/../.prflow/tool-presets.json" "$LIB/../.prflow/lint-manifest.json" \
+   "$LIB/../.prflow/install-state.json" "$IU_SRC/.prflow/"
 assert_eq "installer-upgrade fixture: the offline source tree carries tool-presets.json where detect-project-tools.sh resolves it" "yes" \
   "$([ -f "$IU_SRC/.prflow/tool-presets.json" ] && echo yes || echo no)"
 cp "$LIB/../.github/workflows/devflow.yml" "$LIB/../.github/workflows/devflow-implement.yml" "$IU_SRC/.github/workflows/"
