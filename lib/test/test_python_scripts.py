@@ -35579,6 +35579,19 @@ assert_eq("#1740 parse_disposition rejects an empty reason", (None, ""),
           validate_ica.parse_disposition("ran ()"))
 assert_eq("#1740 parse_disposition rejects a non-verdict", (None, ""),
           validate_ica.parse_disposition("maybe (later)"))
+# IGNORECASE verdict normalizes to lowercase.
+assert_eq("#1740 parse_disposition is case-insensitive on the verdict", ("ran", "x"),
+          validate_ica.parse_disposition("RAN (x)"))
+# The lookahead requires a boundary char after the verdict, so a longer word starting with a
+# verdict token (e.g. "randomly") does NOT match ran.
+assert_eq("#1740 parse_disposition rejects a verdict-prefixed longer word", (None, ""),
+          validate_ica.parse_disposition("randomly (x)"))
+# The paren-unwrap only strips a clause the OUTER parens actually enclose; a nested "((a))"
+# is left as-is rather than reshaped to "a".
+assert_eq("#1740 parse_disposition does not unwrap nested parens", ("ran", "((a))"),
+          validate_ica.parse_disposition("ran ((a))"))
+assert_eq("#1740 parse_disposition rejects an empty skipped reason", (None, ""),
+          validate_ica.parse_disposition("skipped ()"))
 
 # CLI exit-code contract via a real temp file, driving main().
 import tempfile as _tf1740  # noqa: E402
@@ -35600,6 +35613,13 @@ with _tf1740.TemporaryDirectory() as _d1740:
 
     assert_eq("#1740 main() exits 3 on an unreadable record (fail closed)",
               3, validate_ica.main(["--record-file", str(Path(_d1740) / "nope.md")]))
+
+    # A non-UTF-8 (binary) record fails closed to exit 3 rather than detonating with a
+    # UnicodeDecodeError traceback — the record is agent-authored, so a bad shape must refuse.
+    _p_bin = Path(_d1740) / "binary.md"
+    _p_bin.write_bytes(b"\xff\xfe\x00\x01 not utf-8 \x80")
+    assert_eq("#1740 main() exits 3 on a non-UTF-8 record (fail closed, no traceback)",
+              3, validate_ica.main(["--record-file", str(_p_bin)]))
 
 
 print()

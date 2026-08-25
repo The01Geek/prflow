@@ -42,17 +42,14 @@ def _force_utf8_streams():
             pass
 
 
-# The chartered passes the issue-claim-auditor runs. The former Pass 4 is renumbered to
-# the orchestrator's §1.3.5, so 4 is absent by design. Coupled to agents/issue-claim-auditor.md's
-# "Named passes" block AND its returned-record `pass<N>_disposition` fields: change one and
-# change the others, or the gate checks a pass the charter never asks for (blocking every
-# audit) or misses one it does.
+# Coupled to agents/issue-claim-auditor.md's Named-passes block and its pass<N>_disposition
+# record fields — change one, change the others, or the gate checks a pass the charter never
+# asks for (blocking every audit) or misses one. (The former Pass 4 runs at §1.3.5.)
 CHARTERED_PASSES = (0, 1, 2, 3, 5, 6)
 
-# `ran`/`skipped` then end-of-value or a boundary char, then the reason. Verdict vocabulary
-# differs from scripts/reconcile-ac-verifiers.py's _DISPOSITION_RE (this gate asks whether a
-# pass ran; that one whether a step was performed), so the primitive is duplicated rather than
-# imported. Do not widen the lookahead to admit `-`, nor narrow it to whitespace-and-paren.
+# `ran`/`skipped`, then end-of-value or a boundary char, then the reason. Do not widen the
+# lookahead to admit `-`, nor narrow it to whitespace-and-paren — both directions matter (mirrors
+# scripts/reconcile-ac-verifiers.py's _DISPOSITION_RE, whose verdict vocabulary is yes/no).
 _DISPOSITION_RE = re.compile(r"^(ran|skipped)(?=$|[\s(,;:.])(.*)$",
                              re.IGNORECASE | re.DOTALL)
 
@@ -137,7 +134,9 @@ def main(argv=None):
     try:
         with open(args.record_file, encoding="utf-8") as fh:
             text = fh.read()
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
+        # UnicodeDecodeError (a non-UTF-8 record) is not an OSError, so catch it too, or a
+        # binary record detonates with a traceback instead of the fail-closed exit-3 contract.
         print(f"validate-issue-claim-audit: could not read the record: {exc}",
               file=sys.stderr)
         return 3
