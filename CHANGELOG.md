@@ -4,6 +4,45 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.22] — 2026-08-25
+
+### Fixed
+Fix the ScheduleWakeup `--disallowedTools` probe verdict helper
+(`scripts/schedulewakeup-probe-verdict.py`) reading a `ToolSearch` query that names
+ScheduleWakeup as a real ScheduleWakeup tool-call attempt. The attempt predicate now keys on
+the recorded `tool_use` name rather than substring-matching the input JSON, and a ship verdict
+(`DENIED`/`REMOVED`) now requires positive `permission_denials` evidence instead of presumptive
+absence — a run with both controls but no attempt and no denial resolves `INCONCLUSIVE`. The
+withdrawn `MEASURED AVAILABLE` citation is corrected in `matcher-probe.yml` and the internal
+docs, and two new `matcher-probe.yml` probe arms (a re-invocation arm without `--disallowedTools`
+and a `CLAUDE_CODE_DISABLE_CRON=1` cloud arm) are added for a post-merge re-measurement (#1937).
+
+## [2.34.21] — 2026-08-25
+
+### Changed
+- **Self-validating portable-helper anchor on non-Claude-Code runners.** The shared
+  "Portable helper anchor" paragraph in the 17 identity-pinned `skills/*/SKILL.md` copies now
+  locates the skill directory by validating a candidate against the filesystem — accepting it
+  only once `ls <candidate>/../../scripts/` succeeds in the same shell — instead of computing a
+  path from a runner-reported value and never checking it, and a runner that validates no
+  candidate stops and reports rather than running a broken path. Across all 18 copies (those 17
+  plus `skills/create-issue/SKILL.md`'s variant) the optional `wslpath`/`cygpath` probe is kept
+  (tried in order, no platform branch, output used only on success with non-empty output) while
+  the tool-less drive-letter arithmetic, the WSL-vs-MSYS2 branch, and the platform guess are
+  removed. `create-issue` keeps its degrade-never-block carve-out unchanged — it does not add
+  the filesystem check and instead lets an unresolvable anchor surface downstream rather than
+  blocking issue creation. (#1940)
+
+## [2.34.20] — 2026-08-25
+
+### Fixed
+- **Stamp an as-of anchor on the review-coverage record.** The record `scripts/workpad.py` writes
+  now carries the reviewed head SHA it was derived from and the UTC time it was written, and a
+  carried coverage gap is worded as a statement about the run's own review pass at that anchor
+  rather than the pull request's final review state — so a later standalone review that closes the
+  gap no longer leaves the workpad record reading stale. Records written before this change,
+  without the anchor fields, still parse. (#1951)
+
 ## [2.34.19] — 2026-08-25
 
 ### Changed
