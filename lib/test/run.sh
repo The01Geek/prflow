@@ -7237,9 +7237,9 @@ _suite_tmp_dir "$E484"
 #     depth-limited checkout its count can be plausible-but-wrong across the graft
 #     boundary (this workflow's own checkout is full-history since #1219, but the
 #     rationale is not conditioned on that — a consumer's installed copy may be older).
-#   mktemp — invoked only from leading VAR=$(…) capture shapes the matcher refuses
-#     regardless of a head grant; granting it would be a no-op greening the guard
-#     on a still-denied path.
+#   mktemp — invoked only from leading VAR=$(…) capture shapes whose status is UNMEASURED
+#     on this tier (implement row I6, the only measured capture, came back DENIED while
+#     confounding three properties); a head grant alone would not establish the shape.
 WITHHELD_IMPL=$'gh pr checkout\ngit rev-list\nmktemp'
 # Shell builtins + extractor parse artifacts (leaked case-arm fragments) emitted
 # alongside real heads. EXACT-match only (grep -xF): a head that merely begins with
@@ -47427,6 +47427,9 @@ assert_eq "#491 arm30: the successful call preserves rc 0" "0" "$_a30_rc"
 # demands a running pid); stop-refresher.sh itself retires it via the pidfile.
 STOP_SH="$LIB/../scripts/stop-refresher.sh"
 _defeat487() { printf '%s' "$1" | grep -qF 'credential refresher may not have kept credentials fresh' && echo yes || echo no; }
+# The #1931 ambient-env isolation (unset SELFTEST_FAILED, contained reap glob) is supplied by the
+# region scratch-containment block above (issue #1925: RUNNER_TEMP=$D487 + the job-wide unsets); do
+# NOT re-export DEVFLOW_REFRESH_REAP_GLOB here — it defeats the #1925 RUNNER_TEMP-derivation arms.
 # Region scratch-containment guard (issue #1925): _refresher_scratch_guard returns 1 (naming the arm
 # and offending path) for a path outside $D487; _stop_sh_guarded guards stop-refresher's effective paths
 # and fails the suite on a violation, so an arm that reaches a live $RUNNER_TEMP is caught, not run silently.
@@ -47467,9 +47470,16 @@ assert_eq "#487 stop-refresher exists (extracted from the workflow Stop step)" "
 # Arm 13 — pidfile present (live process) + last cycle OK → recovered transient → NO
 # defeated warning. The live pid is the positive control the died-mid-run arm 19 needs:
 # same fixture shape, only liveness differs.
-sleep 300 & _live13=$!
-echo "$_live13" > "$D487/pidA"; printf 'refresh-app-credentials: cycle OK (credentials refreshed)\n' > "$D487/logA"
-_s13="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidA" DEVFLOW_REFRESH_LOG="$D487/logA" _stop_sh_guarded arm13 2>&1)"; _s13_rc=$?
+# Bounded retry (issue #1931): widen this liveness assertion's slack under pool saturation — retry only a starved capture (empty output or a dead/failed-fork fixture), never the assertion outcome, so a real defect's deterministic non-empty output is still asserted and goes RED.
+for (( _try13=1; _try13<=40; _try13++ )); do
+  sleep 300 & _live13=$!
+  echo "$_live13" > "$D487/pidA"; printf 'refresh-app-credentials: cycle OK (credentials refreshed)\n' > "$D487/logA"
+  _lv13=no; kill -0 "$_live13" 2>/dev/null && _lv13=yes
+  _s13="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidA" DEVFLOW_REFRESH_LOG="$D487/logA" _stop_sh_guarded arm13 2>&1)"; _s13_rc=$?
+  { [ "$_lv13" = yes ] && [ -n "${_s13//[[:space:]]/}" ]; } && break
+  kill "$_live13" 2>/dev/null; wait "$_live13" 2>/dev/null || true
+  sleep 0.2
+done
 assert_eq "#487 arm13: recovered transient (live pid, last cycle OK) does NOT warn defeated" "no" "$(_defeat487 "$_s13")"
 assert_eq "#487 arm13: stop-refresher always exits 0" "0" "$_s13_rc"
 assert_eq "#487 arm13: a live refresher is signalled (kill by pidfile)" "yes" \
@@ -47551,11 +47561,17 @@ assert_eq "#487 arm20: the warning is attributed to the empty pidfile" "yes" \
 # backoff re-converges), but the impact clause is NARROWED to gh-only rather than the generic
 # "git push may be stale" over-claim (push in fact stayed fresh). Pins stop-refresher's new
 # divergence case arm (removing it drops the last line to the generic ::warning:: arm → RED).
-sleep 300 & _live20b=$!
-echo "$_live20b" > "$D487/pid20b"
-printf 'refresh-app-credentials: cycle OK\n::warning::refresh-app-credentials: cycle: renaming the token file into place failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale\n' > "$D487/log20b"
-_s20b="$(DEVFLOW_REFRESH_PIDFILE="$D487/pid20b" DEVFLOW_REFRESH_LOG="$D487/log20b" _stop_sh_guarded arm20b 2>&1)"; _s20b_rc=$?
-kill "$_live20b" 2>/dev/null || true
+# Bounded retry (issue #1931) — same pool-saturation slack widening as arm13 above.
+for (( _try20b=1; _try20b<=40; _try20b++ )); do
+  sleep 300 & _live20b=$!
+  echo "$_live20b" > "$D487/pid20b"
+  printf 'refresh-app-credentials: cycle OK\n::warning::refresh-app-credentials: cycle: renaming the token file into place failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale\n' > "$D487/log20b"
+  _lv20b=no; kill -0 "$_live20b" 2>/dev/null && _lv20b=yes
+  _s20b="$(DEVFLOW_REFRESH_PIDFILE="$D487/pid20b" DEVFLOW_REFRESH_LOG="$D487/log20b" _stop_sh_guarded arm20b 2>&1)"; _s20b_rc=$?
+  kill "$_live20b" 2>/dev/null; wait "$_live20b" 2>/dev/null || true
+  { [ "$_lv20b" = yes ] && [ -n "${_s20b//[[:space:]]/}" ]; } && break
+  sleep 0.2
+done
 assert_eq "#491 arm20b: surface-2-only divergence still warns defeated (gh surface stale)" "yes" "$(_defeat487 "$_s20b")"
 assert_eq "#491 arm20b: the divergence impact clause narrows to gh-only (git push stayed fresh)" "yes" \
   "$(printf '%s' "$_s20b" | grep -qF 'git push stayed fresh' && echo yes || echo no)"
@@ -47690,11 +47706,17 @@ assert_eq "#1882 arm1882j: teardown does NOT emit the did-not-start defeat on th
   "$(printf '%s' "$_s1882j" | grep -qF 'did not start or crashed' && echo yes || echo no)"
 
 # 1882k — fail-closed when grep/tail are unavailable: defeated + warn, never silent.
-MINBIN1882="$D487/minbin1882"; mkdir -p "$MINBIN1882"
-for _t1882 in bash cat mktemp dirname sleep kill; do _p1882="$(command -v "$_t1882" || true)"; [ -n "$_p1882" ] && ln -sf "$_p1882" "$MINBIN1882/$_t1882"; done
-printf 'refresh-app-credentials: cycle OK\n' > "$D487/log1882k"
-_s1882k="$(env "PATH=$MINBIN1882" DEVFLOW_REFRESH_PIDFILE="$D487/dead1882.pid" DEVFLOW_REFRESH_STARTED=skipped \
-  DEVFLOW_REFRESH_LOG="$D487/log1882k" DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapk-*.pid" bash "$STOP_SH" 2>&1)"
+# Bounded retry (issue #1931) — same pool-saturation slack widening as arm13 (no live fixture here, so retry only on an empty capture).
+MINBIN1882="$D487/minbin1882"
+for (( _try1882k=1; _try1882k<=40; _try1882k++ )); do
+  mkdir -p "$MINBIN1882"
+  for _t1882 in bash cat mktemp dirname sleep kill; do _p1882="$(command -v "$_t1882" || true)"; [ -n "$_p1882" ] && ln -sf "$_p1882" "$MINBIN1882/$_t1882"; done
+  printf 'refresh-app-credentials: cycle OK\n' > "$D487/log1882k"
+  _s1882k="$(env "PATH=$MINBIN1882" DEVFLOW_REFRESH_PIDFILE="$D487/dead1882.pid" DEVFLOW_REFRESH_STARTED=skipped \
+    DEVFLOW_REFRESH_LOG="$D487/log1882k" DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapk-*.pid" bash "$STOP_SH" 2>&1)"
+  [ -n "${_s1882k//[[:space:]]/}" ] && break
+  sleep 0.2
+done
 assert_eq "#1882 arm1882k: unavailable grep/tail fails closed (defeated + warn, not silent)" "yes" \
   "$(printf '%s' "$_s1882k" | grep -qF 'grep/tail) are unavailable' && echo yes || echo no)"
 
@@ -50853,6 +50875,58 @@ assert_eq "#908 AC1: devflow-runner.yml's claude-code-action step carries a sett
   "$(grep -qF 'settings: |' "$_908_RUNNER_YML" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- pins the effectiveness channel AC1 requires: the claude-code-action settings input is what registers the PreToolUse hook with the review-tier runner
 assert_eq "#908 AC1: the settings input registers a PreToolUse hook naming the guard script" "yes" \
   "$(grep -qF '/scripts/pretooluse-shape-guard.py\"' "$_908_RUNNER_YML" && grep -qF '"PreToolUse"' "$_908_RUNNER_YML" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- pins the JSON hook-command string (trailing escaped quote makes the literal code-only, never a comment mention) so a regression that drops the guard from the hook body — while leaving prose referencing it elsewhere — is caught
+
+# ── #1047: the hook command must fail OPEN when the INTERPRETER is absent ────────────
+# Do NOT swap these for a substring pin on the probe: a probe written AFTER the `exec`
+# satisfies any grep while still exiting 127, and a non-zero PreToolUse exit BLOCKS the
+# call. Why the interpreter can be absent: docs/internal/cloud-allowlist.md, guard section.
+# Do NOT convert the PyYAML arm below into a skip(): PyYAML is a suite REQUIREMENT, not a
+# host capability, so a skip here would manufacture a never-clean-pass where the adjacent
+# #908 extractor fails closed on the same dependency with this same sentinel.
+_1047_hookcmd() {  # $1 = workflow -> the registered guard hook command, or a failing token
+  python3 - "$1" 2>/dev/null <<'PY' || echo extractor-failed
+import json, sys
+try:
+    import yaml
+except Exception:
+    sys.exit(1)
+d = yaml.safe_load(open(sys.argv[1])) or {}
+for job in (d.get("jobs") or {}).values():
+    for st in (job.get("steps") or []):
+        raw = (st.get("with") or {}).get("settings")
+        if not raw:
+            continue
+        for grp in (json.loads(raw).get("hooks") or {}).get("PreToolUse") or []:
+            for h in (grp.get("hooks") or []):
+                if "pretooluse-shape-guard.py" in (h.get("command") or ""):
+                    print(h["command"])
+                    sys.exit(0)
+sys.exit(1)
+PY
+}
+_1047_CMD="$(_1047_hookcmd "$_908_RUNNER_YML")"
+assert_eq "#1047: the registered PreToolUse hook command was extractable (the arms below are not vacuous)" "yes" \
+  "$([ -n "$_1047_CMD" ] && [ "$_1047_CMD" != extractor-failed ] && echo yes || echo no)"
+if [ -n "$_1047_CMD" ] && [ "$_1047_CMD" != extractor-failed ]; then
+  _1047_WS="$(mktemp -d)"
+  mkdir -p "$_1047_WS/scripts" "$_1047_WS/emptybin"
+  printf 'import sys\nsys.exit(9)\n' > "$_1047_WS/scripts/pretooluse-shape-guard.py"
+  # Do NOT drop this `git init`: the hook resolves its root via `git rev-parse` FIRST, so a
+  # TMPDIR nested in any checkout resolves $_g to the real guard and both arms stop testing
+  # the stub. (GIT_CEILING_DIRECTORIES does not fix this — measured, it still resolved the repo.)
+  git init -q "$_1047_WS"
+  # $BASH, not a bare `bash`: a PATH-prefixed assignment applies BEFORE command lookup, so
+  # a bare head would itself be unfindable and the 127 would measure the harness, not the hook.
+  ( cd "$_1047_WS" && CLAUDE_PROJECT_DIR="$_1047_WS" PATH="$_1047_WS/emptybin" "$BASH" -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
+  _1047_RC_ABSENT=$?
+  assert_eq "#1047: hook command fails OPEN (exit 0) when python3 is absent from PATH" "0" "$_1047_RC_ABSENT"
+  # Anti-overreach only — the arm ABOVE is the regression signal (it alone goes RED on an
+  # unguarded exec). Do not delete that one as redundant with this one; they are not co-equal.
+  ( cd "$_1047_WS" && CLAUDE_PROJECT_DIR="$_1047_WS" "$BASH" -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
+  _1047_RC_PRESENT=$?
+  assert_eq "#1047: hook command still reaches the guard when python3 IS present" "9" "$_1047_RC_PRESENT"
+  rm -rf "$_1047_WS"
+fi
 # issue #908 review (test_mock_alignment finding): an unanchored whole-file
 # `grep -qE 'settings:|PreToolUse'` is imprecise both directions — an unrelated
 # `settings:` key (this literal is generic YAML, not unique to hook registration)
