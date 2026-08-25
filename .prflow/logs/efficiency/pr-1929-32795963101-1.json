@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1929",
+  "generated_at": "2026-08-25T01:15:37Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.7",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.491973499999999,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 32201,
+      "cache_read_input_tokens": 3290419,
+      "cache_creation_input_tokens": 215558,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 102,
+        "outputTokens": 62088,
+        "cacheReadInputTokens": 5140842,
+        "cacheCreationInputTokens": 569680,
+        "webSearchRequests": 0,
+        "costUSD": 8.491973499999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 36,
+    "duration_ms": 721575
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "grep -nE '[0-9]+(\\.[0-9]+)?[ -]?(min|minute|minutes|sec|second|ms|hour)\\b|~[0-9]' CLAUDE.md | head -40\necho \"===CLAUDE-DURATION-SCAN-DONE===\"",
+      "git show 3e70dee:CLAUDE.md | grep -nE 'min |minute|~[0-9]|[0-9]+ ?ms|[0-9]+-minute|seconds' | head -40\necho \"===DONE===\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before\nprintf '' > .prflow/tmp/displaced-paths.txt\necho \"snapshot-done\"",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before",
+      "\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/requesting-code-review}\"/../../scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT:$?---\"",
+      "/home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT:$?---\"",
+      "/home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh requesting-code-review",
+      "grep -nE \"[0-9]+ ?(min|minutes|ms|seconds|sec)\\b|~[0-9]|ten minutes|20 minutes|10-minute\" /home/runner/work/prflow/prflow/CLAUDE.md | grep -iE \"suite|shard|coordinator|monolith|run|command|timeout|wall|ceiling\"",
+      "awk 'NR==40||NR==60||NR==67||NR==132' /home/runner/work/prflow/prflow/CLAUDE.md | grep -oE \".{0,40}([0-9]+ ?(min|minutes|ms|seconds|sec)|ten minutes|~[0-9][0-9.]*).{0,20}\"",
+      "grep -noE \"[0-9]+ (ms|min|minutes|seconds)|ten minutes|20 minutes|10-minute|~[0-9.]+ min\" /home/runner/work/prflow/prflow/CLAUDE.md"
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
