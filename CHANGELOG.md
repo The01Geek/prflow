@@ -4,6 +4,27 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.16] — 2026-08-25
+
+### Changed
+- **The create-issue template now opens every issue's Problem Statement with a mandated user-story sentence.** `skills/create-issue/references/issue-template.md` instructs the drafter to open `## Problem Statement` with one sentence in the form `As a <role>, I want <capability>, so that <outcome>.` before the free-prose narrative, on every issue; the no-options rule's carve-out set names that sentence so its "I want" phrasing is never flagged as hedge language, and the worked example and quality checklist are updated to match. (#1948)
+
+## [2.34.15] — 2026-08-25
+
+### Changed
+- **Record the upstream revision each vendored third-party skill and agent was last reconciled against, and stop the vendored reviewer from spawning sub-reviewers.** `LICENSES/README.md` now carries a per-file "Last reconciled against" column (`superpowers 6.3.0` for the superpowers-derived skills; a `claude-plugins-official` commit SHA for the seven Anthropic-plugin agents), so a future refresh starts from a recorded pin instead of git archaeology. The vendored reviewer prompt (`skills/requesting-code-review/code-reviewer.md`) now directs the reviewer to review the whole diff itself in multiple passes and never dispatch a subagent for part of the diff or a second opinion, since a spawned sub-reviewer duplicates a reviewer seat at full cost while its verdict counts for nothing. (#1952)
+
+### Fixed
+- **`/prflow:create-issue` Step 1 now makes its docs-verify peer dispatch executable.** Step 1
+  asserted that each leg reaches its peer as a real `--search-space <pathspec>` operand and that
+  the dispatch waits synchronously, but gave the orchestrator no form to carry either out — so a
+  peer could silently run under the defaults (collapsing the deep-arm leg disjointness) and a
+  background fork could die on resume. Step 1 now names the Agent-tool synchronous dispatch form
+  (background dispatch excluded, mirroring Step 3.6), instructs the orchestrator to place each
+  leg's pathspec as a literal `--search-space <pathspec>` operand in the invocation arguments, and
+  requires each peer to confirm in its return the operand it ran under — recording a leg
+  unestablished when it does not. The degrade-never-block contract is unchanged. (#1953)
+
 ## [2.34.14] — 2026-08-25
 
 ### Fixed
