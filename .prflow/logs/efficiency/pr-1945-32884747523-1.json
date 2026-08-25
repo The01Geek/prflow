@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1945",
+  "generated_at": "2026-08-25T18:45:45Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.25",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 4.864008999999998,
+    "tokens": {
+      "input_tokens": 60,
+      "output_tokens": 22550,
+      "cache_read_input_tokens": 4460018,
+      "cache_creation_input_tokens": 162889,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 60,
+        "outputTokens": 22550,
+        "cacheReadInputTokens": 4460018,
+        "cacheCreationInputTokens": 162889,
+        "webSearchRequests": 0,
+        "costUSD": 4.422948999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 34,
+        "outputTokens": 4719,
+        "cacheReadInputTokens": 1050210,
+        "cacheCreationInputTokens": 73504,
+        "webSearchRequests": 0,
+        "costUSD": 0.44106,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 36,
+    "duration_ms": 431913
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"; echo \"RUN_ID=$GITHUB_RUN_ID\"; git status --porcelain; git branch --show-current",
+      "WP_BRANCH=\"issue-1512-a-shadow-pass-narrower-than-the-expected-roster-20260825\"\nPR_JSON=$(gh pr list --head \"$WP_BRANCH\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''\necho \"PR_JSON(head): $PR_JSON\"\nif [ \"$PR_JSON\" = \"[]\" ] || [ -z \"$PR_JSON\" ]; then\n  PR_JSON2=$(gh pr list --search \"1512 in:body\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON2=''\n  echo \"PR_JSON(body): $PR_JSON2\"\nf …[per-command-truncated]",
+      "HEAD_REF=\"issue-1512-a-shadow-pass-narrower-than-the-expected-roster-20260825\"\nCO_ERR=$( { git fetch origin \"$HEAD_REF\" && git checkout \"$HEAD_REF\"; } 2>&1 1>/dev/null ) || true\necho \"CO_ERR=$CO_ERR\"\nLANDED=no; [ -n \"$HEAD_REF\" ] && [ \"$(git rev-parse --abbrev-ref HEAD 2>/dev/null)\" = \"$HEAD_REF\" ] && LANDED=yes\necho \"LANDED=$LANDED\"\ngit rev-parse --abbrev-ref HEAD",
+      "RUN_URL=\"https://github.com/The01Geek/prflow/actions/runs/32884747523\"\nPR_NUMBER=1945\nif ! PR_BODY=$(gh api \"repos/The01Geek/prflow/pulls/1945\" --jq '.body' 2>/dev/null); then\n  echo \"READ_FAILED\"\nelse\n  echo \"$PR_BODY\" | grep -o '\\[View run\\]([^)]*)' | head -5\nfi",
+      "gh api repos/The01Geek/prflow/pulls/1945 --jq .body > /tmp/pr_body.txt 2>/tmp/pr_body.err; cat /tmp/pr_body.err; wc -l /tmp/pr_body.txt"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
