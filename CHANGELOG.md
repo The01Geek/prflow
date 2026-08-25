@@ -4,6 +4,40 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.9] — 2026-08-25
+
+### Changed
+Harden the issue-#1618 skill-body-load delivery probe so no verdict is silently wrong.
+`scripts/skill-body-load-probe-verdict.py` bound a root to the first recorded `Skill` load
+whose serialised input merely *contained* the root's bare name, so a session that loaded
+`prflow:review-and-fix` before `prflow:review` bound the review root to the wrong load and
+answered `unestablished` — the same word the helper uses for a genuine non-measurement.
+A root now binds by the name's quoted JSON form, every matching load is collected, and more
+than one match answers `unestablished` naming the ambiguity instead of keeping one silently,
+which also stops a retried load from being answered from its errored first attempt.
+`dirs_match` normalises separators after `normpath` rather than before, so the
+component-boundary suffix comparison resolves on a Windows host as it does on a POSIX one;
+the no-following-body reason now names the directory it actually compared rather than the
+`SKILL.md` path; and the module docstring and the `matcher-probe.yml` comments that described
+the `Skill` tool_result as the verdict operand now name the body record following it.
+
+### Fixed
+- **Harden the CI-derived completion-evidence record and open it to the reception/fix-loop routes.** The `--record-completion-evidence-ci` marker family now carries a `tier` operand (only `local` is accepted; a `cloud` tier is refused, since a cloud run owes an in-environment result) and a set of check-name/conclusion pairs recorded via repeatable `--completion-ci-check NAME CONCLUSION`; the checker refuses a record whose checks do not cover the required-check set declared in `.github/workflows/ci.yml` or that carries a non-success conclusion. `check-completion-evidence.py --context-mode direct` and `--context-mode loop` now reach that validation through a `--ci-record` operand while still running their undischarged-findings and deferral-durability checks, so a reception or fix-loop pass that follows the push-and-read-CI rule can discharge its gate instead of being refused. No verdict token was added or removed. (#1917)
+- **The credential scrub no longer eats the JSON escape backslash after a redacted token.** In
+  `scripts/scrub-credentials.sh`, the `Bearer` `Authorization` rule and the `basic`
+  `Authorization` rule listed a literal `\` as a member of their token character class, so a
+  credential followed by a JSON escape backslash had that backslash swallowed, ending the string
+  early and leaving the published execution-transcript artifact unparseable. A token is now
+  matched as a run of class members plus the two escape units `\/` and `\\`, so an escaped slash
+  inside a token is still redacted while a lone `\` before a closing quote is left to the document
+  it belongs to. A four-unit floor replaces the old `+`, so the bare `//` of a recorded
+  `sed 's/AUTHORIZATION: basic //'` is no longer taken for a token; a run shorter than four units
+  after the scheme keyword is left alone, which is a deliberate narrowing of what the two
+  `Authorization` rules redact. Each now matches its scheme keyword
+  case-insensitively per letter, as they already matched the header name, so a third-party
+  emitter's `AUTHORIZATION: BASIC` is redacted rather than passing through; the scheme keyword is
+  rewritten to its canonical casing alongside the token, as before. (#1921)
+
 ## [2.34.8] — 2026-08-25
 
 ### Changed
