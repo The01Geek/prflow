@@ -261,6 +261,16 @@ cat > "$ET_DISP/iter-9.json" <<'EOF'
 "shadow":{"coverage":"full","per_reviewer_assessment":[{"agent":"n","returned":"yes"},{"agent":"p","returned":false}]},
 "convergence_inputs":{"fixes_applied":1},"telemetry":null}
 EOF
+# iter-10: empty-array "none failed" establishment (issue #1849 shadow review). A
+# well-formed empty phase3_failed_agents:[] with the roster present IS a valid
+# establishment ("no agent failed"), so a dispatched agent absent from findings reads
+# silent — distinct from iter-1's non-empty ["d"] sink. Guards a regression that would
+# require length>0 for establishment and silently flip this common case to unestablished.
+cat > "$ET_DISP/iter-10.json" <<'EOF'
+{"iter":10,"phase3_dispatched":["a","q"],"phase3_failed_agents":[],
+"phase3_findings":[{"agent":"a","corroboration_count":1,"fix_decision":"applied"}],
+"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
 ET_DISP_REC="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_DISP" --slug pr-1849 --mode record)"
 ET_disp() { echo "$ET_DISP_REC" | jq -r --argjson i "$1" --arg a "$2" '.per_iteration[] | select(.iter==$i) | .agent_verdicts[] | select(.agent==$a) | .disposition'; }
 ET_roll() { echo "$ET_DISP_REC" | jq -c --argjson i "$1" --arg a "$2" '.per_iteration[] | select(.iter==$i) | .agent_verdicts[] | select(.agent==$a) | .fix_decisions'; }
@@ -299,6 +309,11 @@ assert_eq "et(#1849): phase3_failed_agents_present carried into record (present 
   "$(echo "$ET_DISP_REC" | jq -r '.per_iteration[] | select(.iter==1) | .phase3_failed_agents_present')"
 assert_eq "et(#1849/AC7): phase3_failed_agents_present false on historical iter"   "false" \
   "$(echo "$ET_DISP_REC" | jq -r '.per_iteration[] | select(.iter==2) | .phase3_failed_agents_present')"
+# Empty-array establishment: [] with roster present is a valid "none failed" set, so a
+# silent agent reads silent (not unestablished) and the presence flag reads true.
+assert_eq "et(#1849): empty [] failed-set with roster present → silent agent silent" "silent" "$(ET_disp 10 'q')"
+assert_eq "et(#1849): empty [] failed-set establishes → phase3_failed_agents_present true" "true" \
+  "$(echo "$ET_DISP_REC" | jq -r '.per_iteration[] | select(.iter==10) | .phase3_failed_agents_present')"
 
 # Adversarial phase3_failed_agents shapes (agent-mutable input): the filter must
 # never abort, and a non-array value must not establish the failed set — a silent
