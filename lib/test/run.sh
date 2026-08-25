@@ -46395,6 +46395,19 @@ echo "#725 worktree-immunity residuals pinned in the remaining working-tree enum
 # deliberate act). Build a temp root carrying a worktree-shaped decoy that holds a real
 # re-fetch violation, drive it through --files-from so no .git/info/exclude line has any
 # say (AC2), and prove the real helper does NOT report it (AC1).
+# IBR_LINT + ibr_run were formerly defined by the #693 block; that block was extracted
+# into lib/test/modules/implement-contract.sh (issue #1934), so this sibling — which is a
+# lib/test-subject label, not skills/implement — carries its own minimal copy.
+IBR_LINT="$LIB/test/lint-issue-body-refetch.py"
+ibr_run() {  # <root> <path…> -> "rc=<n>|<stdout+stderr>"
+  local root="$1"; shift
+  local list out rc
+  list="$(probe_tmp '#725 fixture list')" || return 0
+  printf '%s\n' "$@" > "$list"
+  out="$(python3 "$IBR_LINT" --root "$root" --files-from "$list" 2>&1)"; rc=$?
+  rm -f "$list"
+  printf 'rc=%s|%s' "$rc" "$out"
+}
 E725_IBR_FX="$(probe_tmp '#725 ibr worktree fixture root')"
 case "$E725_IBR_FX" in ""|/dev/null) : ;; *) rm -f "$E725_IBR_FX"; mkdir -p "$E725_IBR_FX" ;; esac
 E725_IBR_DECOY=".claude/worktrees/w/skills/implement/phases/phase-1-setup.md"
