@@ -7237,9 +7237,9 @@ _suite_tmp_dir "$E484"
 #     depth-limited checkout its count can be plausible-but-wrong across the graft
 #     boundary (this workflow's own checkout is full-history since #1219, but the
 #     rationale is not conditioned on that — a consumer's installed copy may be older).
-#   mktemp — invoked only from leading VAR=$(…) capture shapes the matcher refuses
-#     regardless of a head grant; granting it would be a no-op greening the guard
-#     on a still-denied path.
+#   mktemp — invoked only from leading VAR=$(…) capture shapes whose status is UNMEASURED
+#     on this tier (implement row I6, the only measured capture, came back DENIED while
+#     confounding three properties); a head grant alone would not establish the shape.
 WITHHELD_IMPL=$'gh pr checkout\ngit rev-list\nmktemp'
 # Shell builtins + extractor parse artifacts (leaked case-arm fragments) emitted
 # alongside real heads. EXACT-match only (grep -xF): a head that merely begins with
@@ -50841,6 +50841,58 @@ assert_eq "#908 AC1: devflow-runner.yml's claude-code-action step carries a sett
   "$(grep -qF 'settings: |' "$_908_RUNNER_YML" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- pins the effectiveness channel AC1 requires: the claude-code-action settings input is what registers the PreToolUse hook with the review-tier runner
 assert_eq "#908 AC1: the settings input registers a PreToolUse hook naming the guard script" "yes" \
   "$(grep -qF '/scripts/pretooluse-shape-guard.py\"' "$_908_RUNNER_YML" && grep -qF '"PreToolUse"' "$_908_RUNNER_YML" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- pins the JSON hook-command string (trailing escaped quote makes the literal code-only, never a comment mention) so a regression that drops the guard from the hook body — while leaving prose referencing it elsewhere — is caught
+
+# ── #1047: the hook command must fail OPEN when the INTERPRETER is absent ────────────
+# Do NOT swap these for a substring pin on the probe: a probe written AFTER the `exec`
+# satisfies any grep while still exiting 127, and a non-zero PreToolUse exit BLOCKS the
+# call. Why the interpreter can be absent: docs/internal/cloud-allowlist.md, guard section.
+# Do NOT convert the PyYAML arm below into a skip(): PyYAML is a suite REQUIREMENT, not a
+# host capability, so a skip here would manufacture a never-clean-pass where the adjacent
+# #908 extractor fails closed on the same dependency with this same sentinel.
+_1047_hookcmd() {  # $1 = workflow -> the registered guard hook command, or a failing token
+  python3 - "$1" 2>/dev/null <<'PY' || echo extractor-failed
+import json, sys
+try:
+    import yaml
+except Exception:
+    sys.exit(1)
+d = yaml.safe_load(open(sys.argv[1])) or {}
+for job in (d.get("jobs") or {}).values():
+    for st in (job.get("steps") or []):
+        raw = (st.get("with") or {}).get("settings")
+        if not raw:
+            continue
+        for grp in (json.loads(raw).get("hooks") or {}).get("PreToolUse") or []:
+            for h in (grp.get("hooks") or []):
+                if "pretooluse-shape-guard.py" in (h.get("command") or ""):
+                    print(h["command"])
+                    sys.exit(0)
+sys.exit(1)
+PY
+}
+_1047_CMD="$(_1047_hookcmd "$_908_RUNNER_YML")"
+assert_eq "#1047: the registered PreToolUse hook command was extractable (the arms below are not vacuous)" "yes" \
+  "$([ -n "$_1047_CMD" ] && [ "$_1047_CMD" != extractor-failed ] && echo yes || echo no)"
+if [ -n "$_1047_CMD" ] && [ "$_1047_CMD" != extractor-failed ]; then
+  _1047_WS="$(mktemp -d)"
+  mkdir -p "$_1047_WS/scripts" "$_1047_WS/emptybin"
+  printf 'import sys\nsys.exit(9)\n' > "$_1047_WS/scripts/pretooluse-shape-guard.py"
+  # Do NOT drop this `git init`: the hook resolves its root via `git rev-parse` FIRST, so a
+  # TMPDIR nested in any checkout resolves $_g to the real guard and both arms stop testing
+  # the stub. (GIT_CEILING_DIRECTORIES does not fix this — measured, it still resolved the repo.)
+  git init -q "$_1047_WS"
+  # $BASH, not a bare `bash`: a PATH-prefixed assignment applies BEFORE command lookup, so
+  # a bare head would itself be unfindable and the 127 would measure the harness, not the hook.
+  ( cd "$_1047_WS" && CLAUDE_PROJECT_DIR="$_1047_WS" PATH="$_1047_WS/emptybin" "$BASH" -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
+  _1047_RC_ABSENT=$?
+  assert_eq "#1047: hook command fails OPEN (exit 0) when python3 is absent from PATH" "0" "$_1047_RC_ABSENT"
+  # Anti-overreach only — the arm ABOVE is the regression signal (it alone goes RED on an
+  # unguarded exec). Do not delete that one as redundant with this one; they are not co-equal.
+  ( cd "$_1047_WS" && CLAUDE_PROJECT_DIR="$_1047_WS" "$BASH" -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
+  _1047_RC_PRESENT=$?
+  assert_eq "#1047: hook command still reaches the guard when python3 IS present" "9" "$_1047_RC_PRESENT"
+  rm -rf "$_1047_WS"
+fi
 # issue #908 review (test_mock_alignment finding): an unanchored whole-file
 # `grep -qE 'settings:|PreToolUse'` is imprecise both directions — an unrelated
 # `settings:` key (this literal is generic YAML, not unique to hook registration)
