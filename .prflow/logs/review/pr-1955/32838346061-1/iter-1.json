@@ -1,0 +1,188 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T00:00:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": null,
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "phase3_findings": [
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "documented_falsehood: _tool_result_text docstring 'mirroring placeholder-probe-verdict.py' inaccurate",
+      "defect_signature": {
+        "file": "scripts/env-propagation-probe-verdict.py",
+        "line_range": [
+          134,
+          148
+        ],
+        "kind": "inaccurate-comment-cross-reference"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "comment_drift x2 (module docstring provenance)",
+      "defect_signature": {
+        "file": "scripts/env-propagation-probe-verdict.py",
+        "line_range": [
+          36,
+          44
+        ],
+        "kind": "comment_drift"
+      },
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "unrecognized-content-shape drop w/o breadcrumb; ignored is_error (intentional fail-safe)",
+      "defect_signature": {
+        "file": "scripts/env-propagation-probe-verdict.py",
+        "line_range": [
+          134,
+          148
+        ],
+        "kind": "silent-failure"
+      },
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "test_gap: untested '' fallback and list-block reject paths",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          23493,
+          23521
+        ],
+        "kind": "test-coverage-gap"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-25T00:00:00Z",
+    "reviewed_sha": "162bec221c166ca194d214764f547d37bde43fa8",
+    "verdict": "APPROVE WITH ADVISORY NOTES",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "multi-marker tool_result blob could credit BOTH_HOPS — pre-existing (already reachable via a single multi-marker tool_use input), documented 'evidence, not proof'; calibrated down, not a regression",
+        "defect_signature": {
+          "file": "scripts/env-propagation-probe-verdict.py",
+          "line_range": [
+            151,
+            195
+          ],
+          "kind": "cross-hop-sentinel-attribution"
+        }
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "inaccurate placeholder-probe-verdict.py cross-reference (fixed in iter 2)",
+        "defect_signature": {
+          "file": "scripts/env-propagation-probe-verdict.py",
+          "line_range": [
+            134,
+            148
+          ],
+          "kind": "inaccurate-comment-cross-reference"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "malformed-list-item test gap (fixed in iter 2)",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            23493,
+            23521
+          ],
+          "kind": "test-coverage-gap"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 5,
+      "overlap_with_iter_N": 3,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "over_grade_calibration": [
+    {
+      "finding": "multi-marker tool_result blob BOTH_HOPS",
+      "reviewer_severity": "High",
+      "calibrated_severity": "suggestion",
+      "evidence": "pre-existing fabrication vector — a single multi-marker tool_use input already reached BOTH_HOPS before this change; the module documents 'evidence, not proof' against a cooperative model and is operator-confirmed against the raw dump; the failure direction is a diagnostic probe, not a trust boundary. Not a regression introduced by this diff."
+    }
+  ],
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

@@ -1,0 +1,62 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-25T00:10:00Z",
+  "fix_commit_sha": "19f8fde85754db333910caa295ac17eb7a75d843",
+  "fix_files": [
+    "scripts/env-propagation-probe-verdict.py",
+    "lib/test/run.sh"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "dispatch_mode": "unavailable",
+  "phase3_dispatched": [
+    "requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [],
+  "fix_decisions": [
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "19f8fde85754db333910caa295ac17eb7a75d843",
+      "source_file": "scripts/env-propagation-probe-verdict.py",
+      "claim_text": "docstring inaccurate placeholder-probe-verdict.py cross-reference"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "19f8fde85754db333910caa295ac17eb7a75d843",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "malformed-list-item test gap"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 12,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

@@ -1,0 +1,59 @@
+{
+  "verdict": "APPROVE with notes",
+  "report": "# Review — PR #1955 (issue #1321): env-propagation-probe reads hop one from Action 2 tool_result output\n\n**Verdict: APPROVE with notes**\n\n## Diff profile\nsmall_diff. 5 files, ~115 lines net. code + tests + docs/changeset. Not config-only, no new types, not engine-self-modifying.\n\n## What the change does\n`scripts/env-propagation-probe-verdict.py`'s `collect()` is widened so it also records each `tool_result` node's OUTPUT content (new `_tool_result_text(node)` helper handling bare-string and list-of-text-block shapes, `''` otherwise). Hop one's reading is now derived from Action 2's recorded Bash output directly, instead of depending on the model's fragile Action-3 echo-back. The accumulator was renamed `tool_uses` -> `entries` throughout (`_hop_values`, `compute_verdict`, `render`), and the `_OBSERVED` guard is unchanged. Four `#1321` test arms, a changeset, a cloud-allowlist annotation, and a coverage-map row round it out.\n\n## Acceptance criteria\n- AC1 (cause identified from run 30956039324's execution file, stated with evidence, desk-only): Satisfied. The changeset and cloud-allowlist annotation name the root cause — hop one's genuine reading is the shell-EXPANDED value Action 2 prints, recorded as that Bash call's tool_result output, while the old `collect` read only tool_use inputs (variable unexpanded by design), so hop one surfaced only if the model echo-back landed; in run 30956039324 it did not (hop two's did). No probe dispatch.\n- AC2 (fix at owning surface; discriminating check): Satisfied. Fix is helper-only at the owning surface. Engine independently ran the fixed helper: the recorded hop-one entries WITH the Action-2 tool_result line yield BOTH_HOPS, and the SAME entries WITHOUT it yield INCONCLUSIVE (hop-one-silent) — the tool_result line is provably the sole flip factor, encoding \"same input under the pre-fix design\" as a sibling fixture. A both-hops UNSET fixture correctly yields NEITHER_HOP. `ruff check` passes.\n- AC3 (post-merge, spends no probe dispatch): Satisfied by construction — the fix touches no workflow.\n\n## Guard integrity\nThe `_OBSERVED` guard is genuinely unweakened: `_hop_values`'s regex still requires an OBSERVED token ({SENTINEL, UNSET}) after the marker, so the unexpanded `%s` instruction text (which lives only in a tool_use input) still yields nothing. Co-occurrence integrity holds — hop one's marker and sentinel co-occur within a single tool_result entry. Widening the read cannot manufacture a BOTH_HOPS; a dropped genuine reading collapses to the degraded INCONCLUSIVE arm, never a false NEITHER_HOP.\n\n## Phase 3 findings (5 agents dispatched, 5 returned)\nNo Critical or Important findings. Advisory (Suggestion / Low) only:\n\n1. **[comment-analyzer] documented inaccuracy (Suggestion, capped)** — `_tool_result_text` docstring's parenthetical \"(mirroring placeholder-probe-verdict.py's own str/list handling)\" is inaccurate: the cited sibling handles non-string tool_result content via `json.dumps(content)` (verified at placeholder-probe-verdict.py:206-208), not text-block extraction. Filed `documented_falsehood`; the substantive shape description in the same docstring is accurate and the clause is a behavior-inert provenance parenthetical (no tool reads it), so Phase 4.1.5 caps it at Suggestion. Non-blocking; drop or reword the clause.\n2. **[silent-failure-hunter] unrecognized content shapes dropped without a breadcrumb (Low, other)** — `_tool_result_text` returns `''` for any content shape it does not recognize; a future harness shape carrying a genuine reading would be silently discarded, re-creating the fail-quiet-to-INCONCLUSIVE loop one shape deeper. Safe direction (never fabricates a verdict); a one-line stderr breadcrumb would help.\n3. **[silent-failure-hunter] `is_error` on a tool_result is ignored (Low, logic_error)** — an errored Action-2 command whose output still carries the expanded sentinel would be credited. Real-world blast radius small (an expanded sentinel in output does evidence propagation); worth a doc note or an explicit skip.\n4. **[pr-test-analyzer] `return \"\"` fallback branch untested (Low, test_gap)** — no fixture supplies a tool_result whose content is neither str nor list; the introduced any-other-shape branch never executes under the suite.\n5. **[pr-test-analyzer] list-block filter predicate only exercised on well-formed blocks (Low, test_gap)** — the non-dict / missing-`text` / non-str-`text` rejection paths are not covered.\n\ncode-reviewer and the requesting-code-review final pass both returned clean (final pass verified AC1/AC2 by execution and reports \"ready to proceed\").\n\n## Recommendation\nAPPROVE with notes. The change is correct, the core AC2 discrimination is established and empirically confirmed, the guard is preserved, and CLAUDE.md conventions are respected (SPDX header, uniquely-named changeset with `bump: patch`, no direct plugin.json/CHANGELOG edit, coverage-map row, bare source paths). The five advisory items are all optional hardening — a docstring reword and defensive test/breadcrumb additions — none blocking merge.",
+  "phase3_findings": [
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "_tool_result_text docstring's clause '(mirroring placeholder-probe-verdict.py's own str/list handling)' is inaccurate: the sibling handles non-string tool_result content via json.dumps(content), not text-block extraction. Filed documented_falsehood but capped at Suggestion under Phase 4.1.5 (behavior-inert provenance parenthetical; the substantive shape description is accurate). Reword or drop the clause.",
+      "defect_signature": {"file": "scripts/env-propagation-probe-verdict.py", "line_range": [137, 139], "kind": "documented_falsehood"}
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Added module-docstring section 'HOW HOP ONE IS MADE MEASURABLE' (lines 36-44) is derivation/provenance-heavy and exceeds three lines; the specification kernel is carve-out-protected and the file's convention is narrative docstrings, so status is arguably undecidable-load-bearing.",
+      "defect_signature": {"file": "scripts/env-propagation-probe-verdict.py", "line_range": [36, 44], "kind": "comment_drift"}
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Expanded collect docstring (lines 152-161) restates the hop-one/echo-back derivation already stated in the module docstring; the load-bearing kernel would stand on its own.",
+      "defect_signature": {"file": "scripts/env-propagation-probe-verdict.py", "line_range": [152, 161], "kind": "comment_drift"}
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "_tool_result_text returns '' for any unrecognized content shape with no diagnostic breadcrumb; a future harness content shape carrying a genuine hop reading would be silently discarded, re-creating the fail-quiet-to-INCONCLUSIVE loop one shape deeper. Safe direction (never fabricates a verdict). Suggest a one-line stderr breadcrumb.",
+      "defect_signature": {"file": "scripts/env-propagation-probe-verdict.py", "line_range": [140, 148], "kind": "other"}
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "_tool_result_text ignores the tool_result node's is_error field, so an errored Action-2 command whose output still contains the expanded sentinel is credited as a propagation reading (record_it=True). Low blast radius. Suggest an explicit skip or a docstring note that error results are intentionally read.",
+      "defect_signature": {"file": "scripts/env-propagation-probe-verdict.py", "line_range": [134, 169], "kind": "logic_error"}
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The 'return \"\"' any-other-shape fallback branch of _tool_result_text (line 148) is untested — no fixture supplies a tool_result whose content is neither str nor list. Suggest a fixture with content:{} or a missing content key asserting the shape is ignored (hop-silent, not fabricated).",
+      "defect_signature": {"file": "scripts/env-propagation-probe-verdict.py", "line_range": [148, 148], "kind": "test_gap"}
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The list-block filter predicate (lines 144-147) is only exercised on well-formed {type:text,text:str} blocks; the non-dict item, missing-text, and non-str-text rejection paths never run, so a regression removing either isinstance guard would go uncaught.",
+      "defect_signature": {"file": "scripts/env-propagation-probe-verdict.py", "line_range": [144, 147], "kind": "test_gap"}
+    }
+  ],
+  "phase3_dispatched": ["code-reviewer", "silent-failure-hunter", "comment-analyzer", "pr-test-analyzer", "requesting-code-review"],
+  "expected_reviewers": ["code-reviewer", "silent-failure-hunter", "comment-analyzer", "pr-test-analyzer", "requesting-code-review"],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "cap_drops": [],
+  "dispatch_mode": "fanned-out"
+}
