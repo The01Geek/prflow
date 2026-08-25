@@ -35989,6 +35989,31 @@ assert_eq("#1388 review-isolation: hardening overwrites the PR-head action dir f
           'git show "FETCH_HEAD:$dir/$f"' in _dr1388)
 
 
+# ── issue #1388: the tracked marker ships, validates, and stays in sync ──
+_REPO_1388 = SCRIPTS.parent
+# AC3: git ls-files proves the manifest AND the marker both ship.
+_tracked_1388 = _sp1388.run(
+    ["git", "ls-files", ".prflow/lint-manifest.json", ".prflow/install-state.json"],
+    cwd=str(_REPO_1388), capture_output=True, text=True).stdout.split()
+assert_eq("#1388 ships: lint-manifest.json is tracked", True, ".prflow/lint-manifest.json" in _tracked_1388)
+assert_eq("#1388 ships: install-state.json marker is tracked", True, ".prflow/install-state.json" in _tracked_1388)
+
+# The committed marker validates and is READY against the repo tree (self-consistent).
+_marker_1388 = _install_state.load_state(_REPO_1388 / ".prflow" / "install-state.json")
+assert_eq("#1388 marker: committed marker validates (establishes)", True, _marker_1388.established)
+assert_eq("#1388 marker: committed marker is READY against the repo tree", True,
+          _install_state.check_readiness(_REPO_1388 / ".prflow" / "install-state.json",
+                                         _REPO_1388 / ".prflow" / "lint-manifest.json",
+                                         repo_root=_REPO_1388).ready)
+
+# Drift gate: the generator's --check must pass, or a bound component changed
+# without the marker being regenerated (RED names the regeneration command).
+_drift_1388 = _sp1388.run(
+    ["python3", str(_REPO_1388 / "lib" / "generate-install-state.py"), "--check"],
+    cwd=str(_REPO_1388), capture_output=True, text=True)
+assert_eq("#1388 marker: install-state marker is in sync with its bound components", 0, _drift_1388.returncode)
+
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
