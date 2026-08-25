@@ -342,9 +342,9 @@ assert_eq "#415 swv: both controls + no attempt + no denial → INCONCLUSIVE, no
 printf '%s' '[{"permission_denials":[{"tool":"ScheduleWakeup"}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
 assert_eq "#415 swv: ScheduleWakeup denied with no registered attempt → REMOVED (positive evidence; ship)" "yes" \
   "$(swv_has_row "$SWV_F" '| **REMOVED** | yes |')"
-# Arm: INCONCLUSIVE — only the BEFORE control ran, no positive signal (no denial, no
-# attempt). The verdict no longer keys on the controls (issue #1527): any file with no
-# positive signal is INCONCLUSIVE, never the shippable REMOVED. "Unknown is not zero."
+# Arm: INCONCLUSIVE — the before control ran but nothing positive (no denial, no attempt).
+# The verdict no longer keys on the controls (issue #1527), so no positive signal means
+# INCONCLUSIVE here, not the shippable REMOVED. "Unknown is not zero."
 printf '%s' '[{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}}]' > "$SWV_F"
 assert_eq "#415 swv: INCONCLUSIVE (no ship) when only the before-control ran, not REMOVED" "yes" \
   "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
@@ -352,9 +352,9 @@ assert_eq "#415 swv: INCONCLUSIVE (no ship) when only the before-control ran, no
 # after=no) — guards a garbled/transposed operator diagnostic on this path.
 assert_eq "#415 swv: before-only run renders the [!WARNING] 'controls: before=yes, after=no' text" "yes" \
   "$(swv_has "$SWV_F" 'controls: before=yes, after=no')"
-# Arm: INCONCLUSIVE — only the AFTER control ran (PR #417 shadow — pr-test-analyzer), the
-# symmetric partner of the before-only arm. No positive signal (no denial, no attempt), so
-# INCONCLUSIVE regardless of which controls ran — never a fail-open REMOVED (issue #1527).
+# Arm: INCONCLUSIVE — the after control ran (PR #417 shadow — pr-test-analyzer), the
+# counterpart of the before-control arm. Nothing positive (no denial, no attempt), so
+# INCONCLUSIVE — not a fail-open REMOVED (issue #1527).
 printf '%s' '[{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
 assert_eq "#415 swv: INCONCLUSIVE (no ship) when only the after-control ran, not a fail-open REMOVED" "yes" \
   "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
