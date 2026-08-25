@@ -1797,22 +1797,6 @@ class TestPhaseEventAppend(Harness):
         self.assertTrue(landed.is_file())
         self.assertEqual(json.loads(landed.read_text(encoding="utf-8"))["event"], "phase2-checkpoint")
 
-    def test_non_object_payload_breadcrumbs_but_still_records(self):
-        log_dir = os.path.join(self.tmp, "phase-events")
-        buf_err = io.StringIO()
-        with redirect_stderr(buf_err):
-            code, _ = self.run_cmd(
-                ["event", "shadow-entry", "--log-dir", log_dir, "--payload", "[1, 2]"]
-            )
-        self.assertEqual(code, vf.EXIT_OK)
-        rec = json.loads(
-            self._events_file(log_dir).read_text(encoding="utf-8").splitlines()[0]
-        )
-        self.assertEqual(rec["event"], "shadow-entry")
-        # the non-object arm still writes the base record and emits its own breadcrumb
-        self.assertEqual(set(rec), {"event", "recorded_at"})
-        self.assertIn("non-object", buf_err.getvalue())
-
     def test_optional_payload_merged_reserved_keys_protected(self):
         log_dir = os.path.join(self.tmp, "phase-events")
         os.environ["DEVFLOW_FLIGHT_NOW"] = "1000000000"
@@ -1856,7 +1840,70 @@ class TestPhaseEventAppend(Harness):
             self._events_file(log_dir).read_text(encoding="utf-8").splitlines()[0]
         )
         self.assertEqual(rec["event"], "shadow-entry")
-        self.assertIn("payload", buf_err.getvalue())
+        self.assertIn("unparseable", buf_err.getvalue())
+        # exactly one breadcrumb: the parse-error arm must not also fall through to
+        # the non-object arm, which is what a shared None sentinel would have caused.
+        self.assertNotIn("non-object", buf_err.getvalue())
+
+    def test_non_object_payload_shapes_all_breadcrumb(self):
+        # The payload parser is a best-effort parser over caller-supplied JSON, so the
+        # non-object shapes are swept together rather than only the array row: a JSON
+        # `null` parses to None and must not be mistaken for the parse-error sentinel.
+        for label, raw in (
+            ("null", "null"),
+            ("number scalar", "42"),
+            ("string scalar", '"str"'),
+            ("array", "[1, 2]"),
+        ):
+            with self.subTest(payload=label):
+                log_dir = os.path.join(self.tmp, "phase-events-" + label.replace(" ", "-"))
+                buf_err = io.StringIO()
+                with redirect_stderr(buf_err):
+                    code, _ = self.run_cmd(
+                        ["event", "shadow-entry", "--log-dir", log_dir, "--payload", raw]
+                    )
+                self.assertEqual(code, vf.EXIT_OK)
+                rec = json.loads(
+                    self._events_file(log_dir).read_text(encoding="utf-8").splitlines()[0]
+                )
+                # the base event is still recorded, with no payload key merged in
+                self.assertEqual(rec["event"], "shadow-entry")
+                self.assertEqual(set(rec), {"event", "recorded_at"})
+                self.assertIn("non-object", buf_err.getvalue())
+                self.assertNotIn("unparseable", buf_err.getvalue())
+
+    def test_empty_payload_is_absent_and_empty_object_merges_nothing(self):
+        for label, raw in (("empty string", ""), ("empty object", "{}")):
+            with self.subTest(payload=label):
+                log_dir = os.path.join(self.tmp, "phase-events-" + label.replace(" ", "-"))
+                buf_err = io.StringIO()
+                with redirect_stderr(buf_err):
+                    code, _ = self.run_cmd(
+                        ["event", "phase2-checkpoint", "--log-dir", log_dir, "--payload", raw]
+                    )
+                self.assertEqual(code, vf.EXIT_OK)
+                rec = json.loads(
+                    self._events_file(log_dir).read_text(encoding="utf-8").splitlines()[0]
+                )
+                self.assertEqual(set(rec), {"event", "recorded_at"})
+                # neither shape is malformed or non-object, so neither breadcrumbs
+                self.assertEqual(buf_err.getvalue(), "")
+
+    def test_valid_falsy_payload_values_survive_the_merge(self):
+        # The repo's off-switch bug class: a real 0 / false / "" merged from a payload
+        # must reach the record, never be dropped by a truthiness test on the value.
+        log_dir = os.path.join(self.tmp, "phase-events")
+        code, _ = self.run_cmd([
+            "event", "phase3-simplify-end", "--log-dir", log_dir,
+            "--payload", json.dumps({"count": 0, "reused": False, "note": ""}),
+        ])
+        self.assertEqual(code, vf.EXIT_OK)
+        rec = json.loads(
+            self._events_file(log_dir).read_text(encoding="utf-8").splitlines()[0]
+        )
+        self.assertEqual(rec["count"], 0)
+        self.assertIs(rec["reused"], False)
+        self.assertEqual(rec["note"], "")
 
 
 if __name__ == "__main__":

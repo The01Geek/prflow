@@ -1182,6 +1182,10 @@ def cmd_event(args) -> int:
     """
     record = {"event": args.name, "recorded_at": _iso(_now())}
     if args.payload:
+        # Never reuse None as the parse-error sentinel: `--payload null` parses to None,
+        # so it would skip the non-object breadcrumb this subcommand's contract promises
+        # while the already-breadcrumbed parse-error path must not breadcrumb twice.
+        unparseable = object()
         try:
             payload = json.loads(args.payload)
         except (json.JSONDecodeError, ValueError) as exc:
@@ -1190,14 +1194,14 @@ def cmd_event(args) -> int:
                 f"for {args.name!r} ({exc.__class__.__name__}); recording the base event",
                 file=sys.stderr,
             )
-            payload = None
+            payload = unparseable
         if isinstance(payload, dict):
             # event/recorded_at are the record's clock-authored identity; a payload
             # key must never shadow them, or the event's name/time would be caller-forged.
             for key, value in payload.items():
                 if key not in ("event", "recorded_at"):
                     record[key] = value
-        elif payload is not None:
+        elif payload is not unparseable:
             print(
                 f"devflow verification-flight event: ignoring non-object --payload "
                 f"for {args.name!r}; recording the base event",
