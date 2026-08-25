@@ -309,35 +309,75 @@ swv_has_row() {  # fixture expected-row-prefix -> "yes" if the verdict row start
 swv_has() {  # fixture substring -> "yes" if the rendered output contains it (any line)
   python3 "$SWV_PY" "$1" 2>/dev/null | grep -qF "$2" && echo yes || echo no
 }
-# Arm: DENIED — permission_denials names ScheduleWakeup (ships).
+# A ship verdict (DENIED/REMOVED) now requires a positive permission_denials record
+# (issue #1527), never presumptive absence: DENIED = denied AND attempted (present,
+# refused); REMOVED = denied with no registered attempt (removed-from-context).
+# Arm: DENIED — ScheduleWakeup denied AND attempted (present, refused; ships).
 SWV_F="$(probe_tmp swv.denied)"
-printf '%s' '[{"permission_denials":[{"tool":"ScheduleWakeup"}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}}]' > "$SWV_F"
-assert_eq "#415 swv: DENIED when permission_denials names ScheduleWakeup (ship)" "yes" \
+printf '%s' '[{"permission_denials":[{"tool":"ScheduleWakeup"}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"ScheduleWakeup","input":{"delaySeconds":300}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
+assert_eq "#415 swv: DENIED when ScheduleWakeup denied AND attempted (present, refused; ship)" "yes" \
   "$(swv_has_row "$SWV_F" '| **DENIED** | yes |')"
 # Arm: AVAILABLE — a ScheduleWakeup tool_use recorded, not denied (does NOT ship).
 printf '%s' '[{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"ScheduleWakeup","input":{"delaySeconds":60}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
 assert_eq "#415 swv: AVAILABLE when ScheduleWakeup attempted and not denied (no ship)" "yes" \
   "$(swv_has_row "$SWV_F" '| **AVAILABLE** | no |')"
-# Arm: REMOVED — no ScheduleWakeup signal AND both controls ran (presumptive, ships).
+# Arm (issue #1527, AC1): the token appears ONLY inside a ToolSearch input query, never as
+# a tool_use NAME — the attempt predicate keys on the recorded name, so this is NO attempt
+# (tool_use(ScheduleWakeup)=no) and, with no denial, INCONCLUSIVE. RED against the pre-fix
+# helper, which substring-matched the input JSON and read it as an attempt (AVAILABLE).
+printf '%s' '[{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"ToolSearch","input":{"query":"select:ScheduleWakeup"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
+assert_eq "#415 swv: a ToolSearch query naming ScheduleWakeup is NOT an attempt (tool_use(ScheduleWakeup)=no)" "yes" \
+  "$(swv_has "$SWV_F" 'tool_use(ScheduleWakeup)=no')"
+assert_eq "#415 swv: a ToolSearch query naming ScheduleWakeup yields INCONCLUSIVE, not a false AVAILABLE" "yes" \
+  "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
+# Arm (issue #1527, AC3): both controls ran, no ScheduleWakeup tool_use, NO denial → no
+# positive signal → INCONCLUSIVE, never the shippable REMOVED. Presumptive absence (the
+# model may simply not have attempted the call) is never distinguished from removal here.
 printf '%s' '[{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
-assert_eq "#415 swv: REMOVED when tool absent and both controls ran (ship)" "yes" \
+assert_eq "#415 swv: both controls + no attempt + no denial → INCONCLUSIVE, not a presumptive REMOVED" "yes" \
+  "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
+# Arm (issue #1527, AC3): positive removal evidence — a ScheduleWakeup denial recorded with
+# NO registered attempt distinguishes "the flag removed the tool" from "the model did not
+# attempt the call" (the latter records no denial), so REMOVED ships only on that record.
+printf '%s' '[{"permission_denials":[{"tool":"ScheduleWakeup"}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
+assert_eq "#415 swv: ScheduleWakeup denied with no registered attempt → REMOVED (positive evidence; ship)" "yes" \
   "$(swv_has_row "$SWV_F" '| **REMOVED** | yes |')"
-# Arm: INCONCLUSIVE — only the BEFORE control ran; tool-absence cannot be distinguished
-# from a skipped attempt. "Unknown is not zero" — must NOT collapse onto the shippable
-# REMOVED. This fixture guards the `control_after` conjunct of the REMOVED gate.
+# Arm (issue #1527): the denial predicate keys on the denied tool's NAME, not the whole
+# record — a permission_denials entry naming a DIFFERENT tool (ToolSearch) with the token
+# only inside its nested input is NOT a ScheduleWakeup denial, so with no attempt it is
+# INCONCLUSIVE, never a false ship. Substring-matching the serialized record reads REMOVED.
+printf '%s' '[{"permission_denials":[{"tool":"ToolSearch","input":{"query":"select:ScheduleWakeup"}}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
+assert_eq "#415 swv: a denial naming a different tool with the token only in its input is NOT a ship (INCONCLUSIVE)" "yes" \
+  "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
+# Arm (issue #1527): the denial name lookup honors the `tool_name` field, not only `tool`
+# — a denial recording ScheduleWakeup under `tool_name` (no registered attempt) still reads
+# REMOVED, so dropping the `tool_name` key from the lookup would regress this arm.
+printf '%s' '[{"permission_denials":[{"tool_name":"ScheduleWakeup"}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
+assert_eq "#415 swv: a ScheduleWakeup denial recorded under tool_name (not tool) still reads REMOVED" "yes" \
+  "$(swv_has_row "$SWV_F" '| **REMOVED** | yes |')"
+# Arm (issue #1527): the `name` key of the denial-name lookup is also honored.
+printf '%s' '[{"permission_denials":[{"name":"ScheduleWakeup"}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
+assert_eq "#415 swv: a ScheduleWakeup denial recorded under the name key still reads REMOVED" "yes" \
+  "$(swv_has_row "$SWV_F" '| **REMOVED** | yes |')"
+# Arm (issue #1527): the denial-name lookup keys on SCALAR string fields only — a denial
+# whose tool field is a nested OBJECT carrying the token is not a ScheduleWakeup denial, so
+# with no attempt it is INCONCLUSIVE. Flattening the object with str() would read a ship.
+printf '%s' '[{"permission_denials":[{"tool":{"name":"ToolSearch","query":"select:ScheduleWakeup"}}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
+assert_eq "#415 swv: a denial whose tool field is a nested object with the token is NOT a ship (INCONCLUSIVE)" "yes" \
+  "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
+# Arm: INCONCLUSIVE — the before control ran but nothing positive (no denial, no attempt).
+# The verdict no longer keys on the controls (issue #1527), so no positive signal means
+# INCONCLUSIVE here, not the shippable REMOVED. "Unknown is not zero."
 printf '%s' '[{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}}]' > "$SWV_F"
 assert_eq "#415 swv: INCONCLUSIVE (no ship) when only the before-control ran, not REMOVED" "yes" \
   "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
-# And the else-branch [!WARNING] text is rendered with the controls interpolated in order
-# (before=yes, after=no) — guards a garbled/transposed operator diagnostic on this path.
-assert_eq "#415 swv: before-only run renders the [!WARNING] 'controls did not both run (before=yes, after=no)' text" "yes" \
-  "$(swv_has "$SWV_F" 'The controls did not both run (before=yes, after=no)')"
-# Arm: INCONCLUSIVE — only the AFTER control ran (PR #417 shadow — pr-test-analyzer). This
-# is the SYMMETRIC partner of the before-only arm and guards the OTHER conjunct of the
-# REMOVED gate (`control_before and control_after`): without this fixture, a mutation
-# dropping the `control_before` conjunct (`elif control_after:`) would leave every existing
-# pin green while shipping a false REMOVED on an after-only run — the dangerous fail-open
-# direction. Mutation-proven: `elif control_after:` flips this fixture to REMOVED/ship.
+# And the no-signal [!WARNING] text interpolates the control states in order (before=yes,
+# after=no) — guards a garbled/transposed operator diagnostic on this path.
+assert_eq "#415 swv: before-only run renders the [!WARNING] 'controls: before=yes, after=no' text" "yes" \
+  "$(swv_has "$SWV_F" 'controls: before=yes, after=no')"
+# Arm: INCONCLUSIVE — the after control ran (PR #417 shadow — pr-test-analyzer), the
+# counterpart of the before-control arm. Nothing positive (no denial, no attempt), so
+# INCONCLUSIVE — not a fail-open REMOVED (issue #1527).
 printf '%s' '[{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
 assert_eq "#415 swv: INCONCLUSIVE (no ship) when only the after-control ran, not a fail-open REMOVED" "yes" \
   "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
@@ -349,21 +389,13 @@ assert_eq "#415 swv: INCONCLUSIVE (no ship) when the execution file is absent" "
 printf '%s\n' 'not json at all, not a single object' > "$SWV_F"
 assert_eq "#415 swv: INCONCLUSIVE (no ship) when a present file is wholly unparseable" "yes" \
   "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
-# Arm: INCONCLUSIVE — partial JSONL corruption (both controls parse, one line drops)
-# forces the floor rather than reading the surviving lines as a clean tool-absence.
-# BOTH controls are present on purpose (PR #417 review — pr-test-analyzer): with both
-# controls run and no ScheduleWakeup signal, the ONLY thing keeping this off the
-# shippable REMOVED is the `dropped -> note_top -> INCONCLUSIVE` precedence in
-# parse_execution_file. A single-control fixture would read INCONCLUSIVE via the
-# else-branch (one control) regardless, so it would pass even if that precedence were
-# deleted — vacuous. The assert_eq below IS the guard: with both controls present it goes
-# RED if `if dropped:` is removed (the fixture then reads REMOVED/ship), so the precedence
-# is genuinely pinned (verified by removing `if dropped:` on a scratch copy → REMOVED).
-printf '%s\n%s\n%s\n' \
-  '{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}}' \
-  '{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}' \
+# Arm: INCONCLUSIVE — partial JSONL corruption forces the note_top floor rather than
+# reading the surviving lines. The surviving ScheduleWakeup denial line would otherwise
+# ship REMOVED (issue #1527), so removing `if dropped:` flips this fixture to REMOVED.
+printf '%s\n%s\n' \
+  '{"permission_denials":[{"tool":"ScheduleWakeup"}]}' \
   '{oops-not-json' > "$SWV_F"
-assert_eq "#415 swv: INCONCLUSIVE (no ship) on partial JSONL corruption with BOTH controls, not a false REMOVED" "yes" \
+assert_eq "#415 swv: INCONCLUSIVE (no ship) on partial JSONL corruption with a surviving denial, not a false REMOVED" "yes" \
   "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
 # Fail-open regression #2a (case): a ScheduleWakeup call recorded under a LOWER-CASED
 # name must read as present (AVAILABLE, no ship). Case-sensitive matching would miss it
@@ -411,8 +443,9 @@ rm -f "$SWV_UNREAD"
 # mis-mapped decision (e.g. AVAILABLE routed into the DO-NOT-ACT else, or SHIP/DO-NOT-SHIP
 # transposed) would misdirect the operator while staying green. Pin one decision string per
 # class. The `AC4): SHIP` prefix is distinct from `AC4): DO NOT SHIP` (grep -F is literal).
-# REMOVED fixture (both controls, no ScheduleWakeup) -> SHIP decision + presumptive [!NOTE].
-printf '%s' '[{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
+# REMOVED fixture (issue #1527: a ScheduleWakeup denial with no registered attempt) ->
+# SHIP decision + presumptive [!NOTE].
+printf '%s' '[{"permission_denials":[{"tool":"ScheduleWakeup"}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
 assert_eq "#415 swv: REMOVED renders the SHIP claude_args decision (AC4)" "yes" \
   "$(swv_has "$SWV_F" 'AC4): SHIP')"
 assert_eq "#415 swv: REMOVED renders the presumptive [!NOTE] caveat block" "yes" \

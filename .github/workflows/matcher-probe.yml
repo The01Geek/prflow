@@ -1271,17 +1271,17 @@ jobs:
   # promising a re-invocation that never happens under `claude -p`. This is ONE
   # extra claude-code-action invocation with the flag under test, isolated in its
   # own job so the flag never perturbs the 15-shape matcher probe above. The verdict
-  # is derived DETERMINISTICALLY from the execution file (permission_denials /
-  # recorded tool_use NAME= / tool absence), never the model's text, by the
-  # unit-tested helper scripts/schedulewakeup-probe-verdict.py (extracted so every
-  # arm and the fail-open name-match are driven in lib/test/run.sh — #415 review). TWO positive-
-  # control grep calls bracket the ScheduleWakeup attempt (before AND after Action 2):
-  # the AFTER control proves the model reached and passed Action 2, so an absence of
-  # any ScheduleWakeup tool_use reads as REMOVED-from-context only when both controls
-  # ran — otherwise the run is INCONCLUSIVE (an unmeasured run never collapses onto the
-  # shippable REMOVED). ScheduleWakeup is granted in --allowed-tools so the allowlist
-  # can never be the thing that removes it — a DENIED/REMOVED is attributable to
-  # --disallowedTools alone.
+  # is derived DETERMINISTICALLY from the execution file, never the model's text, by
+  # the unit-tested helper scripts/schedulewakeup-probe-verdict.py (extracted so every
+  # arm and the name-scoped match are driven in lib/test/run.sh — #415 review, #1527):
+  # a permission_denials naming ScheduleWakeup with a recorded attempt is DENIED and
+  # without one is REMOVED; a recorded ScheduleWakeup tool_use not denied is AVAILABLE;
+  # any other run is INCONCLUSIVE. A SHIP verdict requires a positive permission_denials
+  # record — both controls running is NO LONGER evidence of removal (that case is now
+  # INCONCLUSIVE, #1527), so the TWO positive-control grep calls bracketing Action 2
+  # supply diagnostic context only, not a REMOVED trigger. ScheduleWakeup is granted in
+  # --allowed-tools so the allowlist can never be the thing that removes it — a
+  # DENIED/REMOVED is attributable to --disallowedTools alone.
   # Verdict → claude_args mapping (issue #415 AC4, executed by the implementer):
   #   DENIED or REMOVED → ship `--disallowedTools ScheduleWakeup` in
   #                       devflow-implement.yml's claude step + its run.sh pin.
@@ -1289,24 +1289,21 @@ jobs:
   #                       and this omission rationale on the PR.
   #   INCONCLUSIVE      → measured nothing conclusive; re-run before deciding.
   #
-  # MEASURED AVAILABLE across real cloud runs 29140791165 and 29138117625 (issue
-  # #418): both recorded a ScheduleWakeup `tool_use` that was NOT denied — i.e.
-  # `--disallowedTools ScheduleWakeup` did NOT remove or deny the tool in
-  # claude-code-action@v1's headless runner (the flag was IGNORED, the tool stayed
-  # available). A third run, 29139012320, read a *presumptive* REMOVED (no tool_use,
-  # both controls ran) — the documented false-positive where a compliant model
-  # silently skips Action 2 while still running both bracketing controls; the two
-  # positive AVAILABLE observations are dispositive over it. Per the AVAILABLE arm
-  # above, NO `--disallowedTools ScheduleWakeup` was added to devflow-implement.yml's
-  # claude step and NO `--disallowedTools`-flag lib/test/run.sh pin was added (the
-  # unrelated #408/#415 ScheduleWakeup prose/verdict-helper pins in run.sh are
-  # untouched) — the implement-tier
-  # ScheduleWakeup false-promise early-quit is prevented by the always-resident
-  # headless-wait prose (issue #415) ALONE, since the flag does not remove the tool
-  # here. This verdict is version-dependent: RE-PROBE (workflow_dispatch, or any PR
-  # touching this file) after a claude-code-action / Claude Code CLI upgrade before
-  # trusting it — a future version that honors the flag flips this to REMOVED/DENIED
-  # and would then ship the flag + its run.sh pin per the mapping above.
+  # AWAITING RE-MEASUREMENT (issue #1527). The earlier "MEASURED AVAILABLE across real
+  # cloud runs 29140791165 and 29138117625" reading is WITHDRAWN: it was produced by the
+  # pre-#1527 false-positive attempt match, where the verdict helper substring-matched
+  # "schedulewakeup" against each tool_use's INPUT JSON, so a `ToolSearch` query such as
+  # `{"query":"select:ScheduleWakeup"}` registered as a ScheduleWakeup attempt when NO
+  # real ScheduleWakeup `tool_use` was ever recorded on either run. Under the corrected
+  # name-scoped helper those transcripts (no ScheduleWakeup tool_use, no denial) read
+  # INCONCLUSIVE, not AVAILABLE — so that verdict measured nothing and the ship/no-ship
+  # question is unresolved. No `--disallowedTools ScheduleWakeup` and no
+  # `--disallowedTools`-flag lib/test/run.sh pin have shipped (the unrelated #408/#415
+  # ScheduleWakeup prose/verdict-helper pins in run.sh are untouched); the implement-tier
+  # early-quit is prevented by the headless-wait prose (issue #415) and the
+  # CLAUDE_CODE_DISABLE_BACKGROUND_TASKS floor (issue #801). RE-PROBE (workflow_dispatch,
+  # or any PR touching this file) to establish the verdict — a run recording a real
+  # ScheduleWakeup denial or attempt decides it per the mapping above.
   schedulewakeup-probe:
     if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -1379,6 +1376,91 @@ jobs:
           # review, finding #1) so lib/test/run.sh can drive every arm + the
           # fail-open matrix; see scripts/schedulewakeup-probe-verdict.py.
           python3 scripts/schedulewakeup-probe-verdict.py "${EXECUTION_FILE}"
+
+  # issue #1527 — measurement arm (live-probe only, no suite coverage): runs WITHOUT
+  # --disallowedTools, has the model call ScheduleWakeup for real then END THE TURN, and
+  # observes whether the scheduled wakeup re-invokes this headless run after it ends.
+  schedulewakeup-reinvoke-probe:
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Run Claude Code (ScheduleWakeup re-invocation probe)
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_bots: "*"
+          prompt: |
+            You are a SCHEDULED-WAKEUP RE-INVOCATION PROBE. Do exactly one thing, then
+            stop: call the ScheduleWakeup tool ONCE to schedule a wakeup roughly 60
+            seconds from now, with any short reason and prompt. After that single call,
+            STOP and reply with the single word DONE — emit no further tool calls and do
+            not retry. Your text output is not measured; the measurement is whether the
+            scheduled wakeup re-invokes this headless run after the turn ends.
+          # No --disallowedTools here (contrast schedulewakeup-probe): the tool is granted
+          # and left in place so the wakeup can actually be created and fire.
+          claude_args: >-
+            --model claude-haiku-4-5-20251001
+            --effort low
+            --permission-mode acceptEdits
+            --allowed-tools "ScheduleWakeup"
+
+      - name: Report execution file for manual inspection
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          set -euo pipefail
+          # No single-file verdict: re-invocation is observed across the run lifecycle.
+          printf 'execution_file: %s\n' "${EXECUTION_FILE}"
+
+  # issue #1527 — measurement arm (live-probe only, no suite coverage): sets
+  # CLAUDE_CODE_DISABLE_CRON=1 on the CLOUD tier (only ever observed locally on 2.1.226)
+  # and attempts one ScheduleWakeup call, so the variable's cloud behavior is measured.
+  schedulewakeup-disable-cron-probe:
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Run Claude Code (CLAUDE_CODE_DISABLE_CRON cloud probe)
+        id: claude
+        env:
+          # The variable under test, set at STEP level (mirroring the background-tasks
+          # probe) so it is applied to the claude action's own process rather than only
+          # at job scope, where a step-level env could otherwise override it (issue #1527).
+          CLAUDE_CODE_DISABLE_CRON: "1"
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_bots: "*"
+          prompt: |
+            You are a CLAUDE_CODE_DISABLE_CRON probe. Call the ScheduleWakeup tool ONCE to
+            schedule a wakeup roughly 60 seconds from now, with any short reason and
+            prompt, then STOP and reply with the single word DONE. Attempt the call even
+            if the tool appears unavailable — its absence, denial, or acceptance is
+            exactly the signal being collected. Your text output is not measured.
+          claude_args: >-
+            --model claude-haiku-4-5-20251001
+            --effort low
+            --permission-mode acceptEdits
+            --allowed-tools "ScheduleWakeup"
+
+      - name: Report execution file for manual inspection
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          set -euo pipefail
+          # CLAUDE_CODE_DISABLE_CRON=1 is set at the claude step env; its cloud effect on
+          # ScheduleWakeup is read from this run's execution file and lifecycle post hoc.
+          printf 'execution_file: %s\n' "${EXECUTION_FILE}"
 
   # issue #437 — capture the SHAPE of claude-code-action's execution_file and settle
   # the unproven "the token/wall-clock cost half is unreconstructable" claim in
