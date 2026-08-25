@@ -90,11 +90,9 @@ workpad._required_artifact_verdict = lambda prog_content: None
 # re-installs this bypass after.
 _REAL_REVIEW_COVERAGE_VERDICT = workpad._review_coverage_verdict
 workpad._review_coverage_verdict = lambda prog_content: None
-# issue #1817: the terminal `--status Complete` gate ALSO now refuses an
-# `_EXTENSION_ROWS` row that is unticked with no `state not established` note.
-# Bypassed by default for the same reason as the three verdicts above — the pre-#1817
-# Complete tests exercise those members, not this one; the dedicated #1817 block
-# restores the real function, exercises it directly, and re-installs this bypass after.
+# Bypassed like the three verdicts above: do not drop this bypass, or every pre-#1817
+# Complete test starts failing on unticked extension rows it never set up. The
+# dedicated #1817 block restores the real function and re-installs this bypass after.
 _REAL_EXTENSION_ROW_VERDICT = workpad._extension_row_verdict
 workpad._extension_row_verdict = lambda prog_content: None
 parse_acs = _load('parse_acs', SCRIPTS / 'parse-acs.py')
@@ -12431,6 +12429,27 @@ _ext_legacy = _CP_BODY.replace("- [ ] AC1", "- [x] AC1")
 _legacy_res = apply_mut(_ext_legacy, make_args(status="Complete"), [])
 assert_eq("#1817 gotcha: a wholly-absent extension-row set does not detonate the gate",
           True, "🎉 Complete" in _statusline(_legacy_res))
+
+# Mixed row presence — the realistic partially-reconciled workpad: some `_EXTENSION_ROWS`
+# members are wholly absent while another is present-and-offending. The per-row absence
+# tolerance must not swallow the genuine offender beside it, and only the present row is
+# named. `_EXT_BODY` minus the two Review-tier rows, with `fix loop` left unticked.
+_EXT_MIXED = _EXT_BODY.replace(
+    "  - [x] prompt extension resolved: review engine\n", "").replace(
+    "  - [x] prompt extension resolved: code-review reception\n", "").replace(
+    "  - [x] prompt extension resolved: fix loop",
+    "  - [ ] prompt extension resolved: fix loop")
+_ext_mixed_err = None
+try:
+    apply_mut(_EXT_MIXED, make_args(status="Complete"), [])
+except workpad._UpdateError as e:
+    _ext_mixed_err = str(e)
+assert_eq("#1817: a partially-reconciled workpad still refuses on its one present offender",
+          True, _ext_mixed_err is not None
+          and "1 prompt-extension row(s)" in _ext_mixed_err
+          and "prompt extension resolved: fix loop" in _ext_mixed_err
+          and "review engine" not in _ext_mixed_err
+          and "code-review reception" not in _ext_mixed_err)
 
 # The pure-read invariant, directly: the verdict takes only its progress-content
 # argument, returns None on a satisfied ## Progress and raises on an unsatisfied one.
