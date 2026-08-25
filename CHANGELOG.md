@@ -4,6 +4,21 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.17] — 2026-08-25
+
+### Added
+- **Retrospective entries now record `analysis_provenance`.** A live Stage A retrospective run
+  records an `analysis_provenance` object — booleans `bundle_diff_present`,
+  `bundle_workpad_body_present`, and `bundle_issue_comments_present` — on the entries it writes
+  (both the gate-skipped clean-path entry in `lib/clean-entry.jq` and an LLM-judged entry),
+  each reflecting what the analyst's context bundle actually contained. The field names match
+  the existing backfill cohort's, so diff-present and diff-absent entries can be segmented
+  rather than pooled indistinguishably; `schema_version` is bumped to 3. Existing entries are
+  left byte-unchanged. (#1950)
+
+### Changed
+- **`/prflow:implement` Phase 4 now resumes directly after a documentation or PR-description subagent returns.** These are Agent-tool dispatches whose returns enter the orchestrator's context as a report only, so the run proceeds to the next sub-step without re-reading the whole phase file — dropping the repeated full re-read that runs were truncating. The prompt-extension re-load still fires at both boundaries, and the full re-read stays mandatory at every phase entry, every mid-phase Skill-tool return, and the nested-skill completion re-anchor. (#1954)
+
 ## [2.34.16] — 2026-08-25
 
 ### Changed

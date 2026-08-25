@@ -10,9 +10,9 @@ Move an existing cloud installation to a newer PRFlow release without losing rep
 Download the newer installer and use the same new release tag for its payload:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.16/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.17/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.34.16 bash devflow-install.sh
+DEVFLOW_REF=v2.34.17 bash devflow-install.sh
 ```
 
 An existing installation runs in dry-run mode by default. The installer does not intentionally change the target repository in this mode. It can create temporary files, and it still executes the downloaded installer. Inspect and verify the file before running it.
@@ -22,7 +22,7 @@ An existing installation runs in dry-run mode by default. The installer does not
 After reviewing the preview, apply the same payload:
 
 ```bash
-DEVFLOW_REF=v2.34.16 bash devflow-install.sh --apply
+DEVFLOW_REF=v2.34.17 bash devflow-install.sh --apply
 ```
 
 Review `git status` and `git diff` before committing. Re-running the installer refreshes managed workflows, actions and the schema. It backfills newly scaffolded config keys while preserving existing values and arrays.
