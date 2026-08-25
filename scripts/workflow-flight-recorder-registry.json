@@ -96,80 +96,258 @@
       "minimum_assertions": 286,
       "assertion_floor_policy": "exact",
       "description": "Focused drivers for scripts/issue-audit-state.py, the create-issue Step 3.6 audit-lifecycle state owner: the restricted-PATH CLI round trip and its #889 quoted-draft-line findings, the #603 digest filter-mode rows and the stale pre-cutover event log, the query exit contract, re-init/force and foreign-nonce rows, the embed-arm emitter, creation binding, override attestation and preconditions, the next-action and user-round budgets, illegal transitions, shadow and convergence rounds, the iteration-3/4/5/6 hardening, variance and seam rows, the retry-arm deadlock matrix, the #562 draft-binding CLI rows, the #569 write-path cross-check, and the #1803 summary-block three-part output contract + batched finding-evidence records-file rows"
+    },
+    "review-contract": {
+      "path": "lib/test/modules/review-contract.sh",
+      "minimum_assertions": 86,
+      "assertion_floor_policy": "exact",
+      "description": "skills/review render-time probe-verdict helpers: scripts/placeholder-probe-verdict.py (#1264) and scripts/skill-body-load-probe-verdict.py (#1618/#1897), driven inline as self-contained executable probe blocks."
+    },
+    "workpad-cli": {
+      "path": "lib/test/modules/workpad-cli.sh",
+      "minimum_assertions": 85,
+      "assertion_floor_policy": "exact",
+      "description": "scripts/workpad.py CLI contract: the #338 --rewrite-ac (post-merge) retag-requires-note structural-abort guard, driven as a real CLI subprocess against a gh stub."
+    },
+    "implement-contract": {
+      "path": "lib/test/modules/implement-contract.sh",
+      "minimum_assertions": 14,
+      "assertion_floor_policy": "exact",
+      "description": "skills/implement issue-body cache no-refetch lint (#693): lib/test/lint-issue-body-refetch.py driven over the real tree and the fixture --files-from arm."
     }
   },
   "workflows": {
     "implement": {
-      "user_commands": ["/prflow:implement", "/devflow:implement", "/implement"],
-      "skill_aliases": ["implement", "prflow:implement", "devflow:implement"],
+      "user_commands": [
+        "/prflow:implement",
+        "/devflow:implement",
+        "/implement"
+      ],
+      "skill_aliases": [
+        "implement",
+        "prflow:implement",
+        "devflow:implement"
+      ],
       "subject_kind": "issue",
       "argument_pattern": "(?:^|\\s)#?(?P<number>[0-9]+)(?:\\s|$)",
       "allowed_parents": [],
       "surfaces": [
-        {"glob": "skills/implement/SKILL.md", "load_class": "always", "required": true},
-        {"glob": "skills/implement/phases/*.md", "load_class": "phase", "required": true},
-        {"glob": "skills/implement/references/*.md", "load_class": "reference", "required": false},
-        {"glob": "skills/review/SKILL.md", "load_class": "nested", "required": true},
-        {"glob": "skills/review/phases/*.md", "load_class": "nested", "required": true},
-        {"glob": "skills/review-and-fix/SKILL.md", "load_class": "nested", "required": true},
-        {"glob": "skills/review-and-fix/references/*.md", "load_class": "reference", "required": false},
-        {"glob": "skills/docs/SKILL.md", "load_class": "nested", "required": false},
-        {"glob": ".prflow/prompt-extensions/implement.md", "load_class": "extension", "required": false},
-        {"glob": ".prflow/prompt-extensions/review-and-fix.md", "load_class": "extension", "required": false},
-        {"glob": ".prflow/prompt-extensions/review.md", "load_class": "extension", "required": false},
-        {"glob": ".prflow/prompt-extensions/receiving-code-review.md", "load_class": "extension", "required": false}
+        {
+          "glob": "skills/implement/SKILL.md",
+          "load_class": "always",
+          "required": true
+        },
+        {
+          "glob": "skills/implement/phases/*.md",
+          "load_class": "phase",
+          "required": true
+        },
+        {
+          "glob": "skills/implement/references/*.md",
+          "load_class": "reference",
+          "required": false
+        },
+        {
+          "glob": "skills/review/SKILL.md",
+          "load_class": "nested",
+          "required": true
+        },
+        {
+          "glob": "skills/review/phases/*.md",
+          "load_class": "nested",
+          "required": true
+        },
+        {
+          "glob": "skills/review-and-fix/SKILL.md",
+          "load_class": "nested",
+          "required": true
+        },
+        {
+          "glob": "skills/review-and-fix/references/*.md",
+          "load_class": "reference",
+          "required": false
+        },
+        {
+          "glob": "skills/docs/SKILL.md",
+          "load_class": "nested",
+          "required": false
+        },
+        {
+          "glob": ".prflow/prompt-extensions/implement.md",
+          "load_class": "extension",
+          "required": false
+        },
+        {
+          "glob": ".prflow/prompt-extensions/review-and-fix.md",
+          "load_class": "extension",
+          "required": false
+        },
+        {
+          "glob": ".prflow/prompt-extensions/review.md",
+          "load_class": "extension",
+          "required": false
+        },
+        {
+          "glob": ".prflow/prompt-extensions/receiving-code-review.md",
+          "load_class": "extension",
+          "required": false
+        }
       ]
     },
     "create-issue": {
-      "user_commands": ["/prflow:create-issue", "/devflow:create-issue", "/create-issue"],
-      "skill_aliases": ["create-issue", "prflow:create-issue", "devflow:create-issue"],
+      "user_commands": [
+        "/prflow:create-issue",
+        "/devflow:create-issue",
+        "/create-issue"
+      ],
+      "skill_aliases": [
+        "create-issue",
+        "prflow:create-issue",
+        "devflow:create-issue"
+      ],
       "subject_kind": "topic",
       "argument_pattern": null,
-      "allowed_parents": ["implement"],
+      "allowed_parents": [
+        "implement"
+      ],
       "surfaces": [
-        {"glob": "skills/create-issue/SKILL.md", "load_class": "always", "required": true},
-        {"glob": "skills/create-issue/references/*.md", "load_class": "reference", "required": false},
-        {"glob": ".prflow/prompt-extensions/create-issue.md", "load_class": "extension", "required": false}
+        {
+          "glob": "skills/create-issue/SKILL.md",
+          "load_class": "always",
+          "required": true
+        },
+        {
+          "glob": "skills/create-issue/references/*.md",
+          "load_class": "reference",
+          "required": false
+        },
+        {
+          "glob": ".prflow/prompt-extensions/create-issue.md",
+          "load_class": "extension",
+          "required": false
+        }
       ]
     },
     "receiving-code-review": {
-      "user_commands": ["/prflow:receiving-code-review", "/devflow:receiving-code-review"],
-      "skill_aliases": ["receiving-code-review", "prflow:receiving-code-review", "devflow:receiving-code-review"],
+      "user_commands": [
+        "/prflow:receiving-code-review",
+        "/devflow:receiving-code-review"
+      ],
+      "skill_aliases": [
+        "receiving-code-review",
+        "prflow:receiving-code-review",
+        "devflow:receiving-code-review"
+      ],
       "subject_kind": "pull_request",
       "argument_pattern": "(?:^|\\s)#?(?P<number>[0-9]+)(?:\\s|$)",
-      "allowed_parents": ["review-and-fix", "implement"],
+      "allowed_parents": [
+        "review-and-fix",
+        "implement"
+      ],
       "surfaces": [
-        {"glob": "skills/receiving-code-review/SKILL.md", "load_class": "always", "required": true},
-        {"glob": ".prflow/prompt-extensions/receiving-code-review.md", "load_class": "extension", "required": false}
+        {
+          "glob": "skills/receiving-code-review/SKILL.md",
+          "load_class": "always",
+          "required": true
+        },
+        {
+          "glob": ".prflow/prompt-extensions/receiving-code-review.md",
+          "load_class": "extension",
+          "required": false
+        }
       ]
     },
     "review-and-fix": {
-      "user_commands": ["/prflow:review-and-fix", "/devflow:review-and-fix", "/review-and-fix"],
-      "skill_aliases": ["review-and-fix", "prflow:review-and-fix", "devflow:review-and-fix"],
+      "user_commands": [
+        "/prflow:review-and-fix",
+        "/devflow:review-and-fix",
+        "/review-and-fix"
+      ],
+      "skill_aliases": [
+        "review-and-fix",
+        "prflow:review-and-fix",
+        "devflow:review-and-fix"
+      ],
       "subject_kind": "pull_request",
       "argument_pattern": "(?:^|\\s)#?(?P<number>[0-9]+)(?:\\s|$)",
-      "allowed_parents": ["implement"],
+      "allowed_parents": [
+        "implement"
+      ],
       "surfaces": [
-        {"glob": "skills/review-and-fix/SKILL.md", "load_class": "always", "required": true},
-        {"glob": "skills/review-and-fix/references/*.md", "load_class": "reference", "required": false},
-        {"glob": "skills/review/SKILL.md", "load_class": "nested", "required": true},
-        {"glob": "skills/review/phases/*.md", "load_class": "nested", "required": true},
-        {"glob": "skills/receiving-code-review/SKILL.md", "load_class": "nested", "required": true},
-        {"glob": ".prflow/prompt-extensions/review-and-fix.md", "load_class": "extension", "required": false},
-        {"glob": ".prflow/prompt-extensions/review.md", "load_class": "extension", "required": false},
-        {"glob": ".prflow/prompt-extensions/receiving-code-review.md", "load_class": "extension", "required": false}
+        {
+          "glob": "skills/review-and-fix/SKILL.md",
+          "load_class": "always",
+          "required": true
+        },
+        {
+          "glob": "skills/review-and-fix/references/*.md",
+          "load_class": "reference",
+          "required": false
+        },
+        {
+          "glob": "skills/review/SKILL.md",
+          "load_class": "nested",
+          "required": true
+        },
+        {
+          "glob": "skills/review/phases/*.md",
+          "load_class": "nested",
+          "required": true
+        },
+        {
+          "glob": "skills/receiving-code-review/SKILL.md",
+          "load_class": "nested",
+          "required": true
+        },
+        {
+          "glob": ".prflow/prompt-extensions/review-and-fix.md",
+          "load_class": "extension",
+          "required": false
+        },
+        {
+          "glob": ".prflow/prompt-extensions/review.md",
+          "load_class": "extension",
+          "required": false
+        },
+        {
+          "glob": ".prflow/prompt-extensions/receiving-code-review.md",
+          "load_class": "extension",
+          "required": false
+        }
       ]
     },
     "review": {
-      "user_commands": ["/prflow:review", "/devflow:review", "/review"],
-      "skill_aliases": ["review", "prflow:review", "devflow:review"],
+      "user_commands": [
+        "/prflow:review",
+        "/devflow:review",
+        "/review"
+      ],
+      "skill_aliases": [
+        "review",
+        "prflow:review",
+        "devflow:review"
+      ],
       "subject_kind": "pull_request",
       "argument_pattern": "(?:^|\\s)#?(?P<number>[0-9]+)(?:\\s|$)",
-      "allowed_parents": ["implement"],
+      "allowed_parents": [
+        "implement"
+      ],
       "surfaces": [
-        {"glob": "skills/review/SKILL.md", "load_class": "always", "required": true},
-        {"glob": "skills/review/phases/*.md", "load_class": "phase", "required": true},
-        {"glob": ".prflow/prompt-extensions/review.md", "load_class": "extension", "required": false}
+        {
+          "glob": "skills/review/SKILL.md",
+          "load_class": "always",
+          "required": true
+        },
+        {
+          "glob": "skills/review/phases/*.md",
+          "load_class": "phase",
+          "required": true
+        },
+        {
+          "glob": ".prflow/prompt-extensions/review.md",
+          "load_class": "extension",
+          "required": false
+        }
       ]
     }
   },
@@ -177,8 +355,21 @@
     "schema_version": 1,
     "comment": "Trusted cloud workflow/job -> DevFlow consumer mapping, read ONLY by the verification-launch baseline analyzer's cloud census eligibility (issue #527). load_registry ignores this additive section, so the top-level schema_version stays 1 and the recorder is unaffected. A census job is eligible only when its (workflow_file, job) matches an entry below AND the census records scheduled/started agent-step evidence (a skipped job, which never ran its agent step, is ineligible); any job whose (workflow_file, job) is not listed below is ineligible by omission. DELIBERATE OMISSION, recorded so an omission-by-oversight is distinguishable from an omission-by-intent (PR #531 review, completeness-critic): .github/workflows/matcher-probe.yml also runs claude-code-action (in its probe / implement-probe / schedulewakeup-probe / execfile-shape-probe / hook-probe jobs) and is deliberately absent — it is repo-internal permission-probe infrastructure, is not shipped by install.sh, and runs no DevFlow consumer lifecycle, so its runs are not verification-launch subjects. DELIBERATE REMOVAL (issue #936): .github/workflows/devflow-review.yml carried an entry here for its 'review / run' agent job. That workflow — the automatic pull-request-triggered review tier's caller — is withheld from this release and removed from the tree, so the entry was removed with it as a deliberate change to this census, not a silent deletion; a future reconstruction of that tier re-adds it. matcher-probe.yml is the only OTHER claude-code-action workflow excluded on purpose (repo-internal, never shipped); an agent job appearing in .github/workflows/ that is neither listed below nor named here is an oversight, not a carve-out. agent_step is the step ID (the `Run Claude Code` step's `id: claude`) that runs the claude-code-action agent in each listed workflow (informational only; census eligibility keys on job-level scheduled/started status, not the step name, because the census snapshot is job-level). Job values are the Actions jobs-API NAMES: a job that calls a reusable workflow surfaces its nested jobs as 'caller-job / called-job' so a caller's agent job reports as 'caller-job / called-job'; devflow-runner.yml is workflow_call-only — it never appears as its own workflow run, and since issue #936 removed its sole caller it has no reachable entry point at all, so it carries no entry here (PR #531 review). WAVE-1 CONSUMER APPROXIMATION: devflow.yml's 'command' job multiplexes /devflow:review, /devflow:review-and-fix, and /devflow:pr-description; because the census snapshot is job-level, all of its runs are attributed to consumer='review'/routed_command='/devflow:review' as a Wave-1 approximation — downstream stratification must not treat this consumer attribution as exact for the command job (PR #531 review).",
     "agent_jobs": [
-      {"workflow_file": ".github/workflows/devflow-implement.yml", "job": "claude", "agent_step": "claude", "consumer": "implement", "routed_command": "/devflow:implement"},
-      {"workflow_file": ".github/workflows/devflow.yml", "job": "command", "agent_step": "claude", "consumer": "review", "routed_command": "/devflow:review", "consumer_approximate": true}
+      {
+        "workflow_file": ".github/workflows/devflow-implement.yml",
+        "job": "claude",
+        "agent_step": "claude",
+        "consumer": "implement",
+        "routed_command": "/devflow:implement"
+      },
+      {
+        "workflow_file": ".github/workflows/devflow.yml",
+        "job": "command",
+        "agent_step": "claude",
+        "consumer": "review",
+        "routed_command": "/devflow:review",
+        "consumer_approximate": true
+      }
     ]
   }
 }
