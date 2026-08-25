@@ -111,12 +111,9 @@ resume-precheck/Signals/creation/Verdict-B procedure out of `phase-1-setup.md` i
 dispatched `branch-setup` subagent, following #1576's earlier move of Phase 1.6's
 Issue-Claim Audit procedure into `issue-claim-auditor`). These are on-disk `wc -c` byte
 counts, quoted in KiB. They rot as the phase files change; re-derive them rather than
-trusting these numbers.
-
-**The phase-file set has grown from four files to eight since this table was taken** —
-issue #1606 split Phases 2 and 3 into ordered sets — so the four rows below are the set as
-it stood at `2c85a931d`, not today's. The table is a frozen record and is deliberately not
-re-rendered; re-derive today's figures with the command beneath it.
+trusting these numbers. **The phase-file set has since grown from four files to eight** —
+issue #1606 gave Phases 2 and 3 the three-member sets described above — so the four rows
+below are that set as it stood, not today's.
 
 | file | bytes | KiB | loader |
 |---|---|---|---|
@@ -316,17 +313,16 @@ run over 200K, and a phase-3 re-entry); they are **not** a measurement of any re
 
 The corpus that produced these figures lives only on the maintainer's machine, so
 **no CI check can re-derive them**. They are a documented past-time snapshot, stamped
-with provenance, and are **never** presented as a live-generated figure. No gate,
-ceiling, or threshold reads them; the snapshot's integrity rests on its stamped
-provenance alone.
+with provenance, and no gate, ceiling, or threshold reads them.
 
 | Field | Value |
 | --- | --- |
 | Generating instrument | `scripts/implement-context-eval.py` |
 | Generating revision | `cccf0e5f7038c5e5460383ce3c7bdd962b3e21a7` |
 | Capture date | 2026-08-25 |
-| Corpus size | 6,647 session transcripts from one local Claude Code account, yielding **148** bounded `/prflow:implement` runs |
-| Tier covered | local/interactive only (see *Cloud-tier runs are not measurable today* below) |
+| Corpus root | `~/.claude*/projects/**/*.jsonl` (one local account; the others were empty) |
+| Corpus size | 6,647 session transcripts, yielding **148** bounded `/prflow:implement` runs |
+| Tier covered | local/interactive only |
 | Median peak main-thread context | **138K** tokens |
 | Max peak main-thread context | **424K** tokens |
 | Runs exceeding 200K | **31** of 148 |
@@ -336,7 +332,7 @@ provenance alone.
 | Phase-file reads, corpus total | phase-1 157, phase-2 59, phase-3 23, phase-4 4 |
 | Median / max phase-file reads per run | **1** / **8** |
 | Median / max main-thread tool calls per run | **6** / **167** |
-| Turns with no `usage` object | **0** |
+| Turns with no `usage` object | **0** — a non-zero count would mean the peak figures rest on fewer turns than the run held |
 
 A later maintainer adds a second stamped record beneath this one rather than editing this
 one in place: re-rendering a past-time record overwrites the measurement and falsifies it.
@@ -347,16 +343,14 @@ Re-derive a real-corpus figure by pointing the instrument at a transcript direct
 python3 scripts/implement-context-eval.py <transcript-dir> --format json
 ```
 
-That is a different command from the fixture reproduction above, which runs against the
-committed synthetic corpus and re-derives nothing about a real run. The transcript directory
-is deliberately not named on this page: `lib/test/test_implement_context_eval.py` scans it
-against a fixed owner-identifying pattern set, so writing such a path in turns the suite red.
+Its transcript-directory operand is what separates it from the fixture reproduction above.
+Substitute the corpus root, not an absolute path: `lib/test/test_implement_context_eval.py`
+scans this page against a fixed owner-identifying pattern set, so a path naming a machine
+owner turns the suite red.
 
 **What the corpus shows.** Phase-1 reads dominate the corpus total, and the per-run
-distribution is heavily skewed — a median run reads one phase file while the heaviest reads
-eight. The tail, not the median, is what the re-read multiplier costs: a median run peaks at
-138K while the heaviest reaches 424K. Compaction fired in 11 of 148 runs, so it is an
-observed local-tier event rather than a hypothetical one.
+distribution is heavily skewed. The tail, not the median, is what the re-read multiplier
+costs. Compaction is an observed local-tier event rather than a hypothetical one.
 
 **Cloud-tier runs are not measurable by this tool today.** `devflow-implement.yml` uploads
 its scrubbed transcript under a name ending `.json`, while the collector in
