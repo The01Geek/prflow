@@ -296,8 +296,10 @@ def iter_view:
       added_nothing: ($fixes_applied == 0),
       # The roster is "present" iff the field exists at all. A legitimately-empty
       # roster ("phase3_dispatched": []) is still present — only a genuinely
-      # absent field triggers the degradation warning in the trace.
-      phase3_dispatched_present: ($it | has("phase3_dispatched")),
+      # absent field triggers the degradation warning in the trace. Reuses the
+      # $roster_established binding above (the same has() test) rather than
+      # re-evaluating it.
+      phase3_dispatched_present: $roster_established,
       # Presence mirror for the #609 roster field, same unknown-vs-zero honesty
       # as phase3_dispatched_present: an empty array is present; only a
       # genuinely absent field reads false (an older workpad).
