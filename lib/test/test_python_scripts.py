@@ -35994,8 +35994,17 @@ _MANIFEST_1388 = SCRIPTS.parent / '.prflow' / 'lint-manifest.json'
 # lint_provision.build_plan — established tuple resolves artifact + trusted URL.
 _p1388 = _lint_provision.build_plan(_MANIFEST_1388, 'shellcheck', 'linux', 'x86_64')
 assert_eq("#1388 plan: linux/x86_64 shellcheck established", "established", _p1388.status)
+# The expected digest is read from the manifest itself (not a hardcoded constant) — this
+# assertion's purpose is that build_plan surfaces the manifest's digest verbatim (plumbing),
+# so a dynamic expected stays meaningful across future manifest version bumps.
+with open(_MANIFEST_1388, encoding='utf-8') as _mf1388:
+    _manifest1388 = json.load(_mf1388)
+_expected_digest_1388 = next(
+    a['digest'] for a in _manifest1388['tools']['shellcheck']['artifacts']
+    if a['os'] == 'linux' and a['arch'] == 'x86_64'
+)
 assert_eq("#1388 plan: resolves the manifest's pinned digest",
-          "sha256:6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbea39c", _p1388.digest)
+          _expected_digest_1388, _p1388.digest)
 assert_eq("#1388 plan: trusted URL keyed on version+os+arch (no manifest string)",
           "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz",
           _p1388.url)
