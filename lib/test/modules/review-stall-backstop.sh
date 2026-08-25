@@ -349,6 +349,12 @@ assert_eq "#415 swv: ScheduleWakeup denied with no registered attempt → REMOVE
 printf '%s' '[{"permission_denials":[{"tool":"ToolSearch","input":{"query":"select:ScheduleWakeup"}}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
 assert_eq "#415 swv: a denial naming a different tool with the token only in its input is NOT a ship (INCONCLUSIVE)" "yes" \
   "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
+# Arm (issue #1527): the denial name lookup honors the `tool_name` field, not only `tool`
+# — a denial recording ScheduleWakeup under `tool_name` (no registered attempt) still reads
+# REMOVED, so dropping the `tool_name`/`name` keys from the lookup would regress this arm.
+printf '%s' '[{"permission_denials":[{"tool_name":"ScheduleWakeup"}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
+assert_eq "#415 swv: a ScheduleWakeup denial recorded under tool_name (not tool) still reads REMOVED" "yes" \
+  "$(swv_has_row "$SWV_F" '| **REMOVED** | yes |')"
 # Arm: INCONCLUSIVE — the before control ran but nothing positive (no denial, no attempt).
 # The verdict no longer keys on the controls (issue #1527), so no positive signal means
 # INCONCLUSIVE here, not the shippable REMOVED. "Unknown is not zero."

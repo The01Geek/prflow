@@ -136,14 +136,13 @@ def collect(parsed):
                     # Record the denied tool's NAME field only, so the denial predicate
                     # (which gates SHIP) keys on the name and not on the token appearing
                     # anywhere in the serialized record (issue #1527) — the same
-                    # false-positive vector the attempt predicate closes. An unrecognized
-                    # shape yields no name and fails safe (no ship), never a false one.
-                    if isinstance(d, dict):
-                        denial_names.append(
-                            " ".join(str(d.get(k, "")) for k in ("tool", "tool_name", "name"))
-                        )
-                    else:
-                        denial_names.append(str(d))
+                    # false-positive vector the attempt predicate closes. A non-dict or
+                    # name-field-less entry yields no name and fails safe (no ship).
+                    denial_names.append(
+                        " ".join(str(d.get(k, "")) for k in ("tool", "tool_name", "name"))
+                        if isinstance(d, dict)
+                        else ""
+                    )
             for v in o.values():
                 walk(v)
         elif isinstance(o, list):

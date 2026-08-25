@@ -1424,14 +1424,16 @@ jobs:
   schedulewakeup-disable-cron-probe:
     if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    env:
-      CLAUDE_CODE_DISABLE_CRON: "1"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
       - name: Run Claude Code (CLAUDE_CODE_DISABLE_CRON cloud probe)
         id: claude
+        env:
+          # The variable under test, set at STEP level (mirroring the background-tasks
+          # probe) so a step-level env cannot shadow it inert (issue #1527).
+          CLAUDE_CODE_DISABLE_CRON: "1"
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -1455,8 +1457,8 @@ jobs:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
         run: |
           set -euo pipefail
-          # CLAUDE_CODE_DISABLE_CRON=1 is set at job env; its cloud effect on ScheduleWakeup
-          # is read from this run's execution file and lifecycle post hoc.
+          # CLAUDE_CODE_DISABLE_CRON=1 is set at the claude step env; its cloud effect on
+          # ScheduleWakeup is read from this run's execution file and lifecycle post hoc.
           printf 'execution_file: %s\n' "${EXECUTION_FILE}"
 
   # issue #437 — capture the SHAPE of claude-code-action's execution_file and settle
