@@ -135,10 +135,10 @@ esac
 # Echo the captured log so the shard job's own log carries the detail too.
 cat "$LOG_FILE" || true
 
-# Name the retained log by absolute path on every exit so a reader who tail-piped
-# the echo above can re-read it instead of re-executing the shard (issue #1923);
-# the CLAUDE.md tail-pipe bullet relies on this line existing.
-LOG_FILE_ABS="$(cd "$(dirname "$LOG_FILE")" && pwd -P)/$(basename "$LOG_FILE")"
+# Name the retained log's absolute path on the passing and failing shard exit, so a
+# tail-piped reader re-reads it instead of re-executing (issue #1923); the CLAUDE.md
+# tail-pipe bullet relies on this line, and builtins keep it off non-preflight tools.
+LOG_FILE_ABS="$(cd "${LOG_FILE%/*}" && pwd -P)/${LOG_FILE##*/}"
 printf 'run-shard.sh: retained log: %s\n' "$LOG_FILE_ABS"
 
 # Extract the tally. shard-tally.py fails closed: a non-zero shard_rc with no
