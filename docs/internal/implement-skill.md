@@ -995,14 +995,11 @@ owe a verification round when the very next step verifies it — `skills/impleme
 §3.2 states this for the shipped skill.
 
 After `/simplify` completes, Phase 3.2 also writes one machine-findable **outcome record** to the
-workpad — a `## Progress` `--note`, in the same call as the `simplify` tick — opening with the
-fixed lead phrase `simplify outcome:` followed by three tallies: findings generated, findings
-applied, and findings skipped as AC conflicts. The record is written on **every** run: a run where
-`/simplify` reported the diff already clean records the same lead phrase with all three tallies
-zero, so a zero-yield run is distinguishable from a run that never wrote the record. It sits beside
-the per-finding AC-conflict skip notes (`skipped /simplify finding: …`, unchanged since #193),
-giving the weekly retrospective a per-run signal it can grep by lead phrase and aggregate to
-measure §3.2's yield across runs. §3.2 stays unconditional — no predicate gates whether it runs.
+workpad — a `## Progress` `--note` opening with the fixed lead phrase `simplify outcome:`, tallying
+findings generated, applied, and skipped as AC conflicts (all zero when `/simplify` reported the
+diff already clean, so a zero-yield run is distinguishable from a run that never wrote the record).
+It gives the weekly retrospective a per-run signal it can grep by lead phrase to measure §3.2's
+yield across runs; `skills/implement/phases/phase-3-review.md` §3.2 states the shipped contract.
 
 The Phase 3.2 tick passes the **host-safe substring** `simplify`, not `/simplify`, while the
 displayed `` `/simplify` `` Progress row keeps its label. A standalone slash-leading argument is
