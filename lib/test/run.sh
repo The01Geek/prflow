@@ -50139,6 +50139,14 @@ RCE_TEST_RC=$?
 assert_eq "issue #1852: review context eval focused tests pass" "0" "$RCE_TEST_RC"
 [ "$RCE_TEST_RC" -eq 0 ] || while IFS= read -r _rce_line || [ -n "$_rce_line" ]; do printf '    %s\n' "$_rce_line"; done <<< "$RCE_TEST_OUT"
 
+# subject-grouping helper coverage (issue #1928): runs the focused test for
+# lib/test/group_labels_by_subject.py serially on the main shell. This block INVOKES the
+# test, not the script.
+GLBS_TEST_OUT="$(python3 "$LIB/test/test_group_labels_by_subject.py" 2>&1)"
+GLBS_TEST_RC=$?
+assert_eq "issue #1928: subject-grouping helper focused tests pass" "0" "$GLBS_TEST_RC"
+[ "$GLBS_TEST_RC" -eq 0 ] || while IFS= read -r _glbs_line || [ -n "$_glbs_line" ]; do printf '    %s\n' "$_glbs_line"; done <<< "$GLBS_TEST_OUT"
+
 # context_eval_shared coverage (issue #1900): the five helpers single-sourced out of the three
 # instruments. Asserts strict post-#1899 behavior on scripts/context_eval_shared.py + that each
 # instrument (and the create-issue shim) re-exports the SAME object. INVOKES the test, not a script.
