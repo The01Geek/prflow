@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1950",
+  "generated_at": "2026-08-25T15:11:31Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.553586749999999,
+    "tokens": {
+      "input_tokens": 28,
+      "output_tokens": 19124,
+      "cache_read_input_tokens": 1703164,
+      "cache_creation_input_tokens": 152048,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 74,
+        "outputTokens": 41689,
+        "cacheReadInputTokens": 2675086,
+        "cacheCreationInputTokens": 416523,
+        "webSearchRequests": 0,
+        "costUSD": 5.553586749999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 21,
+    "duration_ms": 975931
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-} ATTEMPT=${GITHUB_RUN_ATTEMPT:-} ACTIONS=${GITHUB_ACTIONS:-}\"",
+      "for iss in '\"astring\"' '42' '[1,2]' 'true' 'null'; do echo -n \"issue=$iss => \"; echo \"{\\\"issue\\\":$iss}\" | jq -c '((.issue.comments // []) | length > 0)' 2>&1; done"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
