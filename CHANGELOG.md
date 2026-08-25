@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.16] — 2026-08-25
+
+### Changed
+- **The create-issue template now opens every issue's Problem Statement with a mandated user-story sentence.** `skills/create-issue/references/issue-template.md` instructs the drafter to open `## Problem Statement` with one sentence in the form `As a <role>, I want <capability>, so that <outcome>.` before the free-prose narrative, on every issue; the no-options rule's carve-out set names that sentence so its "I want" phrasing is never flagged as hedge language, and the worked example and quality checklist are updated to match. (#1948)
+
 ## [2.34.15] — 2026-08-25
 
 ### Changed
