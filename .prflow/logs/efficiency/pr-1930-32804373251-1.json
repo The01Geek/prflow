@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1930",
+  "generated_at": "2026-08-25T03:49:30Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.11",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 7.547118,
+    "tokens": {
+      "input_tokens": 98,
+      "output_tokens": 37303,
+      "cache_read_input_tokens": 9047306,
+      "cache_creation_input_tokens": 209040,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 98,
+        "outputTokens": 37303,
+        "cacheReadInputTokens": 9047306,
+        "cacheCreationInputTokens": 209040,
+        "webSearchRequests": 0,
+        "costUSD": 7.547118,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 72,
+    "duration_ms": 2067922
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset}\"; echo \"RUNNER_TEMP=${RUNNER_TEMP:-unset}\"; git branch --show-current; git status --porcelain | head",
+      "git status --porcelain; echo \"---diffstat vs merge-base main---\"; git diff --stat $(git merge-base origin/main HEAD)..HEAD; echo \"---behind main by---\"; git rev-list --count HEAD..origin/main"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
