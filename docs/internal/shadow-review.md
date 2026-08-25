@@ -232,10 +232,12 @@ A degraded pass must **never** clear a PR with a clean verdict. The guard is the
   (`expected_reviewers`) is recorded on **every** outcome — including not-verified — so the
   Coverage section can explain *why* a shortfall was a shortfall, and so a gated-out analyzer is
   never confused with a dropped reviewer.
-- **The expected roster is mechanical**, and computed from the **shadow's own** Phase 0.5
-  classification (the shadow re-runs Phases 0–4.3, producing its own `diff_profile` — a post-fix
-  diff can legitimately flip `has_new_types` or the test predicate, so validate against *that*,
-  not the loop's last-iter profile):
+- **The expected roster is mechanical**, recorded by the shadow engine as `expected_reviewers`
+  in its return (its own Phase 3.1 gate decisions — the shadow re-runs Phases 0–4.3 and evaluates
+  the gates against its own diff, since a post-fix diff can legitimately flip `has_new_types` or
+  the test predicate; `diff_profile` cannot express the test-relevance predicate, so the parent
+  reads the reported roster rather than recomputing it, and validates the dispatched roster
+  against *that*, not the loop's last-iter profile):
   - the four **always-on** agents — `prflow:code-reviewer`,
     `prflow:silent-failure-hunter`, `prflow:comment-analyzer`,
     `prflow:requesting-code-review` — unconditionally; **plus**
