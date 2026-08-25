@@ -48000,6 +48000,13 @@ _d487_sha() {
 }
 
 D487=$(mktemp -d)
+# Region scratch-containment (issue #1925): save the ambient RUNNER_TEMP, unset any inherited job-wide
+# refresher paths (a defensive superset of the Start step's publications), and point RUNNER_TEMP at $D487
+# — so an arm that omits an override cannot inherit a live path. Restored before `rm -rf "$D487"`.
+_RT_WAS_SET_1925="${RUNNER_TEMP+set}"; _RT_SAVED_1925="${RUNNER_TEMP:-}"
+unset DEVFLOW_REFRESH_PIDFILE DEVFLOW_REFRESH_LOG DEVFLOW_REFRESH_SELFTEST_FAILED \
+      DEVFLOW_REFRESH_REAP_GLOB DEVFLOW_REFRESH_JOB_POINTER DEVFLOW_GH_TOKEN_FILE 2>/dev/null || true
+export RUNNER_TEMP="$D487"
 CFG487="$D487/cred.config"
 TOK487="$D487/tokfile"
 git config --file "$CFG487" "http.https://github.com/.extraheader" \
@@ -48654,6 +48661,40 @@ assert_eq "#491 arm30: the successful call preserves rc 0" "0" "$_a30_rc"
 # demands a running pid); stop-refresher.sh itself retires it via the pidfile.
 STOP_SH="$LIB/../scripts/stop-refresher.sh"
 _defeat487() { printf '%s' "$1" | grep -qF 'credential refresher may not have kept credentials fresh' && echo yes || echo no; }
+# Region scratch-containment guard (issue #1925): _refresher_scratch_guard returns 1 (naming the arm
+# and offending path) for a path outside $D487; _stop_sh_guarded guards stop-refresher's effective paths
+# and fails the suite on a violation, so an arm that reaches a live $RUNNER_TEMP is caught, not run silently.
+_refresher_scratch_guard() {
+  _rsg_label="$1"; _rsg_scratch="$2"; shift 2
+  _rsg_rc=0
+  for _rsg_p in "$@"; do
+    [ -n "$_rsg_p" ] || continue
+    case "$_rsg_p" in
+      "$_rsg_scratch"/*) : ;;
+      *) printf "refresher-guard: arm '%s' resolved '%s' outside the scratch dir %s\n" "$_rsg_label" "$_rsg_p" "$_rsg_scratch" >&2; _rsg_rc=1 ;;
+    esac
+  done
+  return "$_rsg_rc"
+}
+_stop_sh_guarded() {
+  # These defaults MIRROR scripts/stop-refresher.sh's own; do not edit one side alone —
+  # the pin below goes RED, and a drifted mirror would guard stale paths while the
+  # helper's real ones reach a live $RUNNER_TEMP unchecked.
+  _ssg_pid="${DEVFLOW_REFRESH_PIDFILE:-${RUNNER_TEMP:-/tmp}/devflow-refresh.pid}"
+  _ssg_log="${DEVFLOW_REFRESH_LOG:-${RUNNER_TEMP:-/tmp}/devflow-refresh.log}"
+  _ssg_reap="${DEVFLOW_REFRESH_REAP_GLOB:-${RUNNER_TEMP:-/tmp}/devflow-refresh-*.pid}"
+  _ssg_st="${DEVFLOW_REFRESH_SELFTEST_FAILED:-}"
+  if ! _refresher_scratch_guard "$1" "$D487" "$_ssg_pid" "$_ssg_log" "$_ssg_reap" "$_ssg_st"; then
+    echo FAIL >> "$RESULTS_FILE"
+    record_fail "#1925 refresher-guard: arm '$1' resolved a refresher path outside the scratch dir $D487"
+  fi
+  bash "$STOP_SH"
+}
+# structural-pin-ok: helper-contract -- _stop_sh_guarded above re-derives stop-refresher.sh's default
+# pidfile/log/reap-glob expressions; this pins the helper's side of that mirror so a default change
+# there turns the suite RED instead of leaving the containment guard validating stale paths.
+assert_eq "#1925 guard mirror: stop-refresher.sh still carries the default pidfile/log/reap expressions _stop_sh_guarded mirrors" "1 1 1 1" \
+  "$(grep -cF 'PIDFILE="${DEVFLOW_REFRESH_PIDFILE:-${RUNNER_TEMP:-/tmp}/devflow-refresh.pid}"' "$STOP_SH") $(grep -cF 'LOG="${DEVFLOW_REFRESH_LOG:-${RUNNER_TEMP:-/tmp}/devflow-refresh.log}"' "$STOP_SH") $(grep -cF '_reap_base="${RUNNER_TEMP:-/tmp}"' "$STOP_SH") $(grep -cF 'REAP_GLOB="$_reap_base/devflow-refresh-*.pid"' "$STOP_SH")"
 assert_eq "#487 stop-refresher exists (extracted from the workflow Stop step)" "yes" \
   "$([ -f "$STOP_SH" ] && echo yes || echo no)"
 
@@ -48662,7 +48703,7 @@ assert_eq "#487 stop-refresher exists (extracted from the workflow Stop step)" "
 # same fixture shape, only liveness differs.
 sleep 300 & _live13=$!
 echo "$_live13" > "$D487/pidA"; printf 'refresh-app-credentials: cycle OK (credentials refreshed)\n' > "$D487/logA"
-_s13="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidA" DEVFLOW_REFRESH_LOG="$D487/logA" bash "$STOP_SH" 2>&1)"; _s13_rc=$?
+_s13="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidA" DEVFLOW_REFRESH_LOG="$D487/logA" _stop_sh_guarded arm13 2>&1)"; _s13_rc=$?
 assert_eq "#487 arm13: recovered transient (live pid, last cycle OK) does NOT warn defeated" "no" "$(_defeat487 "$_s13")"
 assert_eq "#487 arm13: stop-refresher always exits 0" "0" "$_s13_rc"
 assert_eq "#487 arm13: a live refresher is signalled (kill by pidfile)" "yes" \
@@ -48670,17 +48711,17 @@ assert_eq "#487 arm13: a live refresher is signalled (kill by pidfile)" "yes" \
 kill "$_live13" 2>/dev/null; wait "$_live13" 2>/dev/null || true
 
 # Arm 14 — pidfile absent AND the Start step ran (STARTED=success) → genuine defeat → warn.
-_s14="$(DEVFLOW_REFRESH_STARTED=success DEVFLOW_REFRESH_PIDFILE="$D487/absentpid" DEVFLOW_REFRESH_LOG="$D487/absentlog" bash "$STOP_SH" 2>&1)"
+_s14="$(DEVFLOW_REFRESH_STARTED=success DEVFLOW_REFRESH_PIDFILE="$D487/absentpid" DEVFLOW_REFRESH_LOG="$D487/absentlog" _stop_sh_guarded arm14 2>&1)"
 assert_eq "#487 arm14: absent pidfile + Start ran (never started/crashed) warns defeated" "yes" "$(_defeat487 "$_s14")"
 
 # Arm 17 — pidfile absent BUT the Start step did NOT run (job aborted upstream:
 # STARTED=skipped) → missing pidfile is expected → NO false defeated warning.
-_s17="$(DEVFLOW_REFRESH_STARTED=skipped DEVFLOW_REFRESH_PIDFILE="$D487/absentpid" DEVFLOW_REFRESH_LOG="$D487/absentlog" bash "$STOP_SH" 2>&1)"
+_s17="$(DEVFLOW_REFRESH_STARTED=skipped DEVFLOW_REFRESH_PIDFILE="$D487/absentpid" DEVFLOW_REFRESH_LOG="$D487/absentlog" _stop_sh_guarded arm17 2>&1)"
 assert_eq "#487 arm17: absent pidfile + Start skipped (upstream abort) does NOT warn defeated" "no" "$(_defeat487 "$_s17")"
 
 # Arm 18 — pidfile absent AND the Start step RAN-AND-FAILED (STARTED=failure) → the
 # refresher genuinely never started → warn (keys on "ran", not "succeeded").
-_s18="$(DEVFLOW_REFRESH_STARTED=failure DEVFLOW_REFRESH_PIDFILE="$D487/absentpid" DEVFLOW_REFRESH_LOG="$D487/absentlog" bash "$STOP_SH" 2>&1)"
+_s18="$(DEVFLOW_REFRESH_STARTED=failure DEVFLOW_REFRESH_PIDFILE="$D487/absentpid" DEVFLOW_REFRESH_LOG="$D487/absentlog" _stop_sh_guarded arm18 2>&1)"
 assert_eq "#487 arm18: absent pidfile + Start ran-and-failed warns defeated (ran, not succeeded)" "yes" "$(_defeat487 "$_s18")"
 
 # Arm 15 — pidfile present (live) + last log line is a ::warning:: → sustained failure
@@ -48688,7 +48729,7 @@ assert_eq "#487 arm18: absent pidfile + Start ran-and-failed warns defeated (ran
 sleep 300 & _live15=$!
 echo "$_live15" > "$D487/pidC"
 printf 'refresh-app-credentials: cycle OK\n::warning::refresh-app-credentials: cycle: mint arm failed\n' > "$D487/logC"
-_s15="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidC" DEVFLOW_REFRESH_LOG="$D487/logC" bash "$STOP_SH" 2>&1)"
+_s15="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidC" DEVFLOW_REFRESH_LOG="$D487/logC" _stop_sh_guarded arm15 2>&1)"
 assert_eq "#487 arm15: sustained failure (live pid, last log line a ::warning::) warns defeated" "yes" "$(_defeat487 "$_s15")"
 assert_eq "#487 arm15: the warning is attributed to the failed cycle, not liveness" "yes" \
   "$(printf '%s' "$_s15" | grep -qF 'the most recent refresh cycle failed' && echo yes || echo no)"
@@ -48697,7 +48738,7 @@ kill "$_live15" 2>/dev/null; wait "$_live15" 2>/dev/null || true
 # Arm 16 — pidfile present (live) + no log yet → nothing to assert → NO defeated warning.
 sleep 300 & _live16=$!
 echo "$_live16" > "$D487/pidD"
-_s16="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidD" DEVFLOW_REFRESH_LOG="$D487/absentlog" bash "$STOP_SH" 2>&1)"
+_s16="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidD" DEVFLOW_REFRESH_LOG="$D487/absentlog" _stop_sh_guarded arm16 2>&1)"
 assert_eq "#487 arm16: pidfile present (live) + no log does NOT warn defeated" "no" "$(_defeat487 "$_s16")"
 kill "$_live16" 2>/dev/null; wait "$_live16" 2>/dev/null || true
 
@@ -48708,7 +48749,7 @@ kill "$_live16" 2>/dev/null; wait "$_live16" 2>/dev/null || true
 sleep 300 & _live16b=$!
 echo "$_live16b" > "$D487/pidG"
 printf 'some unrelated log noise\nanother line without the marker\n' > "$D487/logG"
-_s16b="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidG" DEVFLOW_REFRESH_LOG="$D487/logG" bash "$STOP_SH" 2>&1)"
+_s16b="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidG" DEVFLOW_REFRESH_LOG="$D487/logG" _stop_sh_guarded arm16b 2>&1)"
 assert_eq "#487 arm16b: live pid + log present but no cycle line (default arm) does NOT warn defeated" "no" "$(_defeat487 "$_s16b")"
 kill "$_live16b" 2>/dev/null; wait "$_live16b" 2>/dev/null || true
 
@@ -48723,7 +48764,7 @@ kill "$_live16b" 2>/dev/null; wait "$_live16b" 2>/dev/null || true
 # reaped-child PID is correct only until the kernel recycles that number).
 _dead19=2147483647
 echo "$_dead19" > "$D487/pidE"; printf 'refresh-app-credentials: cycle OK (credentials refreshed)\n' > "$D487/logE"
-_s19="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidE" DEVFLOW_REFRESH_LOG="$D487/logE" bash "$STOP_SH" 2>&1)"; _s19_rc=$?
+_s19="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidE" DEVFLOW_REFRESH_LOG="$D487/logE" _stop_sh_guarded arm19 2>&1)"; _s19_rc=$?
 assert_eq "#487 arm19: dead pid + last cycle OK warns defeated (stale cycle OK does not mask a death)" "yes" "$(_defeat487 "$_s19")"
 assert_eq "#487 arm19: the warning is attributed to the died-before-job-end liveness probe" "yes" \
   "$(printf '%s' "$_s19" | grep -qF 'died before job end (pidfile present, process gone)' && echo yes || echo no)"
@@ -48732,7 +48773,7 @@ assert_eq "#487 arm19: stop-refresher still exits 0 on the dead-pid arm" "0" "$_
 # Arm 20 — EMPTY pidfile → same unverifiable-liveness class (the loop writes its PID at
 # startup, so an empty file is anomalous) → warn, attributed to the empty-pidfile arm.
 : > "$D487/pidF"
-_s20="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidF" DEVFLOW_REFRESH_LOG="$D487/absentlog" bash "$STOP_SH" 2>&1)"
+_s20="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidF" DEVFLOW_REFRESH_LOG="$D487/absentlog" _stop_sh_guarded arm20 2>&1)"
 assert_eq "#487 arm20: empty pidfile warns defeated (health unverifiable)" "yes" "$(_defeat487 "$_s20")"
 assert_eq "#487 arm20: the warning is attributed to the empty pidfile" "yes" \
   "$(printf '%s' "$_s20" | grep -qF 'pidfile is empty, so its health could not be verified' && echo yes || echo no)"
@@ -48747,7 +48788,7 @@ assert_eq "#487 arm20: the warning is attributed to the empty pidfile" "yes" \
 sleep 300 & _live20b=$!
 echo "$_live20b" > "$D487/pid20b"
 printf 'refresh-app-credentials: cycle OK\n::warning::refresh-app-credentials: cycle: renaming the token file into place failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale\n' > "$D487/log20b"
-_s20b="$(DEVFLOW_REFRESH_PIDFILE="$D487/pid20b" DEVFLOW_REFRESH_LOG="$D487/log20b" bash "$STOP_SH" 2>&1)"; _s20b_rc=$?
+_s20b="$(DEVFLOW_REFRESH_PIDFILE="$D487/pid20b" DEVFLOW_REFRESH_LOG="$D487/log20b" _stop_sh_guarded arm20b 2>&1)"; _s20b_rc=$?
 kill "$_live20b" 2>/dev/null || true
 assert_eq "#491 arm20b: surface-2-only divergence still warns defeated (gh surface stale)" "yes" "$(_defeat487 "$_s20b")"
 assert_eq "#491 arm20b: the divergence impact clause narrows to gh-only (git push stayed fresh)" "yes" \
@@ -48876,7 +48917,7 @@ assert_eq "#1882 arm1882i: a never-superseded loop never emits the retiring-itse
 # never-started / stale-token defeat.
 printf 'refusing to sign — passphrase-protected PEM' > "$D487/stmark1882"
 _s1882j="$(DEVFLOW_REFRESH_SELFTEST_FAILED="$D487/stmark1882" DEVFLOW_REFRESH_PIDFILE="$D487/none1882.pid" \
-  DEVFLOW_REFRESH_STARTED=failure DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapj-*.pid" bash "$STOP_SH" 2>&1)"
+  DEVFLOW_REFRESH_STARTED=failure DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapj-*.pid" _stop_sh_guarded arm1882j 2>&1)"
 assert_eq "#1882 arm1882j: teardown names the self-test signing fault" "yes" \
   "$(printf '%s' "$_s1882j" | grep -qF 'self-test failed the job' && echo yes || echo no)"
 assert_eq "#1882 arm1882j: teardown does NOT emit the did-not-start defeat on the self-test arm" "no" \
@@ -48898,7 +48939,7 @@ STUBREF1882="$D487/refresh-app-credentials.sh"   # stand-in whose bash cmdline m
 printf '#!/usr/bin/env bash\nsleep 30\n' > "$STUBREF1882"; chmod +x "$STUBREF1882"
 bash "$STUBREF1882" & _orp1882=$!; printf '%s' "$_orp1882" > "$D487/devflow-refresh-JOBOLD.pid"
 _s1882l="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW.pid" DEVFLOW_REFRESH_STARTED=skipped \
-  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBOLD.pid" bash "$STOP_SH" 2>&1)"
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBOLD.pid" _stop_sh_guarded arm1882l 2>&1)"
 assert_eq "#1882 arm1882l: the cross-job reaper retires an identity-confirmed orphaned refresher" "yes" \
   "$(printf '%s' "$_s1882l" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
 sleep 0.5 2>/dev/null || true
@@ -48911,7 +48952,7 @@ kill "$_orp1882" 2>/dev/null || true
 # SKIPPED, never killed: fail-safe against pid reuse on a long-lived runner.
 sleep 30 & _nonref1882=$!; printf '%s' "$_nonref1882" > "$D487/devflow-refresh-JOBREUSE.pid"
 _s1882ln="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW2.pid" DEVFLOW_REFRESH_STARTED=skipped \
-  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBREUSE.pid" bash "$STOP_SH" 2>&1)"
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBREUSE.pid" _stop_sh_guarded arm1882l-neg 2>&1)"
 assert_eq "#1882 arm1882l-neg: a non-refresher (pid-reuse) live process is NOT reaped" "yes" \
   "$(printf '%s' "$_s1882ln" | grep -qF 'is not a credential refresher' && echo yes || echo no)"
 sleep 0.2 2>/dev/null || true
@@ -48921,7 +48962,7 @@ kill "$_nonref1882" 2>/dev/null || true
 # 1882l-stale — a pidfile whose pid is dead is UNLINKED so no later teardown re-reads it.
 printf '%s' "2147480000" > "$D487/devflow-refresh-JOBDEAD.pid"
 DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW3.pid" DEVFLOW_REFRESH_STARTED=skipped \
-  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBDEAD.pid" bash "$STOP_SH" >/dev/null 2>&1
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBDEAD.pid" _stop_sh_guarded arm1882l-stale >/dev/null 2>&1
 assert_eq "#1882 arm1882l-stale: a dead-pid pidfile is unlinked by the reaper" "yes" \
   "$([ ! -e "$D487/devflow-refresh-JOBDEAD.pid" ] && echo yes || echo no)"
 # 1882l-ps — the PORTABLE `ps` identity fallback, forced. CI runs on Linux, where
@@ -48930,7 +48971,7 @@ assert_eq "#1882 arm1882l-stale: a dead-pid pidfile is unlinked by the reaper" "
 bash "$STUBREF1882" & _orpps1882=$!; printf '%s' "$_orpps1882" > "$D487/devflow-refresh-JOBPS.pid"
 _s1882lps="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW4.pid" DEVFLOW_REFRESH_STARTED=skipped \
   DEVFLOW_REFRESH_IDENTITY_SOURCE=ps \
-  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBPS.pid" bash "$STOP_SH" 2>&1)"
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBPS.pid" _stop_sh_guarded arm1882l-ps 2>&1)"
 assert_eq "#1882 arm1882l-ps: the ps identity fallback confirms and reaps an orphan" "yes" \
   "$(printf '%s' "$_s1882lps" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
 sleep 0.5 2>/dev/null || true
@@ -48942,7 +48983,7 @@ kill "$_orpps1882" 2>/dev/null || true
 bash "$STUBREF1882" & _orpnone1882=$!; printf '%s' "$_orpnone1882" > "$D487/devflow-refresh-JOBNONE.pid"
 _s1882lun="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW5.pid" DEVFLOW_REFRESH_STARTED=skipped \
   DEVFLOW_REFRESH_IDENTITY_SOURCE=none \
-  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBNONE.pid" bash "$STOP_SH" 2>&1)"
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBNONE.pid" _stop_sh_guarded arm1882l-unverifiable 2>&1)"
 assert_eq "#1882 arm1882l-unverifiable: an unestablishable command line is skipped, naming the reason" "yes" \
   "$(printf '%s' "$_s1882lun" | grep -qF 'cannot be confirmed a refresher' && echo yes || echo no)"
 sleep 0.2 2>/dev/null || true
@@ -48958,7 +48999,7 @@ bash "$STUBREF1882" & _orpst1882=$!; printf '%s' "$_orpst1882" > "$D487/devflow-
 printf 'signing fault\n' > "$D487/stmark1882st"
 _s1882lst="$(DEVFLOW_REFRESH_SELFTEST_FAILED="$D487/stmark1882st" \
   DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW6.pid" DEVFLOW_REFRESH_STARTED=failure \
-  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBST.pid" bash "$STOP_SH" 2>&1)"
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBST.pid" _stop_sh_guarded arm1882l-selftest 2>&1)"
 assert_eq "#1882 arm1882l-selftest: the reaper still runs on the self-test-failure path" "yes" \
   "$(printf '%s' "$_s1882lst" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
 assert_eq "#1882 arm1882l-selftest: the signing-fault attribution is still emitted" "yes" \
@@ -49022,6 +49063,182 @@ assert_eq "#1882 arm1882o: assembled JWT header decodes to the RS256 alg" '{"alg
 assert_eq "#1882 arm1882o: assembled JWT payload carries iat/exp and the JSON-escaped iss" '{"iat":111,"exp":222,"iss":"app\"q"}' \
   "$(_pad1882 "$_jp1882" | openssl base64 -d -A 2>/dev/null)"
 
+# ── Issue #1925: the reaper establishes (normalizes) its reap scope or reaps nothing.
+# AC3/AC4 call _refresher_scratch_guard directly, never through _stop_sh_guarded — routing
+# them would fail the suite on the violations they deliberately plant.
+_g1925_out="$(_refresher_scratch_guard "demo-outside-arm" "$D487" "/var/live/devflow-refresh.pid" 2>&1)"; _g1925_rc=$?
+assert_eq "#1925 AC3: the containment guard fires (rc 1) when an arm resolves a path outside the scratch dir" "1" "$_g1925_rc"
+assert_eq "#1925 AC3: the guard names the offending arm and path" "yes" \
+  "$(printf '%s' "$_g1925_out" | grep -qF 'demo-outside-arm' && printf '%s' "$_g1925_out" | grep -qF '/var/live/devflow-refresh.pid' && echo yes || echo no)"
+# AC4: an arm that OMITS the reap-pattern override resolves the default reap glob against a
+# live (non-scratch) RUNNER_TEMP — the derivation _stop_sh_guarded performs, exercised with
+# a live RUNNER_TEMP to prove the omitted-override case is caught, not silently live-reaching.
+_g1925b_reap="/home/runner/work/_temp/devflow-refresh-*.pid"
+_g1925b_out="$(_refresher_scratch_guard "no-override-arm" "$D487" "$_g1925b_reap" 2>&1)"; _g1925b_rc=$?
+assert_eq "#1925 AC4: the guard fires when an arm omits the reap-pattern override (default resolves outside scratch)" "1" "$_g1925b_rc"
+assert_eq "#1925 AC4: the omitted-override violation names the arm and the offending reap path" "yes" \
+  "$(printf '%s' "$_g1925b_out" | grep -qF 'no-override-arm' && printf '%s' "$_g1925b_out" | grep -qF "$_g1925b_reap" && echo yes || echo no)"
+# Negative control: a fully-contained arm passes the guard (rc 0, no message).
+_g1925c_out="$(_refresher_scratch_guard "compliant-arm" "$D487" "$D487/devflow-refresh.pid" "$D487/devflow-refresh-*.pid" 2>&1)"; _g1925c_rc=$?
+assert_eq "#1925 guard: a fully-contained arm passes the guard (rc 0, no message)" "0 " "$_g1925c_rc $_g1925c_out"
+
+# AC1/AC2/AC14: a contained stop-refresher call (through the guard, no reap override) sweeps
+# only $D487 and leaves a LIVE refresher in a SIBLING live dir — and its pidfile — untouched
+# (the non-recursive reap glob $D487/devflow-refresh-*.pid does not descend into it).
+_live_rt1925="$D487/live-runner-temp"; mkdir -p "$_live_rt1925"
+printf '#!/usr/bin/env bash\nsleep 60\n' > "$_live_rt1925/refresh-app-credentials.sh"; chmod +x "$_live_rt1925/refresh-app-credentials.sh"
+bash "$_live_rt1925/refresh-app-credentials.sh" & _liveorp1925=$!
+printf '%s\n' "$_liveorp1925" > "$_live_rt1925/devflow-refresh-livejob.pid"
+DEVFLOW_REFRESH_PIDFILE="$D487/ac1-job.pid" DEVFLOW_REFRESH_STARTED=success _stop_sh_guarded arm1925-contained >/dev/null 2>&1
+sleep 0.3
+assert_eq "#1925 AC1: a contained suite arm leaves a LIVE refresher in the real temp dir alive" "yes" \
+  "$(kill -0 "$_liveorp1925" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1925 AC2/AC14: the live refresher's pidfile in the real temp dir is still present (reaper took no action)" "yes" \
+  "$([ -f "$_live_rt1925/devflow-refresh-livejob.pid" ] && echo yes || echo no)"
+kill "$_liveorp1925" 2>/dev/null; wait "$_liveorp1925" 2>/dev/null || true
+
+# AC14: with only the job's OWN pidfile present in the reap dir, the reaper takes no action
+# (name inequality skips the job's own; nothing else matches).
+printf '%s\n' "2147483646" > "$D487/devflow-refresh-ownjob.pid"
+_s1925own="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-ownjob.pid" DEVFLOW_REFRESH_STARTED=success _stop_sh_guarded arm1925-own 2>&1)"
+assert_eq "#1925 AC14: reaper takes no reap action when only the job's own pidfile is present" "no" \
+  "$(printf '%s' "$_s1925own" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
+
+# AC5/AC8: a Windows-form RUNNER_TEMP a wslpath/cygpath stub converts → the reap glob names
+# the real dir and a genuine orphan there is reaped. Driven with the helper directly (the
+# Windows-form RUNNER_TEMP is deliberately outside $D487, which the region guard rightly flags).
+_win1925="$D487/wintarget"; mkdir -p "$_win1925"
+_stub1925="$D487/stubbin1925"; mkdir -p "$_stub1925"
+for _t1925 in wslpath cygpath; do
+  { printf '#!/usr/bin/env bash\n'; printf 'printf "%%s\\n" "%s"\n' "$_win1925"; } > "$_stub1925/$_t1925"; chmod +x "$_stub1925/$_t1925"
+done
+printf '#!/usr/bin/env bash\nsleep 60\n' > "$_win1925/refresh-app-credentials.sh"; chmod +x "$_win1925/refresh-app-credentials.sh"
+bash "$_win1925/refresh-app-credentials.sh" & _orp1925w=$!
+printf '%s\n' "$_orp1925w" > "$_win1925/devflow-refresh-orphan.pid"
+_s1925w="$(env "PATH=$_stub1925:$PATH" RUNNER_TEMP='C:\win\temp' DEVFLOW_REFRESH_PIDFILE="$D487/ac8-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925w_rc=$?
+sleep 0.3
+assert_eq "#1925 AC5/AC8: a Windows-form RUNNER_TEMP the converter resolves reaps a real orphan in the named dir" "no" \
+  "$(kill -0 "$_orp1925w" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1925 AC8: the reaped-orphan message is emitted for the converted dir" "yes" \
+  "$(printf '%s' "$_s1925w" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the convert-and-reap arm" "0" "$_s1925w_rc"
+kill "$_orp1925w" 2>/dev/null; wait "$_orp1925w" 2>/dev/null || true
+
+# AC5 (textual rules): a drive-letter path with an MSYS signal (no wslpath/cygpath) is
+# converted by the textual rules and is NOT fail-closed.
+_s1925m="$(env -u WSLENV MSYSTEM=MINGW64 RUNNER_TEMP='C:\msysroot' DEVFLOW_REFRESH_PIDFILE="$D487/ac5-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925m_rc=$?
+assert_eq "#1925 AC5: an MSYS textual-rules conversion does NOT fail closed (the value was converted)" "no" \
+  "$(printf '%s' "$_s1925m" | grep -qF 'could not be normalized into a POSIX glob root' && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the MSYS textual-rules arm" "0" "$_s1925m_rc"
+
+# AC6: a value normalize cannot bring to a POSIX glob root (a UNC path, unchanged by design)
+# → the reaper reaps nothing, signals no process, and prints a breadcrumb naming the unusable
+# value; a live orphan placed elsewhere is untouched; exit 0.
+_unc1925="$D487/uncstand"; mkdir -p "$_unc1925"
+printf '#!/usr/bin/env bash\nsleep 60\n' > "$_unc1925/refresh-app-credentials.sh"; chmod +x "$_unc1925/refresh-app-credentials.sh"
+bash "$_unc1925/refresh-app-credentials.sh" & _orp1925u=$!
+printf '%s\n' "$_orp1925u" > "$_unc1925/devflow-refresh-orphan.pid"
+_s1925u="$(RUNNER_TEMP='\\server\share\temp' DEVFLOW_REFRESH_PIDFILE="$D487/ac6-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925u_rc=$?
+sleep 0.3
+assert_eq "#1925 AC6: an unnormalizable (UNC) value fails closed with a breadcrumb naming the unusable value" "yes" \
+  "$(printf '%s' "$_s1925u" | grep -qF 'could not be normalized into a POSIX glob root' && printf '%s' "$_s1925u" | grep -qF 'server' && echo yes || echo no)"
+assert_eq "#1925 AC6: the fail-closed arm reaps nothing (a live orphan is untouched)" "yes" \
+  "$(kill -0 "$_orp1925u" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the fail-closed (UNC) arm" "0" "$_s1925u_rc"
+kill "$_orp1925u" 2>/dev/null; wait "$_orp1925u" 2>/dev/null || true
+
+# AC6 (drive-letter, no converter/signal): with a minimal PATH so neither wslpath nor cygpath
+# resolves and MSYSTEM unset, normalize-path echoes the drive-letter value unchanged and the
+# reaper refuses it — the plain-Linux residual of the fail-closed arm.
+_minb1925="$D487/minbin1925"; mkdir -p "$_minb1925"
+# `ps` must stay in this minimal PATH: without it the reaper's identity check cannot
+# establish a pid and fail-safe-skips every candidate, which would silently make the
+# drive-relative arm's live-orphan survival control below pass against any mutant.
+for _t1925b in bash dirname grep tail sleep kill rm cat printf tr uname sed ps; do _p1925b="$(command -v "$_t1925b" || true)"; [ -n "$_p1925b" ] && ln -sf "$_p1925b" "$_minb1925/$_t1925b"; done
+_s1925d="$(env -u MSYSTEM "PATH=$_minb1925" RUNNER_TEMP='D:\a\_work\_temp' DEVFLOW_REFRESH_PIDFILE="$D487/ac6b-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925d_rc=$?
+assert_eq "#1925 AC6: a drive-letter value with no converter/signal fails closed naming the value" "yes" \
+  "$(printf '%s' "$_s1925d" | grep -qF 'could not be normalized into a POSIX glob root' && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the drive-letter fail-closed arm" "0" "$_s1925d_rc"
+
+# #1925 (normalizer-unsourceable fail-closed): a stop-refresher copy with no sibling
+# ../lib/normalize-path.sh cannot source the normalizer, so it fails closed (the empty-base
+# REAP_GLOB="" arm) and reaps nothing — a mutant inverting the [ -r ] guard would source and reap.
+_nolib1925="$D487/nolib"; mkdir -p "$_nolib1925"
+cp "$STOP_SH" "$_nolib1925/stop-refresher.sh"
+_srcfail1925="$D487/srcfail"; mkdir -p "$_srcfail1925"
+printf '#!/usr/bin/env bash\nsleep 60\n' > "$_srcfail1925/refresh-app-credentials.sh"; chmod +x "$_srcfail1925/refresh-app-credentials.sh"
+bash "$_srcfail1925/refresh-app-credentials.sh" & _orp1925sf=$!
+printf '%s\n' "$_orp1925sf" > "$_srcfail1925/devflow-refresh-orphan.pid"
+_s1925sf="$(RUNNER_TEMP="$_srcfail1925" DEVFLOW_REFRESH_PIDFILE="$D487/sf-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$_nolib1925/stop-refresher.sh" 2>&1)"; _s1925sf_rc=$?
+sleep 0.3
+assert_eq "#1925 source-failure: an unsourceable normalizer fails closed (breadcrumb names the normalizer)" "yes" \
+  "$(printf '%s' "$_s1925sf" | grep -qF 'could not source the path normalizer' && echo yes || echo no)"
+assert_eq "#1925 source-failure: the empty-base arm reaps nothing (a live orphan is untouched)" "yes" \
+  "$(kill -0 "$_orp1925sf" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the source-failure fail-closed arm" "0" "$_s1925sf_rc"
+kill "$_orp1925sf" 2>/dev/null; wait "$_orp1925sf" 2>/dev/null || true
+
+# #1925: a C:/… and a separator-less C:foo value, with no converter/signal (minbin), must stay
+# routed to the [A-Za-z]:* refusal arm — dropping that arm falls through to *), which composes a
+# relative glob that sweeps a wrong directory with no breadcrumb.
+_s1925fs="$(env -u MSYSTEM "PATH=$_minb1925" RUNNER_TEMP='C:/nosignal' DEVFLOW_REFRESH_PIDFILE="$D487/fs-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925fs_rc=$?
+assert_eq "#1925: a forward-slash drive value (C:/…) with no converter/signal fails closed" "yes" \
+  "$(printf '%s' "$_s1925fs" | grep -qF 'could not be normalized into a POSIX glob root' && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the forward-slash-drive fail-closed arm" "0" "$_s1925fs_rc"
+# The drive-relative arm carries a live-orphan survival control: run from a cwd holding a real
+# `C:norel/` directory with a live orphan pidfile in it, so the relative glob a dropped refusal
+# arm would compose actually MATCHES — the breadcrumb assertion alone cannot tell refusal from
+# a relative sweep that happened to find nothing.
+_drrel1925="$D487/drrel"; mkdir -p "$_drrel1925/C:norel"
+printf '#!/usr/bin/env bash\nsleep 60\n' > "$_drrel1925/refresh-app-credentials.sh"; chmod +x "$_drrel1925/refresh-app-credentials.sh"
+bash "$_drrel1925/refresh-app-credentials.sh" & _orp1925dr=$!
+printf '%s\n' "$_orp1925dr" > "$_drrel1925/C:norel/devflow-refresh-orphan.pid"
+_s1925dr="$(cd "$_drrel1925" && env -u MSYSTEM "PATH=$_minb1925" RUNNER_TEMP='C:norel' DEVFLOW_REFRESH_PIDFILE="$D487/dr-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925dr_rc=$?
+sleep 0.3
+assert_eq "#1925: a separator-less drive-relative value (C:foo) is refused, not swept as a relative glob" "yes" \
+  "$(printf '%s' "$_s1925dr" | grep -qF 'could not be normalized into a POSIX glob root' && echo yes || echo no)"
+assert_eq "#1925: the drive-relative refusal reaps nothing (a live orphan the relative glob would match survives)" "yes" \
+  "$(kill -0 "$_orp1925dr" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1925: the drive-relative refusal emits no reaped-orphan message" "no" \
+  "$(printf '%s' "$_s1925dr" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the drive-relative fail-closed arm" "0" "$_s1925dr_rc"
+kill "$_orp1925dr" 2>/dev/null; wait "$_orp1925dr" 2>/dev/null || true
+
+# AC7: an explicit DEVFLOW_REFRESH_REAP_GLOB is used exactly as given and takes NO conversion —
+# a POSIX explicit glob with an orphan is reaped; an explicit Windows-form glob is used
+# verbatim (matches nothing, no fail-closed breadcrumb).
+_expl1925="$D487/expl1925"; mkdir -p "$_expl1925"
+printf '#!/usr/bin/env bash\nsleep 60\n' > "$_expl1925/refresh-app-credentials.sh"; chmod +x "$_expl1925/refresh-app-credentials.sh"
+bash "$_expl1925/refresh-app-credentials.sh" & _orp1925e=$!
+printf '%s\n' "$_orp1925e" > "$_expl1925/devflow-refresh-explicit.pid"
+_s1925e="$(DEVFLOW_REFRESH_REAP_GLOB="$_expl1925/devflow-refresh-*.pid" DEVFLOW_REFRESH_PIDFILE="$D487/ac7-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925e_rc=$?
+sleep 0.3
+assert_eq "#1925 AC7: an explicit POSIX reap glob is used exactly as given (orphan reaped)" "no" \
+  "$(kill -0 "$_orp1925e" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the explicit-glob arm" "0" "$_s1925e_rc"
+kill "$_orp1925e" 2>/dev/null; wait "$_orp1925e" 2>/dev/null || true
+_s1925ew="$(RUNNER_TEMP="$D487/ignored" DEVFLOW_REFRESH_REAP_GLOB='C:\nowhere\devflow-refresh-*.pid' DEVFLOW_REFRESH_PIDFILE="$D487/ac7b-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925ew_rc=$?
+assert_eq "#1925 AC7: an explicit Windows-form reap glob takes NO conversion (no fail-closed breadcrumb)" "no" \
+  "$(printf '%s' "$_s1925ew" | grep -qF 'could not be normalized into a POSIX glob root' && echo yes || echo no)"
+assert_eq "#1925 AC13: stop-refresher exits 0 on the explicit Windows-form glob arm" "0" "$_s1925ew_rc"
+
+# AC11/AC12: teardown attribution is honest. AC11 — a self-test marker present (a genuine
+# signing fault) yields the signing-fault attribution. AC12 — no marker (self-test passed) but
+# the refresher was killed (pidfile present, pid dead) yields the defeat, not a signing fault.
+printf 'refusing to sign\n' > "$D487/stmark1925"
+_s1925st="$(DEVFLOW_REFRESH_SELFTEST_FAILED="$D487/stmark1925" DEVFLOW_REFRESH_PIDFILE="$D487/none1925.pid" DEVFLOW_REFRESH_STARTED=failure DEVFLOW_REFRESH_REAP_GLOB="$D487/noreap1925-*.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1925 AC11: a present self-test marker yields the signing-fault attribution" "yes" \
+  "$(printf '%s' "$_s1925st" | grep -qF 'self-test failed the job' && echo yes || echo no)"
+_dead1925=2147483645
+printf '%s\n' "$_dead1925" > "$D487/pid1925killed"; printf 'refresh-app-credentials: cycle OK\n' > "$D487/log1925killed"
+_s1925df="$(DEVFLOW_REFRESH_PIDFILE="$D487/pid1925killed" DEVFLOW_REFRESH_LOG="$D487/log1925killed" DEVFLOW_REFRESH_REAP_GLOB="$D487/noreap1925b-*.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1925 AC12: self-test passed (no marker) + refresher killed yields the defeat, not a signing fault" "yes" \
+  "$(_defeat487 "$_s1925df")"
+assert_eq "#1925 AC12: the no-marker defeat path does NOT emit the signing-fault attribution" "no" \
+  "$(printf '%s' "$_s1925df" | grep -qF 'self-test failed the job' && echo yes || echo no)"
+
+# Restore the ambient RUNNER_TEMP (issue #1925 region containment end).
+if [ -n "$_RT_WAS_SET_1925" ]; then export RUNNER_TEMP="$_RT_SAVED_1925"; else unset RUNNER_TEMP; fi
 rm -rf "$D487"
 
 # ── Workflow wiring (issue #487): both writer jobs gain the refresher + wrapper
@@ -49039,7 +49256,7 @@ rm -rf "$D487"
 # hand-edited workflow — driven end to end and joined to the shipped workflow's own
 # trigger-time guard.
 if ! devflow_run_full_suite_module "$LIB/test/modules/installer-wiring.sh" \
-  "installer-wiring" 287; then
+  "installer-wiring" 297; then
   printf 'ERROR: installer-wiring boundary could not record its result\n'
   exit 1
 fi
