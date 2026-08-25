@@ -14718,7 +14718,7 @@ assert_eq "#626 consumer: recurring-targets counts the impl entry, skip marker i
   "$(printf '%s\n%s\n%s\n' "$IMPL_ENTRY" "$MRK" "$(echo "$IMPL_ENTRY" | jq -c '.pr=78')" | jq -s -f "$LIB/recurring-targets.jq" | jq -r '.[0].target // "none"')"
 # compute-patterns.jq: a skip marker forms no pattern (selects implementation/audit only).
 assert_eq "#626 consumer: compute-patterns excludes skip markers (empty object)" "0" \
-  "$(printf '%s\n' "$MRK" | jq -s -L "$LIB" -f "$LIB/compute-patterns.jq" --slurpfile overrides <(echo '{}') | jq 'keys | length')"
+  "$(printf '%s\n' "$MRK" | jq -s -L "$LIB" -f "$LIB/compute-patterns.jq" --slurpfile overrides <(echo '{}') --slurpfile experiments <(printf '') | jq 'keys | length')"
 # open-state-pr.sh N counts entries excluding skip markers.
 OSP_TMP="$(mktemp -d)"
 printf '%s\n%s\n' "$IMPL_ENTRY" "$MRK" > "$OSP_TMP/retrospectives.jsonl"

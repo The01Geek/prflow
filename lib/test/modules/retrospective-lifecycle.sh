@@ -16,10 +16,14 @@ RL_CP="$REPO_ROOT/lib/compute-patterns.jq"
 RL_TMP="$(mktemp -d)"
 trap 'rm -rf "$RL_TMP"' RETURN
 
-# cp_run <entries-jsonl> <overrides-json> -> the compute-patterns view on stdout
+# cp_run <entries-jsonl> <overrides-json> [experiment-records-jsonl] -> the
+# compute-patterns view on stdout. The optional third arg is the experiment-records
+# corpus (issue #1828 cost join); an empty/absent value slurps to [] (no coverage).
 rl_cp() {
+  local exp="${3:-}"
   printf '%s\n' "$1" \
-  | jq -s -L "$REPO_ROOT/lib" --slurpfile overrides <(printf '%s' "$2") -f "$RL_CP"
+  | jq -s -L "$REPO_ROOT/lib" --slurpfile overrides <(printf '%s' "$2") \
+      --slurpfile experiments <(printf '%s' "$exp") -f "$RL_CP"
 }
 
 # ── Migration ────────────────────────────────────────────────────────────────
@@ -574,9 +578,10 @@ assert_eq "#788 real-corpus derived: fabricated-claim → fixed" "fixed" "$(prin
 
 
 cp_run() {
-  local entries="$1" overrides="$2"
+  local entries="$1" overrides="$2" experiments="${3:-}"
   printf '%s\n' "$entries" \
   | jq -s -L "$LIB" --slurpfile overrides <(printf '%s' "$overrides") \
+      --slurpfile experiments <(printf '%s' "$experiments") \
       -f "$LIB/compute-patterns.jq"
 }
 
@@ -3276,6 +3281,101 @@ assert_eq "#1870 analyzed-digest: a malformed clean row is excluded, not fatal (
 AD_CP_CLEAN="$(cp_run '{"schema_version":2,"kind":"implementation","pr":8,"merged_at":"2026-05-01T00:00:00Z","verdict":"clean","categories":["tooling-gap"],"descriptors":["x"]}' '{"schema_version":2,"patterns":{},"dismissed":{}}')"
 assert_eq "#1870 AC2: compute-patterns.jq excludes a clean verdict from occurrences" "true" \
   "$(printf '%s' "$AD_CP_CLEAN" | jq -e '.["tooling-gap"].occurrence_count == 0' >/dev/null 2>&1 && echo true || echo false)"
+
+# ────────────────────────────────────────────────────────────────────────────
+# #1828 cost-weighted ranking: compute-patterns.jq joins each occurrence (by .pr)
+# to experiment-records.jsonl efficiency_runs[].iterations, and actionable-patterns.sh
+# ranks the emitted patterns by that cost aggregate.
+# ────────────────────────────────────────────────────────────────────────────
+
+# AC1: a covered pattern carries cost_mean_iterations (mean over covered occurrences)
+# plus covered_occurrence_count. Two occurrences (PRs 1,2), iterations 2 and 4 → mean 3.
+CP_COST="$(cp_run \
+  '{"schema_version":2,"kind":"implementation","pr":1,"merged_at":"2026-04-01T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}
+{"schema_version":2,"kind":"implementation","pr":2,"merged_at":"2026-04-02T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  '{"schema_version":2,"patterns":{},"dismissed":{}}' \
+  '{"pr":1,"efficiency_runs":[{"iterations":2}]}
+{"pr":2,"efficiency_runs":[{"iterations":4}]}')"
+assert_eq "#1828 AC1: covered pattern carries cost_mean_iterations (mean of 2,4 = 3)" "3" \
+  "$(printf '%s' "$CP_COST" | jq -r '.["incomplete-edit"].cost_mean_iterations')"
+assert_eq "#1828 AC1: covered pattern carries covered_occurrence_count" "2" \
+  "$(printf '%s' "$CP_COST" | jq -r '.["incomplete-edit"].covered_occurrence_count')"
+
+# AC4: the cost signal is derived from efficiency_runs[].iterations and NEVER from
+# post_bot_commits. PR 3 carries iterations 5 alongside a large post_bot_commits; the
+# mean must be 5, not influenced by post_bot_commits.
+CP_AC4="$(cp_run \
+  '{"schema_version":2,"kind":"implementation","pr":3,"merged_at":"2026-04-03T00:00:00Z","verdict":"imperfect","categories":["unverified-assumption"]}' \
+  '{"schema_version":2,"patterns":{},"dismissed":{}}' \
+  '{"pr":3,"efficiency_runs":[{"iterations":5}],"post_bot_commits":99}')"
+assert_eq "#1828 AC4: cost uses efficiency_runs iterations, not post_bot_commits" "5" \
+  "$(printf '%s' "$CP_AC4" | jq -r '.["unverified-assumption"].cost_mean_iterations')"
+
+# AC5: a pattern whose occurrences all lack coverage records the absence explicitly
+# (null), never a cost of 0. Also proves an absent/malformed efficiency_runs value
+# neither aborts the whole filter nor becomes a cost of 0 (Testing Strategy).
+CP_UNCOV="$(cp_run \
+  '{"schema_version":2,"kind":"implementation","pr":20,"merged_at":"2026-04-20T00:00:00Z","verdict":"imperfect","categories":["lenient-verdict"]}
+{"schema_version":2,"kind":"implementation","pr":21,"merged_at":"2026-04-21T00:00:00Z","verdict":"imperfect","categories":["lenient-verdict"]}' \
+  '{"schema_version":2,"patterns":{},"dismissed":{}}' \
+  '{"pr":20,"efficiency_runs":[{"iterations":"oops"}]}
+{"pr":21,"post_bot_commits":3}')"
+assert_eq "#1828 AC5: all-uncovered pattern records absence (null cost), not 0" "true" \
+  "$(printf '%s' "$CP_UNCOV" | jq -e '.["lenient-verdict"].cost_mean_iterations == null' >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "#1828 AC5: all-uncovered pattern reports covered_occurrence_count 0" "0" \
+  "$(printf '%s' "$CP_UNCOV" | jq -r '.["lenient-verdict"].covered_occurrence_count')"
+assert_eq "#1828: a malformed/absent efficiency_runs does not abort the filter (occurrence_count intact)" "2" \
+  "$(printf '%s' "$CP_UNCOV" | jq -r '.["lenient-verdict"].occurrence_count')"
+
+# A partially-covered pattern: one covered occurrence (iterations 4) + one malformed
+# → the mean is the covered value alone (not diluted toward 0 by the uncovered one),
+# and covered_occurrence_count counts only the covered occurrence.
+CP_PART="$(cp_run \
+  '{"schema_version":2,"kind":"implementation","pr":30,"merged_at":"2026-04-30T00:00:00Z","verdict":"imperfect","categories":["doc-accuracy"]}
+{"schema_version":2,"kind":"implementation","pr":31,"merged_at":"2026-05-01T00:00:00Z","verdict":"imperfect","categories":["doc-accuracy"]}' \
+  '{"schema_version":2,"patterns":{},"dismissed":{}}' \
+  '{"pr":30,"efficiency_runs":[{"iterations":4}]}
+{"pr":31,"efficiency_runs":[]}')"
+assert_eq "#1828: partial coverage — mean is the covered value alone" "4" \
+  "$(printf '%s' "$CP_PART" | jq -r '.["doc-accuracy"].cost_mean_iterations')"
+assert_eq "#1828: partial coverage — covered_occurrence_count counts only covered" "1" \
+  "$(printf '%s' "$CP_PART" | jq -r '.["doc-accuracy"].covered_occurrence_count')"
+
+# AC2 + AC3: actionable-patterns.sh ranks covered patterns by descending cost, with a
+# zero-coverage pattern last (still passing the unchanged min_occurrences gate). The
+# experiment records live as a SIBLING of the retrospectives file.
+mkdir -p "$RL_TMP/rank"
+printf '%s\n' \
+  '{"schema_version":2,"kind":"implementation","pr":1,"merged_at":"2026-04-01T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":2,"merged_at":"2026-04-02T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":3,"merged_at":"2026-04-03T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":4,"merged_at":"2026-04-04T00:00:00Z","verdict":"imperfect","categories":["unverified-assumption"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":5,"merged_at":"2026-04-05T00:00:00Z","verdict":"imperfect","categories":["unverified-assumption"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":6,"merged_at":"2026-04-06T00:00:00Z","verdict":"imperfect","categories":["lenient-verdict"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":7,"merged_at":"2026-04-07T00:00:00Z","verdict":"imperfect","categories":["lenient-verdict"]}' \
+  > "$RL_TMP/rank/retrospectives.jsonl"
+# incomplete-edit: 3 occ, cost 1 (low cost, high frequency).
+# unverified-assumption: 2 occ, cost 5 (high cost, low frequency).
+# lenient-verdict: 2 occ, NO coverage (PRs 6,7 have no experiment records).
+printf '%s\n' \
+  '{"pr":1,"efficiency_runs":[{"iterations":1}]}' \
+  '{"pr":2,"efficiency_runs":[{"iterations":1}]}' \
+  '{"pr":3,"efficiency_runs":[{"iterations":1}]}' \
+  '{"pr":4,"efficiency_runs":[{"iterations":5}],"post_bot_commits":99}' \
+  '{"pr":5,"efficiency_runs":[{"iterations":5}]}' \
+  > "$RL_TMP/rank/experiment-records.jsonl"
+printf '%s' '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$RL_TMP/rank/ov.json"
+RL_RANK="$(DEVFLOW_GH="$RL_TMP/gh-ap.sh" DEVFLOW_CONFIG_FILE="$REPO_ROOT/lib/test/fixtures/config.json" \
+  bash "$RL_AP" "$RL_TMP/rank/retrospectives.jsonl" "$RL_TMP/rank/ov.json" 2>/dev/null)"
+assert_eq "#1828 AC2: low-frequency high-cost pattern ranks above high-frequency low-cost; zero-coverage last" \
+  "unverified-assumption|incomplete-edit|lenient-verdict" \
+  "$(printf '%s' "$RL_RANK" | jq -r '[.[].tag] | join("|")')"
+assert_eq "#1828 AC2/AC4: the high-cost pattern's cost aggregate is the iterations mean (5), not post_bot_commits" "5" \
+  "$(printf '%s' "$RL_RANK" | jq -r '.[] | select(.tag=="unverified-assumption") | .cost_mean_iterations')"
+assert_eq "#1828 AC3: the zero-coverage pattern still passes the min_occurrences gate (present)" "true" \
+  "$(printf '%s' "$RL_RANK" | jq -e 'any(.[]; .tag=="lenient-verdict")' >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "#1828: the zero-coverage pattern carries null cost, not 0" "true" \
+  "$(printf '%s' "$RL_RANK" | jq -e '.[] | select(.tag=="lenient-verdict") | .cost_mean_iterations == null' >/dev/null 2>&1 && echo true || echo false)"
 
 rm -rf "$RL_TMP"
 trap - RETURN

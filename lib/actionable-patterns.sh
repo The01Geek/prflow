@@ -113,18 +113,33 @@ if [ ! -f "$OVERRIDES_FILE" ] || [ ! -s "$OVERRIDES_FILE" ]; then
     _OVERRIDES_ACTUAL="$_JQ_TMP/overrides.json"
 fi
 
+# ── Experiment records: the cost source for the #1828 cost-weighted ranking ───
+# The unified experiment record (scripts/build-experiment-records.py) is the sibling
+# of the retrospectives file. compute-patterns.jq joins each occurrence to its PR's
+# efficiency_runs[].iterations from it. An absent/empty artifact (a repo that has not
+# built one yet) stubs to an empty stream — every pattern then reads as uncovered and
+# ranks by occurrence count, never aborting the derivation.
+EXPERIMENTS_FILE="$(dirname "$RETRO_FILE")/experiment-records.jsonl"
+_EXPERIMENTS_ACTUAL="$EXPERIMENTS_FILE"
+if [ ! -f "$EXPERIMENTS_FILE" ] || [ ! -s "$EXPERIMENTS_FILE" ]; then
+    : > "$_JQ_TMP/experiment-records.jsonl"
+    _EXPERIMENTS_ACTUAL="$_JQ_TMP/experiment-records.jsonl"
+fi
+
 # ── Compute pattern view ─────────────────────────────────────────────────────
 # If the retrospectives file doesn't exist yet (first run or empty scan),
 # pipe an empty stream to jq rather than letting it error on a missing file.
 if [ -f "$RETRO_FILE" ] && [ -s "$RETRO_FILE" ]; then
   PATTERN_VIEW="$(
     "$DEVFLOW_JQ" -s -L "$HERE" --slurpfile overrides "$_OVERRIDES_ACTUAL" \
+       --slurpfile experiments "$_EXPERIMENTS_ACTUAL" \
        -f "$HERE/compute-patterns.jq" \
        "$RETRO_FILE"
   )"
 else
   PATTERN_VIEW="$(
     printf '' | "$DEVFLOW_JQ" -s -L "$HERE" --slurpfile overrides "$_OVERRIDES_ACTUAL" \
+       --slurpfile experiments "$_EXPERIMENTS_ACTUAL" \
        -f "$HERE/compute-patterns.jq"
   )"
 fi
@@ -274,9 +289,23 @@ OUTPUT="$(
           last_seen: $v.last_seen,
           occurrences: $v.occurrences,
           descriptors: ($v.descriptors // []),
+          # Cost aggregate + the covered-occurrence count it was computed from (issue
+          # #1828). null cost means no covered occurrence — never a fabricated 0.
+          cost_mean_iterations: $v.cost_mean_iterations,
+          covered_occurrence_count: ($v.covered_occurrence_count // 0),
           cooldown_active: $cooldown_active
         }
     ]
+    # Cost-weighted ranking (issue #1828): covered patterns first, ordered by descending
+    # cost aggregate with occurrence count as the tiebreak; a pattern with zero covered
+    # occurrences ranks after every covered pattern, ordered by occurrence count. jq
+    # sort_by is ascending, so the numeric keys are negated for descending order; the
+    # cost key is read only on the covered branch, where it is a number, never null.
+    | sort_by(
+        (if (.covered_occurrence_count // 0) > 0 then 0 else 1 end),
+        (if (.covered_occurrence_count // 0) > 0 then -(.cost_mean_iterations) else 0 end),
+        -(.occurrence_count)
+      )
   '
 )" || { echo "::error::actionable-patterns: failed to build the actionable-pattern output (jq exited non-zero — e.g. a malformed pattern view; the former oversized-operand arg-limit overflow is now mitigated via --slurpfile)" >&2; exit 1; }
 
