@@ -65,6 +65,11 @@ Every checkpoint — and §2.5's own final commit — goes through the bundled h
 .prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh "feat: implement issue #$ARGUMENTS — {short description} (checkpoint)" {path} {path...}
 ```
 
+At each durability-checkpoint boundary also append a `phase2-checkpoint` event (best-effort; the helper always exits 0 and never blocks the run):
+```bash
+.prflow/vendor/prflow/scripts/verification-flight.py event phase2-checkpoint
+```
+
 - Explicit paths only. Name the files you produced since the last checkpoint; the helper stages exactly those (`git add -- …`) and refuses `git add -A`/`git add .`/intent-to-add. §2.5 goes through this same helper and is therefore explicitly scoped too — it is the run's *comprehensive-enumeration* point, not a sweep: a path you touch but never name at an earlier checkpoint stays non-durable until you name it there, and a path you never name at any checkpoint including §2.5 is never committed at all (the disclosed residual the Phase 4.3 clean-tree backstop surfaces) — a disclosed limit, not a defect.
 - **Proof edits never enter history.** **Never checkpoint while an unreverted §2.1.5 temporary proof edit is in the working tree** — revert proof edits first, or simply never *name* a proof file. The helper rewrites no pushed history (no amend, no rebase, no force-push), so proof content kept out by ordering never has to be removed later.
 - The helper reaches the §2.5 workflow-edit guard. It owns the cloud-tier workflow-edit guard's detect-and-do-not-stage half: on a cloud run whose `DEVFLOW_APP_ID` is empty (the `GITHUB_TOKEN` fallback) it will not stage a repo-own `.github/workflows/` path named in the relative `.github/workflows/…` spelling, so an earlier checkpoint cannot commit a workflow file the fallback credential cannot push. The match is spelling-only (the helper's own disclosed limit): an absolute path, a `../`-reaching form, and the bare directory `.github/workflows` with no trailing slash are not matched, so your revert — not this guard — remains the primary control. The guard's coupled-file enumeration and its 2.2.5 scope-adjustment routing stay your responsibility (§2.2.5 / §2.5) — only the detect-and-do-not-stage half lives in the helper.

@@ -4548,6 +4548,157 @@ def _render_review_roster_member(member: str, status: str) -> str:
     return f'review roster member {member}={status}'
 
 
+# issue #1509: the diff-profile row that authorizes a `skipped-intentional` checklist
+# skip. These constants MIRROR skills/review/phases/phase-0-setup.md §0.5 (`small_diff`,
+# `config_only`, `engine_self_modifying`); the divergence test in
+# lib/test/test_python_scripts.py reads that file's arms and goes RED if they drift from
+# these. The four prose copies of the engine-source path set stay unrefactored — this is
+# the recomputation's comparand, not a new single source for them.
+_REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING = 100   # total changed lines strictly below this
+_REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING = 3     # changed-file count at most this
+_REVIEW_COVERAGE_CONFIG_ONLY_EXTS = frozenset(
+    {'.yml', '.yaml', '.json', '.md', '.toml', '.ini', '.lock', '.txt'})
+# engine_self_modifying arm 1 — DevFlow's own source dirs (this repository's own tree).
+_REVIEW_COVERAGE_ENGINE_SOURCE_PREFIXES = ('skills/', 'agents/', 'lib/')
+# arm 2 — a prompt extension under the DevFlow state directory (any depth), `.md` only.
+_REVIEW_COVERAGE_ENGINE_STATE_DIRS = ('.prflow', '.devflow')
+# arm 3 — the root agent-instruction file (any depth), by basename.
+_REVIEW_COVERAGE_ENGINE_ROOT_AGENT_FILE = 'CLAUDE.md'
+
+
+def _parse_numstat_counts(numstat: str):
+    """(file_count, changed_line_total) from `git diff --numstat` output (issue #1509).
+
+    Sums added+deleted across all rows and counts one file per row: a binary row (`-` in
+    both count columns) contributes 0 lines but 1 file. A row lacking the three
+    tab-separated fields (a truncated line) or whose count column is neither an integer
+    nor `-` is malformed — raise ValueError so the caller routes to an unresolvable
+    measurement rather than trusting a wrong count."""
+    files = 0
+    lines = 0
+    for row in numstat.split('\n'):
+        if not row:
+            continue
+        parts = row.split('\t')
+        if len(parts) < 3:
+            raise ValueError(f'malformed --numstat row {row!r}')
+        for col in (parts[0], parts[1]):
+            if col != '-':
+                lines += int(col)  # ValueError on a non-integer column → unresolvable
+        files += 1
+    return files, lines
+
+
+def _recompute_diff_facts(anchor_head, base_ref, repo_root):
+    """Recompute the reviewed diff's size and paths from git alone (issue #1509).
+
+    Measures the reviewed head (`anchor_head`, the record's as-of anchor) against the PR
+    base (`base_ref`, else the `origin/HEAD` symbolic ref) — the SAME range the Phase 0.5
+    classification measured, never the working tree at write time. Returns
+    {'resolved': bool, 'reason': str, 'lines': int, 'files': int, 'paths': [str]}.
+
+    resolved is False — never a refusal; the caller records the checklist axis
+    `unestablished` — when the reviewed head is unestablished/absent, no base ref can be
+    read, no merge base exists (unrelated histories on a depth-limited checkout), or any
+    git invocation fails (non-zero exit or OSError) or emits a malformed row. Mirrors
+    `_repo_root`'s habit of catching both CalledProcessError and OSError."""
+    def _unresolved(reason):
+        return {'resolved': False, 'reason': reason,
+                'lines': 0, 'files': 0, 'paths': []}
+
+    if not anchor_head or anchor_head == _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED:
+        return _unresolved(
+            'the reviewed head is unestablished, so the diff it was recorded over '
+            'cannot be measured')
+
+    def _git(argv):
+        return subprocess.run(
+            ['git', *argv], cwd=repo_root, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8').stdout
+
+    try:
+        # `_git` runs check=True, so an unreadable base (origin/HEAD unset) or an
+        # unresolvable merge base (unrelated histories on a depth-limited checkout)
+        # raises here and is caught below as unresolved — no separate empty-value guard
+        # is reachable after it.
+        base = base_ref or _git(
+            ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).strip()
+        merge_base = _git(['merge-base', anchor_head, base]).strip()
+        files, lines = _parse_numstat_counts(
+            _git(['diff', '--numstat', merge_base, anchor_head]))
+        paths = [p for p in _git(
+            ['diff', '--name-only', '-z', merge_base, anchor_head]).split('\0') if p]
+    except (subprocess.CalledProcessError, OSError, ValueError) as e:
+        return _unresolved(f'the diff measurement did not resolve ({e})')
+    return {'resolved': True, 'reason': '',
+            'lines': lines, 'files': files, 'paths': paths}
+
+
+def _is_engine_own_repo(repo_root) -> bool:
+    """Whether `repo_root` is THIS engine's own repository (issue #1509), decided by
+    repository identity rather than directory names: its `.claude-plugin/plugin.json`
+    names this plugin. A consumer's checkout — whose own `lib/` is unrelated product
+    code — returns False, so the engine-source refusal arm never fires undiagnosably
+    on it, while the classifier's own use of the arms is unchanged."""
+    if not repo_root:
+        return False
+    try:
+        with open(os.path.join(repo_root, '.claude-plugin', 'plugin.json'),
+                  encoding='utf-8') as f:
+            manifest = json.load(f)
+    except (OSError, ValueError):
+        return False
+    # `prflow` is the frozen canonical plugin name (CLAUDE.md rename Tier 1, single-
+    # sourced in lib/rename-map.json and the manifest `name`): do not rename it here in
+    # isolation, or this identity check silently stops recognizing the engine's own repo.
+    return isinstance(manifest, dict) and manifest.get('name') == 'prflow'
+
+
+def _review_coverage_engine_source_paths(paths):
+    """The subset of `paths` in the engine's own source set — the arms of
+    phase-0-setup.md's `engine_self_modifying` (issue #1509)."""
+    hits = []
+    for p in paths:
+        base = p.rsplit('/', 1)[-1]
+        first = p.split('/', 1)[0]
+        if (p.startswith(_REVIEW_COVERAGE_ENGINE_SOURCE_PREFIXES)
+                or (first in _REVIEW_COVERAGE_ENGINE_STATE_DIRS
+                    and base.endswith('.md'))
+                or base == _REVIEW_COVERAGE_ENGINE_ROOT_AGENT_FILE):
+            hits.append(p)
+    return hits
+
+
+def _review_coverage_profile_disproof(facts, repo_root) -> str | None:
+    """Why the recomputed diff does NOT satisfy the profile row that authorizes a
+    `skipped-intentional` skip, naming each failed condition and its measured value —
+    or None when the profile row is confirmed (issue #1509). Assumes facts['resolved'].
+    The engine-source arm applies only in this engine's own repository (AC): on any
+    other repository it is excluded from the refusal predicate."""
+    reasons = []
+    if facts['lines'] >= _REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING:
+        reasons.append(
+            f"the changed-line total {facts['lines']} is not below the ceiling of "
+            f"{_REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING}")
+    if facts['files'] > _REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING:
+        reasons.append(
+            f"the changed-file count {facts['files']} exceeds the ceiling of "
+            f"{_REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING}")
+    bad_ext = [p for p in facts['paths']
+               if os.path.splitext(p)[1] not in _REVIEW_COVERAGE_CONFIG_ONLY_EXTS]
+    if bad_ext:
+        reasons.append(
+            'these changed paths have a non-config-only extension: '
+            + ', '.join(sorted(bad_ext)))
+    if _is_engine_own_repo(repo_root):
+        engine = _review_coverage_engine_source_paths(facts['paths'])
+        if engine:
+            reasons.append(
+                "these changed paths are in the engine's own source set (the "
+                'checklist is forced on for them): ' + ', '.join(sorted(engine)))
+    return '; '.join(reasons) if reasons else None
+
+
 def _review_coverage_dispositions(progress_content: str) -> dict:
     """The recorded dispositions as `{gap: reason}`, read from the `## Progress`
     content. Each is one row carrying a `review-coverage-disposition:<gap>` marker
@@ -5725,6 +5876,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # "flag absent" rather than raising AttributeError.
     review_coverage = getattr(args, 'record_review_coverage', None)
     review_coverage_payload = None
+    review_coverage_auto_notes: list[str] = []
     if review_coverage:
         # Arity is guaranteed by argparse's nargs=4 from the CLI, but a programmatic
         # caller (the suite builds `args` directly) can pass a short list, which `zip`
@@ -5759,6 +5911,69 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 f"--record-review-coverage-head: {_anchor_head!r} is not a "
                 "lowercase-hex head SHA (or 'unestablished'). No PATCH was made."
             )
+        # issue #1509: a `skipped-intentional` checklist claim is accepted only when the
+        # diff it was recorded over satisfies the profile row that authorizes the skip
+        # (skills/review/phases/phase-0-setup.md §0.5). Recompute the diff from git over
+        # the reviewed head (the anchor above) against the PR base: a resolved-and-
+        # disproved row is a hard refusal (AC3); an unresolvable measurement downgrades
+        # the axis to `unestablished` — never a refusal (AC5); an explicit --override
+        # downgrades to bare `skipped` (non-clean, forces a disposition — AC13); a
+        # confirmed row keeps the value and writes exactly today's record (AC6).
+        # Copy here — after _require_arity above proved it is a real sequence — so the
+        # downgrade never mutates the caller's list and a non-sequence still hits the
+        # arity refusal rather than this list() (issue #1544).
+        review_coverage = list(review_coverage)
+        _checklist_idx = _REVIEW_COVERAGE_AXES.index('checklist')
+        _rc_override = getattr(args, 'record_review_coverage_override', None)
+        if review_coverage[_checklist_idx] == 'skipped-intentional':
+            if _rc_override:
+                review_coverage[_checklist_idx] = 'skipped'
+                review_coverage_auto_notes.append(
+                    'review-coverage recomputation overridden — the '
+                    'skipped-intentional checklist claim is recorded as bare `skipped` '
+                    '(non-clean; a --review-coverage-disposition is required): '
+                    + _rc_override)
+            else:
+                _rc_repo_root = getattr(args, 'repo_root', None) or _repo_root()
+                _rc_facts = _recompute_diff_facts(
+                    _anchor_head, getattr(args, 'record_review_coverage_base', None),
+                    _rc_repo_root)
+                if not _rc_facts['resolved']:
+                    review_coverage[_checklist_idx] = 'unestablished'
+                    review_coverage_auto_notes.append(
+                        'review-coverage checklist recorded `unestablished` — the '
+                        'skipped-intentional diff could not be recomputed: '
+                        + _rc_facts['reason'])
+                else:
+                    _rc_disproof = _review_coverage_profile_disproof(
+                        _rc_facts, _rc_repo_root)
+                    if _rc_disproof:
+                        raise _UpdateError(
+                            "--record-review-coverage: a `skipped-intentional` "
+                            "checklist claim is not authorized by the diff (measured "
+                            f"{_rc_facts['files']} file(s), {_rc_facts['lines']} "
+                            f"line(s)): {_rc_disproof}. No PATCH was made."
+                        )
+                    # AC4: a confirmed write reports the measured values on success.
+                    # The engine-source clause is honest per §2.3.6: it names the arm
+                    # as verified only in this engine's own repo, where the arm was
+                    # actually evaluated; on any other repo the arm is excluded from the
+                    # predicate, so the breadcrumb says so rather than asserting a check
+                    # that did not run.
+                    _rc_engine_note = (
+                        'and non-engine-source: verified'
+                        if _is_engine_own_repo(_rc_repo_root)
+                        else '(engine-source arm not evaluated: not this engine\'s '
+                             'repository)')
+                    sys.stderr.write(
+                        'workpad.py: review-coverage skipped-intentional confirmed — '
+                        f"{_rc_facts['files']} changed file(s), {_rc_facts['lines']} "
+                        f'changed line(s), path-set config-only {_rc_engine_note}\n')
+        elif _rc_override:
+            sys.stderr.write(
+                'workpad.py: --record-review-coverage-override is ignored — it applies '
+                'only to a skipped-intentional checklist, not '
+                f"{review_coverage[_checklist_idx]!r}\n")
         _anchor_asof = _utc_now_compact()
         review_coverage_payload = ':'.join(
             list(review_coverage) + [_anchor_head, _anchor_asof])
@@ -6131,7 +6346,9 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if getattr(args, 'note_file', None):
         _notes_in.append(_note_file_payload(args))
     _notes = [n for n in _notes_in if n not in _checkpoint_covered_texts]
-    progress_notes = _notes + scope_decision_notes + deferred_filed_notes + [
+    # issue #1509: a review-coverage downgrade/override records its reason as an ordinary
+    # ## Progress note alongside the (mutated) record row.
+    progress_notes = _notes + review_coverage_auto_notes + scope_decision_notes + deferred_filed_notes + [
         f'{text} {_checkpoint_marker(key)}' for key, text in checkpoint_inserts
     ]
     # Completion-evidence marker (issue #1087): validated above; a later validated key
@@ -6882,6 +7099,25 @@ def main():
                         'predates a later standalone review from a current one. A '
                         'lowercase-hex SHA; omit it to record the head as '
                         '"unestablished". Only meaningful with --record-review-coverage.')
+    u.add_argument('--record-review-coverage-base', default=None, metavar='REF',
+                   help='The pull request base branch the review-coverage '
+                        'recomputation measures the reviewed head against (issue '
+                        '#1509). A "skipped-intentional" checklist claim is refused '
+                        'when the diff between the base and the reviewed head does not '
+                        'satisfy the profile row that authorizes the skip (changed '
+                        'lines < 100, changed files <= 3, config-only extensions, and '
+                        "in this repository no engine-source path). Falls back to the "
+                        'origin/HEAD symbolic ref when omitted; when the diff cannot be '
+                        'recomputed the checklist axis is recorded "unestablished" '
+                        'rather than refused. Only meaningful with '
+                        '--record-review-coverage.')
+    u.add_argument('--record-review-coverage-override', default=None, metavar='REASON',
+                   help='Override the issue-#1509 recomputation for a '
+                        '"skipped-intentional" checklist claim: record it as bare '
+                        '"skipped" instead (non-clean — it then forces a '
+                        '--review-coverage-disposition exactly as bare skipped does) '
+                        'and note that the override was used. REASON states why. Never '
+                        'yields a clean record.')
     u.add_argument('--review-coverage-disposition', nargs=2, action='append',
                    default=[], metavar=('GAP', 'REASON'),
                    help='Carry a recorded review-coverage gap forward under a stated '

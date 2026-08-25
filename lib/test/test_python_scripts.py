@@ -253,6 +253,9 @@ def make_args(**overrides):
         # issue #1512 shadow-roster per-member enumeration — read on every call.
         record_roster_member=None,
         record_review_coverage_head=None,
+        # issue #1509 review-coverage diff recomputation — read via getattr on the
+        # write path; a base ref for the range and an explicit override channel.
+        record_review_coverage_base=None, record_review_coverage_override=None,
         # issue #1462 prompt-extension row reconciliation — read on every call.
         reconcile_extension_rows=False,
         # issue #1876 mid-phase resume-point record — read on every call.
@@ -12829,6 +12832,372 @@ assert_eq("#1510: a fresh record strips a superseded ('carried forward') reflect
 
 # Restore the module-load bypass so any later Complete tests are not gated on the record.
 workpad._review_coverage_verdict = lambda prog_content: None
+
+# ── issue #1509: a `skipped-intentional` checklist claim is refused when the diff
+# ── it was recorded over does not satisfy the profile row that authorizes the skip.
+# The recomputation reads the reviewed head (the record's as-of anchor) against the
+# PR base, measuring the diff from git alone rather than trusting any value the run
+# supplied. Fixtures are real temp git repos with real commits (git is not mocked).
+def _rc_git(args, cwd):
+    return _subprocess.run(
+        ['git', '-c', 'user.email=t@e', '-c', 'user.name=t', *args],
+        cwd=str(cwd), capture_output=True, text=True)
+
+
+def _rc_diff_repo(name, before, after, *, base='main', plugin=False):
+    """Build a temp git repo: commit `before` on `base`, then `after` on a feature
+    branch. Each of `before`/`after` maps relative path -> file text. Returns
+    (repo_path, head_sha). `plugin=True` seeds `.claude-plugin/plugin.json` naming
+    this engine so the engine-source arm fires (repository identity, not dir names)."""
+    d = Path(tempfile.mkdtemp(prefix='rc1509-' + name + '-'))
+    rc = _rc_git(['init', '-q', '-b', base, '.'], d)
+    if rc.returncode != 0:
+        raise AssertionError(
+            '#1509 harness: git init failed (rc=%d): %s' % (rc.returncode, rc.stderr))
+    if plugin:
+        (d / '.claude-plugin').mkdir(parents=True, exist_ok=True)
+        (d / '.claude-plugin' / 'plugin.json').write_text('{"name": "prflow"}\n')
+        _rc_git(['add', '.claude-plugin/plugin.json'], d)
+    for rel, text in before.items():
+        p = d / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+        _rc_git(['add', '--', rel], d)
+    _rc_git(['commit', '-q', '-m', 'base'], d)
+    _rc_git(['checkout', '-q', '-b', 'feat'], d)
+    for rel, text in after.items():
+        p = d / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+        _rc_git(['add', '--', rel], d)
+    _rc_git(['commit', '-q', '-m', 'feat'], d)
+    head = _rc_git(['rev-parse', 'HEAD'], d).stdout.strip()
+    return d, head
+
+
+def _rc_intentional_write(repo, head, *, base='main', override=None):
+    """Drive a --record-review-coverage write with checklist=skipped-intentional over
+    `repo`, returning the _UpdateError message or None when the write applied."""
+    ov = {} if override is None else {'record_review_coverage_override': override}
+    try:
+        apply_mut(_CP_BODY, make_args(
+            record_review_coverage=['full', 'attempted', 'complete',
+                                    'skipped-intentional'],
+            record_roster_member=_rc_members_for('complete'),
+            record_review_coverage_head=head,
+            record_review_coverage_base=base,
+            repo_root=str(repo),
+            **ov), [])
+    except workpad._UpdateError as e:
+        return str(e)
+    return None
+
+
+# Reproduction (RED before the fix): the #1504 shape — more changed files than the
+# file ceiling allows, all config-only extensions, under the line ceiling — must be
+# REFUSED, because the profile row is disproved. Today's code accepts it.
+_rc_repro_6f, _rc_repro_6f_head = _rc_diff_repo(
+    '6file',
+    {f'doc{i}.md': 'x\n' for i in range(6)},
+    {f'doc{i}.md': 'x\ny\n' for i in range(6)})
+_rc_repro_6f_msg = _rc_intentional_write(_rc_repro_6f, _rc_repro_6f_head)
+assert_eq("#1509 repro: skipped-intentional over a 6-file diff is refused (was accepted)",
+          True, _rc_repro_6f_msg is not None and "No PATCH was made" in _rc_repro_6f_msg)
+assert_eq("#1509 repro: the 6-file refusal names the file-count condition and measured value",
+          True, (_rc_repro_6f_msg or "").find("6") >= 0
+          and "file" in (_rc_repro_6f_msg or ""))
+
+# Reproduction (RED before the fix): the #1503 shape — within the file ceiling but
+# over the line ceiling on a config-only diff — must be REFUSED.
+_rc_repro_153, _rc_repro_153_head = _rc_diff_repo(
+    '153line',
+    {'a.md': '', 'b.md': '', 'c.md': ''},
+    {'a.md': '\n'.join(f'l{i}' for i in range(60)) + '\n',
+     'b.md': '\n'.join(f'l{i}' for i in range(60)) + '\n',
+     'c.md': '\n'.join(f'l{i}' for i in range(33)) + '\n'})
+_rc_repro_153_msg = _rc_intentional_write(_rc_repro_153, _rc_repro_153_head)
+assert_eq("#1509 repro: skipped-intentional over a 153-line diff is refused (was accepted)",
+          True, _rc_repro_153_msg is not None
+          and "No PATCH was made" in _rc_repro_153_msg
+          and "line" in _rc_repro_153_msg)
+
+
+def _rc_checklist_axis(body):
+    """The stored checklist axis value in the review-coverage record on `body`."""
+    payloads = workpad._review_coverage_payloads(body)
+    rec = workpad._parse_review_coverage_payload(payloads[0]) if payloads else None
+    return (rec or {}).get('checklist')
+
+
+# AC1: the numstat counting rule — sum added+deleted across rows, one file per row, a
+# binary `-` row contributes 0 lines but 1 file; a truncated/non-numeric row is malformed.
+assert_eq("#1509 AC1: numstat sums added+deleted across rows, one file per row",
+          (2, 6), workpad._parse_numstat_counts("1\t2\ta.py\n3\t0\tb.py\n"))
+assert_eq("#1509 AC1: a binary row (dash columns) counts 1 file and 0 lines",
+          (1, 0), workpad._parse_numstat_counts("-\t-\tbin.png\n"))
+assert_eq("#1509 AC1: an empty diff is 0 files and 0 lines",
+          (0, 0), workpad._parse_numstat_counts(""))
+assert_eq("#1509 AC1: a path containing a space is one file (path is the 3rd field)",
+          (1, 3), workpad._parse_numstat_counts("1\t2\tfoo bar.py\n"))
+assert_raises("#1509 AC1: a truncated mid-row numstat line is malformed (ValueError)",
+              ValueError, lambda: workpad._parse_numstat_counts("1\t2\ta.py\n3\t"))
+assert_raises("#1509 AC1: a non-integer count column is malformed (ValueError)",
+              ValueError, lambda: workpad._parse_numstat_counts("x\t2\ta.py\n"))
+
+# AC6/AC4: a confirming small config-only diff writes the skipped-intentional record
+# unchanged and reports the measured values on its success (stderr) output.
+_rc_ok_repo, _rc_ok_head = _rc_diff_repo(
+    '2file-ok', {'a.md': 'x\n', 'b.md': 'y\n'},
+    {'a.md': 'x\nz\n', 'b.md': 'y\nw\n'})
+_rc_ok_buf = io.StringIO()
+with contextlib.redirect_stderr(_rc_ok_buf):
+    _rc_ok_body = apply_mut(_CP_BODY, make_args(
+        record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+        record_roster_member=_rc_members_for('complete'),
+        record_review_coverage_head=_rc_ok_head,
+        record_review_coverage_base='main', repo_root=str(_rc_ok_repo)), [])
+assert_eq("#1509 AC6: a confirming diff keeps checklist=skipped-intentional (record unchanged)",
+          "skipped-intentional", _rc_checklist_axis(_rc_ok_body))
+assert_eq("#1509 AC6: the visible row still reads checklist=skipped-intentional",
+          True, "checklist=skipped-intentional" in _rc_ok_body)
+assert_eq("#1509 AC4: a confirmed write reports the measured file and line counts on success output",
+          True, "changed file(s)" in _rc_ok_buf.getvalue()
+          and "changed line(s)" in _rc_ok_buf.getvalue())
+
+# A path containing a double-quote is parsed cleanly (name-only -z, no quoting), so a
+# small config-only diff that includes one is still confirmed rather than mismeasured.
+_rc_q_repo, _rc_q_head = _rc_diff_repo(
+    'quote', {'a.md': 'x\n'}, {'a.md': 'x\ny\n', 'q"x.md': 'hi\n'})
+assert_eq("#1509 AC1: a path containing a quote does not break the recomputation (confirmed)",
+          None, _rc_intentional_write(_rc_q_repo, _rc_q_head))
+
+# AC5: an unresolvable recomputation downgrades the checklist axis to `unestablished`
+# and records the reason — never a refusal. Three unresolvable shapes.
+_rc_noh_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_base='main', repo_root=str(_rc_ok_repo)), [])
+assert_eq("#1509 AC5: an unestablished reviewed head downgrades checklist to unestablished (no refusal)",
+          "unestablished", _rc_checklist_axis(_rc_noh_body))
+assert_eq("#1509 AC5: ...and the downgrade reason is recorded alongside the record",
+          True, "could not be recomputed" in _rc_noh_body)
+# git cannot run at a non-existent repo root (OSError) → unresolvable, not a refusal.
+_rc_oserr_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_head=_rc_ok_head, record_review_coverage_base='main',
+    repo_root='/no/such/repo/path/1509'), [])
+assert_eq("#1509 AC5: a failing git invocation (bad repo root) downgrades to unestablished",
+          "unestablished", _rc_checklist_axis(_rc_oserr_body))
+# A base ref that does not exist → merge-base fails → unresolvable, not a refusal.
+_rc_nobase_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_head=_rc_ok_head,
+    record_review_coverage_base='no-such-base', repo_root=str(_rc_ok_repo)), [])
+assert_eq("#1509 AC5: an unreadable/absent base ref downgrades to unestablished (no refusal)",
+          "unestablished", _rc_checklist_axis(_rc_nobase_body))
+# A depth-limited clone whose merge base is unreachable → unestablished, not refused.
+_rc_shallow = Path(tempfile.mkdtemp(prefix='rc1509-shallow-'))
+_rc_clone = _rc_git(['clone', '-q', '--depth', '1', 'file://' + str(_rc_ok_repo),
+                     str(_rc_shallow / 'c')], _rc_shallow)
+_rc_shallow_repo = _rc_shallow / 'c'
+_rc_shallow_head = _rc_git(['rev-parse', 'HEAD'], _rc_shallow_repo).stdout.strip()
+_rc_shallow_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_head=_rc_shallow_head,
+    record_review_coverage_base='no-such-base', repo_root=str(_rc_shallow_repo)), [])
+assert_eq("#1509 AC5: a depth-limited checkout with no resolvable base is unestablished, not refused",
+          "unestablished", _rc_checklist_axis(_rc_shallow_body))
+
+# AC13: the override channel records a non-clean bare `skipped` and names the override —
+# never a clean value. Confirmed even over a diff the recomputation would otherwise refuse.
+_rc_ovr_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_head=_rc_repro_6f_head, record_review_coverage_base='main',
+    repo_root=str(_rc_repro_6f),
+    record_review_coverage_override='the diff is genuinely config-only; auto-measure misfired'), [])
+assert_eq("#1509 AC13: the override records bare `skipped` (a non-clean value), not skipped-intentional",
+          "skipped", _rc_checklist_axis(_rc_ovr_body))
+assert_eq("#1509 AC13: bare `skipped` is not in the checklist clean set (forces a disposition)",
+          False, "skipped" in workpad._REVIEW_COVERAGE_CLEAN['checklist'])
+assert_eq("#1509 AC13: the record names that the override was used",
+          True, "overridden" in _rc_ovr_body)
+
+# AC3 (engine-source arm) + repository identity: a `lib/**` change in THIS repository is
+# refused (engine source forces the checklist on), but the SAME change on any other
+# repository is confirmed — the engine arm is gated on repository identity, not dir names.
+_rc_eng_repo, _rc_eng_head = _rc_diff_repo(
+    'engine', {'lib/foo.md': 'x\n'}, {'lib/foo.md': 'x\ny\n'}, plugin=True)
+_rc_eng_msg = _rc_intentional_write(_rc_eng_repo, _rc_eng_head)
+assert_eq("#1509 AC3: a lib/** change in this engine's own repo is refused (engine-source arm)",
+          True, _rc_eng_msg is not None
+          and "engine's own source set" in _rc_eng_msg)
+_rc_noneng_repo, _rc_noneng_head = _rc_diff_repo(
+    'nonengine', {'lib/foo.md': 'x\n'}, {'lib/foo.md': 'x\ny\n'}, plugin=False)
+assert_eq("#1509 AC3: the same lib/** change on another repository is confirmed (engine arm excluded)",
+          None, _rc_intentional_write(_rc_noneng_repo, _rc_noneng_head))
+assert_eq("#1509 AC3: repository identity is decided by plugin.json name, not directory names",
+          (True, False),
+          (workpad._is_engine_own_repo(str(_rc_eng_repo)),
+           workpad._is_engine_own_repo(str(_rc_noneng_repo))))
+# A non-config extension (.py) in the diff is refused, naming the offending path.
+_rc_py_repo, _rc_py_head = _rc_diff_repo(
+    'pyext', {'a.md': 'x\n'}, {'a.md': 'x\ny\n', 'b.py': 'z\n'})
+_rc_py_msg = _rc_intentional_write(_rc_py_repo, _rc_py_head)
+assert_eq("#1509 AC3: a non-config extension in the diff is refused, naming the offending path",
+          True, _rc_py_msg is not None and "b.py" in _rc_py_msg
+          and "non-config-only extension" in _rc_py_msg)
+
+
+def _rc_lines(n):
+    return '\n'.join(f'l{i}' for i in range(n)) + '\n'
+
+
+# AC3 ceiling boundaries (</<= off-by-one guards): 99 lines over 3 files is confirmed,
+# 100 lines is refused; 3 files is confirmed, 4 files is refused.
+_rc_99_repo, _rc_99_head = _rc_diff_repo(
+    'lines99', {'a.md': '', 'b.md': '', 'c.md': ''},
+    {'a.md': _rc_lines(33), 'b.md': _rc_lines(33), 'c.md': _rc_lines(33)})
+assert_eq("#1509 AC3: exactly 99 changed lines over 3 files is confirmed (below the 100 ceiling)",
+          None, _rc_intentional_write(_rc_99_repo, _rc_99_head))
+_rc_100_repo, _rc_100_head = _rc_diff_repo(
+    'lines100', {'a.md': '', 'b.md': '', 'c.md': ''},
+    {'a.md': _rc_lines(34), 'b.md': _rc_lines(33), 'c.md': _rc_lines(33)})
+_rc_100_msg = _rc_intentional_write(_rc_100_repo, _rc_100_head)
+assert_eq("#1509 AC3: exactly 100 changed lines is refused (the ceiling is strict <100)",
+          True, _rc_100_msg is not None and "100" in _rc_100_msg
+          and "line" in _rc_100_msg)
+_rc_4f_repo, _rc_4f_head = _rc_diff_repo(
+    '4file', {f'd{i}.md': 'x\n' for i in range(4)},
+    {f'd{i}.md': 'x\ny\n' for i in range(4)})
+_rc_4f_msg = _rc_intentional_write(_rc_4f_repo, _rc_4f_head)
+assert_eq("#1509 AC3: exactly 4 changed files is refused (the file ceiling is <=3)",
+          True, _rc_4f_msg is not None and "4" in _rc_4f_msg and "file" in _rc_4f_msg)
+
+# AC3 engine-source arms 2 (state-dir prompt extension) and 3 (root agent file), in
+# this engine's own repo: each forces the checklist on, so a skipped-intentional over
+# one is refused even though it is small and config-only.
+_rc_arm2_repo, _rc_arm2_head = _rc_diff_repo(
+    'arm2', {'.prflow/prompt-extensions/review.md': 'x\n'},
+    {'.prflow/prompt-extensions/review.md': 'x\ny\n'}, plugin=True)
+_rc_arm2_msg = _rc_intentional_write(_rc_arm2_repo, _rc_arm2_head)
+assert_eq("#1509 AC3: a .prflow/**.md change in this repo is refused (engine-source arm 2)",
+          True, _rc_arm2_msg is not None and "engine's own source set" in _rc_arm2_msg)
+_rc_arm3_repo, _rc_arm3_head = _rc_diff_repo(
+    'arm3', {'CLAUDE.md': 'x\n'}, {'CLAUDE.md': 'x\ny\n'}, plugin=True)
+_rc_arm3_msg = _rc_intentional_write(_rc_arm3_repo, _rc_arm3_head)
+assert_eq("#1509 AC3: a CLAUDE.md change in this repo is refused (engine-source arm 3)",
+          True, _rc_arm3_msg is not None and "engine's own source set" in _rc_arm3_msg)
+# The SAME arm-3 change on another repository is confirmed (engine arm excluded there).
+_rc_arm3c_repo, _rc_arm3c_head = _rc_diff_repo(
+    'arm3-consumer', {'CLAUDE.md': 'x\n'}, {'CLAUDE.md': 'x\ny\n'}, plugin=False)
+assert_eq("#1509 AC3: the same CLAUDE.md change on another repository is confirmed",
+          None, _rc_intentional_write(_rc_arm3c_repo, _rc_arm3c_head))
+
+# An empty diff (reviewed head == base, so merge_base == head) resolves and confirms
+# (0 files, 0 lines): the recomputation resolves rather than downgrading.
+_rc_empty = Path(tempfile.mkdtemp(prefix='rc1509-empty-'))
+_rc_git(['init', '-q', '-b', 'main', '.'], _rc_empty)
+(_rc_empty / 'a.md').write_text('x\n')
+_rc_git(['add', '--', 'a.md'], _rc_empty)
+_rc_git(['commit', '-q', '-m', 'base'], _rc_empty)
+_rc_git(['checkout', '-q', '-b', 'feat'], _rc_empty)  # no commit: feat == main
+_rc_empty_head = _rc_git(['rev-parse', 'HEAD'], _rc_empty).stdout.strip()
+assert_eq("#1509 AC1: an empty reviewed diff (head==base) resolves and confirms the skip",
+          None, _rc_intentional_write(_rc_empty, _rc_empty_head))
+
+# The override is a no-op on a non-skipped-intentional checklist and says so on stderr,
+# leaving the value unchanged (no recomputation runs).
+_rc_ign_buf = io.StringIO()
+with contextlib.redirect_stderr(_rc_ign_buf):
+    _rc_ign_body = apply_mut(_CP_BODY, make_args(
+        record_review_coverage=['full', 'attempted', 'complete', 'complete'],
+        record_roster_member=_rc_members_for('complete'),
+        record_review_coverage_head=_rc_ok_head,
+        record_review_coverage_override='not applicable here',
+        repo_root='/no/such/repo/path/1509'), [])
+assert_eq("#1509 AC13: --override on a non-skipped-intentional checklist is ignored (value unchanged)",
+          "complete", _rc_checklist_axis(_rc_ign_body))
+assert_eq("#1509 AC13: ...and the ignored override is announced on stderr",
+          True, "is ignored" in _rc_ign_buf.getvalue())
+
+# AC7: the bare `skipped` value is written unchanged — no recomputation, no new condition.
+# (A bad repo root would break a recomputation, proving none runs for bare `skipped`.)
+_rc_bare_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_head=_rc_ok_head,
+    repo_root='/no/such/repo/path/1509'), [])
+assert_eq("#1509 AC7: a bare `skipped` checklist is written unchanged (no recomputation)",
+          "skipped", _rc_checklist_axis(_rc_bare_body))
+assert_eq("#1509 AC7: a bare `skipped` write adds no unestablished-downgrade note",
+          False, "could not be recomputed" in _rc_bare_body)
+
+# AC8: the non-skipped-intentional axis values are written unchanged, no recomputation.
+for _cval in ('complete', 'not-applicable', 'unestablished'):
+    _other = ['full', 'attempted', 'complete', _cval]
+    if _cval == 'not-applicable':
+        _other = ['not-applicable', 'not-applicable', 'not-applicable', 'not-applicable']
+    _rc_other = apply_mut(_CP_BODY, make_args(
+        record_review_coverage=_other, record_review_coverage_head=_rc_ok_head,
+        record_roster_member=_rc_members_for(_other[2]),
+        repo_root='/no/such/repo/path/1509'), [])
+    assert_eq(f"#1509 AC8: checklist={_cval} is written unchanged (no recomputation)",
+              _cval, _rc_checklist_axis(_rc_other))
+
+# AC9: the axis tuple and its clean tuple are present verbatim, and the validator ran at
+# import (it accepts the shipped table and refuses a fail-open edit).
+assert_eq("#1509 AC9: the checklist axis vocabulary is present verbatim",
+          ('complete', 'not-applicable', 'skipped-intentional', 'skipped', 'unestablished'),
+          workpad._REVIEW_COVERAGE_VOCABULARY['checklist'])
+assert_eq("#1509 AC9: the checklist clean tuple is present verbatim",
+          ('complete', 'not-applicable', 'skipped-intentional'),
+          workpad._REVIEW_COVERAGE_CLEAN['checklist'])
+assert_eq("#1509 AC9: _validate_review_coverage_axis_specs still accepts the shipped table at import",
+          None, workpad._validate_review_coverage_axis_specs(
+              workpad._REVIEW_COVERAGE_AXIS_SPECS))
+
+# AC12: the recomputation's profile-row arm set must not drift from the arms stated in
+# skills/review/phases/phase-0-setup.md §0.5. This test reads that file and compares its
+# arms to the module constants — it goes RED if either drifts. (Non-vacuous: it also
+# asserts the file actually yielded each parsed value.)
+_p05_text = (Path(__file__).resolve().parents[2]
+             / 'skills' / 'review' / 'phases' / 'phase-0-setup.md').read_text()
+_p05_line = re.search(r'changed lines < (\d+)', _p05_text)
+_p05_file = re.search(r'count [≤<]=?\s*(\d+)', _p05_text)
+_p05_exts_m = re.search(r'extension in [^{]*\{([^}]+)\}', _p05_text)
+_p05_exts = (frozenset(x.strip() for x in _p05_exts_m.group(1).split(','))
+             if _p05_exts_m else None)
+_p05_arm1 = re.search(r'`skills/\*\*`\s+OR\s+`agents/\*\*`\s+OR\s+`lib/\*\*`', _p05_text)
+# Arm 2 (state-directory prompt-extension) and arm 3 (root agent-instruction file):
+# AC12 pins the whole engine-source *arm set*, not only arm 1, so a coupled-mirror
+# drift on arm 2 (e.g. retiring the `.devflow/` sub-arm) or arm 3 must turn this RED.
+_p05_arm2 = re.search(
+    r'Arm 2 —.*?(?=\n\s+- Arm 3 —)', _p05_text, re.S)
+_p05_arm2_dirs = (tuple(sorted(set(re.findall(r'`(\.\w+)/`', _p05_arm2.group(0)))))
+                  if _p05_arm2 else None)
+_p05_arm3 = re.search(r'Arm 3 —.*?basename is `CLAUDE\.md`', _p05_text, re.S)
+assert_eq("#1509 AC12: phase-0-setup.md yields each profile-row arm (non-vacuous parse)",
+          True, all(x is not None for x in
+                    (_p05_line, _p05_file, _p05_exts, _p05_arm1, _p05_arm2,
+                     _p05_arm2_dirs, _p05_arm3)))
+assert_eq("#1509 AC12: the line ceiling matches phase-0-setup.md",
+          int(_p05_line.group(1)), workpad._REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING)
+assert_eq("#1509 AC12: the file ceiling matches phase-0-setup.md",
+          int(_p05_file.group(1)), workpad._REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING)
+assert_eq("#1509 AC12: the config-only extension set matches phase-0-setup.md",
+          _p05_exts, workpad._REVIEW_COVERAGE_CONFIG_ONLY_EXTS)
+assert_eq("#1509 AC12: the engine-source arm-1 prefixes match phase-0-setup.md",
+          ('skills/', 'agents/', 'lib/'),
+          workpad._REVIEW_COVERAGE_ENGINE_SOURCE_PREFIXES)
+assert_eq("#1509 AC12: the engine-source arm-2 state dirs match phase-0-setup.md",
+          _p05_arm2_dirs, tuple(sorted(workpad._REVIEW_COVERAGE_ENGINE_STATE_DIRS)))
+assert_eq("#1509 AC12: the engine-source arm-3 root agent file matches phase-0-setup.md",
+          True, _p05_arm3 is not None
+          and workpad._REVIEW_COVERAGE_ENGINE_ROOT_AGENT_FILE == 'CLAUDE.md')
 
 # ── issue #1817: the terminal --status Complete extension-row gate ─────────────
 # The gate refuses a Complete write while any `prompt extension resolved:` row is
