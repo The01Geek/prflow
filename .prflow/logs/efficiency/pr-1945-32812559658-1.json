@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1945",
+  "generated_at": "2026-08-25T06:13:00Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 41.36881839999999,
+    "tokens": {
+      "input_tokens": 296,
+      "output_tokens": 136085,
+      "cache_read_input_tokens": 46284956,
+      "cache_creation_input_tokens": 505689,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 421,
+        "outputTokens": 180085,
+        "cacheReadInputTokens": 51397136,
+        "cacheCreationInputTokens": 1101041,
+        "webSearchRequests": 0,
+        "costUSD": 38.98063799999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 120,
+        "outputTokens": 24935,
+        "cacheReadInputTokens": 3379027,
+        "cacheCreationInputTokens": 585114,
+        "webSearchRequests": 0,
+        "costUSD": 2.3881804,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 184,
+    "duration_ms": 2968677
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<unset>}\"; echo \"BASE branch:\"; git branch --show-current; echo \"---base config---\"; .prflow/vendor/prflow/scripts/config-get.sh prflow.base_branch 2>/dev/null || echo \"(no vendored config-get)\"",
+      "WP_BRANCH=\"issue-1512-a-shadow-pass-narrower-than-the-expected-roster\"\nPR_JSON=$(gh pr list --head \"$WP_BRANCH\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''\necho \"HEAD_QUERY: $PR_JSON\"\nif [ \"$PR_JSON\" = \"[]\" ]; then\n  PR_JSON2=$(gh pr list --search \"1512 in:body\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON2=''\n  echo \"BODY_QUERY: $PR_JSON2\"\nfi\ngit branch --show-current\ngit stat …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nprintf '%s' \"A shadow pass narrower than the expected roster records roster=complete, and the shipped gate keys on dispatch rather than roster completeness\" > .prflow/tmp/devflow-issue-1512-title.txt\ncat .prflow/tmp/devflow-issue-1512-title.txt",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 1512 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1512 --note \"issue-claim audit (count): no count or enumeration claims found — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1512 --note \"issue-claim audit (negative-scope): no scope-exclusion claims found — pass complete\" && \\\n …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1512 --status Planning --replace-plan-file .prflow/tmp/plan-1512.md --note \"2.2.4 Reuse: mirror existing _review_coverage_incoherence (scripts/workpad.py:4341) + the disposition machinery — reader _review_coverage_marker_rows (:4273), marker helpers (:4419), strip _strip_review_coverage_marker_rows (:4454), reserved-prefix + free-text guards; no existing roster-membership validator (repro-confirmed absent). Altitude: generalize the roster axis to c …[per-command-truncated]",
+      "python3 -c \"\nimport importlib.util\nspec = importlib.util.spec_from_file_location('wp', 'scripts/workpad.py')\nwp = importlib.util.module_from_spec(spec); spec.loader.exec_module(wp)\n# A ## Progress carrying only a complete coverage record, NO per-member roster data.\nprog = '''- [x] AC1\n  - 03:00:00 — review coverage recorded ''' + wp._review_coverage_marker('full:attempted:complete:complete') + '''\n'''\nprint('read-time verdict on complete-with-no-roster-enumeration ->', repr(wp._review_coverage_v …[per-command-truncated]",
+      "lib/test/lint-reference-size.py; echo \"EXIT=$?\"",
+      "lib/test/lint-reference-size.py",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1512-roster-enumeration.md | python3 scripts/stale-prose-lint.py --worktree; echo \"EXIT=$?\"",
+      "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); mkdir -p \"$ROOT/.prflow/tmp\"; set -- \"$ROOT\"/.prflow/tmp/review/*/*/iter-*.json; if [ -e \"$1\" ]; then printf '%s\\n' \"$@\" | sort; else echo \"(none)\"; fi",
+      "git diff \"66eec8a8a2aee14677cd27359929722760691fe3...HEAD\" | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1945/32812559658-1/diff.patch; grep -c '^diff --git' .prflow/tmp/review/pr-1945/32812559658-1/diff.patch; wc -l .prflow/tmp/review/pr-1945/32812559658-1/diff.patch"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
