@@ -1,0 +1,221 @@
+{
+ "verdict": "REJECT",
+ "report": "## Verdict: REJECT (a fail-open redaction regression on a security control, plus 4 checklist FAILs)\n\n## Issue Compliance\n\nReviewed against issue #1915: \"The credential scrub eats the JSON escape backslash, so large execution transcripts are unparseable\" \u2014 criteria from workpad; scope unchanged. Requirement-based checklist items are included in the verification results below.\n\nCriteria came from the `/prflow:implement` workpad comment \u2014 this run's authoritative set, possibly narrowed from the issue.\n\nNo divergence between the workpad's criteria and the issue body's.\n\nAll five acceptance criteria are behaviourally satisfied on the happy path, verified by direct execution: the `basic` and `Bearer` JSON round-trips parse, the recorded `sed 's/AUTHORIZATION: basic //'` keeps its trailing slashes, the new `run.sh` block asserts parse plus whole-document byte-identity over all four shapes, and all four shapes still redact. The new assertions are genuinely RED-first against `origin/main`. The REJECT below is not an unmet criterion \u2014 it is a defect the criteria did not ask about.\n\n## Verification Checklist Results\n\n10 passed, 4 failed, 0 inconclusive \u2014 1 via lite probe, 13 via agent.\nNormalized (wording-only): 0; ineligible-on-field-defect FAILs: 0\n\n- VC-4: FAIL \u2014 the round-trip test is labelled `#1915`, not the `#1064 D4` block criterion 4 names; no `#1064 D4` block exists in the file [lib/test/run.sh]\n- VC-6: FAIL \u2014 \"only the credential token is replaced and the bytes around it survive\" is falsifiable: `Authorization: Basic T0xENEM=` returns `Authorization: basic [REDACTED]`, rewriting the scheme word's case [scripts/scrub-credentials.sh:66-67]\n- VC-7: FAIL \u2014 a credential redacted before this diff is not redacted at HEAD; the `{4,}` floor shrank the matched set [.changeset/issue-1915-scrub-escape-backslash.md]\n- VC-14: FAIL \u2014 the modified comment block is one contiguous 5-line comment run against the three-physical-line cap [scripts/scrub-credentials.sh:56-61]\n\n<details><summary>Passed items (10 of 14) \u2014 click to expand</summary>\n\n- VC-1: a `basic` credential inside a JSON string value still parses after scrubbing [scripts/scrub-credentials.sh:67]\n- VC-2: the same round-trip holds for `Bearer` with a non-GitHub token [scripts/scrub-credentials.sh:66]\n- VC-3: a recorded `sed 's/AUTHORIZATION: basic //'` keeps its trailing slashes [scripts/scrub-credentials.sh:66-67]\n- VC-5: all four shapes still redact; no pre-existing assertion was deleted or weakened [scripts/scrub-credentials.sh]\n- VC-8: the bare `/` inside the bracket expression does not terminate the `s///` command; `{4,}` is POSIX ERE, not GNU-only [scripts/scrub-credentials.sh:63-67]\n- VC-9: the expected fixture matches real helper output; every token clears its `{20,}` floor [lib/test/run.sh]\n- VC-10: all three new assertions are RED against `origin/main` and GREEN at HEAD \u2014 genuine RED-first [lib/test/run.sh]\n- VC-11: the coverage-map entry is canonical; `coverage_map_guard.py` exits 0 with no drift [lib/test/modules/coverage-map.json]\n- VC-12: the changeset uses the `bump: patch` frontmatter form [.changeset/issue-1915-scrub-escape-backslash.md]\n- VC-13: no consumer relies on short-token redaction or pins the old byte-swallowing output [scripts/scrub-credentials.sh]\n\n</details>\n\n## Code Review Findings\n\n### Critical\n\n1. Removing the backslash from the two Authorization bracket expressions makes the rules fail OPEN on any credential whose token contains a backslash, and the new `{4,}` floor escalates a partial leak into a total one. Verified by running origin/main's helper against HEAD's on identical input: the document `{\"hdr\": \"Authorization: Bearer ab\\/cdefghijklmnop0123456789\"}` was fully redacted before this diff and is emitted verbatim at HEAD, because the class stops at the backslash, leaving a two-character leading run below the `{4,}` floor so the rule does not fire at all. `Bearer abcd\\/efgh` leaks its tail as `[REDACTED]\\/efgh`. The helper exits 0 and the output looks scrubbed, so `scripts/scrub-transcript.sh` and `scripts/build-denial-record.sh` persist the unredacted bytes into a published artifact, with nothing on any channel signalling that a rule declined to fire; the file's fail-closed contract covers only \"sed could not run\", not \"a rule matched nothing it used to match\". Reachability is honestly narrow for this pipeline's own producers \u2014 JS and Python JSON encoders do not escape `/` as `\\/` \u2014 but `build-denial-record.sh` scrubs arbitrary recorded command text, where a literal backslash beside a token is plausible. This is a fail-open defect on a security surface, so the Phase 4.1.5 shape-1 cap does not reach it. (raised by 1/5 agents; Phase-2 VC-7 FAIL covers the same defect)\n\n### Important / Major\n\n1. The diff's own prose overstates what the change guarantees and discloses none of its cost. The changeset asserts the classes \"carry a four-character minimum, so only the credential token is replaced and the bytes around it survive\", and the source comment justifies `{4,}` solely as \"`+` matches a bare `//` as a token\". Both are falsified against HEAD: `Authorization: Basic T0xENEM=` comes back as `Authorization: basic [REDACTED]`, rewriting a non-token byte, and for `Bearer ab\\/cdefghij` nothing at all is replaced. Neither surface records that the floor also narrows what gets redacted, so a maintainer reading the prohibition \"never relax `{4,}` back to `+`\" will preserve a leak they were never told about. The changeset body ships into `CHANGELOG.md` and the GitHub Release notes, so limb two of the Phase 4.1.5 behavior-inert prose cap does not hold and the cap does not apply. (raised by 2/5 agents) [self-contradicting-diff carve-out: .changeset/issue-1915-scrub-escape-backslash.md]\n2. The redaction boundary the change introduces is unpinned in both directions. The new block asserts only the happy path: nothing goes RED if the floor is raised to `{8,}`, and nothing covers a backslash-adjacent or below-floor Authorization token, so the Critical finding above is invisible to the suite. The existing assertions constrain the floor from one side each \u2014 the `//` test forbids two or fewer, the byte-equality test forbids anything above eight \u2014 leaving every value in 3..8 silently green. (raised by 2/5 agents)\n\n### Suggestion / Minor\n\n1. The diff edited the pre-existing two-line provenance comment and appended the three-line prohibition directly beneath it with no blank line, making one contiguous five-line comment run. Under the sweeps contract's own counting rule \u2014 count a line-marker comment run as each consecutive line whose first non-whitespace token is the comment marker \u2014 that breaches the three-physical-source-line cap. (raised by 1/5 agents; Phase-2 VC-14 FAIL covers the same defect)\n2. The modified provenance clause \"the Authorization rules have since diverged\" names a divergence from a counterpart that no longer exists: grep finds no inline scrub rules in `.github/workflows/devflow-runner.yml` at HEAD, so a maintainer will look for the other copy and find nothing. (raised by 1/5 agents)\n3. `{4,}` narrows the false-positive window but does not close it: `sed 's/AUTHORIZATION: basic //gI'` yields the four-character token `//gI` and is still rewritten, and prose such as \"Authorization: basic auth is required\" still redacts the word \"auth\". (raised by 1/5 agents)\n4. Acceptance criterion 4 names the \"#1064 D4\" block, which does not exist under that label \u2014 the nearest are \"#1064 B2\" and \"#1064 D2\". The test is correctly placed beside the other scrub-credentials assertions, so this is an inaccuracy in the issue text rather than in the code. (raised by 0/5 agents; Phase-2 VC-4 FAIL)\n\nover-grade annotation: no finding flagged. Shape 1 excludes the Critical finding because it is fail-open. Shape 3 does not reach it either, because a Phase-2 checklist FAIL (VC-7) covers the same defect, so it is not an uncorroborated single-source finding.\n\ntruthfulness sweep: one finding promoted \u2014 Important finding 1's prose claim is demonstrably false against HEAD and routes into the Phase 4.2 self-contradicting-diff carve-out.\n\nintra-diff contradiction scan: no contradiction found \u2014 the diff adds absolute claims but no limitation note about the same symbol.\n\n## Verdict Criteria\n\n- Rule 1 \u2014 four verification checklist items with verdict FAIL, so REJECT.\n- Rule 3 \u2014 one Critical finding at the resolved threshold (`critical`), so REJECT.\n- Self-contradicting-diff carve-out \u2014 the changeset's false claim is non-demotable and is not covered by the behavior-inert prose cap, because the changeset body ships to consumers as release notes.\n- Five of five Phase 3 agents returned, so there is no partial-coverage note.\n\n## What would clear the REJECT\n\n1. Decide the redaction boundary deliberately and pin it from both sides. Dropping `{4,}` in favour of a predicate that excludes only the all-slash token \u2014 requiring at least one non-slash character \u2014 keeps `sed 's/AUTHORIZATION: basic //'` intact while restoring redaction for `Bearer abc` and for tokens whose leading run is short.\n2. Handle the backslash-in-token case, or state it as an accepted residual. The truncation is inherent to removing the backslash from the class; what is not inherent is leaving it undisclosed and untested.\n3. Correct the changeset and the source comment so neither claims more than the change delivers, and name the narrowing.\n4. Add the boundary assertions so the suite fails when the floor moves.\n5. Split the five-line comment run to respect the cap, and drop the stale \"have since diverged\" clause.\n",
+ "report_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/report-body.md",
+ "phase3_dispatched": [
+  "prflow:code-reviewer",
+  "prflow:silent-failure-hunter",
+  "prflow:comment-analyzer",
+  "prflow:pr-test-analyzer",
+  "prflow:requesting-code-review"
+ ],
+ "phase3_agents_failed": 0,
+ "phase3_findings": [
+  {
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Critical",
+   "corroboration_count": 1,
+   "defect_signature": {
+    "file": "scripts/scrub-credentials.sh",
+    "line_range": [
+     66,
+     67
+    ],
+    "kind": "security"
+   },
+   "description": "Removing the backslash from the two Authorization bracket expressions makes the rules fail OPEN on any credential whose token contains a backslash, and the new {4,} floor turns a partial leak into a total one. Verified old-vs-new: {\"hdr\": \"Authorization: Bearer ab\\/cdefghijklmnop0123456789\"} was fully redacted on origin/main and is emitted verbatim at HEAD. Bearer abcd\\/efgh leaks its tail as [REDACTED]\\/efgh. The helper exits 0 and the output looks scrubbed, so scrub-transcript.sh and build-denial-record.sh persist unredacted bytes into a published artifact.",
+   "contributed_to_verdict": true,
+   "self_contradicting_diff": false
+  },
+  {
+   "agent": "prflow:silent-failure-hunter+prflow:comment-analyzer",
+   "severity": "Important",
+   "corroboration_count": 2,
+   "defect_signature": {
+    "file": ".changeset/issue-1915-scrub-escape-backslash.md",
+    "line_range": [
+     12,
+     20
+    ],
+    "kind": "documented_falsehood"
+   },
+   "description": "The changeset claims the classes 'carry a four-character minimum, so only the credential token is replaced and the bytes around it survive'; falsified against HEAD by the scheme-word case rewrite (Authorization: Basic T0xENEM= -> Authorization: basic [REDACTED]) and by Bearer ab\\/cdefghij, where nothing is replaced. Neither the changeset nor the source comment discloses that the floor narrows what gets redacted. The changeset body ships into CHANGELOG.md and the GitHub Release notes, so limb two of the Phase 4.1.5 behavior-inert prose cap does not hold and the cap does not apply.",
+   "contributed_to_verdict": true,
+   "self_contradicting_diff": true
+  },
+  {
+   "agent": "prflow:pr-test-analyzer+prflow:silent-failure-hunter",
+   "severity": "Important",
+   "corroboration_count": 2,
+   "defect_signature": {
+    "file": "lib/test/run.sh",
+    "line_range": [
+     18307,
+     18322
+    ],
+    "kind": "test_gap"
+   },
+   "description": "The redaction boundary the change introduces is unpinned in both directions: nothing goes RED if the floor is raised to {8,}, and nothing covers a backslash-adjacent or below-floor Authorization token, so the Critical finding is invisible to the suite. Existing assertions constrain the floor only from one side each (the // test forbids <=2; the byte-equality test forbids above 8), leaving every value in 3..8 silently green.",
+   "contributed_to_verdict": true,
+   "self_contradicting_diff": false
+  },
+  {
+   "agent": "prflow:comment-analyzer",
+   "severity": "Suggestion",
+   "corroboration_count": 1,
+   "defect_signature": {
+    "file": "scripts/scrub-credentials.sh",
+    "line_range": [
+     56,
+     61
+    ],
+    "kind": "style"
+   },
+   "description": "The diff edited the pre-existing 2-line provenance comment and appended the 3-line prohibition immediately beneath it with no blank line, making one contiguous 5-line comment run against phase-2-sweeps-contract.md 2.3's three-physical-source-line cap (its own counting rule counts each consecutive comment-marker line).",
+   "contributed_to_verdict": false,
+   "self_contradicting_diff": false
+  },
+  {
+   "agent": "prflow:comment-analyzer",
+   "severity": "Suggestion",
+   "corroboration_count": 1,
+   "defect_signature": {
+    "file": "scripts/scrub-credentials.sh",
+    "line_range": [
+     56,
+     57
+    ],
+    "kind": "comment_drift"
+   },
+   "description": "The modified provenance clause 'the Authorization rules have since diverged' names a divergence from a counterpart that no longer exists: grep finds no inline scrub rules in .github/workflows/devflow-runner.yml at HEAD.",
+   "contributed_to_verdict": false,
+   "self_contradicting_diff": false
+  },
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Suggestion",
+   "corroboration_count": 1,
+   "defect_signature": {
+    "file": "scripts/scrub-credentials.sh",
+    "line_range": [
+     64,
+     68
+    ],
+    "kind": "logic_error"
+   },
+   "description": "{4,} narrows the false-positive window but does not close it: sed 's/AUTHORIZATION: basic //gI' yields the four-character token //gI and is still rewritten, and prose such as 'Authorization: basic auth is required' still redacts the word auth.",
+   "contributed_to_verdict": false,
+   "self_contradicting_diff": false
+  }
+ ],
+ "diff_profile": {
+  "small_diff": false,
+  "config_only": false,
+  "has_new_types": false,
+  "engine_self_modifying": true,
+  "detect_all_audit": false,
+  "changed_files": 4,
+  "changed_lines": 45,
+  "note": "engine_self_modifying (lib/**) -> full Phase 1+2 checklist; type-design-analyzer gated out (has_new_types false); pr-test-analyzer dispatched (test file touched)"
+ },
+ "cap_drops": {
+  "count": 0,
+  "by_category": {}
+ },
+ "checklist": [
+  {
+   "id": "VC-1",
+   "verification_mode": "agent",
+   "verdict": "PASS"
+  },
+  {
+   "id": "VC-2",
+   "verification_mode": "agent",
+   "verdict": "PASS"
+  },
+  {
+   "id": "VC-3",
+   "verification_mode": "agent",
+   "verdict": "PASS"
+  },
+  {
+   "id": "VC-4",
+   "verification_mode": "agent",
+   "verdict": "FAIL"
+  },
+  {
+   "id": "VC-5",
+   "verification_mode": "agent",
+   "verdict": "PASS"
+  },
+  {
+   "id": "VC-6",
+   "verification_mode": "agent",
+   "verdict": "FAIL"
+  },
+  {
+   "id": "VC-7",
+   "verification_mode": "agent",
+   "verdict": "FAIL"
+  },
+  {
+   "id": "VC-8",
+   "verification_mode": "agent",
+   "verdict": "PASS"
+  },
+  {
+   "id": "VC-9",
+   "verification_mode": "agent",
+   "verdict": "PASS"
+  },
+  {
+   "id": "VC-10",
+   "verification_mode": "agent",
+   "verdict": "PASS"
+  },
+  {
+   "id": "VC-11",
+   "verification_mode": "agent",
+   "verdict": "PASS"
+  },
+  {
+   "id": "VC-12",
+   "verification_mode": "lite",
+   "verdict": "PASS"
+  },
+  {
+   "id": "VC-13",
+   "verification_mode": "agent",
+   "verdict": "PASS"
+  },
+  {
+   "id": "VC-14",
+   "verification_mode": "agent",
+   "verdict": "FAIL"
+  }
+ ],
+ "checklist_counts": {
+  "pass": 10,
+  "fail": 4,
+  "inconclusive": 0,
+  "lite": 1,
+  "agent": 13,
+  "normalized_count": 0,
+  "field_defect_fail_count": 0
+ },
+ "checklist_skipped": null,
+ "acceptance_criteria_source": "workpad",
+ "acceptance_criteria_divergence": "none",
+ "verdict_severity_threshold": "critical",
+ "verdict_rules_fired": [
+  "rule-1: 4 checklist FAILs -> REJECT",
+  "rule-3: one Critical finding at threshold critical -> REJECT",
+  "self-contradicting-diff carve-out: changeset claim false against HEAD, cap does not apply (ships as release notes)"
+ ],
+ "prompt_extension_status": "content-present",
+ "final_pass_extension_status": "loaded-empty resolved-root=unset (notice-suppression flag SET: local tier, no vendored helper; recorded unestablished, no sink write)",
+ "dirty_tree_backstop": "identical - no agent mutation",
+ "root_identity": "derived (10/10 hashes); manifest at .prflow/tmp/review/pr-1921/local-20260824T215659Z-1/root-identity.json",
+ "phase_4_4": "skipped (fix-loop path)",
+ "telemetry": "unavailable"
+}

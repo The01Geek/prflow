@@ -1,0 +1,148 @@
+{
+ "pairs": [
+  {
+   "item": {
+    "id": "VC-1",
+    "category": "data_format_assumption",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "source_excerpt": null,
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-1-8e7f45e693f1.json",
+   "response_text": "{\"id\":\"VC-1\",\"verdict\":\"FAIL\",\"evidence\":\"Tested the actual sed -E command from scripts/scrub-credentials.sh:64 against 'Authorization: Bearer AAAABBBB\\\\\\\\/SECRETTAIL9999' (i.e. containing a literal backslash-slash). Result: the whole token including the backslash was replaced -> 'Authorization: Bearer [REDACTED]'. The claim's predicted failure mode (a lone backslash left unmatched mid-token) does not occur, because the alternation is over single characters, not two-character units: '/' is already a member of the character class [A-Za-z0-9._~+/=-], and the separate \\\\\\\\ branch matches a lone literal backslash by itself. So a backslash is consumed by the \\\\\\\\ branch and the following slash is consumed by the character-class alternative (or trivially by the \\\\/ branch, which is merely a redundant escaped-slash form matching a single '/'); together they still consume both characters of the pair. The claim's characterization of ERE \\\\/ as 'an escaped / that matches a single literal slash only' is correct, but its conclusion that this leaves the backslash unmatched is false since the backslash has its own dedicated branch.\",\"file_checked\":\"scripts/scrub-credentials.sh:64-65\",\"property_proven\":true,\"inaccuracy_scope\":\"generated_claim_text\"}\n"
+  },
+  {
+   "item": {
+    "id": "VC-2",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "source_excerpt": null,
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-2-7fe1dcecde73.json",
+   "response_text": "{\n  \"id\": \"VC-2\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"Empirically verified on macOS's genuine BSD sed (/usr/bin/sed, confirmed non-GNU via `sed --version` -> 'illegal option -- -'). Ran scripts/scrub-credentials.sh:64-68 rules directly with `sed -E`: the alternation-in-group `([A-Za-z0-9._~+/=-]|\\\\\\\\\\\\\\\\|\\\\\\\\/){4,}` interval quantifier applied to a parenthesized alternation compiled and matched correctly, redacting 'AUTHORIZATION: Bearer abcdefghijklmnopqrst' -> 'AUTHORIZATION: Bearer [REDACTED]' with exit 0. Also ran the full script end-to-end (scripts/scrub-credentials.sh) with a GH-token + Basic-auth test string, correctly redacted, exit 0. BSD sed under -E does support {n,} interval quantifiers on parenthesized groups/alternations, consistent with the file's portability header at scripts/scrub-credentials.sh:26-29.\",\n  \"file_checked\": \"scripts/scrub-credentials.sh:64-68\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-3",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "source_excerpt": null,
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-3-a05c7767d2e6.json",
+   "response_text": "{\n  \"id\": \"VC-3\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/scrub-credentials.sh:64-65: each sed -e pattern has exactly two capture groups: group 1 = ([Aa][Uu]...[Nn][\\\":[:space:]]*) the AUTHORIZATION header-name prefix, group 2 = ([A-Za-z0-9._~+/=-]|\\\\\\\\|\\\\/) the token-char alternation. The replacement text is '\\\\1Bearer [REDACTED]' (line 64) and '\\\\1basic [REDACTED]' (line 65) \u2014 both use \\\\1 only, correctly referring to the header-name prefix group, never the token group. Adding the alternation as group 2 did not shift which group \\\\1 points to, since group numbering is by order of opening parenthesis and group 1 remains first.\",\n  \"file_checked\": \"scripts/scrub-credentials.sh:60-68\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-4",
+    "category": "absolute_claim",
+    "claim_provenance": "source_authored",
+    "source_file": "scripts/scrub-credentials.sh",
+    "source_excerpt": "(see checklist)",
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-4-905bf518f023.json",
+   "response_text": "{\n  \"id\": \"VC-4\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"Empirically falsification-tested both universals in scripts/scrub-credentials.sh:57-59 by copying the sed patterns to .prflow/tmp scratch scripts and mutating them (never editing the tracked file). (1) Widening the char class from '\\\\\\\\\\\\\\\\|\\\\\\\\/' to a bare '\\\\\\\\' on input {\\\"h\\\":\\\"Authorization: Bearer abcd\\\\\\\\\\\"} : the safe ({4,}, double-backslash) pattern leaves the trailing escape intact -> {\\\"h\\\":\\\"Authorization: Bearer [REDACTED]\\\\\\\\\\\"}, while the widened bare-backslash pattern consumes the JSON escape backslash before the closing quote -> {\\\"h\\\":\\\"Authorization: Bearer [REDACTED]\\\"}, corrupting/truncating the escaped-quote structure exactly as claimed. (2) Relaxing {4,} to + on input \\\"sed 's/AUTHORIZATION: basic //'\\\\n\\\": the {4,} pattern leaves the line untouched, while the + pattern falsely matches the bare '//' as a token and redacts it -> \\\"sed 's/AUTHORIZATION: basic [REDACTED]'\\\", exactly the false-positive claimed. Both halves of the source-authored universal are confirmed against constructed adversarial inputs.\",\n  \"file_checked\": \"scripts/scrub-credentials.sh:57-65\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-5",
+    "category": "absolute_claim",
+    "claim_provenance": "source_authored",
+    "source_file": ".changeset/issue-1915-scrub-escape-backslash.md",
+    "source_excerpt": "(see checklist)",
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-5-c0310ef948f8.json",
+   "response_text": "{\n  \"id\": \"VC-5\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"Empirically ran scripts/scrub-credentials.sh on 1-, 2-, 3-, and 4-unit tokens for both the Bearer and basic Authorization rules. 1-3 unit tokens (e.g. 'Authorization: Bearer aaa') pass through unredacted; 4-unit tokens ('Authorization: Bearer aaaa') are redacted to '[REDACTED]'. This matches the `{4,}` quantifier in both sed rules at scripts/scrub-credentials.sh lines 66-67. The source-authored claim that 'a run shorter than four units after the scheme keyword is left alone' is verified true for both rules. Additionally assessed realism: base64-encoded basic-auth credentials reach 4+ characters even for trivial 1-char user:pass pairs (base64 of 'a:a' is 'YTph', 4 chars), JWTs and opaque bearer tokens are always far longer than 4 characters in practice, so no realistic credential shape would be under the 4-unit floor and thus leaked by this narrowing. The claim is a narrow, accurate mechanical description (not a claim of safety), and it holds.\",\n  \"file_checked\": \"scripts/scrub-credentials.sh:64-68\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-6",
+    "category": "test_mock_alignment",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh",
+    "source_excerpt": null,
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-6-99b315de3b2e.json",
+   "response_text": "{\n  \"id\": \"VC-6\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"SCR is defined once at lib/test/run.sh:18176 (SCR=\\\"$LIB/../scripts/scrub-credentials.sh\\\") and DEN_JQ is defined once at lib/test/run.sh:18174 (DEN_JQ=\\\"${DEVFLOW_JQ:-jq}\\\"). Neither is reassigned anywhere between those definitions and the #1915 test block at lines ~18305-18330, which uses $DEN_JQ (18312, 18313, 18316) and $SCR (18320) correctly bound and in scope.\",\n  \"file_checked\": \"lib/test/run.sh:18174-18330\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-7",
+    "category": "data_format_assumption",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/modules/coverage-map.json",
+    "source_excerpt": null,
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-7-ff2566907df9.json",
+   "response_text": "{\n  \"id\": \"VC-7\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"The `\\\"1915\\\": {\\\"note\\\": \\\"\\\", \\\"owner\\\": \\\"unmodularized\\\"}` entry (lib/test/modules/coverage-map.json:1514-1517) lives under the `run_sh_blocks` object. lib/test/coverage_map_guard.py's `_map_shape_error` (lines 336-339) requires only that a `run_sh_blocks` entry be a JSON object with a string `owner` field -- no other field, including `focused_test`, is required, and `focused_test` is documented as OPTIONAL for `files` entries (lines 333-337: 'its absence is the ordinary case'). `unmodularized` is a schema-valid owner value checked by arm 3 (line 472, `_valid_owner`). No key-ordering requirement exists anywhere in the guard (no sort/order check found via grep). Running `python3 lib/test/coverage_map_guard.py .` exits 0 (clean), and `python3 lib/test/coverage-map-retention-check.py` reports 'no coverage-map key or content was dropped relative to origin/main' and exits 0, confirming the entry satisfies every mechanically-enforced shape/retention rule.\",\n  \"file_checked\": \"lib/test/coverage_map_guard.py:330-339\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-8",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "source_excerpt": null,
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-8-split.json",
+   "response_text": "{\"id\": \"VC-8\", \"verdict\": \"PASS\", \"evidence\": \"Empirically verified: piping {\\\"note\\\":\\\"Authorization: basic <b64>=\\\"} and {\\\"note\\\":\\\"Authorization: basic <b64-with-slash>\\\"} through scripts/scrub-credentials.sh replaces the value with 'basic [REDACTED]' and the output still parses with jq -e . (checked trailing '=' and embedded '/' token shapes).\", \"file_checked\": \"scripts/scrub-credentials.sh:65\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-9",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "source_excerpt": null,
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-9-split.json",
+   "response_text": "{\"id\": \"VC-9\", \"verdict\": \"PASS\", \"evidence\": \"Empirically verified: piping JSON documents containing 'Authorization: Bearer <token>' (plain, with embedded '/', and with escaped '\\\\/') through scripts/scrub-credentials.sh redacts to 'Bearer [REDACTED]' and jq -e . still parses the output cleanly for all shapes tested.\", \"file_checked\": \"scripts/scrub-credentials.sh:64\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-10",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh",
+    "source_excerpt": null,
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-10-split.json",
+   "response_text": "{\"id\": \"VC-10\", \"verdict\": \"PASS\", \"evidence\": \"Empirically confirmed: printf \\\"run: sed 's/AUTHORIZATION: basic //' file\\\" | bash scripts/scrub-credentials.sh outputs the string unchanged, trailing //' intact. The scrub's basic-header sed rule (scripts/scrub-credentials.sh:65) requires a keyword `basic ` followed by 4+ token-class units before matching, so the bare `//'` after the sed program text does not match and is left alone. lib/test/run.sh:18318-18320 (current line numbers; ~18317 in the item) asserts exactly this round trip.\", \"file_checked\": \"scripts/scrub-credentials.sh:65\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  },
+  {
+   "item": {
+    "id": "VC-11",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh",
+    "source_excerpt": null,
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-11-9eebc863eba6.json",
+   "response_text": "{\n  \"id\": \"VC-11\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"lib/test/run.sh:18307-18318 (the '#1915 round trip' block) sits within the top-level surface block opened at line 18166 ('denial forensics: build-denial-record.sh / scrub-credentials.sh / surface D1 (#1064)') and uses the same $SCR variable defined at line 18176, matching the coverage-map region labeled 'issue #1064 D4' for scripts/scrub-credentials.sh (lib/test/modules/coverage-map.json:729-732). The fixture _SCRUB_RAW (line 18311) embeds all four credential shapes -- a GH token (ghp_...), a GH PAT (github_pat_...), an Anthropic key (sk-ant-...), and Authorization/basic headers -- inside a JSON document {note: ...} built via jq (_SCRUB_IN, line 18313). After scrubbing with $SCR, the test asserts (a) the output still parses as JSON (line 18315-18316: jq -e .) and (b) every non-token byte is unchanged, via an exact assert_eq against _SCRUB_EXPECT (line 18317-18318), which is the same JSON structure with only the credential substrings replaced by their redaction markers.\",\n  \"file_checked\": \"lib/test/run.sh:18307-18318\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-12",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "source_excerpt": null,
+    "verification_mode": "agent"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-3/VC-12-split.json",
+   "response_text": "{\"id\": \"VC-12\", \"verdict\": \"PASS\", \"evidence\": \"Empirically ran scripts/scrub-credentials.sh against all four shapes: gh token (ghp_...) -> [REDACTED-GH-TOKEN]; github_pat_... -> [REDACTED-GH-PAT]; sk-ant-... -> [REDACTED-ANTHROPIC-KEY]; 'AUTHORIZATION: basic ...' -> '...basic [REDACTED]'; 'Authorization: Bearer ...' -> '...Bearer [REDACTED]'. All five (four families, five rule lines) still redact correctly. git diff origin/main -- scripts/scrub-credentials.sh shows the two Authorization sed rules were rewritten (case-insensitive keyword classes, escaped-slash/backslash handling, {4,} floor) but not relaxed -- the token-group additions only widen accepted escape units, and the {4,} floor is stricter than the removed unbounded '+' for short/edge inputs while still catching real tokens. git diff origin/main -- lib/test/run.sh shows only new assertions added after the existing 'redacts a gh token' and '--shapes names four shapes' assertions (line 18304 in origin/main); no existing assertion text was removed or weakened.\", \"file_checked\": \"scripts/scrub-credentials.sh:60-68\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}"
+  }
+ ]
+}

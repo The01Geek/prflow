@@ -1,0 +1,16 @@
+{
+  "canonical_root": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/issue-1915/skills/review/SKILL.md",
+  "root_hash": "13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e",
+  "refs": {
+    "skills/review/SKILL.md": "13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e",
+    "skills/review/phases/phase-0-setup.md": "abca6791304fb3c1aabf6a2f4269274bcda39e0e",
+    "skills/review/phases/phase-0-3-6-blocker-recheck.md": "58e654b922fd3044f5b951f1891acf9687eb0e87",
+    "skills/review/phases/phase-0-6-stale-prose-lint.md": "63e15bef4b885445280560b7154232ec4e6cd74d",
+    "skills/review/phases/phase-1-checklist.md": "a6f46362a949c82d59cff7a00c5a8c12b40b1e80",
+    "skills/review/phases/phase-2-verification.md": "21d2cceaedb27dedb561ffe9d68f3c5b85559f68",
+    "skills/review/phases/phase-3-agents.md": "f3b49ad4d13d53d1a77a85818488323d4ec08b6e",
+    "skills/review/phases/phase-4-verdict.md": "7bcbffd28f07d0ed7eefe7ab515b6f8e3e38d3ce",
+    "skills/review/phases/phase-4-1-7-stale-adjudication.md": "a06bbec1e7b2786ff31a8ce531f02f6dd1b17c38",
+    "skills/review/phases/phase-4-4-github-post.md": "af4035d854ab80f177ad4dd06b7b85821d0f74f3"
+  }
+}

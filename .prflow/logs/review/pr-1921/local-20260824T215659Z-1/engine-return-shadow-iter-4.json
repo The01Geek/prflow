@@ -1,0 +1,94 @@
+{
+  "verdict": "APPROVE with notes",
+  "report": "## Verdict: APPROVE with notes (shadow pass; 0 Critical, 0 Important, 5 Suggestions; 0 FAIL, 0 INCONCLUSIVE)\n\n## Issue Compliance\nReviewed against issue #1915 — criteria from workpad; scope unchanged. Criteria came from the `/prflow:implement` workpad comment — this run's authoritative set, possibly narrowed from the issue. No divergence between the workpad's criteria and the issue body's.\n\nAll five acceptance criteria were verified by execution against HEAD (4963d758f):\n- AC1 basic-in-JSON round-trip parses: PASS (jq -e . clean)\n- AC2 Bearer non-GitHub token round-trip: PASS\n- AC3 recorded `sed 's/AUTHORIZATION: basic //'` keeps trailing `//'`: PASS\n- AC4 four-shape JSON fixture asserting parse + byte-equality exists in the #1064 denial-forensics region of lib/test/run.sh: PASS\n- AC5 all four shapes still redacted (`--shapes` unchanged; each shape verified redacted): PASS. Note: the `{4,}` floor is a deliberate, disclosed narrowing for runs under four units; see Suggestion 2.\n\n## Verification Checklist Results\n10 passed, 0 failed, 0 inconclusive — 10 via orchestrator-direct lite probe, 0 via agent.\nMethodology departure (disclosed): the Phase 1/1.5/2 checklist-generator / deduper / verifier subagents were NOT dispatched. The orchestrator ran an equivalent direct adversarial verification matrix against the shipped script (escape-unit handling, lone-backslash termination, four-unit floor on both rules, per-letter scheme keyword, JSON round-trip, `#`-delimiter safety, BSD-sed portability, coverage-map guard, coverage-map retention check, shellcheck). Every claim resolved PASS. This is a reduced-cost substitution for the agent checklist path, not a skip, and it is recorded here rather than presented as a full Phase 1+2 run.\n\n## Code Review Findings\n\n### 🟡 Suggestion / Minor\n1. A lone raw `\\` now terminates the token match everywhere, not only before a closing quote, so a token containing a raw backslash has its tail emitted (`Authorization: Bearer abcd\\efgh` -> `Authorization: Bearer [REDACTED]\\efgh`); against origin/main the same input was fully redacted. The trade is correct (a raw `\\` is indistinguishable from a JSON escape without parsing, and base64/RFC-6750 bearer tokens contain no `\\`), but the changeset discloses the narrowing only for the before-a-closing-quote case. One clause would make the disclosure exact. (raised by 3/5 agents — text-based agreement across differing defect_signature files; flagged)\n2. The `{4,}` floor is a real blocklist relaxation for one-to-three-unit runs (`AUTHORIZATION: basic abc` now passes through), and two new assertions pin that non-redaction as intended. The floor sits exactly at the shortest realistic base64 basic-auth payload (`YTpi` = `a:b`), so nothing plausible leaks, and the changeset discloses it honestly — flagged so the boundary is a visible, deliberate merge decision. (raised by 2/5 agents — text-based agreement; flagged)\n3. `$SHAPES` (scripts/scrub-credentials.sh, line 42, NOT touched by this diff) is described in the file header as the single source of truth for the caveat wording, and it still advertises \"Bearer Authorization headers\" without reflecting the new four-unit floor. The durable consumer-facing caveat therefore describes the rules slightly less precisely than the rules now behave, while the disclosure lives in `.changeset/`, which is consumed and deleted at version-consolidate time. Not a self-contradicting-diff carve-out: the line is outside the diff. (raised by 1/5 agents)\n4. The four-unit floor is a length heuristic, not a discrimination of command text from credential text, so a recorded command whose trailing run reaches four units is still consumed (`perl -pe 's/Authorization: Bearer //gi' f` -> `perl -pe 's/Authorization: Bearer [REDACTED]' f`). VERIFIED PRE-EXISTING: the pre-diff rule corrupts that exact input identically, so this is behavior the diff neither introduces nor worsens. The added comment is not falsified by it — the comment's claim is about what `+` does to the two-unit `//` case, which is true against HEAD. (raised by 1/5 agents)\n5. Test gap: no assertion pins which side of the lone-backslash trade the helper is on. `scripts/build-denial-record.sh` pipes raw denied command text through the same helper, where no JSON invariant protects a lone backslash, so a later \"restore full redaction\" edit and a later \"widen the leak\" edit are equally invisible. A second gap: no fixture exercises the JSON header-object shape `{\"Authorization\":\"Bearer ...\"}` that a real HTTP-logging transcript emits (it works today — verified — but only the `[\":[:space:]]*` prefix class makes it work, and nothing covers it). (raised by 1/5 agents)\n\n### ℹ️ Advisory (non-blocking, from .prflow/prompt-extensions/review-and-fix.md)\n6. Verification-evidence marker advisory: neither the issue #1915 workpad nor the PR #1921 description carries a `Verification evidence:` marker. Tier classification: local/interactive (the workpad carries no `prflow:checkpoint gha:` / `devflow:checkpoint gha:` row). Non-blocking; it never raises the verdict on its own.\n\n## Repo-extension gate results\n- Prompt-surface edit routing evidence gate: NOT TRIGGERED. The reviewed diff touches none of the trigger globs (`skills/*/SKILL.md`, `skills/implement/phases/*.md`, `skills/implement/references/*.md`, `skills/review/phases/*.md`, `skills/review-and-fix/references/*.md`, `.prflow/prompt-extensions/*.md`). No finding.\n- Wording-only pin policy: CLEAN. Every added assertion drives the executable through stdin and compares stdout; no new source-presence or prose pin, so no `# structural-pin-ok:` declaration is owed.\n- Shipped-prose cost audit: NOT APPLICABLE. The diff adds no prose under `skills/**` or `agents/**`.\n\n## Verdict Criteria\n- 0 FAIL, 0 INCONCLUSIVE in verification.\n- 0 findings at or above the configured verdict threshold (`critical`).\n- No self-contradicting-diff carve-out finding: every diff-added comment, changeset claim and command-form was checked against HEAD by execution and found true. The one wording imprecision (Suggestion 1) is an incomplete disclosure, not a false claim, and changeset prose is behavior-inert under the Phase 4.1.5 cap in any case.\n- Only findings below the threshold -> APPROVE with notes.\n\n## Shadow-pass integrity\nThis was a blinded, structurally-independent audit: no prior findings, no fix decisions, no pushback history were requested or supplied. No `prior_phase3_findings`, `prior_checklist` or `fix_files` were passed into any phase; the final-pass reviewer received `\"none\"` for its prior-iteration line; the acceptance criteria were carried in box-neutralized (the resolver emits them unticked); no workpad path or content reached any reviewer prompt. The full roster was dispatched despite `prflow:code-reviewer` carrying `iterations: \"first-only\"`, per the shadow-pass rule. The dirty-tree backstop compared identical before and after dispatch — no agent mutated the working tree.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "A lone raw backslash now terminates the token match everywhere, not only before a closing quote, so a token containing a raw backslash has its tail emitted. Correct trade, but the changeset's disclosure is narrower than the behavior.",
+      "corroboration": 3,
+      "corroboration_basis": "text-based agreement (differing defect_signature files); flagged",
+      "defect_signature": {"file": ".changeset/issue-1915-scrub-escape-backslash.md", "line_range": [10, 12], "kind": "security"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The {4,} floor is a real blocklist relaxation for one-to-three-unit runs, and two new assertions pin that non-redaction as intended. Floor sits at the shortest realistic base64 basic-auth payload, so nothing plausible leaks.",
+      "corroboration": 2,
+      "corroboration_basis": "text-based agreement; flagged",
+      "defect_signature": {"file": "scripts/scrub-credentials.sh", "line_range": [64, 65], "kind": "security"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "$SHAPES, the file header's declared single source of truth for consumer caveat wording, no longer reflects the four-unit floor. Line is outside the diff, so not a self-contradicting-diff carve-out.",
+      "corroboration": 1,
+      "defect_signature": {"file": "scripts/scrub-credentials.sh", "line_range": [42, 42], "kind": "documented_falsehood"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The four-unit floor is a length heuristic, so a recorded command whose trailing run reaches four units is still consumed (perl -pe 's/Authorization: Bearer //gi'). VERIFIED PRE-EXISTING: the pre-diff rule corrupts the same input identically. The added comment's claim about what + does to the two-unit // case is true against HEAD.",
+      "corroboration": 1,
+      "orchestrator_note": "Downgraded from the agent's MEDIUM after orchestrator verification that origin/main's rule produces byte-identical corruption on the cited input.",
+      "defect_signature": {"file": "scripts/scrub-credentials.sh", "line_range": [57, 65], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "No assertion pins which side of the lone-backslash trade the helper is on, though build-denial-record.sh pipes raw command text through it where no JSON invariant protects a lone backslash. Second gap: no fixture exercises the JSON header-object shape a real HTTP-logging transcript emits.",
+      "corroboration": 1,
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [18307, 18362], "kind": "test_gap"}
+    },
+    {
+      "agent": "orchestrator (review-and-fix prompt extension, advisory clause)",
+      "severity": "Advisory (non-blocking)",
+      "description": "Neither the issue #1915 workpad nor the PR #1921 description carries a `Verification evidence:` marker. Tier classification: local/interactive (no prflow:checkpoint gha: row on the workpad).",
+      "corroboration": 1,
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": null, "kind": "other"}
+    }
+  ],
+  "phase3_dispatched": true,
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "reviewers_skipped": [
+    {"agent": "prflow:type-design-analyzer", "reason": "has_new_types is false — the diff introduces no class/interface/type/enum/struct/trait in a code file"}
+  ],
+  "per_reviewer_assessments": {
+    "prflow:code-reviewer": "No issues at confidence >= 80. Reproduced the bug against the pre-diff rule, confirmed the fix, confirmed each assertion is discriminating, confirmed POSIX-ERE portability and the # delimiter, confirmed no coupled mirror of the Authorization regex exists elsewhere, shellcheck and both coverage-map guards clean. One non-blocking observation corroborating the lone-backslash narrowing.",
+    "prflow:silent-failure-hunter": "Two findings (agent-graded MEDIUM and LOW, orchestrator-resolved to Suggestion). Fail-closed arms (exit 3, exit 4) untouched and correct. Escape-unit handling, portability and the new assertions verified clean. Flagged one pre-existing header claim explicitly as NOT this PR's to fix.",
+    "prflow:comment-analyzer": "Clean — no Critical, no findings. Executed the shipped script against the exact inputs each comment describes; every claim checks out, including the changeset's causal account of the old bracket expression. Explicitly cleared the deleted provenance comment (devflow-runner.yml invokes the helper rather than inlining the rules, so no mirror was being protected) and the source/test guard pairing under the restatement rule.",
+    "prflow:pr-test-analyzer": "Coverage strong and discriminating — mutation-verified that reverting to the pre-PR bracket expressions turns both round-trip assertions RED. Two Suggestion-level test gaps (the lone-backslash trade is unpinned; no JSON header-object fixture).",
+    "prflow:requesting-code-review": "Ready to merge: yes. Verified all five ACs by execution against both HEAD and origin/main, confirming four of the new assertions are RED on main. Two Suggestions (disclosure precision, floor visibility). Refuted a proposed changeset-citation finding by checking the prevailing convention on origin/main. EXTENSION-STATUS: loaded-empty resolved-root=unset — matches the orchestrator's own hop-one resolution (no trusted root), so no propagation-failure notice is owed."
+  },
+  "extension_load_state": "loaded-empty (success); resolved-root cross-check agrees with hop one (both unset) — no notice, no reflection-sink record",
+  "diff_profile": {
+    "changed_files": 4,
+    "total_changed_lines": 85,
+    "small_diff": false,
+    "small_diff_reason": "changed-file count is 4, above the <=3 bound (line count alone would qualify)",
+    "config_only": false,
+    "config_only_reason": "scripts/scrub-credentials.sh has extension .sh, outside the config_only set",
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "engine_self_modifying_reason": "lib/test/run.sh matches arm 1 (lib/**)",
+    "detect_all_audit": false,
+    "profile_selected": "engine_self_modifying -> full checklist; Phase 3 roster gated by Phase 3.1 applicability",
+    "pr_test_analyzer_predicate": "matched (branch 1: lib/test/run.sh matches *test*; branch 2 also matches)"
+  },
+  "cap_drops": [],
+  "phase2_items": {
+    "fail": [],
+    "inconclusive": [],
+    "note": "0 FAIL, 0 INCONCLUSIVE. See the report's Verification Checklist Results for the disclosed methodology departure: the checklist subagents were not dispatched; an orchestrator-direct adversarial matrix of 10 claims was run instead, all PASS."
+  },
+  "prompt_addenda": [
+    "Methodology (not a blinding departure): Phase 1 / 1.5 / 2 checklist subagents were not dispatched. The orchestrator substituted a direct 10-claim adversarial verification matrix executed against the shipped script and the repository's own guards. Recorded so the Phase 2 tallies are not read as a full agent-checklist run.",
+    "Blinding rules were followed in full: no prior findings, checklist, fix files, or pushback history were requested or passed; the Phase 3.1 prior-findings block was not prepended to any prompt; the final-pass reviewer received \"none\"; acceptance criteria were carried box-neutralized; no workpad path or content reached any reviewer prompt; the full roster was dispatched despite code-reviewer's iterations: first-only override."
+  ]
+}

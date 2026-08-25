@@ -1,0 +1,150 @@
+{
+ "pairs": [
+  {
+   "item": {
+    "id": "VC-1",
+    "verification_mode": "agent",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-1-a91f3c7e.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-2",
+    "verification_mode": "agent",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-2-4d8b1a62.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-3",
+    "verification_mode": "agent",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-3-7e2c9f04.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-4",
+    "verification_mode": "agent",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-4-b5e07d13.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-5",
+    "verification_mode": "agent",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-5-6a4b2ec9.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-6",
+    "verification_mode": "agent",
+    "category": "absolute_claim",
+    "claim_provenance": "source_authored",
+    "source_file": "scripts/scrub-credentials.sh",
+    "source_excerpt": "Never list `\\` inside the two Authorization bracket expressions and never relax `{4,}` back to `+`: a POSIX bracket expression takes `\\` as a set member, so the token match swallows a following JSON escape backslash, and `+` matches a bare `//` as a token."
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-6-c3a8f591.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-7",
+    "verification_mode": "agent",
+    "category": "absolute_claim",
+    "claim_provenance": "source_authored",
+    "source_file": ".changeset/issue-1915-scrub-escape-backslash.md",
+    "source_excerpt": "Both classes are now `\\`-free and carry a four-character minimum, so only the credential token is replaced and the bytes around it survive. The redacted shapes are unchanged."
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-7-2f6d40ba.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-8",
+    "verification_mode": "agent",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-8-9c1e5837.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-9",
+    "verification_mode": "agent",
+    "category": "test_mock_alignment",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-9-8b71fa25.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-10",
+    "verification_mode": "agent",
+    "category": "data_format_assumption",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-10-5c9e3b17.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-11",
+    "verification_mode": "agent",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/modules/coverage-map.json"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-11-1d4a86f2.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-13",
+    "verification_mode": "agent",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-13-e07c25b9.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-14",
+    "verification_mode": "agent",
+    "category": "dependency_interaction",
+    "claim_provenance": "source_authored",
+    "source_file": "scripts/scrub-credentials.sh",
+    "source_excerpt": "# Never list `\\` inside the two Authorization bracket expressions and never relax `{4,}`"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-1/VC-14-3f8d612c.json",
+   "response_text": ""
+  }
+ ]
+}

@@ -1,0 +1,178 @@
+{
+ "verdict": "APPROVE with notes",
+ "dispatch_mode": "available",
+ "engine_dir": "skills/review",
+ "pr": 1921,
+ "issue": 1915,
+ "run_id": "local-20260824T215659Z-1",
+ "iteration": 3,
+ "head_sha": "aef303b5207e3d2a4e15da719dc722e0173bf2bb",
+ "base_sha_resolved": "084b47a4b0bfb3b711866ae0fb94828cd08acc27",
+ "verdict_severity_threshold": "critical",
+ "diff_profile": {
+  "small_diff": false,
+  "config_only": false,
+  "has_new_types": false,
+  "engine_self_modifying": true,
+  "detect_all_audit": false,
+  "changed_files": 4,
+  "changed_lines": 87,
+  "announcement": "Diff classification: engine_self_modifying (overrides other flags' checklist) -> running full checklist. Phase 3 roster gated by Phase 3.1 applicability (has_new_types false -> type-design-analyzer skipped; test-relevance predicate matched -> pr-test-analyzer dispatched)."
+ },
+ "checklist_skipped": null,
+ "checklist": {
+  "generated": 12,
+  "batches": 1,
+  "deduper_run": false
+ },
+ "phase2": {
+  "passed": 12,
+  "failed": 0,
+  "inconclusive": 0,
+  "lite": 0,
+  "agent": 12,
+  "normalized_count": 1,
+  "field_defect_fail_count": 0,
+  "normalized_items": [
+   "VC-1"
+  ],
+  "note": "VC-1 raw FAIL normalized wording-only (property_proven true, inaccuracy_scope generated_claim_text): the generated claim mispredicted the ERE semantics; the code is correct."
+ },
+ "cap_drops": {
+  "count": 0,
+  "by_category": {}
+ },
+ "phase3_dispatched": [
+  "prflow:silent-failure-hunter",
+  "prflow:comment-analyzer",
+  "prflow:pr-test-analyzer",
+  "prflow:requesting-code-review"
+ ],
+ "phase3_excluded": [
+  {
+   "agent": "prflow:code-reviewer",
+   "reason": "resolved override carries iterations: first-only and this is fix-loop iteration 3 (N>=2)"
+  },
+  {
+   "agent": "prflow:type-design-analyzer",
+   "reason": "has_new_types is false"
+  }
+ ],
+ "phase3_agents_failed": 0,
+ "phase3_findings": [
+  {
+   "id": "F1",
+   "agent": "prflow:comment-analyzer",
+   "severity": "Suggestion",
+   "severity_as_filed": "Important",
+   "corroboration": 1,
+   "description": "The added test comment at lib/test/run.sh (diff lines 94-96) states that an uppercase `AUTHORIZATION: BASIC` header is what actions/checkout persists and that matching only the keyword's first letter let that credential through. False against HEAD: this repo's own mirror of that surface, scripts/refresh-app-credentials.sh, writes `AUTHORIZATION: basic ${b64}` (lowercase scheme), and scripts/scrub-credentials.sh's own header note scopes the uppercase claim to the header NAME, not the scheme keyword. The pre-fix `[Bb]asic` pattern therefore already redacted the checkout-persisted header. The defensible motivation is other producers that emit BASIC/BEARER, which is what the new fixtures actually exercise.",
+   "defect_signature": {
+    "file": "lib/test/run.sh",
+    "line_range": [
+     94,
+     96
+    ],
+    "kind": "documented_falsehood"
+   },
+   "severity_adjustment": "behavior-inert prose cap (Phase 4.1.5) applied \u2014 capped from Important to Suggestion; excluded from the Phase 4.2 self-contradicting-diff carve-out, so it carries no carve-out marker and drives no REJECT at the `critical` threshold",
+   "cap_limb_enumeration": {
+    "first_conjunct": "The finding's subject is the sentence, not a mechanism's coverage: the per-letter scheme-keyword classes are correct and unchanged whether the provenance sentence is true or false; making it true changes no output, no branch, and no set the scrub covers.",
+    "limb_one": "No tool parses this comment to decide behavior. It carries no member of the repository's declaration-marker family (`# structural-pin-ok:`, `# tree-walk-ok:`, `# raw-guard-ok:`, `# argjson-ok:`, `# pruned-path-ok:`, `# glob-ok:`) and no shellcheck/type directive; the pin-corpus lint reads comment regions only to assert prose about prose, which the limb explicitly excludes.",
+    "limb_two": "Nothing outside the repository reads it. .github/actions/vendor-plugin/vendor-slice.sh's devflow_copy_slice() explicitly prunes the whole subtree with `rm -rf \"$stage/lib/test\"`, and install.sh vendors that same slice, so lib/test/run.sh reaches no consumer checkout; it is not published under docs/ and renders in no user-facing string."
+   },
+   "fix_recommendation": "Restate without the checkout provenance, e.g. `# Match every letter of the scheme keyword case-insensitively, as the header name already is: a producer that emits BASIC/BEARER (checkout itself writes lowercase basic) otherwise passes its credential through unredacted.`"
+  },
+  {
+   "id": "F2",
+   "agent": "prflow:comment-analyzer",
+   "severity": "Suggestion",
+   "corroboration": 1,
+   "description": "The two new assertion names read `an uppercase BASIC/BEARER scheme keyword is STILL redacted`. `still` implies the uppercase form was redacted before this change, whereas the rewrite from `[Bb]asic`/`[Bb]earer` to the per-letter classes is what first makes it so. Dropping the word makes the printed suite line accurate.",
+   "defect_signature": {
+    "file": "lib/test/run.sh",
+    "line_range": [
+     97,
+     102
+    ],
+    "kind": "comment_drift"
+   },
+   "severity_adjustment": "behavior-inert prose cap applies for the same two limbs as F1; filed and graded Suggestion regardless"
+  },
+  {
+   "id": "F3",
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Suggestion",
+   "corroboration": 1,
+   "description": "Narrowing relative to origin/main: the old bracket expressions carried a literal `\\` as a class member, so ANY backslash inside a token was consumed; the new alternation admits only the two escape units `\\/` and `\\\\`, so any other backslash sequence (`\\n`, `\\t`, `\\uXXXX`, `\\\"`) terminates the match. Measured: `AUTHORIZATION: basic QUJDRA\\nRUZHSA==` redacts fully on origin/main but leaves the tail on HEAD, and `AUTHORIZATION: basic AB\\nSECRETTAILXYZ` (fewer than four units before the backslash, so the `{4,}` floor is never reached) is not redacted at all. The agent graded this Suggestion because the four documented shapes are base64/base64url, whose alphabets contain no backslash, so the only escape a conforming token can carry is `\\/` \u2014 which the change handles.",
+   "defect_signature": {
+    "file": "scripts/scrub-credentials.sh",
+    "line_range": [
+     64,
+     65
+    ],
+    "kind": "security"
+   },
+   "counter_evidence": "The final-pass reviewer examined this same class independently and judged it not a new fail-open: a lone `\\` mid-token now terminates the match exactly as whitespace and every other non-class byte always did, and a raw backslash is not a member of any base64/base64url credential alphabet. The two agents disagree on framing, not on the measured behavior. The scrub is documented as an incomplete blocklist (`scrub.blocklist_incomplete: true`).",
+   "fix_recommendation": "Optional and non-blocking: either generalize the escape unit to `\\\\.` (any escaped character) in both groups, or leave as-is \u2014 the changeset already discloses the narrowing."
+  },
+  {
+   "id": "F4",
+   "agent": "prflow:requesting-code-review",
+   "severity": "Suggestion",
+   "corroboration": 1,
+   "description": "The acceptance criterion names the `#1064 D4` block as the new test's home; the block lands at lib/test/run.sh ~18307, inside the `#1064` denial-forensics section beside the existing `scrub-credentials:` assertions and roughly 95 lines above the `# -- D4/AC8: scrub-transcript.sh arms` heading. Coverage is unaffected and the placement is arguably better, but a later reader reconciling AC to test may trip over the literal mismatch.",
+   "defect_signature": {
+    "file": "lib/test/run.sh",
+    "line_range": [
+     18307,
+     18360
+    ],
+    "kind": "style"
+   },
+   "adjudication": "Not an AC failure. `#1064 D4` is the label lib/test/modules/coverage-map.json attaches to scripts/scrub-credentials.sh (`issue #1064 D4: shared credential-shape blocklist scrub, fail-closed (run.sh top-level)`), and VC-11 verified the new block sits in exactly the run.sh region that entry designates."
+  },
+  {
+   "id": "F5",
+   "agent": "review-engine (repo prompt-extension advisory clause)",
+   "severity": "Informational",
+   "corroboration": 1,
+   "blocking": false,
+   "description": "Advisory, non-blocking: neither durable surface carries a `Verification evidence:` marker \u2014 issue #1915's workpad comment has none and the PR description has none. Tier discriminator: the workpad carries no `<!-- prflow:checkpoint gha:... -->` row, so this is classified a local/interactive run, which per CLAUDE.md records the marker as the CI reading (full 40-char SHA, required check name, conclusion, run URL) for the commit it pushed.",
+   "defect_signature": {
+    "file": "N/A",
+    "line_range": null,
+    "kind": "other"
+   }
+  }
+ ],
+ "gates": {
+  "prompt_surface_edit_routing": "not triggered \u2014 the diff touches none of the trigger globs (skills/*/SKILL.md, skills/implement/phases/*.md, skills/implement/references/*.md, skills/review/phases/*.md, skills/review-and-fix/references/*.md, .prflow/prompt-extensions/*.md)",
+  "shipped_prose_cost_audit": "not applicable \u2014 the diff adds no prose under skills/** or agents/**",
+  "wording_only_pin_policy": "clean \u2014 the diff adds no text-presence pin; every added assertion executes scripts/scrub-credentials.sh and compares its output",
+  "verification_evidence_advisory": "fired (F5), non-blocking"
+ },
+ "phase0": {
+  "uncommitted_changes": false,
+  "displaced_paths": [],
+  "acceptance_criteria_source": "workpad",
+  "acceptance_criteria_divergence": "none",
+  "diff_cache_equations": "step2a rows 4 + step2b T-rows 0 = step3 raw 4; step5 published 4 = 4 - step4 logs 0; step6 file count 4 = step5 4 \u2014 all hold",
+  "prompt_extension_status": "PROMPT-EXTENSION-STATUS: content-present",
+  "root_identity": "match (10/10 hashes equal to the manifest)",
+  "stale_prose_lint": "skipped \u2014 prflow_review.stale_prose.enabled is false"
+ },
+ "phase4_0_deferrals": {
+  "block_present": false,
+  "honored": [],
+  "rejected": []
+ },
+ "phase4_1_5": "behavior-inert prose cap applied to F1 (Important -> Suggestion) with both limbs enumerated; no other finding flagged as a suspected over-grade",
+ "phase4_1_6": "Pre-verdict truthfulness sweep ran over all findings. F1 is a demonstrated falsehood against HEAD but is excluded from the self-contradicting-diff carve-out because the Phase 4.1.5 behavior-inert prose cap covers it; no other finding's subject is a diff-added artifact contradicting the shipped code. No promotion.",
+ "phase3_dirty_tree_backstop": "clean \u2014 before and after `git status --porcelain -z` snapshots identical (both empty); no agent mutated the tree",
+ "extension_load_state": {
+  "requesting_code_review": "loaded-empty resolved-root=unset",
+  "notice_suppression_flag": "set (local tier: no .prflow/vendor/prflow/ and GITHUB_ACTIONS unset) \u2014 nothing written to any reflection sink"
+ },
+ "report": "## Verdict: APPROVE with notes (the #1915 fix is correct, mutation-verified discriminating, and satisfies all five acceptance criteria; four Suggestions and one advisory remain, none of which gates merge at the configured `critical` threshold)\n\n## Issue Compliance\nReviewed against issue #1915: The credential scrub eats the JSON escape backslash, so large execution transcripts are unparseable \u2014 criteria from workpad; scope unchanged. Requirement-based checklist items are included in the verification results below.\nCriteria came from the `/prflow:implement` workpad comment \u2014 this run's authoritative set, possibly narrowed from the issue.\nNo divergence between the workpad's criteria and the issue body's.\n\nAll five acceptance criteria verify PASS (VC-8 through VC-12), each established empirically rather than from the author's account.\n\n## Verification Checklist Results\n12 passed, 0 failed, 0 inconclusive \u2014 0 via lite probe, 12 via agent.\n\n- VC-1: NORMALIZED (wording-only) \u2014 the generated claim predicted that `\\/` leaves a lone backslash unmatched mid-token; the verifier measured the opposite (the `\\\\` branch matches a lone backslash by itself, `/` is already a class member), so the mismatch is in the generated wording and the code is correct [scripts/scrub-credentials.sh:64]\n\n<details><summary>Passed items (11 of 12) \u2014 click to expand</summary>\n\n- VC-2: BSD `sed -E` on macOS supports `(...){4,}` on a parenthesized alternation \u2014 verified against the real BSD binary [scripts/scrub-credentials.sh:64]\n- VC-3: `\\1` still refers to the header-name group after the token alternation became group 2 [scripts/scrub-credentials.sh:64-65]\n- VC-4: both universals in the new header comment falsification-tested by mutating copies \u2014 widening to a bare `\\` corrupts the JSON escape, relaxing `{4,}` to `+` eats the recorded `//` [scripts/scrub-credentials.sh:57-59]\n- VC-5: the four-unit floor behaves as the changeset states (3 units left alone, 4 units redacted, both rules); no realistic credential shape falls under it [.changeset/issue-1915-scrub-escape-backslash.md]\n- VC-6: `$SCR` (18176) and `$DEN_JQ` (18174) are bound above the new block and never reassigned [lib/test/run.sh:18174]\n- VC-7: the `\"1915\"` run_sh_blocks entry satisfies coverage_map_guard.py's shape rules; the guard and the retention check both exit 0 [lib/test/modules/coverage-map.json:1514]\n- VC-8: a JSON document carrying a `basic` credential still parses after scrubbing [scripts/scrub-credentials.sh:65]\n- VC-9: the same holds for the `Bearer` rule with a non-GitHub token [scripts/scrub-credentials.sh:64]\n- VC-10: `sed 's/AUTHORIZATION: basic //'` round-trips with its trailing `//'` intact [lib/test/run.sh:18318]\n- VC-11: the round-trip test sits in the run.sh region the coverage map labels `#1064 D4`, embeds all four shapes, and asserts both parseability and full byte equality [lib/test/run.sh:18307-18318]\n- VC-12: all four shapes still redact and no pre-existing assertion was removed or weakened relative to origin/main [scripts/scrub-credentials.sh:60-68]\n\n</details>\n\n## Code Review Findings\n\n### Suggestion / Minor\n\n1. The added test comment stating that an uppercase `AUTHORIZATION: BASIC` header is what actions/checkout persists, and that matching only the keyword's first letter let that credential through, is false against HEAD: scripts/refresh-app-credentials.sh writes `AUTHORIZATION: basic ${b64}` (lowercase scheme), and scrub-credentials.sh's own header note scopes the uppercase claim to the header NAME. The pre-fix `[Bb]asic` already matched checkout's header; the real motivation is other producers emitting BASIC/BEARER, which is what the new fixtures exercise. (raised by 1/4 agents) [filed Important by comment-analyzer; capped to Suggestion by the Phase 4.1.5 behavior-inert prose cap \u2014 first conjunct: the subject is the sentence, not the mechanism's coverage, and the per-letter classes are correct either way; limb one: no tool parses this comment to decide behavior (no declaration marker, no shellcheck/type directive; the pin-corpus lint reads prose only to assert prose); limb two: `.github/actions/vendor-plugin/vendor-slice.sh` prunes the whole `lib/test` subtree with `rm -rf \"$stage/lib/test\"`, so it reaches no consumer checkout and is published nowhere]\n2. The two new assertion names read `an uppercase BASIC/BEARER scheme keyword is STILL redacted`; `still` implies the uppercase form was already redacted, whereas this diff's rewrite is what first makes it so. (raised by 1/4 agents)\n3. Narrowing relative to origin/main: the old bracket expressions carried a literal `\\` as a class member, so any backslash inside a token was consumed; the new alternation admits only `\\/` and `\\\\`, so any other escape (`\\n`, `\\t`, `\\uXXXX`, `\\\"`) terminates the match \u2014 and where fewer than four units precede the backslash the `{4,}` floor is never reached and nothing is redacted at all. The filing agent graded it Suggestion because the four documented shapes are base64/base64url, whose alphabets contain no backslash. The final-pass reviewer examined the same class independently and judged it not a new fail-open, since a lone `\\` now terminates the match exactly as every other non-class byte always did. (raised by 1/4 agents)\n4. The acceptance criterion names the `#1064 D4` block; the new assertions land beside the existing `scrub-credentials:` assertions roughly 95 lines above the `D4/AC8: scrub-transcript.sh arms` heading. Not an AC failure \u2014 `#1064 D4` is the coverage map's own label for scripts/scrub-credentials.sh, and VC-11 confirmed the block sits in exactly that region \u2014 but a later reader reconciling AC to test may trip over the literal wording. (raised by 1/4 agents)\n\n### Informational\n\n1. Advisory, non-blocking (repo review prompt extension): neither durable surface carries a `Verification evidence:` marker \u2014 issue #1915's workpad has none and the PR description has none. Tier discriminator: the workpad carries no `prflow:checkpoint gha:` row, so this is classified a local/interactive run, which records that marker as the CI reading (full 40-character SHA, required check name, conclusion, run URL) for the commit it pushed.\n\nover-grade annotation: one finding flagged \u2014 F1, by the behavior-inert prose cap (deterministic, verdict-affecting). No advisory-only shape matched.\n\n## Verdict Criteria\n- No FAIL in the verification checklist.\n- No INCONCLUSIVE in the verification checklist.\n- No self-contradicting-diff carve-out finding: the one demonstrated falsehood (F1) is prose the Phase 4.1.5 behavior-inert prose cap covers, which the carve-out explicitly excludes.\n- No review-agent finding at or above the configured threshold (`critical`).\n- Checklist generation succeeded; 0 of 4 dispatched agents failed.\n- Only findings below the verdict threshold \u2192 APPROVE with notes.\n\n## Prior-iteration findings\nAll six prior findings are confirmed fixed and independently re-measured this iteration: the Critical fail-open (the token group now matches the escape units `\\/` and `\\\\`, each pinned by its own assertion and each verified discriminating by half-revert mutation), the Important `{4,}` test gap (the floor is now pinned on both sides for both rules), the case-sensitive scheme keyword (both rules now match per-letter, with uppercase fixtures), and the three prose Suggestions. No prior finding was re-raised.\n\n## Gates\n- Prompt-surface edit routing evidence gate: not triggered \u2014 the diff touches none of the trigger globs.\n- Shipped-prose cost audit: not applicable \u2014 no prose added under `skills/**` or `agents/**`.\n- Wording-only pin policy: clean \u2014 every added assertion executes the script and compares its output; no text-presence pin was added.\n- Dirty-tree backstop: clean \u2014 the before and after snapshots are identical and no agent mutated the tree.\n"
+}

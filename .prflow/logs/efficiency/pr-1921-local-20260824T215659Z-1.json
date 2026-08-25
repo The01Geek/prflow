@@ -1,0 +1,551 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1921",
+  "generated_at": "2026-08-25T00:24:36Z",
+  "config_fingerprint": {
+    "sha256": "c2dd346fdf78eacf9e402b333f46db8770aa0afa8742a7dc4ac5d1139ba96283",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 4,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:code-reviewer",
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": true,
+      "agent_effort": [
+        {
+          "agent": "prflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 5,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:code-reviewer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": null
+        }
+      ]
+    },
+    {
+      "iter": 2,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 4,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": true,
+      "agent_effort": [
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 5,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": "unique-effective"
+        }
+      ]
+    },
+    {
+      "iter": 3,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 4,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": true,
+      "agent_effort": [
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 2,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": "noise"
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": "noise"
+        }
+      ]
+    },
+    {
+      "iter": 4,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 4,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": true,
+      "agent_effort": [
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": "noise"
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": "noise"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 2
+        },
+        "phase_1": {
+          "calls": 1,
+          "tokens": 0,
+          "wall_clock_s": 60
+        },
+        "phase_1_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_2": {
+          "calls": 13,
+          "tokens": 0,
+          "wall_clock_s": 300
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 296898,
+          "wall_clock_s": 400
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0,
+          "webfetches": 0
+        },
+        "step_2_6": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        }
+      }
+    },
+    {
+      "iter": 2,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 2
+        },
+        "phase_1": {
+          "calls": 1,
+          "tokens": 0,
+          "wall_clock_s": 60
+        },
+        "phase_1_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_2": {
+          "calls": 13,
+          "tokens": 0,
+          "wall_clock_s": 300
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 296898,
+          "wall_clock_s": 400
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0,
+          "webfetches": 0
+        },
+        "step_2_6": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        }
+      }
+    },
+    {
+      "iter": 3,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 2
+        },
+        "phase_1": {
+          "calls": 1,
+          "tokens": 0,
+          "wall_clock_s": 60
+        },
+        "phase_1_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_2": {
+          "calls": 13,
+          "tokens": 0,
+          "wall_clock_s": 300
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 296898,
+          "wall_clock_s": 400
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0,
+          "webfetches": 0
+        },
+        "step_2_6": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        }
+      }
+    },
+    {
+      "iter": 4,
+      "phases": {
+        "phase_0": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        },
+        "phase_0_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 2
+        },
+        "phase_1": {
+          "calls": 1,
+          "tokens": 0,
+          "wall_clock_s": 60
+        },
+        "phase_1_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_2": {
+          "calls": 13,
+          "tokens": 0,
+          "wall_clock_s": 300
+        },
+        "phase_3": {
+          "calls": 5,
+          "tokens": 296898,
+          "wall_clock_s": 400
+        },
+        "step_2_5": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0,
+          "webfetches": 0
+        },
+        "step_2_6": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 0
+        },
+        "phase_4_x": {
+          "calls": 0,
+          "tokens": 0,
+          "wall_clock_s": 5
+        }
+      }
+    }
+  ]
+}

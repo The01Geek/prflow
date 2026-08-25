@@ -1,0 +1,101 @@
+{
+  "verdict": "APPROVE",
+  "run_id": "local-20260824T215659Z-1",
+  "iteration": 4,
+  "pr": 1921,
+  "issue": 1915,
+  "reviewed_head": "4963d758f",
+  "diff_profile": "engine_self_modifying",
+  "prompt_extension_status": "content-present",
+  "cap_drops": [
+    {
+      "agent": "prflow:code-reviewer",
+      "reason": "resolved override carries iterations=first-only and this is fix-loop iteration 4 (N>=2); Phase 3.1 roster exclusion"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "reason": "has_new_types gate false — shell/sed and JSON-fixture diff introduces no types"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review (general-purpose final pass)"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "agent_reported_severity": "Medium",
+      "description": "The sed runnability probe (printf 'x' | sed -E 's/x/x/') does not compile the program shape this diff introduces (a capture group carrying an alternation under a {4,} interval), and never checks that a redaction actually happened. A reduced sed that passes the probe but cannot compile or correctly apply the real rule is reported through the input-fault message 'sed exited non-zero on the input', mis-attributing a permanent host condition to one payload.",
+      "orchestrator_disposition": "pushed_back_to_suggestion",
+      "rationale": "Fail direction is unchanged and correct — nothing is emitted, so there is no leak. The probe shape is pre-existing and the raised dialect requirement is plain POSIX ERE, supported by BSD sed (verified locally by replaying every new assertion) and GNU sed (CI's platform). The finding is a real operability improvement but not a merge blocker and is outside issue #1915's scope; better filed as follow-up work.",
+      "defect_signature": {
+        "file": "scripts/scrub-credentials.sh",
+        "line_range": [49, 68],
+        "kind": "logic_error"
+      }
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The twelve new assertions capture stdout through command substitution, so scrub-credentials.sh's success-path exit status is never asserted; only the fail-closed arm is covered (indirectly, via build-denial-record.sh with a stubbed failing sed).",
+      "orchestrator_disposition": "noted_non_blocking",
+      "rationale": "Marginal under this project's 'add a test only for a clear important benefit' convention; the fail-closed contract is already exercised. Cheap to add if the fix loop wants it, but not blocking.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [18307, 18360],
+        "kind": "test_gap"
+      }
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The contract header's PORTABLE paragraph attributes per-letter case-insensitive matching to the header NAME only, motivated by actions/checkout's uppercase AUTHORIZATION:. As of this diff the scheme keyword is matched per letter too, for a different reason (a third-party emitter's uppercase BASIC/BEARER), and the paragraph does not say so — leaving a later editor free to narrow the scheme keyword back.",
+      "orchestrator_disposition": "noted_non_blocking",
+      "rationale": "Not diff-modified and true as written, so not a documented_falsehood; behavior-inert prose, capped at Suggestion under Phase 4.1.5. The final-pass reviewer independently reached the same dismissal. A one-clause extension of that paragraph would close it cheaply.",
+      "defect_signature": {
+        "file": "scripts/scrub-credentials.sh",
+        "line_range": [26, 28],
+        "kind": "comment_drift"
+      }
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "None",
+      "description": "No test gaps. The round-trip JSON fixture is the durable RED/GREEN discriminator for the original defect; both escape units, both sides of the {4,} floor, and both scheme keywords are pinned for the Bearer and basic rules alike. A style observation about unscoped _SCRUB_* file-scope globals was reported as consistent with surrounding blocks, not a defect.",
+      "orchestrator_disposition": "not_filed",
+      "defect_signature": null
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "None",
+      "description": "No findings at confidence >= 80. Independently reproduced the round-trip, both escape units, both floor boundaries, both scheme keywords, the '#' delimiter safety, the absence of any coupled regex mirror, and the shellcheck/coverage-map gates.",
+      "orchestrator_disposition": "not_filed",
+      "defect_signature": null
+    }
+  ],
+  "acceptance_criteria": [
+    {"criterion": "Scrubbing a JSON document carrying a basic credential inside a string value still parses", "status": "satisfied", "evidence": "lib/test/run.sh #1915 round-trip assertions; replayed green"},
+    {"criterion": "Same for the Bearer rule with a non-GitHub token", "status": "satisfied", "evidence": "round-trip fixture carries 'Authorization: Bearer abc.def-ghi~jkl+mno/pqr='"},
+    {"criterion": "A recorded sed 's/AUTHORIZATION: basic //' keeps its trailing //'", "status": "satisfied", "evidence": "trailing-slash assertion; replayed green"},
+    {"criterion": "A test in the #1064 D4 block feeds all four shapes as JSON, asserts it parses and every non-token byte is unchanged", "status": "satisfied", "evidence": "block sits at lib/test/run.sh with the other scrub-credentials: assertions, above the D4/AC8 heading, inside the #1064 D4 region"},
+    {"criterion": "All four shapes still redacted; no test relaxes the blocklist", "status": "satisfied", "evidence": "_SCRUB_WANT proves all four redacted in one document; the {4,} floor is an implementation narrowing disclosed in the changeset, not a test relaxation"}
+  ],
+  "verification_evidence": {
+    "shellcheck_scrub_credentials": "clean",
+    "shellcheck_run_sh": "clean (--extended-analysis=false)",
+    "ruff": "all checks passed",
+    "lint_carveout_guard": "0",
+    "lint_tree_enumeration": "0",
+    "lint_reference_size": "0",
+    "coverage_map_guard": "0",
+    "module_review_trigger_helpers": "844 passed, 0 failed",
+    "module_installer_wiring": "287 passed, 0 failed",
+    "new_assertions_replayed": "13/13 green against BSD sed",
+    "gnu_sed_unavailable_locally": "no gsed on this host; POSIX ERE group+alternation+interval is standard and CI (ubuntu, GNU sed) establishes it",
+    "whole_suite_gate": "not discharged here — local tier's whole-suite gate is a CI reading for the pushed commit (CLAUDE.md issue #1607); this engine pass ran focused modules and lints only"
+  },
+  "report": "APPROVE. Iteration 4 of the fix loop on PR #1921 (issue #1915). The diff is small and self-consistent: scripts/scrub-credentials.sh switches its two Authorization rules to a '#' sed delimiter, replaces the class-with-literal-backslash by an alternation of class members plus the escape units \\/ and \\\\, raises + to {4,}, and matches both scheme keywords per letter; lib/test/run.sh adds thirteen behavioural assertions; coverage-map.json registers the run_sh_blocks entry; a changeset discloses the deliberate narrowing.\n\nFour Phase-3 agents were dispatched (code-reviewer excluded by its iterations=first-only override on iteration 4; type-design-analyzer gated out with no new types). No Critical and no Important findings. Three Suggestions were returned, none blocking: an unchanged-but-now-under-covering sed runnability probe whose diagnosis message mis-attributes a host dialect failure to the input (fail direction still closed, no leak), an unasserted success-path exit status in the new block, and a contract-header paragraph that does not mention the scheme keyword now matches per letter too.\n\nI replayed all thirteen new assertions directly against the shipped helper and all thirteen pass; the round-trip JSON fixture parses and is byte-identical to the expected document. The two consumers (scrub-transcript.sh, build-denial-record.sh) call the helper unchanged, no workflow carries an inline mirror of these rules, and the module that exercises the scrub end-to-end (review-trigger-helpers, 844 assertions) is green — its #409 fixtures all use tokens well above the new four-unit floor. shellcheck, ruff, the carve-out guard, the tree-enumeration lint, the reference-size lint and the coverage-map guard are all clean. Every acceptance criterion on issue #1915 is satisfied.\n\nThe three prior push-backs carried in the handoff stand: I found no new evidence against the escape-unit closure, the block placement, or the //gI over-redaction (which fails safe). Note the whole-suite completion gate is not discharged by this engine pass — on the local tier that is a CI reading for the commit the run pushes."
+}

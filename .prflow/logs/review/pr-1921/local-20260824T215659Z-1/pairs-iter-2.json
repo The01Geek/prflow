@@ -1,0 +1,241 @@
+{
+ "pairs": [
+  {
+   "item": {
+    "id": "VC-1",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "issue_acceptance:scripts/scrub-credentials.sh:VC-1"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-1-36b5d20728da50f4.json",
+   "response_text": "{\"id\":\"VC-1\",\"verdict\":\"PASS\",\"evidence\":\"Ran scripts/scrub-credentials.sh over a JSON doc containing 'Authorization: basic dXNlcjpwYXNz' as a string value. The basic-Authorization sed rule at line 65 redacts to 'basic [REDACTED]' while preserving surrounding JSON quoting/structure. jq -e . on the output succeeded, confirming the scrubbed document still parses as valid JSON.\",\"file_checked\":\"scripts/scrub-credentials.sh:60-68\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n"
+  },
+  {
+   "item": {
+    "id": "VC-2",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "issue_acceptance:scripts/scrub-credentials.sh:VC-2"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-2-c7a01f82fb218a8f.json",
+   "response_text": "{\"id\":\"VC-2\",\"verdict\":\"PASS\",\"evidence\":\"scripts/scrub-credentials.sh:64 defines the Bearer rule: sed -E 's#([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][\\\":[:space:]]*)[Bb]earer ([A-Za-z0-9._~+/=-]|\\\\\\\\\\\\\\\\|\\\\\\\\/){4,}#\\\\1Bearer [REDACTED]#g'. Tested by piping the sample input {\\\"note\\\":\\\"Authorization: Bearer abc.def-ghi~jkl+mno/pqr=xyz\\\"} through this exact sed expression: output was {\\\"note\\\":\\\"Authorization: Bearer [REDACTED]\\\"}, with the closing quote and brace intact, and `jq .` parsed it successfully (VALID_JSON).\",\"file_checked\":\"scripts/scrub-credentials.sh:64\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n"
+  },
+  {
+   "item": {
+    "id": "VC-3",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "issue_acceptance:scripts/scrub-credentials.sh:VC-3"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-3-e8bce12d60495f24.json",
+   "response_text": "{\"id\":\"VC-3\",\"verdict\":\"PASS\",\"evidence\":\"scripts/scrub-credentials.sh's basic-header rule requires {4,} repetitions of the char class after 'basic ', so the literal input `sed 's/AUTHORIZATION: basic //' file` (with an empty trailing capture) does not match and passes through unchanged. Empirically piped the exact string through the script: output was byte-identical to input, confirming the trailing `//'` is left intact.\",\"file_checked\":\"scripts/scrub-credentials.sh\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n"
+  },
+  {
+   "item": {
+    "id": "VC-4",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "issue_acceptance:lib/test/run.sh:VC-4"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-4-16eb613ff65b2d6c.json",
+   "response_text": "{\"id\":\"VC-4\",\"verdict\":\"FAIL\",\"evidence\":\"The JSON round-trip test described by the claim exists at lib/test/run.sh:18306-18317, using _SCRUB_RAW/_SCRUB_WANT fixtures with all four credential shapes (gh token, github_pat, sk-ant, and both basic and Bearer Authorization headers), and it does assert the scrubbed output still parses via jq and matches byte-for-byte except for the redacted tokens. However, this test is NOT inside the '#1064 D4' block. The whole section spanning lines 18166-18410 is headed 'denial forensics: build-denial-record.sh / scrub-credentials.sh / surface D1 (#1064)', and within it a distinctly-labeled sub-block '# \u2500\u2500 D4/AC8: scrub-transcript.sh arms' starts at line 18386 and covers scrub-transcript.sh's path-advertising/caveat/fail-closed behavior (present+scrubbable, absent file, empty file, sed-failure) \u2014 it contains no JSON-document round-trip assertions and no _SCRUB_RAW fixture. The JSON round-trip test is instead under its own comment header '# \u2500\u2500 #1915 round trip: keep all four shapes in one document...' at line 18307, preceding the D4/AC8 sub-block by ~80 lines. So the claim mislocates the assertions as being inside the '#1064 D4' block when they are actually a separate, differently-labeled (#1915) sub-block within the broader #1064 section.\",\"file_checked\":\"lib/test/run.sh:18306-18410\",\"property_proven\":false,\"inaccuracy_scope\":\"generated_claim_text\"}\n"
+  },
+  {
+   "item": {
+    "id": "VC-5",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "issue_acceptance:scripts/scrub-credentials.sh:VC-5"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-5-cee7df955e75bb32.json",
+   "response_text": "{\"id\":\"VC-5\",\"verdict\":\"PASS\",\"evidence\":\"git diff origin/main...HEAD shows all five sed -e rules remain present in scripts/scrub-credentials.sh (token, PAT, Anthropic key unchanged; the two Authorization rules strengthened from '+' to a bracket-class-with-escape-alternation '{4,}' floor, which broadens rather than narrows what is redacted). No pre-existing assertion in lib/test/run.sh was deleted or relaxed; new '#1915' assertions were added (lines ~18307-18345) covering all four shapes in one document, escaped-slash/backslash tokens, and the 3-vs-4-unit floor boundary. Manually exercised all four shapes through scripts/scrub-credentials.sh: gh token -> [REDACTED-GH-TOKEN], github_pat -> [REDACTED-GH-PAT], sk-ant key -> [REDACTED-ANTHROPIC-KEY], Bearer header -> 'Authorization: Bearer [REDACTED]', basic header -> 'AUTHORIZATION: basic [REDACTED]'. All confirmed redacted.\",\"file_checked\":\"scripts/scrub-credentials.sh, lib/test/run.sh\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n"
+  },
+  {
+   "item": {
+    "id": "VC-6",
+    "category": "data_format_assumption",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "data_format_assumption:scripts/scrub-credentials.sh:VC-6"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-6-257195baacd0a08c.json",
+   "response_text": "{\n  \"id\": \"VC-6\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/scrub-credentials.sh:64-65 contains the two -e sed arguments inside single-quoted shell strings, so no shell backslash processing occurs before sed sees them. od -c on the raw file bytes confirms the alternation literally reads `\\\\\\\\\\\\\\\\|\\\\\\\\/` (four backslash bytes then a pipe then backslash-backslash-slash, three bytes) inside `([A-Za-z0-9._~+/=-]|\\\\\\\\\\\\\\\\|\\\\\\\\/){4,}`. Empirically reproduced with sed -E on this host: a token 'abcd\\\\\\\"' (class chars + one trailing lone backslash) redacts only 'abcd', leaving the lone backslash unconsumed/surviving after [REDACTED] (confirms 4-backslash alternative does NOT match a single backslash). A token 'ab\\\\\\\\\\\\\\\\cd\\\"' (containing two consecutive backslashes) is fully consumed into [REDACTED], confirming the 4-backslash ERE alternative matches exactly two literal backslash bytes as a unit, and the 3-character alternative \\\\\\\\/ matches backslash-then-slash as described.\",\n  \"file_checked\": \"scripts/scrub-credentials.sh:64-65\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-7",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "dependency_interaction:scripts/scrub-credentials.sh:VC-7"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-7-9161b4c39799e79c.json",
+   "response_text": "{\n  \"id\": \"VC-7\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"Exercised the actual rules from scripts/scrub-credentials.sh:64-65 on this host's BSD/macOS sed (no gsed available to cross-check GNU sed): `echo 'Authorization: Bearer abcd1234' | sed -E 's#(...)...([A-Za-z0-9._~+/=-]|\\\\\\\\\\\\\\\\|\\\\\\\\/){4,}#\\\\1Bearer [REDACTED]#g'` produced 'Authorization: Bearer [REDACTED]', and the Basic-auth rule similarly redacted to 'Authorization: basic [REDACTED]'. This positively confirms BSD sed -E supports the {4,} interval quantifier applied to the parenthesized alternation group `([A-Za-z0-9._~+/=-]|\\\\\\\\|\\\\/)`, matching real tokens rather than silently failing. Only BSD/macOS sed was exercised (no gsed/GNU sed present on this host to compare), so full cross-implementation identity between BSD and GNU sed was not directly verified in this session, though BSD sed's ERE engine is POSIX-compliant for interval-on-group support and GNU sed (which supports EREs including bounded repetition on groups since long ago) is not expected to differ for this construct.\",\n  \"file_checked\": \"scripts/scrub-credentials.sh:64-65\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-8",
+    "category": "data_format_assumption",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "data_format_assumption:scripts/scrub-credentials.sh:VC-8"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-8-867469dd27e643e3.json",
+   "response_text": "{\n  \"id\": \"VC-8\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/scrub-credentials.sh:64-65 use `#` as the sed s-command delimiter for both the Bearer and basic Authorization rules. Neither pattern nor replacement contains a literal `#` byte outside the three delimiter positions in each rule. The character classes `[A-Za-z0-9._~+/=-]` and `[A-Za-z0-9+/=]` both contain an unescaped `/`, which is unproblematic since `/` is not the delimiter and needs no escaping inside a bracket expression regardless of delimiter choice. Empirically verified with `sed -E` using the exact two -e strings against `Authorization: Bearer abc/def123456789` and `Authorization: basic YWJjZGVmZ2hpams=/`, both correctly redacted to `Authorization: Bearer [REDACTED]` and `Authorization: basic [REDACTED]`.\",\n  \"file_checked\": \"scripts/scrub-credentials.sh:60-67\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-9",
+    "category": "data_format_assumption",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "data_format_assumption:scripts/scrub-credentials.sh:VC-9"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-9-42e205e4a16ee9c1.json",
+   "response_text": "{\n  \"id\": \"VC-9\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/scrub-credentials.sh:64 contains the bracket expression [A-Za-z0-9._~+/=-]. Per POSIX bracket-expression rules, a '-' immediately before the closing ']' is always a literal hyphen, never a range operator, so it cannot form a range with the preceding '='. The class members are A-Z, a-z, 0-9, '.', '_', '~', '+', '/', '=', '-' \u2014 the intended token alphabet (base64url/token68-style charset plus '='). Comparing to git show origin/main:scripts/scrub-credentials.sh:63, whose class is [A-Za-z0-9._~+\\\\/=-] (escaped slash), the member set is identical; the only diff is the now-unescaped '/' (unnecessary escaping inside a bracket expression, semantically inert) and the new line's addition of a separate '|\\\\\\\\\\\\\\\\|\\\\\\\\/' alternation for literal backslash/slash outside the class, not a change to the class's own member set.\",\n  \"file_checked\": \"scripts/scrub-credentials.sh:64\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-10",
+    "category": "absolute_claim",
+    "claim_provenance": "source_authored",
+    "source_file": ".changeset/issue-1915-scrub-escape-backslash.md",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "absolute_claim:.changeset/issue-1915-scrub-escape-backslash.md:VC-10",
+    "source_excerpt": "so an escaped slash inside a token is still redacted while a lone `\\` before a closing quote is left to the document it belongs to"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-10-05b2fedba2916747.json",
+   "response_text": "{\"id\":\"VC-10\",\"verdict\":\"PASS\",\"evidence\":\"Tested scripts/scrub-credentials.sh (lines 60-65) with printf/od-confirmed adversarial byte sequences varying the backslash-run length (1 through 6) immediately before the closing quote, for both the Bearer and basic Authorization rules. In every odd-length run (1,3,5) exactly one lone backslash was left unconsumed immediately before the closing quote (e.g. AAAA\\\\\\\\\\\\\\\" -> [REDACTED]\\\\\\\" ), while every even-length run (2,4,6) was fully consumed as paired \\\\\\\\ escape units leaving no backslash before the quote. This confirms the greedy {4,} alternation over ([A-Za-z0-9._~+/=-]|\\\\\\\\|\\\\/) can never leave a partially-consumed escape unit that eats into the final lone backslash before a closing quote -- the described property holds for both rules under the requested adversarial construction (token ending in a matched \\\\\\\\ unit immediately followed by one more lone backslash).\",\"file_checked\":\"scripts/scrub-credentials.sh:60-65\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n"
+  },
+  {
+   "item": {
+    "id": "VC-11",
+    "category": "absolute_claim",
+    "claim_provenance": "source_authored",
+    "source_file": "scripts/scrub-credentials.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "absolute_claim:scripts/scrub-credentials.sh:VC-11",
+    "source_excerpt": "`+` matches the bare `//` of a recorded `sed 's/AUTHORIZATION: basic //'` as if it were a token."
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-11-7f6c109b17ed1ca9.json",
+   "response_text": "{\"id\":\"VC-11\",\"verdict\":\"FAIL\",\"evidence\":\"Confirmed via direct sed testing: the old `+` form does corrupt the bare `//` of a recorded `sed 's/AUTHORIZATION: basic //'` (t1: became `basic [REDACTED]'` losing the trailing quote/paren), matching the comment's literal claim at scripts/scrub-credentials.sh:59. However the checklist item's paraphrase that '{4,} blocks such recorded-command corruption' as a universal is false: constructing recorded commands with 4+ class-member characters after the keyword -- `sed 's/AUTHORIZATION: basic ////'`, `sed 's/AUTHORIZATION: basic //gI'`, `sed 's/AUTHORIZATION: basic /////'` -- are STILL corrupted by the shipped {4,} rule (scripts/scrub-credentials.sh:65), each rewritten to `basic [REDACTED]'`. So {4,} only protects the specific <=3-character bare-// example the comment cites; it does not block recorded-command corruption generally. The source comment itself only asserts the narrower, correct claim about the cited example -- the overreach ('universal'/'blocks such recorded-command corruption' in general) is in the checklist's generated paraphrase, not in the source text.\",\"file_checked\":\"scripts/scrub-credentials.sh:57-65\",\"property_proven\":false,\"inaccuracy_scope\":\"generated_claim_text\"}\n"
+  },
+  {
+   "item": {
+    "id": "VC-12",
+    "category": "absolute_claim",
+    "claim_provenance": "source_authored",
+    "source_file": ".changeset/issue-1915-scrub-escape-backslash.md",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "absolute_claim:.changeset/issue-1915-scrub-escape-backslash.md:VC-12",
+    "source_excerpt": "The four redacted shapes are unchanged, and \u2014 as before \u2014 the header keyword itself is rewritten to its canonical casing alongside the token."
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-12-cf46855b0fec2630.json",
+   "response_text": "{\"id\":\"VC-12\",\"verdict\":\"FAIL\",\"evidence\":\"Reconstructed old rule from git show origin/main:scripts/scrub-credentials.sh line 63: Bearer pattern used class [A-Za-z0-9._~+\\\\/=-]+ where a bare backslash is a literal class member, so a run containing any backslash (e.g. a JSON \\\\n escape) was consumed entirely and fully redacted. New rule (scripts/scrub-credentials.sh lines 62-64): ([A-Za-z0-9._~+/=-]|\\\\\\\\|\\\\/){4,} \u2014 backslash is only matched as part of the two-char alternatives \\\\\\\\ (escaped backslash) or \\\\/ (escaped slash); a lone backslash followed by an ordinary character (e.g. \\\\n, \\\\u) matches neither alternative, so the greedy match stops there. Empirically verified: `echo 'Authorization: Bearer abc\\\\ndef1234567890' | sed -E '<old script>'` yields 'Authorization: Bearer [REDACTED]' (full redaction) while the same input through the new script yields 'Authorization: Bearer abc' with 'def1234567890' left live/unredacted on the next line. This is a case where a credential previously fully redacted is now left partly unredacted, contradicting the changeset's absolute claim that 'the four redacted shapes are unchanged' beyond the stated narrowing.\",\"file_checked\":\"scripts/scrub-credentials.sh:62-64 vs origin/main:scripts/scrub-credentials.sh:63-64\",\"property_proven\":false,\"inaccuracy_scope\":\"source_authored_text\"}\n"
+  },
+  {
+   "item": {
+    "id": "VC-13",
+    "category": "test_mock_alignment",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "test_mock_alignment:lib/test/run.sh:VC-13"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-13-9821d3edae424545.json",
+   "response_text": "{\n  \"id\": \"VC-13\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"DEN_JQ is bound at lib/test/run.sh:18174 (DEN_JQ=\\\"${DEVFLOW_JQ:-jq}\\\") and SCR at :18176 (SCR=\\\"$LIB/../scripts/scrub-credentials.sh\\\"). Grepping all assignments of both names in the file shows no reassignment anywhere else; every subsequent use through line ~18318, including the new #1915 assertions around line 18304 (SCR used at 18309/18318/18320/18324/18328/18330 relative offsets, DEN_JQ used throughout), reads the same values bound at 18174/18176.\",\n  \"file_checked\": \"lib/test/run.sh:18174-18320\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-14",
+    "category": "test_mock_alignment",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "test_mock_alignment:lib/test/run.sh:VC-14"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-14-c2b99fb563e8f289.json",
+   "response_text": "{\n  \"id\": \"VC-14\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"Invocation form matches the pre-existing scrub-credentials assertions (lib/test/run.sh:18302-18305 vs the new block at 18309-18345, all `printf ... | bash \\\"$SCR\\\"`), so that half of the claim holds. But the discriminating-power half fails: reconstructing the pre-fix regex from `git show origin/main:scripts/scrub-credentials.sh` (bracket-class rules `[A-Za-z0-9._~+\\\\/=-]+` / `[A-Za-z0-9+\\\\/=]+`, no `{4,}` floor) and running it against each new fixture shows only 2 of the ~7 new discriminating-intent assertions actually change verdict between old and new rule. The 4 escape-focused assertions at lines 18325-18334 ('Bearer/basic token with an escaped slash/backslash is fully redacted') are NON-discriminating: under BSD/macOS sed (the sed this suite runs under), a backslash inside a POSIX ERE bracket expression `[...]` is a literal member, not an escape metachar, so the old class `[A-Za-z0-9._~+\\\\/=-]` already contains a literal backslash and literal slash. I ran both `AAAABBBB\\\\/SECRETTAIL9999` and `AAAABBBB\\\\\\\\SECRETTAIL9999` fixtures through both the pre-fix script (`bash /tmp/scrub-old.sh`, checked out from origin/main) and the fixed script (`bash scripts/scrub-credentials.sh`) and got byte-identical fully-redacted output ('Authorization: Bearer [REDACTED]' / 'AUTHORIZATION: basic [REDACTED]') from BOTH \u2014 these 4 assertions would pass unmodified even without the fix, i.e. they are trivially satisfied, contradicting the claim. The combined multi-shape round-trip fixture at lines 18309-18317 (which has no backslashes) is likewise non-discriminating (identical old/new output), and the four-unit-floor assertion at line 18342-18344 is also non-discriminating (old regex's unbounded `+` already redacts a 4-char token same as new `{4,}`). Only 2 of the new assertions are genuinely RED-first: the three-unit-floor assertion (line 18340-18341, 'AUTHORIZATION: basic ab=' left alone) \u2014 old regex's `+` (no floor) redacts it, new `{4,}` correctly leaves it, so old-vs-new output differs \u2014 and the trailing-slash sed-command assertion (line 18319-18321) \u2014 old regex eats the recorded `sed 's/AUTHORIZATION: basic //'`'s `//` as a token ('...basic [REDACTED]' file), while new correctly leaves it untouched. This directly contradicts the source-authored comment immediately above the escape assertions (lib/test/run.sh, just above line 18325): 'Both escape units belong to the token, in BOTH rules: narrowing either group to plain class members truncates the match at the escape and emits the rest of a live credential. Each fixture leads with four class members so the pre-fix behaviour is that truncation, not a whole no-match.' Measured pre-fix behaviour is NOT a truncation for these fixtures \u2014 it is full (non-truncated) redaction, identical to the fixed script's output, so this asserted pre-fix failure mode does not reproduce on the sed this repo's suite actually runs under.\",\n  \"file_checked\": \"lib/test/run.sh:18306-18345; scripts/scrub-credentials.sh (HEAD and origin/main)\",\n  \"property_proven\": false,\n  \"inaccuracy_scope\": \"source_authored_text\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-15",
+    "category": "data_format_assumption",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "data_format_assumption:lib/test/run.sh:VC-15"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-15-1be56290ddf1aa0c.json",
+   "response_text": "{\n  \"id\": \"VC-15\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"Reproduced all four #1915 fixtures from lib/test/run.sh lines 18325-18336 exactly as written, piped through od -c. printf '%s\\\\n' 'Authorization: Bearer AAAABBBB\\\\/SECRETTAIL9999' and the basic variant produce bytes '...B B B B \\\\ / S...' (one backslash followed by a slash). printf '%s\\\\n' 'Authorization: Bearer AAAABBBB\\\\\\\\SECRETTAIL9999' and the basic variant produce '...B B B B \\\\ \\\\ S...' (two backslash bytes). Bash single-quoting passes the literal source text through unmodified (no backslash processing in single quotes), and printf '%s' does not interpret backslash escapes in its argument, so the byte sequence in the shell literal reaches the pipeline unchanged. Each assertion's byte content matches its label: escaped-slash fixtures carry backslash+slash, escaped-backslash fixtures carry two backslashes, in both the Bearer and basic-token assertions.\",\n  \"file_checked\": \"lib/test/run.sh:18325-18336\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-16",
+    "category": "test_mock_alignment",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/modules/coverage-map.json",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "test_mock_alignment:lib/test/modules/coverage-map.json:VC-16"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-16-f23f25eacabd9f75.json",
+   "response_text": "{\n  \"id\": \"VC-16\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"lib/test/modules/coverage-map.json:1514-1517 has `\\\"1915\\\": {\\\"note\\\": \\\"\\\", \\\"owner\\\": \\\"unmodularized\\\"}` under the `run_sh_blocks` object, matching the schema/shape of neighbouring entries (e.g. '187', '1882', '189' at lines 1490-1512, all `{note, owner}` with no focused_test). Key order is enforced canonically: coverage_map_guard.py:783 canonicalizes the map with `json.dumps(..., sort_keys=True, ...)`, and string-lexicographic sort correctly places '1915' between '191' and '192' as observed in the file. lib/test/run.sh:18307-18343 shows a real, unextracted block of new `assert_eq` tests labeled '#1915' (scrub-credentials round-trip tests), confirming this is genuinely run.sh-resident test surface with no covering shell module, i.e. correctly `unmodularized`. focused_test is an optional field (test_coverage_map_guard.py shows unmodularized entries both with and without it), so its absence here is not a defect.\",\n  \"file_checked\": \"lib/test/modules/coverage-map.json:1514, lib/test/run.sh:18307-18343, lib/test/coverage_map_guard.py:783\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-17",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/scrub-credentials.sh",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "dependency_interaction:scripts/scrub-credentials.sh:VC-17"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-17-668ca2f8842dc0ec.json",
+   "response_text": "{\n  \"id\": \"VC-17\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"git diff origin/main...HEAD shows four added/modified comment runs, each within the 3-physical-line cap: scripts/scrub-credentials.sh:56-58 (3 lines, replaces the old attribution comment, names the wrong change it prevents: widening the two escape-unit groups to a bare backslash or relaxing {4,} to + regressing to JSON-truncation / bare-// false matches); lib/test/run.sh's three new #1915 comment runs (each exactly 3 lines) preceding the round-trip fixture, the escape-unit assertions, and the four-unit-floor assertions, each naming a distinct specific regression it guards against (fixture narrowing corrupting bytes; escape-group narrowing truncating at the escape; floor widening/narrowing leaking or over-eating). No comment restates a fact already visible in the adjacent code or test names, and no two comments restate the same fact.\",\n  \"file_checked\": \"scripts/scrub-credentials.sh:56-58, lib/test/run.sh:18307-18345\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  },
+  {
+   "item": {
+    "id": "VC-18",
+    "category": "data_format_assumption",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": ".changeset/issue-1915-scrub-escape-backslash.md",
+    "claim": "(see checklist)",
+    "verification_mode": "agent",
+    "claim_signature": "data_format_assumption:.changeset/issue-1915-scrub-escape-backslash.md:VC-18"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1921/local-20260824T215659Z-1/verdicts/iter-2/VC-18-fa718201145a0535.json",
+   "response_text": "{\n  \"id\": \"VC-18\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"The changeset .changeset/issue-1915-scrub-escape-backslash.md uses YAML frontmatter 'bump: patch' / 'type: Fixed', matching scripts/consolidate-changesets.py's expected keys (bump.lower() in VALID_BUMPS, type.lower() in CANONICAL_TYPES which includes 'Fixed' at line 80). ls .changeset/ shows only issue-1915-scrub-escape-backslash.md and README.md, so the filename is unique among pending changesets.\",\n  \"file_checked\": \"scripts/consolidate-changesets.py:73-185\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n"
+  }
+ ]
+}

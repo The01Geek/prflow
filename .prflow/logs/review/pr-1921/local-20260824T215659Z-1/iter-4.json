@@ -1,0 +1,302 @@
+{
+  "iter": 4,
+  "started_at": "2026-08-24T21:56:59Z",
+  "fix_commit_sha": "4963d758f0f694fbabb4b4f2d5f23370dbc81628",
+  "fix_files": [
+    ".changeset/issue-1915-scrub-escape-backslash.md",
+    "lib/test/run.sh",
+    "scripts/scrub-credentials.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "dispatched_effort": [],
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The sed runnability probe compiles only s/x/x/, so a reduced sed that cannot handle a group with alternation and an interval passes the probe and then fails through the per-payload message.",
+      "defect_signature": {
+        "file": "scripts/scrub-credentials.sh",
+        "line_range": [
+          49,
+          68
+        ],
+        "kind": "misattributed_breadcrumb"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The new assertions capture stdout only, so the scrub's success-path exit 0 is never asserted.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          18307,
+          18360
+        ],
+        "kind": "missing_coverage"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The contract header's PORTABLE paragraph credits per-letter matching to the header name only and does not mention the scheme keyword.",
+      "defect_signature": {
+        "file": "scripts/scrub-credentials.sh",
+        "line_range": [
+          26,
+          28
+        ],
+        "kind": "incomplete_prose"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F4-1",
+      "decision": "advisory",
+      "source_file": "scripts/scrub-credentials.sh",
+      "claim_text": "the sed runnability probe is weaker than the rules it gates",
+      "skip_category": "out-of-scope",
+      "evidence": "the probe predates this change and the fail direction is closed either way (nothing is emitted); strengthening it is a separate concern from #1915",
+      "parking_evidence": {
+        "basis": "pre-existing probe, not touched by this diff, and it fails closed",
+        "failing_input": "a reduced sed that compiles s/x/x/ but not a group with an interval",
+        "source": "scripts/scrub-credentials.sh:49-56",
+        "finding_ref": {
+          "iter": 4,
+          "index": 0
+        }
+      }
+    },
+    {
+      "finding_id": "F4-2",
+      "decision": "advisory",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "the assertions do not assert exit 0",
+      "skip_category": "uncategorized",
+      "evidence": "the helper fails closed by emitting nothing, so a non-zero exit already makes each byte-comparison assertion RED; a separate exit-code assertion adds no discriminating signal"
+    },
+    {
+      "finding_id": "F4-3",
+      "decision": "advisory",
+      "source_file": "scripts/scrub-credentials.sh",
+      "claim_text": "the header does not mention per-letter scheme matching",
+      "skip_category": "out-of-scope",
+      "evidence": "the header paragraph is not diff-modified and is true as written; the prohibition against narrowing the scheme keyword is already stated once, at the rule site, and restating it in the header would duplicate it across comments",
+      "parking_evidence": {
+        "basis": "the prohibition is already single-sourced at the rule site",
+        "failing_input": "a future edit narrowing the scheme keyword to a case-sensitive tail",
+        "source": "scripts/scrub-credentials.sh:57-59",
+        "finding_ref": {
+          "iter": 4,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "verification_evidence": {
+    "focused_selection": "scripts/scrub-credentials.sh and lib/test/run.sh are both run.sh-resident (coverage-map owner: unmodularized), so the covering instrument is lib/test/run-shard.sh monolith; lib/test/modules/review-trigger-helpers.sh is the covering module for the dependent #409 scrub fixture. Both ran green after the fix: monolith 9906 passed / 0 failed / 1 skipped (the dirty-tree #434 self-scan), review-trigger-helpers 844 passed / 0 failed. single_flight_consulted: no."
+  },
+  "shadow": {
+    "dispatch_mode": "unavailable",
+    "ran_at": "2026-08-24T23:10:00Z",
+    "reviewed_sha": "4963d758f0f694fbabb4b4f2d5f23370dbc81628",
+    "verdict": "APPROVE with notes",
+    "coverage": "full",
+    "prompt_addenda": [
+      "the shadow substituted a direct 10-claim adversarial verification matrix for the Phase 1/1.5/2 checklist subagent dispatches; recorded so the 10-passed tally is not read as a full agent-checklist run"
+    ],
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:pr-test-analyzer"
+    ],
+    "reason": null,
+    "checklist_skipped": "substituted",
+    "phase3_findings": [
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Suggestion",
+        "description": "A lone raw backslash now ends the token match everywhere, not only before a closing quote, so a token containing a raw backslash leaks its tail; the trade is right but the changeset discloses only the closing-quote case.",
+        "defect_signature": {
+          "file": ".changeset/issue-1915-scrub-escape-backslash.md",
+          "line_range": [
+            10,
+            13
+          ],
+          "kind": "incomplete_disclosure"
+        },
+        "corroboration_count": 3
+      },
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Suggestion",
+        "description": "The four-unit floor is a genuine blocklist relaxation for one-to-three-unit runs, pinned as intended by two new assertions; it sits at the shortest realistic base64 basic-auth payload.",
+        "defect_signature": {
+          "file": "scripts/scrub-credentials.sh",
+          "line_range": [
+            63,
+            64
+          ],
+          "kind": "documented_narrowing"
+        },
+        "corroboration_count": 2
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "The SHAPES variable is the header-declared single source of truth for consumer caveat wording and no longer reflects the floor, while the disclosure lives in the changeset.",
+        "defect_signature": {
+          "file": "scripts/scrub-credentials.sh",
+          "line_range": [
+            42,
+            42
+          ],
+          "kind": "stale_single_source"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "The floor is a length heuristic, so a recorded perl -pe substitution of the header is still consumed; origin/main corrupts that same input identically, so it is pre-existing rather than a regression.",
+        "defect_signature": {
+          "file": "scripts/scrub-credentials.sh",
+          "line_range": [
+            63,
+            64
+          ],
+          "kind": "residual_false_positive"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "No assertion pins which side of the lone-backslash trade the helper is on, and no fixture covers the header-object JSON shape a real transcript emits.",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            18307,
+            18360
+          ],
+          "kind": "missing_coverage"
+        },
+        "corroboration_count": 1
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 5,
+      "overlap_with_iter_N": 2,
+      "new": 3,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 5
+    },
+    "phase_0_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 2
+    },
+    "phase_1": {
+      "calls": 1,
+      "tokens": 0,
+      "wall_clock_s": 60
+    },
+    "phase_1_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_2": {
+      "calls": 13,
+      "tokens": 0,
+      "wall_clock_s": 300
+    },
+    "phase_3": {
+      "calls": 5,
+      "tokens": 296898,
+      "wall_clock_s": 400
+    },
+    "step_2_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0,
+      "webfetches": 0
+    },
+    "step_2_6": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_4_x": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 5
+    }
+  },
+  "synthesized": false
+}
