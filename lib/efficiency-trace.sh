@@ -281,11 +281,14 @@ emit_jq() {
 # fixing.md item 7 mandates them on every iteration (a no-fix iteration writes the
 # explicit `[]` / `not-run` pair rather than omitting them), which is why they belong
 # in this unconditional set. `dispatched_effort` (issue #609) is likewise unconditional:
-# fixing.md item 7 mandates it on every iteration Phase 1+2 ran. --self-check warns
+# fixing.md item 7 mandates it on every iteration Phase 1+2 ran. `expected_reviewers`
+# (issue #1904) is likewise unconditional: the engine records its own Phase 3.1 gate
+# decisions on every iteration alongside `phase3_dispatched`, and the Step 1
+# roster-coverage check reads it. --self-check warns
 # (best-effort) when any of these is missing from a persisted iter workpad. Plain
 # (non-readonly) single-line assignment so the run.sh divergence guard can grep
 # `^ITER_EXPECTED_FIELDS=` to extract it.
-ITER_EXPECTED_FIELDS="iter started_at fix_commit_sha fix_files loop_role sweep_defs_read sweep_evidence checklist phase3_dispatched dispatched_effort diff_profile phase3_findings fix_decisions convergence_inputs cap_drops telemetry"
+ITER_EXPECTED_FIELDS="iter started_at fix_commit_sha fix_files loop_role sweep_defs_read sweep_evidence checklist phase3_dispatched expected_reviewers dispatched_effort diff_profile phase3_findings fix_decisions convergence_inputs cap_drops telemetry"
 # The synthesized-record minimal field set (issue #381): what synthesize_iter_workpads
 # writes, and what --self-check validates a synthesized:true record against (a
 # synthesized record is a recognized degraded class, exempt from the full set above
