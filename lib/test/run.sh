@@ -8793,6 +8793,44 @@ _c="$(run338 "$S338/base-refl.md" --rewrite-ac "AC two" "AC two (post-merge)" \
   --reflection "context bullet" --note "genuinely-live: live deploy target")"
 assert_eq "#338(T4d): the same reflection call WITH a --note succeeds (exit 0)" "0" "$_c"
 
+# T4e (the --note-file channel satisfies the rationale, issue #1813): a refactor dropping
+# the `note_file` clause from `has_note` would refuse every worktree-isolated run's retag
+# while every other S338 test stayed green. T4e is also T4f/T4g's positive control.
+printf 'retro-tagged (genuinely-live): the `deploy` target is live\n' > "$S338/note-ok.txt"
+_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "AC two (post-merge)" \
+  --note-file "$S338/note-ok.txt")"
+assert_eq "#338(T4e): a --note-file rationale satisfies the retag guard (exit 0)" "0" "$_c"
+assert_eq "#338(T4e): the --note-file retag PATCHed the (post-merge) row" "yes" \
+  "$([ -s "$S338/patchlog" ] && grep -q '\- \[ \] AC two (post-merge)' "$S338/out" && echo yes || echo no)"
+assert_eq "#338(T4e): the file payload landed as the ## Progress rationale, backticks intact" "yes" \
+  "$(grep -q 'the `deploy` target is live' "$S338/out" && echo yes || echo no)"
+
+# T4f: `has_note` tests the flag's PRESENCE, not its payload, so this call reaches the guard
+# with has_note true and only the payload reader refuses it. An rc-only assertion would stay
+# green against a mutant that dropped the empty-payload guard — pin the attribution.
+: > "$S338/note-empty.txt"
+_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "AC two (post-merge)" \
+  --note-file "$S338/note-empty.txt")"
+assert_eq "#338(T4f): an empty --note-file payload does not permit the retag (non-zero)" "no" \
+  "$([ "$_c" = "0" ] && echo yes || echo no)"
+assert_eq "#338(T4f): the empty-payload refusal made NO PATCH" "yes" \
+  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
+assert_eq "#338(T4f): the refusal is the --note-file payload reader's, not an incidental abort" "yes" \
+  "$(grep -q 'empty or whitespace-only' "$S338/err" && grep -q '\-\-note-file' "$S338/err" && echo yes || echo no)"
+assert_eq "#338(T4f): the payload reader — not the rationale guard — refused (stderr has no 'rationale')" "yes" \
+  "$(grep -q 'rationale was supplied' "$S338/err" && echo no || echo yes)"
+
+# T4g (whitespace-only — the discriminating input for the reader's `.strip()`): a mutant
+# dropping that strip would launder a blank rationale through the presence check while
+# T4f, whose payload is empty as bytes too, stayed green.
+printf '   \n\t\n' > "$S338/note-ws.txt"
+_c="$(run338 "$S338/base.md" --rewrite-ac "AC two" "AC two (post-merge)" \
+  --note-file "$S338/note-ws.txt")"
+assert_eq "#338(T4g): a whitespace-only --note-file payload does not permit the retag (non-zero)" "no" \
+  "$([ "$_c" = "0" ] && echo yes || echo no)"
+assert_eq "#338(T4g): the whitespace-payload refusal made NO PATCH" "yes" \
+  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
+
 # T7 (state-based multi-pair backstop, issue #338 hardening): a crafted two-pair call whose
 # pairs each individually dodge the per-pair guard — pair 1 places the marker non-terminally
 # (NEW doesn't end in the tag), pair 2 makes it terminal (OLD ends in the tag) — net-adds a

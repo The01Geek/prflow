@@ -2407,10 +2407,9 @@ assert_eq("invariant: AC one ticked is visible to the parser", True,
 
 
 # --- --note-file: interpolation-safe verbatim UTF-8 input for ## Progress notes (issue #1813) ---
-# Mirrors --reflection-file's contract, but the payload lands as an ordinary
-# ## Progress note bullet (identical to an inline --note), so shell-hostile text
-# — backticks, $, quotes — survives byte-identical instead of being mangled by
-# the shell before the helper sees it. Assert against the ## Progress region.
+# The payload must render as an ordinary ## Progress bullet, identical to an inline
+# --note: routing it to ## Devflow Reflection instead would change how
+# lib/cheap-gate.jq treats the record.
 def _note_file(payload_bytes, body=WORKPAD_V2, also_note=None):
     """Write payload_bytes to a temp file, apply an update carrying --note-file
     (+ optional inline --note) with status Implementing, return the ## Progress
@@ -25988,13 +25987,9 @@ assert_eq("#1214 file-reflection: the buffered file payload is replayed into the
 assert_eq("#1214 file-reflection: the buffer is cleared after the replay",
           False, _buf_file4.exists())
 
-# Review finding (PR #1947, issue #1813): the FILE-sourced NOTE is the --note-file
-# feature's motivating case exactly as the file-sourced reflection is #1214's — the
-# worktree-isolated tier records its Writing-skills-evidence / Blocked note through a
-# `--note-file` call whose payload carries backticks. A `--note-file`-only call whose
-# PATCH fails must buffer that note through _cmd_update_inner's `_own_notes` append and
-# replay it into ## Progress, or the one note the channel exists to deliver is the one it
-# silently drops. (_apply_mutations render coverage above never enters _cmd_update_inner.)
+# A `--note-file`-only call whose PATCH fails must buffer the note through
+# _cmd_update_inner's `_own_notes` append: the _apply_mutations coverage above never
+# enters _cmd_update_inner, so dropping that append loses the note silently.
 _bufdir5 = tempfile.mkdtemp(prefix='wp1813-buf5-')
 _nf_payload = 'Writing-skills evidence: `skills/review/SKILL.md` mode=subagent skill-loaded=yes'
 _nf_file = Path(_bufdir5) / 'payload.md'
@@ -26017,6 +26012,25 @@ assert_eq("#1813 file-note: the buffered file note is replayed into the body",
           True, _pb is not None and _nf_payload in _pb)
 assert_eq("#1813 file-note: the buffer is cleared after the replay",
           False, _buf_file5.exists())
+
+# `--note-file -` reaches BOTH stdin consumers in one call — _cmd_update_inner's buffering
+# append and _apply_mutations' render. Dropping the memoization re-reads the exhausted
+# stream and raises the empty-payload _UpdateError on a payload that was fine.
+_bufdir6 = tempfile.mkdtemp(prefix='wp1813-buf6-')
+_nf_stdin_payload = 'Writing-skills evidence: `skills/implement/SKILL.md` skill-loaded=yes'
+_saved_stdin = sys.stdin
+sys.stdin = _FakeStdin((_nf_stdin_payload + '\n').encode('utf-8'))
+try:
+    _code, _pb, _n = _run_cmd_update(
+        _update_args(note_file='-'),
+        live_body=_WP1214, patch_fails=False, buffer_dir=_bufdir6)
+finally:
+    sys.stdin = _saved_stdin
+assert_eq("#1813 stdin note: a --note-file - call spanning both consumers exits 0", 0, _code)
+assert_eq("#1813 stdin note: the stdin payload reached the PATCHed body, backticks intact",
+          True, _pb is not None and _nf_stdin_payload in _pb)
+assert_eq("#1813 stdin note: the single stdin read is rendered exactly once", 1,
+          (_pb or '').count(_nf_stdin_payload))
 
 # Review finding (PR #1227, finding 2): idempotency must hold ACROSS buffered
 # records, not only against the live body. Two failed calls carrying the same
