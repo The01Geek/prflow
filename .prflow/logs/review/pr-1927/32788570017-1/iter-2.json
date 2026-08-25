@@ -1,0 +1,103 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-25T00:10:00Z",
+  "fix_commit_sha": "0d85f42247b5c54b8fd8df90be5dacc96d29d177",
+  "fix_files": [
+    "skills/review-and-fix/references/loop-control.md"
+  ],
+  "loop_role": "fix",
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "dispatched_effort": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "The new 'superset of the four always-on reviewers' Step-1 floor contradicts the iterations:first-only exclusion (phase-3-agents.md), which legitimately drops an always-on agent from the fix loop's iter>=2 roster; a correct sub-floor report would be spuriously flagged malformed and fall back to inline.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          165,
+          165
+        ],
+        "kind": "over_strong_floor"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Defense-in-depth: the rewrite dropped the has_new_types->type-design-analyzer diff_profile cross-check that remained evaluable, leaving a narrow self-consistent-under-fan path for type-design-analyzer.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          165,
+          165
+        ],
+        "kind": "dropped_crosscheck"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "0d85f42247b5c54b8fd8df90be5dacc96d29d177"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "pushed_back",
+      "source_file": "skills/review-and-fix/references/loop-control.md",
+      "claim_text": "re-add a has_new_types->type-design-analyzer diff_profile cross-check as defense-in-depth",
+      "skip_category": "claim-quality",
+      "evidence": "reintroduces the diff_profile roster coupling the change deliberately removed for a uniform engine-reported operand; the engine roster is authoritative by design and the gated-in-but-not-dispatched under-fan is already caught by phase3_dispatched-covers-expected_reviewers; a per-reviewer diff_profile cross-check is a partial patch (pr-test-analyzer stays uncoverable) working against issue AC1/AC2's single-operand intent"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 2,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh efficiency-trace-telemetry",
+    "result": "pass",
+    "duration_s": null,
+    "skipped_checks": []
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}

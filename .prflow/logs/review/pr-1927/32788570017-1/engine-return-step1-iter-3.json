@@ -1,0 +1,80 @@
+{
+  "dispatch_mode": "fanned-out",
+  "run_id": "32788570017-1",
+  "pr_number": 1927,
+  "issue": 1904,
+  "reviewed_head": "0d85f42247b5c54b8fd8df90be5dacc96d29d177",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "cap_drops": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Internal documentation not reconciled with the shipped behavior change (coupled-mirror miss). Two internal docs still describe the superseded 'recompute the expected roster from diff_profile' operand this PR replaced with the engine-reported expected_reviewers: (1) docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md line 751 states 'the parent computes the expected Phase-3 roster from the returned diff_profile' and its by-path return-field list omits expected_reviewers; (2) docs/internal/shadow-review.md lines 235-238 state the expected roster is 'computed from the shadow's own Phase 0.5 classification ... producing its own diff_profile ... so validate against that'. Both now contradict skills/review-and-fix/references/{loop-control,shadow-review}.md, which the PR changed to validate phase3_dispatched against the engine-reported expected_reviewers and 'never recompute it from diff_profile'. DEVFLOW_SYSTEM_OVERVIEW.md is the doc the issue itself named under 'Documentation Needed', and the diff touched zero docs. CLAUDE.md's coupled-invariant discipline requires reconciling every mirror in the same change. Fix: update both passages to describe the expected_reviewers operand (and add expected_reviewers to the overview's by-path field list).",
+      "defect_signature": {"file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md", "line_range": [751, 751], "kind": "stale_doc_mirror"},
+      "corroboration_count": 1,
+      "step25_classification": "codebase"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The Step-1 well-formedness malformed guard is worded 'present and non-empty', which does not constrain expected_reviewers to be an array. A non-array 'present and non-empty' value (a string/object) has no well-defined 'covers' relation and, as agent-executed prose, could be interpreted loosely rather than routed to inline. Recommend tightening to 'present, an array, and non-empty' so the wrong-type case is unambiguously fail-closed like the empty/absent cases.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [134, 134], "kind": "fail_closed_wording"},
+      "corroboration_count": 1,
+      "step25_classification": "codebase"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "shadow-review.md line 156 leads with the verb 'compute the expected roster' before the added clause explains the primary fanned-out path reads expected_reviewers from the engine return (it is only literally computed on the inline 'unavailable' path). Not a factual error; 'determine/obtain' would match the read-from-return primary path more cleanly.",
+      "defect_signature": {"file": "skills/review-and-fix/references/shadow-review.md", "line_range": [156, 156], "kind": "wording_nit"},
+      "corroboration_count": 1,
+      "step25_classification": "codebase"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The new #1904 consumer cell in lib/test/modules/efficiency-trace-telemetry.sh (~line 4260) runs --self-check over a workpad dir that also contains the preceding #541 block's iter-2.json fixture, creating an implicit ordering dependency. The assertion greps only for the iter-3.json warning so it is robust today; a note that iter-3 is asserted independently of the co-resident iter-2 would make the coupling explicit. Not blocking.",
+      "defect_signature": {"file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": [4260, 4263], "kind": "test_fixture_coupling"},
+      "corroboration_count": 1,
+      "step25_classification": "codebase"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "skills/review-and-fix/references/shadow-review.md is ~60,871 bytes, ~880 bytes under the 61,750-byte reference-size ceiling (lib/test/lint-reference-size.py). Not a violation now, but future prose additions to this file will hit the ceiling; trim rather than exempt when that happens.",
+      "defect_signature": {"file": "skills/review-and-fix/references/shadow-review.md", "line_range": [1, 1], "kind": "size_headroom"},
+      "corroboration_count": 1,
+      "step25_classification": "codebase"
+    }
+  ],
+  "acknowledged_prior_decisions": [
+    {
+      "ref": "iter-2 finding B (re-add has_new_types->type-design-analyzer diff_profile cross-check)",
+      "disposition": "declined-recorded",
+      "note": "silent-failure-hunter re-surfaced the adjacent 'no independent always-on floor at Step 1; same-subagent self-reporting could pass a self-consistently under-fanned roster vacuously' concern. It is design-acknowledged (first-only override makes the always-on floor unrecomputable by the parent; the shadow's retained always-on floor is the compensating independent control). No new evidence contradicts the recorded rationale, so not raised as a new blocking finding."
+    }
+  ],
+  "verdict": "REJECT",
+  "report": "Review of PR #1927 (issue #1904) at HEAD 0d85f42. The shipped change is coherent and all seven acceptance criteria are satisfied in the shipped surfaces: expected_reviewers is added as an engine-reported return member, the parent compares phase3_dispatched against it (present-and-non-empty floor, dropping the four-always-on superset at Step 1 to accommodate iterations:first-only, while the shadow retains the always-on floor), all four payload carriers (loop-control.md, shadow-review.md, both SKILL.md schema examples) agree, the two loop-control.md paragraphs now agree (AC3), ITER_EXPECTED_FIELDS gains it as an unconditional field with a matching consumer test, and a changeset is present. The iter-2 finding A fix (first-only floor) is confirmed resolved with no new defect. VERDICT: REJECT on one Important finding — the internal documentation was not reconciled in the same change: docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:751 and docs/internal/shadow-review.md:235-238 both still describe the removed diff_profile-recompute operand, contradicting the shipped references; DEVFLOW_SYSTEM_OVERVIEW.md is the doc the issue named under Documentation Needed and the diff touched zero docs. Four Suggestions (fail-closed wording tightening to constrain expected_reviewers to an array; two wording nits; a test-fixture coupling note; a reference-size-headroom note) are non-blocking."
+}

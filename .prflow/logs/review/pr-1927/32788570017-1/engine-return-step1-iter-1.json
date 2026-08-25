@@ -1,0 +1,49 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The rewired Step-1 (and shadow) well-formedness check compares the returned phase3_dispatched against the returned expected_reviewers, an operand self-reported by the same engine subagent the check audits. It fails closed correctly when expected_reviewers is ABSENT (declared a required field). But a present-but-empty or short expected_reviewers (e.g. []) passes the required-field guard and then 'does phase3_dispatched cover []?' is vacuously true, so an under-fanned or empty phase3_dispatched is declared well-formed and its verdict carries the merge gate. The prior diff_profile derivation, whatever its bug for pr-test-analyzer, still yielded the four always-on reviewers (code-reviewer, silent-failure-hunter, comment-analyzer, requesting-code-review) as an independent floor computed by the parent from the Phase 3.1 gates. That independent floor is now gone. Recommendation: at the comparison point, treat expected_reviewers as malformed (fall back to inline) unless it is non-empty and a superset of the four always-on reviewers, THEN require phase3_dispatched superset-of expected_reviewers. This restores the floor while keeping the predicate-driven part the rewire correctly delegates to the engine. Single-source finding; correlated-fault trigger (engine under-fans AND under-reports), but on the merge-gating path.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [165, 165],
+        "kind": "logic_error"
+      }
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "skills/review-and-fix/references/fixing.md item 7 (line 180) is the self-declared 'authoritative specification' of the iter-<N>.json record shape ('this item specifies exactly what that record carries') and explicitly enumerates the mandated fields — phase3_dispatched, dispatched_effort, diff_profile, cap_drops, telemetry, etc. — but was NOT updated to include expected_reviewers. This drifts from lib/efficiency-trace.sh's ITER_EXPECTED_FIELDS, which now requires expected_reviewers unconditionally, and from loop-control.md, which states it 'is written on every iteration alongside phase3_dispatched'. An implementer following the inline (unavailable) path from this authoritative spec produces a record without expected_reviewers, which lib/efficiency-trace.sh --self-check then flags as missing. The enumeration's 'exactly what that record carries' claim is now incomplete against the mandated field set. The issue's own scope note requires 'every place that documents the payload gains it too'; fixing.md item 7 is such a place though AC#5 enumerated only four carriers. Fix: add expected_reviewers to fixing.md item 7's field enumeration adjacent to phase3_dispatched. Single-source finding.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/fixing.md",
+        "line_range": [180, 180],
+        "kind": "documented_falsehood"
+      }
+    }
+  ],
+  "report": "## PR #1927 Review — Add `expected_reviewers` to the fix-loop Step-1 return payload (issue #1904)\n\n### Diff profile\nsmall_diff=true, config_only=false, has_new_types=false, engine_self_modifying=true (touches skills/** and lib/**), checklist_skipped=null. 6 files, +36/-10.\n\n### Phase 3 coverage\nRoster selected by Phase 3.1 gates: code-reviewer, silent-failure-hunter, comment-analyzer, requesting-code-review (four always-on) + pr-test-analyzer (a test file, lib/test/modules/efficiency-trace-telemetry.sh, is modified → test-relevance predicate matches). type-design-analyzer SKIPPED (has_new_types=false). All five dispatched and returned; expected_reviewers == phase3_dispatched.\n\n### What the change does (and does correctly)\nRemoves the contradiction the issue names: the fix-loop parent no longer recomputes the expected Phase-3 roster from `diff_profile` (which cannot express pr-test-analyzer's test-relevance predicate), and instead compares the dispatched roster against the engine's own reported `expected_reviewers`. `expected_reviewers` is threaded through the four AC#5 carriers (loop-control.md, shadow-review.md, both SKILL.md schema examples), added to ITER_EXPECTED_FIELDS unconditionally, and the coupled `lib/test/run.sh` LR_SCHEMA==LR_CONST divergence guard stays green because both sides gained the field. The new #1904 consumer test is a proper mutation test (deletes expected_reviewers from the complete fixture, asserts --self-check warns) and the complete fixture was updated to carry `expected_reviewers: []` so the zero-warning positive case still holds. Synthesized-record path correctly untouched (validated against ITER_SYNTH_EXPECTED_FIELDS). The added lib/efficiency-trace.sh comment and the test's #1904 comment are within the prevention-only / contract-header standard. ACs 1–3, 4 (absent-field arm), 6, 7 are satisfied; AC#5's four named carriers agree.\n\n### Findings\n\n**Important — loop-control.md / shadow-review.md: well-formedness check lost its independent roster floor (fails open on empty/short expected_reviewers).** The rewired check reads its expectation from the same return it audits, and only fails closed when the field is entirely absent, not when it is present-but-empty or short of the four always-on reviewers. Restore an independent floor: require expected_reviewers to be a non-empty superset of the four always-on reviewers before the coverage comparison. (silent-failure-hunter)\n\n**Important — fixing.md item 7: authoritative record-shape spec omits expected_reviewers.** The self-declared authoritative enumeration of the iter-<N>.json record shape was not updated, so it drifts from ITER_EXPECTED_FIELDS and from loop-control.md, and an implementer following it produces a record --self-check warns on. Add expected_reviewers to that enumeration. This is a fifth carrier of the payload contract not covered by AC#5 but required by the issue's own 'every place that documents the payload' scope. (requesting-code-review final pass)\n\n### Other agents\ncode-reviewer, comment-analyzer, pr-test-analyzer: no findings (pr-test-analyzer graded the mechanical test surface A; noted only a very-low-value informational gap — no synth-set exclusion assertion — not raised as a finding).\n\n### Verdict: REJECT\nThe core change is correct and meets its stated ACs, but two Important findings sit on the merge-gating / authoritative-contract surface: a defensive-floor regression in the well-formedness check (fails open on empty expected_reviewers) and a missed coupled documentation site (fixing.md item 7). Both are concrete and fixable. Test evidence: not run in this engine subagent (agent-executed-prose change plus a mechanical lib/test cell; the fix-loop parent runs verification). Both findings are single-source — flagged for extra scrutiny, not treated as wrong."
+}

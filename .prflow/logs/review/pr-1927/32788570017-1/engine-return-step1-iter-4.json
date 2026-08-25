@@ -1,0 +1,49 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Minor",
+      "file": "skills/review-and-fix/references/loop-control.md",
+      "line": 165,
+      "summary": "Step 1 no longer independently enforces the four always-on reviewers; it now trusts the engine's self-reported expected_reviewers (guarded only for non-emptiness). A correlated engine bug that under-fans Phase 3 and reports a matching under-fanned roster (dropping an always-on for a non-first-only reason) would pass Step 1 vacuously; the sole remaining detector is the Step 2.6 shadow's always-on floor.",
+      "defect_signature": "step1-alwayson-floor-delegated-to-engine-selfreport",
+      "disposition": "acknowledged-deliberate-tradeoff: only the engine can evaluate pr-test-analyzer's test-relevance predicate and the first-only iter>=2 drop, which is why the operand moved to the engine-reported roster; the always-on floor is retained at the independent shadow re-review. Not a REJECT."
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "file": "skills/review-and-fix/references/shadow-review.md",
+      "line": 190,
+      "summary": "The shadow's malformed-shape wording relies on 'an empty or sub-floor reported roster is a coverage shortfall' rather than Step 1's explicit 'present and a non-empty array'. A wrong-type (non-array) expected_reviewers is still handled fail-closed (sub-floor -> outcome 3) but the reasoning is implicit; mirroring Step 1's phrasing would improve clarity.",
+      "defect_signature": "shadow-expected-reviewers-wrongtype-implicit",
+      "disposition": "clarity-only suggestion; failure direction already closed. Not blocking."
+    }
+  ],
+  "report": "APPROVE. PR #1927 (issue #1904) rewires the fix loop's Step-1 and shadow reviewer-roster well-formedness check to compare the dispatched roster against a new engine-reported `expected_reviewers` return member (the engine's own Phase 3.1 gate decisions) instead of recomputing the expected roster from `diff_profile`, which cannot express pr-test-analyzer's test-relevance predicate. All seven acceptance criteria are satisfied: (AC1) neither loop-control.md nor shadow-review.md derives pr-test-analyzer's membership from diff_profile alone; (AC2) both name `expected_reviewers` as the evaluable operand; (AC3) the two loop-control.md paragraphs now agree that presence cannot be cross-checked against diff_profile; (AC4) the fallback-to-inline protection is preserved and strengthened — a died subagent, an out-of-set dispatch_mode, a missing/unreadable/short return file, and now a non-present/empty/wrong-type expected_reviewers all fall back to inline, closing the vacuity hole; (AC5) all four carriers (loop-control.md, shadow-review.md, and both SKILL.md schema examples at top-level line 109 and shadow-block line 251) show the same member name and identifier vocabulary; (AC6) expected_reviewers was added to ITER_EXPECTED_FIELDS as an unconditional field and NOT to the synth set, LR_CONDITIONAL_FIELDS is unchanged so the single-source divergence guard stays green, and a new consumer assertion verifies --self-check warns on its omission; (AC7) a changeset is present. The two internal docs (DEVFLOW_SYSTEM_OVERVIEW.md by-path field list + roster line, shadow-review.md 'expected roster is mechanical' bullet) are reconciled — confirming the iter-3 Important finding is fixed. loop-control.md now constrains expected_reviewers to 'present and a non-empty array' (iter-3 Suggestion fixed). The shipped consumer bodies name no repo-private path or issue number. Fail-closed behavior on the merge-gating path is preserved; the always-on floor remains enforced at the independent shadow. Two non-blocking findings: one Minor documenting the deliberate reduction of the parent's independent always-on floor at Step 1 (an intrinsic consequence of moving to the engine-reported operand, backstopped by the shadow), and one Suggestion to make the shadow's wrong-type handling wording as explicit as Step 1's. Neither warrants REJECT.",
+  "iteration": 4,
+  "pr_number": 1927,
+  "issue": 1904,
+  "reviewed_head": "3da335af23ec5e5dfc0c419c2c95895e5dd6a4f5"
+}

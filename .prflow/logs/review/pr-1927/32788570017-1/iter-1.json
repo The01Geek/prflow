@@ -1,0 +1,102 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-24T23:40:00Z",
+  "fix_commit_sha": "177ca9cf450c1517835b8aed7fe8519972195238",
+  "fix_files": [
+    "skills/review-and-fix/references/loop-control.md",
+    "skills/review-and-fix/references/shadow-review.md",
+    "skills/review-and-fix/references/fixing.md"
+  ],
+  "loop_role": "fix",
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "dispatched_effort": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Step-1 well-formedness check failed open on a present-but-empty expected_reviewers ([]): covering [] is vacuously true, losing the four-always-on floor the old diff_profile derivation implied.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          165,
+          165
+        ],
+        "kind": "fail_open_guard"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "fixing.md item 7 (authoritative iter-<N>.json record-shape spec) enumerated the mandated fields but omitted expected_reviewers, drifting from ITER_EXPECTED_FIELDS/loop-control.md — a payload-documenting carrier the issue scope requires.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/fixing.md",
+        "line_range": [
+          180,
+          180
+        ],
+        "kind": "carrier_drift"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "177ca9cf450c1517835b8aed7fe8519972195238"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "177ca9cf450c1517835b8aed7fe8519972195238"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 3,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh efficiency-trace-telemetry",
+    "result": "pass",
+    "duration_s": null,
+    "skipped_checks": []
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}

@@ -1,0 +1,58 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "The new Step-1 well-formedness floor in skills/review-and-fix/references/loop-control.md requires expected_reviewers to be 'non-empty and a superset of the four always-on reviewers' unconditionally. This contradicts the documented iterations:\"first-only\" exclusion in skills/review/phases/phase-3-agents.md (line 43), which drops an always-on agent from the roster AND from the expected-roster accounting on fix-loop iterations >= 2. When an operator sets an always-on agent (e.g. code-reviewer) to iterations:\"first-only\", the engine on iter>=2 correctly returns an expected_reviewers that is a proper subset of the four always-on; the parent's unconditional floor then declares that correct return malformed and falls back to running the whole engine inline, discarding the completed subagent fan-out. That is exactly the spurious inline fallback #1904 sets out to eliminate, re-introduced for a supported configuration. The floor is correct for the shadow path (shadow never applies iterations), but wrong for the Step-1 fix-loop roster. Behavior-bearing runtime prose (governs the loop's actual dispatch/fallback decision), so not behavior-inert.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [143, 143],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The rewrite abandons the diff_profile cross-check entirely and validates only that expected_reviewers is a superset of the four always-on. type-design-analyzer is gated by has_new_types, which IS one of the four diff_profile flags present in the same return, so the parent retains a cheap internal-consistency check it previously had for free: if diff_profile.has_new_types is true, expected_reviewers must contain prflow:type-design-analyzer. Because both diff_profile and expected_reviewers come from the same subagent return, dropping this check leaves a narrow self-consistent-under-fan path for the fifth reviewer (correct diff_profile, but gate logic that mis-fired and dropped type-design-analyzer) that would previously have been caught. Recommend restoring a has_new_types => type-design-analyzer consistency assertion (falling back to inline on violation). Lower confidence than the first-only finding; defense-in-depth rather than an AC violation.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [143, 143],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1
+    }
+  ],
+  "prior_findings_resolution": {
+    "iter1_finding_1_empty_expected_reviewers_fail_open": "resolved",
+    "iter1_finding_2_fixing_md_item7_omission": "resolved"
+  },
+  "report": "# Review report — PR #1927 (issue #1904), fix-loop iteration 2\n\n## Verdict: REJECT (2 Important findings)\n\nReviewed HEAD: 177ca9cf450c1517835b8aed7fe8519972195238\nBase: 084b47a4b0bfb3b711866ae0fb94828cd08acc27\nDiff profile: engine_self_modifying (skills/** + lib/**), has_new_types=false.\nPhase-3 roster dispatched (5): code-reviewer, silent-failure-hunter, comment-analyzer, pr-test-analyzer (test-relevance predicate matched: test file modified + added .sh logic), requesting-code-review. type-design-analyzer gated out (has_new_types=false).\n\n## Prior-iteration findings (iteration 1) — both CONFIRMED RESOLVED\n1. Step-1 well-formedness check failed open on empty expected_reviewers:[] (vacuous coverage). Now: expected_reviewers is treated as malformed unless non-empty AND a superset of the four always-on reviewers, evaluated before the coverage comparison. Verified in loop-control.md and mirrored in shadow-review.md.\n2. fixing.md item 7 omitted expected_reviewers. Now enumerated between phase3_dispatched and dispatched_effort. Verified.\n\n## New findings\n\n### Important 1 — first-only exclusion contradicts the always-on floor (requesting-code-review)\nThe new 'unconditional superset of the four always-on' floor in loop-control.md Step 1 contradicts the documented iterations:\"first-only\" exclusion (phase-3-agents.md line 43), which drops an always-on agent from expected-roster accounting on iter>=2. For a supported config (an always-on agent set first-only), the engine's correct iter>=2 return is sub-floor, so the parent marks it malformed and falls back to inline — re-introducing the exact waste #1904 removes. Review coverage is not dropped (inline runs the engine), so this is a cost/behavior regression against a supported configuration, not a loss of merge-gating review. Fix direction: subtract first-only-excluded always-on members from the floor on iter>=2 (the parent holds the iteration signal), or key the vacuity guard on phase3_dispatched coverage rather than a hard-coded four-agent superset.\n\n### Important 2 — dropped has_new_types/type-design-analyzer consistency cross-check (silent-failure-hunter)\nThe rewrite drops all diff_profile cross-checking. has_new_types is a diff_profile flag present in the same return, so a cheap 'has_new_types => type-design-analyzer in expected_reviewers' consistency assertion is still evaluable and was implicitly available before. Restoring it would close a narrow self-consistent-under-fan path for the fifth reviewer. Defense-in-depth; lower confidence.\n\n## Clean signals\n- code-reviewer: no findings >=80 confidence; cross-carrier consistency (loop-control.md, shadow-review.md, both SKILL.md schema examples, fixing.md item 7, ITER_EXPECTED_FIELDS) verified; no documented_falsehood.\n- comment-analyzer: added comments in efficiency-trace.sh and the telemetry test are accurate, <=3 lines, and within the prevention-only comment standard (contract-header / intent-guarding carve-outs).\n- pr-test-analyzer: the #1904 consumer assertion (iter-3.json via jq del(.expected_reviewers)) is sound and RED-first-verifiable; grep pins both filename and field; mechanical coverage of the unconditional-field claim is correct. The empty-[] floor case is agent-executed prose with no owed mechanical test (recorded gap, by design).\n\n## Acceptance criteria\nAC1-AC7 all met by the diff. The findings above are quality/robustness defects introduced by (AC1) the operand rewrite, not AC failures."
+}

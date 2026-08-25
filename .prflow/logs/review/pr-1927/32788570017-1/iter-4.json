@@ -1,0 +1,153 @@
+{
+  "iter": 4,
+  "started_at": "2026-08-25T01:20:00Z",
+  "fix_commit_sha": "3da335af23ec5e5dfc0c419c2c95895e5dd6a4f5",
+  "fix_files": [],
+  "loop_role": "fix",
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "not-run",
+    "reason": "no fixes applied (verdict APPROVE; two advisory findings pushed back)"
+  },
+  "checklist": [],
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "dispatched_effort": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Minor: deliberate reduction of the parent's Step-1 independent always-on floor (intrinsic to the engine-reported operand; shadow-backstopped).",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          165,
+          165
+        ],
+        "kind": "design_note"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "make the shadow's wrong-type wording as explicit as Step 1's.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/shadow-review.md",
+        "line_range": [
+          57,
+          57
+        ],
+        "kind": "wording_parallel"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-10",
+      "decision": "advisory",
+      "source_file": "skills/review-and-fix/references/loop-control.md",
+      "claim_text": "reduced parent always-on floor at Step 1",
+      "skip_category": "claim-quality",
+      "evidence": "intrinsic consequence of moving to the engine-reported operand; the independent shadow (which ignores first-only and keeps the always-on floor) is the backstop; design-acknowledged, not a defect"
+    },
+    {
+      "finding_id": "F-11",
+      "decision": "advisory",
+      "source_file": "skills/review-and-fix/references/shadow-review.md",
+      "claim_text": "state wrong-type explicitly in the shadow floor note",
+      "skip_category": "claim-quality",
+      "evidence": "the shadow already fails closed on a wrong-type expected_reviewers via its independent always-on floor (line 76) and undefined coverage; defense-in-depth cosmetic, captured as a dogfood improvement"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh efficiency-trace-telemetry",
+    "result": "skipped",
+    "reason": "no fixes applied this iteration",
+    "skipped_checks": []
+  },
+  "telemetry": "unavailable",
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-25T01:40:00Z",
+    "reviewed_sha": "3da335af23ec5e5dfc0c419c2c95895e5dd6a4f5",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 4,
+      "overlap_with_iter_N": 1,
+      "new": 3,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 4,
+          "index": 1
+        },
+        "parked_finding_id": "F-11",
+        "shadow_finding_index": 0,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the wrong-type wording nit at the same Suggestion severity and same basis (still fails closed via the always-on floor), adding no new failing input",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "synthesized": false
+}

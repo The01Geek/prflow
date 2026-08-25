@@ -1,0 +1,174 @@
+{
+  "iter": 3,
+  "started_at": "2026-08-25T00:40:00Z",
+  "fix_commit_sha": "3da335af23ec5e5dfc0c419c2c95895e5dd6a4f5",
+  "fix_files": [
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "docs/internal/shadow-review.md",
+    "skills/review-and-fix/references/loop-control.md"
+  ],
+  "loop_role": "fix",
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "dispatched_effort": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Internal docs (DEVFLOW_SYSTEM_OVERVIEW.md:751, docs/internal/shadow-review.md) still described the removed diff_profile-recompute operand — coupled-mirror miss with the issue's Documentation Needed.",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          751,
+          751
+        ],
+        "kind": "doc_drift"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "malformed guard 'present and non-empty' did not constrain expected_reviewers to an array.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          165,
+          165
+        ],
+        "kind": "type_constraint"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "shadow-review.md line 156 verb 'compute' vs 'determine' wording nit.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/shadow-review.md",
+        "line_range": [
+          156,
+          156
+        ],
+        "kind": "wording"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "#1904 consumer cell co-resident with #541 iter-2 fixture; add a note it is asserted independently.",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [
+          4260,
+          4260
+        ],
+        "kind": "test_note"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "skills/review-and-fix/references/shadow-review.md ~880 bytes under the reference-size ceiling; informational.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/shadow-review.md",
+        "line_range": [
+          1,
+          1
+        ],
+        "kind": "size_headroom"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "3da335af23ec5e5dfc0c419c2c95895e5dd6a4f5"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "3da335af23ec5e5dfc0c419c2c95895e5dd6a4f5"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "pushed_back",
+      "source_file": "skills/review-and-fix/references/shadow-review.md",
+      "claim_text": "compute->determine wording nit",
+      "skip_category": "claim-quality",
+      "evidence": "'compute' is accurate for the inline unavailable path; pure wording, not worth a prompt-surface edit"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "pushed_back",
+      "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+      "claim_text": "add a co-residence note to the #1904 consumer cell",
+      "skip_category": "claim-quality",
+      "evidence": "the assertion greps only the iter-3 warning so it is already iter-3-scoped; a clarifying comment would be non-load-bearing per comment discipline"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "deferred",
+      "source_file": "skills/review-and-fix/references/shadow-review.md",
+      "claim_text": "reference-size headroom",
+      "skip_category": "out-of-scope",
+      "evidence": "informational; not a current violation (under the ceiling); trimming is unrelated scope"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 6,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh efficiency-trace-telemetry",
+    "result": "pass",
+    "duration_s": null,
+    "skipped_checks": []
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
