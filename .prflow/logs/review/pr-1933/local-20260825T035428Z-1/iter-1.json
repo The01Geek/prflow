@@ -1,0 +1,263 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T03:54:28Z",
+  "fix_commit_sha": "348b42fa8",
+  "fix_files": [
+    "docs/internal/implement-context.md"
+  ],
+  "loop_role": "fix",
+  "promotion_provenance": null,
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "dispatched_effort": [
+    {
+      "agent": "prflow:code-reviewer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort 'low' resolved but not applied: no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort 'low' resolved but not applied: no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort 'low' resolved but not applied: no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort 'low' resolved but not applied: no in-session per-agent effort seam"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "scripts/context_eval_shared.py's _iter_session_files drops a non-.jsonl file with no tally and no breadcrumb, contradicting its own docstring claim that both walk-level drops are tallied; the cloud tier falls through it silently.",
+      "defect_signature": {
+        "file": "scripts/context_eval_shared.py",
+        "line_range": [
+          118,
+          121
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The added sentence 'Its transcript-directory operand is what separates it from the fixture reproduction above' is false against HEAD: both invocations take one transcript-directory positional.",
+      "defect_signature": {
+        "file": "docs/internal/implement-context.md",
+        "line_range": [
+          345,
+          347
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 4,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The Corpus root cell records a glob while the adjacent instruction says to substitute it into the <transcript-dir> operand, which os.path.isdir requires to be a directory.",
+      "defect_signature": {
+        "file": "docs/internal/implement-context.md",
+        "line_range": [
+          322,
+          348
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "'Cloud-tier runs are not measurable by this tool today' is stronger than the suffix mechanism it cites, and the private page records a 5-run cloud corpus measured with the same instrument.",
+      "defect_signature": {
+        "file": "docs/internal/implement-context.md",
+        "line_range": [
+          356,
+          360
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "348b42fa8"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "348b42fa8"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "348b42fa8"
+    },
+    {
+      "finding_id": "F-1",
+      "decision": "deferred",
+      "source_file": "scripts/context_eval_shared.py",
+      "claim_text": "the non-.jsonl extension filter is an untallied, unbreadcrumbed walk-level drop",
+      "skip_category": "out-of-scope",
+      "evidence": "the branch delta (git diff --merge-base origin/main --name-only) touches only docs/internal/implement-context.md and docs/internal/improvement-loops/runtime-evaluations.md; scripts/context_eval_shared.py is untouched by this PR and arrived on the base branch in the issue-#1899 shared-collector extraction",
+      "parking_evidence": {
+        "basis": "the flagged lines are pre-existing code this PR's diff does not touch; the PR documents the behavior rather than introducing it",
+        "failing_input": "a corpus directory whose transcripts are all named .json rather than .jsonl",
+        "source": "git diff --merge-base origin/main --name-only lists two docs paths and no scripts/ path",
+        "finding_ref": {
+          "iter": 1,
+          "index": 0
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 14,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "parked_class_sweep": {
+    "classes": [],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "prompt_addenda": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "verification_evidence": {
+    "focused_selection": "coverage-map consulted for docs/internal/**: no owner and no focused_test (the map covers lib/ and scripts/ only), so the touched surface is exempt on the no-coverage-map-entry ground; lib/test/test_implement_context_eval.py is nonetheless run because acceptance criterion 14 names it and its secret scan reads the edited page. single_flight_consulted: yes (status --flight suite reported reason=missing, no reusable result)."
+  },
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 45
+    },
+    "phase_0_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 2
+    },
+    "phase_1": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_1_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_2": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_3": {
+      "calls": 4,
+      "tokens": 304465,
+      "wall_clock_s": 125
+    },
+    "step_2_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 3,
+      "webfetches": 0
+    },
+    "step_2_6": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_4_x": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 2
+    }
+  },
+  "synthesized": false
+}
