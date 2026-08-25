@@ -44,6 +44,19 @@ If the item is still unticked, open the linked Actions run and inspect execution
 
 Fresh installs do not provide the old automatic `Devflow Review` status workflow. Do not add that status as a required check unless your repository deliberately retained and operates the legacy tier.
 
+## The Run Stopped With `engine-root: incomplete`
+
+`/prflow:review-and-fix` reads PRFlow's review engine from your repository as a file, and confirms it received that file whole before it acts on it. When it cannot confirm that, it stops and reports `engine-root: incomplete` together with the path it read, rather than reviewing your pull request against a partly loaded engine. A run that stops this way has applied no fixes and reports no verdict, so nothing has been assessed.
+
+Check these in order:
+
+- **The engine file cannot be read.** Confirm the run can read `.prflow/vendor/prflow/skills/review/SKILL.md` in your repository. Fix file permissions, or re-run the installer with your current tag if the vendored copy is missing or incomplete — see [Cloud Updates](/docs/runs/cloud/updates).
+- **Your client cannot read a file in parts.** PRFlow confirms it reached the end of the engine file by reading past what it already holds. A client whose file reader does not accept a starting position cannot answer that question, so the run stops even when the file is intact. Run the workflow from a client whose file reader accepts a starting position.
+
+Note: When the run instead reports `engine-predicate: unread`, it is the rule it applies here that could not be read, and the named path is that rule's file. Check the same two causes against the named path.
+
+The shadow pass reads the engine the same way. When the condition occurs there, the run does not stop — it reports a coverage gap for that pass and continues.
+
 ## The Review Did Not Apply My Prompt Extension
 
 `/prflow:review`, `/prflow:review-and-fix`, `/prflow:implement` and `/prflow:pr-description` read `.prflow/prompt-extensions/<skill>.md` through two independent channels, and both run on every applicable run. Where the client supports it, the extension is prepared as prompt text before the agent starts. Independently of that, the run also loads the extension through the bundled reader — unconditionally, whether or not the first channel delivered.
@@ -54,7 +67,7 @@ Check these when a run appears to ignore your policy:
 
 - **The extension is reported as `unestablished`.** The run states this rather than staying silent. It means the extension's state could not be established — an unreadable file, a broken symlink, something that is not a regular file, or a trusted-extension directory that did not materialize. Treat it as *not applied*, never as an empty extension. Fix the file and re-run.
 - **The file name does not match the skill.** The name is the skill's own directory name: `review.md`, `review-and-fix.md`, `implement.md`, `pr-description.md`. `/prflow:review-and-fix` additionally reads `receiving-code-review.md`, because its fix loop applies that skill's principles without invoking it.
-- **An implement run left the row unticked.** A `/prflow:implement` workpad's Progress checklist carries one `prompt extension resolved: …` row per extension the run consumes. The row is written whether or not the run cooperates, so an unticked row is that run's own record that it did not establish that extension's state. It is the run's report, not a verified fact — a ticked row is evidence the state was resolved, not proof the policy changed the outcome.
+- **An implement run left the row unticked.** A `/prflow:implement` workpad's Progress checklist carries one `prompt extension resolved: …` row per extension the run consumes. The row is written whether or not the run cooperates, so an unticked row is that run's own record that it did not establish that extension's state. On a run that finished `Complete`, that record is now deliberate rather than a bookkeeping miss: the finalize is refused while any such row is left both unticked and without an accompanying `state not established` note, so a completed workpad cannot silently carry a resolved-but-unrecorded row. It is still the run's report, not a verified fact — a ticked row is evidence the state was resolved, not proof the policy changed the outcome.
 - **A cloud installation is out of date.** The reader is invoked by the installed workflows' permission entries, while the skills themselves ship in the plugin. Updating only `prflow_version` can leave the two halves out of sync and the loader invocation unpermitted. Re-run the installer with the new tag — see [Cloud Updates](/docs/runs/cloud/updates).
 
 A file that is absent or empty is not an error. The run proceeds with PRFlow's own defaults.
