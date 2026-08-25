@@ -43716,6 +43716,7 @@ case "${CGA_CASE:-clean}" in
   reverted) printf '  SKIP  #671 claude plugin validate --strict (plugin tree + descent matrix) [blocking-gate] — claude CLI not on PATH — not run\n' ;;
   only434)  printf '  SKIP  #434 stale-prose self-scan [blocking-gate] — working tree dirty (grades committed HEAD)\n' ;;
   quote)    printf '  info: the #671 claude plugin validate --strict check (blocking-gate kind) mentioned claude CLI not on PATH — a diagnostic line with no NOTE or SKIP emission prefix\n' ;;
+  realnote) cat "${CGA_REAL_PATH:-/dev/null}" ;;
 esac
 printf '1 passed, 0 failed\n'
 CGA_EOF
@@ -43729,6 +43730,12 @@ printf 'Module %s: 1 passed, 0 failed\n' "${1:-stub}"
 printf '  SKIP  #671 claude plugin validate --strict (plugin tree + descent matrix) [blocking-gate] — claude CLI not on PATH — not run\n'
 CGA_EOF
 chmod +x "$CGA_TREE/lib/test/run-module.sh"
+# Coupling to skip()'s REAL format: drive the actual skip() (SKIPS_FILE redirected to a sink
+# so the suite tally is untouched) with a #671-shaped CLI-absence call, capture its genuine
+# emission, and feed THAT through the real run-shard.sh backstop below (the `realnote` case).
+# So a drift between skip()'s output format and the backstop regex reddens here rather than
+# silently disarming the guard — without embedding the regex in this file (issue #1830).
+( SKIPS_FILE="$CGA_TREE/skips-sink"; skip "#671 claude plugin validate --strict (coupling probe)" blocking-gate "claude CLI not on PATH (coupling probe)" ) > "$CGA_TREE/real-note.txt"
 assert_eq "#1830 run-shard: the #671 CLI-absence skip FAILS the monolith shard" "nonzero" \
   "$(cd "$CGA_TREE" && CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-rev" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
 assert_eq "#1830 run-shard: an unrelated #434 blocking-gate skip does NOT fail the monolith shard" "zero" \
@@ -43745,6 +43752,10 @@ assert_eq "#1830 run-shard: a line quoting the pattern without the NOTE/SKIP pre
 # to `monolith` by name would pass every case above while silently reverting this property.
 assert_eq "#1830 run-shard: a non-monolith (module) shard whose log carries the #671 skip ALSO fails" "nonzero" \
   "$(cd "$CGA_TREE" && DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-mig" bash lib/test/run-shard.sh modules-pin >/dev/null 2>&1 && echo zero || echo nonzero)"
+# skip()'s genuine emission (captured above) must trip the backstop — this couples the
+# run-shard.sh regex to run.sh's real skip() format, not to a hand-authored fixture line.
+assert_eq "#1830 run-shard: skip()'s REAL #671 CLI-absence emission trips the backstop" "nonzero" \
+  "$(cd "$CGA_TREE" && CGA_CASE=realnote CGA_REAL_PATH="$CGA_TREE/real-note.txt" DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-real" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
 rm -rf "$CGA_TREE"
 #
 # ── scripts/assert-cli-version.sh: every arm of the extracted version check ──
