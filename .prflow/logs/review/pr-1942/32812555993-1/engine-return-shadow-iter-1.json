@@ -1,0 +1,52 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": "engine_self_modifying (prose-only; docs/config; touches skills/implement/SKILL.md, docs/internal/implement-skill.md, .changeset/*.md)",
+  "checklist_skipped": false,
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The new bullet's scope 'introduced OR modified' asserts the helper 'is unreachable this run' and keys the whole terminal response on the helper's 'first failed invocation'. But a helper the branch MODIFIES without changing its invocation grant is still present in the version-pinned vendored checkout at its OLD version: it runs to rc-0 and never fails, so the 'first failed invocation is terminal' trigger never fires. The run silently executes stale helper behavior and, seeing a successful invocation, proceeds as if the new behavior applied. The rule provides no protection exactly for the modified sub-case where it most strongly asserts protection ('Both leave the new behavior unreachable'). Fail-open toward silently running stale code (policy-without-mechanism: no detection signal for the modified-but-still-invocable case). Single-source finding (3 of 4 agents clean); tracks the issue #1834 spec's own 'introduces or modifies' wording, so it is arguably a spec-completeness gap rather than a deviation from spec. Remedy: narrow scope to 'introduced' (plus modifications that alter the invocation grant), or add a detection instruction that an rc-0 result from a branch-modified helper does not evidence the new behavior and must likewise route to deferral/Blocked.",
+      "defect_signature": {
+        "file": "skills/implement/SKILL.md",
+        "line_range": [45, 45],
+        "kind": "logic_error"
+      }
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "skills/implement/SKILL.md is now 61,738 bytes, only ~12 bytes under lib/test/lint-reference-size.py's 61,750-byte skill-root ceiling. This PR passes, but headroom is effectively gone; the next prose addition to this root will turn the suite RED and force a trim. Latent maintenance hazard, not a defect in this change.",
+      "defect_signature": {
+        "file": "skills/implement/SKILL.md",
+        "line_range": [45, 45],
+        "kind": "other"
+      }
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The docs/internal/implement-skill.md pointer paragraph partially restates the shipped rule's mechanism (route to deferral/Blocked, rc-127 and silent denial handled identically) rather than pointing only. AC (4) asks the docs to point at the shipped rule; a shorter pointer would reduce coupled-restatement drift surface. Paragraph correctly scopes itself ('this paragraph remains the broader statement'), so acceptable as-is, not a correctness problem.",
+      "defect_signature": {
+        "file": "docs/internal/implement-skill.md",
+        "line_range": [896, 901],
+        "kind": "comment_drift"
+      }
+    }
+  ],
+  "phase2_fails": [],
+  "report": "BLINDED SHADOW re-review (Step 2.6) of PR #1942 / issue #1834, whole branch delta from merge-base origin/main (66eec8a8) to head b9633e639. Prose-only change (13 insertions across 3 files): a new bullet in skills/implement/SKILL.md's 'Cloud command-shape discipline (implement tier)' section, a 6-line pointer paragraph in docs/internal/implement-skill.md, and a new patch changeset. Roster: all four always-on Phase-3 agents dispatched and returned (type-design-analyzer gated OUT — has_new_types false; pr-test-analyzer gated OUT — no test file and every changed extension is config_only .md). Phase 2 checklist verification: no correctness claims to verify against source for a pure-prose change (no phase2 fails). \n\nThree of four agents (code-reviewer, comment-analyzer, requesting-code-review) independently verified every load-bearing claim against HEAD and CLAUDE.md and found the change accurate and spec-compliant: the two named mechanisms (version-pinned vendored checkout -> rc-127; trigger-time grant resolution from the default branch -> silent denial) match CLAUDE.md's grant-timing-bootstrap and vendoring gotchas; the docs cross-reference to the 'Cloud command-shape discipline' section resolves; the changeset is well-formed and does not edit plugin.json/CHANGELOG.md; the placement is correct per CLAUDE.md's placement rule (runtime rule in the shipped skills/** body, docs points at it); no documented_falsehood, no self-contradicting absolute claim, and the prevention-only comment standard does not bind these prose bodies. All five acceptance criteria of issue #1834 are satisfied as literally written.\n\nThe VERDICT is REJECT on the strength of one verified single-source Important finding from silent-failure-hunter: the bullet's 'introduced OR modified' scope asserts the helper 'is unreachable this run' and makes the terminal deferral/Blocked response fire on the 'first FAILED invocation', but a helper the branch modifies WITHOUT changing its invocation grant remains present in the pinned vendored checkout at its OLD version — it runs to rc-0, never fails, so the trigger never fires and the run silently executes stale helper behavior while believing the new behavior took effect. That is a fail-open (silently running stale code) exactly in the sub-case the same sentence claims is protected. This tension between the absolute scope claim ('Both leave the new behavior unreachable') and the failure-signal-gated trigger is a real logic gap in behavior-directing prose, not behavior-inert (so the Phase 4.1.5 inert-prose cap does not apply). It is single-source and mirrors the issue spec's own 'introduces or modifies' phrasing, so the orchestrator/primary review may reasonably weigh it as a spec-completeness refinement rather than a shipped defect and adjudicate accordingly; a blinded shadow's role is to surface exactly this recovered variance. Recommended resolution: either narrow the SKILL.md scope to 'introduced' (plus modifications that change the invocation grant), or add an explicit instruction that an rc-0 result from a branch-modified helper does not evidence the new behavior and must route to deferral/Blocked on that basis. The two final-pass Suggestions (near-zero reference-size headroom on the skill root; partial mechanism-restatement in the docs pointer) are non-blocking."
+}

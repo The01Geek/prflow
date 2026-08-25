@@ -1,0 +1,57 @@
+{
+  "iter": 2,
+  "current_step": "3.5",
+  "current_substep": "fix_delta_gate",
+  "fix_commit_sha": "3d0428a2e1567934262b4c7d935346b10e362c8f",
+  "fix_files": [
+    "skills/implement/SKILL.md"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "dispatch_mode": null,
+  "phase3_dispatched": [],
+  "expected_reviewers": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "(promoted from iter-1 shadow) rule keyed terminal response on 'first failed invocation'; a modified already-granted helper runs stale vendored bytes at rc-0 and never fails — fail-open gap.",
+      "defect_signature": {
+        "file": "skills/implement/SKILL.md",
+        "line_range": [
+          45,
+          45
+        ],
+        "kind": "fail_open_coverage_gap"
+      }
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-shadow-1",
+      "decision": "applied",
+      "commit": "3d0428a2e1567934262b4c7d935346b10e362c8f",
+      "source_file": "skills/implement/SKILL.md",
+      "claim_text": "fail-open: modified helper runs stale bytes at rc-0, deferral trigger never fires",
+      "evidence": "reworded the rule to recognize an introduced/modified helper up front from the branch delta (not only on a failed invocation) and to state a modified helper runs stale released bytes at rc-0; all 7 ACs preserved; byte ceiling passes (61746<61750)"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 1,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

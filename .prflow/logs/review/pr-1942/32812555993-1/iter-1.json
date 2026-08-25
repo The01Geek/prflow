@@ -1,0 +1,44 @@
+{
+  "iter": 1,
+  "current_step": "2.6",
+  "current_substep": "early_shadow_decide",
+  "fix_commit_sha": "b9633e6391887f24be7f26c7d8a2f5582ecf4046",
+  "fix_files": ["skills/implement/SKILL.md"],
+  "loop_role": "fix",
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "diff_profile": {"small_diff": true, "config_only": true, "has_new_types": false, "engine_self_modifying": true, "checklist_skipped": null},
+  "cap_drops": {"count": 0, "by_category": {}},
+  "phase3_findings": [
+    {"agent": "prflow:requesting-code-review", "severity": "Suggestion", "description": "SKILL.md ~15 bytes under ceiling; trim for headroom.", "defect_signature": {"file": "skills/implement/SKILL.md", "line_range": [45, 45], "kind": "size_headroom"}},
+    {"agent": "prflow:requesting-code-review", "severity": "Suggestion", "description": "'silent non-execution' imprecise for modified helper (stale bytes).", "defect_signature": {"file": "skills/implement/SKILL.md", "line_range": [45, 45], "kind": "prose_precision"}}
+  ],
+  "fix_decisions": [
+    {"finding_id": "F-2", "decision": "applied", "commit": "b9633e6391887f24be7f26c7d8a2f5582ecf4046", "source_file": "skills/implement/SKILL.md", "claim_text": "'silent non-execution' imprecise for modified helper", "evidence": "replaced with 'leave the new behavior unreachable'; byte ceiling passes (61738<61750)"},
+    {"finding_id": "F-1", "decision": "pushed_back", "source_file": "skills/implement/SKILL.md", "claim_text": "trim for headroom", "skip_category": "out-of-scope", "evidence": "file passes AC7; further trim conflicts with AC-mandated wording", "parking_evidence": {"basis": "trimming would delete AC-mandated wording; AC7 already passes", "failing_input": "the headroom under the 61750 ceiling", "source": "skills/implement/SKILL.md:45; issue #1834", "finding_ref": {"iter": 1, "index": 0}}
+  ],
+  "convergence_inputs": {"fixes_applied": 1, "fix_diff_lines": 1, "new_corroborated_critical_count": 0},
+  "reference_reads": {"fix_delta": {"status": "verified", "outcome": "clean", "reason": null}},
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-25",
+    "reviewed_sha": "b9633e6391887f24be7f26c7d8a2f5582ecf4046",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+    "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {"agent": "prflow:silent-failure-hunter", "severity": "Important", "description": "The rule scopes to 'introduced OR modified' and claims 'unreachable' + keys the terminal response on 'first FAILED invocation', but a modified already-granted helper runs its OLD version-pinned vendored bytes at rc-0 (never fails) — the trigger never fires and the run silently executes stale code where the prose asserts protection: fail-open coverage gap.", "defect_signature": {"file": "skills/implement/SKILL.md", "line_range": [45, 45], "kind": "fail_open_coverage_gap"}}
+    ],
+    "phase2_fails": [],
+    "comparison": {"shadow_total": 3, "overlap_with_iter_1": 2, "new": 1, "new_critical": 0, "new_important": 1},
+    "promoted_to_iter_next": true
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  }
+}

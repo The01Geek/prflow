@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1942",
+  "generated_at": "2026-08-25T06:12:39Z",
+  "config_fingerprint": {
+    "sha256": "c2dd346fdf78eacf9e402b333f46db8770aa0afa8742a7dc4ac5d1139ba96283",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "recurring_defect_kinds": [],
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 2,
+      "loop_role": "promoted",
+      "synthesized": false,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": {
+        "small_diff": true,
+        "config_only": true,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": "intentional"
+      },
+      "verification_posture": "skipped-intentional",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 1,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 2,
+      "phases": "unavailable"
+    }
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 34.50966880000001,
+    "tokens": {
+      "input_tokens": 182,
+      "output_tokens": 111306,
+      "cache_read_input_tokens": 22592681,
+      "cache_creation_input_tokens": 414977,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 416,
+        "outputTokens": 217167,
+        "cacheReadInputTokens": 29699668,
+        "cacheCreationInputTokens": 1905871,
+        "webSearchRequests": 0,
+        "costUSD": 33.74894650000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 52,
+        "outputTokens": 12736,
+        "cacheReadInputTokens": 1366129,
+        "cacheCreationInputTokens": 144013,
+        "webSearchRequests": 0,
+        "costUSD": 0.7607223,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 113,
+    "duration_ms": 2942436
+  },
+  "permission_denials": {
+    "count": 17,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GHA=[$GITHUB_ACTIONS]\"; echo \"RUNID=[$GITHUB_RUN_ID]\"; git branch --show-current; git status --porcelain | head; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch 2>/dev/null || echo \"(no base config)\"",
+      "git fetch origin \"+refs/heads/main:refs/remotes/origin/main\" || { echo \"FETCH_FAILED\" >&2; exit 1; }\nBRANCH=$(.prflow/vendor/prflow/scripts/branch-for-issue.py 1834 --title-file .prflow/tmp/devflow-issue-1834-title.txt) || { echo \"BRANCH_GEN_FAILED\" >&2; exit 1; }\necho \"BRANCH=$BRANCH\"\n[ -n \"$BRANCH\" ] || { echo \"EMPTY_BRANCH\" >&2; exit 1; }\ngit checkout -b \"$BRANCH\" \"origin/main\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1834 --branch \"$(git branch --show-current)\"",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 1834 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1834 --note \"issue-claim audit (count): claimed 'roughly 60.7 KB against a 61,750-byte ceiling', verified 60656 bytes at HEAD — matches within stated approximation\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1834 --note \"issue-claim audit ( …[per-command-truncated]",
+      "lib/test/lint-reference-size.py; echo \"EXIT=$?\"; echo \"---BYTES---\"; wc -c skills/implement/SKILL.md",
+      "lib/test/lint-reference-size.py",
+      "git -C /home/runner/work/prflow/prflow diff skills/implement/SKILL.md",
+      "git --no-pager diff skills/implement/SKILL.md",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1834-introduced-helper-unreachable.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"LINT_EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1834 --tick-plan \"Add a `.changeset\" --note \"§2.3.4b leg-2: changeset prose clean (stale-prose-lint exit 0, 0 rows); bump=patch (issue authorizes no larger step), type=Changed, cites #1942\" 2>&1 | tail -2",
+      "mkdir -p .prflow/tmp/review/pr-1942/32812555993-1 && git diff origin/main...HEAD > .prflow/tmp/review/pr-1942/32812555993-1/diff.patch && wc -l .prflow/tmp/review/pr-1942/32812555993-1/diff.patch && git diff origin/main...HEAD --name-status",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review",
+      "lib/test/lint-reference-size.py; echo \"EXIT=$?\"; echo \"---BYTES---\"; wc -c skills/implement/SKILL.md",
+      "mkdir -p .prflow/tmp/review/pr-1942/32812555993-1 && git diff origin/main...HEAD > .prflow/tmp/review/pr-1942/32812555993-1/diff.patch && cat .prflow/tmp/review/pr-1942/32812555993-1/diff.patch",
+      ".prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review 2>&1",
+      "cat > /tmp/newbullet.txt <<'EOF'\n- A bundled helper your own branch introduced or modified is unreachable this run on the cloud implement tier: recognize it from your own branch delta and route around it up front, not only after a failed invocation — a modified helper's version-pinned vendored copy runs **stale** released bytes at rc-0 and never fails, so a failure trigger alone would miss it. Two mechanisms cause this: the vendored checkout is version-pinned, so a just-written helper is absent  …[per-command-truncated]",
+      "git diff origin/main...HEAD && echo \"===ISSUE 1834===\" && (gh issue view 1834 --json title,body -q '.title, .body' 2>/dev/null || echo \"gh unavailable\")"
+    ],
+    "total": 17,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
