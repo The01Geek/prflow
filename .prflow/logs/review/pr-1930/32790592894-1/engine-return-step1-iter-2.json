@@ -1,0 +1,59 @@
+{
+  "dispatch_mode": "self-context-fanout",
+  "verdict": "APPROVE",
+  "pr_number": 1930,
+  "issue": 1925,
+  "run_id": "32790592894-1",
+  "iteration": 2,
+  "head_sha": "c8a65dee8660c544e8518d9504353873b128e81d",
+  "merge_base": "084b47a4b0bfb3b711866ae0fb94828cd08acc27",
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer",
+    "prflow:code-reviewer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The Start<->Stop HANDLE-match contract is untested. The fix moved the self-test marker path off single-source job-wide GITHUB_ENV publication to independent re-derivation of HANDLE=\"${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-0}-${GITHUB_JOB:-job}\" in each step body (Start: devflow-implement.yml:765 / devflow.yml:1243; Stop: :1680 / :1890). installer-wiring.sh AC10 greps only the Stop step's export line literal, not the two HANDLE= definitions being byte-equal; run.sh AC11/AC12 set DEVFLOW_REFRESH_SELFTEST_FAILED explicitly and never exercise workflow HANDLE derivation. The old GITHUB_ENV form made divergence impossible; the new form reintroduces it as a live, untested drift risk. The current literals ARE byte-identical (verified), so no live bug exists today.",
+      "defect_signature": "handle-rederivation-untested-drift-risk",
+      "corroboration_count": 2,
+      "step25_classification": "test-hardening-suggestion; NEW consideration introduced by the fix delta; not a current correctness defect"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The normalizer-availability guard is a three-clause && chain ([ -r \"$_reap_lib\" ] && . \"$_reap_lib\" && command -v devflow_normalize_path). Only the first clause (sibling lib absent) is independently exercised by the nolib copy test; the sourcing-fails and function-undefined clauses fall to the same fail-safe else arm but are not independently hit. Defensive layering; the absent-lib arm already proves the else fires.",
+      "defect_signature": "guard-chain-clauses-not-independently-tested",
+      "corroboration_count": 1,
+      "step25_classification": "low-value coverage suggestion; behavior fail-closed is already proven"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "run.sh region-containment comment (~line 148-150) says the setup drops the refresher paths the Start step publishes into $GITHUB_ENV, but the actual unset is a defensive superset that also clears DEVFLOW_REFRESH_SELFTEST_FAILED (no longer published) and DEVFLOW_REFRESH_REAP_GLOB (test-only override). Behavior correct; wording slightly imprecise.",
+      "defect_signature": "comment-wording-superset-imprecision",
+      "corroboration_count": 1,
+      "step25_classification": "cosmetic prose nit; behavior-inert; non-blocking"
+    }
+  ],
+  "diff_profile": {
+    "files_changed": 8,
+    "surfaces": [
+      "scripts/stop-refresher.sh",
+      ".github/workflows/devflow.yml",
+      ".github/workflows/devflow-implement.yml",
+      "lib/test/run.sh",
+      "lib/test/modules/installer-wiring.sh",
+      "scripts/workflow-flight-recorder-registry.json",
+      "lib/test/modules/coverage-map.json",
+      ".changeset/issue-1925-refresher-reap-scope.md"
+    ],
+    "nature": "shell fail-closed reap-scope normalization + workflow self-test-marker in-body derivation + tests"
+  },
+  "cap_drops": [],
+  "report": "Iteration-2 review of the fix delta (c8a65de) for PR #1930 / issue #1925. VERDICT: APPROVE. No new correctness defect introduced by the fix. Verified independently: (1) the Stop-step in-body HANDLE derivation is byte-identical to the Start step's, and the marker's sole writer (refresher-selftest.sh, driven with the local STMARK) never read the removed job-wide env var, so retiring the GITHUB_ENV publication orphans no consumer and causes no #1882 mis-attribution; (2) normalize-path.sh is vendored alongside stop-refresher.sh (vendor-slice copies lib/ wholesale, prunes only lib/test) and the dirname/BASH_SOURCE anchor resolves in both vendored and self-repo invocations; it is function-only and side-effect-free to source; (3) all fail-closed arms (drive-letter [A-Za-z]:*, backslash *\\*, UNC, forward-slash-drive, drive-relative, normalizer-unsourceable) fail CLOSED (empty glob, ::warning:: breadcrumb, no reap) and normal Linux/macOS RUNNER_TEMP is not falsely refused; (4) assertion-floor bump 287->293 reconciles with the 6 new installer-wiring assertions (AC9/AC10 x2 workflows + 2 positive controls), and tests carry mutant-kill positive/negative controls. Three advisory findings, none blocking: one Important test-hardening gap (the Start<->Stop HANDLE equality became falsifiable by the move off GITHUB_ENV and is not pinned by any assertion -- current literals are byte-equal so no live bug, but a regression guard is worth adding), one Suggestion (guard-chain clauses not independently exercised), one Suggestion (a superset-unset comment wording imprecision). The two findings pushed back in iteration 1 were not re-raised and no new evidence contradicts them.",
+  "new_vs_iteration1": "No NEW correctness defect. The Important finding (untested Start<->Stop HANDLE equality) is a NEW test-hardening consideration arising specifically from this iteration's fix delta (the move off single-source GITHUB_ENV), not a re-raise of any iteration-1 finding. The two Suggestions are new but behavior-inert."
+}

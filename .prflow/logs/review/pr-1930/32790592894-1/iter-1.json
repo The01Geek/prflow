@@ -1,0 +1,233 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T00:00:00Z",
+  "fix_commit_sha": "c8a65dee8660c544e8518d9504353873b128e81d",
+  "fix_files": [
+    "scripts/stop-refresher.sh",
+    "lib/test/run.sh",
+    "lib/test/modules/installer-wiring.sh",
+    ".github/workflows/devflow-implement.yml",
+    ".github/workflows/devflow.yml"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "normalizer-could-not-be-sourced fail-closed arm untested",
+      "defect_signature": {
+        "file": "scripts/stop-refresher.sh",
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "forward-slash drive-letter fail-closed arm not distinctly exercised",
+      "defect_signature": {
+        "file": "scripts/stop-refresher.sh",
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "empty-base REAP_GLOB arm reachable only via source-failure branch",
+      "defect_signature": {
+        "file": "scripts/stop-refresher.sh",
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "guard default-path mirror unpinned",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "kind": "coupling"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC5 MSYS arm asserts only the negative",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "kind": "weak_assertion"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "drive-relative C:foo form reaped nothing silently",
+      "defect_signature": {
+        "file": "scripts/stop-refresher.sh",
+        "kind": "silent_noop"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "reap-skip breadcrumbs are plain echo, not ::warning::",
+      "defect_signature": {
+        "file": "scripts/stop-refresher.sh",
+        "kind": "visibility"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "six comment blocks exceed the 3-line cap; outrank/outranks grammar",
+      "defect_signature": {
+        "file": "multiple",
+        "kind": "comment_cap"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "c8a65dee8660c544e8518d9504353873b128e81d"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "c8a65dee8660c544e8518d9504353873b128e81d"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "c8a65dee8660c544e8518d9504353873b128e81d"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "pushed_back",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "guard default-path mirror unpinned",
+      "skip_category": "claim-quality",
+      "evidence": "a source-presence pin coupling test-infrastructure defaults is prohibited by the repo wording-only-pin policy; the coupling is mitigated by the in-comment coupling note added in /simplify",
+      "parking_evidence": {
+        "basis": "presence pin prohibited by policy; coupling documented in-comment",
+        "failing_input": "a future change to stop-refresher.sh default paths",
+        "source": "lib/test/run.sh _stop_sh_guarded coupling comment",
+        "finding_ref": {
+          "iter": 1,
+          "index": 3
+        }
+      }
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "pushed_back",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "AC5 MSYS arm asserts only the negative",
+      "skip_category": "claim-quality",
+      "evidence": "the AC8 wslpath/cygpath arm already provides positive convert+reap coverage; a positive reap under the MSYS-translated /c/... path is impractical (that root is not creatable on CI), and the negative-of-fail-closed assertion is the meaningful check that the MSYS textual arm converted",
+      "parking_evidence": {
+        "basis": "positive convert+reap already covered by AC8; MSYS positive reap impractical",
+        "failing_input": "an MSYS-form RUNNER_TEMP that converts",
+        "source": "lib/test/run.sh AC8 arm",
+        "finding_ref": {
+          "iter": 1,
+          "index": 4
+        }
+      }
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "c8a65dee8660c544e8518d9504353873b128e81d"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "c8a65dee8660c544e8518d9504353873b128e81d"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "applied",
+      "commit": "c8a65dee8660c544e8518d9504353873b128e81d"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 6,
+    "fix_diff_lines": 70,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

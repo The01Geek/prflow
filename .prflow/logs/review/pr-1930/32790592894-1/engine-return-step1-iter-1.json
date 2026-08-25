@@ -1,0 +1,89 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The 'normalizer could not be sourced' fail-closed arm of scripts/stop-refresher.sh (the [ -r \"$_reap_lib\" ] guard fails, _reap_base=\"\" -> REAP_GLOB=\"\") is never exercised by any test; the drive-letter no-converter arm (AC6b) still successfully sources normalize-path.sh. A regression that inverted the readability guard or reaped from an unnormalized base on source failure would not be caught.",
+      "defect_signature": {"file": "scripts/stop-refresher.sh", "line_range": [98, 105], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "suspected over-grade: shape 3 (uncorroborated single-source from pr-test-analyzer, no Phase-2 FAIL) — advisory only; below critical threshold, drives no REJECT"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The forward-slash drive-letter fail-closed alternative [A-Za-z]:/* in the reap-scope case is not distinctly exercised: both tested fail-closed inputs (UNC \\\\server\\share, drive-letter D:\\a\\_work) match the *\\\\* backslash catch-all, so deleting or breaking the [A-Za-z]:/* character class would leave the suite green. A stubbed converter emitting a C:/... value would close it.",
+      "defect_signature": {"file": "scripts/stop-refresher.sh", "line_range": [110, 112], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "suspected over-grade: shape 3 (uncorroborated single-source from pr-test-analyzer, no Phase-2 FAIL) — advisory only; below critical threshold, drives no REJECT"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The empty-base case arm (REAP_GLOB=\"\") is reachable only via the untested source-failure branch; folding a no-signalling assertion into the source-failure test discharges both.",
+      "defect_signature": {"file": "scripts/stop-refresher.sh", "line_range": [105, 105], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "not flagged (Suggestion; below threshold)"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter+prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The _stop_sh_guarded default-path mirror in lib/test/run.sh hand-copies stop-refresher.sh's default pidfile/log/reap-glob formulas with no pin coupling the two, so a future change to the helper's defaults would leave the containment guard validating stale paths while still reporting green (fail-open where it claims fail-closed). The coupling is documented in-comment but unpinned.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [48237, 48241], "kind": "test_gap"},
+      "corroboration_count": 2,
+      "step25_classification": "not flagged (Suggestion; below threshold; corroborated N=2)"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer+prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The AC5 MSYS textual-rules arm asserts only the negative (fail-closed breadcrumb absent) and exit 0; it does not place/reap an orphan under the MSYS-converted path, so it confirms 'not fail-closed' without confirming the conversion resolved to a usable root (weaker than the wslpath/cygpath AC8 arm). It also escapes region containment by design (harmless: /c/msysroot does not exist on CI).",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [417, 421], "kind": "test_gap"},
+      "corroboration_count": 2,
+      "step25_classification": "not flagged (Suggestion; below threshold; corroborated N=2)"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "A drive-relative Windows form (C:foo, no separator after the colon) passes normalize-path.sh's ^[A-Za-z]:[\\\\/] regex through unchanged, then misses both fail-closed case arms and falls to the *) arm, yielding a relative glob C:foo/devflow-refresh-*.pid that matches nothing with no breadcrumb — the 'reaps nothing silently' shape the fix targets. Unreachable operationally (RUNNER_TEMP is always absolute).",
+      "defect_signature": {"file": "scripts/stop-refresher.sh", "line_range": [104, 113], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "step25_classification": "suspected over-grade: shape 1 (fail-closed/no-op fail-direction; unreachable operationally) — advisory; below threshold"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Reap-skip breadcrumbs are plain echo, not ::warning::, so a native-Windows self-hosted host that cannot normalize RUNNER_TEMP leaves orphaned refreshers un-reaped with no job-UI signal. Correct fail-safe direction; surfacing-visibility suggestion only.",
+      "defect_signature": {"file": "scripts/stop-refresher.sh", "line_range": [101, 111], "kind": "other"},
+      "corroboration_count": 1,
+      "step25_classification": "not flagged (Suggestion; below threshold)"
+    },
+    {
+      "agent": "prflow:comment-analyzer+prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "Six added comment blocks exceed the three-physical-line prevention-only cap (devflow-implement.yml:20-25, devflow.yml:53-58, installer-wiring.sh:102-107, run.sh:151-155, run.sh:167-173, stop-refresher.sh:524-528), carrying rationale/design/mechanism narrative. Also a grammar slip: 'outrank' should read 'outranks' in the two workflow comment blocks. Comment claims are all TRUE against HEAD (not documented_falsehood).",
+      "defect_signature": {"file": ".github/workflows/devflow.yml", "line_range": [53, 58], "kind": "style"},
+      "corroboration_count": 2,
+      "step25_classification": "behavior-inert prose (already Suggestion; not capped down; below threshold)"
+    }
+  ],
+  "report": "## Verdict: APPROVE with notes (issue #1925 reap-scope fix is correct and fail-closed; only sub-threshold test-completeness and comment-style notes remain)\n\n## Issue Compliance\nReviewed against issue #1925: scope the credential-refresher reap glob — criteria from workpad; scope unchanged. Requirement-based checklist items are included in the verification results below.\nCriteria came from the `/prflow:implement` workpad comment — this run's authoritative set, possibly narrowed from the issue.\nNo divergence between the workpad's criteria and the issue body's.\n\nSpot-verification against the shipped code confirmed each acceptance criterion is met: the Stop-step HANDLE derivation (`${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-0}-${GITHUB_JOB:-job}`) is byte-identical to the Start step's in BOTH workflows (devflow.yml 1243/1248 vs 1892/1893; devflow-implement.yml 765/770 vs 1682/1683), so the retired job-wide publication is replaced by an in-step derivation resolving the same path; the reap-scope normalization routes RUNNER_TEMP through lib/normalize-path.sh before composing the glob, uses an explicit DEVFLOW_REFRESH_REAP_GLOB verbatim, and fails closed (empty REAP_GLOB → no-op loop, value-naming breadcrumb, exit 0) on UNC/backslash/forward-slash-drive and normalizer-absent inputs; the test region saves/unsets/points RUNNER_TEMP at $D487 and restores it, with a record_fail-backed containment guard; and the assertion floor 287→293 reconciles (AC9×2 + AC10×2 + 2 positive controls) across run.sh and workflow-flight-recorder-registry.json.\n\n## Verification Checklist Results\nEngine_self_modifying profile: full checklist scope. Orchestrator spot-verification of the diff's machine-consumed contracts (HANDLE derivation match, reap-scope case arms vs normalize-path.sh return shapes, assertion-count arithmetic, _ac1925_pub_count matching only the echo-publication form) found no FAIL and no INCONCLUSIVE.\n\n## Code Review Findings\n### 🟠 Important / Major\n1. The 'normalizer could not be sourced' fail-closed arm of scripts/stop-refresher.sh (lines 98–105) is untested; AC6b still successfully sources normalize-path.sh, so the source-failure branch and its distinct breadcrumb + empty-base arm are never driven (raised by 1/5 agents) [suspected over-grade: shape 3 — observable fail-direction is reap-nothing/fail-closed, milder than the Important label].\n2. The forward-slash drive-letter fail-closed alternative `[A-Za-z]:/*` is not distinctly exercised — both tested fail-closed inputs match the `*\\\\*` backslash catch-all, so breaking that character class would leave the suite green (raised by 1/5 agents) [suspected over-grade: shape 3 — observable fail-direction is a coverage gap on a fail-closed arm, milder than the Important label].\n\n### 🟡 Suggestion / Minor\n1. The `_stop_sh_guarded` default-path mirror in lib/test/run.sh hand-copies stop-refresher.sh's defaults with no pin, so a future change to the helper's defaults leaves the containment guard checking stale paths while green — fail-open where it claims fail-closed; documented in-comment but unpinned (raised by 2/5 agents).\n2. The AC5 MSYS textual-rules arm asserts only the negative (breadcrumb absent) and exit 0; it neither places/reaps an orphan under the converted path nor stays region-contained, so it is weaker than the wslpath/cygpath AC8 arm (raised by 2/5 agents).\n3. Six added comment blocks exceed the three-line prevention-only cap and carry design/mechanism narrative; the two workflow blocks also read 'outrank' where 'outranks' is meant. All comment claims are TRUE against HEAD (raised by 2/5 agents).\n4. The empty-base case arm (REAP_GLOB=\"\") is reachable only via the untested source-failure branch; one test discharges both (raised by 1/5 agents).\n5. A drive-relative Windows form (`C:foo`, no separator) passes normalize-path.sh unchanged, misses both fail-closed arms, and yields a silent no-match glob — the one residual input class reaching the reap loop without converting or emitting a breadcrumb; unreachable operationally since RUNNER_TEMP is always absolute (raised by 1/5 agents) [suspected over-grade: shape 1 — fail-direction is reap-nothing, milder].\n6. Reap-skip breadcrumbs are plain `echo` not `::warning::`, so an unnormalizable-RUNNER_TEMP host leaves orphans un-reaped with no job-UI signal; correct fail-safe direction, surfacing-visibility only (raised by 1/5 agents).\n\nover-grade annotation: findings flagged above (shape 1 and shape 3, advisory only — verdict unchanged).\ntruthfulness sweep: no finding promoted.\nintra-diff contradiction scan: no contradiction found.\n\n## Verdict Criteria\nThreshold: critical (default). No verification FAIL/INCONCLUSIVE; no Critical finding; no self-contradicting-diff / documented_falsehood finding. Only findings below the critical threshold present → APPROVE with notes. The two Important-graded findings are single-source pr-test-analyzer test-completeness gaps over fail-closed sub-branches whose shipped behavior is correct and fail-safe; they do not gate the verdict at the default threshold. All notes are non-blocking test-completeness and comment-style improvements suitable for a follow-up."
+}

@@ -1,0 +1,69 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "diff_profile": "shell/test/workflow change; no new types; test files touched (pr-test-analyzer dispatched, type-design-analyzer skipped)",
+  "phase2_fails": "none (Phase 2 checklist verification found no failing claim; the change is internally consistent and the assertion floor 287->295 matches the 8 added assertions exactly)",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review (general-purpose final pass)"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "none",
+      "description": "No issues at confidence >= 80. Verified fail-closed reap logic across all path shapes, no orphaned consumer of the retired env var, no containment leak, and lib/normalize-path.sh ships via the vendor slice. Recommends approval.",
+      "defect_signature": null
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The empty-_reap_base case arm (stop-refresher.sh:103) reaps nothing without its own breadcrumb; correct today (only reached via the source-failure else branch which already breadcrumbs) but defensively fragile if the normalizer ever returned empty for non-empty input.",
+      "defect_signature": {"file": "scripts/stop-refresher.sh", "line_range": [103, 103], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "dirname (non-preflight PATH tool) at stop-refresher.sh:92 decides the reap selection; fails CLOSED so acceptable per CLAUDE.md, but on a dirname-less host the breadcrumb misattributes the cause. Consider bash parameter expansion ${BASH_SOURCE[0]%/*}.",
+      "defect_signature": {"file": "scripts/stop-refresher.sh", "line_range": [92, 92], "kind": "api_misuse"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Stop-step comment third line ('GITHUB_RUN_ID/GITHUB_RUN_ATTEMPT/GITHUB_JOB are available in every step.') is background justification rather than prevention content; block sits at the three-line cap. Not a falsehood. No documented_falsehood findings anywhere.",
+      "defect_signature": {"file": ".github/workflows/devflow.yml", "line_range": [71, 73], "kind": "style"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The 'reaps nothing / live orphan untouched' property is asserted for only 2 of 5 fail-closed shapes (UNC, unsourceable-normalizer); the three drive-letter-family arms assert only breadcrumb + exit 0. Low risk (all funnel into the same REAP_GLOB=\"\" sink already proven).",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [48705, 48744], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "No plain-POSIX derived-path positive reap control (only the converter-stub path plants a reapable orphan in the derived dir). Code path is covered indirectly; completeness nicety only.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [48640, 48652], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "HANDLE-equality pin asserts literal presence in each step ('1 1'), catching one-sided drift but brittle to an intentional joint refactor. Acceptable/arguably stronger for a machine-consumed boundary.",
+      "defect_signature": {"file": "lib/test/modules/installer-wiring.sh", "line_range": [289, 291], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "stop-refresher.sh now has a runtime dependency on lib/normalize-path.sh even on Linux; correct fail-closed today and the helper ships via vendor-slice, but a future prune would silently make the security-relevant orphan reaper inert. Suggests a retention-rationale note.",
+      "defect_signature": {"file": "scripts/stop-refresher.sh", "line_range": [87, 112], "kind": "other"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "_stop_sh_guarded mirrored defaults in run.sh are a coupled site with stop-refresher.sh's defaults, guarded only by a comment; drift would silently check stale paths. Low risk.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [38, 50], "kind": "test_gap"}
+    }
+  ]
+}
