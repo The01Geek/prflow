@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1926",
+  "generated_at": "2026-08-25T02:16:58Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.10",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.968328749999998,
+    "tokens": {
+      "input_tokens": 52,
+      "output_tokens": 30196,
+      "cache_read_input_tokens": 3986644,
+      "cache_creation_input_tokens": 215441,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 146,
+        "outputTokens": 61285,
+        "cacheReadInputTokens": 7069190,
+        "cacheCreationInputTokens": 654876,
+        "webSearchRequests": 0,
+        "costUSD": 9.968328749999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 37,
+    "duration_ms": 672149
+  },
+  "permission_denials": {
+    "count": 20,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "for f in scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py; do echo \"=== $f ===\"; echo \"-- math refs:\"; grep -nE '(^|[^a-zA-Z_])math\\.' \"$f\" || echo \"(none)\"; echo \"-- RESIDENCY_KEYS refs:\"; grep -n 'RESIDENCY_KEYS' \"$f\" || echo \"(none)\"; echo \"-- import math:\"; grep -n 'import math' \"$f\" || echo \"(none)\"; done",
+      "for ref in scripts/create_issue_eval.py scripts/implement-context-eval.py scripts/review-context-eval.py; do echo \"=== $ref @ HEAD ===\"; done 2>/dev/null; echo \"--create_issue_eval math--\"; git show 8a488f7c:scripts/create_issue_eval.py | grep -nE '(^|[^a-zA-Z_])math\\.|import math|RESIDENCY_KEYS'",
+      "mkdir -p .prflow/tmp; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "for f in review-context-eval.py implement-context-eval.py create_issue_eval.py; do echo \"=== $f ===\"; git show 8a488f7c1119b91e8d7cd33f1f7b99676787060e:scripts/$f | grep -n \"RESIDENCY_KEYS\" ; done",
+      "for f in review-context-eval implement-context-eval create_issue_eval; do echo \"=== $f ===\"; git show 8a488f7c1119b91e8d7cd33f1f7b99676787060e:scripts/$f.py 2>/dev/null | grep -n \"math\\.\" ; done",
+      "for f in scripts/implement-context-eval.py scripts/review-context-eval.py scripts/create_issue_eval.py; do echo \"=== $f ===\"; git show 8a488f7c1119b91e8d7cd33f1f7b99676787060e:$f | grep -n \"RESIDENCY_KEYS\\|_usage_value\\|_context_tokens\\|_median\\|_iter_session_files\\|UNESTABLISHED\\|math\\.\" ; done",
+      "cd /tmp && cat > m1.py <<'EOF'\nX = \"unestablished\"\nEOF\ncat > m2.py <<'EOF'\nX = \"unestablished\"\nEOF\npython3 -c '\nimport importlib.util\ndef load(n,p):\n    s=importlib.util.spec_from_file_location(n,p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); return m\na=load(\"m1\",\"/tmp/m1.py\"); b=load(\"m2\",\"/tmp/m2.py\")\nprint(\"cross-module separate-copy assertIs would pass:\", a.X is b.X)\n'",
+      "printf 'X = \"unestablished\"\\n' > /tmp/m1.py; printf 'X = \"unestablished\"\\n' > /tmp/m2.py; python3 -c 'import importlib.util\ndef load(n,p):\n    s=importlib.util.spec_from_file_location(n,p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); return m\na=load(\"m1\",\"/tmp/m1.py\"); b=load(\"m2\",\"/tmp/m2.py\")\nprint(\"cross-module separate-copy assertIs would pass:\", a.X is b.X)'",
+      "./scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT:$?\"",
+      "./scripts/load-prompt-extension.sh requesting-code-review; echo \"---EXIT:$?\"",
+      "bash scripts/load-prompt-extension.sh requesting-code-review",
+      "scripts/load-prompt-extension.sh requesting-code-review",
+      "for f in implement-context-eval.py review-context-eval.py create_issue_eval.py; do echo \"=== $f ===\"; git show 8a488f7c1119b91e8d7cd33f1f7b99676787060e:scripts/$f | grep -n \"RESIDENCY_KEYS\\|_usage_value\\|_median\\|_context_tokens\\|_iter_session_files\\|UNESTABLISHED\\|_force_utf8_streams\" ; done",
+      "git worktree add -q /tmp/pr1926head 8a488f7c1119b91e8d7cd33f1f7b99676787060e 2>&1 | tail -2; python3 /tmp/pr1926head/lib/test/test_context_eval_shared.py 2>&1 | tail -20",
+      "git worktree add -q /tmp/pr1926head 8a488f7c1119b91e8d7cd33f1f7b99676787060e",
+      "mkdir -p /tmp/pr1926 && git archive 8a488f7c1119b91e8d7cd33f1f7b99676787060e scripts lib/test/test_context_eval_shared.py lib/test/modules/coverage-map.json | tar -x -C /tmp/pr1926 && python3 /tmp/pr1926/lib/test/test_context_eval_shared.py 2>&1 | tail -25",
+      "mkdir -p /tmp/pr1926",
+      "mkdir -p .prflow/tmp/pr1926 && git archive 8a488f7c1119b91e8d7cd33f1f7b99676787060e scripts lib/test/test_context_eval_shared.py lib/test/modules/coverage-map.json | tar -x -C .prflow/tmp/pr1926 && python3 .prflow/tmp/pr1926/lib/test/test_context_eval_shared.py 2>&1 | tail -25",
+      "git archive 8a488f7c1119b91e8d7cd33f1f7b99676787060e scripts lib/test/test_context_eval_shared.py lib/test/modules/coverage-map.json | tar -x -C .prflow/tmp/pr1926",
+      "git archive -o .prflow/tmp/pr1926/head.tar 8a488f7c1119b91e8d7cd33f1f7b99676787060e scripts lib/test/test_context_eval_shared.py lib/test/modules/coverage-map.json"
+    ],
+    "total": 20,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
