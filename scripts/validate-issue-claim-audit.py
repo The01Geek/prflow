@@ -30,6 +30,18 @@ import argparse
 import re
 import sys
 
+
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 # The chartered passes the issue-claim-auditor runs. The former Pass 4 is renumbered to
 # the orchestrator's §1.3.5, so 4 is absent by design. Coupled to agents/issue-claim-auditor.md's
 # "Named passes" block AND its returned-record `pass<N>_disposition` fields: change one and
@@ -116,6 +128,7 @@ def validate_record(text):
 
 
 def main(argv=None):
+    _force_utf8_streams()
     parser = argparse.ArgumentParser(
         description="Validate the issue-claim-auditor per-pass disposition record.")
     parser.add_argument("--record-file", required=True,

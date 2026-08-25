@@ -807,6 +807,11 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/validate-issue-claim-audit.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1740 per-pass disposition validator for the ISSUE-CLAIM-AUDIT RECORD; the conforming/absent/skipped/malformed/unknown-pass classifications, the exit-code contract (0 conforming / 2 non-conforming / 3 unreadable), and the fail-closed empty/unreadable arms are driven from the #1740 block in test_python_scripts.py",
+      "owner": "unmodularized"
+    },
     "scripts/validate-telemetry-artifact.sh": {
       "note": "",
       "owner": "unmodularized"

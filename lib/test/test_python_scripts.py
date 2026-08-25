@@ -35551,6 +35551,25 @@ assert_eq("#1740 the unknown pass is listed", [4], _unk_res["unknown"])
 assert_eq("#1740 refusal names the unknown pass",
           True, any("pass 4" in _o for _o in _unk_res["offending"]))
 
+# Cardinality (2.3.7): multiple absent passes are all named, in charter order; multiple
+# unknown passes are sorted; a duplicated pass line collapses to one pass (dedup).
+_multi_ok, _multi_res = validate_ica.validate_record(_ica_record(drop=(1, 5)))
+assert_eq("#1740 two absent passes are both non-conforming", False, _multi_ok)
+assert_eq("#1740 both absent passes classify absent", ("absent", "absent"),
+          (_multi_res["passes"][1], _multi_res["passes"][5]))
+assert_eq("#1740 both absent passes are named",
+          True, any("pass 1" in _o for _o in _multi_res["offending"])
+          and any("pass 5" in _o for _o in _multi_res["offending"]))
+_unk2_ok, _unk2_res = validate_ica.validate_record(
+    _ica_record() + "pass9_disposition: ran (x)\npass4_disposition: ran (y)\n")
+assert_eq("#1740 multiple unknown passes are sorted", [4, 9], _unk2_res["unknown"])
+# A duplicated pass line collapses to one pass (last value wins) — a dup does not
+# double-count, and two `ran` lines for the same pass stay conforming for it.
+_dup_ok, _dup_res = validate_ica.validate_record(
+    _ica_record() + "pass2_disposition: ran (again)\n")
+assert_eq("#1740 a duplicated pass line collapses to one conforming pass",
+          (True, "ran"), (_dup_ok, _dup_res["passes"][2]))
+
 # `parse_disposition` accepts `ran`/`skipped` with a substantive reason and rejects the rest.
 assert_eq("#1740 parse_disposition ran", ("ran", "did it"),
           validate_ica.parse_disposition("ran (did it)"))
