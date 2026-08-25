@@ -252,15 +252,18 @@ def iter_view:
   # establishes nothing for the agents it fails to cover (unknown is not zero), so
   # a silent agent that neither sink covers reads `unestablished`, never `silent`.
   | (($it.phase3_failed_agents) // null) as $failed_raw
-  | (($it.shadow | objects | .per_reviewer_assessment) // null) as $assess_raw
+  # The shadow `per_reviewer_assessment` is authoritative only on a full-coverage
+  # block: on a not_verified (outcome 3) block it holds a partial pre-shortfall
+  # capture (per shadow-review.md), so a reviewer that returned but was not yet
+  # captured could read `returned: false` — using it to establish failed/silent
+  # there would mis-classify. Gate on `coverage == "full"`; otherwise the channel
+  # decides nothing and its agents fall back to unestablished (unknown is not zero).
+  | (($it.shadow | objects | select(.coverage == "full") | .per_reviewer_assessment) // null) as $assess_raw
   | (($failed_raw | type) == "array") as $failed_direct_present
   | (if $failed_direct_present then [$failed_raw[] | strings] else [] end) as $failed_direct
   # Only assessment entries with a boolean `returned` and a string `agent` are
   # authoritative; `$assess_covered` names the agents the assessment can decide,
-  # and its `returned == false` members are the shadow-lost (failed) set. No
-  # `coverage == "full"` gate is needed here: a per-reviewer `returned` boolean is
-  # a per-reviewer fact that holds on a not_verified block too (that gate governs
-  # the aggregate verdict/comparison counts, not each reviewer's own return).
+  # and its `returned == false` members are the shadow-lost (failed) set.
   | (if ($assess_raw | type) == "array"
      then [$assess_raw[] | select(type == "object" and ((.returned) | type) == "boolean" and ((.agent) | type) == "string")]
      else [] end) as $assess_entries
