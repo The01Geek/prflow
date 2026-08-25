@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1930",
+  "generated_at": "2026-08-25T05:02:48Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.13",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.69395075,
+    "tokens": {
+      "input_tokens": 64,
+      "output_tokens": 44814,
+      "cache_read_input_tokens": 5727262,
+      "cache_creation_input_tokens": 254044,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 122,
+        "outputTokens": 80612,
+        "cacheReadInputTokens": 7268539,
+        "cacheCreationInputTokens": 814577,
+        "webSearchRequests": 0,
+        "costUSD": 11.69395075,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 52,
+    "duration_ms": 714956
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-1}\"",
+      "RUNID=$(env | grep '^GITHUB_RUN_ID=' | cut -d= -f2); RUNATT=$(env | grep '^GITHUB_RUN_ATTEMPT=' | cut -d= -f2); echo \"runid=${RUNID:-none}\"; echo \"att=${RUNATT:-none}\"",
+      "D=.prflow/tmp/review/pr-1930/32810409702-1; awk 'BEGIN{n=0} /^diff --git/{n++} n>=1 && n<=10' \"$D/diff.patch\" | tee \"$D/batch-1.patch\" | grep -c '^diff --git'; awk 'BEGIN{n=0} /^diff --git/{n++} n>=11 && n<=20' \"$D/diff.patch\" | tee \"$D/batch-2.patch\" | grep -c '^diff --git'",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before",
+      "echo \"=== HEAD: publication removed (expect 0 each) ===\"; for f in .github/workflows/devflow-implement.yml .github/workflows/devflow.yml; do echo -n \"$f: \"; git show 36539f55ef0f6c5e9c58b09db75b62a12f132e0b:\"$f\" | grep -vE '^[[:space:]]*#' | grep -c 'echo \"DEVFLOW_REFRESH_SELFTEST_FAILED='; done",
+      "echo \"=== HEAD: Stop-step in-body export present (expect 1 each) ===\"; for f in .github/workflows/devflow-implement.yml .github/workflows/devflow.yml; do echo -n \"$f: \"; git show 36539f55ef0f6c5e9c58b09db75b62a12f132e0b:\"$f\" | grep -cF 'export DEVFLOW_REFRESH_SELFTEST_FAILED=\"$RUNNER_TEMP/devflow-refresh-$HANDLE.selftest-failed\"'; done"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
