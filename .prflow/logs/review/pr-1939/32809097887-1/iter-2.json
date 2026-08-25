@@ -1,0 +1,267 @@
+{
+  "iter": 2,
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "3",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "file": "lib/test/modules/parallel-suite-runner.sh",
+      "kind": "test_gap",
+      "description": "sub-second elapsed 0s lower bound not pinned by a dedicated test case",
+      "defect_signature": {
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "kind": "test_gap"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "file": "lib/test/modules/parallel-suite-runner.sh",
+      "kind": "style",
+      "description": "assertion glob does not anchor the trailing s so it would accept a malformed suffix like elapsed 5x",
+      "defect_signature": {
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "kind": "style"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "file": "lib/test/modules/parallel-suite-runner.sh",
+      "kind": "efficiency",
+      "description": "the two stdout-only assertions each re-run the coordinator (a justified tradeoff, no change required)",
+      "defect_signature": {
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "kind": "efficiency"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F2-1",
+      "decision": "pushed_back",
+      "source_file": "lib/test/modules/parallel-suite-runner.sh",
+      "claim_text": "sub-second elapsed 0s lower bound not pinned",
+      "skip_category": "claim-quality",
+      "evidence": "already covered: the fixtures (PSR_T6 clean-path, PSR_T3 notally-all failed-path) complete in under one second, so the coordinator renders 'run-parallel: elapsed 0s' and the digit-match [0-9] validates it; a dedicated exact-'0s' assertion would flake under CI contention per CLAUDE.md's no-known-flake / slack-budget rule.",
+      "parking_evidence": {
+        "basis": "the sub-second degenerate case is exercised and validated by the digit-match against the sub-second fixtures",
+        "failing_input": "a coordinator run finishing in <1s rendering elapsed 0s",
+        "source": "lib/test/modules/parallel-suite-runner.sh clean-path + notally-all assertions",
+        "finding_ref": {
+          "iter": 2,
+          "index": 0
+        }
+      }
+    },
+    {
+      "finding_id": "F2-2",
+      "decision": "pushed_back",
+      "source_file": "lib/test/modules/parallel-suite-runner.sh",
+      "claim_text": "assertion glob does not anchor the trailing s (would accept elapsed 5x)",
+      "skip_category": "claim-quality",
+      "evidence": "cannot manifest: the coordinator's printf format string is the literal 'run-parallel: elapsed %ss' and $SECONDS is always a non-negative integer, so the rendered suffix is always exactly 's'; the malformed 'elapsed 5x' shape is unreachable. Anchoring the trailing s on the multi-line stdout capture is also not meaningful because the capture always contains an 's' (retained logs:, shard roster).",
+      "parking_evidence": {
+        "basis": "the malformed suffix is unreachable given the literal %ss printf format and integer $SECONDS",
+        "failing_input": "an elapsed line whose value is followed by a non-s character",
+        "source": "lib/test/run-parallel.sh printf 'run-parallel: elapsed %ss'",
+        "finding_ref": {
+          "iter": 2,
+          "index": 1
+        }
+      }
+    },
+    {
+      "finding_id": "F2-3",
+      "decision": "advisory",
+      "source_file": "lib/test/modules/parallel-suite-runner.sh",
+      "claim_text": "the two stdout-only assertions each re-run the coordinator",
+      "skip_category": "advisory-parked",
+      "evidence": "no change required (reviewer graded it a justified tradeoff): the stdout-vs-stderr distinction AC1/AC3 require cannot be proven from a 2>&1 capture, so a fresh stdout-only capture is necessary; matches the /simplify efficiency-finding skip already recorded in Phase 3.2.",
+      "parking_evidence": {
+        "basis": "justified tradeoff — a stdout-only capture is required to prove the AC1/AC3 stream placement",
+        "failing_input": null,
+        "source": "lib/test/modules/parallel-suite-runner.sh clean-path + failed-path stdout-only captures",
+        "finding_ref": {
+          "iter": 2,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh parallel-suite-runner",
+    "result": "skipped",
+    "reason": "no-fix iteration (all findings pushed back/advisory); module remained 173 passed from iteration 1's fixed state",
+    "skipped_checks": []
+  },
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "not-run",
+    "reason": "no fixes applied"
+  },
+  "parked_class_sweep": {
+    "classes": [
+      {
+        "source_finding_ids": [
+          "F2-1"
+        ],
+        "kind_literal": "test_gap",
+        "sites_examined": [
+          "lib/test/modules/parallel-suite-runner.sh (the two new elapsed-line assertions)"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F2-2"
+        ],
+        "kind_literal": "style",
+        "sites_examined": [
+          "lib/test/modules/parallel-suite-runner.sh (the two new elapsed-line assertion globs)"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F2-3"
+        ],
+        "kind_literal": "efficiency",
+        "sites_examined": [
+          "lib/test/modules/parallel-suite-runner.sh (the two new stdout-only coordinator captures)"
+        ],
+        "new_siblings": []
+      }
+    ],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "telemetry": "unavailable",
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "trigger": "convergence-time",
+    "reused_from": "early shadow on iter-1 (identical reviewed_sha 59a99ab5367d70ac0d9ec8ed130cfaaa775833e6; iteration 2 applied no fixes, so the tree is byte-identical to the early full-coverage blinded audit). Parse-and-compare re-done against iter-2 findings.",
+    "reviewed_sha": "59a99ab5367d70ac0d9ec8ed130cfaaa775833e6",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "kind": "test_gap",
+        "description": "sub-second elapsed 0s lower bound covered incidentally, not pinned",
+        "defect_signature": {
+          "file": "lib/test/modules/parallel-suite-runner.sh",
+          "kind": "test_gap"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "kind": "style",
+        "description": "assertion glob does not anchor the trailing s",
+        "defect_signature": {
+          "file": "lib/test/modules/parallel-suite-runner.sh",
+          "kind": "style"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 2,
+      "overlap_with_iter_2": 2,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 2,
+          "index": 0
+        },
+        "parked_finding_id": "F2-1",
+        "shadow_finding_index": 0,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the same sub-second test_gap on the same evidentiary basis, no new failing input",
+        "operands_present": true,
+        "disposition": "preserved"
+      },
+      {
+        "parked_finding_ref": {
+          "iter": 2,
+          "index": 1
+        },
+        "parked_finding_id": "F2-2",
+        "shadow_finding_index": 1,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the same trailing-s style nit on the same basis, no new failing input; parking rationale (literal %ss format) unrebutted",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "synthesized": false
+}
