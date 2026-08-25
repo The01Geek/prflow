@@ -257,6 +257,20 @@
           "decided_by": "A2's never-assigned-internally clause",
           "verdict": "OUT -- not consumer-facing",
           "evidence": "Workflow-written and consumer-read-never, the same shape as DEVFLOW_PROMPT_EXTENSION_ROOT: `.github/workflows/devflow-implement.yml` ASSIGNS it from `github.event.sender.login` onto the writer step, and the sole shipped reader (`scripts/apply-pr-triggerer.sh`) consults it only on the cloud tier -- the branch that workflow drives. The local tier never reads it at all; it resolves the authenticated login through `gh api user` instead. A consumer never sets it, so there is nothing for a consumer to rename, and no honest `set_where` exists to write in an `identifiers` row: the value is derived from the trigger event, and a consumer-supplied one would be an identity the authorization step never vetted. It appears in the consumer-facing docs precisely to explain that the implement workflow propagates it -- the sentence a hand-drawn list mistakes for a declaration. Absence is deliberately NOT the silent-feature-loss class that makes a name consumer-facing here: an empty value on the cloud tier is the documented deployment-skew path, and the helper fail-closes on it -- it substitutes no other account (not the token owner, the App identity, or GITHUB_ACTOR), emits `assignment: skipped no-triggering-user`, and Phase 3.1.1 records a `dropped-failed` workpad reflection naming the skip, so the loss is visible in the run's own durable record rather than silent. Issue #1165 introduced it."
+        },
+        {
+          "name": "DEVFLOW_REFRESH_SELFTEST_FAILED",
+          "selected_by": "A2 (read by scripts/stop-refresher.sh and scripts/refresher-selftest.sh; declared in docs/internal/cloud-setup.md)",
+          "decided_by": "A2's never-assigned-internally clause",
+          "verdict": "OUT -- not consumer-facing",
+          "evidence": "An internal refresher marker path, workflow-written and consumer-set-never, the same shape as DEVFLOW_TRIGGERING_USER: the writer workflows' Start step assigns it (passing it to refresher-selftest.sh) and the Stop step derives it from the same HANDLE, while the shipped reader (scripts/stop-refresher.sh) consults it only on that workflow-driven teardown path. A consumer never sets it, so there is nothing for a consumer to rename. It appears in docs/internal/cloud-setup.md (issue #1925) precisely to explain that the Stop step derives the self-test marker path itself now that the writer workflows no longer publish it job-wide -- the sentence the doc-declaration clause exists to adjudicate, not a consumer setting."
+        },
+        {
+          "name": "DEVFLOW_REFRESH_REAP_GLOB",
+          "selected_by": "A2 (read by scripts/stop-refresher.sh; declared in docs/internal/cloud-setup.md)",
+          "decided_by": "A2's doc-declaration clause",
+          "verdict": "OUT -- not consumer-facing",
+          "evidence": "An internal test/override seam for the cross-job reaper, one of the DEVFLOW_REFRESH_* tuning knobs the A2_doc_declaration_rationale names as internal: scripts/stop-refresher.sh reads ${DEVFLOW_REFRESH_REAP_GLOB:-...} and, when it is unset, derives the pattern from a normalized RUNNER_TEMP instead. No shipped consumer surface sets it -- the workflows never pass it, and it exists so the test suite can scope the reaper. It appears in docs/internal/cloud-setup.md (issue #1925) only to explain that an explicitly-supplied pattern is used verbatim while the derived default is normalized -- an explanation of the mechanism, not a consumer setting."
         }
       ]
     },
