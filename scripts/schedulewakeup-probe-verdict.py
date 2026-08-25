@@ -195,10 +195,10 @@ def render(exec_file):
     out.append("## ScheduleWakeup `--disallowedTools` probe (issue #415)")
     out.append("")
     out.append("Deterministic verdict from the execution file's "
-               "`permission_denials` (DENIED), recorded `tool_use` (AVAILABLE), "
-               "tool absence with both controls run (REMOVED, presumptive), or "
-               "no conclusive measurement (INCONCLUSIVE). The model's text is "
-               "never the measurement.")
+               "`permission_denials` with a recorded `tool_use` (DENIED), a recorded "
+               "`tool_use` not denied (AVAILABLE), a `permission_denials` with no "
+               "recorded attempt (REMOVED, presumptive), or no positive signal "
+               "(INCONCLUSIVE). The model's text is never the measurement.")
     out.append("")
     if verdict == "REMOVED":
         out.append("> [!NOTE]")
