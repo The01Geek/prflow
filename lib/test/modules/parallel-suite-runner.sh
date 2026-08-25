@@ -702,22 +702,19 @@ if [ -n "${PSR_RS_FAIL:-}" ]; then printf '0 passed, 1 failed\n'; exit 1; fi
 printf '1 passed, 0 failed\n'
 PSR_EOF
 chmod +x "$PSR_RS_TREE/lib/test/run.sh"
-
-PSR_RS_TALLY_PASS="$PSR_RS_TREE/tally-pass"
-PSR_RS_OUT_PASS="$(cd "$PSR_RS_TREE" && DEVFLOW_SHARD_TALLY_DIR="$PSR_RS_TALLY_PASS" \
-  bash lib/test/run-shard.sh monolith 2>&1)"
-mkdir -p "$PSR_RS_TALLY_PASS"
-PSR_RS_EXP_PASS="$(cd "$PSR_RS_TALLY_PASS" && pwd -P)/log.txt"
-assert_eq "psr run-shard: a passing shard names its retained log by absolute path" "yes" \
-  "$(case "$PSR_RS_OUT_PASS" in *"retained log: $PSR_RS_EXP_PASS"*) echo yes ;; *) echo no ;; esac)"
-
-PSR_RS_TALLY_FAIL="$PSR_RS_TREE/tally-fail"
-PSR_RS_OUT_FAIL="$(cd "$PSR_RS_TREE" && PSR_RS_FAIL=1 DEVFLOW_SHARD_TALLY_DIR="$PSR_RS_TALLY_FAIL" \
-  bash lib/test/run-shard.sh monolith 2>&1)"
-mkdir -p "$PSR_RS_TALLY_FAIL"
-PSR_RS_EXP_FAIL="$(cd "$PSR_RS_TALLY_FAIL" && pwd -P)/log.txt"
-assert_eq "psr run-shard: a failing shard names its retained log by absolute path" "yes" \
-  "$(case "$PSR_RS_OUT_FAIL" in *"retained log: $PSR_RS_EXP_FAIL"*) echo yes ;; *) echo no ;; esac)"
+# One row per exit ("" = passing shard, "1" = failing via PSR_RS_FAIL): the fail case is
+# not redundant because run-shard.sh must keep the printf BEFORE its exit branching, and a
+# future edit moving it after would fail only the failing-shard assertion.
+for psr_rs_fail in "" "1"; do
+  [ -z "$psr_rs_fail" ] && psr_rs_label=passing || psr_rs_label=failing
+  psr_rs_tally="$PSR_RS_TREE/tally-$psr_rs_label"
+  psr_rs_out="$(cd "$PSR_RS_TREE" && PSR_RS_FAIL="$psr_rs_fail" DEVFLOW_SHARD_TALLY_DIR="$psr_rs_tally" \
+    bash lib/test/run-shard.sh monolith 2>&1)"
+  mkdir -p "$psr_rs_tally"
+  psr_rs_exp="$(cd "$psr_rs_tally" && pwd -P)/log.txt"
+  assert_eq "psr run-shard: a $psr_rs_label shard names its retained log by absolute path" "yes" \
+    "$(case "$psr_rs_out" in *"retained log: $psr_rs_exp"*) echo yes ;; *) echo no ;; esac)"
+done
 
 # ── shard-tally.py --detail-cap, driven directly ─────────────────────────────
 # The coordinator only ever exercises cap 20. CI's aggregator omits the flag entirely,
