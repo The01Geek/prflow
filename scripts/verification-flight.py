@@ -35,6 +35,11 @@ Subcommands:
                 `--current-checkout-file` (issue #1243) — the AND is enforced here,
                 not left to the caller; `--allow-unverified-checkout` is the explicit
                 opt-out for a caller that wants the state/exit dimension alone.
+  event         Append a clock-authored phase-boundary event (issue #1853) to an
+                append-only JSONL log under .prflow/logs/phase-events/, reusing the
+                {"event": …, "recorded_at": …} shape. Always exits 0 — a failed
+                write emits a stderr breadcrumb and the run continues, because
+                instrumentation must never make a phase boundary blocking.
   wait          Bounded poll for a terminal state. It never records a terminal
                 result of its own — a wait-bound expiry returns a `wait_expired`
                 observation and leaves an active flight unchanged — but it is NOT
@@ -72,6 +77,11 @@ SCHEMA_VERSION = 1
 DEFAULT_LEASE_SECONDS = 900  # bounded owner-token lease on a `claimed` handle
 STATE_DIRNAME = os.path.join(".prflow", "tmp", "verification-flights")
 LOGS_DIRNAME = os.path.join(".prflow", "logs", "verification-flight")
+# Append-only phase-boundary event log (issue #1853): the `event` subcommand
+# appends clock-authored records here, one JSON object per line, so a run's
+# interior timeline is reconstructible from disk without trusting agent recall.
+PHASE_EVENTS_DIRNAME = os.path.join(".prflow", "logs", "phase-events")
+PHASE_EVENTS_FILENAME = "phase-events.jsonl"
 
 # The exact, exhaustive state set (issue #528 AC). Only `passed` (with complete,
 # matching input + command bindings) satisfies verification.
@@ -1159,6 +1169,61 @@ def cmd_wait(args) -> int:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Phase-boundary event append (issue #1853)
+# ─────────────────────────────────────────────────────────────────────────────
+def cmd_event(args) -> int:
+    """Append one clock-authored phase-boundary event to an append-only JSONL log.
+
+    Always returns EXIT_OK: a failed write must never make a phase boundary
+    blocking (an observability gap is strictly better than a run an instrumentation
+    line can fail). The timestamp originates in this helper's own clock via
+    _now()/_iso() — never supplied by the caller — reusing the {"event": …,
+    "recorded_at": …} shape _emit_telemetry already writes.
+    """
+    record = {"event": args.name, "recorded_at": _iso(_now())}
+    if args.payload:
+        try:
+            payload = json.loads(args.payload)
+        except (json.JSONDecodeError, ValueError) as exc:
+            print(
+                f"devflow verification-flight event: ignoring unparseable --payload "
+                f"for {args.name!r} ({exc.__class__.__name__}); recording the base event",
+                file=sys.stderr,
+            )
+            payload = None
+        if isinstance(payload, dict):
+            # event/recorded_at are the record's clock-authored identity; a payload
+            # key must never shadow them, or the event's name/time would be caller-forged.
+            for key, value in payload.items():
+                if key not in ("event", "recorded_at"):
+                    record[key] = value
+        elif payload is not None:
+            print(
+                f"devflow verification-flight event: ignoring non-object --payload "
+                f"for {args.name!r}; recording the base event",
+                file=sys.stderr,
+            )
+    base = Path(args.log_dir) if args.log_dir else Path.cwd() / PHASE_EVENTS_DIRNAME
+    line = json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n"
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+        # O_APPEND makes each record's write atomically positioned, so concurrent
+        # runs sharing a checkout interleave whole lines rather than corrupting one.
+        fd = os.open(base / PHASE_EVENTS_FILENAME, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        try:
+            os.write(fd, line.encode("utf-8"))
+        finally:
+            os.close(fd)
+    except OSError as exc:
+        print(
+            f"devflow verification-flight event: could not append phase event "
+            f"{args.name!r} to {base} ({type(exc).__name__}: {exc}); the run continues",
+            file=sys.stderr,
+        )
+    return EXIT_OK
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # CLI
 # ─────────────────────────────────────────────────────────────────────────────
 class _FlightArgumentParser(argparse.ArgumentParser):
@@ -1246,6 +1311,24 @@ def build_parser() -> argparse.ArgumentParser:
     add_checkout_read_args(p_stat)
     add_common(p_stat)
     p_stat.set_defaults(func=cmd_status)
+
+    p_event = sub.add_parser(
+        "event",
+        help="Append a clock-authored phase-boundary event to an append-only JSONL "
+             "log under .prflow/logs/phase-events/; always exits 0.",
+    )
+    p_event.add_argument("name", help="The event name, e.g. simplify-start.")
+    p_event.add_argument(
+        "--payload", default=None,
+        help="Optional JSON object merged into the record; the reserved keys "
+             "'event' and 'recorded_at' are never overwritten.",
+    )
+    p_event.add_argument(
+        "--log-dir", default=None,
+        help="Override the phase-events log directory (default "
+             "<cwd>/.prflow/logs/phase-events).",
+    )
+    p_event.set_defaults(func=cmd_event)
 
     p_wait = sub.add_parser(
         "wait",
