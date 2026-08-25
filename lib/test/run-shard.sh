@@ -145,7 +145,7 @@ printf 'run-shard.sh: retained log: %s\n' "$LOG_FILE_ABS"
 # exits 0, so this is what stops a silent revert (issue #1830). Run on EVERY shard: do NOT
 # scope to `monolith` by name (breaks migration-detection) nor widen past #671+CLI-absence (the #434 skip must not trip it).
 if grep -Eq -- '#671 claude plugin validate --strict.*blocking-gate.*claude CLI not on PATH' "$LOG_FILE"; then
-  printf 'run-shard.sh: ::error:: the #671 plugin-validate gate self-skipped for CLI absence on shard %s — the claude CLI must be installed on whichever shard hosts that gate (see .github/workflows/ci.yml). Failing loudly rather than reverting the gate silently (issue #1830).\n' "$SHARD" >&2
+  printf '::error::run-shard.sh: the #671 plugin-validate gate self-skipped for CLI absence on shard %s — the claude CLI must be installed on whichever shard hosts that gate (see .github/workflows/ci.yml). Failing loudly rather than reverting the gate silently (issue #1830).\n' "$SHARD" >&2
   shard_rc=1
 fi
 

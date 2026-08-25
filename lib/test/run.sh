@@ -43684,10 +43684,8 @@ assert_eq "#671 ci.yml: the install command string sets pipefail" "yes" \
   "$(devflow_ci_shard_has 'set -o pipefail')"
 #
 # ── issue #1830: monolith-only CLI install + the fail-loud gate-armed backstop ──
-# The CLI install and verify steps now run on the `monolith` shard only (the sole CLI
-# consumer), so the other four shards make no claude.ai fetch. lib/test/run-shard.sh
-# scans every shard's log and FAILS a shard whose log shows the #671 plugin-validate gate
-# self-skipped for CLI absence, closing the silent-revert exposure that narrowing reopens.
+# The install/verify steps run on the `monolith` shard only; lib/test/run-shard.sh scans
+# every shard's log and FAILS one showing the #671 gate self-skipped for CLI absence.
 # structural-pin-ok: cross-file-phase-contract -- the `if:` is what confines the CLI install to the one consuming shard; dropped, the install reverts to all five shards (issue #1830 AC1)
 assert_eq "#1830 ci.yml: the CLI install step is gated on the monolith shard" "yes" \
   "$(devflow_ci_shard_has "if: matrix[.]shard == 'monolith'")"
@@ -43721,12 +43719,26 @@ esac
 printf '1 passed, 0 failed\n'
 CGA_EOF
 chmod +x "$CGA_TREE/lib/test/run.sh"
+# Stub run-module.sh: a MODULE shard runs this (not run.sh). It emits a clean module tally
+# plus the #671 CLI-absence skip, so the `migration` case below proves the backstop fires
+# on a NON-monolith shard — a regression scoping the guard to `monolith` by name reverts it.
+cat > "$CGA_TREE/lib/test/run-module.sh" <<'CGA_EOF'
+#!/usr/bin/env bash
+printf 'Module %s: 1 passed, 0 failed\n' "${1:-stub}"
+printf '  SKIP  #671 claude plugin validate --strict (plugin tree + descent matrix) [blocking-gate] — claude CLI not on PATH — not run\n'
+CGA_EOF
+chmod +x "$CGA_TREE/lib/test/run-module.sh"
 assert_eq "#1830 run-shard: the #671 CLI-absence skip FAILS the monolith shard" "nonzero" \
   "$(cd "$CGA_TREE" && CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-rev" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
 assert_eq "#1830 run-shard: an unrelated #434 blocking-gate skip does NOT fail the monolith shard" "zero" \
   "$(cd "$CGA_TREE" && CGA_CASE=only434 DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-434" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
 assert_eq "#1830 run-shard: a clean log passes the monolith shard" "zero" \
   "$(cd "$CGA_TREE" && CGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-clean" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+# Migration-detection: the backstop runs on EVERY shard, not just monolith. A MODULE shard
+# whose log carries the #671 CLI-absence skip must ALSO fail — a regression scoping the guard
+# to `monolith` by name would pass every case above while silently reverting this property.
+assert_eq "#1830 run-shard: a non-monolith (module) shard whose log carries the #671 skip ALSO fails" "nonzero" \
+  "$(cd "$CGA_TREE" && DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-mig" bash lib/test/run-shard.sh modules-pin >/dev/null 2>&1 && echo zero || echo nonzero)"
 rm -rf "$CGA_TREE"
 # Coupling pin: the run-shard.sh backstop regex and run.sh's own #671 skip() lines are a
 # coupled pair (issue #1830) — a reword of either that drifts them apart silently disarms
