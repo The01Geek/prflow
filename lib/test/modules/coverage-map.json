@@ -297,6 +297,11 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/context_eval_shared.py": {
+      "focused_test": "lib/test/test_context_eval_shared.py",
+      "note": "issue #1900 shared transcript-walking helpers for the three context-cost instruments; tested directly by lib/test/test_context_eval_shared.py (serial)",
+      "owner": "unmodularized"
+    },
     "scripts/create-issue-benchmark.py": {
       "focused_test": "lib/test/test_create_issue_benchmark.py",
       "note": "provider-neutral create-issue benchmark CLI (compatibility wrapper over create_issue_benchmark.py); its re-exports and main dispatch are covered by WrapperTest in its serial focused test",
@@ -1515,6 +1520,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1900": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "1903": {
       "note": "",
       "owner": "efficiency-trace-telemetry"
@@ -1524,6 +1533,10 @@
       "owner": "efficiency-trace-telemetry"
     },
     "191": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1911": {
       "note": "",
       "owner": "unmodularized"
     },

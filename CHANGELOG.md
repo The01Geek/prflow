@@ -4,6 +4,22 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.13] — 2026-08-25
+
+### Changed
+- **Single-sourced the shared transcript-walking helpers in the context-cost instruments.**
+  Five helpers were duplicated across `scripts/create_issue_eval.py`,
+  `scripts/implement-context-eval.py` and `scripts/review-context-eval.py` —
+  `_iter_session_files`, `_median`, `_context_tokens`, the per-field usage reader, and the
+  `UNESTABLISHED` sentinel. They now have one definition in a new
+  `scripts/context_eval_shared.py` that each instrument imports, so a fix lands once instead of
+  drifting across three private copies (the drift that produced #1899's defect). (#1926)
+
+## [2.34.12] — 2026-08-25
+
+### Added
+- **Warn when a provider `env` map sets a key that silently overrides a dedicated field or the job environment.** The provider-endpoint injection step in the cloud workflows now prints a single `::warning::` when a provider's `env` map names `ANTHROPIC_BASE_URL`, `API_TIMEOUT_MS`, `HOME`, or `RUNNER_TEMP`, naming every matched key. Matching is case-folded and whole-name, mirroring the existing deny guard. The `env` map's value still takes effect — the warning is advisory and never refuses the run — so no existing provider configuration changes behavior. (#1919)
+
 ## [2.34.11] — 2026-08-25
 
 ### Fixed

@@ -32967,7 +32967,10 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     : > "$R313_GENV"
     # Do not re-list the denied names here: read them out of the extracted step body, so a name
     # ADDED to the guard's IN(...) is covered by this loop instead of shipping untested.
-    R1773_KEYS="$(printf '%s\n' "$R313_INJ_BODY" | sed -n 's/.*ascii_upcase | IN(\([^)]*\)).*/\1/p' | tr ',' '\n' | tr -d '"' | tr -d ' ')"
+    # Anchor to the deny guard's OWN denied_env_keys= assignment (issue #1911): the warn block below
+    # carries a second `ascii_upcase | IN(...)` line, and an unanchored sed would sweep the watched
+    # (warn, not deny) keys into the per-key refusal loop, failing the suite on names meant to warn.
+    R1773_KEYS="$(printf '%s\n' "$R313_INJ_BODY" | sed -n '/denied_env_keys=/s/.*ascii_upcase | IN(\([^)]*\)).*/\1/p' | tr ',' '\n' | tr -d '"' | tr -d ' ')"
     # Assert extracted-is-a-SUPERSET of this list, never a count: a rename or typo inside IN(...)
     # leaves the extracted count unchanged while dropping a real name, and the loop then tests the
     # misspelling. Adding a denied name keeps this green, so a new name needs no edit here.
@@ -33103,6 +33106,103 @@ CLAUDE_CODE_SUBAGENT_MODEL'
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
     assert_eq "#313/#1770 inject-body: bearer arm with AWS_REGION in env map runs unchanged, no bedrock token, NO warning (AC 9)" "yes" \
       "$(grep -qxF 'ANTHROPIC_BASE_URL=https://g' "$R313_GENV.kv" && grep -qxF 'ANTHROPIC_AUTH_TOKEN=sekret' "$R313_GENV.kv" && grep -qxF 'AWS_REGION=us-east-1' "$R313_GENV.kv" && ! grep -q 'AWS_BEARER_TOKEN_BEDROCK' "$R313_GENV.kv" && ! printf '%s' "$R313_OUT" | grep -qF '::warning::' && echo yes || echo no)"
+    : > "$R313_GENV"
+    # --- issue #1911: warn (never deny) when the env map names a watched key ---
+    # rc 0 iff the ::warning:: "env map sets key(s): <names>" segment names <key>, word-anchored —
+    # a bare substring search would pass on the static prose, not the guard's dynamic key echo.
+    r1911_warns_key() {  # <output> <key>
+      case "$1" in *'env map sets key(s): '*) : ;; *) return 1 ;; esac
+      R1911_SEG="${1#*env map sets key(s): }"
+      R1911_SEG="${R1911_SEG%% —*}"
+      printf '%s' "$R1911_SEG" | grep -qE "(^| )$2( |$)"
+    }
+    # Read the watched set out of the extracted warn block (anchored to warned_env_keys=), so a name
+    # ADDED to the warn IN(...) is covered here with no hand edit — a deletion/rename/typo goes RED.
+    R1911_KEYS="$(printf '%s\n' "$R313_INJ_BODY" | sed -n '/warned_env_keys=/s/.*ascii_upcase | IN(\([^)]*\)).*/\1/p' | tr ',' '\n' | tr -d '"' | tr -d ' ')"
+    R1911_EXPECTED='ANTHROPIC_BASE_URL API_TIMEOUT_MS HOME RUNNER_TEMP'
+    R1911_MISSING=""
+    for R1911_EXP in $R1911_EXPECTED; do
+      printf '%s\n' "$R1911_KEYS" | grep -qxF "$R1911_EXP" || R1911_MISSING="$R1911_MISSING $R1911_EXP"
+    done
+    R1911_EXTRA=""
+    for R1911_GOT in $R1911_KEYS; do
+      printf '%s\n' "$R1911_EXPECTED" | tr ' ' '\n' | grep -qxF "$R1911_GOT" || R1911_EXTRA="$R1911_EXTRA $R1911_GOT"
+    done
+    assert_eq "#1911 inject-body: the warn block watches EXACTLY the four documented keys, no more no fewer (AC 1; deletion/rename/typo/addition goes RED)" "" "$R1911_MISSING$R1911_EXTRA"
+    R1911_ON_DENYLIST=""
+    for R1911_W in $R1911_KEYS; do
+      printf '%s\n' "$R1773_KEYS" | grep -qxF "$R1911_W" && R1911_ON_DENYLIST="$R1911_ON_DENYLIST $R1911_W"
+    done
+    assert_eq "#1911 inject-body: no watched key is also a denied key, so the refusal loop covers deny names only (AC 7)" "" "$R1911_ON_DENYLIST"
+    # AC 1 + AC 2: each watched key warns, names itself, exits 0, and is STILL written to $GITHUB_ENV.
+    for R1911_W in $R1911_KEYS; do
+      R313_RC=0
+      R313_OUT="$( export DECISION="{\"env\":{\"$R1911_W\":\"x\"}}" AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+      assert_eq "#1911 inject-body: watched key $R1911_W warns and exits 0 (AC 1 — report and continue)" "yes" \
+        "$([ "$R313_RC" -eq 0 ] && printf '%s' "$R313_OUT" | grep -qF '::warning::' && r1911_warns_key "$R313_OUT" "$R1911_W" && echo yes || echo no)"
+      gh_kv "$R313_GENV" > "$R313_GENV.kv"
+      assert_eq "#1911 inject-body: watched key $R1911_W is STILL written to \$GITHUB_ENV (AC 2 — the env map still wins)" "yes" \
+        "$(grep -qxF "$R1911_W=x" "$R313_GENV.kv" && echo yes || echo no)"
+      rm -f "$R313_GENV.kv"; : > "$R313_GENV"
+    done
+    # AC 3: case-folded — a lower-case spelling warns exactly as the upper-case name does.
+    R313_OUT="$( export DECISION='{"env":{"home":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )"
+    assert_eq "#1911 inject-body: a lower-case watched key (home) warns (AC 3 — case-folded)" "yes" \
+      "$(r1911_warns_key "$R313_OUT" 'home' && echo yes || echo no)"
+    : > "$R313_GENV"
+    # AC 3: whole-name — a longer name CONTAINING a watched key does NOT warn.
+    R313_OUT="$( export DECISION='{"env":{"HOMEDIR":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )"
+    assert_eq "#1911 inject-body: a longer name containing a watched key (HOMEDIR) does NOT warn (AC 3 — whole-name)" "yes" \
+      "$(printf '%s' "$R313_OUT" | grep -qF '::warning::' && echo no || echo yes)"
+    : > "$R313_GENV"
+    # AC 1: two watched keys emit ONE ::warning:: naming both (the join collects all, not just first).
+    R313_OUT="$( export DECISION='{"env":{"HOME":"x","RUNNER_TEMP":"y"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )"
+    assert_eq "#1911 inject-body: two watched keys emit ONE ::warning:: naming both (AC 1)" "yes" \
+      "$([ "$(printf '%s\n' "$R313_OUT" | grep -cF '::warning::')" = "1" ] && r1911_warns_key "$R313_OUT" 'HOME' && r1911_warns_key "$R313_OUT" 'RUNNER_TEMP' && echo yes || echo no)"
+    : > "$R313_GENV"
+    # AC 4: an env map naming none of the four → NO warning at all.
+    R313_OUT="$( export DECISION='{"env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"glm-4.7"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )"
+    assert_eq "#1911 inject-body: an env map naming none of the four produces NO warning (AC 4)" "yes" \
+      "$(printf '%s' "$R313_OUT" | grep -qF '::warning::' && echo no || echo yes)"
+    : > "$R313_GENV"
+    # The Bedrock arm with ANTHROPIC_BASE_URL in the map: the map-decided watched-key warning fires
+    # and the step still exits 0 (the case where the step's own base_url-ignored warning disagrees).
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{"AWS_REGION":"us-east-1","ANTHROPIC_BASE_URL":"http://x"}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#1911 inject-body: bedrock arm with ANTHROPIC_BASE_URL in the map warns for it and exits 0" "yes" \
+      "$([ "$R313_RC" -eq 0 ] && r1911_warns_key "$R313_OUT" 'ANTHROPIC_BASE_URL' && echo yes || echo no)"
+    : > "$R313_GENV"
+    # AC 8: a provider entry with NO env key at all warns nothing and exits 0 (the warn block's own
+    # reading of an absent .env introduces no new failure).
+    R313_RC=0
+    R313_OUT="$( export DECISION='{}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#1911 inject-body: a provider entry with no env key warns nothing and exits 0 (AC 8 — absent .env)" "yes" \
+      "$([ "$R313_RC" -eq 0 ] && printf '%s' "$R313_OUT" | grep -qF '::warning::' && echo no || echo yes)"
+    : > "$R313_GENV"
+    # AC 8: a non-object .env still fails closed exactly as today (the deny guard catches it first);
+    # the warn block adds no new failure mode. Non-zero exit, no top-level env var written.
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":"oops"}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    R313_TOPKEYS="$(gh_topkeys "$R313_GENV")"
+    assert_eq "#1911 inject-body: a non-object .env still fails closed as today, warn block adds no new failure (AC 8)" "yes" \
+      "$([ "$R313_RC" -ne 0 ] && [ -z "$R313_TOPKEYS" ] && echo yes || echo no)"
+    : > "$R313_GENV"
+    # AC 5 + deny-before-warn ordering: a denied key alongside a watched key refuses first
+    # (::error::, non-zero) and no ::warning:: leaks — guards a future reorder that put the warn
+    # block above the deny guard, which would warn on a run that is about to refuse.
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{"github_token":"x","HOME":"y"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#1911 inject-body: a denied key beside a watched key refuses first (::error::, non-zero) with no ::warning:: leaking (AC 5 + deny-before-warn ordering)" "yes" \
+      "$([ "$R313_RC" -ne 0 ] && printf '%s' "$R313_OUT" | grep -qF '::error::' && ! printf '%s' "$R313_OUT" | grep -qF '::warning::' && echo yes || echo no)"
+    : > "$R313_GENV"
+    # AC 1/AC 2 valid-falsy: a watched key with an empty-string value still warns and is still
+    # written (jq keys[] is value-agnostic; the valid-falsy row CLAUDE.md's config matrix calls
+    # load-bearing, mirroring #1770's empty-string AWS_REGION case).
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{"HOME":""}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    R313_TOPKEYS="$(gh_topkeys "$R313_GENV")"
+    assert_eq "#1911 inject-body: a watched key with an empty-string value still warns and is still written (AC 1/AC 2 — valid-falsy)" "yes" \
+      "$([ "$R313_RC" -eq 0 ] && r1911_warns_key "$R313_OUT" 'HOME' && printf '%s\n' "$R313_TOPKEYS" | grep -qxF 'HOME' && echo yes || echo no)"
     rm -f "$R313_GENV" "$R313_GENV.kv"
   else
     echo "  SKIP  #313 inject-body behavioral checks (no writable temp / body extraction failed)"
@@ -49832,6 +49932,14 @@ RCE_TEST_OUT="$(python3 "$LIB/test/test_review_context_eval.py" 2>&1)"
 RCE_TEST_RC=$?
 assert_eq "issue #1852: review context eval focused tests pass" "0" "$RCE_TEST_RC"
 [ "$RCE_TEST_RC" -eq 0 ] || while IFS= read -r _rce_line || [ -n "$_rce_line" ]; do printf '    %s\n' "$_rce_line"; done <<< "$RCE_TEST_OUT"
+
+# context_eval_shared coverage (issue #1900): the five helpers single-sourced out of the three
+# instruments. Asserts strict post-#1899 behavior on scripts/context_eval_shared.py + that each
+# instrument (and the create-issue shim) re-exports the SAME object. INVOKES the test, not a script.
+CES_TEST_OUT="$(python3 "$LIB/test/test_context_eval_shared.py" 2>&1)"
+CES_TEST_RC=$?
+assert_eq "issue #1900: shared context-eval helpers focused tests pass" "0" "$CES_TEST_RC"
+[ "$CES_TEST_RC" -eq 0 ] || while IFS= read -r _ces_line || [ -n "$_ces_line" ]; do printf '    %s\n' "$_ces_line"; done <<< "$CES_TEST_OUT"
 
 # harness-python-guards contract coverage (issue #707: extracted from this file's
 # #600 / #527 / #528 / #668 / #798 / #810 / #591 Python guard blocks into a focused

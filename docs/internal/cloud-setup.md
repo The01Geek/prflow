@@ -112,9 +112,9 @@ writes changes into your repository, so download it, read it, then run the file 
 read:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.11/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.13/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.34.11 bash devflow-install.sh
+DEVFLOW_REF=v2.34.13 bash devflow-install.sh
 ```
 
 Both refs are pinned to the same **release tag**, so the install is reproducible.
@@ -1609,8 +1609,9 @@ given `claude_model`).
 The per-entry field reference — `base_url`, `auth`, `timeout_ms`,
 `effort_supported`, and the `env` map — lives in
 [`.prflow/config.schema.json`](../../.prflow/config.schema.json) under
-`providers`, which is the single source for those fields. Two operational
-notes the schema does not carry:
+`providers`, which is the single source for those fields. The schema carries
+the full name inventory below; these three operational notes add the runtime
+behavior it does not describe:
 
 - **The `env` map is name-filtered before export** into the job environment. It is read
   only from maintainer-controlled config (base-ref for the runner, the trusted
@@ -1629,9 +1630,16 @@ notes the schema does not carry:
   `agent_overrides` review roster to one model; use
   `ANTHROPIC_DEFAULT_HAIKU_MODEL` to map only the background model). The match is
   case-insensitive; any other valid env-var name is still exported verbatim. An accepted key is
-  written *after* the step's own exports, so it wins over `ANTHROPIC_BASE_URL` and
-  `API_TIMEOUT_MS` — neither is denied, and an `env` map naming one silently overrides the
-  value the step resolved from `base_url` / `timeout_ms` (issue #1892).
+  written *after* the step's own exports, so it takes effect for every later job step.
+  Distinct from that deny list — which stops the run — a beside-it **warn block** covers four
+  *watched* keys that are accepted but reported: `ANTHROPIC_BASE_URL`, `API_TIMEOUT_MS`, `HOME`,
+  `RUNNER_TEMP`. When the `env` map names one or more of them the step prints a single
+  `::warning::` naming every match and **continues** (it does not refuse the run). The map's
+  value still wins — being written last, it overrides the value the step resolved from
+  `base_url` / `timeout_ms`, or the job's own `HOME` / `RUNNER_TEMP` for later steps — so the
+  warning makes that silent override visible without changing it (issues #1892, #1911). Watched-key
+  matching is case-folded and whole-name, the same rule the deny guard applies (`home` warns like
+  `HOME`; `HOMEDIR` does not). A map naming none of the four warns nothing.
 - **The empty-secret guard.** If a section names a provider while
   `DEVFLOW_PROVIDER_API_KEY` is empty at run time, the job fails loud with an
   `::error::` naming the section and provider, before the action runs. (The secret

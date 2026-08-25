@@ -1069,6 +1069,10 @@ class NoAutoInvocationTest(unittest.TestCase):
         # run.sh names the script in its block comment but INVOKES the test, not the
         # script — a description, not an auto-invocation.
         "lib/test/run.sh",
+        # The shared helper module (issue #1900) NAMES the instrument in its docstring, and
+        # that module's focused test LOADS it to assert re-export identity — neither invokes it.
+        "scripts/context_eval_shared.py",
+        "lib/test/test_context_eval_shared.py",
     })
 
     def test_nothing_but_the_focused_test_invokes_the_script(self):
