@@ -50821,13 +50821,12 @@ assert_eq "#908 AC1: the settings input registers a PreToolUse hook naming the g
   "$(grep -qF '/scripts/pretooluse-shape-guard.py\"' "$_908_RUNNER_YML" && grep -qF '"PreToolUse"' "$_908_RUNNER_YML" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- pins the JSON hook-command string (trailing escaped quote makes the literal code-only, never a comment mention) so a regression that drops the guard from the hook body — while leaving prose referencing it elsewhere — is caught
 
 # ── #1047: the hook command must fail OPEN when the INTERPRETER is absent ────────────
-# The command probes for the guard SCRIPT and exits 0 when it is missing, but it ends in
-# an `exec python3` that exits 127 where no python3 is on PATH — routine on a self-hosted
-# Windows runner, which is why this repo ships scripts/provision-python3-shim.sh. A
-# non-zero PreToolUse exit BLOCKS the tool call rather than falling through (recorded in
-# the guard's own main()), so an unguarded exec blocked every Bash call for a consumer
-# still running the pre-#937 review tier. Driven BEHAVIORALLY, not by substring: a probe
-# written AFTER the exec would satisfy any grep for it while changing nothing.
+# Do NOT swap these for a substring pin on the probe: a probe written AFTER the `exec`
+# satisfies any grep while still exiting 127, and a non-zero PreToolUse exit BLOCKS the
+# call. Why the interpreter can be absent: docs/internal/cloud-allowlist.md, guard section.
+# Do NOT convert the PyYAML arm below into a skip(): PyYAML is a suite REQUIREMENT, not a
+# host capability, so a skip here would manufacture a never-clean-pass where the adjacent
+# #908 extractor fails closed on the same dependency with this same sentinel.
 _1047_hookcmd() {  # $1 = workflow -> the registered guard hook command, or a failing token
   python3 - "$1" 2>/dev/null <<'PY' || echo extractor-failed
 import json, sys
@@ -50856,15 +50855,16 @@ if [ -n "$_1047_CMD" ] && [ "$_1047_CMD" != extractor-failed ]; then
   _1047_WS="$(mktemp -d)"
   mkdir -p "$_1047_WS/scripts" "$_1047_WS/emptybin"
   printf 'import sys\nsys.exit(9)\n' > "$_1047_WS/scripts/pretooluse-shape-guard.py"
-  # PATH holding no python3 (and no git — the `git rev-parse` arm already falls back).
+  # Pin CLAUDE_PROJECT_DIR: the hook falls back to it when `git rev-parse` fails, so an
+  # ambient value resolves $_g to the REAL guard and both arms stop testing the stub.
   # $BASH, not a bare `bash`: a PATH-prefixed assignment applies BEFORE command lookup, so
   # a bare head would itself be unfindable and the 127 would measure the harness, not the hook.
-  ( cd "$_1047_WS" && PATH="$_1047_WS/emptybin" "$BASH" -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
+  ( cd "$_1047_WS" && CLAUDE_PROJECT_DIR="$_1047_WS" PATH="$_1047_WS/emptybin" "$BASH" -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
   _1047_RC_ABSENT=$?
   assert_eq "#1047: hook command fails OPEN (exit 0) when python3 is absent from PATH" "0" "$_1047_RC_ABSENT"
   # ...and the probe must not have turned the hook into a no-op where python3 DOES exist:
   # the stub guard exits 9, so 9 is the proof the interpreter was still reached.
-  ( cd "$_1047_WS" && bash -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
+  ( cd "$_1047_WS" && CLAUDE_PROJECT_DIR="$_1047_WS" "$BASH" -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
   _1047_RC_PRESENT=$?
   assert_eq "#1047: hook command still reaches the guard when python3 IS present" "9" "$_1047_RC_PRESENT"
   rm -rf "$_1047_WS"
