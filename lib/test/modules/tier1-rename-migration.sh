@@ -1183,7 +1183,7 @@ b=json.load(open(sys.argv[1]))["frozen"]["env_identifiers"]
 both=set(r["name"] for r in b["identifiers"])&set(r["name"] for r in b["adjudicated_out"])
 print(" ".join(sorted(both)) or "disjoint")' "$T1_MAP" 2>/dev/null)"
 assert_eq "#1004 the adjudicated-out set is exactly the names the record excludes" \
-  "DEVFLOW_CONFIG_FILE DEVFLOW_PROMPT_EXTENSION_ROOT DEVFLOW_TRIGGERING_USER" \
+  "DEVFLOW_CONFIG_FILE DEVFLOW_PROMPT_EXTENSION_ROOT DEVFLOW_REFRESH_REAP_GLOB DEVFLOW_REFRESH_SELFTEST_FAILED DEVFLOW_TRIGGERING_USER" \
   "$(python3 -c '
 import json,sys
 b=json.load(open(sys.argv[1]))["frozen"]["env_identifiers"]
