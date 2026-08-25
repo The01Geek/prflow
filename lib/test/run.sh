@@ -1108,7 +1108,7 @@ assert_eq "deferred.labels: SKILL applies configured labels via one collapsed ap
 assert_eq "deferred.labels: SKILL no longer carries a separate config-get read in the deferral channels (#1855, helper reads config)" "no" \
   "$(grep -qF 'config-get.sh .deferred.labels PRFlow,Deferred' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: absence pin: the separate config read is GONE (expected no)
 assert_eq "deferred.labels: the label call sites no longer carry a separate per-label ensure-label.sh call (#1855, helper folds creation)" "0" \
-  "$(cat "$LIB/../skills/implement/phases/phase-4-documentation.md" "$LIB/../skills/implement/references/deferred-ac-followups.md" "$LIB/../skills/implement/references/deferred-review-findings.md" | grep -cF 'ensure-label.sh "<label>"' || true)"  # raw-guard-ok: absence pin scoped to the label CALL-SITE files (the generic shape example in SKILL.md's Cloud-command-shape section is out of scope): the per-label ensure call is GONE (expected 0)
+  "$(cat "$LIB/../skills/implement/phases/phase-4-documentation.md" "$LIB/../skills/implement/references/deferred-ac-followups.md" "$LIB/../skills/implement/references/deferred-review-findings.md" | grep -cF 'ensure-label.sh "<label>"' || true)"  # raw-guard-ok: absence pin scoped to the label CALL-SITE files: the per-label ensure call is GONE (expected 0). #1855 also retired the quoted shape example from SKILL.md's Cloud-command-shape section, so no per-label ensure form remains in the bundle at all.
 # issue #1011: Phase 4.0 registers the parent as a GitHub-native blocked-by dependency of each
 # filed follow-up, immediately after the label stamp — one single-statement, leading-token,
 # per-issue helper call (the same emission discipline the label helpers carry).
@@ -15002,6 +15002,12 @@ assert_eq "#1855 apply-labels: an object-typed configured value (wrong-type) emi
 printf '%s' '{"docs":{"labels":["Documented","Reviewed"]}}' > "$I1855_CFG/.prflow/config.json"
 assert_eq "#1855 apply-labels: an array-typed configured value comma-joins into a valid label list and applies" "applied" \
   "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+# A MIXED array containing a non-scalar (object) element coerces element-wise to
+# "Documented,[object Object]" — not the bare sentinel — so the guard must match the sentinel
+# as a SUBSTRING, else the garbage element slips through and is applied as a label reported 'applied'.
+printf '%s' '{"docs":{"labels":["Documented",{"foo":"bar"}]}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: a mixed array with a non-scalar (object) element emits 'config-unreadable' (substring guard)" "config-unreadable" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
 #   * MISSING key — config-get.sh exits 0 with empty stdout, so the caller's fallback is applied.
 printf '%s' '{"other":"x"}' > "$I1855_CFG/.prflow/config.json"
 assert_eq "#1855 apply-labels: a missing config key resolves to the caller's fallback and applies" "applied" \
@@ -15049,6 +15055,16 @@ chmod +x "$I1855_TMP/gh_ae_taken"
 I1855_ELE_TAKEN="$(DEVFLOW_GH="$I1855_TMP/gh_ae_taken" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
 assert_eq "#1855 ensure-label: the 'already been taken' arm is classified as success (not a failure)" "no" \
   "$(printf '%s' "$I1855_ELE_TAKEN" | grep -qiF 'could not ensure label' && echo yes || echo no)"
+# Case-insensitivity (matches the retired `grep -qiE`): a differently-cased already-exists body
+# must still classify as success, via `shopt -s nocasematch`, not fall through to the failure arm.
+cat > "$I1855_TMP/gh_ae_cased" <<'STUB'
+#!/usr/bin/env bash
+echo "gh: Validation Failed: Label Already Exists (HTTP 422)" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_ae_cased"
+I1855_ELE_CASED="$(DEVFLOW_GH="$I1855_TMP/gh_ae_cased" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
+assert_eq "#1855 ensure-label: a differently-cased 'Already Exists' body is still classified as success (case-insensitive match)" "no" \
+  "$(printf '%s' "$I1855_ELE_CASED" | grep -qiF 'could not ensure label' && echo yes || echo no)"
 rm -rf "$I1855_TMP"
 
 # ── apply-pr-triggerer.sh: best-effort PR assignment to the triggerer (#1165) ──
