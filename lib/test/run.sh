@@ -32308,8 +32308,10 @@ assert_eq "#247 preflight partial copy: degraded remedy names the override value
 # ── T5d (reshaped by #275) — the SKILL.md shell mirrors are gone (normalization is
 #    prompt-time prose now), so behavioral SKILL↔lib parity is no longer executable.
 #    lib/normalize-path.sh remains the canonical rules source (its own T4* behavioral
-#    tests above still exercise every arm); the prose paraphrase is pinned by
-#    T5/T5b/T5c. Keep the lib-side detection-regex pin so the helper's operative
+#    tests above still exercise every arm); the surviving prompt-time wslpath/cygpath
+#    probe fragment and its lib lockstep reference are pinned by T5/T5c (issue #1856
+#    removed T5b with the tool-less drive-letter paraphrase it guarded). Keep the
+#    lib-side detection-regex pin so the helper's operative
 #    detection line cannot be trimmed while its callers still rely on it. ──
 assert_eq "#247 lockstep: detection regex literal present in lib/normalize-path.sh" "yes" \
   "$(grep -qF '=~ ^[A-Za-z]:[\\/] ]]' "$NORMALIZE_PATH_SH" && echo yes || echo no)"
