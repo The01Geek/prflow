@@ -1782,8 +1782,36 @@ class TestPhaseEventAppend(Harness):
         )
 
     def test_default_location_under_prflow_logs(self):
-        # No --log-dir: the default resolves under .prflow/logs/ per the AC.
+        # No --log-dir: the record must actually land under <cwd>/.prflow/logs/ per
+        # the AC — exercise the Path.cwd()/PHASE_EVENTS_DIRNAME default, not just the
+        # constant. chdir into the scratch tmp so the write never pollutes the repo.
         self.assertIn(os.path.join(".prflow", "logs"), vf.PHASE_EVENTS_DIRNAME)
+        cwd = os.getcwd()
+        os.chdir(self.tmp)
+        try:
+            code, _ = self.run_cmd(["event", "phase2-checkpoint"])
+        finally:
+            os.chdir(cwd)
+        self.assertEqual(code, vf.EXIT_OK)
+        landed = Path(self.tmp) / vf.PHASE_EVENTS_DIRNAME / vf.PHASE_EVENTS_FILENAME
+        self.assertTrue(landed.is_file())
+        self.assertEqual(json.loads(landed.read_text(encoding="utf-8"))["event"], "phase2-checkpoint")
+
+    def test_non_object_payload_breadcrumbs_but_still_records(self):
+        log_dir = os.path.join(self.tmp, "phase-events")
+        buf_err = io.StringIO()
+        with redirect_stderr(buf_err):
+            code, _ = self.run_cmd(
+                ["event", "shadow-entry", "--log-dir", log_dir, "--payload", "[1, 2]"]
+            )
+        self.assertEqual(code, vf.EXIT_OK)
+        rec = json.loads(
+            self._events_file(log_dir).read_text(encoding="utf-8").splitlines()[0]
+        )
+        self.assertEqual(rec["event"], "shadow-entry")
+        # the non-object arm still writes the base record and emits its own breadcrumb
+        self.assertEqual(set(rec), {"event", "recorded_at"})
+        self.assertIn("non-object", buf_err.getvalue())
 
     def test_optional_payload_merged_reserved_keys_protected(self):
         log_dir = os.path.join(self.tmp, "phase-events")

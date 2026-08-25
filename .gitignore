@@ -19,6 +19,11 @@
 # per-checkout diagnostics, not a relayed record (see docs/internal/efficiency-trace.md) —
 # keep it out of the tree so a run's flight events are never committed.
 /.prflow/logs/verification-flight/
+# Phase-boundary event log (issue #1853): LOCAL per-run diagnostics written by
+# verification-flight.py's `event` subcommand. Must come AFTER the !/.prflow/logs/
+# negation, which would otherwise re-include it and let a run's transient phase
+# events be committed.
+/.prflow/logs/phase-events/
 # Per-run review workpads. These lived in the tree before issue #441 moved the
 # durable copies to the prflow-telemetry branch, which is now their canonical
 # home; lib/efficiency-trace.sh reads them from there and keeps the working-tree
