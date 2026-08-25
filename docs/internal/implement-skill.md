@@ -897,6 +897,9 @@ exact remedy. See [`cloud-setup.md`](cloud-setup.md#extending-the-tool-allowlist
 is live only after that PR merges, because the workflows resolve config grants at trigger time from the default branch, not from the PR's own head.
 So a run must not rely on a grant its own PR ships: grant the command in a prior merged change, or
 leave that verification for after merge.
+The **introduced-helper** case of this rule is stated in the shipped skill body
+(`skills/implement/SKILL.md`, *Cloud command-shape discipline*); this paragraph remains the broader
+statement about `allowed_tools` grants generally.
 The shared review engine, executed inline by Phase 3.3, takes its **test evidence from the orchestrator's
 own in-env suite/lint results** for the current HEAD — never a CI conclusion. (The read-only `review`
 runner is a separate, unchanged case: its wait-for-CI-then-review posture is the correct *post-PR*
@@ -997,6 +1000,13 @@ Phase 3.3's `review-and-fix` loop runs a verification as its first act, so the j
 `/simplify` edits ride into that first verification. A fresh commit does not, on its own,
 owe a verification round when the very next step verifies it — `skills/implement/phases/phase-3-review.md`
 §3.2 states this for the shipped skill.
+
+After `/simplify` completes, Phase 3.2 also writes one machine-findable **outcome record** to the
+workpad — a `## Progress` `--note` opening with the fixed lead phrase `simplify outcome:`, tallying
+findings generated, applied, and skipped as AC conflicts (all zero when `/simplify` reported the
+diff already clean, so a zero-yield run is distinguishable from a run that never wrote the record).
+It gives the weekly retrospective a per-run signal it can grep by lead phrase to measure §3.2's
+yield across runs; `skills/implement/phases/phase-3-review.md` §3.2 states the shipped contract.
 
 The Phase 3.2 tick passes the **host-safe substring** `simplify`, not `/simplify`, while the
 displayed `` `/simplify` `` Progress row keeps its label. A standalone slash-leading argument is

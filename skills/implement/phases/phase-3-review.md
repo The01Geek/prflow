@@ -215,6 +215,10 @@ If `/simplify` reported the code was already clean and made no changes, skip the
 
 No verification round is owed between §3.2 and §3.3. This commit ships without its own full-suite run: §3.3's `review-and-fix` loop runs a verification as its first act, and the `/simplify` edits just committed ride into that first verification. So do not launch a full suite here to verify the `/simplify` commit — a fresh commit does not, on its own, owe a verification round when the very next step verifies it.
 
-Then tick the `/simplify` gate: `workpad.py update $ISSUE_NUMBER --tick-progress "simplify"`.
+Then, in one call, tick the `/simplify` gate and record the step's outcome — written on **every** run, since §3.2 is unconditional:
+
+`workpad.py update $ISSUE_NUMBER --tick-progress "simplify" --note "simplify outcome: findings generated=<N>, applied=<M>, skipped-as-AC-conflict=<K>"`
+
+`<N>` is the findings `/simplify` produced this run, `<M>` how many you applied, `<K>` how many you skipped as AC conflicts above. When `/simplify` reported the diff already clean, record the same `simplify outcome:` lead phrase with all three tallies zero.
 
 <!-- prflow:implement-ref phase=3 file=skills/implement/phases/phase-3-review.md end -->
