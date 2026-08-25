@@ -21,7 +21,7 @@ Prompt size, delivered context, and model behavior are related but not identical
 
 ## Source of truth
 
-- `scripts/create-issue-context-eval.py` and `scripts/implement-context-eval.py` — legacy context instruments; `scripts.create_issue_eval` also owns run-addressable manifest analysis and formal grading.
+- `scripts/create-issue-context-eval.py` and `scripts/implement-context-eval.py` — context instruments; `scripts.create_issue_eval` also owns run-addressable manifest analysis and formal grading.
 - `scripts/create-issue-benchmark.py` — provider-neutral paired execution, statistical reporting, and anonymized review export.
 - `scripts/workflow_flight_recorder.py` — transcript and workflow evidence.
 - `scripts/prompt-surface-growth.py` — prompt-surface measurement.

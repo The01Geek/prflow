@@ -91,9 +91,9 @@ rests on specific entry-gate text in `skills/implement/SKILL.md`, quoted here.
 routes every phase from that single statement. Since issue #1606 a phase routes to an
 **ordered set** of reference files rather than to one file, so the entry gate reads, verbatim:
 
-> **Each phase routes to an ordered SET of reference files, not to one file.** At the start
-> of **every** phase, before taking any action in it, `Read` every member of that phase's set
-> under `<skill-dir>/phases/`, in the order stated here, and follow them exactly …
+> Each phase routes to an ordered SET of reference files, not to one file. At the start of
+> every phase, before taking any action in it, `Read` every member of that phase's set under
+> `<skill-dir>/phases/`, in the order stated here, and follow them exactly:
 
 followed by a table pairing each phase with its ordered set. Phase 1 and Phase 4 hold one
 member each; Phases 2 and 3 hold three each.
@@ -112,6 +112,11 @@ dispatched `branch-setup` subagent, following #1576's earlier move of Phase 1.6'
 Issue-Claim Audit procedure into `issue-claim-auditor`). These are on-disk `wc -c` byte
 counts, quoted in KiB. They rot as the phase files change; re-derive them rather than
 trusting these numbers.
+
+**The phase-file set has grown from four files to eight since this table was taken** —
+issue #1606 split Phases 2 and 3 into ordered sets — so the four rows below are the set as
+it stood at `2c85a931d`, not today's. The table is a frozen record and is deliberately not
+re-rendered; re-derive today's figures with the command beneath it.
 
 | file | bytes | KiB | loader |
 |---|---|---|---|
@@ -141,15 +146,15 @@ sum of ~381 KiB — the sum being the figure the framing above gets wrong.
 
 The same single entry-gate statement continues, verbatim:
 
-> These reads are required **on every entry** — including a resumed or re-entrant run that
+> These reads are required on every entry — including a resumed or re-entrant run that
 > picks up at a later phase — never relying on a read from an earlier phase or session.
 
 and `skills/implement/SKILL.md`'s **Mid-phase re-anchor after a Skill-tool return**
 rule adds, verbatim (since issue #1876 scoped it to the displaced member):
 
 > after **every** Skill-tool return mid-phase — `simplify`, `review-and-fix`, or any
-> other — read it back (`workpad.py resume-point`), re-`Read` **only the one member of
-> the reference set under `<skill-dir>/phases/` holding it**, and resume …
+> other — read it back (`workpad.py resume-point`), re-`Read` only the one member of the
+> reference set under `<skill-dir>/phases/` holding it, and resume …
 
 So a run that bounces through Phase 3's fix loop pays for Phase 3's whole file set again on
 every pass, and a run that calls out to a nested skill and returns pays for only the one
@@ -307,11 +312,53 @@ the sidechain exclusion, phase-file basename matching including a vendored path,
 run over 200K, and a phase-3 re-entry); they are **not** a measurement of any real
 `/prflow:implement` run.
 
-### Real corpus snapshot (maintainer measurement obligation — UNFILLED)
+### Real corpus snapshot (documented past-time snapshot — NOT live)
 
-No real-corpus snapshot has been captured yet. When a maintainer captures one, record it
-here stamped with its provenance — the generating revision, the capture date, and the
-corpus size (run count) — and mark it clearly as a **past-time snapshot**, not a live
-figure, exactly as `docs/internal/create-issue-context.md`'s "Corpus-derived headline
-snapshot" section does. Re-derive any figure with the command above rather than trusting a copied
-number; a figure a reader treats as current rots the moment the measured thing changes.
+The corpus that produced these figures lives only on the maintainer's machine, so
+**no CI check can re-derive them**. They are a documented past-time snapshot, stamped
+with provenance, and are **never** presented as a live-generated figure. No gate,
+ceiling, or threshold reads them; the snapshot's integrity rests on its stamped
+provenance alone.
+
+| Field | Value |
+| --- | --- |
+| Generating instrument | `scripts/implement-context-eval.py` |
+| Generating revision | `cccf0e5f7038c5e5460383ce3c7bdd962b3e21a7` |
+| Capture date | 2026-08-25 |
+| Corpus size | 6,647 session transcripts from one local Claude Code account, yielding **148** bounded `/prflow:implement` runs |
+| Tier covered | local/interactive only (see *Cloud-tier runs are not measurable today* below) |
+| Median peak main-thread context | **138K** tokens |
+| Max peak main-thread context | **424K** tokens |
+| Runs exceeding 200K | **31** of 148 |
+| Runs exceeding 400K | **1** of 148 |
+| `compact_boundary` events | **13** across **11** of 148 runs |
+| Median / max turns per run | **13** / **255** |
+| Phase-file reads, corpus total | phase-1 157, phase-2 59, phase-3 23, phase-4 4 |
+| Median / max phase-file reads per run | **1** / **8** |
+| Median / max main-thread tool calls per run | **6** / **167** |
+| Turns with no `usage` object | **0** |
+
+A later maintainer adds a second stamped record beneath this one rather than editing this
+one in place: re-rendering a past-time record overwrites the measurement and falsifies it.
+
+Re-derive a real-corpus figure by pointing the instrument at a transcript directory:
+
+```
+python3 scripts/implement-context-eval.py <transcript-dir> --format json
+```
+
+That is a different command from the fixture reproduction above, which runs against the
+committed synthetic corpus and re-derives nothing about a real run. No transcript path is
+recorded here: `lib/test/test_implement_context_eval.py` scans this page for owner-identifying
+path shapes, so writing one in turns the suite red.
+
+**What the corpus shows.** Phase-1 reads dominate the corpus total, and the per-run
+distribution is heavily skewed — a median run reads one phase file while the heaviest reads
+eight. The tail, not the median, is what the re-read multiplier costs: a median run peaks at
+138K while the heaviest reaches 424K. Compaction fired in 11 of 148 runs, so it is an
+observed local-tier event rather than a hypothetical one.
+
+**Cloud-tier runs are not measurable by this tool today.** `devflow-implement.yml` uploads
+its scrubbed transcript under a name ending `.json`, while the collector in
+`scripts/context_eval_shared.py` accepts only names ending `.jsonl` — so a cloud transcript
+is skipped with no error at all, and the corpus above is local/interactive by construction.
