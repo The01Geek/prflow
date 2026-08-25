@@ -35580,6 +35580,32 @@ with tempfile.TemporaryDirectory() as _td1811:
     _res = _cleanup1811('--slug', 'never-created', '--root', str(Path(_td1811)))
     assert_eq("#1811 cleanup: absent run dir exits 0 non-destructively", 0, _res.returncode)
 
+# A trailing valueless flag must terminate — a bare `shift 2` on the last-arg flag
+# spins the arg loop forever under set -u; run under a timeout so a regression fails
+# loudly (rc 124) instead of hanging the suite.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _kept = _seed1811(_r, 'kept', pointer_slug='kept')
+    _res = _sp1811.run(['timeout', '5', 'bash', str(_CLEANUP1811), '--root', str(_r), '--slug'],
+                       capture_output=True, text=True)
+    assert_eq("#1811 cleanup: a trailing valueless --slug terminates (no arg-loop spin)",
+              0, _res.returncode)
+    assert_eq("#1811 cleanup: the valueless-flag empty handle removes nothing",
+              True, _kept.exists())
+
+# Multi-root, present-under-A / absent-under-B: the reaper removes A's run dir and
+# treats B's absent dir as a non-error, with each root's pointer handled on its own.
+with tempfile.TemporaryDirectory() as _td1811a, tempfile.TemporaryDirectory() as _td1811b:
+    _rA, _rB = Path(_td1811a), Path(_td1811b)
+    _dA = _seed1811(_rA, 'slug', pointer_slug='slug')
+    _ci1811_dir(_rB, 'create-issue').parent.mkdir(parents=True, exist_ok=True)  # B has the namespace but no run dir
+    _res = _cleanup1811('--slug', 'slug', '--root', str(_rA), '--root', str(_rB))
+    assert_eq("#1811 cleanup: mixed roots exits 0", 0, _res.returncode)
+    assert_eq("#1811 cleanup: reaps the present run dir under root A", False, _dA.exists())
+    assert_eq("#1811 cleanup: removes root A's own-slug pointer", False, _ci1811_ptr(_rA).exists())
+    assert_eq("#1811 cleanup: absent run dir under root B is a non-error (no B pointer created)",
+              False, _ci1811_ptr(_rB).exists())
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

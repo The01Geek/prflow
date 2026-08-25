@@ -15,8 +15,11 @@ slug=""
 roots=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --slug) slug="${2:-}"; shift 2 ;;
-    --root) roots+=("${2:-}"); shift 2 ;;
+    # `shift; [ … ] && shift` consumes the value only when one is present. A bare
+    # `shift 2` on a trailing valueless flag fails under set -u without moving $#,
+    # spinning this loop forever — breaking the best-effort/never-blocks contract.
+    --slug) slug="${2:-}"; shift; [ "$#" -gt 0 ] && shift ;;
+    --root) roots+=("${2:-}"); shift; [ "$#" -gt 0 ] && shift ;;
     *) printf '%s: warning: ignoring unexpected argument %s\n' "$prog" "$1" >&2; shift ;;
   esac
 done
