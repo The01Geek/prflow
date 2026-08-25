@@ -1027,7 +1027,7 @@ pattern alone under-reports this class by construction, which is why the rows ab
 population rather than pinning a number to it.
 
 **A fourth class evades them too: a target prefixed by a rendered PLACEHOLDER.**
-`> "<main-root>/.prflow/tmp/issue-body-<slug>.md"` in `create-issue/references/issue-template.md`
+`> "<main-root>/.prflow/tmp/create-issue/<slug>/issue-body-<slug>.md"` in `create-issue/references/issue-template.md`
 is a real redirect into the scratch tree, but no pattern anchored at `.prflow/tmp` sees it, because
 the literal begins with `<main-root>/`. Enumerate this population by resolving each redirect
 token's target and testing for `.prflow/tmp` anywhere within it — never by anchoring the pattern at
@@ -1047,7 +1047,7 @@ the start of the target.
 | `skills/retrospective-weekly/SKILL.md` | mixed stdout, append and stderr redirects | **local only** — no workflow dispatches this command | **left unchanged** |
 | `skills/review/phases/phase-3-agents.md` | dirty-tree snapshot/restore fences, enumerated by a complete redirect-operator search of the fence: 2 × stdout capture to a defaulted-expansion target (`> "${GIT_SNAP_BEFORE:-…}"` and the `…AFTER…` equivalent), 4 × `printf … >>` append inside a `while read` loop (literal target, expanded `"$rec"`/`"${rec:3}"` in argument position), 2 × input redirect to a defaulted-expansion target (`done < "${GIT_SNAP_BEFORE:-…}"`, `done < "${GIT_SNAP_AFTER:-…}"`), 3 × input redirect to a literal target (2 × `tr '\0' ' ' < ".prflow/tmp/…"`, 1 × `done < ".prflow/tmp/…"`), 4 × literal-target stdout write with no expansion (the `printf '%s\n' disabled > ".prflow/tmp/review-dirty-tree-disabled"` sentinel, and the 3 `printf '%s' '' > ".prflow/tmp/review-dirty-tree-{before,changed,renamed}-paths"` scratch-init writes guarded on exit status) | cloud | **Recorded — not rewritten (issue #1734).** Cause 1 (`simple_expansion`) dominates; the input-redirect sites and the 4 literal-target stdout writes are newly enumerated. See the per-occurrence adjudication below. |
 | `skills/implement/phases/phase-3-fix-loop.md` | 2 × `--persist` stderr capture to a `$(mktemp)` target — `2>"$PERSIST_ERR"` and `2>>"$PERSIST_ERR"` (the second an append) — each statement additionally led by the unexpanded `${CLAUDE_SKILL_DIR:-…}` anchor | cloud (`/prflow:implement`) | **Recorded — not rewritten (issue #1734).** Cause 2 (the `/tmp` target) **and** the denied anchor leading token. See the per-occurrence adjudication below. |
-| `skills/create-issue/references/issue-template.md` | 1 × stdout redirect to the placeholder-prefixed target `"<main-root>/.prflow/tmp/issue-body-<slug>.md"` | **local only** — no workflow dispatches `/prflow:create-issue` | **left unchanged** |
+| `skills/create-issue/references/issue-template.md` | 1 × stdout redirect to the placeholder-prefixed target `"<main-root>/.prflow/tmp/create-issue/<slug>/issue-body-<slug>.md"` | **local only** — no workflow dispatches `/prflow:create-issue` | **left unchanged** |
 
 #### Per-occurrence adjudication of the three deferred populations (issue #1734)
 

@@ -10,7 +10,7 @@ yet.
 
 **Produce the map before any mechanism prose exists** — not alongside it, and not to justify a design
 you have already chosen. Write an **Interaction-surface map** block into this run's derivation
-artifact (`.prflow/tmp/issue-derivation-<slug>.md`, which the Step 2 gate already requires; in a
+artifact (`.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md`, which the Step 2 gate already requires; in a
 read-only sandbox it goes in the same visible chat block that stands in for that file). The block has
 four parts, in this order. Every entry is a **`Verified:` bullet quoting the sentence from the file
 verbatim, with its location**:
