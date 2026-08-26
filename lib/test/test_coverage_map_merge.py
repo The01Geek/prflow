@@ -419,7 +419,7 @@ class RetentionOutcomeSelectionTest(unittest.TestCase):
 
     KEY_LOSS: ClassVar[list[str]] = ["[retain] files key 'lib/x.sh' ... absent"]
     WHY: ClassVar[list[str]] = ["the base map at abc123 carried no files/run_sh_blocks keys"]
-    SUBSTITUTED: ClassVar[list] = [("could not compute a merge base against origin/main; compared "
+    SUBSTITUTED: ClassVar[list[str]] = [("could not compute a merge base against origin/main; compared "
                    "against origin/main's tip instead")]
 
     def test_clean_requires_an_established_comparand(self):

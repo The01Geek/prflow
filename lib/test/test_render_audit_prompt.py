@@ -1583,7 +1583,7 @@ class AbsPathHostAbsoluteWidening(unittest.TestCase):
     # (input, accepted-on-posixpath, accepted-on-ntpath). The full input-shape matrix
     # the path check must classify, each asserted on BOTH path modules because the same
     # string is absolute on one and relative on the other.
-    MATRIX: ClassVar[list] = [
+    MATRIX: ClassVar[list[tuple[str, bool, bool]]] = [
         ("/Users/x/f.md", True, False),          # POSIX absolute
         ("C:/Users/x/f.md", False, True),        # drive-letter, forward slashes
         ("C:\\Users\\x\\f.md", False, True),     # drive-letter, backslashes

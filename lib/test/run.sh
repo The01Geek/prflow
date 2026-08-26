@@ -55118,7 +55118,7 @@ if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
   if [ "$RUFF_FIX_RC" -eq 1 ] && printf '%s\n' "$RUFF_FIX_OUT" | grep -q 'E731'; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
   assert_eq "#1621 ruff Python-lint gate fires on a known E731 violation (non-vacuity)" yes "$RUFF_FIX_FIRES"
 else
-  skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.15.*' arms it at the desk"
+  skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.16.*' arms it at the desk"
 fi
 
 # ── #1621: ci.yml's two ruff pins are a coupled pair; reconcile them mechanically ──
