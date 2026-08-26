@@ -9,6 +9,10 @@ Writing standard. Before composing this phase's first `--reflection` bullet, rea
 
 `workpad.py update $ISSUE_NUMBER --status Reviewing`.
 
+### 3.0 Changed-file lint (advisory)
+
+Lint exactly what this branch changed by invoking `preflight.py lint-changed` as a direct leading token — never `python3 <path>` (the matcher denies that interpreter head), never a `bash` wrapper. It selects the changed population through the trigger-time validated lint manifest and runs the per-file invocation each file needs, so a file requiring a special invocation is linted with its own form rather than the broad one or not at all. Repository-wide advisory lint is `preflight.py lint-full`. These in-session lint results are advisory feedback, never terminal completion evidence, and a lint tool absent from PATH is a named non-success in the receipt, not an install to attempt.
+
 ### 3.1 Create Draft PR
 
 Base-branch update checkpoint 2 (pre-draft-PR) — run FIRST, before `gh pr create`. Immediately before the draft PR exists, bring the feature branch up to date with the configured base so the self-review (3.2) and the first review pass (3.3) see current base. Invoke the shared checkpoint helper — it derives the base branch *internally* (from `base_branch`, the same fail-closed fallback the draft-PR block re-derives below), so no `$BASE` needs to be in scope here:
