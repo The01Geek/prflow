@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2014",
+  "generated_at": "2026-08-26T23:07:41Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.868588750000002,
+    "tokens": {
+      "input_tokens": 56,
+      "output_tokens": 33309,
+      "cache_read_input_tokens": 4426540,
+      "cache_creation_input_tokens": 210130,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 99,
+        "outputTokens": 45590,
+        "cacheReadInputTokens": 5293843,
+        "cacheCreationInputTokens": 521107,
+        "webSearchRequests": 0,
+        "costUSD": 7.83207275,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 56,
+        "outputTokens": 10761,
+        "cacheReadInputTokens": 1231070,
+        "cacheCreationInputTokens": 273032,
+        "webSearchRequests": 0,
+        "costUSD": 1.0365160000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 48,
+    "duration_ms": 550305
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "cd /home/runner/work/prflow/prflow\necho \"=== moved modules still in exactly one shard each (union check) ===\"\nfor m in installer-wiring parallel-suite-runner tier1-rename-migration experiment-records; do\n  echo -n \"$m: \"; grep -oE \"\\b$m\\b\" lib/test/run-shard.sh | wc -l\ndone\necho \"=== other refs to these module ids across repo ===\"\ngrep -rnE 'installer-wiring|parallel-suite-runner|tier1-rename-migration|experiment-records' --include=*.sh --include=*.yml --include=*.py --include=*.json lib/test .g …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-2014/80f58aba9ea03b94c5ecbec937edc72500f9d4be/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2014/80f58aba9ea03b94c5ecbec937edc72500f9d4be/verdicts/iter-1/VC-1-n7a3k9.json << 'EOF'\n{\"id\":\"VC-1\",\"verdict\":\"PASS\",\"evidence\":\"Read lib/test/run-shard.sh at head 80f58aba9ea03b94c5ecbec937edc72500f9d4be: _shard_modules maps modules-pin -> {harness-python-guards}, modules-large -> 9 ids, modules-rest -> 10 ids (total 20). Compared union against scripts/workflow-flight-record …[per-command-truncated]",
+      "git show 80f58aba9ea03b94c5ecbec937edc72500f9d4be:lib/test/run-shard.sh > /tmp/new-run-shard.sh\ngit diff 80f58aba9ea03b94c5ecbec937edc72500f9d4be^ 80f58aba9ea03b94c5ecbec937edc72500f9d4be -- lib/test/run-shard.sh",
+      "mkdir -p .prflow/tmp/review/pr-2014/80f58aba9ea03b94c5ecbec937edc72500f9d4be/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2014/80f58aba9ea03b94c5ecbec937edc72500f9d4be/verdicts/iter-1/VC-4-m9n0b5.json <<'EOF'\n{\"id\":\"VC-4\",\"verdict\":\"PASS\",\"evidence\":\"Post-change membership from lib/test/run-shard.sh (line 57 modules-large, line 58 modules-rest) at head 80f58aba9ea03b94c5ecbec937edc72500f9d4be. modules-large = retrospective-lifecycle(11.23)+review-trigger-helpers(12.84)+create-issue-contract(21.67 …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::devflow review: snapshot failed; dirty-tree backstop DISABLED\" >&2\n  rm -f \".prflow/tmp/review-dirty-tre …[per-command-truncated]"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
