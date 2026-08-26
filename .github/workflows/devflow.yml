@@ -2628,7 +2628,9 @@ jobs:
           # non-zero job conclusion are the only record (record unrecordable).
           record_non_arrival() {
             if [ -n "$PR_NUM" ]; then
-              gh pr comment "$PR_NUM" --repo "$REPO" --body "⛔ ${1:-prompt-extension arrival unestablished — the skill body / consumer extension did not reach the agent on this run.}" \
+              # REST (a PR is an issue), never `gh pr comment` porcelain, which resolves the
+              # repo via org-scoped GraphQL and fails under a repo-scoped token.
+              gh api --method POST "repos/$REPO/issues/$PR_NUM/comments" -f body="⛔ ${1:-prompt-extension arrival unestablished — the skill body / consumer extension did not reach the agent on this run.}" >/dev/null \
                 || echo "::warning::prompt-extension-arrival: could not write the durable non-arrival record to PR #$PR_NUM (record unrecordable)"
             else
               echo "::warning::prompt-extension-arrival: no PR number resolvable from command '$CMD' to record non-arrival (record unrecordable); the ::error:: and non-zero job conclusion are the only record"
