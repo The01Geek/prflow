@@ -942,22 +942,22 @@ def cmd_mark_running(args) -> int:
 #: coordinator's own verdict, and the ONLY operand that decides a coordinator run:
 #: it returns non-zero for a shard that did not complete even when the recombined
 #: tally reads clean, so the tally alone is not the result.
-_RE_AGGREGATE = re.compile(r"^run-parallel:\s+aggregate\s+(CLEAN|FAILED)\b", re.M)
+_RE_AGGREGATE = re.compile(r"^run-parallel:\s+aggregate\s+(CLEAN|FAILED)\b", re.MULTILINE)
 #: `Module <id>: N passed, M failed[, K skipped]` — run-module.sh's terminal line,
 #: which is also the only place the module id appears in its own log.
-_RE_MODULE = re.compile(r"^Module\s+(\S+):\s+(\d+)\s+passed,\s+(\d+)\s+failed", re.M)
+_RE_MODULE = re.compile(r"^Module\s+(\S+):\s+(\d+)\s+passed,\s+(\d+)\s+failed", re.MULTILINE)
 #: `run-shard.sh: retained log: <abs>` — the shard runner's self-identification.
-_RE_SHARD = re.compile(r"^run-shard\.sh:\s+retained log:", re.M)
+_RE_SHARD = re.compile(r"^run-shard\.sh:\s+retained log:", re.MULTILINE)
 #: The tally line every runner and the recombination print.
 _RE_TALLY = re.compile(
-    r"^(\d+)\s+passed,\s+(\d+)\s+failed(?:,\s+(\d+)\s+skipped)?\s*$", re.M
+    r"^(\d+)\s+passed,\s+(\d+)\s+failed(?:,\s+(\d+)\s+skipped)?\s*$", re.MULTILINE
 )
 #: Itemized skip lines (`  SKIP  <name> ...`), the population the tally counts.
-_RE_SKIP_LINE = re.compile(r"^\s*SKIP\s+(.*\S)\s*$", re.M)
+_RE_SKIP_LINE = re.compile(r"^\s*SKIP\s+(.*\S)\s*$", re.MULTILINE)
 #: `run-parallel: elapsed <N>s`.
-_RE_ELAPSED = re.compile(r"^run-parallel:\s+elapsed\s+(\d+)s\b", re.M)
+_RE_ELAPSED = re.compile(r"^run-parallel:\s+elapsed\s+(\d+)s\b", re.MULTILINE)
 #: `run-parallel: retained logs: <path>` / `run-shard.sh: retained log: <path>`.
-_RE_RETAINED = re.compile(r"^(?:run-parallel:\s+retained logs|run-shard\.sh:\s+retained log):\s+(\S.*?)\s*$", re.M)
+_RE_RETAINED = re.compile(r"^(?:run-parallel:\s+retained logs|run-shard\.sh:\s+retained log):\s+(\S.*?)\s*$", re.MULTILINE)
 
 
 class RunnerLogError(Exception):
