@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1977",
+  "generated_at": "2026-08-26T03:09:19Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.39",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.8989415,
+    "tokens": {
+      "input_tokens": 58,
+      "output_tokens": 44414,
+      "cache_read_input_tokens": 5075183,
+      "cache_creation_input_tokens": 240466,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 104,
+        "outputTokens": 82340,
+        "cacheReadInputTokens": 6129748,
+        "cacheCreationInputTokens": 619728,
+        "webSearchRequests": 0,
+        "costUSD": 9.8989415,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 57,
+    "duration_ms": 824292
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-EMPTY} ATTEMPT=${GITHUB_RUN_ATTEMPT:-EMPTY} ACTIONS=${GITHUB_ACTIONS:-EMPTY}\"",
+      "git stash list >/dev/null 2>&1; python3 lib/test/lint-internal-docs.py 2>&1 | head -40; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "echo \"=== docs/internal tracked .md count (independent: git ls-files) ===\"; git ls-files 'docs/internal/**.md' | wc -l\necho \"=== live lint audited count ===\"; (python3 lib/test/lint-internal-docs.py 2>&1 | tail -3)\necho \"=== is baseline file in orphan reference corpus (lib/ prefix)? ===\"; git ls-files lib/test/internal-docs-baseline.json\necho \"=== do baselined orphan paths appear as text in the baseline (self-reference)? ===\"\nfor p in claude-md-relocated-rationale create-issue-prehunt-valid-na-e …[per-command-truncated]"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
