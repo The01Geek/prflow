@@ -1123,7 +1123,7 @@ if [ "$OVER" = "yes" ]; then
   export MARKER
   if OPEN="$(gh issue list --state open --search "in:title \"$MARKER\"" --json number,title --jq 'map(select(.title == env.MARKER)) | .[0].number // empty')"; then
     if [ -n "$OPEN" ]; then
-      # Post via the repo-scoped REST helper, not `gh issue comment` porcelain, which resolves the
+      # Post via the repo-scoped REST helper, not the issue-comment porcelain, which resolves the
       # repo via org-scoped GraphQL and silently no-ops under a repo-scoped token.
       printf '%s\n' "New reading: $READING." > .prflow/tmp/suite-runtime-tripwire-comment.md
       bash "$LIB/../scripts/post-issue-comment.sh" "$OPEN" .prflow/tmp/suite-runtime-tripwire-comment.md
