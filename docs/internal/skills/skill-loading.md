@@ -25,8 +25,8 @@ Treating every Markdown byte as one runtime budget leads to incorrect fixes. A p
 - `scripts/load-prompt-extension.sh` — consumer extension loading.
 - `scripts/render-prompt-extension.sh` and `scripts/render-audit-prompt.py` — prompt composition and extraction.
 - `lib/test/lint-reference-size.py` — reference-size guard.
-- `docs/internal/skill-body-load-delivery.md` — delivery evidence.
-- `docs/internal/architecture/prompt-surfaces.md` — ownership and coupling rules.
+- [`docs/internal/skill-body-load-delivery.md`](../skill-body-load-delivery.md) — delivery evidence.
+- [`docs/internal/architecture/prompt-surfaces.md`](../architecture/prompt-surfaces.md) — ownership and coupling rules.
 
 ## Related topics
 

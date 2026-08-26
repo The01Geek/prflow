@@ -1,5 +1,7 @@
 # Cutover — issue #1374: Phase 4.0.5 relocated behind a predicate-gated reference
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 `/prflow:implement` reads `skills/implement/phases/phase-4-documentation.md` in full on every
 Phase 4 entry, and again after the §4.1 documentation subagent returns. Both reads are
 mandated by the always-resident orchestrator, so neither is avoidable. §4.0.5's filing

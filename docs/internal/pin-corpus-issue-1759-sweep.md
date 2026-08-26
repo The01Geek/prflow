@@ -1,5 +1,7 @@
 # Pin-corpus residual-prose sweep — issue #1759 disposition record
 
+<!-- referenced-by-machine: comments in lib/test/modules/create-issue-contract.sh cite this exact path as their retirement disposition record — do not move, rename, or delete this file without updating those citations. -->
+
 This is the prose disposition record `CONTRIBUTING.md`'s *Retiring existence-only pins* rule
 requires for a pin-only prose retirement (the record is kept on the pull request / in the repo,
 never as a ledger row). Issue #1759 swept the 23 create-issue-associated prose pins (22 distinct

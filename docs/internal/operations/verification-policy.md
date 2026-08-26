@@ -25,7 +25,7 @@ The local and cloud tiers have different abilities to push and wait for CI. A ti
 - `lib/test/run-parallel.sh`, `lib/test/run-shard.sh`, and `lib/test/shard-tally.py` — whole-suite coordination.
 - `scripts/verification-flight.py` and `scripts/check-completion-evidence.py` — in-run evidence records.
 - `skills/implement/phases/phase-2-implement.md` and `skills/implement/phases/phase-3-review.md` — command-specific verification use.
-- `docs/internal/claude-md-tiered-suite-rationale.md` — detailed rationale and evidence.
+- [`docs/internal/claude-md-tiered-suite-rationale.md`](../claude-md-tiered-suite-rationale.md) — detailed rationale and evidence.
 
 ## Related topics
 

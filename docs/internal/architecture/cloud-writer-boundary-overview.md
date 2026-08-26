@@ -25,7 +25,7 @@ The source form and the emitted cloud form serve different consumers. Removing t
 - `lib/test/extract-command-heads.py` — helper-boundary classification.
 - `lib/test/cloud_writer_contract.py` and `scripts/validate-cloud-writer-contract.py` — cloud writer closure and validation.
 - `.github/workflows/devflow.yml`, `.github/workflows/devflow-implement.yml`, and `.github/workflows/devflow-runner.yml` — cloud call sites.
-- `docs/internal/cloud-writer-boundary.md` — detailed compatibility decision record.
+- [`docs/internal/cloud-writer-boundary.md`](../cloud-writer-boundary.md) — detailed compatibility decision record.
 
 ## Related topics
 

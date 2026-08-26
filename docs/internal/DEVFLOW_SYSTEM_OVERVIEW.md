@@ -751,13 +751,13 @@ The fix loop above applies the `prflow:receiving-code-review` principles inside 
 
 ## 9. Deep dive: shadow review
 
-> **This is one of PRFlow's most distinctive ideas, a great "wow" moment for a video.** Before `/prflow:review-and-fix` declares a clean approval, it **audits its own approval** with a structurally-independent re-review.
+> Before `/prflow:review-and-fix` declares a clean approval, it **audits its own approval** with a structurally-independent re-review.
 
 **The problem.** A fix loop's iterations *share state* (prior findings, fix decisions, pushback). That shared context biases the loop toward accepting its own earlier conclusions. So a clean approval from the loop is suspect, it might just be agreeing with itself.
 
 **The shadow pass (Step 2.6).** When the tentative verdict is **non-REJECT**, the engine runs **again** with the loop's accumulated state *withheld*. Topic-priming is a second, distinct leak channel beyond prior-findings leakage, so every shadow-pass subagent receives the engine's verbatim prompt, extension text classified for provenance, and the shadow engine's own full-diff artifacts — no orchestrator-added focus, priority, or scope. Provenance-failing extension text remains loaded for its quality value but is recorded as an addendum and cannot produce an attested clean result. The two results are compared. (A REJECT normally skips the shadow entirely.) On an `engine_self_modifying` PR — the highest-risk diffs in the repo — the shadow *also* fires on an **early trigger**: once after iteration 1, **regardless of that iteration's verdict (including REJECT)**, feeding any new blinded findings into iteration 2 via the same promotion machinery. Non-`engine_self_modifying` PRs keep the convergence-time trigger only. The early pass reuses the same blinded fan-out and is itself uncounted toward the iteration cap (a promoted iteration 2 it spawns counts, like any promotion); if iteration 1's `engine_self_modifying` flag cannot be read it **fails closed** and runs the early audit anyway. See `docs/internal/shadow-review.md`.
 
-**The portability constraint, and why it moved from one layer to two (a genuinely interesting engineering story; issue #1850).** The original rule was **one subagent layer**: the engine fans out to its own reviewer subagents, so the shadow pass ran the engine's phases *inline in the fix-loop's own context* and launched every reviewer normally, enforcing independence per-reviewer-prompt. That rule existed because nested dispatch is not portable across harnesses — on one that withholds it the capability is absent as a *missing tool* rather than an error, so a single "go run the whole engine" shadow subagent would silently flatten to a degraded single-agent self-check returning a plausible clean APPROVE, *the exact false-convergence the step is meant to prevent.* The fallback for such a harness is therefore **no-dispatch (run inline), never flattened-dispatch.**
+**The portability constraint, and why it moved from one layer to two (issue #1850).** The original rule was **one subagent layer**: the engine fans out to its own reviewer subagents, so the shadow pass ran the engine's phases *inline in the fix-loop's own context* and launched every reviewer normally, enforcing independence per-reviewer-prompt. That rule existed because nested dispatch is not portable across harnesses — on one that withholds it the capability is absent as a *missing tool* rather than an error, so a single "go run the whole engine" shadow subagent would silently flatten to a degraded single-agent self-check returning a plausible clean APPROVE, *the exact false-convergence the step is meant to prevent.* The fallback for such a harness is therefore **no-dispatch (run inline), never flattened-dispatch.**
 
 **Why two layers now.** Running the engine inline left ~242 KB of engine instruction text resident in the orchestrator's prefix for the rest of an implement run — re-billed as a cache read on each of the ~100 turns that follow Phase 3.3, roughly 20% of a $50 run (measured against run `32418005711`/issue #1870: every 100 KB left resident costs ~$0.05 per subsequent turn). Since nested dispatch has since been verified available at the depth this design needs (Claude Code CLI ≥ 2.1.219 re-enabled it at depth 3, governed by `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`; the design needs depth 2 — orchestrator, engine subagent, reviewer roster — and the cloud tier pins `anthropics/claude-code-action@v1` and sets `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` — the CLI version is that action's own internal constant, which this repo does not pin and which moves whenever the `v1` tag moves), the fix loop now **dispatches the review engine as an Agent-tool subagent** at both of its engine entries (Step 1 and the Step 2.6 shadow). The subagent's *first action is an unconditional capability check on its own toolset*: holding a delegation tool it runs the engine's Phases 0–4.3 and fans out the Phase 3 roster from **its own** context, returning `dispatch_mode: fanned-out`; holding none it returns `dispatch_mode: unavailable` immediately — having read no engine file and attempted no review — and the parent runs the engine inline exactly as before. Any non-well-formed fanned-out outcome also falls back to inline (fail-closed). So the engine's instruction text is now paid once inside a bounded subagent life and discarded on return, instead of being re-billed on every remaining orchestrator turn — while the floor is no worse than the old inline behavior. `dispatch_mode` has exactly two values (`fanned-out`, `unavailable`).
 
@@ -788,9 +788,9 @@ to opt into recovery.
 
 PRFlow treats documentation as part of "done." `/prflow:docs` orchestrates three steps in one session, sharing context forward:
 
-1. **`docs-sync-internal`**: ensures every code change on the branch has a corresponding internal-doc update (goal: 100% alignment). Proportional: major changes → comprehensive, trivial → none. Mandatory final step: **verify every factual claim against the codebase** (the single most common cause of inaccurate docs).
+1. **`docs-sync-internal`**: keeps the internal docs a current map a coding agent can start its exploration from. It reflects every behavior change on the branch in the page that owns that behavior — an in-place correction counts, and a change with no behavioral effect owes no update — and routes each write through the doc root's `index.md` rather than appending wherever a search landed. Mandatory final step: **verify every factual claim against the codebase** (the single most common cause of inaccurate docs).
 2. **`docs-sync-external`**: aligns customer-facing docs against the internal docs (the source of truth), removing confidential/internal-only content. Follows the single customer-facing Style Guide in `skills/docs-sync-external/SKILL.md` (AP style, term conventions, etc.) — the surviving source the other customer-facing skills now point at — plus the shared writing standard `lib/writing-standard.md` for the audience-neutral rules.
-3. **`docs-release-notes`**: if the change is customer-visible, appends a brief entry (`- **[Category] Short Title**: description. (#PR)`); otherwise skips the release note. Either way, if a `chore: bump version` commit is present, it reconciles that version's CHANGELOG entry — taking the version from `.claude-plugin/plugin.json` (not the bump commit's subject) and no-opping if no matching `## [version]` section exists (Step 4b).
+3. **`docs-release-notes`**: if the change is customer-visible, appends an entry of the form `- **[Category] Short Title** — two to three sentence description. (#PR)`; otherwise skips the release note. Either way, if a `chore: bump version` commit is present, it reconciles that version's CHANGELOG entry — taking the version from `.claude-plugin/plugin.json` (not the bump commit's subject) and no-opping if no matching `## [version]` section exists (Step 4b).
 
 ### Versioning (changesets)
 
@@ -803,7 +803,7 @@ Supporting skills:
 
 Doc paths are configurable (`docs.internal`, `docs.external`, `docs.release_notes_file`, `docs.changelog_file`); internal/external steps can be toggled off (`docs.internal_enabled`, `docs.external_enabled`).
 
-**Consistent discipline across all docs skills:** branch diffs use `git diff origin/main...HEAD` (three dots, branch-only changes); bare source paths only (no line numbers, which rot); the generation skills leave committing to the caller.
+**Shared discipline:** the two diff-driven skills (`docs-sync-internal`, `docs-release-notes`) read the branch with `git diff origin/main...HEAD` (three dots, branch-only changes); every docs skill references source by bare path only (no line numbers, which rot); and the generation skills leave committing to the caller.
 
 ---
 
@@ -1167,9 +1167,9 @@ The plugin install above runs **no installer script** — `install.sh` belongs t
 
 **Cloud tier (optional, from repo root)** — download, read, then run, with both refs pinned to a release tag:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.37/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.39/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.34.37 bash devflow-install.sh
+DEVFLOW_REF=v2.34.39 bash devflow-install.sh
 ```
 The URL ref fixes which installer bytes you review and run; `DEVFLOW_REF` (default `main`; a tag, SHA, or branch) fixes which ref the installer clones its payload from — pinning the URL alone leaves the payload on `main`. Substitute a newer tag in both places to move the pin; every version is tagged, so the [Tags page](https://github.com/The01Geek/prflow/tags) names the current one, while the [Releases page](https://github.com/The01Geek/prflow/releases) announces the feature releases — see [`docs/internal/install.md`](install.md#pinning-the-installer). Piping the download straight to `bash` works but forfeits the review step. Thin by default (installs workflows, actions, a local marketplace, a config scaffold, and pins `prflow_version`). `DEVFLOW_VENDOR=1` commits the tree instead.
 
@@ -1187,15 +1187,25 @@ skills/                  # one SKILL.md per skill
 ├── implement/phases/    #   /prflow:implement's per-phase reference files
 ├── implement/references/ #  /prflow:implement's predicate-gated references
 └── review/phases/       #   the review engine's gated per-phase references (§8)
-agents/                  # checklist-generator / -deduper / -verifier
+agents/                  # first-party subagents: the review-engine trio (checklist-generator /
+                         #   -deduper / -verifier), the implement discovery/planning pair
+                         #   (code-explorer, code-architect), the five vendored review agents,
+                         #   and the implement-phase helper agents (branch-setup, ac-*-verifier, …)
 scripts/                 # branch-for-issue.py, config-get.sh, ensure-label.sh,
                          #   apply-labels.sh, file-deferrals.py, match-deferrals.py, parse-acs.py,
                          #   workpad.py, …
-lib/                     # retrospective-loop helpers (*.sh, *.jq), preflight.sh, test/
+lib/                     # retrospective-loop helpers (*.sh, *.jq), preflight.sh, writing-standard.md, test/
 .github/                 # cloud tier: workflows + composite actions (incl. vendor-plugin)
-.prflow/                # config.example.json + config.schema.json (+ learnings/, logs/)
-docs/                    # cloud-setup.md, implement-skill.md, workflow-triggers.md,
-                         #   efficiency-trace.md, shadow-review.md, review-agent-overrides.md
+.prflow/                # config.example.json + config.schema.json (+ learnings/, logs/),
+                         #   prompt-extensions/, tracked live config.json
+.changeset/              # pending version-bump changesets (consumed on merge to main)
+docs/
+├── internal/            # developer/agent reference — start at docs/internal/index.md;
+│                        #   deep flat-root records (DEVFLOW_SYSTEM_OVERVIEW.md, implement-skill.md,
+│                        #   cloud-allowlist.md, cloud-setup.md, install.md, …), the categorized
+│                        #   layer (architecture/, skills/, agents/, workflows/, operations/,
+│                        #   improvement-loops/), and historical cutovers/
+└── external/            # customer-facing docs site (Mintlify), release-notes.md
 install.sh               # one-command cloud-tier install/update
 ```
 
@@ -1263,65 +1273,11 @@ Each mapping declares its source path and a positive `minimum_assertions` floor.
 
 ## 20. Glossary
 
-| Term | Meaning |
-|---|---|
-| **Workpad** | The single marker-tagged GitHub issue comment `/prflow:implement` maintains as the run's durable progress surface. |
-| **Verification checklist** | The list of every verifiable claim a diff makes, generated and then verified against source by the review engine. |
-| **`defect_signature`** | The tuple used to mechanically corroborate findings across reviewers; `skills/review/phases/phase-3-agents.md` defines its fields and, at Phase 3.2, the corroboration rule over them. |
-| **Shadow review** | A structurally-independent re-review run before declaring a clean approval, to audit the loop's self-agreement. |
-| **Scope-Acknowledged Findings** | The contract that lets a deliberately-deferred finding be tracked in a follow-up issue instead of re-raised as a REJECT. |
-| **Retrospective loop** | The weekly evaluator/optimizer pass that reads merged bot-PR evidence and proposes interventions. |
-| **Clean gate** | The mechanical filter that lets clean PRs be processed with zero LLM cost in the retrospective loop. |
-| **Thin install** | A cloud-tier install that doesn't commit the plugin tree; it's fetched at runtime, pinned to `prflow_version`. |
-| **Vendoring / materialization** | Placing the plugin at `.prflow/vendor/prflow/` so the CI sandbox can reach its helpers. |
-| **Partition invariant** | The rule (test-enforced) that PRFlow triggers always negate `@claude`, so PRFlow and Anthropic's Claude app never double-fire. |
-| **Local tier / cloud tier** | Skills run in your editor (no infra) vs. autonomous GitHub Actions automation. |
+The glossary moved to [`glossary.md`](glossary.md), which also defines the repository-private terms this file uses but never defined here (pin, shard, seam, single flight, adjudication, and more). Add new terms there, not here.
 
 ---
 
 ## 21. Messaging guide
 
-**Primary positioning.** *PRFlow is the workflow layer that makes agentic coding work on real codebases*, it doesn't just write code, it ships it: spec → plan → code → test → review → fix → document → review-ready PR, with a self-improving loop on top. Where out-of-the-box agents demo well on pet projects and stall on a real ticket in a large production codebase, PRFlow carries that ticket to the finish line.
+The messaging guide moved to [`positioning.md`](positioning.md) — the pitch, pillars, sales narrative, honest-claims guardrails, and demo script live there. This file stays a system reference; edit marketing copy on that page.
 
-**Best-fit user.** A developer or team working in a **large, business-grade codebase** (production/enterprise software) who has tried agentic coding and hit the wall where it works on toy projects but can't complete a real ticket, and who is already on Claude Code + GitHub. The angles below also resonate with adjacent audiences.
-
-**One-liner (StoryBrand elevator pitch, customer is the hero, PRFlow is the guide).** *We help developers drowning in half-finished AI pull requests turn a single request into a complete, review-ready PR, so they ship real features on a real codebase without cleaning up after the agent.*
-
-**Three pillars (use as the deck's spine):**
-1. **Works on real codebases, not just pet projects.** A one-line feature request → a codebase-grounded ticket → a complete PR ready for your final review, the full-round implementation out-of-the-box agents can't finish on production code. End-to-end, not just code; the steps a one-shot agent skips (tests, review, docs) are exactly the ones PRFlow won't.
-2. **Review that fixes what it finds.** A review-and-fix loop that applies the fixes and re-reviews until it approves, on top of independent verification checklists, a panel of specialized reviewers, mechanical corroboration, and a shadow pass that audits its own approval.
-3. **It learns.** A weekly retrospective reads its own track record and proposes the smallest fix that prevents the next mistake, humans approve.
-
-**Differentiators worth naming explicitly:**
-- "Ship the PR. Not the cleanup." (the hero tagline)
-- "Agentic coding that works on real codebases, not just pet projects."
-- "Committing code is the halfway point, not the finish line."
-- Shadow review, *it audits its own audit*, with honest calibration (narrows the gap, never closes it).
-- Self-improvement loop with an LLM/heuristic split (LLM only at two judgment points; everything else is zero-token deterministic).
-- Two tiers: works locally with **zero config**, scales to **autonomous** cloud automation with one secret by default.
-- Built on Claude Code's plugin system; ships its full review/discovery/authoring toolchain first-party (hard-forked from Anthropic's `pr-review-toolkit` + `feature-dev` agents and the `superpowers` skills, upstream licenses retained) — **zero companion-plugin dependencies**.
-- Security-explicit: base-ref trust boundary, deny-list floor, read-only-by-default reviewer.
-
-**The sales narrative (the argument arc, use it in a pitch, a landing page, or a talk):**
-
-- **Problem.** You've adopted an AI coding agent. It's dazzling on a demo repo, and then you point it at a real ticket in your actual production codebase, and it comes back half-done: wrong patterns, missing tests, stale docs, acceptance criteria unmet. Your engineers now spend *more* time fixing and reviewing the agent's output than the agent saved.
-- **The old way.** Babysit the agent prompt-by-prompt, or hand the whole ticket to a senior engineer who does spec → plan → implement → test → review → fix → document by hand, slowly, expensively, and inconsistently, on every ticket.
-- **Why now.** AI has made *writing* code cheap. The bottleneck moved to everything around it, planning against real architecture, rigorous review, keeping docs in sync, at scale, on every change. That's precisely where out-of-the-box agents stall.
-- **The new way.** PRFlow takes a one-line request, turns it into a codebase-grounded issue through a few sharp clarifying questions, then runs the full `/prflow:implement` lifecycle, plan, architect, implement, auto-generate the test automation it needs, review-and-fix iterations with a shadow pass that audits its own approval, and docs, and hands you a complete PR that meets every acceptance criterion. Then it improves itself every week.
-- **Proof.** Independent verification checklists; a panel of specialized reviewers with mechanical corroboration; shadow review (on PR #58 it agreed with full coverage, yet a standalone `/prflow:review` still surfaced hardening items, calibration kept honest); the weekly retrospective that opens its own improvement PRs.
-- **The ask.** `claude plugin install devflow`, runs locally with zero config; add one secret (by default) to go fully autonomous in CI.
-
-**Honest-claims guardrails (keep marketing accurate):**
-- The in-loop shadow review **narrows** the gap to an independent review; it does **not** replace a standalone `/prflow:review`. Don't claim it "guarantees" completeness.
-- A human still does the final review and merge, PRFlow gets the PR *ready*, it doesn't auto-merge.
-- The retrospective loop proposes interventions; **humans approve or reject**. It never auto-merges its own changes.
-- The local tier needs `git`, `gh`, `jq`, and Python 3.11+ on PATH (PyYAML is advisory on this tier — reported but not gated by preflight); the cloud tier needs `CLAUDE_CODE_OAUTH_TOKEN` by default (an optional third-party model provider adds `DEVFLOW_PROVIDER_API_KEY`).
-
-**Audiences & angles:**
-- **Engineering leaders:** consistency, auditability, reduced review burden, telemetry on reviewer effectiveness.
-- **Individual developers:** turn a rough idea into a merged PR without context-switching; runs in your editor with zero setup.
-- **Security/platform teams:** explicit threat model, base-ref trust boundary, read-only-by-default automation, one secret by default.
-- **AI/ML audience:** the evaluator/optimizer architecture, independent verification, structural-independence in self-review.
-
-**Demo beats for a video (in order):** rough idea → `/prflow:create-issue` interview → confirmed issue #42 → comment `/prflow:implement 42` → watch the workpad update live (🚀) → draft PR appears → review-and-fix loop + shadow pass → docs updated → PR flips to ready (🎉) → the review-gate check posts APPROVE → human merges. Optionally close with a `/prflow:retrospective-weekly` run filing an improvement issue for the next cycle, "it just got better."
-```
