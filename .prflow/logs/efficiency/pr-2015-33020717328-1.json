@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2015",
+  "generated_at": "2026-08-26T23:29:29Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 13.3727275,
+    "tokens": {
+      "input_tokens": 172,
+      "output_tokens": 46522,
+      "cache_read_input_tokens": 16783447,
+      "cache_creation_input_tokens": 222695,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 204,
+        "outputTokens": 51639,
+        "cacheReadInputTokens": 17787315,
+        "cacheCreationInputTokens": 376315,
+        "webSearchRequests": 0,
+        "costUSD": 13.3727275,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 104,
+    "duration_ms": 2532879
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset} RUN_ID=${GITHUB_RUN_ID:-unset}\"; git branch --show-current; git status --porcelain | head",
+      "scripts/prompt-surface-growth.py 2>&1 || .prflow/vendor/prflow/scripts/prompt-surface-growth.py 2>&1",
+      "scripts/prompt-surface-growth.py",
+      "ruff check 2>&1 | tail -30; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "/home/runner/work/_temp/prflow-lint-bin/ruff --version; /opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff --version",
+      "ls -la /home/runner/work/_temp/prflow-lint-bin/ruff; file /home/runner/work/_temp/prflow-lint-bin/ruff 2>/dev/null; head -c 200 /home/runner/work/_temp/prflow-lint-bin/ruff 2>/dev/null | cat -v | head -5",
+      "ls -la /home/runner/work/_temp/prflow-lint-bin/ruff",
+      "rm -f /home/runner/work/_temp/prflow-lint-bin/ruff && echo \"removed\" || echo \"rm-failed\"; ruff --version 2>&1 || echo \"ruff-gone\"",
+      ".prflow/vendor/prflow/scripts/checkout-fingerprint.py > .prflow/tmp/f.json; cat .prflow/tmp/f.json"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
