@@ -82,6 +82,13 @@ def _force_utf8_streams():
 def main(argv=None) -> int:
     _force_utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
+    # Refuse an unrecognized argument instead of ignoring it: a typo like `--chek`
+    # silently took the write path and rewrote the marker the caller asked it to check.
+    unknown = [a for a in argv if a != "--check"]
+    if unknown:
+        print(f"usage: generate-install-state.py [--check] (unrecognized: {unknown})",
+              file=sys.stderr)
+        return 2
     check = "--check" in argv
     fresh = build(_REPO_ROOT)
     serialized = json.dumps(fresh, indent=2) + "\n"

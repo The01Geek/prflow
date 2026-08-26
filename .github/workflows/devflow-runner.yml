@@ -1390,17 +1390,9 @@ jobs:
           adelim="OUT_EOF_$(date +%s%N)_$$"
           { printf 'args<<%s\n' "$adelim"; printf '%s\n' "$ARGS"; printf '%s\n' "$adelim"; } >> "$GITHUB_OUTPUT"
 
-      # Harden the setup-project-env composite action onto TRUSTED base-ref bytes
-      # before it runs (issue #1388). The review job checks out the PR HEAD, so
-      # ./.github/actions/setup-project-env would otherwise execute the PR's own
-      # copy of the action body — a PR editing that action could run its edit in
-      # the read-only review job. Overwrite the workspace copy with the base ref's
-      # bytes (fetched with the same trusted BASE_REF derivation baseprovision
-      # uses); a local `uses: ./…` action is loaded from the workspace when its
-      # step runs, so the subsequent step executes these trusted bytes. Fail
-      # CLOSED: if the trusted bytes cannot be materialized, do NOT fall back to
-      # the PR-head copy — the whole job aborts. Gated on the same opt-in as the
-      # provision step it protects.
+      # A local `uses: ./…` action runs the WORKSPACE copy, and this job checks out
+      # the PR head — so never let the trusted bytes fall back to the PR-head copy,
+      # or a PR editing this action runs its own edit in the review job (issue #1388).
       - name: Harden setup-project-env onto trusted base-ref bytes
         id: hardensetup
         if: steps.baseprovision.outputs.provision_env == 'true'
@@ -1412,8 +1404,13 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "$BASE_REF" ] || { echo "::error::no BASE_REF to harden setup-project-env against"; exit 1; }
-          git fetch --depth=1 origin "$BASE_REF" >/dev/null 2>&1 \
-            || { echo "::error::could not fetch base ref '$BASE_REF' to harden setup-project-env"; exit 1; }
+          # Keep the fetch's own diagnostic: this is a fail-closed security arm, and
+          # discarding stderr leaves an operator with no way to tell a missing ref from
+          # a transport failure on the step that aborts every review run.
+          if ! _fetch_err=$(git fetch --depth=1 origin "$BASE_REF" 2>&1 >/dev/null); then
+            echo "::error::could not fetch base ref '$BASE_REF' to harden setup-project-env: ${_fetch_err:-no diagnostic}"
+            exit 1
+          fi
           dir=".github/actions/setup-project-env"
           # Enumerate the action's files as they exist on the TRUSTED base ref and
           # materialize EVERY one over the PR-head copy, so a file the action gains
@@ -1436,11 +1433,40 @@ jobs:
               echo "::error::could not materialize trusted $f from base ref '$BASE_REF'"; exit 1
             fi
           done
+          # Membership by bash builtin, never `grep`: preflight guarantees no grep, and
+          # a missing one fails every test on the left of `||`, where set -e cannot
+          # fire, and prunes every trusted file this step just materialized.
+          _is_base_file() {
+            local cand=$1 bf
+            for bf in "${base_files[@]}"; do
+              [ "$bf" = "$cand" ] && return 0
+            done
+            return 1
+          }
+          # A newline-accumulated string, not an array: under `set -u` bash 3.2 treats
+          # ${#arr[@]} on a never-assigned-to array as unbound and aborts this
+          # security step on the ordinary nothing-to-prune run.
+          pruned=""
           while IFS= read -r head_f; do
-            printf '%s\n' "${base_files[@]}" | grep -qxF "$head_f" || rm -f "$head_f"
+            if ! _is_base_file "$head_f"; then
+              rm -f "$head_f"
+              pruned="${pruned}${head_f}"$'\n'
+            fi
           done < <(git ls-files -- "$dir")
           [ -f "$dir/action.yml" ] || { echo "::error::base ref '$BASE_REF' carries no $dir/action.yml; refusing to run a PR-head action body"; exit 1; }
           chmod +x "$dir"/*.sh 2>/dev/null || true
+          # Disclose what this step displaced. Without it the reviewing agent reads
+          # these base-ref bytes as untouched PR-head content — on exactly the file a
+          # PR editing this action is under review for.
+          if [ -n "${GITHUB_OUTPUT:-}" ]; then
+            _hs_d="HARDENSETUP_EOF_$(date +%s%N)_$$"
+            {
+              printf 'displaced_paths<<%s\n' "$_hs_d"
+              printf '%s\n' "${base_files[@]}"
+              [ -n "$pruned" ] && printf '%s' "$pruned"
+              printf '%s\n' "$_hs_d"
+            } >> "$GITHUB_OUTPUT"
+          fi
           echo "hardened setup-project-env from trusted base ref '$BASE_REF'"
 
       # Provision the runtime BEFORE Claude runs, but ONLY when the trusted base
@@ -2063,7 +2089,7 @@ jobs:
             printf '%s\n' "$_df_d"
           } >> "$GITHUB_OUTPUT"
 
-      # Join the two displaced-path producers (issue #874). HARDENED_PATHS used to
+      # Join every displaced-path producer (issue #874). HARDENED_PATHS used to
       # bind a SINGLE step's output, and harden_hooks publishes that output EMPTY on
       # its relevance-gate skip arm — so the truncated prompt-extension paths would
       # vanish from the grounding block on exactly the consumer runs where the
@@ -2093,6 +2119,10 @@ jobs:
           # the case this producer exists for, and it is a DevFlow-repo case, not the
           # consumer arm. The consumer below already handles empty (`[ -n "$GUARD_PATHS" ]`).
           GUARD_PATHS: ${{ steps.harden_guard.outputs.guard_paths }}
+          # Fourth producer (issue #1388), legitimately empty when hardensetup's
+          # `provision_env` gate skipped it. Omitting it let the reviewing agent read
+          # base-ref bytes as untouched PR-head content.
+          SETUP_PATHS: ${{ steps.hardensetup.outputs.displaced_paths }}
         run: |
           set -euo pipefail
           _j_d="JOINED_EOF_$(date +%s%N)_$$"
@@ -2103,6 +2133,7 @@ jobs:
             [ -n "$HOOK_PATHS" ] && printf '%s\n' "$HOOK_PATHS"
             [ -n "$EXT_PATHS" ] && printf '%s\n' "$EXT_PATHS"
             [ -n "$GUARD_PATHS" ] && printf '%s\n' "$GUARD_PATHS"
+            [ -n "$SETUP_PATHS" ] && printf '%s\n' "$SETUP_PATHS"
             printf '%s\n' "$_j_d"
           } >> "$GITHUB_OUTPUT"
 

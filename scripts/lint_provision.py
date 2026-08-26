@@ -128,9 +128,18 @@ class Plan:
 
     _RESOLVED_FIELDS = ("version", "digest", "archive_type", "member", "strategy", "url")
 
+    _ACCEPTED_KW = ("reason", "tool", "os", "arch", "version", "digest",
+                    "archive_type", "member", "strategy", "url")
+
     def __init__(self, status, **kw):
         if status not in ("established", "unsupported", "unestablished"):
             raise ValueError(f"invalid plan status: {status!r}")
+        # Reject an unknown keyword instead of absorbing it: a misspelled field left
+        # its real attribute None, and cache_key then composed the literal "None" —
+        # the stale-binary collision cache_key exists to prevent.
+        unknown = sorted(k for k in kw if k not in self._ACCEPTED_KW)
+        if unknown:
+            raise ValueError(f"unknown Plan field(s): {unknown}")
         # Enforce the established<->fields / no-answer<->reason invariant at
         # construction in BOTH directions (like StateResult/Readiness), not merely by
         # build_plan convention: a partially-populated "established" plan and a
@@ -158,6 +167,9 @@ class Plan:
     def __setattr__(self, name, value):
         # Frozen after construction: a post-init write would defeat the XOR above.
         raise AttributeError(f"Plan is immutable (attempted to set {name!r})")
+
+    def __delattr__(self, name):
+        raise AttributeError(f"{type(self).__name__} is immutable (attempted to delete {name!r})")
 
 
 def build_plan(manifest_path, tool: str, os_name: str, arch: str) -> Plan:

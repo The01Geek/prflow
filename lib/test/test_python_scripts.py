@@ -36751,11 +36751,12 @@ import tarfile as _tar1388  # noqa: E402
 _HELPER_1388 = SCRIPTS.parent / '.github' / 'actions' / 'setup-project-env' / 'provision-lint-tools.sh'
 
 
-def _mk_archive_1388(root, member, version_report, *, valid=True):
-    """Build a tar.gz holding a fake `member` executable that reports
+def _mk_archive_1388(root, member, version_report, *, valid=True, archive_type="tar.gz"):
+    """Build an archive holding a fake `member` executable that reports
     `version_report`; return (archive_path, sha256-digest). `valid=False`
-    writes non-archive bytes (a corrupt download whose digest still pins)."""
-    arc = root / "artifact.tar.gz"
+    writes non-archive bytes (a corrupt download whose digest still pins).
+    `archive_type` selects the compression — production shellcheck ships tar.xz."""
+    arc = root / f"artifact.{archive_type}"
     if not valid:
         arc.write_bytes(b"this is not a tar archive\n")
     else:
@@ -36764,18 +36765,18 @@ def _mk_archive_1388(root, member, version_report, *, valid=True):
         exe = tooldir / member
         exe.write_text(f"#!/bin/sh\necho '{member} {version_report}'\n", encoding="utf-8")
         exe.chmod(0o755)
-        with _tar1388.open(arc, "w:gz") as tf:
+        with _tar1388.open(arc, "w:" + {"tar.gz": "gz", "tar.xz": "xz"}[archive_type]) as tf:
             tf.add(exe, arcname=f"nested-{version_report}/{member}")
     return arc, _install_state.digest_bytes(arc.read_bytes())
 
 
-def _mk_manifest_1388(digest, *, version="9.9.9"):
+def _mk_manifest_1388(digest, *, version="9.9.9", archive_type="tar.gz"):
     return {
         "schema_version": 1,
         "tools": {
             "shellcheck": {"version": version, "timeout_seconds": 600,
                            "artifacts": [{"os": "linux", "arch": "x86_64", "digest": digest,
-                                          "archive_type": "tar.gz", "member": "shellcheck",
+                                          "archive_type": archive_type, "member": "shellcheck",
                                           "strategy": "extract-tar"}]},
             "ruff": {"version": "1.0.0", "timeout_seconds": 600,
                      "artifacts": [{"os": "linux", "arch": "x86_64", "digest": "sha256:" + "b" * 64,
@@ -36789,7 +36790,7 @@ def _mk_manifest_1388(digest, *, version="9.9.9"):
 
 def _run_helper_1388(root, *, tools="shellcheck", os_name="linux", arch="x86_64",
                      archive=None, curl_rc=0, dest_bin=None, extra_env=None,
-                     curl_marker=None, path_tools=None):
+                     curl_marker=None, path_tools=None, github_path=None):
     """Run provision-lint-tools.sh in fixture `root` with a fake curl that copies
     `archive` (or exits `curl_rc`) and, when `curl_marker` is given, touches that
     path so a test can assert the downloader was (not) invoked. `path_tools`, a
@@ -36808,6 +36809,8 @@ def _run_helper_1388(root, *, tools="shellcheck", os_name="linux", arch="x86_64"
     fakecurl.chmod(0o755)
     env = dict(os.environ)
     env.pop("GITHUB_PATH", None)
+    if github_path is not None:
+        env["GITHUB_PATH"] = str(github_path)
     path_prefix = ""
     if path_tools:
         pathdir = root / "pathtools"
@@ -36858,6 +36861,29 @@ try:
     assert_eq("#1388 helper: happy path installs + version-verifies (rc 0)", 0, _rc)
     assert_eq("#1388 helper: reports version-verified install", True, "version-verified" in _out)
     assert_eq("#1388 helper: installed the executable run-local", True, (_repo / "bin" / "shellcheck").exists())
+    # PR #1963 reception: tar.xz is the archive type every real shellcheck artifact
+    # uses, and no test extracted one — the whole download+extract path was proven
+    # only against a compression production never sees.
+    _xzdir = _d1388b / "xz"
+    _xzdir.mkdir(exist_ok=True)
+    _xz_arc, _xz_dig = _mk_archive_1388(_xzdir, "shellcheck", "9.9.9", archive_type="tar.xz")
+    _repo_xz = _mk_repo_1388(_d1388b / "xz-repo",
+                             _mk_manifest_1388(_xz_dig, archive_type="tar.xz"))
+    _rc_xz, _out_xz = _run_helper_1388(_repo_xz, archive=_xz_arc)
+    assert_eq("#1963 helper: tar.xz extracts and version-verifies (rc 0)", 0, _rc_xz)
+    assert_eq("#1963 helper: tar.xz installed the executable run-local", True,
+              (_repo_xz / "bin" / "shellcheck").exists())
+
+    # PR #1963 reception: the GITHUB_PATH append is what makes the provisioned tools
+    # visible to the model. Every other fixture pops GITHUB_PATH, so deleting the append
+    # left every fail-closed arm green while the model saw no shellcheck/ruff on PATH.
+    _gp1963 = _d1388b / "github_path_file"
+    _gp1963.write_text("", encoding="utf-8")
+    _repo_gp = _mk_repo_1388(_d1388b / "ok-gp", _mk_manifest_1388(_dig))
+    _rc_gp, _ = _run_helper_1388(_repo_gp, archive=_arc, github_path=_gp1963)
+    assert_eq("#1963 helper: GITHUB_PATH run still succeeds", 0, _rc_gp)
+    assert_eq("#1963 helper: appends DEST_BIN to GITHUB_PATH so the model sees the tools",
+              str(_repo_gp / "bin"), _gp1963.read_text(encoding="utf-8").strip())
 
     # unsupported-lint-platform: no artifact for the requested (os,arch), and no
     # pre-provisioned tool on PATH -> degrade (warn + continue), not fail closed.
@@ -36919,16 +36945,20 @@ try:
     assert_eq("#1388 helper: wrong version fails closed", 1, _rc)
     assert_eq("#1388 helper: wrong version named", True, "wrong version" in _out)
 
-    # unwritable target: DEST_BIN under a read-only directory.
-    _ro = _d1388b / "roparent"
-    _ro.mkdir()
-    _ro.chmod(0o555)
-    try:
-        _rc, _out = _run_helper_1388(_repo, archive=_arc, dest_bin=_ro / "sub" / "bin")
-        assert_eq("#1388 helper: unwritable target fails closed", 1, _rc)
-        assert_eq("#1388 helper: unwritable target named", True, "unwritable target" in _out)
-    finally:
-        _ro.chmod(0o755)
+    # unwritable target: DEST_BIN under a read-only directory. Guarded on uid like the
+    # two sibling permission fixtures in this file — root ignores the mode bits, so
+    # unguarded this is an environment-dependent RED that attributes itself to the
+    # helper rather than to the fixture.
+    if _os.geteuid() != 0:
+        _ro = _d1388b / "roparent"
+        _ro.mkdir()
+        _ro.chmod(0o555)
+        try:
+            _rc, _out = _run_helper_1388(_repo, archive=_arc, dest_bin=_ro / "sub" / "bin")
+            assert_eq("#1388 helper: unwritable target fails closed", 1, _rc)
+            assert_eq("#1388 helper: unwritable target named", True, "unwritable target" in _out)
+        finally:
+            _ro.chmod(0o755)
 finally:
     shutil.rmtree(_d1388b, ignore_errors=True)
 
@@ -37195,9 +37225,12 @@ def _git_1388(cwd, *args):
                        cwd=str(cwd), capture_output=True, text=True, check=True)
 
 
-def _run_harden_1388(head_repo, base_ref):
+def _run_harden_1388(head_repo, base_ref, github_output=None):
     env = dict(os.environ)
     env["BASE_REF"] = base_ref
+    env.pop("GITHUB_OUTPUT", None)
+    if github_output is not None:
+        env["GITHUB_OUTPUT"] = str(github_output)
     proc = _sp1388.run(["bash", "-c", _harden_run_1388], cwd=str(head_repo),
                        env=env, capture_output=True, text=True)
     return proc.returncode, proc.stdout + proc.stderr
@@ -37221,7 +37254,9 @@ try:
     (_head_h / _adir / "evil.sh").write_text("evil-addition\n", encoding="utf-8")
     _git_1388(_head_h, "add", "-A")
     _git_1388(_head_h, "commit", "-m", "pr head")
-    _rc_h, _out_h = _run_harden_1388(_head_h, "main")
+    _go_h = _d1388h / "harden_output"
+    _go_h.write_text("", encoding="utf-8")
+    _rc_h, _out_h = _run_harden_1388(_head_h, "main", github_output=_go_h)
     assert_eq("#1388 hardensetup: succeeds against a trusted base ref (rc 0)", 0, _rc_h)
     assert_eq("#1388 hardensetup: a PR-head EDIT is overwritten by the base bytes",
               "trusted-action\n", (_head_h / _adir / "action.yml").read_text(encoding="utf-8"))
@@ -37229,6 +37264,24 @@ try:
               "trusted-helper\n", (_head_h / _adir / "trusted.sh").read_text(encoding="utf-8"))
     assert_eq("#1388 hardensetup: a PR-head ADDED file is pruned", False,
               (_head_h / _adir / "evil.sh").exists())
+    # PR #1963 reception: the step DISPLACES PR-head bytes, so it must disclose them.
+    # Undisclosed, the reviewing agent reads these base-ref bytes as untouched PR-head
+    # content — on exactly the file a PR editing this action is under review for.
+    _disc_1963 = _go_h.read_text(encoding="utf-8")
+    assert_eq("#1963 hardensetup: publishes a displaced_paths output at all", True,
+              "displaced_paths<<" in _disc_1963)
+    for _want_1963 in (str(_adir / "action.yml"), str(_adir / "trusted.sh"),
+                       str(_adir / "evil.sh")):
+        assert_eq(f"#1963 hardensetup: discloses {_want_1963}", True,
+                  _want_1963 in _disc_1963)
+    # And the join must actually carry it, or the disclosure never reaches the prompt.
+    assert_eq("#1963 hardensetup: displaced_join consumes the hardensetup producer", True,  # structural-pin-ok: cross-file-phase-contract -- the producer->join wiring is the disclosure path
+              "steps.hardensetup.outputs.displaced_paths" in (SCRIPTS.parent / ".github" / "workflows" / "devflow-runner.yml").read_text(encoding="utf-8"))
+    # Outside Actions (no GITHUB_OUTPUT) the security control still runs and succeeds.
+    _head_h2 = _d1388h / "head2"
+    _git_1388(_d1388h, "clone", "file://" + str(_origin_h), str(_head_h2))
+    assert_eq("#1963 hardensetup: runs with no GITHUB_OUTPUT set (rc 0)", 0,
+              _run_harden_1388(_head_h2, "main")[0])
     # Fail-closed: a base ref with NO action dir refuses (never falls back to PR-head bytes).
     _origin_n = _d1388h / "origin-none"
     _origin_n.mkdir()
@@ -37267,8 +37320,8 @@ assert_eq("#1388 action: declares a lint_mode input", True,  # structural-pin-ok
           "lint_mode:" in _ACTION_1388)
 assert_eq("#1388 action: refuses an unknown lint_mode (closed set)", True,  # structural-pin-ok: schema-config-vocabulary -- fail-closed refusal of an out-of-set value
           "unknown lint_mode" in _ACTION_1388)
-assert_eq("#1388 action: none mode does no lint work / no manifest validation", True,  # structural-pin-ok: routing-dispatch-contract -- the none-mode no-op branch
-          "no lint-tool provisioning and no manifest validation" in _ACTION_1388)
+assert_eq("#1388 action: none mode returns from the step without dispatching", True,  # structural-pin-ok: routing-dispatch-contract -- the none-mode arm returns before the helper dispatch
+          re.search(r"^\s*none\)\n(?:.*\n)*?\s*exit 0\n", _ACTION_1388, re.M) is not None)
 assert_eq("#1388 action: provision invokes the provisioning helper", True,  # structural-pin-ok: routing-dispatch-contract -- provision dispatches the bundled helper
           "provision-lint-tools.sh" in _ACTION_1388)
 assert_eq("#1388 action: caches the toolchain keyed on the AC5 tuple (OS/arch + manifest+marker hash)", True,  # structural-pin-ok: routing-dispatch-contract -- cross-run cache restore keyed on {OS,arch,tool,version,digest,installer}
@@ -37331,6 +37384,32 @@ _drift_1388 = _sp1388.run(
     cwd=str(_REPO_1388), capture_output=True, text=True)
 assert_eq("#1388 marker: install-state marker is in sync with its bound components", 0, _drift_1388.returncode)
 
+# PR #1963 reception: the drift gate needs a RED direction. Asserting only that
+# --check exits 0 on the current tree leaves an inverted comparison inert with nothing
+# to say so. Drive it over a COPY of the repo — never the working tree — so an
+# interrupted check cannot leave a real component mutated.
+_d1963d = Path(tempfile.mkdtemp())
+try:
+    _rc1963 = _d1963d / "repo"
+    shutil.copytree(_REPO_1388, _rc1963, symlinks=True,
+                    ignore=shutil.ignore_patterns(".git", ".claude", "node_modules"))
+    assert_eq("#1963 drift gate: control — the copied tree is in sync (exit 0)", 0,
+              _sp1388.run(["python3", str(_rc1963 / "lib" / "generate-install-state.py"), "--check"],
+                          cwd=str(_rc1963), capture_output=True, text=True).returncode)
+    _bound_1963 = _rc1963 / ".github" / "actions" / "setup-project-env" / "provision-lint-tools.sh"
+    _bound_1963.write_text(_bound_1963.read_text(encoding="utf-8") + "\n# drift\n", encoding="utf-8")
+    _red_1963 = _sp1388.run(
+        ["python3", str(_rc1963 / "lib" / "generate-install-state.py"), "--check"],
+        cwd=str(_rc1963), capture_output=True, text=True)
+    assert_eq("#1963 drift gate: a mutated bound component goes RED (exit 1)", 1, _red_1963.returncode)
+    assert_eq("#1963 drift gate: the RED breadcrumb names the regeneration command", True,
+              "lib/generate-install-state.py" in _red_1963.stderr)
+    assert_eq("#1963 drift gate: an unrecognized argument refuses instead of writing", 2,
+              _sp1388.run(["python3", str(_rc1963 / "lib" / "generate-install-state.py"), "--chek"],
+                          cwd=str(_rc1963), capture_output=True, text=True).returncode)
+finally:
+    shutil.rmtree(_d1963d, ignore_errors=True)
+
 
 # ── issue #1388: install.sh publish path — digest SOURCE, record RUNTIME (skew) ──
 _d1388c = Path(tempfile.mkdtemp())
@@ -37364,8 +37443,111 @@ try:
 finally:
     shutil.rmtree(_d1388c, ignore_errors=True)
 
+# ── PR #1963 reception: the marker describes the CONSUMER tree, not the source ──
+# A component install.sh PRESERVES (install_managed's modified/unverified/unreadable
+# arms) or SKIPS (the tier1_rc != 0 workflow arm) keeps its OLD consumer bytes. Binding
+# such a component to SOURCE bytes publishes a marker no consumer tree can satisfy, so
+# check_readiness returns digest-mismatch forever and the provisioning helper _die's the
+# whole implement job — with a re-run-the-installer remedy that reproduces it exactly.
+def _marker_1963(root, state):
+    p = root / ".prflow" / "install-state.json"
+    p.write_text(json.dumps(state) + "\n", encoding="utf-8")
+    return p
+
+
+_d1963 = Path(tempfile.mkdtemp())
+try:
+    _s1963 = _d1963 / "src"
+    _c1963 = _d1963 / "consumer"
+    for _r1963 in (_s1963, _c1963):
+        (_r1963 / ".prflow").mkdir(parents=True)
+        (_r1963 / ".github" / "actions" / "setup-project-env").mkdir(parents=True)
+        (_r1963 / ".prflow" / "lint-manifest.json").write_bytes(_MANIFEST_1388.read_bytes())
+    (_s1963 / "scripts").mkdir()
+    (_s1963 / "scripts" / "lint_manifest.py").write_text("READER\n", encoding="utf-8")
+    (_c1963 / ".prflow" / "vendor" / "prflow" / "scripts").mkdir(parents=True)
+    (_c1963 / ".prflow" / "vendor" / "prflow" / "scripts" / "lint_manifest.py").write_text(
+        "READER\n", encoding="utf-8")
+    (_s1963 / ".github" / "actions" / "setup-project-env" / "action.yml").write_text(
+        "NEW-ACTION\n", encoding="utf-8")
+    # The consumer edited theirs, so install_managed PRESERVED it (.prflow-new sidecar).
+    (_c1963 / ".github" / "actions" / "setup-project-env" / "action.yml").write_text(
+        "LOCALLY-EDITED\n", encoding="utf-8")
+    _comps1963 = {"manifest": ".prflow/lint-manifest.json",
+                  "setup-action": ".github/actions/setup-project-env/action.yml",
+                  "manifest-reader": "scripts/lint_manifest.py"}
+    _recp1963 = {"manifest-reader": ".prflow/vendor/prflow/scripts/lint_manifest.py"}
+    _man1963 = _c1963 / ".prflow" / "lint-manifest.json"
+    # RED direction: digesting every component from the SOURCE tree binds bytes the
+    # consumer never received, and no consumer action can ever converge it.
+    _old1963 = _install_state.build_state("abc123", _comps1963, repo_root=_s1963,
+                                          record_paths=_recp1963)
+    assert_eq("#1963 marker: source-digested preserved artifact is permanently unready",
+              "digest-mismatch:setup-action",
+              _install_state.check_readiness(_marker_1963(_c1963, _old1963), _man1963,
+                                             repo_root=_c1963).reason)
+    # GREEN: digest the CONSUMER tree by default; only the vendor-fetched reader is
+    # digested from the source, because it is not in the consumer tree at install time.
+    _new1963 = _install_state.build_state("abc123", _comps1963, repo_root=_c1963,
+                                          record_paths=_recp1963,
+                                          digest_roots={"manifest-reader": _s1963})
+    assert_eq("#1963 marker: consumer-digested marker is READY over a preserved artifact",
+              True,
+              _install_state.check_readiness(_marker_1963(_c1963, _new1963), _man1963,
+                                             repo_root=_c1963).ready)
+    assert_eq("#1963 marker: the vendor-fetched reader still records its RUNTIME path",
+              ".prflow/vendor/prflow/scripts/lint_manifest.py",
+              _new1963["components"]["manifest-reader"]["path"])
+    assert_eq("#1963 marker: the vendor-fetched reader is digested from the SOURCE tree",
+              _install_state.digest_file(_s1963 / "scripts" / "lint_manifest.py"),
+              _new1963["components"]["manifest-reader"]["digest"])
+    # Post-install drift on a consumer-digested component is still caught — the fix
+    # re-anchors the comparand, it does not disarm the gate.
+    (_c1963 / ".github" / "actions" / "setup-project-env" / "action.yml").write_text(
+        "DRIFTED-LATER\n", encoding="utf-8")
+    assert_eq("#1963 marker: post-install drift on a consumer-digested component refuses",
+              "digest-mismatch:setup-action",
+              _install_state.check_readiness(_c1963 / ".prflow" / "install-state.json",
+                                             _man1963, repo_root=_c1963).reason)
+    # An unreadable digest_roots component still raises BEFORE any marker is published.
+    assert_raises("#1963 marker: unreadable digest_roots component raises (no marker)",
+                  ValueError,
+                  lambda: _install_state.build_state(
+                      "abc123", {"reader": "scripts/gone.py"}, repo_root=_c1963,
+                      digest_roots={"reader": _s1963}))
+finally:
+    shutil.rmtree(_d1963, ignore_errors=True)
+
 # AC1: install.sh ships the manifest and publishes the marker after validating it.
 _INSTALL_1388 = (SCRIPTS.parent / "install.sh").read_text(encoding="utf-8")
+
+# ── PR #1963 reception: reconcile the compatibility tuple's two transcriptions ──
+# The population is written twice — generate-install-state.py's COMPONENTS (the primary
+# repo's committed marker) and install.sh section 4b's --component operands (every
+# consumer's marker). Nothing linked them, so a component added to one side silently
+# narrowed the other's marker while the drift gate and the 4b end-to-end tests stayed
+# green. Compare name→path both ways round, so either side's omission fails here.
+_gis_1963 = importlib.util.spec_from_file_location(
+    "generate_install_state_1963", SCRIPTS.parent / "lib" / "generate-install-state.py")
+_gis_mod_1963 = importlib.util.module_from_spec(_gis_1963)
+_gis_1963.loader.exec_module(_gis_mod_1963)
+_sh_components_1963 = dict(
+    m.split("=", 1) for m in re.findall(
+        r'--component\s+"([^"]+)"', _INSTALL_1388))
+assert_eq("#1963 tuple: install.sh section 4b declares components at all", True,
+          len(_sh_components_1963) > 0)
+assert_eq("#1963 tuple: install.sh's --component operands match COMPONENTS exactly",
+          _gis_mod_1963.COMPONENTS, _sh_components_1963)
+# Every component the installer digests from the SOURCE tree must also record a runtime
+# path, and vice versa: a --digest-root with no --record-path binds source bytes to a
+# consumer path that will never carry them (the permanently-unready marker above), and a
+# --record-path with no --digest-root digests a path absent from the consumer tree.
+_dg_1963 = set(m.split("=", 1)[0] for m in re.findall(r'--digest-root\s+"([^"]+)"', _INSTALL_1388))
+_rp_1963 = set(m.split("=", 1)[0] for m in re.findall(r'--record-path\s+"([^"]+)"', _INSTALL_1388))
+assert_eq("#1963 tuple: source-digested components are exactly the runtime-path ones",
+          _dg_1963, _rp_1963)
+assert_eq("#1963 tuple: every source-digested component is in the tuple", set(),
+          _dg_1963 - set(_sh_components_1963))
 assert_eq("#1388 installer: ships the lint manifest", True,  # structural-pin-ok: routing-dispatch-contract -- installer copy of the manifest
           'install_managed ".prflow/lint-manifest.json"' in _INSTALL_1388)
 assert_eq("#1388 installer: publishes the install-state marker via install_state.py build", True,  # structural-pin-ok: routing-dispatch-contract -- marker publication call

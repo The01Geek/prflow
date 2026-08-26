@@ -1293,9 +1293,11 @@ three shipped workflows pass tested modes:
   (no `sudo`)**, verifies the pinned archive digest before extracting and the
   executable version (whole-token) before treating the tool as ready, and
   **fails closed** — before the model runs — on any readiness or verification
-  failure (`install-state-missing`, `digest-mismatch`, `component-missing`,
-  `manifest-missing`, a checksum/archive/version mismatch, a network failure,
-  or an unwritable target, each naming the tool). An unsupported OS/arch tuple
+  failure. The readiness reasons (`install-state-missing`, `digest-mismatch`,
+  `component-missing`, `manifest-missing`) refuse the whole pass before any tool
+  is selected, so they name the component rather than a tool; the per-tool
+  failures (a checksum/archive/version mismatch, a network failure, an
+  unwritable target) name the tool. An unsupported OS/arch tuple
   degrades instead: it reuses a version-matching tool already on PATH, else
   warns and continues unprovisioned. The toolchain is cached via `actions/cache` keyed on `{OS, arch, manifest +
   marker hash}`; a cache-restored binary is re-verified under that key before

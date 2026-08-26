@@ -1530,18 +1530,17 @@ JSON
 
   # 4b. Lint provisioning (issue #1388). Publish the compatibility marker LAST, only
   #     after the staged manifest validates — reordering breaks the fail-closed tuple
-  #     gate. Digest SOURCE bytes but record RUNTIME paths (--record-path below): the
-  #     readers ship via the vendor fetch, not this copy loop (install-channel skew).
-  #     The workflow/action components keep their SOURCE digests, so their copy path
-  #     must stay byte-identical (plain cp) — any templating or newline transform on
-  #     it flips every consumer's readiness gate into a digest-mismatch hard refusal.
+  #     gate. Digest the TARGET root: install_managed preserves a locally modified
+  #     artifact and the tier1_rc arm skips the workflow copy, so binding either to
+  #     source bytes it never received refuses provisioning forever. --digest-root is
+  #     the exception: the vendor-fetched readers are absent from this tree yet.
   if [ -f "$SRC/.prflow/lint-manifest.json" ] && [ -f "$SRC/scripts/install_state.py" ]; then
     install_managed ".prflow/lint-manifest.json" "$SRC/.prflow/lint-manifest.json"
     if python3 "$SRC/scripts/lint_manifest.py" "$SRC/.prflow/lint-manifest.json" >/dev/null 2>&1; then
       if lint_state_err="$(python3 "$SRC/scripts/install_state.py" build \
           --out ".prflow/install-state.json" \
           --installer-version "$pin" \
-          --repo-root "$SRC" \
+          --repo-root "$PWD" \
           --component "manifest=.prflow/lint-manifest.json" \
           --component "manifest-reader=scripts/lint_manifest.py" \
           --component "lint-provision=scripts/lint_provision.py" \
@@ -1549,6 +1548,9 @@ JSON
           --component "setup-action=.github/actions/setup-project-env/action.yml" \
           --component "provision-helper=.github/actions/setup-project-env/provision-lint-tools.sh" \
           --component "implement-workflow=.github/workflows/devflow-implement.yml" \
+          --digest-root "manifest-reader=$SRC" \
+          --digest-root "lint-provision=$SRC" \
+          --digest-root "install-state-reader=$SRC" \
           --record-path "manifest-reader=.prflow/vendor/prflow/scripts/lint_manifest.py" \
           --record-path "lint-provision=.prflow/vendor/prflow/scripts/lint_provision.py" \
           --record-path "install-state-reader=.prflow/vendor/prflow/scripts/install_state.py" \
@@ -1560,6 +1562,8 @@ JSON
     else
       log "warning: .prflow/lint-manifest.json did not validate; NOT publishing the install-state marker (fail-closed: setup will refuse lint provisioning)."
     fi
+  else
+    log "warning: this source tree carries no .prflow/lint-manifest.json or scripts/install_state.py; NOT publishing the install-state marker (fail-closed: setup will refuse lint provisioning)."
   fi
 
   # 5. config scaffold — delegated to the ONE shared scaffolder so the cloud tier

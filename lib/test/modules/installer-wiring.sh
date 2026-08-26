@@ -2353,6 +2353,37 @@ m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
 print(m.load_state(sys.argv[2]).status)
 ' "$LIB/../scripts/install_state.py" "$IU_C1388/.prflow/install-state.json")"
 
+# PR #1963 reception: structural validity is NOT readiness. The published marker
+# validated as `established` while binding source bytes the consumer never received,
+# so provisioning refused forever — assert the gate the provisioning step actually
+# runs, against the consumer tree, with the vendored readers materialized as the
+# runtime vendor fetch supplies them.
+mkdir -p "$IU_C1388/.prflow/vendor/prflow/scripts"
+cp "$IU_SRC_1388/scripts/lint_manifest.py" "$IU_SRC_1388/scripts/lint_provision.py" \
+   "$IU_SRC_1388/scripts/install_state.py" "$IU_C1388/.prflow/vendor/prflow/scripts/"
+_iu_ready_1963() {
+  python3 -c '
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("install_state", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+r = m.check_readiness(sys.argv[2] + "/.prflow/install-state.json",
+                      sys.argv[2] + "/.prflow/lint-manifest.json", repo_root=sys.argv[2])
+print("READY" if r.ready else r.reason)
+' "$LIB/../scripts/install_state.py" "$1"
+}
+assert_eq "#1963 4b end-to-end: the published marker is READY against the consumer tree" "READY" \
+  "$(_iu_ready_1963 "$IU_C1388")"
+
+# The Critical this control exists for: install_managed PRESERVES a locally modified
+# artifact, so a marker built from source bytes bound bytes that tree never received
+# and refused provisioning permanently, with a re-run remedy that reproduced it.
+printf '\n# consumer local edit\n' >> "$IU_C1388/.github/actions/setup-project-env/provision-lint-tools.sh"
+IU_O1963R="$(IU_SRC_OVERRIDE="$IU_SRC_1388" _iu_run "$IU_C1388" --apply)"
+assert_eq "#1963 4b end-to-end: the re-run PRESERVED the locally modified artifact" "yes" \
+  "$(printf '%s' "$IU_O1963R" | grep -qF 'PRESERVED' && echo yes || echo no)"
+assert_eq "#1963 4b end-to-end: re-running the installer converges readiness over a preserved artifact" "READY" \
+  "$(_iu_ready_1963 "$IU_C1388")"
+
 # Fail-closed arm 1: an INVALID staged manifest warns 'did not validate' and
 # publishes NO marker (attributed rejection: the outer validation branch).
 IU_SRC_1388B="$_iw_tmp_root/src-1388-badmanifest"

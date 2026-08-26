@@ -7,7 +7,10 @@
 installer publishes **last**, only after staging and validating the set of
 components that must ship together — the lint manifest, its readers, the
 `setup-project-env` composite action and its provisioning helper, and the shipped
-implement workflow (the exact set is `COMPONENTS` in `lib/generate-install-state.py`).
+implement workflow. That set is written twice — `COMPONENTS` in
+`lib/generate-install-state.py` governs this repository's committed marker and
+`install.sh` section 4b's `--component` operands govern a consumer's; the suite
+reconciles the two, so neither is authoritative for the other's path.
 The composite action's provisioning phase consults this marker *before model
 execution* and refuses to provision when it is absent, a recorded component's
 on-disk digest disagrees (a version-skew in either direction, or an
@@ -88,6 +91,12 @@ class StateResult:
         # Frozen after construction: a post-init write would defeat the XOR above.
         raise AttributeError(f"StateResult is immutable (attempted to set {name!r})")
 
+    def __delattr__(self, name):
+        # Deleting a field is the same defeat as writing one: `del r.state` left
+        # `established` True with the payload gone — the shape the constructor
+        # works hardest to make unrepresentable.
+        raise AttributeError(f"{type(self).__name__} is immutable (attempted to delete {name!r})")
+
     @property
     def established(self) -> bool:
         return self.status == "established"
@@ -124,6 +133,9 @@ class Readiness:
     def __setattr__(self, name, value):
         # Frozen after construction: a post-init write would defeat the XOR above.
         raise AttributeError(f"Readiness is immutable (attempted to set {name!r})")
+
+    def __delattr__(self, name):
+        raise AttributeError(f"{type(self).__name__} is immutable (attempted to delete {name!r})")
 
 
 def _unestablished(reason: str) -> StateResult:
@@ -255,13 +267,20 @@ def validate_state(data) -> StateResult:
 
 
 def build_state(installer_version: str, components: dict, repo_root=".",
-                record_paths=None) -> dict:
+                record_paths=None, digest_roots=None) -> dict:
     """Build a marker dict from `components` (name → the path DIGESTED, resolved
     under `repo_root`). A component's recorded path defaults to the path digested;
-    `record_paths` (name → recorded path) overrides it, so the installer can
-    digest a SOURCE-tree file while recording the RUNTIME path a thin consumer will
-    verify (the install-channel skew: workflows/manifest ship via install.sh's copy
-    loop, helpers via the runtime vendor fetch — identical bytes at the pinned ref).
+    `record_paths` (name → recorded path) overrides it, and `digest_roots`
+    (name → root) overrides the root that component is digested under.
+
+    The marker describes the CONSUMER tree, so `repo_root` is that tree: a component
+    the installer preserved (install_managed's modified/unverified/unreadable arms) or
+    skipped keeps its old bytes, and binding it to source bytes it never received
+    publishes a marker no consumer action can converge. `digest_roots` carries the one
+    real exception — the readers that ship via the runtime vendor fetch rather than the
+    copy loop, and so are absent from the consumer tree at install time; those are
+    digested from the source at the pinned ref and recorded at their runtime path.
+
     Raises `ValueError` for an unreadable component, or an `installer_version` that
     `validate_state` would later reject, so the installer fails BEFORE publishing a
     marker that binds a file it cannot read or that provisioning will refuse."""
@@ -269,17 +288,26 @@ def build_state(installer_version: str, components: dict, repo_root=".",
         raise ValueError(f"invalid installer_version {installer_version!r}")
     root = Path(repo_root)
     record_paths = record_paths or {}
+    digest_roots = digest_roots or {}
     out = {}
     for name, rel in components.items():
-        dig = digest_file(root / rel)
+        dig = digest_file(Path(digest_roots.get(name, root)) / rel)
         if dig is None:
             raise ValueError(f"cannot digest component {name!r} at {rel!r}")
         out[name] = {"path": record_paths.get(name, rel), "digest": dig}
-    return {
+    state = {
         "schema_version": 1,
         "installer_version": installer_version,
         "components": out,
     }
+    # Close the round trip: refuse here what validate_state would refuse at read time
+    # (an absolute or traversing recorded path, an empty component set). Publishing it
+    # instead moves the failure onto the consumer's provisioning run, where the marker
+    # is already committed and the diagnostic names a file they did not write.
+    vr = validate_state(state)
+    if not vr.established:
+        raise ValueError(f"refusing to publish a marker validate_state rejects: {vr.reason}")
+    return state
 
 
 def check_readiness(state_path, manifest_path, repo_root=".") -> Readiness:
@@ -343,6 +371,7 @@ def main(argv=None) -> int:
     pb.add_argument("--installer-version", required=True)
     pb.add_argument("--component", action="append", default=[], metavar="NAME=PATH")
     pb.add_argument("--record-path", action="append", default=[], metavar="NAME=PATH")
+    pb.add_argument("--digest-root", action="append", default=[], metavar="NAME=ROOT")
     pb.add_argument("--repo-root", default=".")
 
     pv = sub.add_parser("verify")
@@ -373,8 +402,16 @@ def main(argv=None) -> int:
                 return 1
             name, rel = spec.split("=", 1)
             record_paths[name] = rel
+        digest_roots = {}
+        for spec in args.digest_root:
+            if "=" not in spec:
+                print(f"usage: --digest-root expects NAME=ROOT, got {spec!r}", file=sys.stderr)
+                return 1
+            name, rel = spec.split("=", 1)
+            digest_roots[name] = rel
         try:
-            state = build_state(args.installer_version, components, args.repo_root, record_paths)
+            state = build_state(args.installer_version, components, args.repo_root,
+                                record_paths, digest_roots)
         except ValueError as exc:
             print(f"build failed: {exc}", file=sys.stderr)
             return 1

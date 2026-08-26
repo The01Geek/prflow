@@ -53,30 +53,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # The suite is split across concurrent SHARD jobs (issue #877) so wall-clock is
-  # bounded by the slowest shard rather than the sum. Each shard runs a subset via
-  # lib/test/run-shard.sh — the `monolith` shard runs lib/test/run.sh with the module
-  # tier skipped (DEVFLOW_SKIP_SUITE_MODULES=1) and the pooled Python suites skipped
-  # (DEVFLOW_SKIP_PYTHON_POOL=1), the `python-pool` shard runs exactly those pooled
-  # Python suites, and each `modules-*` shard runs its group of registered test
-  # modules. The union of the module groups is exactly the
-  # registered module set, so NO test is dropped (lib/test/run.sh asserts this against
-  # the registry). Each shard writes a small tally directory (passed/failed/skipped +
-  # skip detail + failure names) and uploads it; the `lib + python tests` aggregator
-  # below downloads them, recombines the accounting, and is the REQUIRED status check.
-  #
-  # `python-pool` exists because the monolith shard was measured (lib/test/profile-suite.py)
-  # spending ~22% of its wall-clock sitting IDLE at the pool join, waiting for Python
-  # work it had run out of shell assertions to overlap with. Splitting it out moves that
-  # cost onto a concurrent shard rather than removing any assertion: the same pool, the
-  # same membership, the same reconciliation, counted in exactly one shard either way.
-  # Validate and EXERCISE the candidate lint manifest with NO repository write
-  # credentials (issue #1388). It runs under the workflow-level `permissions:
-  # contents: read` above and mints no App token, so the candidate manifest's
-  # behavior is proven on the PR head before merge without any write capability;
-  # the candidate becomes implement-active only once merged (the setup action on
-  # `main` reads the merged bytes). Distinct from the full suite so the manifest
-  # gate is a legible, standalone CI check.
+  # Never give this job write credentials or an App token (issue #1388): it exercises
+  # a lint manifest supplied by the PR head, which is untrusted until merged.
   lint-manifest:
     name: lint-manifest (validate + exercise, no write creds)
     runs-on: ubuntu-latest
@@ -130,6 +108,23 @@ jobs:
           "$RUNNER_TEMP"/lint-exercise-bin/shellcheck --version
           "$RUNNER_TEMP"/lint-exercise-bin/ruff --version
 
+  # The suite is split across concurrent SHARD jobs (issue #877) so wall-clock is
+  # bounded by the slowest shard rather than the sum. Each shard runs a subset via
+  # lib/test/run-shard.sh — the `monolith` shard runs lib/test/run.sh with the module
+  # tier skipped (DEVFLOW_SKIP_SUITE_MODULES=1) and the pooled Python suites skipped
+  # (DEVFLOW_SKIP_PYTHON_POOL=1), the `python-pool` shard runs exactly those pooled
+  # Python suites, and each `modules-*` shard runs its group of registered test
+  # modules. The union of the module groups is exactly the
+  # registered module set, so NO test is dropped (lib/test/run.sh asserts this against
+  # the registry). Each shard writes a small tally directory (passed/failed/skipped +
+  # skip detail + failure names) and uploads it; the `lib + python tests` aggregator
+  # below downloads them, recombines the accounting, and is the REQUIRED status check.
+  #
+  # `python-pool` exists because the monolith shard was measured (lib/test/profile-suite.py)
+  # spending ~22% of its wall-clock sitting IDLE at the pool join, waiting for Python
+  # work it had run out of shell assertions to overlap with. Splitting it out moves that
+  # cost onto a concurrent shard rather than removing any assertion: the same pool, the
+  # same membership, the same reconciliation, counted in exactly one shard either way.
   shard:
     name: shard (${{ matrix.shard }})
     runs-on: ubuntu-latest

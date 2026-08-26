@@ -263,9 +263,20 @@ runs:
         esac
         # Resolve the trusted bundled helpers: this repo's own scripts/ (self /
         # committed), else the vendored slice a thin consumer materializes.
-        SCRIPTS_DIR="scripts"
-        if [ ! -f "$SCRIPTS_DIR/lint_provision.py" ]; then
-          SCRIPTS_DIR=".prflow/vendor/prflow/scripts"
+        # Probe BOTH helpers the provisioning step invokes, and refuse when neither
+        # candidate carries them: probing only lint_provision.py let a failed vendor
+        # materialization fall through and surface as a marker-readiness refusal,
+        # sending the operator to re-run an installer that was never the problem.
+        SCRIPTS_DIR=""
+        for _cand in "scripts" ".prflow/vendor/prflow/scripts"; do
+          if [ -f "$_cand/lint_provision.py" ] && [ -f "$_cand/install_state.py" ]; then
+            SCRIPTS_DIR="$_cand"
+            break
+          fi
+        done
+        if [ -z "$SCRIPTS_DIR" ]; then
+          echo "::error::setup-project-env: neither scripts/ nor .prflow/vendor/prflow/scripts/ carries both lint_provision.py and install_state.py — the plugin vendor step did not materialize the bundled helpers."
+          exit 1
         fi
         case "${RUNNER_OS:-}" in
           Linux) TARGET_OS=linux ;;

@@ -27,7 +27,7 @@
 # Optional (overridable so lib/test can drive the fail-closed arms offline):
 #   INSTALLER_VERSION  overrides the marker's installer_version (cache-key component);
 #                      derived from the marker after the readiness gate when unset
-#   TOOLS              space-separated tool list (default "shellcheck ruff")
+#   TOOLS              space-separated tool list (default: the manifest's own tool set)
 #   LINTPROV_PYTHON    python3 interpreter (default python3)
 #   LINTPROV_CURL      downloader; called as "$LINTPROV_CURL" -fsSL -o OUT URL (default curl)
 #   LINTPROV_TAR       tar extractor (default tar)
@@ -42,13 +42,18 @@ PY="${LINTPROV_PYTHON:-python3}"
 CURL="${LINTPROV_CURL:-curl}"
 TAR="${LINTPROV_TAR:-tar}"
 UNZIP="${LINTPROV_UNZIP:-unzip}"
-# TOOLS must stay a function of the manifest's tool set: the cross-run cache key
-# does not include it, so an out-of-manifest tool would ride a partial cache restore.
-TOOLS="${TOOLS:-shellcheck ruff}"
+# TOOLS is derived from the validated manifest below, after the readiness gate. An
+# explicit value still wins (the suite drives one tool at a time).
+
+# Set to the in-flight work directory while one exists; _die removes it. `exit` does
+# NOT run a RETURN trap, so every fail-closed arm leaked its mktemp -d without this,
+# and the suite drives this helper repeatedly in one process.
+_WORKDIR=""
 
 _die() {
   # $1 = tool (or "-"), $2 = reason. One diagnostic per fail-closed arm so a
   # reader can tell which tool and which condition detonated.
+  [ -n "$_WORKDIR" ] && rm -rf "$_WORKDIR"
   printf 'provision-lint-tools: %s: %s\n' "$1" "$2" >&2
   exit 1
 }
@@ -80,12 +85,19 @@ done
 
 _have "$PY" || _die - "installer primitive not found: python3 ($PY)"
 
-# Readiness gate — refuse the WHOLE provisioning pass before touching any tool
-# when the compatibility marker is absent, a component digest disagrees (a
-# version skew in either direction, or an interrupted publication), or the
-# manifest is missing/invalid.
+# Refuse the WHOLE pass before touching any tool: a component digest that
+# disagrees means the readers and the manifest may not understand each other.
 if ! ready="$("$PY" "$SCRIPTS_DIR/install_state.py" verify --state "$INSTALL_STATE" --manifest "$LINT_MANIFEST" 2>&1)"; then
-  _die - "install-state readiness refused: ${ready#NOT-READY } — remedy: re-run the PRFlow installer (install.sh) so the marker matches the installed components"
+  _die - "install-state readiness refused: ${ready#NOT-READY } — remedy: re-run the PRFlow installer (install.sh), which republishes the marker over the components actually installed in this tree"
+fi
+
+# Derive the tool set from the manifest the gate just validated, so the shipped set
+# has ONE source: a hardcoded list that omitted a manifest tool left that tool
+# silently never provisioned while the readiness gate still reported READY.
+if [ -z "${TOOLS:-}" ]; then
+  TOOLS="$("$PY" -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["tools"]))' "$LINT_MANIFEST")" \
+    || _die - "could not derive the tool set from the manifest"
+  [ -n "$TOOLS" ] || _die - "manifest declares no tools to provision"
 fi
 
 # The marker validated above, so its installer_version is present and typed. An
@@ -154,12 +166,8 @@ _provision_one() {
 
   local dest="$DEST_BIN/$member"
 
-  # Cache/within-job re-verification: an executable already at $dest — restored by
-  # the action's actions/cache step (keyed on {OS,arch,manifest+marker hash}) or
-  # left by a within-job re-invocation — is reused only after it re-passes the
-  # whole-token version check under this run's resolved version. The digest is bound
-  # into the cache key so a changed tuple keys a different slot and misses; the
-  # download path's exact ARCHIVE-digest check below is the supply-chain gate on a miss.
+  # Never reuse a cached executable without re-running the version check: the cache
+  # slot is keyed on the tuple, but a restored binary is otherwise unverified bytes.
   if [ -x "$dest" ]; then
     local cached_ver
     cached_ver="$("$dest" --version 2>&1 || true)"
@@ -170,10 +178,8 @@ _provision_one() {
     fi
   fi
 
-  # Pre-provisioned-runner reuse: a tool already on PATH (not $dest, so this never
-  # substitutes for the cache-restore check above) at the pinned version is trusted
-  # like the runner's own curl/python3/shell — version-verified, not digest-verified.
-  # Skipped when LINTPROV_SKIP_PATH_REUSE=1 so the download path stays exercised.
+  # PATH, not $dest — this must never substitute for the cache-restore check above.
+  # LINTPROV_SKIP_PATH_REUSE=1 keeps the download path exercised in tests.
   if [ "${LINTPROV_SKIP_PATH_REUSE:-}" != "1" ]; then
     local sys
     sys="$(command -v "$tool" 2>/dev/null || true)"
@@ -196,8 +202,9 @@ _provision_one() {
 
   local work archive extract_dir
   work="$(mktemp -d)"
+  _WORKDIR="$work"
   # shellcheck disable=SC2064
-  trap "rm -rf '$work'" RETURN
+  trap "rm -rf '$work'; _WORKDIR=''" RETURN
   archive="$work/artifact"
   extract_dir="$work/x"
   mkdir -p "$extract_dir"

@@ -104,6 +104,9 @@ class ManifestResult:
         # Frozen after construction: a post-init write would defeat the XOR above.
         raise AttributeError(f"ManifestResult is immutable (attempted to set {name!r})")
 
+    def __delattr__(self, name):
+        raise AttributeError(f"{type(self).__name__} is immutable (attempted to delete {name!r})")
+
     @property
     def established(self) -> bool:
         return self.status == "established"
