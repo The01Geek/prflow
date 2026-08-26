@@ -36892,7 +36892,7 @@ assert_eq("#1388 plan: windows shellcheck single-zip URL",
           _lint_provision.build_plan(_MANIFEST_1388, 'shellcheck', 'windows', 'x86_64').url)
 # ruff target-triple mapping.
 assert_eq("#1388 plan: ruff macos/arm64 target triple",
-          "https://github.com/astral-sh/ruff/releases/download/0.6.9/ruff-aarch64-apple-darwin.tar.gz",
+          "https://github.com/astral-sh/ruff/releases/download/0.16.4/ruff-aarch64-apple-darwin.tar.gz",
           _lint_provision.build_plan(_MANIFEST_1388, 'ruff', 'macos', 'arm64').url)
 
 # unsupported-lint-platform — a VALID manifest declaring no artifact for the tuple.

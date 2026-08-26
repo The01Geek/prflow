@@ -33,6 +33,17 @@ import sys
 _FAMILY_RE = re.compile(r"([0-9]+)\.([0-9]+)")
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8, idempotently and defensively. Called from the CLI
+    entry path only (not at import), so importing this module for unit tests never mutates
+    the importer's streams. Tolerates a non-TextIOWrapper stream (e.g. a test's StringIO)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def minor_family(text: str | None) -> str | None:
     """The `major.minor` family of the first version token in `text`, or None."""
     if not text:
@@ -67,6 +78,7 @@ def manifest_ruff_family(path: str) -> str | None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_streams()
     ap = argparse.ArgumentParser(description="ruff version-skew verdict (issue #2009)")
     ap.add_argument("--manifest", required=True, help="path to .prflow/lint-manifest.json")
     ap.add_argument("--reported", required=True,

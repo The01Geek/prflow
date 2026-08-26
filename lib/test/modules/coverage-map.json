@@ -744,6 +744,10 @@
       "note": "issue #908 review Important #2: RGC_RC/FIRED -> counts outcome routing out of devflow-runner.yml's guard step",
       "owner": "unmodularized"
     },
+    "scripts/ruff-version-skew.py": {
+      "note": "issue #2009 ruff version-skew verdict for the run-parallel.sh cheap-lint pre-launch gate; exercised end-to-end through the coordinator by the parallel-suite-runner module",
+      "owner": "parallel-suite-runner"
+    },
     "scripts/run-jq.sh": {
       "note": "",
       "owner": "unmodularized"
@@ -1667,6 +1671,10 @@
       "owner": "unmodularized"
     },
     "200": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "2009": {
       "note": "",
       "owner": "unmodularized"
     },
