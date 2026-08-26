@@ -38353,6 +38353,58 @@ with tempfile.TemporaryDirectory() as _d1389w:
                "- [x] two" in _plan_section_1389,
                "- [x] three" in _plan_section_1389))
 
+# ── issue #1388: the derived slice-member list and the fixture builder must FAIL
+# CLOSED. Both exist so a fixture cannot be built against a member set that has
+# silently gone empty — a fixture built from an empty list passes vacuously, which
+# is the exact failure these two replace. Exercise the refusals directly: the
+# rc==0 callers elsewhere only prove the happy path.
+_SSM = Path(__file__).resolve().parent / 'slice-source-members.py'
+_SSF = Path(__file__).resolve().parent / 'slice-source-fixture.sh'
+_ssm_mod = _load('slice_source_members', _SSM)
+
+assert_eq("#1388 members() reads only the devflow_copy_slice body, not a later function",
+          [("dir", "agents")],
+          _ssm_mod.members(
+              'devflow_copy_slice() {\n  cp -R "$src/agents" "$stage/"\n}\n'
+              'other_fn() {\n  cp -R "$src/NOTMINE" "$x/"\n}\n'))
+assert_eq("#1388 members() yields nothing when devflow_copy_slice is absent",
+          [], _ssm_mod.members('other_fn() {\n  cp -R "$src/agents" "$x/"\n}\n'))
+assert_eq("#1388 members() yields nothing when the body names no $src/ operand",
+          [], _ssm_mod.members('devflow_copy_slice() {\n  mkdir -p "$stage"\n}\n'))
+assert_eq("#1388 members() classifies a multi-segment operand as a file, a bare one as a dir",
+          [("dir", "lib"), ("file", ".prflow/x.json")],
+          _ssm_mod.members(
+              'devflow_copy_slice() {\n  cp -R "$src/lib" "$stage/"\n'
+              '  cp "$src/.prflow/x.json" "$stage/.prflow/"\n}\n'))
+
+with tempfile.TemporaryDirectory() as _d1388:
+    _slice_dir = os.path.join(_d1388, '.github', 'actions', 'vendor-plugin')
+    os.makedirs(_slice_dir)
+    with open(os.path.join(_slice_dir, 'vendor-slice.sh'), 'w', encoding='utf-8') as _fh:
+        _fh.write('devflow_copy_slice() {\n  mkdir -p "$stage"\n}\n')
+    _r = _sp1550.run([sys.executable, str(_SSM), _d1388], capture_output=True, text=True)
+    assert_eq("#1388 an empty derived member list exits 2 rather than reporting an empty set",
+              (2, True, ''),
+              (_r.returncode, 'refusing to report an empty member list' in _r.stderr,
+               _r.stdout))
+    _r2 = _sp1550.run([sys.executable, str(_SSM), os.path.join(_d1388, 'nope')],
+                      capture_output=True, text=True)
+    assert_eq("#1388 an unreadable slice exits 2 and names the path it could not read",
+              (2, True),
+              (_r2.returncode,
+               'cannot read' in _r2.stderr and 'vendor-slice.sh' in _r2.stderr))
+
+    def _ssf1388(*argv):
+        return _sp1550.run(
+            ['bash', '-c', '. "$1"; shift; devflow_build_slice_source_fixture "$@"',
+             'x', str(_SSF)] + list(argv),
+            capture_output=True, text=True, cwd=_d1388)
+    assert_eq("#1388 the builder refuses a missing root operand", 2, _ssf1388('').returncode)
+    _r3 = _ssf1388(os.path.join(_d1388, 'out'), _d1388)
+    assert_eq("#1388 the builder propagates the member-list refusal, building no tree",
+              (2, False),
+              (_r3.returncode, os.path.isdir(os.path.join(_d1388, 'out'))))
+
 
 print()
 print(f"{PASS} passed, {FAIL} failed")

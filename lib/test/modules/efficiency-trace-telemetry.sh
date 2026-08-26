@@ -2653,10 +2653,10 @@ assert_eq "et-synth(T4): leading-zero 01 never reaches --argjson (no iter-01 wri
 # fire; a mutation that kills either lenience drops the count.
 assert_eq "et-synth(T4): the (iteration1) lenience parses as iteration 1 (four duplicate-iteration-1 breadcrumbs)" "4" \
   "$(printf '%s' "$ETSA_ERR" | grep -cF 'duplicate iteration 1')"
-# issue #1946: trailing text after the closing ')' is parsed, not skipped — the
-# implement loop's own subjects append ' for issue #N' after the iteration clause,
-# so an ends-with match dropped exactly the commits synthesis targets. Only the
-# missing-')' shape is unparseable now, and it keeps its own breadcrumb.
+# issue #1946: trailing text after the closing ')' is parsed, not skipped — a fix
+# commit's subject is authored per run and commonly carries a trailing summary, so
+# an ends-with match dropped most real commits. Only the missing-')' shape is
+# unparseable now, and it keeps its own breadcrumb.
 assert_eq "et-synth(T4): the missing-')' shape alone is breadcrumbed as unparseable" "1" \
   "$(printf '%s' "$ETSA_ERR" | grep -cF "clause has no closing ')'")"
 rm -rf "$ETSA_REPO"

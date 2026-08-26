@@ -3142,10 +3142,10 @@ def _deferred_filed_file_values(args) -> list:
     per-line twin of `--reflection-file`: bytes come off disk verbatim through
     the shared `_read_file_payload` reader, so a value round-trips byte-identical.
 
-    Blank and whitespace-only lines are dropped (a trailing newline is normal);
-    each surviving line is stripped of its line ending only, since a value the
-    `deferred-presence` predicate printed carries no leading or trailing space.
-    A file whose every line is blank raises rather than silently marking nothing.
+    Blank and whitespace-only lines are dropped (a trailing newline is normal) and
+    each surviving line is stripped, since a value the `deferred-presence`
+    predicate printed carries no leading or trailing space. An all-blank payload is
+    already refused by `_read_file_payload`, so no line survives to be marked.
     Memoized like the other file arms so the `-`/stdin form survives two reads."""
     path = getattr(args, 'mark_deferred_filed_file', None)
     if not path:
@@ -3155,11 +3155,6 @@ def _deferred_filed_file_values(args) -> list:
         payload = _read_file_payload(
             path, '--mark-deferred-filed-file', 'deferred-filed marker')
         cached = [ln.strip() for ln in payload.splitlines() if ln.strip()]
-        if not cached:
-            raise _UpdateError(
-                "--mark-deferred-filed-file: no non-blank line in "
-                f"{path!r}; a marker value must be a `criterion:` line "
-                "`deferred-presence` printed, one per line")
         args._deferred_filed_file_cache = cached
     return cached
 
