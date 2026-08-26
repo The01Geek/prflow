@@ -86,8 +86,12 @@ import sys
 # handled), never silently absorbed as "probably noise" — the fail-closed
 # posture. `[` / `[[` are treated as syntax rather than as the `test` binary,
 # matching how the fences actually use them (`if [ -z "$WP" ]; then`).
+# Kept as whitespace-split text: a fixed reserved-word set reads clearer than a 30-element quoted list.
 RESERVED = frozenset(
-    ["if", "then", "else", "elif", "fi", "for", "while", "until", "do", "done", "case", "esac", "in", "function", "select", "{", "}", "(", ")", "[[", "]]", "[", "]", ":", ".", "source", "return", "break", "continue", "exit"]
+    """
+    if then else elif fi for while until do done case esac in function select
+    { } ( ) [[ ]] [ ] : . source return break continue exit
+    """.split()  # noqa: SIM905
 )
 
 # Stripped before the head is read, mirroring Claude Code's wrapper handling.

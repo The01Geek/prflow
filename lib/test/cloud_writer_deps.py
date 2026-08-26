@@ -2007,7 +2007,7 @@ def _python_command_evidence(source, filename):
                 for case in statement.cases:
                     case_state = snapshot(state)
                     for pattern_node in ast.walk(case.pattern):
-                        if isinstance(pattern_node, ast.MatchAs) and pattern_node.name or isinstance(pattern_node, ast.MatchStar) and pattern_node.name:
+                        if isinstance(pattern_node, (ast.MatchAs, ast.MatchStar)) and pattern_node.name:
                             case_state[pattern_node.name] = []
                     if case.guard is not None:
                         record_calls(case.guard, case_state, scope)
