@@ -1,68 +1,88 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="720" viewBox="0 0 900 720" role="img" aria-labelledby="title" aria-describedby="description">
+  <style>
+    @media (prefers-color-scheme: dark) {
+      [fill="#FAF7EE"] { fill: #4A3221; }
+      [stroke="#D9CFB6"] { stroke: #6C7440; }
+      rect[fill="#FFFFFF"] { fill: #5D4230; }
+      [fill="#555934"] { fill: #6C7440; }
+      [stroke="#555934"] { stroke: #A9B06B; }
+      [fill="#565A35"] { fill: #A9B06B; }
+      [fill="#4F5430"] { fill: #DCE0B8; }
+      [fill="#E7DFC6"] { fill: #3E4425; }
+      [stroke="#DDD3BC"] { stroke: #6C7440; }
+      [fill="#EEE7D3"] { fill: #4F3A28; }
+      [fill="#3B2A1E"] { fill: #F2E6D8; }
+      [fill="#6E5D4C"] { fill: #D9C6B2; }
+      [fill="#E8F5EF"] { fill: #2E4034; }
+      [fill="#2F6B51"] { fill: #9FD4BC; }
+      [stroke="#70A38B"] { stroke: #9FD4BC; }
+      [fill="#F7F3E6"] { fill: #FFFFFF; }
+    }
+  </style>
   <title id="title">PRFlow review engine and correction loop</title>
   <desc id="description">The prflow review skill runs four phases: setup and classification, verification checklist, specialized reviewers and verdict. The prflow review-and-fix skill uses the same review engine, applies justified corrections, verifies them and runs the engine again. A shadow pass checks an approval-side result before the loop exits.</desc>
 
   <defs>
     <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#635BFF"/>
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#565A35"/>
     </marker>
   </defs>
 
-  <rect x="1" y="1" width="898" height="718" rx="28" fill="#FBFAFF" stroke="#E2DFFF" stroke-width="2"/>
+  <rect x="1" y="1" width="898" height="718" rx="28" fill="#FAF7EE" stroke="#D9CFB6" stroke-width="2"/>
 
   <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
-    <text x="46" y="52" fill="#19172B" font-size="26" font-weight="600">How PRFlow reviews and corrects a change</text>
-    <text x="46" y="83" fill="#5C5875" font-size="16">The correction loop reuses the same four-phase review engine.</text>
+    <text x="46" y="52" fill="#3B2A1E" font-size="26" font-weight="600">How PRFlow reviews and corrects a change</text>
+    <text x="46" y="83" fill="#6E5D4C" font-size="16">The correction loop reuses the same four-phase review engine.</text>
 
-    <rect x="46" y="112" width="142" height="32" rx="16" fill="#635BFF"/>
-    <text x="117" y="134" fill="#FFFFFF" font-size="14" font-weight="700" text-anchor="middle">prflow:review</text>
+    <rect x="46" y="112" width="142" height="32" rx="16" fill="#555934"/>
+    <text x="117" y="134" fill="#F7F3E6" font-size="14" font-weight="700" text-anchor="middle">prflow:review</text>
 
-    <line x1="408" y1="224" x2="492" y2="224" stroke="#635BFF" stroke-width="3" marker-end="url(#arrow)"/>
-    <line x1="676" y1="296" x2="676" y2="368" stroke="#635BFF" stroke-width="3" marker-end="url(#arrow)"/>
-    <line x1="492" y1="440" x2="408" y2="440" stroke="#635BFF" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="408" y1="224" x2="492" y2="224" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="676" y1="296" x2="676" y2="368" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="492" y1="440" x2="408" y2="440" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
 
     <g>
-      <rect x="48" y="158" width="360" height="138" rx="18" fill="#FFFFFF" stroke="#D8D4F4" stroke-width="2"/>
-      <circle cx="88" cy="199" r="20" fill="#EAE8FF"/>
-      <text x="88" y="206" fill="#4B45CC" font-size="19" font-weight="700" text-anchor="middle">1</text>
-      <text x="122" y="205" fill="#19172B" font-size="20" font-weight="600">Setup and classification</text>
-      <text x="76" y="250" fill="#5C5875" font-size="16">Resolve the diff, base, issue criteria</text>
-      <text x="76" y="275" fill="#5C5875" font-size="16">and risk profile.</text>
+      <rect x="48" y="158" width="360" height="138" rx="18" fill="#FFFFFF" stroke="#DDD3BC" stroke-width="2"/>
+      <circle cx="88" cy="199" r="20" fill="#E7DFC6"/>
+      <text x="88" y="206" fill="#4F5430" font-size="19" font-weight="700" text-anchor="middle">1</text>
+      <text x="122" y="205" fill="#3B2A1E" font-size="20" font-weight="600">Setup and classification</text>
+      <text x="76" y="250" fill="#6E5D4C" font-size="16">Resolve the diff, base, issue criteria</text>
+      <text x="76" y="275" fill="#6E5D4C" font-size="16">and risk profile.</text>
     </g>
 
     <g>
-      <rect x="492" y="158" width="360" height="138" rx="18" fill="#FFFFFF" stroke="#D8D4F4" stroke-width="2"/>
-      <circle cx="532" cy="199" r="20" fill="#EAE8FF"/>
-      <text x="532" y="206" fill="#4B45CC" font-size="19" font-weight="700" text-anchor="middle">2</text>
-      <text x="566" y="205" fill="#19172B" font-size="20" font-weight="600">Verification checklist</text>
-      <text x="520" y="250" fill="#5C5875" font-size="16">Check change-specific claims against</text>
-      <text x="520" y="275" fill="#5C5875" font-size="16">mechanical or reviewer evidence.</text>
+      <rect x="492" y="158" width="360" height="138" rx="18" fill="#FFFFFF" stroke="#DDD3BC" stroke-width="2"/>
+      <circle cx="532" cy="199" r="20" fill="#E7DFC6"/>
+      <text x="532" y="206" fill="#4F5430" font-size="19" font-weight="700" text-anchor="middle">2</text>
+      <text x="566" y="205" fill="#3B2A1E" font-size="20" font-weight="600">Verification checklist</text>
+      <text x="520" y="250" fill="#6E5D4C" font-size="16">Check change-specific claims against</text>
+      <text x="520" y="275" fill="#6E5D4C" font-size="16">mechanical or reviewer evidence.</text>
     </g>
 
     <g>
-      <rect x="492" y="368" width="360" height="138" rx="18" fill="#FFFFFF" stroke="#D8D4F4" stroke-width="2"/>
-      <circle cx="532" cy="409" r="20" fill="#EAE8FF"/>
-      <text x="532" y="416" fill="#4B45CC" font-size="19" font-weight="700" text-anchor="middle">3</text>
-      <text x="566" y="415" fill="#19172B" font-size="20" font-weight="600">Specialized reviewers</text>
-      <text x="520" y="460" fill="#5C5875" font-size="16">Review correctness, tests, comments,</text>
-      <text x="520" y="485" fill="#5C5875" font-size="16">silent failures and type design.</text>
+      <rect x="492" y="368" width="360" height="138" rx="18" fill="#FFFFFF" stroke="#DDD3BC" stroke-width="2"/>
+      <circle cx="532" cy="409" r="20" fill="#E7DFC6"/>
+      <text x="532" y="416" fill="#4F5430" font-size="19" font-weight="700" text-anchor="middle">3</text>
+      <text x="566" y="415" fill="#3B2A1E" font-size="20" font-weight="600">Specialized reviewers</text>
+      <text x="520" y="460" fill="#6E5D4C" font-size="16">Review correctness, tests, comments,</text>
+      <text x="520" y="485" fill="#6E5D4C" font-size="16">silent failures and type design.</text>
     </g>
 
     <g>
       <rect x="48" y="368" width="360" height="138" rx="18" fill="#FFFFFF" stroke="#70A38B" stroke-width="2"/>
       <circle cx="88" cy="409" r="20" fill="#E8F5EF"/>
       <text x="88" y="416" fill="#2F6B51" font-size="19" font-weight="700" text-anchor="middle">4</text>
-      <text x="122" y="415" fill="#19172B" font-size="20" font-weight="600">Verdict</text>
-      <text x="76" y="460" fill="#5C5875" font-size="16">Combine evidence, findings, coverage</text>
-      <text x="76" y="485" fill="#5C5875" font-size="16">and configured severity thresholds.</text>
+      <text x="122" y="415" fill="#3B2A1E" font-size="20" font-weight="600">Verdict</text>
+      <text x="76" y="460" fill="#6E5D4C" font-size="16">Combine evidence, findings, coverage</text>
+      <text x="76" y="485" fill="#6E5D4C" font-size="16">and configured severity thresholds.</text>
     </g>
 
-    <line x1="228" y1="506" x2="228" y2="558" stroke="#635BFF" stroke-width="3" marker-end="url(#arrow)"/>
-    <rect x="48" y="558" width="804" height="116" rx="20" fill="#F2F0FF" stroke="#635BFF" stroke-width="2"/>
-    <rect x="72" y="578" width="214" height="32" rx="16" fill="#635BFF"/>
-    <text x="179" y="600" fill="#FFFFFF" font-size="14" font-weight="700" text-anchor="middle">prflow:review-and-fix</text>
-    <text x="72" y="638" fill="#19172B" font-size="18" font-weight="600">Apply justified corrections → verify them → run the review engine again</text>
-    <text x="72" y="664" fill="#5C5875" font-size="15">A shadow pass checks an approval-side result before the loop exits.</text>
-    <text x="817" y="644" fill="#4B45CC" font-size="28" font-weight="700" text-anchor="middle">↺</text>
+    <line x1="228" y1="506" x2="228" y2="558" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="48" y="558" width="804" height="116" rx="20" fill="#EEE7D3" stroke="#555934" stroke-width="2"/>
+    <rect x="72" y="578" width="214" height="32" rx="16" fill="#555934"/>
+    <text x="179" y="600" fill="#F7F3E6" font-size="14" font-weight="700" text-anchor="middle">prflow:review-and-fix</text>
+    <text x="72" y="638" fill="#3B2A1E" font-size="18" font-weight="600">Apply justified corrections → verify them → run the review engine again</text>
+    <text x="72" y="664" fill="#6E5D4C" font-size="15">A shadow pass checks an approval-side result before the loop exits.</text>
+    <text x="817" y="644" fill="#4F5430" font-size="28" font-weight="700" text-anchor="middle">↺</text>
   </g>
 </svg>
