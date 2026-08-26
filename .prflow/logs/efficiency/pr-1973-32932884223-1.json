@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1973",
+  "generated_at": "2026-08-26T05:19:48Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.48",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.4939685,
+    "tokens": {
+      "input_tokens": 48,
+      "output_tokens": 29934,
+      "cache_read_input_tokens": 3755757,
+      "cache_creation_input_tokens": 217562,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 84,
+        "outputTokens": 65613,
+        "cacheReadInputTokens": 4641307,
+        "cacheCreationInputTokens": 594674,
+        "webSearchRequests": 0,
+        "costUSD": 8.4939685,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 36,
+    "duration_ms": 584741
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-unset}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"",
+      "cd /home/runner/work/prflow/prflow 2>/dev/null; git grep -c -e 'DevFlow' -- ':!lib/test/lint-brand-devflow-sweep.py' ':!lib/test/brand-devflow-buckets.json' | wc -l; echo \"---files-with-DevFlow (independent enum)---\"; git grep -l -e 'DevFlow' | sort > /tmp/indep.txt; wc -l /tmp/indep.txt",
+      "git show b326032f81619165992eb94e44229a0d442639e3:lib/test/brand-devflow-buckets.json > .prflow/tmp/review/pr-1973/32932884223-1/buckets.json; git grep -l -e 'DevFlow' > .prflow/tmp/review/pr-1973/32932884223-1/grep-main.txt; echo done",
+      "cd /home/runner/work/prflow/prflow\nfor f in lib/classify-pr-kind.jq lib/fetch-pr-context.sh lib/scan.sh lib/rename-map.json; do\n  echo \"=== $f ===\"\n  total=$(git show b326032f81619165992eb94e44229a0d442639e3:$f | grep -o 'DevFlow' | wc -l)\n  quoted=$(git show b326032f81619165992eb94e44229a0d442639e3:$f | grep -oE '[\"'\"'\"']DevFlow[\"'\"'\"']' | wc -l)\n  echo \"total DevFlow=$total quoted=$quoted prose_remainder=$((total-quoted))\"\ndone"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
