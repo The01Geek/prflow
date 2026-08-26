@@ -2667,9 +2667,9 @@ jobs:
               exit 1
               ;;
           esac
-          # arrived-expected + success: deliverable at the trusted closure. This read-only tier
-          # has no positive-tick artifact and a PR deny-scan cannot reliably attribute a record
-          # to this run, so consumption is confirmed only by the agent-side forced record.
+          # arrived-expected + success: deliverable at the trusted closure, but this read-only
+          # tier has no positive-tick artifact, so consumption is confirmed only by the
+          # agent-side forced record — not at job level (documented residual).
           echo "prompt-extension-arrival: $SKILL extension deliverable at the trusted closure; job-level cannot independently confirm consumption on this read-only tier — the agent-side forced record is the catch (documented residual)"
           exit 0
 
