@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 """pretooluse-shape-guard.py — the review-tier PreToolUse command-shape guard (issue #805).
 
-A DevFlow cloud review run that emits a command in a shape the harness matcher denies
+A PRFlow cloud review run that emits a command in a shape the harness matcher denies
 gets a terse refusal and re-emits variants of the same denied shape instead of
 switching (review run 30138268273: five `/tmp`-redirect denials, the last 228 events
 after the first). Advisory prompt prose against exactly this has already been measured

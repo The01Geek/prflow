@@ -10,7 +10,7 @@
 # scripts/surface-execution-diagnostics.sh's best-effort, breadcrumb-on-degradation
 # contract.
 #
-# WHY THIS EXISTS. Every telemetry floor DevFlow has built rests on an operand the
+# WHY THIS EXISTS. Every telemetry floor PRFlow has built rests on an operand the
 # agent must volunteer. Whether an agent-INDEPENDENT floor is possible turns on what
 # the harness's own execution_file actually carries — a question the repo asserted
 # ("the cost half is unreconstructable") but never measured. This helper is the

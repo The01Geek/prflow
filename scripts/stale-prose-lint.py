@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 """Deterministic stale counted-prose lint (issue #423).
 
-Detects the top defect class escaping DevFlow's in-run review-and-fix loop to the
+Detects the top defect class escaping PRFlow's in-run review-and-fix loop to the
 standalone review: **diff-added prose asserting counts, ranges, sums, or absolutes
 that the same PR's later commits outgrow or falsify**. Modeled on
 ``lib/test/pin-corpus-lint.py`` (deterministic scanner + fail-closed accounting).
@@ -27,7 +27,7 @@ markdown. None of the four historical escape shapes lived on those surfaces.
 **Excluded population: machine-appended corpora (issue #672).** Diff-added lines under
 ``.prflow/learnings/`` and ``.prflow/logs/``, and in the single rendered census artifact
 ``lib/test/mutation-pin-corpus-adjudications.tsv``, are not examined at all. Those files are
-records DevFlow *writes* — a retrospective, an experiment record, a log — each quoting
+records PRFlow *writes* — a retrospective, an experiment record, a log — each quoting
 reviewed prose verbatim inside a JSON string. The quoted text is data about a past PR, never
 an assertion about the file it now sits in, and no referent for it exists in the post-diff
 state to resolve against. The trigger was PR #673, whose only edit to two such records

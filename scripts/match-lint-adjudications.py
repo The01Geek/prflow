@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""DevFlow stale-prose-lint false-positive adjudication matcher (Phase 0.6).
+"""PRFlow stale-prose-lint false-positive adjudication matcher (Phase 0.6).
 
 Carries a stale-prose-lint STALE row's *false-positive adjudication* forward
 across review runs so an already-triaged false positive never re-gates. A prior

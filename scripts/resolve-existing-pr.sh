@@ -164,7 +164,7 @@ fi
 # --state filter and resolves "the pull request that belongs to the current branch" across
 # OPEN/CLOSED/MERGED, so a branch whose only PR was CLOSED would yield a non-empty capture,
 # the create would be skipped, and every downstream consumer (the workpad PR link, the
-# DevFlow label, the description, the publish step) would run against a closed PR while the
+# PRFlow label, the description, the publish step) would run against a closed PR while the
 # run has no live PR at all.
 #
 # gh's own stderr is CAPTURED rather than discarded, and the two REFUSED causes below are

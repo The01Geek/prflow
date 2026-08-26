@@ -22,7 +22,7 @@
 #
 # Inputs (env):
 #   EVENT_NAME    github.event_name (issue_comment | pull_request_review_comment
-#                 | pull_request_review | …). NOTE: no current DevFlow workflow
+#                 | pull_request_review | …). NOTE: no current PRFlow workflow
 #                 emits EVENT_NAME=issues — the `issues:[opened]` trigger was
 #                 removed (commands fire on real comments/reviews only). The
 #                 `issues` branch below is retained defensively (and unit-tested)

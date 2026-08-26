@@ -4,7 +4,7 @@
 """Strict reader/validator for the declarative lint manifest (`.prflow/lint-manifest.json`).
 
 The lint manifest is a *declarative* description of the bounded lint toolchain
-DevFlow provisions before a model run: exact ShellCheck and Ruff versions, per
+PRFlow provisions before a model run: exact ShellCheck and Ruff versions, per
 platform artifact digests, file selectors, exclusions, closed special-invocation
 IDs, timeout bounds, and full-lint profile IDs. It deliberately carries **no**
 executable behavior — no shell command strings, package-manager snippets,

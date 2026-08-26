@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""DevFlow follow-up filer for review-and-fix deferrals.
+"""PRFlow follow-up filer for review-and-fix deferrals.
 
 The /implement skill's Phase 4.0.5 merges the run-scoped deferrals manifests
 produced by /devflow:review-and-fix (at `.prflow/tmp/review/<slug>/<run-id>/deferrals.json`,

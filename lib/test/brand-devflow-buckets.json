@@ -337,58 +337,7 @@
       "path": "requirements.txt"
     },
     {
-      "path": "scripts/analyze-workflow-runs.py"
-    },
-    {
-      "path": "scripts/apply-labels.sh"
-    },
-    {
-      "path": "scripts/build-experiment-records.py"
-    },
-    {
-      "path": "scripts/check-verified-premises.py"
-    },
-    {
-      "path": "scripts/decide-verdict-gap-job-status.sh"
-    },
-    {
-      "path": "scripts/dedupe-review-command.sh"
-    },
-    {
-      "path": "scripts/discover-deferral-manifests.py"
-    },
-    {
-      "path": "scripts/emit-git-env.sh"
-    },
-    {
-      "path": "scripts/extract-execution-shape.sh"
-    },
-    {
-      "path": "scripts/file-deferrals.py"
-    },
-    {
-      "path": "scripts/lint_manifest.py"
-    },
-    {
-      "path": "scripts/load-prompt-extension.sh"
-    },
-    {
-      "path": "scripts/match-deferrals.py"
-    },
-    {
-      "path": "scripts/match-lint-adjudications.py"
-    },
-    {
       "path": "scripts/post-review-backstop-comment.sh"
-    },
-    {
-      "path": "scripts/pretooluse-shape-guard.py"
-    },
-    {
-      "path": "scripts/prompt-surface-growth.py"
-    },
-    {
-      "path": "scripts/provision-local-settings.sh"
     },
     {
       "path": "scripts/provision-python3-shim.sh"
@@ -397,43 +346,16 @@
       "path": "scripts/publish-release.sh"
     },
     {
-      "path": "scripts/react-to-trigger.sh"
-    },
-    {
       "path": "scripts/render-grounding-block.sh"
-    },
-    {
-      "path": "scripts/resolve-command-trigger.sh"
-    },
-    {
-      "path": "scripts/resolve-existing-pr.sh"
-    },
-    {
-      "path": "scripts/resolve-extra-plugins.sh"
-    },
-    {
-      "path": "scripts/resolve-implement-trigger.sh"
-    },
-    {
-      "path": "scripts/resolve-review-overrides.py"
     },
     {
       "path": "scripts/scaffold-config.sh"
     },
     {
-      "path": "scripts/stale-prose-lint.py"
-    },
-    {
       "path": "scripts/surface-execution-diagnostics.sh"
     },
     {
-      "path": "scripts/update-branch-checkpoint.sh"
-    },
-    {
       "path": "scripts/workflow-flight-recorder-registry.json"
-    },
-    {
-      "path": "scripts/workflow_flight_recorder.py"
     },
     {
       "path": "skills/create-issue/references/step-4-present-create.md"

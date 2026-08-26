@@ -60,7 +60,7 @@
 #   UNVERIFIED PREMISE / POSSIBLY-VACUOUS CARVE-OUT (issue #1271, stated per its AC): the
 #   carve-out assumes GitHub would otherwise conclude `failure` on a cancelled job in which
 #   a later always() step exits non-zero. That was NOT established — across every cancelled
-#   DevFlow run sampled in this repository the command job contained zero failed steps, so
+#   PRFlow run sampled in this repository the command job contained zero failed steps, so
 #   the behaviour could not be observed. IF GitHub keeps a cancelled job `cancelled`
 #   regardless of a later exit 1, this carve-out is VACUOUS (it changes nothing observable).
 #   It is retained anyway because it is correct and harmless either way: this helper never

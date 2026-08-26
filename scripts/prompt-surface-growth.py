@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 """Render the prompt-surface byte delta a PR introduces, plus the running total.
 
-DevFlow's prompt surface — the markdown an agent reads while it works — grows one
+PRFlow's prompt surface — the markdown an agent reads while it works — grows one
 review-answering sentence at a time, and no PR ever showed anyone it was happening
 (issue #1350). This helper makes that growth a rendered fact in the PR description:
 for every covered `*.md` file the branch changed it prints the byte delta between the
