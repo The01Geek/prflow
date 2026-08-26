@@ -4,8 +4,8 @@
       [fill="#FAF7EE"] { fill: #4A3221; }
       [stroke="#D9CFB6"] { stroke: #6C7440; }
       rect[fill="#FFFFFF"] { fill: #5D4230; }
-      [fill="#555934"] { fill: #6C7440; }
-      [stroke="#555934"] { stroke: #A9B06B; }
+      [fill="#593e2e"] { fill: #6C7440; }
+      [stroke="#593e2e"] { stroke: #A9B06B; }
       [fill="#565A35"] { fill: #A9B06B; }
       [fill="#4F5430"] { fill: #DCE0B8; }
       [fill="#E7DFC6"] { fill: #3E4425; }
@@ -36,7 +36,7 @@
     <text x="46" y="83" fill="#6E5D4C" font-size="16">The progress record and pushed code answer different questions.</text>
 
     <g>
-      <rect x="48" y="132" width="360" height="194" rx="18" fill="#FFFFFF" stroke="#555934" stroke-width="2"/>
+      <rect x="48" y="132" width="360" height="194" rx="18" fill="#FFFFFF" stroke="#593e2e" stroke-width="2"/>
       <rect x="72" y="156" width="192" height="32" rx="16" fill="#E7DFC6"/>
       <text x="168" y="178" fill="#4F5430" font-size="15" font-weight="700" text-anchor="middle">GitHub issue workpad</text>
       <text x="72" y="226" fill="#3B2A1E" font-size="19" font-weight="600">Human-readable progress</text>
@@ -46,7 +46,7 @@
     </g>
 
     <g>
-      <rect x="492" y="132" width="360" height="194" rx="18" fill="#FFFFFF" stroke="#555934" stroke-width="2"/>
+      <rect x="492" y="132" width="360" height="194" rx="18" fill="#FFFFFF" stroke="#593e2e" stroke-width="2"/>
       <rect x="516" y="156" width="150" height="32" rx="16" fill="#E7DFC6"/>
       <text x="591" y="178" fill="#4F5430" font-size="15" font-weight="700" text-anchor="middle">Remote branch</text>
       <text x="516" y="226" fill="#3B2A1E" font-size="19" font-weight="600">Durable code checkpoints</text>
@@ -55,15 +55,15 @@
       <text x="516" y="309" fill="#6E5D4C" font-size="16">Matching pull request head</text>
     </g>
 
-    <line x1="228" y1="326" x2="355" y2="400" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
-    <line x1="672" y1="326" x2="545" y2="400" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="228" y1="326" x2="355" y2="400" stroke="#593e2e" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="672" y1="326" x2="545" y2="400" stroke="#593e2e" stroke-width="3" marker-end="url(#arrow)"/>
 
-    <rect x="260" y="396" width="380" height="104" rx="20" fill="#555934"/>
+    <rect x="260" y="396" width="380" height="104" rx="20" fill="#593e2e"/>
     <text x="450" y="436" fill="#F7F3E6" font-size="16" font-weight="700" text-anchor="middle">prflow:implement</text>
     <text x="450" y="470" fill="#F7F3E6" font-size="20" font-weight="600" text-anchor="middle">Read both before planning</text>
 
-    <line x1="365" y1="500" x2="235" y2="552" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
-    <line x1="535" y1="500" x2="665" y2="552" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="365" y1="500" x2="235" y2="552" stroke="#593e2e" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="535" y1="500" x2="665" y2="552" stroke="#593e2e" stroke-width="3" marker-end="url(#arrow)"/>
 
     <g>
       <rect x="48" y="550" width="360" height="108" rx="18" fill="#FFF8EC" stroke="#D49A3A" stroke-width="2"/>

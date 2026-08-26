@@ -2028,12 +2028,14 @@ assert_eq "installer-upgrade #959: an unwritable manifest warns that the next up
 IU_VSRC="$_iw_tmp_root/src-vendor"
 rm -rf "$IU_VSRC"
 cp -R "$IU_SRC" "$IU_VSRC"
-mkdir -p "$IU_VSRC/.claude-plugin" "$IU_VSRC/agents" "$IU_VSRC/docs" "$IU_VSRC/skills" "$IU_VSRC/LICENSES"
+# The member set is DERIVED from vendor-slice.sh's own cp list (issue #1388), not
+# transcribed: a member added to the slice used to abort this fixture's cp under
+# set -e, and that failure surfaced only in the --with-floors measurement.
+# shellcheck source=lib/test/slice-source-fixture.sh disable=SC1091
+. "$LIB/test/slice-source-fixture.sh"
+assert_eq "installer-upgrade #1388: the vendor fixture source builds from the slice's own derived member list" "0" \
+  "$(devflow_build_slice_source_fixture "$IU_VSRC" "$LIB/.." >/dev/null 2>&1; echo $?)"
 cp "$LIB/../.claude-plugin/plugin.json" "$IU_VSRC/.claude-plugin/"
-printf 'fixture agent\n'   > "$IU_VSRC/agents/fixture-agent.md"
-printf 'fixture doc\n'     > "$IU_VSRC/docs/fixture-doc.md"
-printf 'fixture skill\n'   > "$IU_VSRC/skills/fixture-skill.md"
-printf 'fixture license\n' > "$IU_VSRC/LICENSES/FIXTURE-LICENSE"
 assert_eq "installer-upgrade #959: the vendor fixture source carries every member devflow_copy_slice requires" "yes" \
   "$([ -f "$IU_VSRC/.claude-plugin/plugin.json" ] && [ -d "$IU_VSRC/agents" ] && [ -d "$IU_VSRC/docs" ] \
      && [ -d "$IU_VSRC/skills" ] && [ -d "$IU_VSRC/LICENSES" ] && echo yes || echo no)"
