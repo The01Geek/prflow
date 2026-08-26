@@ -114,6 +114,16 @@ class ChangedRecord:
     def __init__(self, kind, *, src=None, dst=None, run_path=None, skip_reason=None):
         if kind not in RECORD_KINDS:
             raise ValueError(f"unknown record kind {kind!r}")
+        # Enforce the module's headline eligibility invariant in the type, not just in
+        # producer discipline: a record is either run (run_path set, no skip) or
+        # examined-but-not-run (run_path None, a typed skip_reason) — never both and never
+        # neither. Without this a malformed record could yield a receipt claiming a symlink
+        # ran, or an eligible file that was neither run nor skipped.
+        if (run_path is None) == (skip_reason is None):
+            raise ValueError(
+                f"record {kind!r} must set exactly one of run_path / skip_reason "
+                "(run, xor examined-but-not-run)"
+            )
         self.kind = kind
         self.src = src
         self.dst = dst
@@ -364,6 +374,12 @@ class Invocation:
     __slots__ = ("op_id", "tool", "flags", "paths", "timeout")
 
     def __init__(self, op_id, tool, flags, paths, timeout):
+        # The type is the argv trust boundary, so refuse a self-contradictory invocation
+        # at construction rather than emitting a broken command or a zero-timeout run.
+        if not tool:
+            raise ValueError("Invocation requires a non-empty tool")
+        if not isinstance(timeout, int) or timeout <= 0:
+            raise ValueError(f"Invocation timeout must be a positive int, got {timeout!r}")
         self.op_id = op_id
         self.tool = tool
         self.flags = flags
@@ -456,16 +472,26 @@ def select_full_invocations(top: str, manifest: dict) -> list[Invocation]:
     selectors = {s["id"]: s for s in manifest["selectors"]}
 
     invocations: list[Invocation] = []
+    # A path a special invocation claims is linted by that invocation alone and is absent
+    # from every broad profile — the same exclusivity select_invocations enforces on the
+    # changed-file path. Without this, a future special whose file a broad selector also
+    # includes would be double-linted here (for a run.sh-shaped file, the ShellCheck OOM the
+    # special exists to avoid).
+    special_claimed: set[str] = set()
     for si in manifest.get("special_invocations", []):
         matched = [raw for raw, path in tracked_paths if _glob_match(si["path"], path)]
         if matched:
+            special_claimed.update(b64url(raw) for raw in matched)
             tool = si["tool"]
             invocations.append(
                 Invocation(si["id"], tool, list(si["extra_flags"]), matched, _tool_timeout(manifest, tool))
             )
     for prof in manifest["full_profiles"]:
         sel = selectors[prof["selector"]]
-        paths = [raw for raw, path in tracked_paths if _selector_claims(path, sel, exclusions)]
+        paths = [
+            raw for raw, path in tracked_paths
+            if _selector_claims(path, sel, exclusions) and b64url(raw) not in special_claimed
+        ]
         if not paths:
             continue
         # Single-source the tool from the selector's language (the changed-file path does the
@@ -635,8 +661,19 @@ def _config_base(top: str) -> str:
         value = data.get("base_branch")
         if isinstance(value, str) and value:
             return value
-    except (OSError, ValueError, AttributeError):
+    except FileNotFoundError:
+        # No config is the ordinary "base is main" case, not a corruption — stay silent.
         pass
+    except (OSError, ValueError, AttributeError) as exc:
+        # A present-but-malformed config (bad JSON, a non-object top level, a non-string
+        # base) is distinct from an absent one: emit a breadcrumb so a corrupt config that
+        # silently reshapes the changed population against origin/main is visible, rather
+        # than reading identically to "no config". The read still never fails (returns main).
+        print(
+            f"LINT config-base fallback: malformed .prflow/config.json "
+            f"({exc.__class__.__name__}); defaulting base=main",
+            file=sys.stderr,
+        )
     return "main"
 
 

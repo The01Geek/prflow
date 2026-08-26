@@ -37056,6 +37056,94 @@ _bargv = _batch.argv()
 assert_eq("#1389 same-language paths batch into one invocation after -- in order",
           ["one.py", "two.py"], _bargv[_bargv.index("--") + 1:])
 
+# Classifier completeness: copy, type-to-regular, and plain-modify branches (issue #1389
+# review — the three record kinds not previously driven through _classify_raw).
+_cp = _cls("100644", "100644", "C100", b"a.py", b"b.py")
+assert_eq("#1389 copy runs the destination, source examined-not-run",
+          ("copy", b"a.py", b"b.py", b"b.py"), (_cp.kind, _cp.src, _cp.dst, _cp.run_path))
+_ty = _cls("120000", "100644", "T", b"x", None)  # symlink -> regular file: final runs
+assert_eq("#1389 a type change to a regular file runs the final path",
+          ("type", b"x"), (_ty.kind, _ty.run_path))
+_mo = _cls("100644", "100644", "M", b"a.py", None)
+assert_eq("#1389 a plain modify (same mode) runs the path", ("modify", b"a.py"),
+          (_mo.kind, _mo.run_path))
+
+# Type invariants enforced at construction (issue #1389 review — headline eligibility rule).
+assert_raises("#1389 ChangedRecord refuses neither-run-nor-skip", ValueError,
+              lambda: _lint_changed.ChangedRecord("add"))
+assert_raises("#1389 ChangedRecord refuses both run_path and skip_reason", ValueError,
+              lambda: _lint_changed.ChangedRecord("delete", run_path=b"x", skip_reason="r"))
+assert_raises("#1389 Invocation refuses a non-positive timeout", ValueError,
+              lambda: _lint_changed.Invocation("op", "ruff", ["check"], [b"x"], 0))
+assert_raises("#1389 Invocation refuses an empty tool", ValueError,
+              lambda: _lint_changed.Invocation("op", "", ["check"], [b"x"], 600))
+
+# Receipt payload shape: examined population marks run vs skip, and skip entries carry
+# the typed reason (issue #1389 review).
+_pop_mix = _lint_changed.Population("nonempty", records=[
+    _lint_changed.ChangedRecord("add", dst=b"live.py", run_path=b"live.py"),
+    _lint_changed.ChangedRecord("delete", src=b"gone.py", skip_reason="deleted-final-absent"),
+])
+_ex = {e["display"]: e for e in _lint_changed._examined_population(_pop_mix)}
+assert_eq("#1389 examined entry marks the eligible add run=True", True, _ex["live.py"]["run"])
+assert_eq("#1389 examined entry marks the delete run=False with a skip_reason",
+          (False, "deleted-final-absent"),
+          (_ex["gone.py"]["run"], _ex["gone.py"].get("skip_reason")))
+_sk = _lint_changed._skip_entries(_pop_mix)
+assert_eq("#1389 skip entries carry the typed reason for the non-run record",
+          [("gone.py", "deleted-final-absent")], [(e["display"], e["reason"]) for e in _sk])
+
+# _run_invocation: an absent tool is a named non-success, never a spurious run (issue #1389).
+_absent_inv = _lint_changed.Invocation("python", "definitely-not-a-real-tool-1389", ["check"], [b"x.py"], 600)
+_absent = _lint_changed._run_invocation(_absent_inv, ".", {})
+assert_eq("#1389 an absent lint tool yields outcome=tool-absent, exit=None",
+          ("tool-absent", None), (_absent["outcome"], _absent["exit"]))
+
+# select_full_invocations: run.sh takes the special invocation and is absent from the broad
+# shell-full profile (issue #1389 review — the previously-untested lint-full selection path).
+with tempfile.TemporaryDirectory() as _dfull:
+    _mkdir = Path(_dfull) / "lib" / "test"
+    _mkdir.mkdir(parents=True)
+    (_mkdir / "run.sh").write_text("#!/usr/bin/env bash\n:\n")
+    (Path(_dfull) / "helper.sh").write_text("#!/usr/bin/env bash\n:\n")
+    (Path(_dfull) / "mod.py").write_text("x = 1\n")
+    _git1389(_dfull, "init", "-q", "-b", "main")
+    _git1389(_dfull, "config", "user.email", "a@b.c")
+    _git1389(_dfull, "config", "user.name", "t")
+    _git1389(_dfull, "add", "-A")
+    _git1389(_dfull, "commit", "-qm", "c")
+    _full = {i.op_id: i for i in _lint_changed.select_full_invocations(_dfull, _lint_manifest_1389)}
+    assert_eq("#1389 lint-full routes run.sh to its special invocation",
+              True, "run-sh-extended-analysis-off" in _full)
+    _shell_full = _full.get("shell-full")
+    _full_shell_paths = [_lint_changed.os.fsdecode(p) for p in _shell_full.paths] if _shell_full else []
+    assert_eq("#1389 lint-full: run.sh absent from the broad shell-full profile, helper.sh present",
+              (False, True),
+              ("lib/test/run.sh" in _full_shell_paths, "helper.sh" in _full_shell_paths))
+    assert_eq("#1389 lint-full includes a python profile over the tracked .py",
+              True, "python-full" in _full)
+
+# Population unestablished: a repo with no merge base to origin/<base> (unrelated histories)
+# fails closed, never a clean empty set (issue #1389 review — a second unestablished arm).
+with tempfile.TemporaryDirectory() as _dnb:
+    g = ["git", "-C", _dnb]
+    _git1389(_dnb, "init", "-q", "-b", "main")
+    _git1389(_dnb, "config", "user.email", "a@b.c")
+    _git1389(_dnb, "config", "user.name", "t")
+    (Path(_dnb) / "a.py").write_text("x = 1\n")
+    _git1389(_dnb, "add", "-A")
+    _git1389(_dnb, "commit", "-qm", "c1")
+    # An orphan branch shares no history with main; point origin/main at it.
+    _git1389(_dnb, "checkout", "-q", "--orphan", "orphan")
+    (Path(_dnb) / "b.py").write_text("y = 2\n")
+    _git1389(_dnb, "add", "-A")
+    _git1389(_dnb, "commit", "-qm", "c2")
+    _git1389(_dnb, "update-ref", "refs/remotes/origin/main", "refs/heads/main")
+    _git1389(_dnb, "checkout", "-q", "orphan")
+    _pop_nb = _lint_changed.enumerate_population("main", _dnb)
+    assert_eq("#1389 unrelated histories (no merge base) is unestablished, not empty",
+              ("unestablished", "no-merge-base"), (_pop_nb.status, _pop_nb.reason))
+
 # Atomic receipts: monotonic sequence, and a duplicate path is a named non-success.
 with tempfile.TemporaryDirectory() as _d1389c:
     _w = _lint_changed.ReceiptWriter(_d1389c, "run", "1")

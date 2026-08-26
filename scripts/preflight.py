@@ -55,7 +55,7 @@ from typing import NoReturn
 # Running this file as a script already puts scripts/ on sys.path, but a consumer
 # that loads it through importlib.util.spec_from_file_location (how
 # lib/test/test_python_scripts.py loads this module) does not — so the
-# lint_changed / lint_manifest sibling imports below would fail without this.
+# lint_changed sibling import below would fail without this.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
