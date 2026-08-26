@@ -1019,10 +1019,12 @@ is the module ranking the issue asks for). Take the top offenders across those t
 axes and, for each, file one targeted follow-up issue whose title names the offender
 and whose body states the measured cost and the intervention — retire the check,
 speed it up, or extract it into a focused module. Before filing, dedup against the
-open queue so a weekly re-run does not re-file the same offender:
+open queue so a weekly re-run does not re-file the same offender. Run the
+block below **once per offender**, each as its own Bash call:
 
 ```bash
-# TITLE is the per-offender issue title you composed and exported (stable across weeks).
+# One run of this block files ONE offender; repeat it per offender. TITLE is that
+# offender's issue title, composed and exported by you (stable across weeks).
 # The in:title search is TOKENIZED, so re-match the title EXACTLY via jq env.TITLE — a token
 # overlap must not suppress a genuine filing (or annotate the wrong issue).
 export TITLE
@@ -1054,9 +1056,7 @@ verdict.
 
 The whole-suite coordinator's cloud runtime is trending toward the cloud tier's
 per-command execution ceiling; when it crosses, every cloud implement run pays the
-shard-decomposition fallback instead of one coordinator run. This step reads the
-latest coordinator elapsed figure from CI job logs and files a maintenance issue
-while there is still headroom.
+shard-decomposition fallback instead of one coordinator run.
 
 **Non-goal (read first):** this step never gates a run on suite duration. No suite
 run, CI job, or completion gate is failed on duration — a duration gate flakes under
@@ -1064,9 +1064,19 @@ host contention, and this repository treats every FAIL as a real failure to diag
 The tripwire only reads a figure and files (or annotates) an issue; it never turns a
 run red.
 
-Read the latest coordinator elapsed reading. The coordinator prints one
-`run-parallel: elapsed <N>s` line per cloud run; find the most recent run whose logs
-carry it and take that `<N>` (seconds):
+Two operands decide it: the latest coordinator `run-parallel: elapsed <N>s` reading
+(seconds) from recent cloud run logs, and the ceiling `BASH_MAX_TIMEOUT_MS`
+(milliseconds) read **by name** from `.github/workflows/devflow-implement.yml` —
+never copied as a number, so the threshold tracks the setting when it moves. They are
+compared against the named `CEILING_TRIPWIRE_FRACTION = 85%`, which leaves enough
+headroom to notice and act — retire or extract slow checks — before a run reaches the
+ceiling and drops to the shard-decomposition fallback. On breach the step files one
+suite-runtime maintenance issue naming the reading and the threshold, or records the
+new reading on the already-open one and files nothing new.
+
+Run it as **one** Bash call: each call is a fresh shell (see the `$LIB` note above),
+so operands split across calls arrive unset and the step reads as "not established"
+every week, silently never tripping.
 
 ```bash
 # Walk recent implement-tier runs newest-first; the first log carrying the coordinator
@@ -1076,23 +1086,7 @@ for RID in $(gh run list --workflow devflow-implement.yml --limit 15 --json data
   ELAPSED_S="$(gh run view "$RID" --log 2>/dev/null | grep -oE 'run-parallel: elapsed [0-9]+s' | tail -1 | grep -oE '[0-9]+')"
   [ -n "$ELAPSED_S" ] && break
 done
-```
-
-Read the ceiling by name — never copy its number. `BASH_MAX_TIMEOUT_MS` (milliseconds)
-is owned by `.github/workflows/devflow-implement.yml`; read the live value from that
-file so the threshold tracks the setting when it moves:
-
-```bash
 CEILING_MS="$(grep -oE '"BASH_MAX_TIMEOUT_MS": *"[0-9]+"' .github/workflows/devflow-implement.yml | grep -oE '[0-9]+' | tail -1)"
-```
-
-Compare against the named threshold. `CEILING_TRIPWIRE_FRACTION = 85%`: 85% leaves
-enough headroom to notice and act — retire or extract slow checks — before a run
-actually reaches the ceiling and drops to the shard-decomposition fallback. Compute
-the threshold in seconds (the reading's unit) and compare only when both operands are
-established:
-
-```bash
 # Validate both operands as digit strings before they decide anything — a non-numeric
 # extraction (an absent grep, a changed log/YAML shape) must fail CLOSED with a breadcrumb,
 # never file on a garbage reading.
@@ -1106,13 +1100,6 @@ else
   OVER="unknown"
   echo "Step 8.6: elapsed reading or ceiling not established as a number (elapsed='$ELAPSED_S' ceiling_ms='$CEILING_MS') — no issue filed this run"
 fi
-```
-
-On breach (`OVER=yes`), file or annotate one suite-runtime maintenance issue naming
-the reading and the threshold. If such an issue is already open, record the new
-reading on it and file nothing new — dedup on a stable title marker:
-
-```bash
 if [ "$OVER" = "yes" ]; then
   MARKER="Suite runtime approaching the cloud execution ceiling"
   # 85*ceiling_ms/100000 = 0.85*ceiling_ms/1000 seconds, integer floor via a bash builtin — no awk.
@@ -1126,8 +1113,10 @@ if [ "$OVER" = "yes" ]; then
       # Post via the repo-scoped REST helper, not the issue-comment porcelain, which resolves the
       # repo via org-scoped GraphQL and silently no-ops under a repo-scoped token.
       printf '%s\n' "New reading: $READING." > .prflow/tmp/suite-runtime-tripwire-comment.md
+      # The helper is best-effort and ALWAYS exits 0, so this line reports the attempt, never
+      # a confirmed post — claiming success here would overstate it in the Step 10 report.
       bash "$LIB/../scripts/post-issue-comment.sh" "$OPEN" .prflow/tmp/suite-runtime-tripwire-comment.md
-      echo "Step 8.6: recorded new reading on the open maintenance issue #$OPEN — nothing new filed"
+      echo "Step 8.6: sent the new reading to open maintenance issue #$OPEN (best-effort post; its own stderr breadcrumb reports the outcome) — nothing new filed"
     else
       printf '%s\n' "The whole-suite coordinator's cloud runtime has crossed 85% of the cloud execution ceiling." "" "$READING." "" "This issue is a heads-up, not a gate: nothing fails on suite duration. Retire, speed up, or extract the slowest checks (see the profiling pass) to recover headroom." > .prflow/tmp/suite-runtime-tripwire-body.md
       # Guard the create: an empty URL must not reach apply-labels.sh as an empty number.
