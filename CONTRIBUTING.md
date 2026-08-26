@@ -801,6 +801,12 @@ fails the suite. The summary renderer lives in `lib/test/summary.sh`.
   in a skill (the cloud-tier *workflows* are the one exception — see below).
 - **Portability:** avoid GNU-only flags. Use `python3` for date math (not `date -d`)
   and ERE / `sed -E` (not `grep -P`).
+- **A present-tense claim about a moving tree carries a date or names the run/artifact
+  that would settle it — never asserted bare (issue #1322).** A "pending" measurement
+  cell or a "currently X" assertion in internal docs goes stale silently the moment the
+  tree moves, and a reader acting on a stale "pending" cell pays to re-obtain evidence
+  that already exists. Write "PENDING as of 2026-08-25" or "PENDING run NNN", never a
+  bare "PENDING".
 - **Windows / non-UTF-8 hosts.** The helpers self-defend at two layers: a committed
   `.gitattributes` pins every `*.sh`/`*.py`/`*.jq` to `eol=lf` on checkout (so
   `core.autocrlf=true` can't turn a shebang into `bash\r`), and every first-party
