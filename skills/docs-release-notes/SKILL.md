@@ -9,7 +9,7 @@ description: Use when a change needs a user-visible release-note, changelog, or 
 > - CHANGELOG file: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.changelog_file CHANGELOG.md`
 > - PR number: `gh pr view --json number -q '.number'` (resolves from current branch)
 >
-> The `config-get.sh` helper falls back to the default value when the config file is missing or the key is absent.
+> The `config-get.sh` helper falls back to the default value when the config file is missing or the key is absent. An empty `release_notes_file` value also resolves to the default path — it does not disable the artifact; whether this skill runs at all is the caller's decision (the combined docs pass's config gates, or a direct invocation).
 >
 > Use these values wherever `[[INTERNAL_DOC_LOCATION]]`, `[[EXTERNAL_DOC_LOCATION]]`, `[[RELEASE_NOTES_FILE]]`, `[[CHANGELOG_FILE]]`, and `[[PR_NUMBER]]` appear below.
 
@@ -35,6 +35,8 @@ If the invocation fails because the helper path does not exist (`No such file`, 
 
 You are an AI Release Notes Agent for a code repository.
 Your task is to review the code changes in a pull request and, if they have customer-visible impact, draft a brief customer-facing release note entry and append it to `[[RELEASE_NOTES_FILE]]`. Independently of customer-visibility, if the branch bumped the version you also reconcile that version's CHANGELOG entry against the shipped diff (Step 4b) — a second, always-on output that writes a different file (`[[CHANGELOG_FILE]]`).
+
+`[[RELEASE_NOTES_FILE]]` is owned by this skill — no other documentation pass edits it, so report (rather than absorb) edits to it that arrive from another pass. Write for the product's users, not its maintainers: who those users are is repository-specific (developers for a developer tool, employees of customer companies for enterprise software), and the external-documentation pass records that audience when it runs in the same session — reuse its determination when available.
 
 If the PR has no customer-visible impact (e.g., refactors, CI changes, documentation-only, test-only, internal tooling), skip Steps 3, 3b, and 4 — do not write a release note or modify `[[RELEASE_NOTES_FILE]]` — and proceed directly to Step 4b (CHANGELOG reconciliation still runs for all PRs).
 
@@ -70,7 +72,7 @@ Ask yourself: Would a customer notice this change?
 Customer-visible (write a release note):
 - New features or capabilities
 - Bug fixes that affected customer workflows
-- Changes to the user interface
+- Changes to commands, output, behavior, or the user interface — whichever surfaces the product actually has
 - Changes to API behavior
 - Performance improvements customers would notice
 - New configuration options or settings
@@ -87,18 +89,28 @@ If the PR is not customer-visible, skip Steps 3, 3b, and 4 — do not write a re
 
 ### Step 3: Draft the Release Note Entry
 
-Write a concise entry following this format:
+An entry is three parts in one bullet, in this order: the user-visible outcome stated in present tense, then the action the reader takes (omitted when there is none), then one linked tracker reference. Write it as:
 
 ```
-- **[Category] Short Title** — Two to three sentence description of what changed and why it matters to customers. (#[[PR_NUMBER]])
+- **Short user-outcome title** — Two to three sentence description of what changed and why it matters to customers. ([#<number>](<issue or PR URL>))
 ```
 
-Short Title: Use the GitHub Issue title from Step 1b. You may lightly rephrase it for clarity or brevity, but keep it faithful to the original issue title.
+- Short user-outcome title: Start from the GitHub Issue title from Step 1b, rephrased into the outcome a user sees; keep it faithful to the original issue title.
+- Description: The entry IS the TLDR — the shared writing standard's TLDR-opening rule is satisfied by the entry itself, so never write a separate opening sentence before the substance.
+- Reference: One linked issue or PR number, so a reader can click through — a bare `(#123)` renders as plain text in most viewers. <!-- pruned-path-ok: illustrative reference format, not a citation -->
+- Closer: Where no user action is required, end with the exact sentence "You get this through the normal plugin update." (or the repository's equivalent update sentence, chosen once and reused verbatim); where the user must act, state the action instead — never both.
 
-Category must be one of:
-- Feature — New functionality or capability
-- **Improvement** — Enhancement to existing functionality
-- Fix — Bug fix or correction
+Write the current behavior, not the change history: each sentence states what the product does now and why that matters. The words "no longer", "used to", "previously", and "silently" signal you are narrating the prior behavior for someone who remembers it — recast such a sentence as the outcome a first-time reader sees today.
+
+The change's kind (feature, fix, improvement) guides Step 2's visibility call and your emphasis; it does not appear in the entry text. Example entries at the target length:
+
+```
+- **Cloud runs retry a failed checkout** — A cloud run that fails while checking out the repository now retries once before reporting an error. Runs interrupted by a transient network fault complete on their own. You get this through the normal plugin update. ([#NNN](https://github.com/example/repo/issues/NNN))
+- **Review comments show the exact failing line** — Review findings link the precise line they refer to instead of the file top. You can jump straight from a finding to the code it describes. ([#NNN](https://github.com/example/repo/issues/NNN))
+- **Issue titles keep their original wording in release notes** — A fix stops release-note titles from being rewritten away from the issue's own words. Entries now match what you filed. You get this through the normal plugin update. ([#NNN](https://github.com/example/repo/issues/NNN))
+```
+
+After drafting (and again after Step 3b's corrections), count the description's sentences: more than three means rewrite until the entry fits the cap — trim qualifications, not accuracy.
 
 ### Step 3b: Verify Every Factual Claim in the Draft Against the Code
 
@@ -120,6 +132,8 @@ Read `[[RELEASE_NOTES_FILE]]`. Determine today's date and format it as `## Month
 - If the date heading does not exist, add it at the top of the file directly below the first H1 heading (e.g., `# Release Notes`), with a blank line before and after. If the file is empty or has no H1 heading, add `# Release Notes` as the first line, then the date heading below it.
 - If the date heading already exists, append the new entry under it (after any existing entries for that date).
 
+After appending, check the file's growth: when it holds more than roughly 50 entries, or its oldest date heading is more than about 90 days old, move the older date sections whole into a dated archive page beside the file (e.g. `release-notes-archive-2026.md`), keep the newest releases in place, and register the archive page in the site's navigation manifest where the docs tree has one (e.g. a `docs.json`) — an unregistered page is invisible to readers. An unbounded single page eventually exceeds what a reader (or a reviewing agent) can load at once.
+
 ### Step 4b: Reconcile the CHANGELOG Entry
 
 This step runs regardless of the Step 2 customer-visibility decision — after appending a release note (Step 4) or after the non-customer-visible skip in Step 2, proceed here.
@@ -129,6 +143,8 @@ Confirm a version bump happened, then read the version from the manifest — not
 git log --oneline origin/main..HEAD
 ```
 Look for a commit whose message begins with `chore: bump version`. This commit's only role here is to confirm that this branch bumped the version — do not read the version string from its free-text subject. A rebase or version collision can re-version `.claude-plugin/plugin.json` in a *later* commit without re-wording the bump commit, so reconciling from that subject would correct the wrong, already-shipped entry and leave the entry this PR ships untouched. First confirm the scan itself succeeded: if `git log` exits non-zero, or `origin/main` will not resolve (not fetched, detached state), that is a failed determination (the fail-loud path below) — never read its empty output as "no bump commit". Only when the scan ran cleanly and shows no `chore: bump version` commit did this PR not bump the version — log "no version-bump commit found on branch" and proceed to Step 5.
+
+Where the repository manages its version with changesets (a `.changeset/` directory whose README states the entry contract), the version bump and CHANGELOG entry are produced at merge time from the pending changeset files, so a branch normally carries no bump commit — the "no version-bump commit found" outcome is then the expected result of this step, not a smell. In that case, when Step 2 found customer-visible changes, verify the branch carries a changeset file and report its absence to the caller — do not author one yourself, since the implementing change owns its changeset.
 
 Read the authoritative shipped version from the manifest (the bump, and any later re-version, both update it):
 ```bash
@@ -160,6 +176,21 @@ Release-note entries are customer-facing, so follow the one customer-facing Styl
 
 - Scope: Only write release notes for customer-visible changes
 - Brevity: Each entry should be two to three sentences
-- No duplicates: If a release note for the same PR number already exists, do not add another
+- No duplicates: If a release note for the same PR number already exists — or an existing entry already describes the same user-visible behavior (a rebase, follow-up PR, or squashed pair changes the number without changing the outcome) — do not add another
 - Tone: Professional and customer-friendly
 - **Do not commit**: Leave committing to the caller
+
+---
+
+## Verification Checklist
+
+Before completing, verify:
+
+- [ ] Entry matches the format: bolded user-outcome title, ` — ` separator, linked tracker reference
+- [ ] Description is two to three sentences — counted, not estimated
+- [ ] Entry states current behavior; no prior-behavior narration ("no longer", "used to", "previously", "silently")
+- [ ] Step 3b performed: every factual claim in the entry confirmed against the Step-1 diff
+- [ ] Duplicate check covered both the PR number and the described behavior
+- [ ] Archive check performed on `[[RELEASE_NOTES_FILE]]` (entry count / oldest-heading age)
+- [ ] Step 4b outcome logged as exactly one of: reconciled, expected changeset-model no-op, legitimate no-op, or failed determination
+- [ ] Nothing committed

@@ -41,7 +41,7 @@ Skip this step when `INTERNAL_ENABLED == "false"` — record "internal docs disa
 
 Invoke the Skill tool with `skill: docs-sync-internal` and follow its instructions exactly.
 
-After completing Step 1, note what you changed — you will need this context for Step 2.
+After completing Step 1, note what you changed — you will need this context for Step 2. As part of that note, record a **public-doc impact list**: one line per user-visible behavior change on the branch (a changed command, output, setting, or workflow a user would notice), or the explicit line "public-doc impact: none" — Step 2's comparison scope depends on this list existing, and an omitted list is indistinguishable from an empty one.
 
 ---
 
@@ -51,7 +51,7 @@ Skip this step when `EXTERNAL_ENABLED == "false"` — record "external docs disa
 
 Invoke the Skill tool with `skill: docs-sync-external` and follow its instructions exactly.
 
-Use the internal documentation you updated in Step 1 as your primary source of truth when comparing against external docs (if Step 1 was skipped, use the branch diff as the source of truth instead).
+Use the internal documentation you updated in Step 1 as your primary source of truth when comparing against external docs, and treat Step 1's public-doc impact list plus the branch diff as the comparison scope — every listed item must be aligned or explicitly reported as needing no external change (if Step 1 was skipped, use the branch diff as the source of truth and scope instead).
 
 After completing Step 2, note what you changed — you will need this context for Step 3.
 
