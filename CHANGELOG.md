@@ -4,6 +4,25 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.48] — 2026-08-26
+
+### Added
+- **Job-level prompt-extension / skill-body arrival enforcement.** A cloud implement run now
+  establishes — on a channel independent of the delivery channel under test — whether the
+  consumer prompt extension (and, by the durable evidence its loaded body must produce, the
+  skill body itself) actually reached the agent, and no longer reports `Complete` when it did
+  not. A new `scripts/prompt-extension-arrival.py` reads the extension root directly
+  (resolving the same canonical `.prflow/` root the `load-prompt-extension.sh` ladder resolves)
+  and classifies each
+  surface as `arrived` / `absent` / `unestablished`; `devflow-implement.yml` records that
+  expectation before the agent runs and reconciles it against the run's durable workpad after,
+  failing the job with an `::error::` (noting that `permission_denials_count` is blind to a lost
+  skill-body load) and flipping the workpad `Status` off `Complete` when arrival is
+  unestablished. (#1970)
+
+### Changed
+docs-verify: index-map routing in Step 1, runner-tool-first searches, an unestablished-state arm on the prompt-extension loader, and write-mode claim-verification, freshness-marker, index-registration, prose-shape, and do-not-commit rules — aligning the last docs-family skill with the campaign standards.
+
 ## [2.34.47] — 2026-08-26
 
 ### Changed
