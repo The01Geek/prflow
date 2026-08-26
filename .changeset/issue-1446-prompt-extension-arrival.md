@@ -13,4 +13,4 @@ type: Added
   expectation before the agent runs and reconciles it against the run's durable workpad after,
   failing the job with an `::error::` (noting that `permission_denials_count` is blind to a lost
   skill-body load) and flipping the workpad `Status` off `Complete` when arrival is
-  unestablished. (#1446)
+  unestablished. (#1970)
