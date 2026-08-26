@@ -1165,4 +1165,166 @@ assert_eq "#1288 --preflight: an empty override emits no preflight output" "yes"
 assert_eq "#1288 --preflight: a second argument is refused by the arity guard" "yes" \
   "$(cd "$PSR_PT" && case "$(bash lib/test/run-parallel.sh --preflight extra 2>&1)" in *"at most one argument"*) echo yes ;; *) echo no ;; esac)"
 
+
+# ── Cheap-lint gate preflight (fail-fast before the coordinator) ─────────────
+# EVIDENCE: cloud implement run 32929107360 spent 12.6 min on a Phase 4.3 gate run that went
+# RED on exactly two sub-second standalone lints (the #1595 reference-size ceiling and the
+# #1745 brand-baseline sweep), then paid a second 12.5 min coordinator after the one-line
+# fix. Both are `run.sh`-resident, so nothing cheaper than the whole coordinator caught them.
+#
+# The verdict contract is the SAME fail-closed-on-attribution / fail-open-on-unusable shape
+# `_artifact_preflight` uses, and the refusal comparand is each lint's own COMPLETION
+# SENTINEL (`<tool>: audited `) rather than its exit code alone: a Python traceback exits 1
+# too, so keying on the exit code would turn every crash into a launch refusal. The sentinel
+# is matched at the START of a line, so the same text quoted inside an indented diagnostic is
+# data, not a verdict — the negative control the artifact preflight also carries.
+PSR_CL_CLEAN_RSZ="$(psr_plant_preflight cl-clean-rsz 0 \
+  "lint-reference-size: audited 41 of 41 files [whole-tree]")"
+PSR_CL_FIND_RSZ="$(psr_plant_preflight cl-find-rsz 1 \
+  "skills/review-and-fix/references/shadow-review.md: 62810 bytes exceeds the 61750-byte ceiling — trim the file to at most 61750 bytes" \
+  "lint-reference-size: audited 41 of 41 files [whole-tree]")"
+PSR_CL_CRASH_RSZ="$(psr_plant_preflight cl-crash-rsz 1 \
+  "Traceback (most recent call last):" \
+  "RuntimeError: boom")"
+PSR_CL_QUOTED_RSZ="$(psr_plant_preflight cl-quoted-rsz 1 \
+  "    output: lint-reference-size: audited 41 of 41 files [whole-tree]" \
+  "Traceback (most recent call last):")"
+PSR_CL_EXIT2_RSZ="$(psr_plant_preflight cl-exit2-rsz 2 \
+  "lint-reference-size: cannot read exemption record: boom")"
+PSR_CL_CLEAN_BDS="$(psr_plant_preflight cl-clean-bds 0 \
+  "lint-brand-devflow-sweep: audited 900 of 900 files")"
+PSR_CL_FIND_BDS="$(psr_plant_preflight cl-find-bds 1 \
+  "lint-brand-devflow-sweep: audited 900 of 900 files" \
+  "  docs/new.md: brand-cased prose in a file with no pending_sweep_baseline entry")"
+
+# A clean pair proceeds, launches the shards, and stays SILENT — the established contract.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a clean pair exits 0" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: a clean pair launches the shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a clean pair emits no gate output" "yes" \
+  "$(case "$PSR_CL_OUT" in *"cheap-lint gate"*) echo no ;; *) echo yes ;; esac)"
+
+# A reference-size finding refuses BEFORE any shard launches, names the gate, and echoes the
+# finding — this is the 12.5-minute relaunch the run above paid for.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_FIND_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a reference-size finding exits non-zero" "yes" \
+  "$([ "$PSR_CL_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate: a reference-size finding launches NO shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+assert_eq "cheap-lint gate: a reference-size finding names the failing gate" "yes" \
+  "$(case "$PSR_CL_OUT" in *"reference-size"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a reference-size finding names the remedy" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launching no shard"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a reference-size finding echoes the finding line" "yes" \
+  "$(case "$PSR_CL_OUT" in *"exceeds the 61750-byte ceiling"*) echo yes ;; *) echo no ;; esac)"
+
+# A brand-sweep finding refuses on the same contract, proving the gate is a SET and not one
+# hardcoded lint.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_FIND_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a brand-sweep finding exits non-zero" "yes" \
+  "$([ "$PSR_CL_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate: a brand-sweep finding launches NO shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+assert_eq "cheap-lint gate: a brand-sweep finding names its own gate" "yes" \
+  "$(case "$PSR_CL_OUT" in *"brand-sweep"*) echo yes ;; *) echo no ;; esac)"
+
+# A crashing lint (traceback, exit 1, NO completion sentinel) must NOT block the suite: an
+# unusable check fails OPEN, exactly as the artifact preflight does.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CRASH_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a crashing lint still exits 0 (decided by the shards)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: a crashing lint still launches the shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a crashing lint is reported inconclusive, never a refusal" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launching no shard"*) echo no ;; *"was inconclusive (exit 1"*) echo yes ;; *) echo no ;; esac)"
+
+# The sentinel is matched at the START of a line: the same text quoted inside an indented
+# diagnostic is data, so a crash that happens to echo it must still fail OPEN.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_QUOTED_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a sentinel quoted inside a diagnostic does NOT refuse (exit 0)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: a sentinel quoted inside a diagnostic refuses nothing by name" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launching no shard"*) echo no ;; *) echo yes ;; esac)"
+
+# An exit-2 record error carries no completion sentinel either — warn and proceed.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_EXIT2_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: an exit-2 record error proceeds (exit 0)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: an exit-2 record error warns rather than blocks" "yes" \
+  "$(case "$PSR_CL_OUT" in *"was inconclusive (exit 2"*) echo yes ;; *) echo no ;; esac)"
+
+# An empty override disables that gate entirely, the documented escape hatch the artifact
+# preflight also offers.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="" DEVFLOW_BRAND_SWEEP_PREFLIGHT="" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: an empty override disables the gate (exit 0)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: an empty override emits no gate output" "yes" \
+  "$(case "$PSR_CL_OUT" in *"cheap-lint gate"*) echo no ;; *) echo yes ;; esac)"
+
+# The artifact preflight still decides FIRST: a drift refusal is reported even when a cheap
+# lint would also have fired, so the cheaper gate cannot mask the existing one.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_DRIFT" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_FIND_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: artifact drift still refuses first" "yes" \
+  "$(case "$PSR_CL_OUT" in *"generated-artifact preflight reported drift"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: artifact drift refusal launches no shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+
+# ── Cheap-lint gate on the standalone --preflight route ──────────────────────
+# The #1132 decomposition route must carry the SAME cheap gates, or a run that decomposes
+# into shards keeps paying the whole partition to discover a sub-second finding.
+PSR_CLO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_CLO_RC=$?
+assert_eq "cheap-lint gate --preflight: a clean pair exits 0" "0" "$PSR_CLO_RC"
+assert_eq "cheap-lint gate --preflight: a clean pair launches no shard" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+
+PSR_CLO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_FIND_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_CLO_RC=$?
+assert_eq "cheap-lint gate --preflight: a finding exits non-zero" "yes" \
+  "$([ "$PSR_CLO_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate --preflight: a finding refuses by name" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"launching no shard"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate --preflight: a finding echoes the finding line" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"exceeds the 61750-byte ceiling"*) echo yes ;; *) echo no ;; esac)"
+
+PSR_CLO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CRASH_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_CLO_RC=$?
+assert_eq "cheap-lint gate --preflight: a crashing lint proceeds (exit 0)" "0" "$PSR_CLO_RC"
+assert_eq "cheap-lint gate --preflight: a crashing lint is inconclusive, not a refusal" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"launching no shard"*) echo no ;; *"was inconclusive (exit 1"*) echo yes ;; *) echo no ;; esac)"
+
 rm -rf "$PSR_ROOT"
