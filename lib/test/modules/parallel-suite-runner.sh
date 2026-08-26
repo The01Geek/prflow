@@ -1500,6 +1500,15 @@ assert_eq "psr fp: one differing fingerprint field refuses the same-tree relaunc
   "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh-drift.json" >/dev/null 2>&1; echo $?)"
 assert_eq "psr fp: the refusal names the differing field" "yes" \
   "$(case "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh-drift.json" 2>&1)" in *"field 'head' differs"*) echo yes ;; *) echo no ;; esac)"
+# Reverse coupling: same-tree-eligible must compare ALL five fields, so drifting EACH one
+# individually refuses. A field dropped from _FINGERPRINT_FIELDS would let its own drift pass
+# ELIGIBLE (a false green), and only this per-field sweep — not a head-only drift — catches it.
+for psr_fld in checkout_id head index_digest tracked_digest untracked_digest; do
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); d[sys.argv[2]]="drifted-"+sys.argv[2]; json.dump(d,open(sys.argv[3],"w"))' \
+    "$PSR_EL/fresh.json" "$psr_fld" "$PSR_EL/fresh-$psr_fld.json"
+  assert_eq "psr fp: drifting fingerprint field '$psr_fld' refuses the same-tree relaunch (rc 1)" "1" \
+    "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh-$psr_fld.json" >/dev/null 2>&1; echo $?)"
+done
 assert_eq "psr fp: an absent recorded fingerprint refuses the same-tree relaunch (rc 1)" "1" \
   "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/does-not-exist.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
 assert_eq "psr fp: an unestablished recorded fingerprint is refused too (rc 1)" "1" \
