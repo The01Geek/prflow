@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2001",
+  "generated_at": "2026-08-26T17:16:37Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.54",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.269406,
+    "tokens": {
+      "input_tokens": 70,
+      "output_tokens": 34305,
+      "cache_read_input_tokens": 5573203,
+      "cache_creation_input_tokens": 234165,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 116,
+        "outputTokens": 44564,
+        "cacheReadInputTokens": 6433932,
+        "cacheCreationInputTokens": 534357,
+        "webSearchRequests": 0,
+        "costUSD": 8.549495999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 48,
+        "outputTokens": 5077,
+        "cacheReadInputTokens": 1064570,
+        "cacheCreationInputTokens": 182452,
+        "webSearchRequests": 0,
+        "costUSD": 0.7199099999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 51,
+    "duration_ms": 518337
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} ACTIONS=${GITHUB_ACTIONS:-none}\"",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-verifier\" ; echo \"rc=$?\"\nmkdir -p .prflow/tmp/review/pr-2001/standalone/verdicts/iter-1\nrm -f .prflow/tmp/review/pr-2001/standalone/verdicts/iter-1/*.json\necho \"prepared\""
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
