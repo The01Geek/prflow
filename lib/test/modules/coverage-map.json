@@ -67,6 +67,11 @@
       "note": "issue #1004 Tier 3: renders the frozen out-of-repo DEVFLOW_* advisory region from lib/rename-map.json and re-runs the two-arm criterion over the tree (--audit)",
       "owner": "tier1-rename-migration"
     },
+    "lib/generate-install-state.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1388 generator for the tracked digest-bound install-state marker; the #1388 drift-gate in test_python_scripts.py drives its --check",
+      "owner": "unmodularized"
+    },
     "lib/generate-plugin-identity.py": {
       "note": "issue #927 name-agnostic plugin identity: compiles the baked discriminator regions",
       "owner": "unmodularized"
@@ -497,6 +502,11 @@
       "note": "",
       "owner": "installer-wiring"
     },
+    "scripts/install_state.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1388 install-state compatibility-marker builder/validator + provisioning readiness gate",
+      "owner": "unmodularized"
+    },
     "scripts/inventory-workflow-transcripts.py": {
       "focused_test": "lib/test/test_workflow_flight_recorder.py",
       "note": "",
@@ -515,6 +525,11 @@
     "scripts/lint_manifest.py": {
       "focused_test": "lib/test/test_python_scripts.py",
       "note": "issue #1276 declarative lint-manifest strict reader/validator",
+      "owner": "unmodularized"
+    },
+    "scripts/lint_provision.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1388 manifest platform-resolution + cache-key + trusted download URLs for lint provisioning",
       "owner": "unmodularized"
     },
     "scripts/load-prompt-extension.sh": {
@@ -1215,6 +1230,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1388": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "139": {
       "note": "",
       "owner": "unmodularized"
@@ -1455,6 +1474,10 @@
       "note": "",
       "owner": "create-issue-contract"
     },
+    "1745": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "1751": {
       "note": "",
       "owner": "create-issue-contract"
@@ -1630,6 +1653,10 @@
     "196": {
       "note": "",
       "owner": "unmodularized"
+    },
+    "1963": {
+      "note": "",
+      "owner": "installer-wiring"
     },
     "197": {
       "note": "",

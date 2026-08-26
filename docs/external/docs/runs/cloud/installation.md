@@ -14,14 +14,14 @@ Use a Git repository and run the installer from its root. Install `git` before s
 1. Download the installer from the current release tag.
 
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.47/install.sh -o devflow-install.sh
+   curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.49/install.sh -o devflow-install.sh
    ```
 
 2. Read `devflow-install.sh` before running it.
 3. Run the downloaded file with the same tag in `DEVFLOW_REF`.
 
    ```bash
-   DEVFLOW_REF=v2.34.47 bash devflow-install.sh
+   DEVFLOW_REF=v2.34.49 bash devflow-install.sh
    ```
 
 4. Review the result with `git status` and `git diff`.
@@ -39,6 +39,7 @@ A first installation applies immediately unless you pass `--dry-run` or set `DEV
 - `.claude-plugin/marketplace.json`.
 - `.prflow/config.json`, `.prflow/config.schema.json`, `.prflow/.gitignore` and prompt-extension examples.
 - `.prflow/install-manifest.json`, when Python can record managed-artifact digests.
+- `.prflow/lint-manifest.json` and `.prflow/install-state.json`, which let issue-implementation runs provision their lint tools from a verified, digest-bound set before the agent starts.
 - Repository ignore rules for installer sidecars.
 
 Fresh installations do not receive `devflow-review.yml`, `devflow-runner.yml` or `telemetry-push.yml`. Automatic pull-request-triggered review is withdrawn from new installs. Use a collaborator's `/prflow:review` comment instead.
@@ -50,7 +51,7 @@ The default is a thin install. The workflows fetch the plugin at runtime into `.
 Set `DEVFLOW_VENDOR=1` to commit the plugin tree instead:
 
 ```bash
-DEVFLOW_VENDOR=1 DEVFLOW_REF=v2.34.47 bash devflow-install.sh
+DEVFLOW_VENDOR=1 DEVFLOW_REF=v2.34.49 bash devflow-install.sh
 ```
 
 Vendored mode avoids a runtime fetch and makes the plugin bytes auditable in the repository. It also creates a much larger install and update diff.
