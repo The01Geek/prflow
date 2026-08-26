@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2021",
+  "generated_at": "2026-08-26T22:58:11Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 5.053676400000003,
+    "tokens": {
+      "input_tokens": 64,
+      "output_tokens": 24037,
+      "cache_read_input_tokens": 4753482,
+      "cache_creation_input_tokens": 155777,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 64,
+        "outputTokens": 24037,
+        "cacheReadInputTokens": 4753482,
+        "cacheCreationInputTokens": 155777,
+        "webSearchRequests": 0,
+        "costUSD": 4.535756,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 44,
+        "outputTokens": 4536,
+        "cacheReadInputTokens": 1420737,
+        "cacheCreationInputTokens": 75330,
+        "webSearchRequests": 0,
+        "costUSD": 0.5179204000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 39,
+    "duration_ms": 416344
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; git rev-parse --show-toplevel; git branch --show-current; git status --porcelain",
+      "HEAD_REF=\"issue-2009-cloud-implement-runs-red-the-1621-ruff-gate-on-a\"\nCO_ERR=$( { git fetch origin \"$HEAD_REF\" && git checkout \"$HEAD_REF\"; } 2>&1 1>/dev/null ) || true\nLANDED=no; [ -n \"$HEAD_REF\" ] && [ \"$(git rev-parse --abbrev-ref HEAD 2>/dev/null)\" = \"$HEAD_REF\" ] && LANDED=yes\necho \"CO_ERR=$CO_ERR\"\necho \"LANDED=$LANDED\"\ngit rev-parse --abbrev-ref HEAD",
+      "RUN_URL=\"https://github.com/The01Geek/prflow/actions/runs/33020939835\"\nPR_NUMBER=2021\nif ! PR_BODY=$(gh api \"repos/{owner}/{repo}/pulls/2021\" --jq '.body' 2>/dev/null); then\n  PR_BODY=\"\"\n  echo \"::warning::prflow resume: could not read PR #2021 body (gh api read failed); PR-body run-link refresh skipped\" >&2\nfi\necho \"len=${#PR_BODY}\"\ncase \"$PR_BODY\" in\n  *\"[View run](\"*) echo \"has-view-run-line=yes\" ;;\n  *) echo \"has-view-run-line=no\" ;;\nesac",
+      "gh api \"repos/{owner}/{repo}/pulls/2021\" --jq '.body' > /tmp/prbody.txt 2>/tmp/prbody.err; echo \"rc=$?\"; wc -c /tmp/prbody.txt; grep -c \"\\[View run\\](\" /tmp/prbody.txt",
+      "gh api \"repos/{owner}/{repo}/pulls/2021\" --jq '.body' > /tmp/prbody.txt",
+      "mkdir -p .prflow/tmp && gh api \"repos/{owner}/{repo}/pulls/2021\" --jq '.body' > .prflow/tmp/prbody-2009.txt"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
