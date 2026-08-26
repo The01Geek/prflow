@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
+import os
 import subprocess
 import sys
 import tempfile
@@ -43,7 +43,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from context_eval_shared import UNESTABLISHED  # noqa: E402
-from workflow_flight_recorder import _content, _timestamp_ms  # noqa: E402
+from workflow_flight_recorder import _timestamp_ms  # noqa: E402
 
 # The directory whose phase files mark an implement phase boundary. The trailing slash is
 # load-bearing: without it `skills/implement/phases` would also prefix-match a sibling
@@ -98,7 +98,10 @@ def download_transcript(run_id: str, dest: Path, repo: str | None = None) -> Pat
     the 7-day retention window produces, and equally the shape of a run whose upload was
     gated off.
     """
-    gh = shutil.which("gh") or "gh"
+    # The documented override wins verbatim and is never probed — matching every other
+    # Python gh caller and lib/resolve-gh.sh. A `which` probe would pick the present-but-
+    # unrunnable Windows/WSL shim the override exists to route around.
+    gh = os.environ.get("DEVFLOW_GH") or "gh"
     cmd = [gh, "run", "download", str(run_id), "-D", str(dest)]
     if repo:
         cmd.extend(["--repo", repo])
@@ -144,6 +147,30 @@ def _iter_records(raw: str):
     yield None, skipped
 
 
+
+def _tool_items(record):
+    """(tool_use items, tool_result items) from one transcript record, in ONE pass.
+
+    Resolves the message/content shape once, in this function: a second copy of that rule
+    drifts from this one the moment the transcript shape changes.
+    Deliberately not `workflow_flight_recorder._content`, which returns no tool_results
+    and joins every text block into a string this caller discards — a wasted allocation
+    per record over a transcript that runs to tens of megabytes.
+    """
+    message = record.get("message")
+    content = message.get("content") if isinstance(message, dict) else record.get("content")
+    uses, results = [], []
+    if isinstance(content, list):
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "tool_use":
+                uses.append(item)
+            elif item.get("type") == "tool_result":
+                results.append(item)
+    return uses, results
+
+
 def _phase_from_read(item) -> str | None:
     """The implement phase a tool_use enters, or None when it enters none."""
     if item.get("name") != "Read":
@@ -174,7 +201,7 @@ def build_timeline(raw: str) -> dict:
         if record is None:
             break
         ts = _timestamp_ms(record.get("timestamp")) if isinstance(record.get("timestamp"), str) else None
-        _text, _role, tool_uses = _content(record)
+        tool_uses, tool_results = _tool_items(record)
         for item in tool_uses:
             tool_id = item.get("id")
             if not isinstance(tool_id, str) or tool_id in starts:
@@ -189,14 +216,10 @@ def build_timeline(raw: str) -> dict:
                 current = entered
             starts[tool_id] = (ts, name, current)
             order.append(tool_id)
-        content = record.get("message", {}).get("content") if isinstance(record.get("message"), dict) else record.get("content")
-        if isinstance(content, list):
-            for item in content:
-                if not isinstance(item, dict) or item.get("type") != "tool_result":
-                    continue
-                rid = item.get("tool_use_id")
-                if isinstance(rid, str) and rid in starts and rid not in finishes:
-                    finishes[rid] = ts
+        for item in tool_results:
+            rid = item.get("tool_use_id")
+            if isinstance(rid, str) and rid in starts and rid not in finishes:
+                finishes[rid] = ts
 
     steps = []
     phases: dict[str, int] = {}

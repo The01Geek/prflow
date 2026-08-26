@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import importlib.util
 import json
 import re
 import sys
@@ -39,10 +40,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from context_eval_shared import UNESTABLISHED  # noqa: E402
 
-# The five top-level workpad phase rows, mirroring `scripts/workpad.py`'s
-# `_PROGRESS_PHASES`. A heading outside this set contributes no duration: renaming a
-# phase there without updating this tuple silently drops that phase's span.
-PROGRESS_PHASES = ("Setup", "Implement", "Review", "Documentation", "PR marked ready")
+
+def _load_workpad():
+    """`scripts/workpad.py` as a module. It is hyphen-free but sits beside this file, so
+    load it by path — importing by name would depend on the caller's sys.path."""
+    spec = importlib.util.spec_from_file_location(
+        "_drp_workpad", Path(__file__).resolve().parent / "workpad.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# The top-level workpad phase rows, IMPORTED from their owner rather than transcribed.
+# A hand-copied tuple would silently drop a renamed phase's span with nothing going red,
+# because a heading outside this set contributes no duration.
+_workpad = _load_workpad()
+PROGRESS_PHASES = _workpad._PROGRESS_PHASES
+_strip_status_glyph = _workpad._strip_status_glyph
 
 _SECTION_RE = re.compile(r"^##\s+Progress\s*$", re.MULTILINE)
 _NEXT_SECTION_RE = re.compile(r"^##\s+", re.MULTILINE)
@@ -80,9 +94,9 @@ def _final_status(body: str):
     m = _STATUS_RE.search(body)
     if m is None:
         return UNESTABLISHED
-    # The Status line is `<glyph> <Word>`; the glyph is decoration the consumer never
-    # keys on, so strip to the bare word the workpad vocabulary defines.
-    word = m.group(1).split()[-1] if m.group(1).split() else ""
+    # Strip the glyph through workpad.py's own stripper, not a local heuristic: a
+    # `.split()[-1]` would reduce a multi-word status to its last word.
+    word = _strip_status_glyph(m.group(1)).strip()
     return word or UNESTABLISHED
 
 
@@ -134,20 +148,13 @@ def derive(body):
     lines = _progress_block(body)
     if lines is None:
         return {"phase_durations_ms": UNESTABLISHED, "final_status": status}
+    # Without a day the stamps cannot be ordered across a midnight boundary, so no span
+    # is established — reporting one would be a guess presented as a fact.
     base_date = _base_date(body)
-    if base_date is None:
-        # Without a day the stamps cannot be ordered across a midnight boundary, so
-        # no span is established — reporting one would be a guess presented as a fact.
-        stamps = _phase_stamps(lines)
-        return {
-            "phase_durations_ms": {p: UNESTABLISHED for p in stamps},
-            "final_status": status,
-        }
     stamps = _phase_stamps(lines)
-    return {
-        "phase_durations_ms": {p: _span_ms(t, base_date) for p, t in stamps.items()},
-        "final_status": status,
-    }
+    durations = {p: (_span_ms(triples, base_date) if base_date else UNESTABLISHED)
+                 for p, triples in stamps.items()}
+    return {"phase_durations_ms": durations, "final_status": status}
 
 
 def main(argv=None):

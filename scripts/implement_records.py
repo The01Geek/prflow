@@ -77,44 +77,52 @@ def load_runs(path=None):
     store = Path(path) if path else DEFAULT_STORE
     runs = []
     try:
-        text = store.read_text(encoding="utf-8")
+        handle = store.open(encoding="utf-8")
     except OSError:
         return runs
-    for line in text.splitlines():
-        if not line.strip():
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(record, dict):
-            continue
-        for entry in record.get("efficiency_runs") or []:
-            if not isinstance(entry, dict):
+    # Iterated, not read_text().splitlines(): the store is append-only and already several
+    # megabytes, and materializing it doubles peak memory for a strictly line-by-line read.
+    with handle:
+        for line in handle:
+            if not line.strip():
                 continue
-            hc = entry.get("harness_cost")
-            if not isinstance(hc, dict) or hc.get("command") != "implement":
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
                 continue
-            profile = entry.get("run_profile") if isinstance(entry.get("run_profile"), dict) else {}
-            runs.append({
-                "pr": record.get("pr"),
-                "issue": record.get("issue"),
-                "run_id": entry.get("run_id"),
-                "merged_at": record.get("merged_at"),
-                "verdict": record.get("verdict"),
-                "fingerprint": _fingerprint_sha(record),
-                "duration_ms": _figure(hc.get("duration_ms")),
-                "cost_usd": _figure(hc.get("cost_usd")),
-                "num_turns": _figure(hc.get("num_turns")),
-                # From the run_profile floor; absent on every pre-#2006 record, which is
-                # why each of these is None rather than a default value.
-                "terminal_status": profile.get("final_status"),
-                "phase_durations_ms": profile.get("phase_durations_ms"),
-                "engine_outcome": profile.get("engine_outcome"),
-                "prior_record_count": profile.get("prior_record_count"),
-            })
+            if not isinstance(record, dict):
+                continue
+            _ingest(record, runs)
     runs.sort(key=lambda r: (r["merged_at"] or "", str(r["run_id"] or "")))
     return runs
+
+
+def _ingest(record, runs):
+    """Append every implement run this experiment-record line carries."""
+    for entry in record.get("efficiency_runs") or []:
+        if not isinstance(entry, dict):
+            continue
+        hc = entry.get("harness_cost")
+        if not isinstance(hc, dict) or hc.get("command") != "implement":
+            continue
+        profile = entry.get("run_profile") if isinstance(entry.get("run_profile"), dict) else {}
+        runs.append({
+            "pr": record.get("pr"),
+            "issue": record.get("issue"),
+            "run_id": entry.get("run_id"),
+            "merged_at": record.get("merged_at"),
+            "verdict": record.get("verdict"),
+            "fingerprint": _fingerprint_sha(record),
+            "duration_ms": _figure(hc.get("duration_ms")),
+            "cost_usd": _figure(hc.get("cost_usd")),
+            "num_turns": _figure(hc.get("num_turns")),
+            # From the run_profile floor; absent on every pre-#2006 record, which is
+            # why each of these is None rather than a default value.
+            "terminal_status": profile.get("final_status"),
+            "phase_durations_ms": profile.get("phase_durations_ms"),
+            "engine_outcome": profile.get("engine_outcome"),
+            "prior_record_count": profile.get("prior_record_count"),
+        })
 
 
 def phase_shares(run):
@@ -136,6 +144,11 @@ def is_reject(verdict):
     (`APPROVE with notes`, `REJECT`), and a cohort must be withheld on any REJECT.
     """
     return isinstance(verdict, str) and "reject" in verdict.lower()
+
+
+def seconds(value):
+    """Render a millisecond figure as seconds, passing the unestablished sentinel through."""
+    return UNESTABLISHED if value == UNESTABLISHED or value is None else fmt(value / 1000, "s")
 
 
 def fmt(value, suffix=""):

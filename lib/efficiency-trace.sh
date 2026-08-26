@@ -1567,16 +1567,26 @@ _floor_merge_key_staged() {
   fi
 }
 
-# Count prior efficiency records on the telemetry branch carrying run_profile.issue_number
-# equal to $2, excluding this run's own ident $3. Prints a decimal count, or the string
-# `unestablished`.
+# Count prior efficiency records for this run's own record family on the telemetry branch,
+# excluding this run's own ident. Prints a decimal count, or the string `unestablished`.
+#
+# $2 = the PR number (may be empty), $3 = the issue number (may be empty), $4 = this run's
+# ident. The family is the filename prefixes this run's own record can be keyed under —
+# `pr-<N>-` and `issue-<N>-` — so the count is a NAME match over the tree listing and reads
+# no blob. Reading each blob to match an issue number inside it would cost two processes per
+# stored record on every persist, on a branch that grows by one record per cloud run forever
+# (2390 records at the time of writing); the name match costs none.
+#
+# The bound this buys, stated because the field means less than its name suggests otherwise:
+# it counts prior records under THIS run's own pr-/issue- keys, so an issue whose work moved
+# to a second PR begins a new count under that PR's key.
 #
 # Probes the ref ITSELF rather than reading devflow_telemetry_list_blobs' output: that
 # helper returns 0 and prints nothing on an absent ref, an unestablished ref probe AND an
 # unreadable tree alike, so its empty output cannot distinguish a real zero from a failed
 # read — the exact fail-open this count must not inherit.
 _prior_implement_record_count() {
-  local root="$1" issue="$2" ident="$3" ref rel base blob n=0 rc=0 listing
+  local root="$1" pr="$2" issue="$3" ident="$4" ref rel base n=0 rc=0 listing
   ref="$(devflow_telemetry_ref)"
   git -C "$root" rev-parse --verify --quiet "$ref" >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 1 ]; then
@@ -1593,19 +1603,20 @@ _prior_implement_record_count() {
   fi
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
-    base="$(basename "$rel")"
+    base="${rel##*/}"
     case "$base" in *-"$ident".json) continue ;; esac
-    blob="$(devflow_telemetry_show_blob "$root" "$ref" "$rel")" || continue
-    [ -n "$blob" ] || continue
-    if printf '%s' "$blob" | "$DEVFLOW_JQ" -e --argjson i "$issue" \
-        '(.run_profile.issue_number? // null) == $i' >/dev/null 2>&1; then
-      n=$((n + 1))
+    if [ -n "$pr" ]; then
+      case "$base" in "pr-${pr}-"*.json) n=$((n + 1)); continue ;; esac
+    fi
+    if [ -n "$issue" ]; then
+      case "$base" in "issue-${issue}-"*.json) n=$((n + 1)); continue ;; esac
     fi
   done <<EOF
 $listing
 EOF
   printf '%s\n' "$n"
 }
+
 
 # Consume DEVFLOW_RUN_PROFILE (scripts/prepare-run-profile.sh's single-line JSON) and
 # DEVFLOW_ENGINE_OUTCOME, and land them as one top-level `run_profile` key. Mirrors
@@ -1628,11 +1639,16 @@ apply_run_profile_floor() {
     return 0
   fi
   local ident="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}"
-  local issue="${DEVFLOW_ISSUE_NUMBER:-}" prior="unestablished" issue_json="null"
+  local issue="${DEVFLOW_ISSUE_NUMBER:-}" pr="${DEVFLOW_EXECUTION_PR:-}"
+  local prior="unestablished" issue_json="null"
   case "$issue" in
-    ''|*[!0-9]*) : ;;
-    *) issue_json="$issue"; prior="$(_prior_implement_record_count "$root" "$issue" "$ident")" ;;
+    ''|*[!0-9]*) issue="" ;;
+    *) issue_json="$issue" ;;
   esac
+  case "$pr" in ''|*[!0-9]*) pr="" ;; esac
+  if [ -n "$issue" ] || [ -n "$pr" ]; then
+    prior="$(_prior_implement_record_count "$root" "$pr" "$issue" "$ident")"
+  fi
   local prior_json="\"unestablished\""
   case "$prior" in
     ''|*[!0-9]*) : ;;

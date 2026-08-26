@@ -36,6 +36,7 @@ from implement_records import (  # noqa: E402
     median_or_unestablished,
     numeric,
     phase_shares,
+    seconds,
 )
 
 # The fraction by which a week's mean duration must exceed the preceding four-week mean
@@ -88,10 +89,8 @@ def render_runs(runs, n):
     lines.append(f"  runs with an established duration: {established} of {len(recent)}")
     mean_ms = mean_or_unestablished(durations)
     median_ms = median_or_unestablished(durations)
-    lines.append(f"  mean duration:   "
-                 f"{fmt(mean_ms / 1000, 's') if mean_ms != UNESTABLISHED else UNESTABLISHED}")
-    lines.append(f"  median duration: "
-                 f"{fmt(median_ms / 1000, 's') if median_ms != UNESTABLISHED else UNESTABLISHED}")
+    lines.append(f"  mean duration:   {seconds(mean_ms)}")
+    lines.append(f"  median duration: {seconds(median_ms)}")
     lines.append(f"  mean cost:       {fmt(mean_or_unestablished(costs))}")
     lines.append(f"  median cost:     {fmt(median_or_unestablished(costs))}")
     return "\n".join(lines)
@@ -152,8 +151,7 @@ def render_retro(runs):
     window_durations = [weeks[w]["duration"] for w in trailing]
     window_costs = [weeks[w]["cost"] for w in trailing]
     mean_ms = mean_or_unestablished(window_durations)
-    lines.append(f"Trailing {len(trailing)}-week mean duration: "
-                 f"{fmt(mean_ms / 1000, 's') if mean_ms != UNESTABLISHED else UNESTABLISHED}")
+    lines.append(f"Trailing {len(trailing)}-week mean duration: {seconds(mean_ms)}")
     lines.append(f"Trailing {len(trailing)}-week mean cost: "
                  f"{fmt(mean_or_unestablished(window_costs))}")
     lines.append("")

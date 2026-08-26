@@ -34,6 +34,7 @@ from implement_records import (  # noqa: E402
     mean_or_unestablished,
     median_or_unestablished,
     numeric,
+    seconds,
     stdev_or_unestablished,
 )
 
@@ -87,18 +88,14 @@ def withholding_reasons(label_a, stats_a, label_b, stats_b):
     return reasons
 
 
-def _seconds(value):
-    return UNESTABLISHED if value == UNESTABLISHED else fmt(value / 1000, "s")
-
-
 def _render_cohort(label, fingerprint, stats):
     return "\n".join([
         f"Cohort {label} — {fingerprint}",
         f"  runs:                 {stats['count']} "
         f"({stats['established_durations']} with an established duration)",
-        f"  duration mean:        {_seconds(stats['duration_mean_ms'])}",
-        f"  duration median:      {_seconds(stats['duration_median_ms'])}",
-        f"  duration stdev:       {_seconds(stats['duration_stdev_ms'])}",
+        f"  duration mean:        {seconds(stats['duration_mean_ms'])}",
+        f"  duration median:      {seconds(stats['duration_median_ms'])}",
+        f"  duration stdev:       {seconds(stats['duration_stdev_ms'])}",
         f"  cost mean:            {fmt(stats['cost_mean_usd'])}",
         f"  cost median:          {fmt(stats['cost_median_usd'])}",
         f"  cost stdev:           {fmt(stats['cost_stdev_usd'])}",
