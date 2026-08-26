@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2022",
+  "generated_at": "2026-08-26T20:37:43Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 15.345552399999999,
+    "tokens": {
+      "input_tokens": 144,
+      "output_tokens": 62360,
+      "cache_read_input_tokens": 15924666,
+      "cache_creation_input_tokens": 305740,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 170,
+        "outputTokens": 70942,
+        "cacheReadInputTokens": 16488956,
+        "cacheCreationInputTokens": 529622,
+        "webSearchRequests": 0,
+        "costUSD": 14.475540499999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 58,
+        "outputTokens": 12666,
+        "cacheReadInputTokens": 1658867,
+        "cacheCreationInputTokens": 164585,
+        "webSearchRequests": 0,
+        "costUSD": 0.8700119,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 101,
+    "duration_ms": 1246301
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"; echo \"RUN_ID=$GITHUB_RUN_ID\"; echo \"REPO=$GITHUB_REPOSITORY\"; git branch --show-current; git status --porcelain | head",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || { echo \"prflow: base_branch read failed; falling back to 'main'\" >&2; BASE=main; }\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_P …[per-command-truncated]",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main)\nif [ -z \"$BASE\" ]; then\n  echo \"prflow: base_branch read failed; falling back to main\" >&2\n  BASE=main\nfi\nCUR=$(git branch --show-current 2>/dev/null)\necho \"BASE=$BASE\"\necho \"CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null)\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      "\"$HOME\"/.local/bin/true 2>/dev/null; ls /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/check-verified-premises.py 2>&1 | head -5\ngrep -n \"TOOLS=\" /home/runner/work/prflow/prflow/.github/workflows/*.yml 2>/dev/null | head -30\nls /home/runner/work/prflow/prflow/.prflow/vendor/prflow/.github/workflows/ 2>&1",
+      "git diff --no-index -U0 /dev/null .changeset/issue-2018-batch-auditor-workpad-writes.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"EXIT=$?\""
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
