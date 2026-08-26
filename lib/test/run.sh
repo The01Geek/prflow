@@ -54904,6 +54904,20 @@ assert_eq "#1621 ruff-pin matrix: a directory operand fails closed to a sentinel
 rm -rf "$RUFF_MTX_DIR"
 unset -f devflow_ruff_pin
 
+# ── internal-docs structure lint (lib/test/lint-internal-docs.py) ──
+# Baseline-tolerant by design: it fails only on a violation absent from
+# lib/test/internal-docs-baseline.json, and a stale baseline entry is an advisory —
+# so a docs-corpus repair and this gate can land in either order without one
+# turning the other red. Do not tighten stale entries to failures here; regenerate
+# the baseline with --write-baseline after a repair instead.
+ID_LINT="$LIB/test/lint-internal-docs.py"
+ID_ST_OUT="$(python3 "$ID_LINT" --self-test 2>&1)"; ID_ST_RC=$?
+assert_eq "internal-docs lint: self-test passes" "rc=0" \
+  "$([ "$ID_ST_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$ID_ST_RC" "$ID_ST_OUT")"
+ID_OUT="$(cd "$LIB/.." && python3 "$ID_LINT" 2>&1)"; ID_RC=$?
+assert_eq "internal-docs lint: no NEW structure violation on the tree as it stands" "rc=0" \
+  "$([ "$ID_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$ID_RC" "$ID_OUT")"
+
 # ────────────────────────────────────────────────────────────────────────────
 PASS=$(grep -c '^PASS$' "$RESULTS_FILE" || true)
 FAIL=$(grep -c '^FAIL$' "$RESULTS_FILE" || true)

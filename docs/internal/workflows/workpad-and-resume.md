@@ -25,7 +25,7 @@ Long-running agent workflows cross context, tool, and process boundaries. A dura
 - `skills/implement/SKILL.md` and `skills/review/SKILL.md` — run-specific artifacts.
 - `scripts/update-branch-checkpoint.sh` and `scripts/verification-flight.py` — checkpoint and verification state.
 - `.github/workflows/devflow.yml` and `.github/workflows/devflow-implement.yml` — cloud persistence and resume entry points.
-- `docs/internal/workflow-triggers.md` — comment and dedupe behavior.
+- [`docs/internal/workflow-triggers.md`](../workflow-triggers.md) — comment and dedupe behavior.
 
 ## Related topics
 

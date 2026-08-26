@@ -5,6 +5,8 @@ kind: growth
 
 # Issue #640 — give a direct receiving-code-review pass the editor-authority guard
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 ## Files
 
 `.prflow/prompt-extensions/receiving-code-review.md` gains one section, **Weigh an Addendum's

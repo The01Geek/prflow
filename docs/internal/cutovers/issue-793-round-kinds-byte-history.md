@@ -5,6 +5,8 @@ kind: cutover
 
 # Cutover record — issue #793: tool-owned round kinds and a durable byte history
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 **What changed.** `/prflow:create-issue`'s Step 3.6 rounds stopped all being the same round.
 The round **kind** joins the arm as a second tool-owned per-round dispatch dimension:
 `scripts/issue-audit-state.py` derives it from recorded facts (`select_round_kind`), answers it

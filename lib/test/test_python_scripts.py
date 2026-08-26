@@ -14804,7 +14804,7 @@ assert_eq("#855: the pointer-population sweep matches the recorded snapshot exac
           "(a new skill emitting a bare repo-relative command path turns this RED)",
           {"implement", "retrospective-weekly", "review", "review-and-fix",
            "pr-description", "docs-sync-internal", "docs-sync-external",
-           "docs-release-notes"},
+           "docs-release-notes", "docs-bootstrap-internal"},
           _wd_pointer_pop)
 
 # Regression pin: `Bash(cd:*)` is revoked from prflow_implement.allowed_tools
@@ -36908,6 +36908,440 @@ with _tf1740.TemporaryDirectory() as _d1740:
     _p_bin.write_bytes(b"\xff\xfe\x00\x01 not utf-8 \x80")
     assert_eq("#1740 main() exits 3 on a non-UTF-8 record (fail closed, no traceback)",
               3, validate_ica.main(["--record-file", str(_p_bin)]))
+
+
+# ── issue #1389: changed-file lint layer (scripts/lint_changed.py) ───────────
+# The advisory changed-file lint helper preflight.py's lint-changed/lint-full
+# subcommands delegate to. These assertions cover the base64url canonical
+# identity, record classification, the NUL-safe population with its three
+# distinct outcomes, manifest-driven selection (run.sh special routing + the `--`
+# separator), and atomic-receipt sequencing — each fails first because the module
+# did not exist before this change.
+import json as _json1389  # noqa: E402
+import subprocess as _subprocess1389  # noqa: E402
+
+_lint_changed = _load('lint_changed', SCRIPTS / 'lint_changed.py')
+_lint_manifest_1389 = _json1389.loads((cwc.REPO_ROOT / '.prflow' / 'lint-manifest.json').read_text())
+
+
+def _git1389(d, *args):
+    _subprocess1389.run(['git', '-C', str(d), *args], check=True,
+                        capture_output=True)
+
+
+# base64url canonical identity round-trips raw bytes without loss, incl. the three
+# path-byte hazards the AC names (invalid UTF-8, tab, newline); the display field is
+# lossy and MUST NOT be used for identity.
+for _label, _raw in (("invalid-utf8", b"x\xff\xfe.sh"),
+                     ("tab", b"tab\there.py"),
+                     ("newline", b"nl\nhere.sh"),
+                     ("plain", b"a/b.py")):
+    assert_eq(f"#1389 base64url round-trips {_label} path bytes without loss",
+              _raw, _lint_changed.unb64url(_lint_changed.b64url(_raw)))
+# base64url is padding-free (unpadded canonical form).
+assert_eq("#1389 base64url canonical token is unpadded",
+          False, "=" in _lint_changed.b64url(b"abc"))
+# Two distinct non-UTF-8 paths that decode to the SAME display string keep distinct
+# canonical identities — proving identity reads the raw bytes, not the display text.
+_p1 = b"a\xff.sh"
+_p2 = b"a\xfe.sh"
+assert_eq("#1389 distinct non-UTF-8 paths keep distinct canonical identity",
+          True, _lint_changed.b64url(_p1) != _lint_changed.b64url(_p2))
+
+# Record classification over the closed vocabulary, keyed on final-state eligibility.
+_cls = _lint_changed._classify_raw
+assert_eq("#1389 add classifies runnable", ("add", b"x.py"),
+          (_cls("100644", "100644", "A", b"x.py", None).kind,
+           _cls("100644", "100644", "A", b"x.py", None).run_path))
+_d = _cls("100644", "000000", "D", b"x.py", None)
+assert_eq("#1389 delete is examined-not-run (final absent)",
+          ("delete", None, "deleted-final-absent"), (_d.kind, _d.run_path, _d.skip_reason))
+_s = _cls("100644", "120000", "T", b"lnk", None)
+assert_eq("#1389 symlink final is never executed",
+          ("symlink", None, "symlink-not-executed"), (_s.kind, _s.run_path, _s.skip_reason))
+_sm = _cls("160000", "160000", "M", b"sub", None)
+assert_eq("#1389 submodule is never executed",
+          ("submodule", None, "submodule-not-executed"), (_sm.kind, _sm.run_path, _sm.skip_reason))
+_r = _cls("100644", "100644", "R100", b"old.py", b"new.py")
+assert_eq("#1389 rename runs the destination, source examined-not-run",
+          ("rename", b"old.py", b"new.py", b"new.py"), (_r.kind, _r.src, _r.dst, _r.run_path))
+_m = _cls("100644", "100755", "M", b"a.sh", None)
+assert_eq("#1389 a mode-only change classifies as mode and runs", ("mode", b"a.sh"),
+          (_m.kind, _m.run_path))
+# A malformed --raw stream is unestablished (None), never a clean empty parse.
+assert_eq("#1389 malformed --raw record parses to None (→ unestablished)",
+          None, _lint_changed._parse_raw_z(b"not-a-record\x00path\x00"))
+
+# NUL-safe population: three distinct outcomes.
+with tempfile.TemporaryDirectory() as _d1389:
+    _git1389(_d1389, "init", "-q", "-b", "main")
+    _git1389(_d1389, "config", "user.email", "a@b.c")
+    _git1389(_d1389, "config", "user.name", "t")
+    (Path(_d1389) / "keep.py").write_text("x = 1\n")
+    (Path(_d1389) / "gone.py").write_text("y = 2\n")
+    _git1389(_d1389, "add", "-A")
+    _git1389(_d1389, "commit", "-qm", "base")
+    _git1389(_d1389, "update-ref", "refs/remotes/origin/main", "HEAD")
+    # established-empty: nothing changed since the base.
+    _pop_empty = _lint_changed.enumerate_population("main", _d1389)
+    assert_eq("#1389 no changes since base is established-empty (not unestablished)",
+              ("empty", True), (_pop_empty.status, _pop_empty.established))
+    # established-nonempty with add + delete + symlink.
+    (Path(_d1389) / "new.py").write_text("z = 3\n")
+    (Path(_d1389) / "gone.py").unlink()
+    (Path(_d1389) / "alink").symlink_to("keep.py")
+    _git1389(_d1389, "add", "-A")
+    _pop = _lint_changed.enumerate_population("main", _d1389)
+    assert_eq("#1389 add+delete+symlink is established-nonempty", "nonempty", _pop.status)
+    _kinds = {r.kind for r in _pop.records}
+    assert_eq("#1389 population records the add/delete/symlink kinds",
+              True, {"add", "delete", "symlink"} <= _kinds)
+    _runs = {_lint_changed.os.fsdecode(p) for p in _pop.run_paths()}
+    assert_eq("#1389 only the eligible destination runs (delete/symlink excluded)",
+              ({"new.py"}, False, False),
+              ("new.py" in _runs and _runs == {"new.py"} and {"new.py"} or _runs,
+               "alink" in _runs, "gone.py" in _runs))
+
+# unestablished: a missing base ref (no origin/<base>) is not a clean empty set.
+with tempfile.TemporaryDirectory() as _d1389b:
+    _git1389(_d1389b, "init", "-q", "-b", "main")
+    _git1389(_d1389b, "config", "user.email", "a@b.c")
+    _git1389(_d1389b, "config", "user.name", "t")
+    (Path(_d1389b) / "f.py").write_text("x = 1\n")
+    _git1389(_d1389b, "add", "-A")
+    _git1389(_d1389b, "commit", "-qm", "c")
+    _pop_u = _lint_changed.enumerate_population("main", _d1389b)
+    assert_eq("#1389 missing base ref is unestablished, not empty",
+              ("unestablished", "missing-base-ref"), (_pop_u.status, _pop_u.reason))
+
+# Manifest-driven selection: run.sh takes the special --extended-analysis=false
+# invocation and appears in NO broad shell invocation; a `--` precedes the first path.
+_invs = _lint_changed.select_invocations(
+    [b"lib/test/run.sh", b"scripts/foo.sh", b"scripts/a.py"], _lint_manifest_1389)
+_by_op = {i.op_id: i for i in _invs}
+assert_eq("#1389 run.sh routes to its special invocation", True,
+          "run-sh-extended-analysis-off" in _by_op)
+_special = _by_op["run-sh-extended-analysis-off"]
+assert_eq("#1389 the run.sh special carries --extended-analysis=false",
+          True, "--extended-analysis=false" in _special.flags)
+_shell_paths = [_lint_changed.os.fsdecode(p) for p in _by_op["shell-portable"].paths]
+assert_eq("#1389 run.sh is absent from the broad shell invocation",
+          (False, True), ("lib/test/run.sh" in _shell_paths, "scripts/foo.sh" in _shell_paths))
+_argv = _by_op["shell-portable"].argv()
+assert_eq("#1389 broad argv places -- before the first selected path",
+          "scripts/foo.sh", _argv[_argv.index("--") + 1])
+# A file named like a value-taking option is passed as a path (after --).
+_optinv = [i for i in _lint_changed.select_invocations([b"--exclude=x.py"], _lint_manifest_1389)
+           if i.op_id == "python"][0]
+_oargv = _optinv.argv()
+assert_eq("#1389 an option-named file is linted as a path, not a flag",
+          "--exclude=x.py", _oargv[_oargv.index("--") + 1])
+# A fixtures path (top-level exclusion) is selected by nothing.
+assert_eq("#1389 a top-level-excluded fixtures path is selected by no invocation",
+          [], _lint_changed.select_invocations([b"lib/test/fixtures/a.sh"], _lint_manifest_1389))
+
+# Cardinality: run_paths dedupes a destination present in several sources to run-once
+# and preserves first-seen order (issue #1389 §2.3.7 — a multi-element, with-duplicate case).
+_pop_dup = _lint_changed.Population("nonempty", records=[
+    _lint_changed.ChangedRecord("modify", src=b"a.py", dst=b"a.py", run_path=b"a.py"),
+    _lint_changed.ChangedRecord("add", dst=b"b.py", run_path=b"b.py"),
+    _lint_changed.ChangedRecord("modify", src=b"a.py", dst=b"a.py", run_path=b"a.py"),
+])
+assert_eq("#1389 a destination in several sources runs once, order preserved",
+          [b"a.py", b"b.py"], _pop_dup.run_paths())
+# Selection batches multiple same-language paths into one invocation, in order, after --.
+_batch = [i for i in _lint_changed.select_invocations([b"one.py", b"two.py"], _lint_manifest_1389)
+          if i.op_id == "python"][0]
+_bargv = _batch.argv()
+assert_eq("#1389 same-language paths batch into one invocation after -- in order",
+          ["one.py", "two.py"], _bargv[_bargv.index("--") + 1:])
+
+# Classifier completeness: copy, type-to-regular, and plain-modify branches (issue #1389
+# review — the three record kinds not previously driven through _classify_raw).
+_cp = _cls("100644", "100644", "C100", b"a.py", b"b.py")
+assert_eq("#1389 copy runs the destination, source examined-not-run",
+          ("copy", b"a.py", b"b.py", b"b.py"), (_cp.kind, _cp.src, _cp.dst, _cp.run_path))
+_ty = _cls("120000", "100644", "T", b"x", None)  # symlink -> regular file: final runs
+assert_eq("#1389 a type change to a regular file runs the final path",
+          ("type", b"x"), (_ty.kind, _ty.run_path))
+_mo = _cls("100644", "100644", "M", b"a.py", None)
+assert_eq("#1389 a plain modify (same mode) runs the path", ("modify", b"a.py"),
+          (_mo.kind, _mo.run_path))
+
+# Type invariants enforced at construction (issue #1389 review — headline eligibility rule).
+assert_raises("#1389 ChangedRecord refuses neither-run-nor-skip", ValueError,
+              lambda: _lint_changed.ChangedRecord("add"))
+assert_raises("#1389 ChangedRecord refuses both run_path and skip_reason", ValueError,
+              lambda: _lint_changed.ChangedRecord("delete", run_path=b"x", skip_reason="r"))
+assert_raises("#1389 Invocation refuses a non-positive timeout", ValueError,
+              lambda: _lint_changed.Invocation("op", "ruff", ["check"], [b"x"], 0))
+assert_raises("#1389 Invocation refuses an empty tool", ValueError,
+              lambda: _lint_changed.Invocation("op", "", ["check"], [b"x"], 600))
+
+# Receipt payload shape: examined population marks run vs skip, and skip entries carry
+# the typed reason (issue #1389 review).
+_pop_mix = _lint_changed.Population("nonempty", records=[
+    _lint_changed.ChangedRecord("add", dst=b"live.py", run_path=b"live.py"),
+    _lint_changed.ChangedRecord("delete", src=b"gone.py", skip_reason="deleted-final-absent"),
+])
+_ex = {e["display"]: e for e in _lint_changed._examined_population(_pop_mix)}
+assert_eq("#1389 examined entry marks the eligible add run=True", True, _ex["live.py"]["run"])
+assert_eq("#1389 examined entry marks the delete run=False with a skip_reason",
+          (False, "deleted-final-absent"),
+          (_ex["gone.py"]["run"], _ex["gone.py"].get("skip_reason")))
+_sk = _lint_changed._skip_entries(_pop_mix)
+assert_eq("#1389 skip entries carry the typed reason for the non-run record",
+          [("gone.py", "deleted-final-absent")], [(e["display"], e["reason"]) for e in _sk])
+
+# _run_invocation: an absent tool is a named non-success, never a spurious run (issue #1389).
+_absent_inv = _lint_changed.Invocation("python", "definitely-not-a-real-tool-1389", ["check"], [b"x.py"], 600)
+_absent = _lint_changed._run_invocation(_absent_inv, ".", {})
+assert_eq("#1389 an absent lint tool yields outcome=tool-absent, exit=None",
+          ("tool-absent", None), (_absent["outcome"], _absent["exit"]))
+
+# select_full_invocations: run.sh takes the special invocation and is absent from the broad
+# shell-full profile (issue #1389 review — the previously-untested lint-full selection path).
+with tempfile.TemporaryDirectory() as _dfull:
+    _mkdir = Path(_dfull) / "lib" / "test"
+    _mkdir.mkdir(parents=True)
+    (_mkdir / "run.sh").write_text("#!/usr/bin/env bash\n:\n")
+    (Path(_dfull) / "helper.sh").write_text("#!/usr/bin/env bash\n:\n")
+    (Path(_dfull) / "mod.py").write_text("x = 1\n")
+    _git1389(_dfull, "init", "-q", "-b", "main")
+    _git1389(_dfull, "config", "user.email", "a@b.c")
+    _git1389(_dfull, "config", "user.name", "t")
+    _git1389(_dfull, "add", "-A")
+    _git1389(_dfull, "commit", "-qm", "c")
+    _full = {i.op_id: i for i in _lint_changed.select_full_invocations(_dfull, _lint_manifest_1389)}
+    assert_eq("#1389 lint-full routes run.sh to its special invocation",
+              True, "run-sh-extended-analysis-off" in _full)
+    _shell_full = _full.get("shell-full")
+    _full_shell_paths = [_lint_changed.os.fsdecode(p) for p in _shell_full.paths] if _shell_full else []
+    assert_eq("#1389 lint-full: run.sh absent from the broad shell-full profile, helper.sh present",
+              (False, True),
+              ("lib/test/run.sh" in _full_shell_paths, "helper.sh" in _full_shell_paths))
+    assert_eq("#1389 lint-full includes a python profile over the tracked .py",
+              True, "python-full" in _full)
+
+# Population unestablished: a repo with no merge base to origin/<base> (unrelated histories)
+# fails closed, never a clean empty set (issue #1389 review — a second unestablished arm).
+with tempfile.TemporaryDirectory() as _dnb:
+    g = ["git", "-C", _dnb]
+    _git1389(_dnb, "init", "-q", "-b", "main")
+    _git1389(_dnb, "config", "user.email", "a@b.c")
+    _git1389(_dnb, "config", "user.name", "t")
+    (Path(_dnb) / "a.py").write_text("x = 1\n")
+    _git1389(_dnb, "add", "-A")
+    _git1389(_dnb, "commit", "-qm", "c1")
+    # An orphan branch shares no history with main; point origin/main at it.
+    _git1389(_dnb, "checkout", "-q", "--orphan", "orphan")
+    (Path(_dnb) / "b.py").write_text("y = 2\n")
+    _git1389(_dnb, "add", "-A")
+    _git1389(_dnb, "commit", "-qm", "c2")
+    _git1389(_dnb, "update-ref", "refs/remotes/origin/main", "refs/heads/main")
+    _git1389(_dnb, "checkout", "-q", "orphan")
+    _pop_nb = _lint_changed.enumerate_population("main", _dnb)
+    assert_eq("#1389 unrelated histories (no merge base) is unestablished, not empty",
+              ("unestablished", "no-merge-base"), (_pop_nb.status, _pop_nb.reason))
+
+# Population invariant enforced at construction (issue #1389 shadow review — the last
+# unenforced headline invariant): status must be consistent with records/reason, so
+# run_paths() can never emit from an unestablished enumeration.
+assert_raises("#1389 an unestablished population may not carry records", ValueError,
+              lambda: _lint_changed.Population("unestablished", reason="x",
+                                               records=[_lint_changed.ChangedRecord("add", dst=b"a", run_path=b"a")]))
+assert_raises("#1389 a nonempty population must carry records", ValueError,
+              lambda: _lint_changed.Population("nonempty"))
+assert_raises("#1389 an empty population carries no reason", ValueError,
+              lambda: _lint_changed.Population("empty", reason="x"))
+assert_raises("#1389 Invocation refuses an empty path set", ValueError,
+              lambda: _lint_changed.Invocation("op", "ruff", ["check"], [], 600))
+
+# select_full_invocations fails closed on a git ls-files failure rather than certifying a
+# clean zero-profile pass (issue #1389 shadow review — the lint-full fail-open).
+with tempfile.TemporaryDirectory() as _dng:
+    # A non-git directory makes `git ls-files` exit non-zero.
+    assert_raises("#1389 lint-full fails closed (LintUnestablished) on a git enumeration failure",
+                  _lint_changed.LintUnestablished,
+                  lambda: _lint_changed.select_full_invocations(_dng, _lint_manifest_1389))
+
+# End-to-end cmd_lint_changed: exit-code contract + a written receipt's payload shape
+# (issue #1389 shadow review — the untested entrypoint/receipt seam).
+with tempfile.TemporaryDirectory() as _de2e:
+    _git1389(_de2e, "init", "-q", "-b", "main")
+    _git1389(_de2e, "config", "user.email", "a@b.c")
+    _git1389(_de2e, "config", "user.name", "t")
+    (Path(_de2e) / ".prflow").mkdir()
+    (Path(_de2e) / ".prflow" / "lint-manifest.json").write_text(
+        (cwc.REPO_ROOT / ".prflow" / "lint-manifest.json").read_text(encoding="utf-8"), encoding="utf-8")
+    (Path(_de2e) / "seed.py").write_text("x = 1\n")
+    _git1389(_de2e, "add", "-A")
+    _git1389(_de2e, "commit", "-qm", "base")
+    _git1389(_de2e, "update-ref", "refs/remotes/origin/main", "HEAD")
+    (Path(_de2e) / "changed.py").write_text("y = 2\n")  # unstaged change → nonempty population
+    _cwd_e2e = os.getcwd()
+    try:
+        os.chdir(_de2e)
+        _ns = argparse.Namespace(manifest=None, base="main", run_id="t1389", run_attempt="1")
+        _rc = _lint_changed.cmd_lint_changed(_ns)
+    finally:
+        os.chdir(_cwd_e2e)
+    assert_eq("#1389 cmd_lint_changed returns LINT_OK (0) on an established nonempty run", 0, _rc)
+    _receipts = sorted((Path(_de2e) / ".prflow" / "tmp" / "lint" / "t1389" / "1").glob("*.json"))
+    assert_eq("#1389 cmd_lint_changed wrote at least one receipt", True, len(_receipts) >= 1)
+    _rjson = _json1389.loads(_receipts[0].read_text(encoding="utf-8"))
+    assert_eq("#1389 the written receipt carries the schema id and lint-changed subcommand",
+              ("prflow-lint-receipt/1", "lint-changed"), (_rjson["schema"], _rjson["subcommand"]))
+    assert_eq("#1389 the receipt records the manifest provenance digest",
+              True, str(_rjson["manifest_provenance"]["digest"]).startswith("sha256:"))
+    assert_eq("#1389 the receipt carries its locked sequence and examined population",
+              (0, True), (_rjson["sequence"], isinstance(_rjson["examined"], list)))
+
+# Atomic receipts: monotonic sequence, and a duplicate path is a named non-success.
+with tempfile.TemporaryDirectory() as _d1389c:
+    _w = _lint_changed.ReceiptWriter(_d1389c, "run", "1")
+    _t0, _seq0 = _w.write("python", {"outcome": "ran"})
+    _t1, _seq1 = _w.write("python", {"outcome": "ran"})
+    assert_eq("#1389 receipt sequence is monotonic across invocations", (0, 1), (_seq0, _seq1))
+    assert_eq("#1389 each receipt lands at its own <op>-<seq>.json path",
+              True, Path(_t0).name == "python-0.json" and Path(_t1).name == "python-1.json")
+    # A pre-existing receipt path is refused (O_EXCL), never silently overwritten.
+    _w2 = _lint_changed.ReceiptWriter(_d1389c, "run", "1")
+    Path(_w2.dir / "shell-2.json").write_text("{}")  # collide with the next seq
+    # Force the next seq to 2 so the write targets the pre-existing name.
+    (_w2.dir / ".seq").write_text("2")
+    assert_raises("#1389 a pre-existing receipt path is a named non-success",
+                  _lint_changed.ReceiptError, lambda: _w2.write("shell", {"outcome": "ran"}))
+
+# `_config_base` over the six-shape adversarial config matrix (CLAUDE.md best-effort-parser
+# rule): every shape resolves to the documented `main` default, and every shape that is
+# present-but-unusable emits a SPECIFIC breadcrumb — the valid-falsy rows are the
+# off-switch-that-never-worked class (#312/#304), and they are why the non-string arm exists.
+def _config_base_shape(payload):
+    """Return (resolved base, stderr text) for a `.prflow/config.json` holding `payload`
+    verbatim, or with no config file at all when payload is the sentinel None-marker."""
+    with tempfile.TemporaryDirectory() as _d:
+        if payload is not _ABSENT_1389:
+            (Path(_d) / ".prflow").mkdir()
+            (Path(_d) / ".prflow" / "config.json").write_text(payload, encoding="utf-8")
+        _err = io.StringIO()
+        with contextlib.redirect_stderr(_err):
+            _base = _lint_changed._config_base(_d)
+        return _base, _err.getvalue()
+
+
+_ABSENT_1389 = object()
+
+for _label, _payload, _want_crumb in [
+    ("object value", '{"base_branch": {"a": 1}}', "base_branch is dict"),
+    ("array value", '{"base_branch": ["main"]}', "base_branch is list"),
+    ("non-string scalar", '{"base_branch": 123}', "base_branch is int"),
+    ("valid-falsy false", '{"base_branch": false}', "base_branch is bool"),
+    ("valid-falsy zero", '{"base_branch": 0}', "base_branch is int"),
+    ("valid-falsy empty string", '{"base_branch": ""}', "base_branch is str"),
+    ("non-object top level", '["main"]', "malformed .prflow/config.json (AttributeError)"),
+    ("wrong-type top level (scalar)", '"main"', "malformed .prflow/config.json (AttributeError)"),
+    ("unparseable JSON", '{"base_branch":', "malformed .prflow/config.json (JSONDecodeError)"),
+]:
+    _got_base, _got_err = _config_base_shape(_payload)
+    assert_eq(f"#1389 _config_base falls back to main for a {_label}", "main", _got_base)
+    assert_eq(f"#1389 _config_base breadcrumbs a {_label} specifically",
+              True, _want_crumb in _got_err)
+
+# The two shapes that are NOT corruption resolve silently: an absent config, and an absent key.
+for _label, _payload in [("absent config file", _ABSENT_1389), ("missing key", '{"other": 1}')]:
+    _got_base, _got_err = _config_base_shape(_payload)
+    assert_eq(f"#1389 _config_base is silent and defaults to main for an {_label}",
+              ("main", ""), (_got_base, _got_err))
+
+assert_eq("#1389 _config_base honours a well-formed base_branch",
+          "trunk", _config_base_shape('{"base_branch": "trunk"}')[0])
+
+# `_untracked_records` classifies an untracked symlink and an untracked nested repository
+# as examined-but-not-run, and an ordinary untracked file as runnable. `git ls-files
+# --others` DOES surface a nested repository (as a trailing-slash directory entry), so both
+# nested-repo shapes are reachable — a `.git` DIRECTORY and a `.git` FILE (a separate-gitdir
+# or worktree checkout). Classifying the `.git`-file shape as an `add` would hand the whole
+# directory path to a linter as if it were a source file.
+with tempfile.TemporaryDirectory() as _d1389u:
+    _git1389(_d1389u, "init", "-q", "-b", "main")
+    (Path(_d1389u) / "plain.py").write_text("x = 1\n")
+    (Path(_d1389u) / "alink").symlink_to("plain.py")
+    (Path(_d1389u) / "nested_dir").mkdir()
+    _git1389(Path(_d1389u) / "nested_dir", "init", "-q", "-b", "main")
+    (Path(_d1389u) / "nested_dir" / "inner.py").write_text("z = 3\n")
+    (Path(_d1389u) / "nested_file").mkdir()
+    _subprocess1389.run(
+        ["git", "-C", str(Path(_d1389u) / "nested_file"), "init", "-q", "-b", "main",
+         "--separate-git-dir", str(Path(_d1389u) / "sep.git")],
+        check=True, capture_output=True)
+    (Path(_d1389u) / "nested_file" / "inner.py").write_text("w = 4\n")
+    _urecs = _lint_changed._untracked_records(_d1389u)
+    _ukinds = {os.fsdecode(r.dst).rstrip("/"): (r.kind, r.run_path is not None) for r in _urecs}
+    assert_eq("#1389 an untracked plain file is a runnable add",
+              ("add", True), _ukinds.get("plain.py"))
+    assert_eq("#1389 an untracked symlink is examined-but-not-run",
+              ("symlink", False), _ukinds.get("alink"))
+    assert_eq("#1389 an untracked nested repo with a .git DIRECTORY is examined-but-not-run",
+              ("submodule", False), _ukinds.get("nested_dir"))
+    assert_eq("#1389 an untracked nested repo with a .git FILE (separate gitdir) is "
+              "examined-but-not-run, never a runnable add",
+              ("submodule", False), _ukinds.get("nested_file"))
+
+# `cmd_lint_full` end-to-end: the entrypoint's exit-code contract and its pop=None receipt
+# branch (only `select_full_invocations` was unit-tested).
+with tempfile.TemporaryDirectory() as _dfull:
+    _git1389(_dfull, "init", "-q", "-b", "main")
+    _git1389(_dfull, "config", "user.email", "a@b.c")
+    _git1389(_dfull, "config", "user.name", "t")
+    (Path(_dfull) / ".prflow").mkdir()
+    (Path(_dfull) / ".prflow" / "lint-manifest.json").write_text(
+        (cwc.REPO_ROOT / ".prflow" / "lint-manifest.json").read_text(encoding="utf-8"),
+        encoding="utf-8")
+    (Path(_dfull) / "a.py").write_text("x = 1\n")
+    _git1389(_dfull, "add", "-A")
+    _git1389(_dfull, "commit", "-qm", "base")
+    _cwd_full = os.getcwd()
+    try:
+        os.chdir(_dfull)
+        _nsf = argparse.Namespace(manifest=None, run_id="full1389", run_attempt="1")
+        _rcf = _lint_changed.cmd_lint_full(_nsf)
+    finally:
+        os.chdir(_cwd_full)
+    assert_eq("#1389 cmd_lint_full returns LINT_OK (0) on an established manifest", 0, _rcf)
+    _freceipts = sorted((Path(_dfull) / ".prflow" / "tmp" / "lint" / "full1389" / "1").glob("*.json"))
+    assert_eq("#1389 cmd_lint_full wrote at least one receipt", True, len(_freceipts) >= 1)
+    _fjson = _json1389.loads(_freceipts[0].read_text(encoding="utf-8"))
+    assert_eq("#1389 the lint-full receipt records its subcommand", "lint-full", _fjson["subcommand"])
+    assert_eq("#1389 the lint-full receipt omits the changed-file examined population "
+              "(pop=None branch)", None, _fjson.get("examined"))
+
+# Construction guards added after review: a run_path outside the record's own paths, and an
+# empty op_id, are both unrepresentable rather than latent.
+assert_raises("#1389 a run_path outside the record's own src/dst is refused",
+              ValueError,
+              lambda: _lint_changed.ChangedRecord("add", dst=b"a.py", run_path=b"other.py"))
+assert_eq("#1389 a rename running its destination is accepted",
+          b"b.py",
+          _lint_changed.ChangedRecord("rename", src=b"a.py", dst=b"b.py", run_path=b"b.py").run_path)
+assert_raises("#1389 an empty op_id is refused at Invocation construction",
+              ValueError,
+              lambda: _lint_changed.Invocation("", "ruff", ["check"], [b"a.py"], 60))
+
+# A manifest-supplied op id containing path separators cannot escape its attempt directory.
+with tempfile.TemporaryDirectory() as _d1389s:
+    _ws = _lint_changed.ReceiptWriter(_d1389s, "run", "1")
+    _ts, _ = _ws.write("../escape", {"outcome": "ran"})
+    assert_eq("#1389 a receipt op id's path separators are sanitized away, keeping the "
+              "receipt inside its own attempt directory",
+              (True, ".._escape-0.json"),
+              (Path(_ts).parent == _ws.dir, Path(_ts).name))
+
+# A glob-negated character class translates to a regex-negated one, not a literal `!`.
+assert_eq("#1389 a [!...] glob class negates rather than matching a literal !",
+          (False, True),
+          (_lint_changed._glob_match("s/[!x].py", "s/x.py"),
+           _lint_changed._glob_match("s/[!x].py", "s/y.py")))
 
 
 print()

@@ -28,9 +28,9 @@ Loaded prompt surfaces are executable inputs, not ordinary prose. Keeping one au
 - `skills/*/SKILL.md` and `skills/*/references/*.md` — executable skill and reference bodies.
 - `scripts/render-audit-prompt.py`, `scripts/render-prompt-extension.sh`, and related renderers — prompt composition and extraction behavior.
 - `lib/test/regenerate-artifacts.py` and the prompt-surface guards under `lib/test/` — coupled-site and drift checks.
-- `docs/internal/claude-md-extension-audit-consumers.md` — consumer enumeration evidence.
-- `docs/internal/claude-md-extension-audit-coupled-sites.md` — coupled-site evidence.
-- `docs/internal/claude-md-extension-audit-duplicates.md` — permitted overlap evidence.
+- [`docs/internal/claude-md-extension-audit-consumers.md`](../claude-md-extension-audit-consumers.md) — consumer enumeration evidence.
+- [`docs/internal/claude-md-extension-audit-coupled-sites.md`](../claude-md-extension-audit-coupled-sites.md) — coupled-site evidence.
+- [`docs/internal/claude-md-extension-audit-duplicates.md`](../claude-md-extension-audit-duplicates.md) — permitted overlap evidence.
 
 ## Related topics
 

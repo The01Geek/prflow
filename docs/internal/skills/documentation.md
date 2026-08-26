@@ -25,7 +25,7 @@ Internal documentation contains maintainer rationale, implementation boundaries,
 - `skills/docs-sync-external/SKILL.md` — public documentation alignment contract.
 - `skills/docs-release-notes/SKILL.md` — release-note and changelog contract.
 - `.prflow/config.json` and `scripts/config-get.sh` — documentation path configuration.
-- `docs/internal/index.md` — internal documentation routing.
+- [`docs/internal/index.md`](../index.md) — internal documentation routing.
 
 ## Related topics
 

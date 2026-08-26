@@ -22,7 +22,7 @@ Advisory and invalid findings are easy to misclassify as either blockers or nois
 - `scripts/issue-audit-state.py` — state and adjudication data.
 - `skills/create-issue/references/step-3-6-audit.md` and `skills/create-issue/references/step-4-present-create.md` — audit lifecycle.
 - `skills/create-issue/references/fallback-state-owner-unavailable.md` — degraded state handling.
-- `docs/internal/advisory-adjudication-calibration.md` — corpus, failure-mode, and latency evidence.
+- [`docs/internal/advisory-adjudication-calibration.md`](../advisory-adjudication-calibration.md) — corpus, failure-mode, and latency evidence.
 
 ## Related topics
 

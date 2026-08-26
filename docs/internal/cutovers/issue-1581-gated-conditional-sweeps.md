@@ -1,5 +1,7 @@
 # Cutover — issue #1581: the eight conditional Phase 2.3 sweeps relocated behind predicates
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 `/prflow:implement` reads `skills/implement/phases/phase-2-sweeps-contract.md` and
 `phase-2-sweeps-quality.md` in full at Phase 2 entry, and again at each re-entry. Fourteen
 sweeps live in that §2.3 span, but only six of them fire on every diff. The other eight —
