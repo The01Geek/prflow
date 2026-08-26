@@ -1,0 +1,104 @@
+{
+  "iter": 2,
+  "loop_role": "fix",
+  "fix_commit_sha": "6752e70f9",
+  "fix_files": [
+    "lib/test/lint-brand-devflow-sweep.py"
+  ],
+  "current_step": "loop-exit",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "reverse stale-check comment 4 lines (post-fix); trimmed in commit 6752e70f9",
+      "defect_signature": {
+        "file": "lib/test/lint-brand-devflow-sweep.py",
+        "line_range": [
+          303,
+          306
+        ],
+        "kind": "comment_length"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "6752e70f9"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 4,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "reviewed_sha": "6f90e779b3dd2b80284dd3da2ca1c53c85f4f31e",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": "intentional",
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "reverse stale-check comment 4 lines (trimmed post-shadow, comment-only)"
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "line-granular freeze is documented-by-design"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "OSError reverse arm + multi-hit line untested (advisory hardening)"
+      }
+    ],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 0,
+      "new": 3,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
