@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1989",
+  "generated_at": "2026-08-26T06:02:14Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.48",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.239596,
+    "tokens": {
+      "input_tokens": 44,
+      "output_tokens": 50775,
+      "cache_read_input_tokens": 3906412,
+      "cache_creation_input_tokens": 281382,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 126,
+        "outputTokens": 102554,
+        "cacheReadInputTokens": 6529917,
+        "cacheCreationInputTokens": 856796,
+        "webSearchRequests": 0,
+        "costUSD": 12.239596,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 37,
+    "duration_ms": 975614
+  },
+  "permission_denials": {
+    "count": 1,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "cd /home/runner/work/prflow/prflow\nmkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && [ -f .prflow/tmp/review-dirty-tree-before ] && git hash-object .prflow/tmp/review-dirty-tree-before\ngit rev-parse HEAD"
+    ],
+    "total": 1,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
