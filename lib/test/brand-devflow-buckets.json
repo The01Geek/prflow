@@ -190,10 +190,19 @@
       "path": "docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md"
     },
     {
+      "path": "docs/internal/glossary.md"
+    },
+    {
       "path": "docs/internal/implement-skill.md"
     },
     {
+      "path": "docs/internal/index.md"
+    },
+    {
       "path": "docs/internal/install.md"
+    },
+    {
+      "path": "docs/internal/naming.md"
     },
     {
       "path": "docs/internal/shadow-review.md"
