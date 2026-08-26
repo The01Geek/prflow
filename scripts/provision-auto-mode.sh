@@ -163,7 +163,7 @@ if ! "$DEVFLOW_JQ" --version >/dev/null 2>&1; then
   exit 2
 fi
 
-# The DevFlow default as a JSON literal. The merge below is `$defaults * $existing`,
+# The PRFlow default as a JSON literal. The merge below is `$defaults * $existing`,
 # so the user's value wins at every depth and only keys they have not set are filled.
 # permissions.defaultMode is intentionally absent — auto stays selectable, never on.
 DEFAULTS='{
@@ -258,7 +258,7 @@ fi
 #     with a raw jq message and escape the documented 0/2 contract with no breadcrumb;
 #   - a non-object at an object-valued path the merge recurses THROUGH — here `env`,
 #     where the user holds a non-object value. jq's `*` does not error there; it
-#     silently keeps the user's value and drops DevFlow's whole subtree below it (the
+#     silently keeps the user's value and drops PRFlow's whole subtree below it (the
 #     auto-mode env var never lands), yet still exits 0 with a success breadcrumb.
 # Derive the object-valued paths FROM $defaults (just `env` today, but this generalizes
 # for free if defaults ever nests deeper — the same sweep provision-local-settings.sh

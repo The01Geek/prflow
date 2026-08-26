@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""DevFlow review-and-fix loop-verdict marker helper (issue #1212).
+"""PRFlow review-and-fix loop-verdict marker helper (issue #1212).
 
 The `/prflow:review-and-fix` fix loop and the `/prflow:implement` orchestrator
 talk across a plugin-version boundary. When the loop finishes it prints a

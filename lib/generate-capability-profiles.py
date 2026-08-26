@@ -4,7 +4,7 @@
 """Compile lib/capability-profiles.json into the runner allowlist literals and the
 matcher-probe baselines.
 
-This is DevFlow-internal build tooling. The manifest is the single source of truth
+This is PRFlow-internal build tooling. The manifest is the single source of truth
 for the cloud capability policy; this generator flattens each profile to an ordered
 token list and rewrites the generated allowlist regions across the workflow files,
 each carrying a banner comment with the manifest version and a per-region sha256.

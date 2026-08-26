@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 """Consolidate pending ``.changeset/*.md`` files into a version bump + CHANGELOG entry.
 
-DevFlow versions itself with changesets instead of editing ``.claude-plugin/plugin.json``
+PRFlow versions itself with changesets instead of editing ``.claude-plugin/plugin.json``
 and ``CHANGELOG.md`` in every PR (see ``.changeset/README.md``). This helper runs at merge
 time (push to ``main``) from the ``version-consolidate`` workflow at
 ``.github/workflows/version-consolidate.yml``:
@@ -484,7 +484,7 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument(
         "--root",
         default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        help="Repository root (default: the DevFlow checkout containing this script)",
+        help="Repository root (default: the PRFlow checkout containing this script)",
     )
     parser.add_argument(
         "--date",

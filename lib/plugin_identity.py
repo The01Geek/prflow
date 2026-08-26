@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""plugin_identity.py -- the SINGLE reader for DevFlow's accepted plugin identifiers.
+"""plugin_identity.py -- the SINGLE reader for PRFlow's accepted plugin identifiers.
 
-Several DevFlow surfaces have to answer "is this identifier ours?":
+Several PRFlow surfaces have to answer "is this identifier ours?":
 
   * the vendor trust ladder (`.github/actions/vendor-plugin/vendor-slice.sh`'s
     `self` branch, and five FETCH_HEAD-gated trusted-source arms in
@@ -235,7 +235,7 @@ def _force_utf8_streams():
 
 def _main(argv=None) -> int:
     _force_utf8_streams()
-    ap = argparse.ArgumentParser(description="Report DevFlow's accepted plugin identifiers.")
+    ap = argparse.ArgumentParser(description="Report PRFlow's accepted plugin identifiers.")
     ap.add_argument("--root", default=None, help="plugin root (default: this file's parent's parent)")
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--plugin-names", action="store_true")

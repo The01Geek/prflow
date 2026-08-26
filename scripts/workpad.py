@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""DevFlow workpad helper for the /implement skill.
+"""PRFlow workpad helper for the /implement skill.
 
 The /implement orchestrator maintains one canonical marker-tagged comment per
 GitHub issue (the workpad); concurrent create races remain a documented residual.
@@ -672,7 +672,7 @@ def cmd_status(args):
 
 # The source token names WHICH surface supplied the reviewer-facing criteria, so
 # Phase 4's `## Issue Compliance` can report it. Each value is a state a reader
-# must be able to tell apart — collapsing any two of them would make a DevFlow
+# must be able to tell apart — collapsing any two of them would make a PRFlow
 # run whose workpad read silently failed, or whose mirroring never ran,
 # indistinguishable from an ordinary non-implement PR on the very report line
 # this mechanism adds.
@@ -904,7 +904,7 @@ def _acs_diverge(issue_items: list[dict], workpad_items: list[dict],
     writes the workpad section with post-merge tags the issue body does not
     carry and mirrors the issue's `## Test Plan` items into the same block, and
     tick state moves as the run proceeds — so a raw-text comparison would report
-    divergence on every DevFlow PR and carry no signal.
+    divergence on every PRFlow PR and carry no signal.
 
     Reports DROPS, audited DEFERRALS, and TEXT CHANGES only — a criterion the
     workpad no longer carries renders as `DEFERRED:` when a bound record
@@ -4596,9 +4596,9 @@ _REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING = 100   # total changed lines strictly 
 _REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING = 3     # changed-file count at most this
 _REVIEW_COVERAGE_CONFIG_ONLY_EXTS = frozenset(
     {'.yml', '.yaml', '.json', '.md', '.toml', '.ini', '.lock', '.txt'})
-# engine_self_modifying arm 1 — DevFlow's own source dirs (this repository's own tree).
+# engine_self_modifying arm 1 — PRFlow's own source dirs (this repository's own tree).
 _REVIEW_COVERAGE_ENGINE_SOURCE_PREFIXES = ('skills/', 'agents/', 'lib/')
-# arm 2 — a prompt extension under the DevFlow state directory (any depth), `.md` only.
+# arm 2 — a prompt extension under the PRFlow state directory (any depth), `.md` only.
 _REVIEW_COVERAGE_ENGINE_STATE_DIRS = ('.prflow', '.devflow')
 # arm 3 — the root agent-instruction file (any depth), by basename.
 _REVIEW_COVERAGE_ENGINE_ROOT_AGENT_FILE = 'CLAUDE.md'

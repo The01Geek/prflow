@@ -82,7 +82,7 @@ gh_err_detail() { [ -s "$1" ] && cat "$1" || echo 'no error output captured'; }
 [ -n "$REPO" ] || unavailable "REPO is empty — cannot query CI for this head."
 [ -n "$HEAD_SHA" ] || unavailable "HEAD_SHA is empty — cannot query CI for this head."
 
-# ── (1) Actions workflow runs for the head, excluding DevFlow's own workflow, then
+# ── (1) Actions workflow runs for the head, excluding PRFlow's own workflow, then
 # ── that run's jobs. This is what produces the `lib + python tests` signal.
 # `--paginate` emits CONCATENATED JSON arrays/objects, so every selection is
 # preceded by a `-s` slurp + flatten, exactly as derive-review-preconditions.sh does.

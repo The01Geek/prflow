@@ -5,7 +5,7 @@
 
 The install documentation pins a **release tag** so a reader downloads and runs
 reproducible bytes. Two independent pins carry that tag, and both are *executable*
-text a user copy-pastes — a stale one silently installs an older DevFlow:
+text a user copy-pastes — a stale one silently installs an older PRFlow:
 
 * the installer **download URL**, ``raw.githubusercontent.com/<owner>/<repo>/vN.N.N/…``
 * the installer's **payload ref**, ``DEVFLOW_REF=vN.N.N``
@@ -47,7 +47,7 @@ it is a *structural* property rather than a blocklist: a checker whose answer de
 on untracked host state is a checker that goes red locally and green on a fresh CI
 checkout, varying between runs on the same commit. A filesystem walk cannot have that
 property — every exclusion list it carries is a blocklist that the next untracked
-directory defeats. DevFlow's own review scratch (``.prflow/tmp/``, which holds a
+directory defeats. PRFlow's own review scratch (``.prflow/tmp/``, which holds a
 cached ``diff.patch`` carrying both pin forms at arbitrary versions) is the instance
 that proved it; the index population removes the whole class, scratch dirs that do
 not exist yet included.
@@ -397,7 +397,7 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument(
         "--root",
         default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        help="Repository root (default: the DevFlow checkout containing this script)",
+        help="Repository root (default: the PRFlow checkout containing this script)",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
