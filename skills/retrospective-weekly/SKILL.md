@@ -1130,13 +1130,14 @@ Render the report markdown and post it as a comment on the state PR:
 ```bash
 source $LIB/render-report.sh
 devflow_render_report "$SUMMARY_JSON" > .prflow/tmp/report.md
-# Append the implement-runtime section to the rendered report BEFORE it is posted, buffering
-# it so only a successful run is appended: appending the tool's output directly puts a
-# truncated section into the posted comment, and appending after the post loses it entirely.
-if $LIB/../scripts/implement-run-report.py --retro > .prflow/tmp/implement-runtime.md; then
+# Buffer the implement-runtime section, append it before the report is posted, and gate that
+# append on content rather than exit status: --retro exits 1 on an unreadable store while
+# still writing the section that says so.
+$LIB/../scripts/implement-run-report.py --retro > .prflow/tmp/implement-runtime.md || true
+if [ -s .prflow/tmp/implement-runtime.md ]; then
   cat .prflow/tmp/implement-runtime.md >> .prflow/tmp/report.md
 else
-  printf '## Implement runtime trends\n\n_(section omitted — implement-run-report.py --retro failed)_\n' >> .prflow/tmp/report.md
+  printf '## Implement runtime trends\n\n_(section omitted — implement-run-report.py --retro produced no output)_\n' >> .prflow/tmp/report.md
 fi
 bash $LIB/post-status.sh --pr "$STATE_PR" --report-file .prflow/tmp/report.md
 ```
