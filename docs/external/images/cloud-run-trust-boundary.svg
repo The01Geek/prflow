@@ -4,8 +4,8 @@
       [fill="#FAF7EE"] { fill: #4A3221; }
       [stroke="#D9CFB6"] { stroke: #6C7440; }
       rect[fill="#FFFFFF"] { fill: #5D4230; }
-      [fill="#555934"] { fill: #6C7440; }
-      [stroke="#555934"] { stroke: #A9B06B; }
+      [fill="#593e2e"] { fill: #6C7440; }
+      [stroke="#593e2e"] { stroke: #A9B06B; }
       [fill="#565A35"] { fill: #A9B06B; }
       [fill="#4F5430"] { fill: #DCE0B8; }
       [stroke="#6E7544"] { stroke: #B9BF7E; }
@@ -35,12 +35,12 @@
     <text x="46" y="107" fill="#6E5D4C" font-size="16">Repository rules still govern what each job can access.</text>
 
     <rect x="462" y="134" width="392" height="446" rx="24" fill="#EEE7D3" stroke="#6E7544" stroke-width="2" stroke-dasharray="8 7"/>
-    <rect x="487" y="118" width="256" height="34" rx="17" fill="#555934"/>
+    <rect x="487" y="118" width="256" height="34" rx="17" fill="#593e2e"/>
     <text x="615" y="141" fill="#F7F3E6" font-size="13" font-weight="600" text-anchor="middle" letter-spacing="0.5">TRUSTED EXECUTION BOUNDARY</text>
 
-    <line x1="408" y1="250" x2="500" y2="250" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
-    <line x1="680" y1="326" x2="680" y2="404" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
-    <line x1="502" y1="480" x2="410" y2="480" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="408" y1="250" x2="500" y2="250" stroke="#593e2e" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="680" y1="326" x2="680" y2="404" stroke="#593e2e" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="502" y1="480" x2="410" y2="480" stroke="#593e2e" stroke-width="3" marker-end="url(#arrow)"/>
 
     <g>
       <rect x="48" y="176" width="360" height="150" rx="18" fill="#FFFFFF" stroke="#DDD3BC" stroke-width="2"/>
@@ -52,7 +52,7 @@
     </g>
 
     <g>
-      <rect x="500" y="176" width="324" height="150" rx="18" fill="#FFFFFF" stroke="#555934" stroke-width="2"/>
+      <rect x="500" y="176" width="324" height="150" rx="18" fill="#FFFFFF" stroke="#593e2e" stroke-width="2"/>
       <circle cx="540" cy="218" r="20" fill="#E7DFC6"/>
       <text x="540" y="225" fill="#4F5430" font-size="19" font-weight="700" text-anchor="middle">2</text>
       <text x="574" y="224" fill="#3B2A1E" font-size="20" font-weight="600">Authorization gate</text>
@@ -61,7 +61,7 @@
     </g>
 
     <g>
-      <rect x="500" y="404" width="324" height="150" rx="18" fill="#FFFFFF" stroke="#555934" stroke-width="2"/>
+      <rect x="500" y="404" width="324" height="150" rx="18" fill="#FFFFFF" stroke="#593e2e" stroke-width="2"/>
       <circle cx="540" cy="446" r="20" fill="#E7DFC6"/>
       <text x="540" y="453" fill="#4F5430" font-size="19" font-weight="700" text-anchor="middle">3</text>
       <text x="574" y="452" fill="#3B2A1E" font-size="20" font-weight="600">Agent job</text>
@@ -79,7 +79,7 @@
     </g>
 
     <line x1="228" y1="554" x2="228" y2="615" stroke="#A89F84" stroke-width="2"/>
-    <circle cx="228" cy="615" r="5" fill="#555934"/>
+    <circle cx="228" cy="615" r="5" fill="#593e2e"/>
     <text x="228" y="652" fill="#3B2A1E" font-size="18" font-weight="600" text-anchor="middle">Human review and merge</text>
     <text x="228" y="678" fill="#6E5D4C" font-size="16" text-anchor="middle">Automation stops before merge.</text>
   </g>

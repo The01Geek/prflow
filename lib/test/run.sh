@@ -54205,6 +54205,19 @@ public_file_contains() {
   esac
 }
 
+public_site_legacy_accent_absent() {
+  local site_root file
+  site_root="${1:-$PUBLIC_SITE_ROOT}"
+  [ -d "$site_root" ] || { printf 'no\n'; return; }
+  while IFS= read -r file; do
+    if grep -Eiq '#555934|rgba?\([[:space:]]*85[[:space:]]*,[[:space:]]*89[[:space:]]*,[[:space:]]*52' "$file"; then
+      printf 'no\n'
+      return
+    fi
+  done < <(find "$site_root" -type f \( -name '*.css' -o -name '*.json' -o -name '*.md' -o -name '*.mdx' -o -name '*.svg' \) -print) # tree-walk-ok: include every authored public-site source file, including unstaged palette edits
+  printf 'yes\n'
+}
+
 assert_eq "public site: docs.json exists" "yes" "$([ -f "$PUBLIC_SITE_CONFIG" ] && echo yes || echo no)"
 assert_eq "public site: docs.json parses" "yes" \
   "$([ -r "$PUBLIC_SITE_CONFIG" ] && "$PUBLIC_RUN_JQ" -e . "$PUBLIC_SITE_CONFIG" >/dev/null 2>&1 && echo yes || echo no)"
@@ -54214,8 +54227,10 @@ assert_eq "public site: product name is PRFlow" "PRFlow" \
   "$([ -r "$PUBLIC_SITE_CONFIG" ] && "$PUBLIC_RUN_JQ" -r '.name // ""' "$PUBLIC_SITE_CONFIG" 2>/dev/null || true)"
 assert_eq "public site: theme is maple" "maple" \
   "$([ -r "$PUBLIC_SITE_CONFIG" ] && "$PUBLIC_RUN_JQ" -r '.theme // ""' "$PUBLIC_SITE_CONFIG" 2>/dev/null || true)"
-assert_eq "public site: primary, light and dark accents use the olive palette color" "#555934 #555934 #555934" \
+assert_eq "public site: primary, light and dark accents use the brown palette color" "#593e2e #593e2e #593e2e" \
   "$([ -r "$PUBLIC_SITE_CONFIG" ] && "$PUBLIC_RUN_JQ" -r '[.colors.primary, .colors.light, .colors.dark] | join(" ")' "$PUBLIC_SITE_CONFIG" 2>/dev/null || true)"
+assert_eq "public site: no authored source retains the legacy olive accent or its RGB shadow value" "yes" \
+  "$(public_site_legacy_accent_absent)"
 assert_eq "public site: custom dark-mode text stylesheet exists" "yes" \
   "$([ -f "$PUBLIC_SITE_ROOT/style.css" ] && echo yes || echo no)"
 assert_eq "public site: dark-mode text override is scoped to page content" "yes" \
@@ -54230,14 +54245,14 @@ assert_eq "public site: dark-mode ordered-list markers use the cream palette col
   "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" '.dark #content-container ol > li::marker')"
 assert_eq "public site: dark-mode pagination text uses the cream palette color" "yes" \
   "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" '.dark #pagination :where(a, a *)')"
-assert_eq "public site: content borders use the olive palette color" "yes" \
-  "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" 'border-color: #555934;')"
-assert_eq "public site: content shadows use the olive palette color" "yes" \
-  "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" 'rgba(85, 89, 52, 0.24)')"
+assert_eq "public site: content borders use the brown palette color" "yes" \
+  "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" 'border-color: #593e2e;')"
+assert_eq "public site: content shadows use the brown palette color" "yes" \
+  "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" 'rgba(89, 62, 46, 0.24)')"
 assert_eq "public site: every navigation route resolves to a page" "yes" "$(public_route_files_resolve)"
 assert_eq "public site: every page under docs/ is navigated exactly once" "yes" "$(public_docs_pages_are_navigated_once)"
 assert_eq "public site: every root-relative internal link resolves to a page" "yes" "$(public_internal_links_resolve)"
-assert_eq "public site: root homepage is navigated exactly once" "1" "$(public_nav_routes | awk '$0 == "index" { n++ } END { print n + 0 }')"
+assert_eq "public site: root homepage stays out of navigation because the logo is its entry point" "0" "$(public_nav_routes | awk '$0 == "index" { n++ } END { print n + 0 }')"
 assert_eq "public site: custom homepage matches the documentation page shell spacing" "yes" \
   "$(public_file_contains "$PUBLIC_SITE_ROOT/index.mdx" '<div className="px-4 pt-40 lg:pt-10 lg:pl-16 lg:pr-10">')"
 assert_eq "public site: custom homepage matches the documentation reading-column width" "yes" \
