@@ -214,31 +214,15 @@ _artifact_preflight() {
 }
 
 # ── Cheap-lint gate — definition (read-only; fail-fast before any shard) ─────
-# Two sub-second, read-only lints are `lib/test/run.sh`-resident, so nothing cheaper
-# than a whole coordinator pass caught either. Running them here refuses in well under
-# a second instead.
+# Verdict contract, as `_artifact_preflight`: refuse ONLY on a positively-attributed
+# finding, fail OPEN on anything leaving the check unusable. A clean gate is SILENT.
 #
-# The verdict contract is `_artifact_preflight`'s: refuse ONLY on a positively-attributed
-# finding, fail OPEN on anything that leaves the check unusable. The comparand is each
-# lint's own COMPLETION SENTINEL, not its exit code — a Python traceback exits 1 exactly
-# as a finding does, so keying on the code alone would turn every crash into a launch
-# refusal. Matched at the START of a line (a bash-builtin read/case, never a
-# non-preflight PATH tool per CLAUDE.md guard-class 2), so the same text quoted inside an
-# indented row diagnostic is data rather than a verdict.
+# Never key the refusal on the exit code: a Python traceback exits 1 exactly as a finding
+# does, so the comparand is each lint's own completion sentinel, matched at the START of a
+# line so the same text quoted inside an indented diagnostic row stays data.
 #
-# COUPLED CONTRACT, edited together with the two lints: the sentinel literals below are
-# their `audited N of M files` completion lines, and they are the ONLY thing read here.
-# Each lint's own module drives its real end-to-end behaviour; what this file owns is the
-# refuse-or-proceed selection.
-#
-# Each gate takes an injectable override in the DEVFLOW_ARTIFACT_PREFLIGHT idiom — `-`
-# (not `:-`) so an explicitly-empty override DISABLES that gate while an unset variable
-# takes the bundled default. The lints are invoked through `python3` because
-# `lint-brand-devflow-sweep.py` carries no exec bit; this mirrors how `run.sh` drives the
-# real-tree pass of both.
-#
-# A CLEAN gate is SILENT, matching the pre-existing preflight contract above: the exit
-# status is the machine channel and stderr carries every non-clean outcome by name.
+# COUPLED CONTRACT — edit with the two lints: the sentinel literals below are their
+# `audited N of M files` completion lines, and are the ONLY thing read here.
 _cheap_lint_run() { # <label> <sentinel-prefix> <command string>
   local label="$1" sentinel="$2"; shift 2
   local cmd="$*" out rc line attributed
@@ -263,9 +247,9 @@ _cheap_lint_run() { # <label> <sentinel-prefix> <command string>
   return 0
 }
 
-# Returns 0 to PROCEED, 1 on the first positively-attributed finding. Ordered cheapest
-# first; a refusal short-circuits, because the caller is going to stop either way and a
-# second gate's output would bury the one that fired.
+# Returns 0 to PROCEED, 1 on the first positively-attributed finding; a refusal
+# short-circuits so a second gate's output cannot bury the one that fired.
+# Keep `-` (never `:-`) below, or an explicitly-empty override stops disabling its gate.
 _cheap_lint_preflight() {
   _cheap_lint_run 'reference-size' 'lint-reference-size: audited ' \
     "${DEVFLOW_REFERENCE_SIZE_PREFLIGHT-python3 $SCRIPT_DIR/lint-reference-size.py}" || return 1
