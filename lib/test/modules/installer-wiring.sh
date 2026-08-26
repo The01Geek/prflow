@@ -2327,3 +2327,49 @@ printf '{ "name": "fixture" }\n' > "$IU_C23G/package.json"
 IU_O23G="$(bash "$LIB/../scripts/detect-project-tools.sh" "$IU_C23G" 2>&1)"
 assert_eq "installer-upgrade #971: the single-argument form still scans the repo it updates (the /prflow:init path is unchanged)" "yes yes" \
   "$(_iu_out_matches "$IU_O23G" 'devflow-detect: detected: node —') $(_iu_has "$IU_C23G/.prflow/config.json" 'Bash(npm:*)')"
+
+# ────────────────────────────────────────────────────────────────────────────
+echo "install.sh section 4b: lint-provisioning marker publish gate (issue #1388, PR #1963 reception)"
+# Drive the REAL 4b shell wiring end-to-end (validate manifest -> publish marker
+# LAST, else warn and publish nothing) — the substring pins alone cannot catch an
+# inverted or dropped branch. A dedicated source tree adds the python components 4b
+# reads; the shared IU_SRC stays without them so every earlier arm is unchanged.
+IU_SRC_1388="$_iw_tmp_root/src-1388"
+rm -rf "$IU_SRC_1388"; cp -R "$IU_SRC" "$IU_SRC_1388"
+cp "$LIB/../scripts/lint_manifest.py" "$LIB/../scripts/lint_provision.py" \
+   "$LIB/../scripts/install_state.py" "$IU_SRC_1388/scripts/"
+
+# Positive control: a valid staged manifest publishes a marker that PARSES as
+# established (not merely exists).
+IU_C1388="$(_iu_consumer 1388-publish)"
+IU_O1388="$(IU_SRC_OVERRIDE="$IU_SRC_1388" _iu_run "$IU_C1388" --apply)"
+assert_eq "#1388 4b end-to-end: valid manifest publishes the install-state marker" "yes yes" \
+  "$([ -f "$IU_C1388/.prflow/install-state.json" ] && echo yes || echo no) $(printf '%s' "$IU_O1388" | grep -qF 'published .prflow/install-state.json' && echo yes || echo no)"
+assert_eq "#1388 4b end-to-end: the published marker validates as established" "established" \
+  "$(python3 -c '
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("install_state", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+print(m.load_state(sys.argv[2]).status)
+' "$LIB/../scripts/install_state.py" "$IU_C1388/.prflow/install-state.json")"
+
+# Fail-closed arm 1: an INVALID staged manifest warns 'did not validate' and
+# publishes NO marker (attributed rejection: the outer validation branch).
+IU_SRC_1388B="$_iw_tmp_root/src-1388-badmanifest"
+rm -rf "$IU_SRC_1388B"; cp -R "$IU_SRC_1388" "$IU_SRC_1388B"
+printf '{not json' > "$IU_SRC_1388B/.prflow/lint-manifest.json"
+IU_C1388B="$(_iu_consumer 1388-badmanifest)"
+IU_O1388B="$(IU_SRC_OVERRIDE="$IU_SRC_1388B" _iu_run "$IU_C1388B" --apply)"
+assert_eq "#1388 4b end-to-end: invalid manifest -> 'did not validate' warning and NO marker" "no yes" \
+  "$([ -f "$IU_C1388B/.prflow/install-state.json" ] && echo yes || echo no) $(printf '%s' "$IU_O1388B" | grep -qF 'lint-manifest.json did not validate' && echo yes || echo no)"
+
+# Fail-closed arm 2: a valid manifest whose build cannot digest a bound component
+# warns 'could not publish' WITH the build diagnostic and publishes NO marker
+# (attributed rejection: the inner build branch, distinct from arm 1's).
+IU_SRC_1388C="$_iw_tmp_root/src-1388-nocomponent"
+rm -rf "$IU_SRC_1388C"; cp -R "$IU_SRC_1388" "$IU_SRC_1388C"
+rm -f "$IU_SRC_1388C/.github/workflows/devflow-implement.yml"
+IU_C1388C="$(_iu_consumer 1388-nocomponent)"
+IU_O1388C="$(IU_SRC_OVERRIDE="$IU_SRC_1388C" _iu_run "$IU_C1388C" --apply)"
+assert_eq "#1388 4b end-to-end: unreadable bound component -> 'could not publish' names the build failure and NO marker" "no yes yes" \
+  "$([ -f "$IU_C1388C/.prflow/install-state.json" ] && echo yes || echo no) $(printf '%s' "$IU_O1388C" | grep -qF 'could not publish .prflow/install-state.json' && echo yes || echo no) $(printf '%s' "$IU_O1388C" | grep -qF 'cannot digest component' && echo yes || echo no)"

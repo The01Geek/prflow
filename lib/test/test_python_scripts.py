@@ -37021,6 +37021,43 @@ assert_raises("#1388 StateResult: established with no state raises",
               ValueError, lambda: _install_state.StateResult("established"))
 assert_raises("#1388 Readiness: not-ready with no reason raises",
               ValueError, lambda: _install_state.Readiness(False))
+# PR #1963 reception: the invariants are enforced at construction, not by convention.
+assert_raises("#1388 Plan: established without resolved fields raises",
+              ValueError, lambda: _lint_provision.Plan("established", tool="shellcheck",
+                                                       os="linux", arch="x86_64"))
+assert_raises("#1388 Plan: a no-answer status without a reason raises",
+              ValueError, lambda: _lint_provision.Plan("unsupported"))
+assert_raises("#1388 Readiness: ready with a (stale) reason raises",
+              ValueError, lambda: _install_state.Readiness(True, "leftover-reason"))
+# PR #1963 reception: readiness names an INVALID (present) manifest distinctly, and the
+# helper's final summary reports only what actually landed.
+_d1388e = Path(tempfile.mkdtemp())
+try:
+    _e_arc, _e_dig = _mk_archive_1388(_d1388e, "shellcheck", "9.9.9")
+    _repo_e = _mk_repo_1388(_d1388e / "sum", _mk_manifest_1388(_e_dig))
+    # Positive control on the same fixture: the component is readable, so the ONLY
+    # rejection cause below is the installer_version — never an unreadable component.
+    assert_eq("#1388 build_state: control — same component builds under a valid installer_version", True,
+              isinstance(_install_state.build_state(
+                  "v1", {"manifest": ".prflow/lint-manifest.json"}, repo_root=_repo_e), dict))
+    assert_raises("#1388 build_state: an installer_version validate_state would reject raises (no marker published)",
+                  ValueError, lambda: _install_state.build_state(
+                      "bad/ref", {"manifest": ".prflow/lint-manifest.json"}, repo_root=_repo_e))
+    (_repo_e / ".prflow" / "bad-manifest.json").write_text("{not json", encoding="utf-8")
+    _mu = _install_state.check_readiness(_repo_e / ".prflow" / "install-state.json",
+                                         _repo_e / ".prflow" / "bad-manifest.json",
+                                         repo_root=_repo_e)
+    assert_eq("#1388 readiness: present-but-invalid manifest -> manifest-unestablished:<reason>", True,
+              (not _mu.ready) and _mu.reason.startswith("manifest-unestablished:"))
+    _rc_e, _out_e = _run_helper_1388(_repo_e, archive=_e_arc, arch="arm64")
+    assert_eq("#1388 helper: degraded tool listed as unprovisioned, not provisioned", True,
+              "unprovisioned (degraded): shellcheck" in _out_e
+              and "provisioned: shellcheck" not in _out_e)
+    _rc_e2, _out_e2 = _run_helper_1388(_repo_e, archive=_e_arc)
+    assert_eq("#1388 helper: provisioned summary lists the installed tool", True,
+              "provisioned: shellcheck" in _out_e2)
+finally:
+    shutil.rmtree(_d1388e, ignore_errors=True)
 # Matrix completeness: component sub-object shapes and a missing required top-level key.
 assert_eq("#1388 state: components wrong-type (array) rejected", True,
           _install_state.validate_state(_mk_state(components=[])).reason.startswith("invalid-value:"))
@@ -37071,6 +37108,15 @@ assert_eq("#1388 review-isolation: hardening precedes the provision step", True,
           0 <= _hard_idx < _prov_idx)
 assert_eq("#1388 review-isolation: hardening materializes every base-ref action file from FETCH_HEAD", True,  # structural-pin-ok: security-credential-boundary -- whole-dir base-ref materialization
           'git ls-tree -r --name-only FETCH_HEAD -- "$dir"' in _dr1388 and 'git show "FETCH_HEAD:$f"' in _dr1388)
+# Addendum (issue #1388, 2026-08-25): AC8's narrowed scope pinned in BOTH directions —
+# the hardened set is exactly {setup-project-env}; read-project-config and
+# vendor-plugin stay PR-head-resolved (the recorded residual, predating this issue).
+assert_eq("#1388 review-isolation: hardened set is exactly setup-project-env", 1,  # structural-pin-ok: security-credential-boundary -- widening or shrinking the hardened set must restate the recorded residual
+          _dr1388.count('dir=".github/actions/setup-project-env"'))
+assert_eq("#1388 review-isolation: read-project-config stays PR-head-resolved (recorded residual)", True,  # structural-pin-ok: security-credential-boundary -- the residual set, pinned so it cannot silently grow or vanish
+          "uses: ./.github/actions/read-project-config" in _dr1388)
+assert_eq("#1388 review-isolation: vendor-plugin stays PR-head-resolved (recorded residual)", True,  # structural-pin-ok: security-credential-boundary -- the residual set, pinned so it cannot silently grow or vanish
+          "uses: ./.github/actions/vendor-plugin" in _dr1388)
 
 
 # ── issue #1388: the tracked marker ships, validates, and stays in sync ──

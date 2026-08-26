@@ -1321,7 +1321,11 @@ covered with no edit to this step. It **fails closed**: if the trusted bytes
 cannot be materialized (no base ref, a failed fetch, or the base ref carrying no
 `action.yml`), the whole job aborts rather than falling back to the PR-head
 copy. Combined with `lint_mode: none`, no manifest-derived bytes and no PR-head
-action body ever enter the review job.
+**setup**-action body ever enter the review job. The runner's other composite
+invocations — `read-project-config` and `vendor-plugin` — remain PR-head-resolved:
+the recorded residual (it predates issue #1388; see #874 for the `vendor-plugin`
+`ref:` hardening), pinned in both directions in `lib/test/test_python_scripts.py`
+so extending the hardened set forces this statement to be restated.
 
 ### CI validates the candidate manifest without write credentials
 

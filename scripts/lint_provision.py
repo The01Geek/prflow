@@ -124,9 +124,20 @@ class Plan:
     __slots__ = ("status", "reason", "tool", "os", "arch", "version",
                  "digest", "archive_type", "member", "strategy", "url")
 
+    _RESOLVED_FIELDS = ("version", "digest", "archive_type", "member", "strategy", "url")
+
     def __init__(self, status, **kw):
         if status not in ("established", "unsupported", "unestablished"):
             raise ValueError(f"invalid plan status: {status!r}")
+        # Enforce the established<->fields / no-answer<->reason invariant at
+        # construction (like StateResult), not merely by build_plan convention: a
+        # partially-populated "established" plan must be unrepresentable.
+        if status == "established":
+            missing = [k for k in self._RESOLVED_FIELDS if kw.get(k) is None]
+            if missing:
+                raise ValueError(f"established Plan missing resolved fields: {missing}")
+        elif not kw.get("reason"):
+            raise ValueError(f"a {status!r} Plan requires a reason")
         self.status = status
         self.reason = kw.get("reason")
         for k in ("tool", "os", "arch", "version", "digest", "archive_type",

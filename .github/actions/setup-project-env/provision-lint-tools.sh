@@ -101,14 +101,22 @@ fi
 
 mkdir -p "$DEST_BIN" 2>/dev/null || _die - "unwritable target: cannot create $DEST_BIN"
 
+PROVISIONED=""
+UNPROVISIONED=""
+
 _provision_one() {
   local tool="$1"
-  local plan rc
+  local plan rc plan_err plan_err_file
+  # Keep stderr OUT of $plan: the tab-parse below splits $plan into fields, so
+  # interpreter noise merged via 2>&1 would corrupt the field split.
+  plan_err_file="$(mktemp)"
   set +e
   plan="$("$PY" "$SCRIPTS_DIR/lint_provision.py" plan \
-    --manifest "$LINT_MANIFEST" --tool "$tool" --os "$TARGET_OS" --arch "$TARGET_ARCH" 2>&1)"
+    --manifest "$LINT_MANIFEST" --tool "$tool" --os "$TARGET_OS" --arch "$TARGET_ARCH" 2>"$plan_err_file")"
   rc=$?
   set -e
+  plan_err="$(<"$plan_err_file")" || plan_err=""
+  rm -f "$plan_err_file"
   if [ "$rc" -eq 3 ]; then
     local unsupported_version sys_unsupported
     unsupported_version="$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["tools"][sys.argv[2]]["version"])' \
@@ -118,21 +126,25 @@ _provision_one() {
        && _version_token_match "$("$sys_unsupported" --version 2>&1 || true)" "$unsupported_version"; then
       printf 'provision-lint-tools: %s: reused pre-provisioned %s (%s) from the runner image\n' \
         "$tool" "$sys_unsupported" "$unsupported_version"
+      PROVISIONED="$PROVISIONED $tool"
       return 0
     fi
     printf 'provision-lint-tools: %s: unsupported-lint-platform (%s/%s); continuing without provisioning this tool\n' \
       "$tool" "$TARGET_OS" "$TARGET_ARCH" >&2
     printf '::warning::provision-lint-tools: %s: unsupported-lint-platform (%s/%s) and no pre-provisioned %s at pinned version %s on PATH; continuing without provisioning this tool\n' \
       "$tool" "$TARGET_OS" "$TARGET_ARCH" "$tool" "${unsupported_version:-unknown}" >&2
+    UNPROVISIONED="$UNPROVISIONED $tool"
     return 0
   elif [ "$rc" -ne 0 ]; then
-    _die "$tool" "manifest resolution failed: $plan"
+    _die "$tool" "manifest resolution failed: ${plan}${plan_err:+ ${plan_err}}"
   fi
 
   local digest archive_type member strategy version url
   IFS=$'\t' read -r digest archive_type member strategy version url <<<"$plan"
   [ -n "$url" ] || _die "$tool" "manifest resolution returned no download URL"
 
+  # cache_key appears in log lines ONLY — the cross-run cache gate is action.yml's
+  # hashFiles key; do not wire this value into cache restore/save logic.
   local cache_key
   cache_key="$("$PY" "$SCRIPTS_DIR/lint_provision.py" cache-key \
     --manifest "$LINT_MANIFEST" --tool "$tool" --os "$TARGET_OS" --arch "$TARGET_ARCH" \
@@ -152,6 +164,7 @@ _provision_one() {
     cached_ver="$("$dest" --version 2>&1 || true)"
     if _version_token_match "$cached_ver" "$version"; then
       printf 'provision-lint-tools: %s: reused verified install (%s, key %s)\n' "$tool" "$version" "$cache_key"
+      PROVISIONED="$PROVISIONED $tool"
       return 0
     fi
   fi
@@ -167,6 +180,7 @@ _provision_one() {
        && _version_token_match "$("$sys" --version 2>&1 || true)" "$version"; then
       printf 'provision-lint-tools: %s: reused pre-provisioned %s (%s) from the runner image\n' \
         "$tool" "$sys" "$version"
+      PROVISIONED="$PROVISIONED $tool"
       return 0
     fi
   fi
@@ -220,6 +234,7 @@ _provision_one() {
 
   printf 'provision-lint-tools: %s: installed %s (%s), version-verified (key %s)\n' \
     "$tool" "$member" "$version" "$cache_key"
+  PROVISIONED="$PROVISIONED $tool"
 }
 
 for tool in $TOOLS; do
@@ -230,4 +245,11 @@ done
 if [ -n "${GITHUB_PATH:-}" ]; then
   printf '%s\n' "$DEST_BIN" >> "$GITHUB_PATH"
 fi
-printf 'provision-lint-tools: readiness verified; provisioned: %s\n' "$TOOLS"
+# Report only what actually landed: a tool that took the unsupported-platform
+# degrade must not be listed as provisioned beside its own ::warning::.
+if [ -n "$UNPROVISIONED" ]; then
+  printf 'provision-lint-tools: readiness verified; provisioned:%s; unprovisioned (degraded):%s\n' \
+    "${PROVISIONED:- (none)}" "$UNPROVISIONED"
+else
+  printf 'provision-lint-tools: readiness verified; provisioned:%s\n' "${PROVISIONED:- (none)}"
+fi

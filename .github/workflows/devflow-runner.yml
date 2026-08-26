@@ -1422,7 +1422,10 @@ jobs:
           # prune any PR-head file NOT present on the base ref, so no PR-authored
           # addition survives. action.yml must exist on the base ref or the action
           # cannot run.
-          mapfile -t base_files < <(git ls-tree -r --name-only FETCH_HEAD -- "$dir")
+          # while-read, not mapfile: a bash-3.2 self-hosted macOS consumer runner has
+          # no mapfile, and this security step failing there would abort every review.
+          base_files=()
+          while IFS= read -r bf; do base_files+=("$bf"); done < <(git ls-tree -r --name-only FETCH_HEAD -- "$dir")
           [ "${#base_files[@]}" -gt 0 ] || { echo "::error::base ref '$BASE_REF' carries no $dir; refusing to run a PR-head action body"; exit 1; }
           for f in "${base_files[@]}"; do
             mkdir -p "$(dirname "$f")"

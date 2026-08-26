@@ -231,16 +231,9 @@ runs:
           } >> "$GITHUB_OUTPUT"
         fi
 
-    # Restore the provisioned lint toolchain across runs, keyed on the tuple the
-    # cache-key names (issue #1388): {OS, arch, tool, version, digest, installer
-    # version}. runner.os/runner.arch cover OS/arch; hashFiles of the lint manifest
-    # and the digest-bound install-state marker covers every tool version, artifact
-    # digest, and the installer version transitively, so any change to that tuple
-    # keys a different slot and misses. A restored $DEST_BIN is re-verified by the
-    # provisioning step's version check before use; on a miss the step downloads and
-    # this action's post step saves the freshly-installed toolchain under the key.
-    # PR runs restore from but cannot write the base scope's cache, and the review
-    # tier passes lint_mode: none, so it never restores here.
+    # The hashFiles(manifest, marker) key covers the whole AC5 tuple transitively —
+    # do not add tuple components to it by hand. A restored $DEST_BIN is still
+    # re-verified by the provisioning step: a cache hit is never verification.
     - name: Cache the provisioned lint toolchain
       if: inputs.lint_mode == 'provision'
       uses: actions/cache@v5

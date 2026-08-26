@@ -97,9 +97,12 @@ class Readiness:
     __slots__ = ("ready", "reason")
 
     def __init__(self, ready: bool, reason: str | None = None):
-        # A not-ready verdict must name the specific fail-closed cause, never None.
+        # A not-ready verdict must name the specific fail-closed cause, never None —
+        # and a ready one must carry NO reason, so a stale cause cannot ride along.
         if not ready and not reason:
             raise ValueError("a not-ready Readiness requires a reason")
+        if ready and reason is not None:
+            raise ValueError("a ready Readiness must not carry a reason")
         self.ready = ready
         self.reason = reason
 
@@ -130,7 +133,8 @@ def digest_bytes(raw: bytes) -> str:
 
 def digest_file(path) -> str | None:
     """`sha256:` digest of the file at `path`, or `None` when it cannot be read —
-    the caller maps `None` to `component-missing`, never to a clean digest."""
+    each caller maps `None` to its own typed failure (`check_readiness` to
+    `component-missing`, `build_state` to a `ValueError`), never to a clean digest."""
     try:
         return digest_bytes(Path(path).read_bytes())
     except (FileNotFoundError, IsADirectoryError, PermissionError, OSError):
@@ -239,8 +243,11 @@ def build_state(installer_version: str, components: dict, repo_root=".",
     digest a SOURCE-tree file while recording the RUNTIME path a thin consumer will
     verify (the install-channel skew: workflows/manifest ship via install.sh's copy
     loop, helpers via the runtime vendor fetch — identical bytes at the pinned ref).
-    Raises `ValueError` for an unreadable component so the installer fails BEFORE
-    publishing a marker binding a file it cannot read."""
+    Raises `ValueError` for an unreadable component, or an `installer_version` that
+    `validate_state` would later reject, so the installer fails BEFORE publishing a
+    marker that binds a file it cannot read or that provisioning will refuse."""
+    if not isinstance(installer_version, str) or not _INSTALLER_VERSION_RE.match(installer_version):
+        raise ValueError(f"invalid installer_version {installer_version!r}")
     root = Path(repo_root)
     record_paths = record_paths or {}
     out = {}
