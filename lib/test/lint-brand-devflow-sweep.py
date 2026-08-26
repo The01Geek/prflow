@@ -46,6 +46,15 @@ Buckets, in the ``classify()`` first-match order:
   are the machinery that matches the brand, not prose to sweep.
 - ``frozen-provenance`` — a quoted ``"DevFlow"`` / ``'DevFlow'`` VALUE inside a recorded
   provenance-selector file (the superseded label the scan/classify/fetch path matches).
+- ``frozen-occurrence`` — a single frozen ``DevFlow`` occurrence inside a file that also
+  carries renameable occurrences elsewhere (issue #2003). Each ``frozen.occurrences`` entry
+  names a ``file`` and a ``context`` substring; every ``DevFlow`` on a line of that file
+  containing the ``context`` is frozen and subtracted from the file's renameable remainder,
+  so a mixed file can be swept of its ordinary occurrences while a two-spelling explainer,
+  a superseded-spelling reference, or a pinned user-facing string on a specific line stays
+  frozen without moving the whole file into a whole-file bucket. A stale entry (its
+  ``context`` matches no brand-bearing line) fails the run closed, like the provenance
+  reverse check.
 - ``pending``           — everything else: ordinary renameable prose not yet swept,
   recorded per file in ``pending_sweep_baseline`` and drained by the follow-up sweep.
 
@@ -103,6 +112,27 @@ def prov_file_set(frozen: dict) -> set[str]:
     return {e["file"] for e in frozen.get("provenance", [])}
 
 
+def occ_file_map(frozen: dict) -> dict[str, list[str]]:
+    """Map each occurrence-frozen file to its list of frozen `context` substrings."""
+    m: dict[str, list[str]] = {}
+    for e in frozen.get("occurrences", []):
+        m.setdefault(e["file"], []).append(e["context"])
+    return m
+
+
+def occurrence_frozen_count(blob: bytes, contexts: list[str]) -> int:
+    """Count brand occurrences on lines that contain any listed `context` substring — the
+    per-occurrence freeze (issue #2003), subtracted from the file's renameable remainder."""
+    if not contexts:
+        return 0
+    ctx_bytes = [c.encode("utf-8") for c in contexts]
+    n = 0
+    for line in blob.splitlines():
+        if BRAND in line and any(cb in line for cb in ctx_bytes):
+            n += line.count(BRAND)
+    return n
+
+
 def iter_blobs(root: Path, skipped: list[str] | None = None):
     """Yield (rel, blob) for each tracked file; an unreadable one is breadcrumbed and its path
     appended to `skipped` (when given) so the caller can fail closed rather than let its
@@ -149,6 +179,15 @@ def record_shape_error(buckets) -> str | None:
     for i, entry in enumerate(prov):
         if not isinstance(entry, dict) or not isinstance(entry.get("file"), str):
             return f"frozen.provenance[{i}] lacks a string 'file'"
+    # frozen.occurrences (issue #2003) is optional; when present each row needs a string
+    # 'file' and 'context', else the occurrence-freeze counter would iterate a non-string.
+    occ = frozen.get("occurrences", [])
+    if not isinstance(occ, list):
+        return "frozen.occurrences must be a list"
+    for i, entry in enumerate(occ):
+        if (not isinstance(entry, dict) or not isinstance(entry.get("file"), str)
+                or not isinstance(entry.get("context"), str)):
+            return f"frozen.occurrences[{i}] lacks a string 'file' or 'context'"
     pending_rows = buckets.get("pending_sweep_baseline", [])
     if not isinstance(pending_rows, list):
         return "pending_sweep_baseline must be a list"
@@ -158,12 +197,15 @@ def record_shape_error(buckets) -> str | None:
     return None
 
 
-def classify(rel: str, blob: bytes, frozen: dict, prov_files: set[str]) -> tuple[str, int, int]:
+def classify(rel: str, blob: bytes, frozen: dict, prov_files: set[str],
+             occ_by_file: dict[str, list[str]]) -> tuple[str, int, int]:
     """Return (bucket, frozen_count, pending_count) of brand occurrences in one file.
 
     bucket is the frozen bucket name ("" when there are no frozen occurrences);
     frozen_count aggregates the frozen buckets and pending_count is the renameable
-    remainder recorded in the baseline. First frozen match wins.
+    remainder recorded in the baseline. The whole-file buckets are first-match-wins; the
+    occurrence-freeze (issue #2003) then subtracts from the remainder of a file that reached
+    the provenance or plain-file branch, so a mixed file can be partially frozen.
     """
     total = blob.count(BRAND)
     if total == 0:
@@ -180,9 +222,12 @@ def classify(rel: str, blob: bytes, frozen: dict, prov_files: set[str]) -> tuple
         return ("frozen-historical", total, 0)
     if rel in frozen.get("tooling_files", []):
         return ("frozen-tooling", total, 0)
+    occ = occurrence_frozen_count(blob, occ_by_file.get(rel, []))
     if rel in prov_files:
         value = len(PROVENANCE_VALUE.findall(blob))
-        return ("frozen-provenance", value, total - value)
+        return ("frozen-provenance", value + occ, max(total - value - occ, 0))
+    if occ:
+        return ("frozen-occurrence", occ, max(total - occ, 0))
     return ("", 0, total)
 
 
@@ -191,12 +236,13 @@ def scan(root: Path, buckets: dict, skipped: list[str] | None = None) -> tuple[d
     unreadable file's path to `skipped` when given."""
     frozen = buckets["frozen"]
     prov_files = prov_file_set(frozen)
+    occ_by_file = occ_file_map(frozen)
     pending: dict[str, int] = {}
     frozen_prov: dict[str, int] = {}
     audited = 0
     for rel, blob in iter_blobs(root, skipped):
         audited += 1
-        _bucket, _fcount, pcount = classify(rel, blob, frozen, prov_files)
+        _bucket, _fcount, pcount = classify(rel, blob, frozen, prov_files, occ_by_file)
         if pcount:
             pending[rel] = pcount
         if rel in prov_files:
@@ -250,6 +296,27 @@ def cmd_check(root: Path, buckets: dict) -> int:
                 f"matched; the superseded label value moved or was removed"
             )
 
+    # Reverse direction (issue #2003): a frozen-occurrence entry whose context no longer matches
+    # any brand-bearing line is stale — the frozen occurrence moved or was already swept, so the
+    # entry must be removed or its context updated. Checked per entry (not aggregated per file) so
+    # one stale context among several on the same file is still caught.
+    for entry in buckets["frozen"].get("occurrences", []):
+        rel = entry["file"]
+        ctx = entry["context"]
+        try:
+            blob = (root / rel).read_bytes()
+        except OSError:
+            findings.append(
+                f"{rel}: frozen-occurrence entry references an unreadable or absent file — "
+                f"remove the entry or make the file readable"
+            )
+            continue
+        if occurrence_frozen_count(blob, [ctx]) == 0:
+            findings.append(
+                f"{rel}: stale frozen-occurrence entry — context {ctx!r} matches no brand-cased "
+                f"'DevFlow' line any more; update the context or remove the entry"
+            )
+
     print(f"lint-brand-devflow-sweep: audited {audited} of {audited} files")
     for f in findings:
         print(f"  {f}")
@@ -269,8 +336,9 @@ def cmd_update_baseline(root: Path, buckets: dict, buckets_path: Path) -> int:
 def cmd_print_population(root: Path, buckets: dict) -> int:
     frozen = buckets["frozen"]
     prov_files = prov_file_set(frozen)
+    occ_by_file = occ_file_map(frozen)
     for rel, blob in iter_blobs(root):
-        bucket, fcount, pcount = classify(rel, blob, frozen, prov_files)
+        bucket, fcount, pcount = classify(rel, blob, frozen, prov_files, occ_by_file)
         if pcount:
             print(f"pending\t{rel}\t{pcount}")
         if fcount:
