@@ -112,6 +112,8 @@ class Readiness:
     def __init__(self, ready: bool, reason: str | None = None):
         # A not-ready verdict must name the specific fail-closed cause, never None —
         # and a ready one must carry NO reason, so a stale cause cannot ride along.
+        if not isinstance(ready, bool):
+            raise ValueError(f"Readiness.ready must be a bool, got {type(ready).__name__}")
         if not ready and not reason:
             raise ValueError("a not-ready Readiness requires a reason")
         if ready and reason is not None:

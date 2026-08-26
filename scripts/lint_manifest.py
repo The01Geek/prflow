@@ -83,9 +83,26 @@ class ManifestResult:
     def __init__(self, status: str, *, manifest=None, reason: str | None = None):
         if status not in ("established", "unestablished"):
             raise ValueError(f"invalid manifest-result status: {status!r}")
-        self.status = status
-        self.manifest = manifest
-        self.reason = reason
+        # Enforce the XOR in BOTH directions at construction (like Plan/StateResult/
+        # Readiness): an established result smuggling a reason, or an unestablished
+        # one carrying a manifest or losing its reason, must be unrepresentable.
+        if status == "established":
+            if manifest is None:
+                raise ValueError("established ManifestResult requires a manifest")
+            if reason is not None:
+                raise ValueError("established ManifestResult must not carry a reason")
+        else:
+            if not reason:
+                raise ValueError("unestablished ManifestResult requires a reason")
+            if manifest is not None:
+                raise ValueError("unestablished ManifestResult must not carry a manifest")
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "manifest", manifest)
+        object.__setattr__(self, "reason", reason)
+
+    def __setattr__(self, name, value):
+        # Frozen after construction: a post-init write would defeat the XOR above.
+        raise AttributeError(f"ManifestResult is immutable (attempted to set {name!r})")
 
     @property
     def established(self) -> bool:

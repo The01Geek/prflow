@@ -3,24 +3,19 @@
 # SPDX-License-Identifier: MIT
 # ============================================================================
 # provision-lint-tools.sh — install the manifest's bounded lint toolchain BEFORE
-# the model runs (issue #1388). Sibling of resolve-node-cache.sh: it travels with
-# the setup-project-env composite action and is unit-tested from lib/test/.
+# the model runs (issue #1388).
 # ============================================================================
-# The heavy lifting — manifest validation, platform resolution, the
-# compatibility-marker readiness gate — lives in the trusted Python helpers
-# (scripts/lint_provision.py, scripts/install_state.py). This script is the thin
-# orchestrator: it gates on readiness, resolves each tool's artifact, then
-# downloads → verifies the pinned ARCHIVE digest → extracts → installs run-local
-# (NO sudo) → verifies the executable reports the pinned version. An executable
-# already present at the destination — a cross-run cache restore (the action's
-# actions/cache step, keyed on the same tuple) or a within-job re-invocation — is
-# reused only after re-passing that version check. Every failure fails CLOSED,
-# naming the tool, BEFORE the
-# model runs — a missing installer primitive, a checksum mismatch, an archive
-# that will not extract, the wrong version, a network failure, or an
-# unwritable target. An unsupported platform tuple degrades instead: it
-# reuses a version-matching tool already on PATH (the runner image), else
-# warns and continues unprovisioned.
+# Manifest validation, platform resolution, and the compatibility-marker
+# readiness gate live in the Python helpers (scripts/lint_provision.py,
+# scripts/install_state.py); this script orchestrates: gate on readiness,
+# resolve each tool's artifact, download → verify the pinned ARCHIVE digest →
+# extract → install run-local (NO sudo) → verify the executable reports the
+# pinned version. A binary already at the destination, or on PATH, is reused
+# only after re-passing that version check. Every INTEGRITY failure fails
+# CLOSED naming the tool, before the model runs — missing installer primitive,
+# checksum mismatch, archive that will not extract, wrong version, network
+# failure, unwritable target, unknown tool. An unsupported platform tuple
+# degrades instead: reuse a version-matching PATH tool, else warn and continue.
 #
 # Required environment:
 #   LINT_MANIFEST      path to .prflow/lint-manifest.json
@@ -90,7 +85,7 @@ _have "$PY" || _die - "installer primitive not found: python3 ($PY)"
 # version skew in either direction, or an interrupted publication), or the
 # manifest is missing/invalid.
 if ! ready="$("$PY" "$SCRIPTS_DIR/install_state.py" verify --state "$INSTALL_STATE" --manifest "$LINT_MANIFEST" 2>&1)"; then
-  _die - "install-state readiness refused: ${ready#NOT-READY }"
+  _die - "install-state readiness refused: ${ready#NOT-READY } — remedy: re-run the PRFlow installer (install.sh) so the marker matches the installed components"
 fi
 
 # The marker validated above, so its installer_version is present and typed. An
@@ -137,6 +132,10 @@ _provision_one() {
       "$tool" "$TARGET_OS" "$TARGET_ARCH" "$tool" "${unsupported_version:-unknown}" >&2
     UNPROVISIONED="$UNPROVISIONED $tool"
     return 0
+  elif [ "$rc" -eq 4 ]; then
+    # Unknown tool ≠ unsupported platform: nothing can provision it, so skipping
+    # it like a platform gap would silently drop a lint the manifest never covers.
+    _die "$tool" "unknown-lint-tool: not in the resolver's known tool set"
   elif [ "$rc" -ne 0 ]; then
     _die "$tool" "manifest resolution failed: ${plan}${plan_err:+ ${plan_err}}"
   fi
@@ -222,7 +221,7 @@ _provision_one() {
   # Locate the member anywhere in the extracted tree (upstream archives nest it
   # under a versioned directory) and install it run-local, no sudo.
   local found
-  found="$(find "$extract_dir" -type f -name "$member" -print -quit 2>/dev/null || true)"
+  found="$(find "$extract_dir" -type f -name "$member" -print 2>/dev/null | head -n 1 || true)"
   [ -n "$found" ] || _die "$tool" "archive mismatch: member $member not found in archive"
   install -m 0755 "$found" "$dest" 2>/dev/null || cp "$found" "$dest" 2>/dev/null \
     || _die "$tool" "unwritable target: cannot install into $DEST_BIN"

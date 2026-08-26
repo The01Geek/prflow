@@ -17,11 +17,12 @@ and the manifest's typed `version` field — never a manifest-supplied string
 (issue #1276's trust model). The manifest is read and validated through
 `scripts/lint_manifest.py`; this module reimplements none of that.
 
-`unsupported-lint-platform` is the one non-error "no answer" outcome: a fully
+`unsupported-lint-platform` is the non-error "no answer" outcome: a fully
 valid manifest that simply declares no artifact for the requested `(os, arch)`
-under the requested tool. It is distinct from an *unestablished* manifest (a
-missing, malformed, or invalid file), which carries a typed reason. *Unknown is
-not zero.*
+under the requested tool. `unknown-lint-tool` is its fail-closed sibling — a
+tool this module has no templates for at all, which a caller must refuse rather
+than skip. Both are distinct from an *unestablished* manifest (a missing,
+malformed, or invalid file), which carries a typed reason. *Unknown is not zero.*
 """
 
 from __future__ import annotations
@@ -56,7 +57,8 @@ KNOWN_ARCH = ("x86_64", "arm64")
 
 # ── Trusted download-URL templates. Keyed on the closed (tool, os, arch)
 #    vocabulary and the manifest's typed `version`; NEVER a manifest-supplied
-#    string. `{version}` is the manifest's `version` field (typed `\d+(\.\d+)+`),
+#    string. `{version}` is the manifest's `version` field (typed by
+#    `lint_manifest._VERSION_RE` — do not transcribe the pattern here, a copy drifts),
 #    so no shell metacharacter can reach the URL. These map the closed strategy
 #    IDs to fixed upstream release layouts (issue #1276). ───────────────────────
 _SHELLCHECK_OS = {"linux": "linux", "macos": "darwin", "windows": "windows"}
@@ -109,8 +111,8 @@ def resolve_artifact(manifest: dict, tool: str, os_name: str, arch: str) -> dict
 
 def cache_key(os_name: str, arch: str, tool: str, version: str, digest: str,
               installer_version: str) -> str:
-    """The run-local cache key `{OS, arch, tool, version, digest, installer version}`
-    (issue #1388 AC). A change to any component invalidates the cache, so a stale
+    """The run-local cache key `{OS, arch, tool, version, digest, installer version}`.
+    A change to any component invalidates the cache, so a stale
     binary can never satisfy a changed tuple. The digest is normalized to its
     64-hex body (the `sha256:` prefix dropped) so the key stays field-delimited."""
     dig = digest[len("sha256:"):] if digest.startswith("sha256:") else digest
@@ -164,11 +166,14 @@ def build_plan(manifest_path, tool: str, os_name: str, arch: str) -> Plan:
     * `established` — a validated manifest declares the artifact and a trusted
       URL template covers the tuple.
     * `unsupported` — a *valid* manifest declares no artifact for the tuple, or
-      no URL template covers it. (`reason='unsupported-lint-platform'`.)
+      no URL template covers it (`reason='unsupported-lint-platform'`) — or the
+      TOOL itself is outside `KNOWN_TOOLS` (`reason='unknown-lint-tool'`). The two
+      reasons stay distinct so the shell caller can degrade only the platform
+      case and fail closed on a tool it cannot handle.
     * `unestablished` — the manifest could not be read/validated (typed reason).
     """
     if tool not in KNOWN_TOOLS:
-        return Plan("unsupported", reason="unsupported-lint-platform",
+        return Plan("unsupported", reason="unknown-lint-tool",
                     tool=tool, os=os_name, arch=arch)
     result = lint_manifest.load_manifest(manifest_path)
     if not result.established:
@@ -204,6 +209,8 @@ def main(argv=None) -> int:
       exit 0 — established (the resolved fields / the cache key)
       exit 2 — unestablished manifest (`UNESTABLISHED <reason>`)
       exit 3 — `unsupported-lint-platform`
+      exit 4 — `unknown-lint-tool` (a tool outside KNOWN_TOOLS: the caller cannot
+               provision it and must fail closed, never skip it as a platform gap)
       exit 1 — usage error
     """
     _force_utf8_streams()
@@ -229,8 +236,8 @@ def main(argv=None) -> int:
         print(f"UNESTABLISHED {plan.reason}")
         return 2
     if plan.status == "unsupported":
-        print("unsupported-lint-platform")
-        return 3
+        print(plan.reason)
+        return 4 if plan.reason == "unknown-lint-tool" else 3
     if args.cmd == "cache-key":
         print(cache_key(plan.os, plan.arch, plan.tool, plan.version, plan.digest,
                         args.installer_version))

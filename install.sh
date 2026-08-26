@@ -1532,6 +1532,9 @@ JSON
   #     after the staged manifest validates — reordering breaks the fail-closed tuple
   #     gate. Digest SOURCE bytes but record RUNTIME paths (--record-path below): the
   #     readers ship via the vendor fetch, not this copy loop (install-channel skew).
+  #     The workflow/action components keep their SOURCE digests, so their copy path
+  #     must stay byte-identical (plain cp) — any templating or newline transform on
+  #     it flips every consumer's readiness gate into a digest-mismatch hard refusal.
   if [ -f "$SRC/.prflow/lint-manifest.json" ] && [ -f "$SRC/scripts/install_state.py" ]; then
     install_managed ".prflow/lint-manifest.json" "$SRC/.prflow/lint-manifest.json"
     if python3 "$SRC/scripts/lint_manifest.py" "$SRC/.prflow/lint-manifest.json" >/dev/null 2>&1; then

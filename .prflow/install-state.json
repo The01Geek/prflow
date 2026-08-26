@@ -8,15 +8,15 @@
     },
     "manifest-reader": {
       "path": "scripts/lint_manifest.py",
-      "digest": "sha256:a9915a3d4893111b86d912710f4cd15af7dfea114e31a3ea93ab337c021a5e16"
+      "digest": "sha256:ede9760164e60530cf50ab50c8a57792275a79e3588578dc5228579586272fe8"
     },
     "lint-provision": {
       "path": "scripts/lint_provision.py",
-      "digest": "sha256:1f5bbb5d76d91bd386c0723982f71a5f80e05a84474493b483d3fc61ddeb77b3"
+      "digest": "sha256:fe582b7e85af6e7607e8a14a06d1854f73d1875f917c1380eab9140d4a885561"
     },
     "install-state-reader": {
       "path": "scripts/install_state.py",
-      "digest": "sha256:85c4a115743a1001e417920e901bf8cdfd87dc37d2a0b71e6003dee1bc246d5a"
+      "digest": "sha256:95b0a5d84caf2fe570aa02b1583ed235137cf01830c6e42685b318e448baf218"
     },
     "setup-action": {
       "path": ".github/actions/setup-project-env/action.yml",
@@ -24,7 +24,7 @@
     },
     "provision-helper": {
       "path": ".github/actions/setup-project-env/provision-lint-tools.sh",
-      "digest": "sha256:c0c8d3f2499c48fc65c5c7886f04ee4fe749d97ef230e656a9bf30c029be700b"
+      "digest": "sha256:11521db566055c53da4f74b73ab3a5bd398fdc1d56ea2014ed236aad34369e28"
     },
     "implement-workflow": {
       "path": ".github/workflows/devflow-implement.yml",

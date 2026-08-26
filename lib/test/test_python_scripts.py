@@ -36635,9 +36635,13 @@ assert_eq("#1388 plan: ruff macos/arm64 target triple",
 _u1388 = _lint_provision.build_plan(_MANIFEST_1388, 'shellcheck', 'windows', 'arm64')
 assert_eq("#1388 plan: unsupported (os,arch) -> unsupported", "unsupported", _u1388.status)
 assert_eq("#1388 plan: unsupported reason literal", "unsupported-lint-platform", _u1388.reason)
-# an unknown tool is likewise unsupported, never a crash.
+# an unknown tool is a DISTINCT no-answer from a platform gap: the shell caller
+# degrades only the platform case and fails closed on a tool it cannot handle.
+_ut1388 = _lint_provision.build_plan(_MANIFEST_1388, 'gcc', 'linux', 'x86_64')
 assert_eq("#1388 plan: unknown tool -> unsupported",
-          "unsupported", _lint_provision.build_plan(_MANIFEST_1388, 'gcc', 'linux', 'x86_64').status)
+          "unsupported", _ut1388.status)
+assert_eq("#1388 plan: unknown tool carries the unknown-lint-tool reason (not the platform reason)",
+          "unknown-lint-tool", _ut1388.reason)
 # an unestablished manifest is NOT unsupported — it carries a typed reason.
 _bad1388 = _lint_provision.build_plan(SCRIPTS / 'nope-manifest.json', 'ruff', 'linux', 'x86_64')
 assert_eq("#1388 plan: missing manifest -> unestablished (not unsupported)", "unestablished", _bad1388.status)
@@ -37113,6 +37117,142 @@ assert_eq("#1388 state: a missing required top-level key rejected", True,
           _install_state.parse_state(b'{"schema_version":1,"installer_version":"v"}').reason.startswith("missing:"))
 assert_eq("#1388 state: component missing digest rejected", True,
           _install_state.validate_state(_mk_state(components={"m": {"path": "x"}})).reason.startswith("missing:"))
+
+# Round 3: ManifestResult enforces the same both-direction XOR + freeze as its
+# three siblings (Plan/StateResult/Readiness), and Readiness types its verdict.
+assert_raises("#1388 ManifestResult: established without a manifest raises",
+              ValueError, lambda: lint_manifest.ManifestResult("established"))
+assert_raises("#1388 ManifestResult: established with a (stale) reason raises",
+              ValueError, lambda: lint_manifest.ManifestResult(
+                  "established", manifest={"k": 1}, reason="leftover"))
+assert_raises("#1388 ManifestResult: unestablished without a reason raises",
+              ValueError, lambda: lint_manifest.ManifestResult("unestablished"))
+assert_raises("#1388 ManifestResult: unestablished smuggling a manifest raises",
+              ValueError, lambda: lint_manifest.ManifestResult(
+                  "unestablished", reason="r", manifest={"k": 1}))
+assert_raises("#1388 ManifestResult: post-construction assignment raises (frozen)",
+              AttributeError,
+              _mutate_1388(lint_manifest.ManifestResult("unestablished", reason="r"), "reason"))
+assert_raises("#1388 Readiness: a truthy non-bool ready raises (typed verdict)",
+              ValueError, lambda: _install_state.Readiness(1))
+
+# Round 3: unknown-lint-tool is fail-closed end-to-end — distinct exit code from
+# the resolver (4, never the degradable 3) and a refusal from the shell helper.
+_d1388f = Path(tempfile.mkdtemp())
+try:
+    _f_arc, _f_dig = _mk_archive_1388(_d1388f, "shellcheck", "9.9.9")
+    _repo_f = _mk_repo_1388(_d1388f / "ut", _mk_manifest_1388(_f_dig))
+    _cli_f = _sp1388.run(
+        [sys.executable, str(SCRIPTS / "lint_provision.py"), "plan",
+         "--manifest", str(_repo_f / ".prflow" / "lint-manifest.json"),
+         "--tool", "gcc", "--os", "linux", "--arch", "x86_64"],
+        capture_output=True, text=True)
+    assert_eq("#1388 CLI: unknown tool exits 4 (distinct from unsupported platform's 3)",
+              (4, "unknown-lint-tool"), (_cli_f.returncode, _cli_f.stdout.strip()))
+    _cli_f3 = _sp1388.run(
+        [sys.executable, str(SCRIPTS / "lint_provision.py"), "plan",
+         "--manifest", str(_repo_f / ".prflow" / "lint-manifest.json"),
+         "--tool", "shellcheck", "--os", "linux", "--arch", "arm64"],
+        capture_output=True, text=True)
+    assert_eq("#1388 CLI: unsupported platform still exits 3 with its own reason",
+              (3, "unsupported-lint-platform"), (_cli_f3.returncode, _cli_f3.stdout.strip()))
+    _ut_marker = _d1388f / "ut.marker"
+    _rc_f, _out_f = _run_helper_1388(_repo_f, archive=_f_arc, tools="gcc",
+                                     curl_marker=_ut_marker,
+                                     path_tools={"gcc": "9.9.9"})
+    assert_eq("#1388 helper: unknown tool fails closed even with a PATH candidate (rc 1)", 1, _rc_f)
+    assert_eq("#1388 helper: unknown tool named", True, "gcc: unknown-lint-tool" in _out_f)
+    assert_eq("#1388 helper: unknown tool never invoked the downloader", False, _ut_marker.exists())
+    # Round 3 (S-5): a readiness refusal names the operator remedy, not just the cause.
+    (_repo_f / "scripts" / "lint_manifest.py").write_bytes(b"# drifted component\n")
+    _rc_r, _out_r = _run_helper_1388(_repo_f, archive=_f_arc)
+    assert_eq("#1388 helper: readiness refusal names the re-run-installer remedy", True,
+              _rc_r == 1 and "remedy: re-run the PRFlow installer" in _out_r)
+finally:
+    shutil.rmtree(_d1388f, ignore_errors=True)
+
+
+# ── issue #1388: devflow-runner.yml hardensetup — the SHIPPED step body, end-to-end ──
+# The security control (base-ref materialization + PR-head prune) is executed as the
+# exact bytes the workflow ships: the `run` block is extracted from the YAML, so an
+# edit to the step is exercised here with no mirror script to drift.
+import yaml as _yaml1388  # noqa: E402
+
+_runner_yaml_1388 = _yaml1388.safe_load(
+    (SCRIPTS.parent / ".github" / "workflows" / "devflow-runner.yml").read_text(encoding="utf-8"))
+_harden_run_1388 = None
+for _job1388 in _runner_yaml_1388.get("jobs", {}).values():
+    for _step1388 in _job1388.get("steps", []) or []:
+        if isinstance(_step1388, dict) and _step1388.get("id") == "hardensetup":
+            _harden_run_1388 = _step1388.get("run")
+assert_eq("#1388 hardensetup: the step exists and carries a run block", True,
+          isinstance(_harden_run_1388, str) and "set -euo pipefail" in _harden_run_1388)
+
+
+def _git_1388(cwd, *args):
+    return _sp1388.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                        "-c", "commit.gpgsign=false", *args],
+                       cwd=str(cwd), capture_output=True, text=True, check=True)
+
+
+def _run_harden_1388(head_repo, base_ref):
+    env = dict(os.environ)
+    env["BASE_REF"] = base_ref
+    proc = _sp1388.run(["bash", "-c", _harden_run_1388], cwd=str(head_repo),
+                       env=env, capture_output=True, text=True)
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+_d1388h = Path(tempfile.mkdtemp())
+try:
+    _adir = Path(".github/actions/setup-project-env")
+    # Trusted origin: main carries the action dir with known-good bytes.
+    _origin_h = _d1388h / "origin"
+    (_origin_h / _adir).mkdir(parents=True)
+    (_origin_h / _adir / "action.yml").write_text("trusted-action\n", encoding="utf-8")
+    (_origin_h / _adir / "trusted.sh").write_text("trusted-helper\n", encoding="utf-8")
+    _git_1388(_origin_h, "init", "-b", "main", ".")
+    _git_1388(_origin_h, "add", "-A")
+    _git_1388(_origin_h, "commit", "-m", "base")
+    # PR head: a clone whose head EDITS action.yml and ADDS a helper.
+    _head_h = _d1388h / "head"
+    _git_1388(_d1388h, "clone", "file://" + str(_origin_h), str(_head_h))
+    (_head_h / _adir / "action.yml").write_text("evil-edit\n", encoding="utf-8")
+    (_head_h / _adir / "evil.sh").write_text("evil-addition\n", encoding="utf-8")
+    _git_1388(_head_h, "add", "-A")
+    _git_1388(_head_h, "commit", "-m", "pr head")
+    _rc_h, _out_h = _run_harden_1388(_head_h, "main")
+    assert_eq("#1388 hardensetup: succeeds against a trusted base ref (rc 0)", 0, _rc_h)
+    assert_eq("#1388 hardensetup: a PR-head EDIT is overwritten by the base bytes",
+              "trusted-action\n", (_head_h / _adir / "action.yml").read_text(encoding="utf-8"))
+    assert_eq("#1388 hardensetup: a base file the PR left alone survives with base bytes",
+              "trusted-helper\n", (_head_h / _adir / "trusted.sh").read_text(encoding="utf-8"))
+    assert_eq("#1388 hardensetup: a PR-head ADDED file is pruned", False,
+              (_head_h / _adir / "evil.sh").exists())
+    # Fail-closed: a base ref with NO action dir refuses (never falls back to PR-head bytes).
+    _origin_n = _d1388h / "origin-none"
+    _origin_n.mkdir()
+    (_origin_n / "README.md").write_text("no action dir\n", encoding="utf-8")
+    _git_1388(_origin_n, "init", "-b", "main", ".")
+    _git_1388(_origin_n, "add", "-A")
+    _git_1388(_origin_n, "commit", "-m", "base without action dir")
+    _head_n = _d1388h / "head-none"
+    _git_1388(_d1388h, "clone", "file://" + str(_origin_n), str(_head_n))
+    (_head_n / _adir).mkdir(parents=True)
+    (_head_n / _adir / "action.yml").write_text("pr-injected-action\n", encoding="utf-8")
+    _git_1388(_head_n, "add", "-A")
+    _git_1388(_head_n, "commit", "-m", "pr adds the action dir")
+    _rc_n, _out_n = _run_harden_1388(_head_n, "main")
+    assert_eq("#1388 hardensetup: base ref without the action dir fails closed", True,
+              _rc_n != 0 and "carries no" in _out_n)
+    assert_eq("#1388 hardensetup: the refusal leaves no PR-injected action body blessed", True,
+              (_head_n / _adir / "action.yml").read_text(encoding="utf-8") == "pr-injected-action\n")
+    # Fail-closed: an unfetchable base ref refuses.
+    _rc_u, _out_u = _run_harden_1388(_head_h, "no-such-ref")
+    assert_eq("#1388 hardensetup: an unfetchable base ref fails closed", True,
+              _rc_u != 0 and "could not fetch base ref" in _out_u)
+finally:
+    shutil.rmtree(_d1388h, ignore_errors=True)
 
 
 # ── issue #1388: workflow + composite-action wiring pins (cross-file contract) ──
