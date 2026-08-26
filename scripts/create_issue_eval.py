@@ -118,7 +118,7 @@ import sys
 # for _residency_spend) are single-sourced in scripts/context_eval_shared.py (issue #1900).
 # Keep the sys.path insert: this file is loaded by path (test + shim), import fails without it.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from context_eval_shared import (  # noqa: E402,F401
+from context_eval_shared import (
     RESIDENCY_KEYS,
     UNESTABLISHED,
     _context_tokens,
@@ -375,7 +375,7 @@ def _read_explicit_text(path, label):
         with open(path, "r", encoding="utf-8", newline="") as handle:
             return handle.read()
     except (OSError, UnicodeError) as exc:
-        raise ValueError("invalid_checkpoint: {}: {}".format(label, exc)) from exc
+        raise ValueError(f"invalid_checkpoint: {label}: {exc}") from exc
 
 
 def _line_delta(before, after):
@@ -405,7 +405,7 @@ def measure_checkpoints(run_manifest):
     paths = [checkpoints.get("initial")] + revisions + [checkpoints.get("final")]
     if any(not isinstance(path, str) or not path for path in paths):
         raise ValueError("invalid_checkpoint: every checkpoint needs a path")
-    labels = ["initial"] + ["revision-{}".format(i) for i in range(1, len(revisions) + 1)]
+    labels = ["initial"] + [f"revision-{i}" for i in range(1, len(revisions) + 1)]
     labels.append("final")
     texts = [_read_explicit_text(path, label) for path, label in zip(paths, labels)]
     metrics = [measure_draft(text) for text in texts]
@@ -502,7 +502,7 @@ def audit_outcomes(validated_state, current_digest=None, digest_failed=False):
         owner = _audit_state_owner()
         slug = validated_state.get("slug")
         state = owner.validate_state_document(copy.deepcopy(validated_state), slug)
-    except Exception as exc:  # noqa: BLE001 - unavailable validation is an honest unknown
+    except Exception as exc:
         return _unestablished_audit(str(exc) or type(exc).__name__)
 
     completed = owner.completed_rounds(state)
@@ -604,12 +604,12 @@ def _validated_rubric(rubric):
         raise ValueError("invalid_rubric: top level is not an object")
     version = rubric.get("schema_version")
     if version != RUBRIC_SCHEMA_VERSION or isinstance(version, bool):
-        raise ValueError("unsupported_rubric_schema_version: {!r}".format(version))
+        raise ValueError(f"unsupported_rubric_schema_version: {version!r}")
     result = dict(rubric)
     for key in ("required_concepts", "forbidden_concepts"):
         entries = result.get(key)
         if not isinstance(entries, list):
-            raise ValueError("invalid_rubric: {} is not a list".format(key))
+            raise ValueError(f"invalid_rubric: {key} is not a list")
         for index, entry in enumerate(entries):
             alternatives = entry.get("any_of") if isinstance(entry, dict) else None
             if (not isinstance(entry, dict)
@@ -619,15 +619,15 @@ def _validated_rubric(rubric):
                     or not alternatives
                     or not all(isinstance(value, str) and value.strip()
                                for value in alternatives)):
-                raise ValueError("invalid_rubric: {}[{}]".format(key, index))
+                raise ValueError(f"invalid_rubric: {key}[{index}]")
     for key in ("required_sections", "forbidden_sections"):
         values = result.get(key)
         if (not isinstance(values, list)
                 or not all(isinstance(value, str) and value.strip() for value in values)):
-            raise ValueError("invalid_rubric: {} is not a string list".format(key))
+            raise ValueError(f"invalid_rubric: {key} is not a string list")
     for key in ("blocked_expected", "bug_reproduction_expected"):
         if not isinstance(result.get(key), bool):
-            raise ValueError("invalid_rubric: {} is not a boolean".format(key))
+            raise ValueError(f"invalid_rubric: {key} is not a boolean")
     alternatives = result.get("bug_reproduction_any_of")
     if (not isinstance(alternatives, list)
             or not all(isinstance(value, str) and value.strip()
@@ -688,7 +688,7 @@ def grade_issue(text, rubric):
         assertions.append(_grade_assertion(
             entry["text"],
             matched is not None,
-            "matched alternative: {}".format(matched) if matched else "no alternative matched",
+            f"matched alternative: {matched}" if matched else "no alternative matched",
         ))
     for entry in rubric["forbidden_concepts"]:
         matched = next((alt for alt in entry["any_of"]
@@ -698,13 +698,13 @@ def grade_issue(text, rubric):
         assertions.append(_grade_assertion(
             entry["text"],
             passed,
-            "absent" if passed else "matched forbidden alternative: {}".format(matched),
+            "absent" if passed else f"matched forbidden alternative: {matched}",
         ))
     for section in rubric["required_sections"]:
         normalized_section = _heading_name(section)
         passed = normalized_section in headings
         assertions.append(_grade_assertion(
-            "Required section: {}".format(section),
+            f"Required section: {section}",
             passed,
             "present" if passed else "absent",
         ))
@@ -713,7 +713,7 @@ def grade_issue(text, rubric):
         passed = normalized_section not in headings
         forbidden_section_failures += int(not passed)
         assertions.append(_grade_assertion(
-            "Forbidden section absent: {}".format(section),
+            f"Forbidden section absent: {section}",
             passed,
             "absent" if passed else "present",
         ))
@@ -739,9 +739,7 @@ def grade_issue(text, rubric):
         ),
         reproduction_passed,
         "absent" if reproduction_match is None else
-        "matched {!r} in section {!r}".format(
-            reproduction_match[1], reproduction_match[0]
-        ),
+        f"matched {reproduction_match[1]!r} in section {reproduction_match[0]!r}",
     ))
     passed_count = sum(1 for assertion in assertions if assertion["passed"])
     return {
@@ -1163,9 +1161,7 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
             # mirroring the per-record skip discipline below.
             skipped["unreadable_file"] += 1
             sys.stderr.write(
-                "warning: skipping unreadable session file {}: {}\n".format(
-                    session_file, exc
-                )
+                f"warning: skipping unreadable session file {session_file}: {exc}\n"
             )
             continue
         with handle:
@@ -1178,7 +1174,7 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
                 # Do not narrow, here or at the sibling decode sites: on the
                 # recursive-decoder Pythons in the supported range (< 3.14) a
                 # deeply-nested document raises `RecursionError`, a `RuntimeError`.
-                except Exception:  # noqa: BLE001 - skip the record, never detonate
+                except Exception:
                     skipped["non_json_line"] += 1
                     continue
                 if not isinstance(record, dict):
@@ -1202,9 +1198,7 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
                 except (AttributeError, TypeError, ValueError, KeyError) as exc:
                     skipped["malformed_record"] += 1
                     sys.stderr.write(
-                        "warning: skipping malformed record in {}: {}\n".format(
-                            session_file, exc
-                        )
+                        f"warning: skipping malformed record in {session_file}: {exc}\n"
                     )
                     continue
         if acc.attributed:
@@ -1217,11 +1211,8 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
             skipped["sidechain_only_file"] += 1
             sys.stderr.write(
                 "warning: skipping session file with sidechain records but no "
-                "main-thread attributed turn {} ({} sidechain record(s), {} "
-                "attributed)\n".format(
-                    session_file, acc.sidechain_records_seen,
-                    acc.sidechain_records_attributed,
-                )
+                f"main-thread attributed turn {session_file} ({acc.sidechain_records_seen} sidechain record(s), {acc.sidechain_records_attributed} "
+                "attributed)\n"
             )
     runs.sort(key=lambda r: r["source"])
     return runs, skipped
@@ -1241,10 +1232,8 @@ def _degraded_state(state_path, reason):
     """
     if state_path:
         sys.stderr.write(
-            "create-issue-context-eval: state file {} not usable ({}); "
-            "every state-derived figure reads {}\n".format(
-                state_path, reason, UNESTABLISHED))
-    return None
+            f"create-issue-context-eval: state file {state_path} not usable ({reason}); "
+            f"every state-derived figure reads {UNESTABLISHED}\n")
 
 
 def read_state(state_path):
@@ -1286,7 +1275,7 @@ def read_state(state_path):
     # non-UTF-8 byte is squarely inside AC8's "unreadable" shape and must degrade here,
     # never propagate out of the instrument as a traceback.
     except (OSError, ValueError) as exc:
-        return _degraded_state(state_path, "unreadable: {}".format(exc))
+        return _degraded_state(state_path, f"unreadable: {exc}")
     if not raw.strip():
         return _degraded_state(state_path, "empty")
     try:
@@ -1298,8 +1287,8 @@ def read_state(state_path):
     # a crash" on precisely the hand-corrupted input this reader exists to survive.
     # Enumerating the escape hatches one at a time is how the next unanticipated
     # exception type gets out, so the clause is residual rather than a list.
-    except Exception as exc:  # noqa: BLE001 - AC8 fail-closed: degrade, never crash
-        return _degraded_state(state_path, "not parseable JSON: {}".format(exc))
+    except Exception as exc:
+        return _degraded_state(state_path, f"not parseable JSON: {exc}")
     if not isinstance(doc, dict):
         return _degraded_state(state_path, "top level is not an object")
     rounds = doc.get("rounds")
@@ -1321,7 +1310,7 @@ def read_state(state_path):
             # the proxy then reports an established `0` — the value that reads as "no
             # defects escaped scope" about a comparison that never ran.
             return _degraded_state(
-                state_path, "round {} is recorded more than once".format(num))
+                state_path, f"round {num} is recorded more than once")
         kind = rnd.get("kind")
         if kind is None:
             kind = _ABSENT_KIND_DEFAULT
@@ -1330,7 +1319,7 @@ def read_state(state_path):
             # unestablished rather than silently reporting a partial per-kind figure.
             return _degraded_state(
                 state_path,
-                "round {} names the unrecognized kind {!r}".format(num, kind))
+                f"round {num} names the unrecognized kind {kind!r}")
         # issue #1103 — the round-kind selecting reason, read alongside the kind. Unlike
         # `kind` (whose absent default of `discovery` is the truthful one — a pre-#793
         # round genuinely WAS a whole-draft derivation), an absent reason has no truthful
@@ -1357,7 +1346,7 @@ def read_state(state_path):
             findings = []
         elif not isinstance(findings, list):
             return _degraded_state(
-                state_path, "round {} `findings` is not a list".format(num))
+                state_path, f"round {num} `findings` is not a list")
         by_num[num] = {"kind": kind, "kind_reason": reason, "scope": scope,
                        "findings": findings}
     return by_num
@@ -1664,19 +1653,19 @@ def build_report(corpus_root, state_path=None, large_block_chars=LARGE_BLOCK_MIN
 
 
 def _manifest_error(diagnostic, detail):
-    raise ValueError("{}: {}".format(diagnostic, detail))
+    raise ValueError(f"{diagnostic}: {detail}")
 
 
 def _required_string(mapping, key, diagnostic="missing_field"):
     value = mapping.get(key) if isinstance(mapping, dict) else None
     if not isinstance(value, str) or not value:
-        _manifest_error(diagnostic, "{} must be a non-empty string".format(key))
+        _manifest_error(diagnostic, f"{key} must be a non-empty string")
     return value
 
 
 def _resolved_artifact(root, value, label):
     if not isinstance(value, str) or not value:
-        _manifest_error("missing_artifact", "{} has no path".format(label))
+        _manifest_error("missing_artifact", f"{label} has no path")
     candidate = value if os.path.isabs(value) else os.path.join(root, value)
     resolved = os.path.realpath(candidate)
     try:
@@ -1684,9 +1673,9 @@ def _resolved_artifact(root, value, label):
     except ValueError:
         contained = False
     if not contained:
-        _manifest_error("path_escape", "{} escapes declared root: {}".format(label, value))
+        _manifest_error("path_escape", f"{label} escapes declared root: {value}")
     if not os.path.isfile(resolved):
-        _manifest_error("missing_artifact", "{} not found: {}".format(label, value))
+        _manifest_error("missing_artifact", f"{label} not found: {value}")
     return resolved
 
 
@@ -1696,8 +1685,8 @@ def load_eval_manifest(path):
         with open(path, "r", encoding="utf-8") as handle:
             manifest = json.load(handle)
     # Do not narrow: see the decode-site note in `eval_corpus`.
-    except Exception as exc:  # noqa: BLE001 - fail closed on `invalid_manifest`
-        _manifest_error("invalid_manifest", "{}: {}".format(path, exc))
+    except Exception as exc:
+        _manifest_error("invalid_manifest", f"{path}: {exc}")
     if not isinstance(manifest, dict):
         _manifest_error("invalid_manifest", "top level is not an object")
     version = manifest.get("schema_version")
@@ -1710,7 +1699,7 @@ def load_eval_manifest(path):
         root_value if os.path.isabs(root_value) else os.path.join(manifest_dir, root_value)
     )
     if not os.path.isdir(root):
-        _manifest_error("missing_artifact", "declared root not found: {}".format(root_value))
+        _manifest_error("missing_artifact", f"declared root not found: {root_value}")
     runs = manifest.get("runs")
     if not isinstance(runs, list) or not runs:
         _manifest_error("missing_field", "runs must be a non-empty list")
@@ -1720,7 +1709,7 @@ def load_eval_manifest(path):
     normalized_runs = []
     for index, source_run in enumerate(runs):
         if not isinstance(source_run, dict):
-            _manifest_error("invalid_run", "runs[{}] is not an object".format(index))
+            _manifest_error("invalid_run", f"runs[{index}] is not an object")
         run = dict(source_run)
         run_id = _required_string(run, "run_id", "missing_run_id")
         if run_id in run_ids:
@@ -1730,7 +1719,7 @@ def load_eval_manifest(path):
         _required_string(run, "scenario_id")
         repetition = run.get("repetition")
         if not isinstance(repetition, int) or isinstance(repetition, bool) or repetition < 1:
-            _manifest_error("invalid_run_identity", "{} repetition".format(run_id))
+            _manifest_error("invalid_run_identity", f"{run_id} repetition")
 
         occurrence = run.get("occurrence")
         if not isinstance(occurrence, dict):
@@ -1747,9 +1736,7 @@ def load_eval_manifest(path):
         occurrence_ids.add(identity)
         confidence = occurrence.get("boundary_confidence")
         if confidence not in BOUNDARY_CONFIDENCE:
-            _manifest_error("invalid_boundary_confidence", "{}: {!r}".format(
-                run_id, confidence
-            ))
+            _manifest_error("invalid_boundary_confidence", f"{run_id}: {confidence!r}")
         start = occurrence.get("start_event")
         end = occurrence.get("end_event")
         start_valid = (
@@ -1777,27 +1764,27 @@ def load_eval_manifest(path):
                  or isinstance(duration, bool)
                  or duration < 0)
         ):
-            _manifest_error("invalid_occurrence_boundary", "{} duration_ms".format(run_id))
+            _manifest_error("invalid_occurrence_boundary", f"{run_id} duration_ms")
 
         checkpoints = run.get("checkpoints")
         if not isinstance(checkpoints, dict):
-            _manifest_error("missing_artifact", "{} checkpoints".format(run_id))
+            _manifest_error("missing_artifact", f"{run_id} checkpoints")
         revisions = checkpoints.get("revisions")
         if not isinstance(revisions, list):
-            _manifest_error("missing_artifact", "{} checkpoint revisions".format(run_id))
+            _manifest_error("missing_artifact", f"{run_id} checkpoint revisions")
         normalized_checkpoints = dict(checkpoints)
         normalized_checkpoints.update({
             "initial": _resolved_artifact(
-                root, checkpoints.get("initial"), "{} checkpoints.initial".format(run_id)
+                root, checkpoints.get("initial"), f"{run_id} checkpoints.initial"
             ),
             "revisions": [
                 _resolved_artifact(
-                    root, revision, "{} checkpoints.revisions[{}]".format(run_id, number)
+                    root, revision, f"{run_id} checkpoints.revisions[{number}]"
                 )
                 for number, revision in enumerate(revisions)
             ],
             "final": _resolved_artifact(
-                root, checkpoints.get("final"), "{} checkpoints.final".format(run_id)
+                root, checkpoints.get("final"), f"{run_id} checkpoints.final"
             ),
         })
 
@@ -1816,14 +1803,14 @@ def load_eval_manifest(path):
             _required_string(provenance, key, "missing_provenance")
 
         run["transcript"] = _resolved_artifact(
-            root, run.get("transcript"), "{} transcript".format(run_id)
+            root, run.get("transcript"), f"{run_id} transcript"
         )
         run["state_file"] = _resolved_artifact(
-            root, run.get("state_file"), "{} state_file".format(run_id)
+            root, run.get("state_file"), f"{run_id} state_file"
         )
         if "rubric" in run:
             run["rubric"] = _resolved_artifact(
-                root, run.get("rubric"), "{} rubric".format(run_id)
+                root, run.get("rubric"), f"{run_id} rubric"
             )
         run["checkpoints"] = normalized_checkpoints
         normalized_runs.append(run)
@@ -1852,9 +1839,7 @@ def _validate_manifest_event(record, run_id, event_index):
     if rtype not in ("assistant", "user", "system"):
         _manifest_error(
             "invalid_transcript",
-            "{} event {} has unsupported type {!r}".format(
-                run_id, event_index, rtype
-            ),
+            f"{run_id} event {event_index} has unsupported type {rtype!r}",
         )
     if rtype != "assistant" or record.get("attributionSkill") not in ATTRIBUTION:
         return
@@ -1863,7 +1848,7 @@ def _validate_manifest_event(record, run_id, event_index):
     if not isinstance(usage, dict):
         _manifest_error(
             "invalid_transcript",
-            "{} event {} has no usage object".format(run_id, event_index),
+            f"{run_id} event {event_index} has no usage object",
         )
     for key in (
         "input_tokens",
@@ -1875,7 +1860,7 @@ def _validate_manifest_event(record, run_id, event_index):
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
             _manifest_error(
                 "invalid_transcript",
-                "{} event {} has invalid usage.{}".format(run_id, event_index, key),
+                f"{run_id} event {event_index} has invalid usage.{key}",
             )
 
 
@@ -1893,11 +1878,9 @@ def _json_artifact(path, label="artifact", consequence="the caller degrades it")
     # RecursionError rather than ValueError, and no decoder failure may turn a
     # manifest artifact into a traceback. Exception deliberately excludes process
     # controls such as KeyboardInterrupt and SystemExit.
-    except Exception as exc:  # noqa: BLE001 - malformed explicit artifacts fail closed
+    except Exception as exc:
         sys.stderr.write(
-            "{}: {} not usable ({}: {}); {}\n".format(
-                BREADCRUMB_PREFIX, label, path, exc, consequence
-            )
+            f"{BREADCRUMB_PREFIX}: {label} not usable ({path}: {exc}); {consequence}\n"
         )
         return None
 
@@ -1930,13 +1913,11 @@ def _current_draft_digest(path, state):
             data = handle.read()
     except OSError as exc:
         sys.stderr.write(
-            "{}: final draft not digestible ({}: {}); "
-            "final-byte coverage reads draft-undigestible\n".format(
-                BREADCRUMB_PREFIX, path, exc
-            )
+            f"{BREADCRUMB_PREFIX}: final draft not digestible ({path}: {exc}); "
+            "final-byte coverage reads draft-undigestible\n"
         )
         return None, True
-    header = "blob {}\0".format(len(data)).encode("ascii")
+    header = f"blob {len(data)}\0".encode("ascii")
     return hashlib.new(algorithm, header + data).hexdigest(), False
 
 
@@ -1972,7 +1953,7 @@ def _observe_manifest_run(run, large_block_chars):
             try:
                 record = json.loads(line)
             # Do not narrow: see the decode-site note in `eval_corpus`.
-            except Exception as exc:  # noqa: BLE001 - fail closed on `invalid_transcript`
+            except Exception as exc:
                 _manifest_error(
                     "invalid_transcript",
                     "{} line {}: {}".format(run["run_id"], line_number, exc),
@@ -2375,10 +2356,10 @@ def _render_run_line(r):
         by_round = " ".join(
             "r{}={}({})".format(n, r["round_auditor_cost"][n], kinds.get(n, UNESTABLISHED))
             for n in order)
-        parts.append("\n  - per-round auditor cost: {}".format(by_round))
+        parts.append(f"\n  - per-round auditor cost: {by_round}")
         by_reason = " ".join(
-            "r{}={}".format(n, reasons.get(n, UNESTABLISHED)) for n in order)
-        parts.append("\n  - per-round selecting reason: {}".format(by_reason))
+            f"r{n}={reasons.get(n, UNESTABLISHED)}" for n in order)
+        parts.append(f"\n  - per-round selecting reason: {by_reason}")
     return "".join(parts)
 
 
@@ -2400,13 +2381,13 @@ def render_text(runs, summary, skipped):
     # the renderer test's "every summary field appears" property covers them without a
     # per-field literal here to keep in sync.
     for key, value in summary.items():
-        lines.append("- {}: {}".format(key, value))
+        lines.append(f"- {key}: {value}")
     lines.append("")
     total_skipped = sum(skipped.values())
-    lines.append("## Skipped records: {}".format(total_skipped))
+    lines.append(f"## Skipped records: {total_skipped}")
     for reason in sorted(skipped):
         if skipped[reason]:
-            lines.append("- {}: {}".format(reason, skipped[reason]))
+            lines.append(f"- {reason}: {skipped[reason]}")
     return "\n".join(lines)
 
 
@@ -2414,12 +2395,12 @@ def render_paired_text(report):
     lines = ["# create-issue context eval — before/after paired deltas", ""]
     for label in ("before", "after"):
         side = report[label]
-        lines.append("## {}".format(label.capitalize()))
+        lines.append(f"## {label.capitalize()}")
         lines.append(render_text(side["runs"], side["summary"], side["skipped"]))
         lines.append("")
     lines.append("## Paired deltas (after - before)")
     for key, value in report["delta"].items():
-        lines.append("- {}: {}".format(key, value))
+        lines.append(f"- {key}: {value}")
     return "\n".join(lines)
 
 
@@ -2477,7 +2458,7 @@ def main(argv=None):
             return 2
         for label, path in (("--before", args.before), ("--after", args.after)):
             if not os.path.isdir(path):
-                sys.stderr.write("error: {} directory not found: {}\n".format(label, path))
+                sys.stderr.write(f"error: {label} directory not found: {path}\n")
                 return 2
         # Hold the state operands to the same standard as their sibling directory
         # operands: an explicitly-supplied path that does not exist is an operator
@@ -2485,7 +2466,7 @@ def main(argv=None):
         for label, path in (("--before-state", args.before_state),
                             ("--after-state", args.after_state)):
             if path is not None and not os.path.isfile(path):
-                sys.stderr.write("error: {} file not found: {}\n".format(label, path))
+                sys.stderr.write(f"error: {label} file not found: {path}\n")
                 return 2
         report = build_paired_report(
             args.before, args.after, args.before_state, args.after_state,
@@ -2507,18 +2488,18 @@ def main(argv=None):
     for label, path in (("--before-state", args.before_state),
                         ("--after-state", args.after_state)):
         if path is not None:
-            sys.stderr.write("error: {} is a paired-mode flag; single-corpus mode "
-                             "takes --state-file\n".format(label))
+            sys.stderr.write(f"error: {label} is a paired-mode flag; single-corpus mode "
+                             "takes --state-file\n")
             return 2
     if args.state_file is not None and not os.path.isfile(args.state_file):
         sys.stderr.write(
-            "error: --state-file file not found: {}\n".format(args.state_file))
+            f"error: --state-file file not found: {args.state_file}\n")
         return 2
     if not os.path.isdir(corpus):
         # No corpus present: exit non-zero naming the missing path — never a
         # silently-empty baseline.
         sys.stderr.write(
-            "error: transcript directory not found: {}\n".format(corpus)
+            f"error: transcript directory not found: {corpus}\n"
         )
         return 2
 

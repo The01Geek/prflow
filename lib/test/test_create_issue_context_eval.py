@@ -114,7 +114,7 @@ class SecretDetectorTest(unittest.TestCase):
             # A silently-skipped absent target is how this scan shrank to a shim.
             self.assertTrue(
                 os.path.exists(required),
-                "secret-scan target does not exist: {}".format(required),
+                f"secret-scan target does not exist: {required}",
             )
         for dirpath, _dirs, files in os.walk(_FIX):  # tree-walk-ok: rooted at the fixed committed create-issue-eval fixtures subdir, not the repo root — never descends into sibling worktrees
             for f in sorted(files):
@@ -126,7 +126,7 @@ class SecretDetectorTest(unittest.TestCase):
                 continue
             with open(path, encoding="utf-8") as fh:
                 hits = _scan_for_secrets(fh.read())
-            self.assertFalse(hits, "owner-id/transcript shape {} found in {}".format(hits, path))
+            self.assertFalse(hits, f"owner-id/transcript shape {hits} found in {path}")
 
 
 class MissingCorpusTest(unittest.TestCase):
@@ -238,9 +238,9 @@ class BoundaryTest(_SingleSessionMixin, unittest.TestCase):
 
     def test_one_turn_run(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":10,"cache_read_input_tokens":20,'
-            '"cache_creation_input_tokens":0,"output_tokens":3}}}',
+            '"cache_creation_input_tokens":0,"output_tokens":3}}}'),
         ])
         self.assertEqual(len(runs), 1)
         self.assertEqual(runs[0]["turn_count"], 1)
@@ -248,54 +248,54 @@ class BoundaryTest(_SingleSessionMixin, unittest.TestCase):
 
     def test_null_usage_subfield_treated_as_zero(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":null,"cache_read_input_tokens":7}}}',
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":null,"cache_read_input_tokens":7}}}'),
         ])
         self.assertEqual(runs[0]["peak_context"], 7)
 
     def test_sidechain_excluded(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":999}}}',
+            ('{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":999}}}'),
         ])
         self.assertEqual(runs, [])
 
     def test_compaction_counted(self):
         runs, _ = self._run_one([
             '{"type":"system","subtype":"compact_boundary"}',
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":1}}}',
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":1}}}'),
         ])
         self.assertEqual(runs[0]["compact_boundary_count"], 1)
 
     def test_changed_content_reread_not_counted(self):
         # Two Reads of the same path whose content CHANGED between reads: authoritative.
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
-            '{"type":"tool_use","id":"u1","name":"Read","input":{"file_path":"/x"}}]}}',
-            '{"type":"user","message":{"content":['
-            '{"type":"tool_result","tool_use_id":"u1","content":"AAAA"}]}}',
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '{"type":"tool_use","id":"u1","name":"Read","input":{"file_path":"/x"}}]}}'),
+            ('{"type":"user","message":{"content":['
+            '{"type":"tool_result","tool_use_id":"u1","content":"AAAA"}]}}'),
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
-            '{"type":"tool_use","id":"u2","name":"Read","input":{"file_path":"/x"}}]}}',
-            '{"type":"user","message":{"content":['
-            '{"type":"tool_result","tool_use_id":"u2","content":"BBBB-changed"}]}}',
+            '{"type":"tool_use","id":"u2","name":"Read","input":{"file_path":"/x"}}]}}'),
+            ('{"type":"user","message":{"content":['
+            '{"type":"tool_result","tool_use_id":"u2","content":"BBBB-changed"}]}}'),
         ])
         self.assertEqual(runs[0]["repeated_read_count"], 0)
 
     def test_identical_content_reread_counted(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
-            '{"type":"tool_use","id":"u1","name":"Read","input":{"file_path":"/x"}}]}}',
-            '{"type":"user","message":{"content":['
-            '{"type":"tool_result","tool_use_id":"u1","content":"SAME"}]}}',
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '{"type":"tool_use","id":"u1","name":"Read","input":{"file_path":"/x"}}]}}'),
+            ('{"type":"user","message":{"content":['
+            '{"type":"tool_result","tool_use_id":"u1","content":"SAME"}]}}'),
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
-            '{"type":"tool_use","id":"u2","name":"Read","input":{"file_path":"/x"}}]}}',
-            '{"type":"user","message":{"content":['
-            '{"type":"tool_result","tool_use_id":"u2","content":"SAME"}]}}',
+            '{"type":"tool_use","id":"u2","name":"Read","input":{"file_path":"/x"}}]}}'),
+            ('{"type":"user","message":{"content":['
+            '{"type":"tool_result","tool_use_id":"u2","content":"SAME"}]}}'),
         ])
         self.assertEqual(runs[0]["repeated_read_count"], 1)
 
@@ -303,14 +303,14 @@ class BoundaryTest(_SingleSessionMixin, unittest.TestCase):
         # Two Reads of the same path; the SECOND result carries `second_result_block`
         # verbatim. Returns the run so a caller can assert repeated_read_count.
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
-            '{"type":"tool_use","id":"u1","name":"Read","input":{"file_path":"/x"}}]}}',
-            '{"type":"user","message":{"content":['
-            '{"type":"tool_result","tool_use_id":"u1","content":"SAME"}]}}',
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '{"type":"tool_use","id":"u1","name":"Read","input":{"file_path":"/x"}}]}}'),
+            ('{"type":"user","message":{"content":['
+            '{"type":"tool_result","tool_use_id":"u1","content":"SAME"}]}}'),
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
-            '{"type":"tool_use","id":"u2","name":"Read","input":{"file_path":"/x"}}]}}',
+            '{"type":"tool_use","id":"u2","name":"Read","input":{"file_path":"/x"}}]}}'),
             '{"type":"user","message":{"content":[' + second_result_block + ']}}',
         ])
         return runs
@@ -355,8 +355,8 @@ class AdversarialTest(_SingleSessionMixin, unittest.TestCase):
             'not json at all',
             '["a","list","not","an","object"]',
             '{"no":"type field"}',
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":4}}}',
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":4}}}'),
             '{"type":"assistant","attributionSkill":"devflow:create-issue"',  # truncated line
         ])
         self.assertEqual(len(runs), 1)
@@ -388,10 +388,10 @@ class AdversarialTest(_SingleSessionMixin, unittest.TestCase):
         sys.stderr = io.StringIO()
         try:
             runs, skipped = self._run_one([
-                '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-                '"message":["not","a","dict"]}',
-                '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-                '"message":{"usage":{"input_tokens":9}}}',
+                ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+                '"message":["not","a","dict"]}'),
+                ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+                '"message":{"usage":{"input_tokens":9}}}'),
             ])
         finally:
             sys.stderr = saved
@@ -409,11 +409,11 @@ class AdversarialTest(_SingleSessionMixin, unittest.TestCase):
         sys.stderr = io.StringIO()
         try:
             runs, skipped = self._run_one([
-                '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+                ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
                 '"message":{"usage":{"input_tokens":3},"content":['
-                '{"type":"tool_use","id":"u1","name":"Read","input":["not","a","dict"]}]}}',
-                '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-                '"message":{"usage":{"input_tokens":5}}}',
+                '{"type":"tool_use","id":"u1","name":"Read","input":["not","a","dict"]}]}}'),
+                ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+                '"message":{"usage":{"input_tokens":5}}}'),
             ])
         finally:
             sys.stderr = saved
@@ -440,11 +440,11 @@ class AdversarialTest(_SingleSessionMixin, unittest.TestCase):
         CICE.RunAccumulator.observe_user = _boom
         try:
             runs, skipped = self._run_one([
-                '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-                '"message":{"usage":{"input_tokens":4}}}',
+                ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+                '"message":{"usage":{"input_tokens":4}}}'),
                 '{"type":"user","boom":true,"message":{"content":[]}}',
-                '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-                '"message":{"usage":{"input_tokens":6}}}',
+                ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+                '"message":{"usage":{"input_tokens":6}}}'),
             ])
         finally:
             CICE.RunAccumulator.observe_user = original
@@ -548,7 +548,7 @@ class SecurityTest(unittest.TestCase):
                 saved = sys.stderr
                 sys.stderr = err
                 try:
-                    runs, skipped = CICE.eval_corpus(corpus)
+                    _runs, skipped = CICE.eval_corpus(corpus)
                 finally:
                     sys.stderr = saved
                 self.assertEqual(skipped["walk_error"], 1)
@@ -562,13 +562,13 @@ class RoundAttributionTest(_SingleSessionMixin, unittest.TestCase):
 
     def test_sidechain_cost_attributed_to_current_round(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","name":"Bash","id":"b1",'
-            '"input":{"command":"issue-audit-state.py record-dispatch --round 1 --kind discovery"}}]}}',
-            '{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
+            '"input":{"command":"issue-audit-state.py record-dispatch --round 1 --kind discovery"}}]}}'),
+            ('{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":100,"cache_read_input_tokens":200,'
-            '"cache_creation_input_tokens":50,"output_tokens":10}}}',
+            '"cache_creation_input_tokens":50,"output_tokens":10}}}'),
         ])
         self.assertEqual(len(runs), 1)
         # The auditor cost is the full token total (context sub-fields + output).
@@ -581,10 +581,10 @@ class RoundAttributionTest(_SingleSessionMixin, unittest.TestCase):
         # A sidechain turn before any record-dispatch marker cannot be keyed to a
         # round; it is held separately, never silently folded into round 1.
         runs, _ = self._run_one([
-            '{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":7}}}',
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":1}}}',
+            ('{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":7}}}'),
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":1}}}'),
         ])
         self.assertEqual(runs[0]["round_auditor_cost"], {})
         self.assertEqual(runs[0]["unrounded_auditor_cost"], 7)
@@ -592,18 +592,18 @@ class RoundAttributionTest(_SingleSessionMixin, unittest.TestCase):
 
     def test_round_boundary_switches_on_new_dispatch(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","name":"Bash","id":"b1",'
-            '"input":{"command":"issue-audit-state.py record-dispatch --round 1 --kind discovery"}}]}}',
-            '{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":100}}}',
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"input":{"command":"issue-audit-state.py record-dispatch --round 1 --kind discovery"}}]}}'),
+            ('{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":100}}}'),
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","name":"Bash","id":"b2",'
-            '"input":{"command":"issue-audit-state.py record-dispatch --round 2 --kind targeted"}}]}}',
-            '{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":40}}}',
+            '"input":{"command":"issue-audit-state.py record-dispatch --round 2 --kind targeted"}}]}}'),
+            ('{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":40}}}'),
         ])
         self.assertEqual(runs[0]["round_auditor_cost"], {1: 100, 2: 40})
         self.assertEqual(runs[0]["dispatch_rounds"], [1, 2])
@@ -617,13 +617,13 @@ class RoundAttributionTest(_SingleSessionMixin, unittest.TestCase):
         round-attributed one.
         """
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","name":"Bash","id":"b1",'
             '"input":{"command":"python3 /x/scripts/issue-audit-state.py record-dispatch '
-            '--arm file --kind targeted --round \\"2\\""}}]}}',
-            '{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":55}}}',
+            '--arm file --kind targeted --round \\"2\\""}}]}}'),
+            ('{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":55}}}'),
         ])
         self.assertEqual(runs[0]["round_auditor_cost"], {2: 55})
         self.assertEqual(runs[0]["unrounded_auditor_cost"], 0)
@@ -631,13 +631,13 @@ class RoundAttributionTest(_SingleSessionMixin, unittest.TestCase):
     def test_marker_text_without_the_state_owner_head_opens_no_boundary(self):
         """The marker is a contract, not a substring: a grep/echo must not move state."""
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","name":"Bash","id":"b1",'
             '"input":{"command":"grep -n \\"record-dispatch --round 4\\" '
-            'skills/create-issue/references/step-3-6-audit.md; echo record-reopen"}}]}}',
-            '{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":9}}}',
+            'skills/create-issue/references/step-3-6-audit.md; echo record-reopen"}}]}}'),
+            ('{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":9}}}'),
         ])
         self.assertEqual(runs[0]["round_auditor_cost"], {})
         self.assertEqual(runs[0]["dispatch_rounds"], [])
@@ -651,16 +651,16 @@ class RoundAttributionTest(_SingleSessionMixin, unittest.TestCase):
         And the boundary a command leaves open is its LAST dispatch marker.
         """
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","name":"Bash","id":"b1",'
             '"input":{"command":"scripts/issue-audit-state.py record-reopen --round 2 '
             '--finding 1.1 && scripts/issue-audit-state.py record-reopen --round 2 '
             '--finding 1.2 && scripts/issue-audit-state.py record-dispatch --round 1 '
             '--kind discovery && scripts/issue-audit-state.py record-dispatch '
-            '--round 4 --kind targeted"}}]}}',
-            '{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":11}}}',
+            '--round 4 --kind targeted"}}]}}'),
+            ('{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":11}}}'),
         ])
         self.assertEqual(runs[0]["record_reopen_count"], 2)
         self.assertEqual(runs[0]["dispatch_rounds"], [1, 4])
@@ -669,13 +669,13 @@ class RoundAttributionTest(_SingleSessionMixin, unittest.TestCase):
     def test_a_round_less_dispatch_cannot_borrow_a_later_commands_round(self):
         """The intervening span may not cross a further state-owner invocation."""
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","name":"Bash","id":"b1",'
             '"input":{"command":"scripts/issue-audit-state.py record-dispatch --arm file'
-            ' ; scripts/issue-audit-state.py record-reopen --round 5"}}]}}',
-            '{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":6}}}',
+            ' ; scripts/issue-audit-state.py record-reopen --round 5"}}]}}'),
+            ('{"type":"assistant","isSidechain":true,"attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":6}}}'),
         ])
         self.assertEqual(runs[0]["dispatch_rounds"], [])
         self.assertEqual(runs[0]["unrounded_auditor_cost"], 6)
@@ -697,9 +697,9 @@ class RoundAttributionTest(_SingleSessionMixin, unittest.TestCase):
                     '{"type":"tool_use","name":"Bash","id":"b1",'
                     '"input":{"command":"scripts/issue-audit-state.py record-dispatch '
                     '--kind targeted ' + separator + ' echo trailing --round 9"}}]}}',
-                    '{"type":"assistant","isSidechain":true,'
+                    ('{"type":"assistant","isSidechain":true,'
                     '"attributionSkill":"devflow:create-issue",'
-                    '"message":{"usage":{"input_tokens":6}}}',
+                    '"message":{"usage":{"input_tokens":6}}}'),
                 ])
                 self.assertEqual(runs[0]["dispatch_rounds"], [])
                 self.assertEqual(runs[0]["unrounded_auditor_cost"], 6)
@@ -721,30 +721,30 @@ class RoundAttributionTest(_SingleSessionMixin, unittest.TestCase):
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","name":"Bash","id":"b1",'
             '"input":{"command":"' + command + '"}}]}}',
-            '{"type":"assistant","isSidechain":true,'
+            ('{"type":"assistant","isSidechain":true,'
             '"attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":12}}}',
+            '"message":{"usage":{"input_tokens":12}}}'),
         ])
         self.assertEqual(runs[0]["dispatch_rounds"], [3])
         self.assertEqual(runs[0]["round_auditor_cost"], {3: 12})
 
     def test_record_reopen_counted(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","name":"Bash","id":"b1",'
-            '"input":{"command":"issue-audit-state.py record-reopen --round 2 --finding 1.1"}}]}}',
+            '"input":{"command":"issue-audit-state.py record-reopen --round 2 --finding 1.1"}}]}}'),
         ])
         self.assertEqual(runs[0]["record_reopen_count"], 1)
 
     def test_non_create_issue_sidechain_not_attributed(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","name":"Bash","id":"b1",'
-            '"input":{"command":"issue-audit-state.py record-dispatch --round 1 --kind discovery"}}]}}',
-            '{"type":"assistant","isSidechain":true,"attributionSkill":"other-skill",'
-            '"message":{"usage":{"input_tokens":9999}}}',
+            '"input":{"command":"issue-audit-state.py record-dispatch --round 1 --kind discovery"}}]}}'),
+            ('{"type":"assistant","isSidechain":true,"attributionSkill":"other-skill",'
+            '"message":{"usage":{"input_tokens":9999}}}'),
         ])
         self.assertEqual(runs[0]["attributed_auditor_cost"], 0)
 
@@ -760,7 +760,7 @@ class StateReaderBestEffortTest(unittest.TestCase):
     def _state(self, payload, mode="w", encoding="utf-8"):
         """Write one state payload into this test's own auto-removed temp dir."""
         self._seq += 1
-        path = os.path.join(self._tmp.name, "state-{}.json".format(self._seq))
+        path = os.path.join(self._tmp.name, f"state-{self._seq}.json")
         with open(path, mode, **({} if "b" in mode else {"encoding": encoding})) as fh:
             fh.write(payload)
         return path
@@ -789,13 +789,13 @@ class StateReaderBestEffortTest(unittest.TestCase):
             '{"rounds": [ {"round": 1, "kind": "discovery", "findings": 3} ]}',
             # A duplicated round number is last-wins otherwise, and DISCARDING a
             # targeted round makes the scope-escape proxy report an established 0.
-            '{"rounds": [ {"round": 1, "kind": "targeted"},'
-            '             {"round": 1, "kind": "discovery"} ]}',
+            ('{"rounds": [ {"round": 1, "kind": "targeted"},'
+            '             {"round": 1, "kind": "discovery"} ]}'),
         ]
         for payload in degraded:
             path = self._state(payload)
             self.assertIsNone(CICE.read_state(path),
-                              "degraded payload should read as None: {!r}".format(payload))
+                              f"degraded payload should read as None: {payload!r}")
 
     def test_a_non_valueerror_decoder_failure_degrades_and_never_crashes(self):
         """`json.loads` does not raise only ValueError/TypeError.
@@ -1011,7 +1011,7 @@ class RoundKindCouplingTest(unittest.TestCase):
         for status in owner_statuses:
             outstanding = CICE._is_outstanding_must_revise({"status": status})
             self.assertEqual(outstanding, status == CICE._UNRESOLVED_STATUS,
-                             "status {!r} classified wrongly".format(status))
+                             f"status {status!r} classified wrongly")
 
     def test_impact_classes_mirror_the_state_owner(self):
         """A sixth impact class added to the owner must not ship green here."""
@@ -1133,14 +1133,14 @@ class PerKindAndProxyTest(unittest.TestCase):
             self.assertEqual(
                 CICE.scope_escape_proxy(state),
                 {"count": "unestablished", "unattributable": "unestablished"},
-                "a targeted round with scope {!r} must not yield a number".format(scope))
+                f"a targeted round with scope {scope!r} must not yield a number")
 
     def test_non_positive_quoted_draft_line_is_unattributable(self):
         """Matches the state owner's own `>= 1` boundary; 0/negative are not lines."""
         for bad in (0, -5, True, "12", None):
             self.assertIsNone(
                 CICE._finding_draft_line({"quoted_draft_line": bad}),
-                "quoted_draft_line {!r} must not be treated as attributable".format(bad))
+                f"quoted_draft_line {bad!r} must not be treated as attributable")
         self.assertEqual(CICE._finding_draft_line({"quoted_draft_line": 1}), 1)
 
     def test_before_has_no_targeted_scope_so_zero_escapes(self):
@@ -1172,7 +1172,7 @@ class PerKindAndProxyTest(unittest.TestCase):
         self.assertTrue(numeric_axes)
         for key in numeric_axes:
             self.assertEqual(summary[key], "unestablished",
-                             "{} collapsed an empty population onto a value".format(key))
+                             f"{key} collapsed an empty population onto a value")
         self.assertEqual(summary["run_count"], 0)
 
     def test_partially_labelled_state_makes_every_per_kind_median_unestablished(self):
@@ -1293,7 +1293,7 @@ class PairedDeltaTest(unittest.TestCase):
             with open(src, "r", encoding="utf-8") as fh:
                 payload = fh.read()
             for n in range(3):
-                with open(os.path.join(multi, "s{}.jsonl".format(n)),
+                with open(os.path.join(multi, f"s{n}.jsonl"),
                           "w", encoding="utf-8") as fh:
                     fh.write(payload)
             inflated = CICE.build_paired_report(
@@ -1357,7 +1357,7 @@ class PairedDeltaTest(unittest.TestCase):
             for key in ("total_attributed_auditor_cost", "total_peak_context",
                         "total_round_count"):
                 self.assertEqual(report["delta"][key], "unestablished",
-                                 "{} was measured against an empty corpus".format(key))
+                                 f"{key} was measured against an empty corpus")
         # Positive control: both corpora populated -> the same three keys are numbers.
         for key in ("total_attributed_auditor_cost", "total_peak_context",
                     "total_round_count"):
@@ -1388,7 +1388,7 @@ class RendererTest(unittest.TestCase):
             os.path.join(_FIX, "states", "after-state.json"))
         out = CICE.render_text(report["runs"], report["summary"], report["skipped"])
         for key in report["summary"]:
-            self.assertIn("- {}: ".format(key), out)
+            self.assertIn(f"- {key}: ", out)
         # No raw dict/list repr leaks into the report.
         self.assertNotIn("{'", out)
         self.assertIn("- state_established: True", out)
@@ -1574,9 +1574,9 @@ class SidechainOnlySessionTest(_SingleSessionMixin, unittest.TestCase):
 
     def test_sidechain_only_file_is_tallied_not_silently_dropped(self):
         runs, skipped = self._run_one([
-            '{"type":"assistant","isSidechain":true,'
+            ('{"type":"assistant","isSidechain":true,'
             '"attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":900}}}',
+            '"message":{"usage":{"input_tokens":900}}}'),
         ])
         self.assertEqual(runs, [])
         self.assertEqual(skipped["sidechain_only_file"], 1)
@@ -1584,8 +1584,8 @@ class SidechainOnlySessionTest(_SingleSessionMixin, unittest.TestCase):
     def test_unstamped_sidechain_only_file_is_also_tallied(self):
         """The layout the assumption fails in: sidechain records with no attribution."""
         runs, skipped = self._run_one([
-            '{"type":"assistant","isSidechain":true,'
-            '"message":{"usage":{"input_tokens":900}}}',
+            ('{"type":"assistant","isSidechain":true,'
+            '"message":{"usage":{"input_tokens":900}}}'),
         ])
         self.assertEqual(runs, [])
         self.assertEqual(skipped["sidechain_only_file"], 1)
@@ -1593,8 +1593,8 @@ class SidechainOnlySessionTest(_SingleSessionMixin, unittest.TestCase):
     def test_a_session_with_no_records_at_all_is_not_tallied(self):
         """Negative control: the tally means "sidechain seen", not "no run emitted"."""
         runs, skipped = self._run_one([
-            '{"type":"assistant","attributionSkill":"other",'
-            '"message":{"usage":{"input_tokens":5}}}',
+            ('{"type":"assistant","attributionSkill":"other",'
+            '"message":{"usage":{"input_tokens":5}}}'),
         ])
         self.assertEqual(runs, [])
         self.assertEqual(skipped["sidechain_only_file"], 0)
@@ -1636,7 +1636,7 @@ class PairedDeltaDegradedChannelsTest(unittest.TestCase):
                             "total_round_count"):
                     self.assertEqual(
                         delta[key], "unestablished",
-                        "{} stayed measured with {} > 0".format(key, channel))
+                        f"{key} stayed measured with {channel} > 0")
 
     def test_the_guard_covers_the_live_skip_key_set(self):
         """The channel list above is reconciled against `eval_corpus`'s own tally.
@@ -1686,8 +1686,8 @@ class NonNumericPeakContextTest(unittest.TestCase):
             delta = CICE._paired_delta(before, after)
             for key in self._CONTEXT_KEYS:
                 self.assertEqual(delta[key], CICE.UNESTABLISHED,
-                                 "{} stayed measured with a non-numeric peak ({})"
-                                 .format(key, label))
+                                 f"{key} stayed measured with a non-numeric peak ({label})"
+                                 )
             self.assertEqual(delta["total_attributed_auditor_cost"], 0, label)
             self.assertEqual(delta["total_round_count"], 0, label)
 
@@ -1752,7 +1752,7 @@ class ManifestIngestionTest(unittest.TestCase):
     def _api(self, name):
         self.assertTrue(
             hasattr(CICE, name),
-            "create-issue evaluator is missing the required {} API".format(name),
+            f"create-issue evaluator is missing the required {name} API",
         )
         return getattr(CICE, name)
 
@@ -1808,7 +1808,7 @@ class ManifestIngestionTest(unittest.TestCase):
             "build_manifest_report",
         ):
             self.assertTrue(hasattr(module, name), name)
-            self.assertTrue(hasattr(CICE, name), "legacy import surface lost {}".format(name))
+            self.assertTrue(hasattr(CICE, name), f"legacy import surface lost {name}")
 
     def test_event_bounds_split_two_occurrences_and_join_each_runs_state(self):
         report = self._api("build_manifest_report")(self.manifest_path)
@@ -1968,9 +1968,7 @@ class ManifestIngestionTest(unittest.TestCase):
             for index, run in enumerate(copy.deepcopy(doc["runs"])):
                 run["run_id"] = "{}-2".format(run["run_id"])
                 run["repetition"] = 2
-                run["occurrence"]["occurrence_id"] = "create-issue-{}".format(
-                    index + 3
-                )
+                run["occurrence"]["occurrence_id"] = f"create-issue-{index + 3}"
                 repeats.append(run)
             if mutate_repeat is not None:
                 mutate_repeat(repeats)
@@ -2167,12 +2165,12 @@ class ManifestIngestionTest(unittest.TestCase):
         for confidence, mutate in cases.items():
             with self.subTest(confidence=confidence):
                 path = self._mutated_manifest(
-                    lambda doc: mutate(doc["runs"][0]["occurrence"])
+                    lambda doc, mutate=mutate: mutate(doc["runs"][0]["occurrence"])
                 )
                 try:
                     report = self._api("build_manifest_report")(path)
                 except ValueError as exc:
-                    self.fail("{} boundary was rejected: {}".format(confidence, exc))
+                    self.fail(f"{confidence} boundary was rejected: {exc}")
                 self.assertEqual(len(report["runs"]), 2)
                 comparison = report["comparison"]
                 self.assertEqual(comparison["status"], "unestablished")
@@ -2333,7 +2331,7 @@ class ManifestIngestionTest(unittest.TestCase):
 
 class DraftCheckpointMetricsTest(unittest.TestCase):
     def _api(self, name):
-        self.assertTrue(hasattr(CICE, name), "missing required API {}".format(name))
+        self.assertTrue(hasattr(CICE, name), f"missing required API {name}")
         return getattr(CICE, name)
 
     def test_measure_draft_counts_sections_items_and_duplicate_paragraphs(self):
@@ -2606,7 +2604,7 @@ class ValidatedAuditOutcomesTest(unittest.TestCase):
         }
 
     def _api(self, name):
-        self.assertTrue(hasattr(CICE, name), "missing required API {}".format(name))
+        self.assertTrue(hasattr(CICE, name), f"missing required API {name}")
         return getattr(CICE, name)
 
     def test_semantic_outcomes_use_validated_ledgers_and_evidence(self):
@@ -2666,7 +2664,7 @@ class QualityRubricTest(unittest.TestCase):
             self.rubric = json.load(fh)
 
     def _api(self, name):
-        self.assertTrue(hasattr(CICE, name), "missing required API {}".format(name))
+        self.assertTrue(hasattr(CICE, name), f"missing required API {name}")
         return getattr(CICE, name)
 
     @staticmethod
@@ -2847,7 +2845,7 @@ class LegacyMultiRunStateSafetyTest(unittest.TestCase):
                     "usage": {"input_tokens": peak},
                     "content": [{
                         "type": "tool_use",
-                        "id": "dispatch-{}".format(name),
+                        "id": f"dispatch-{name}",
                         "name": "Bash",
                         "input": {
                             "command": "issue-audit-state.py record-dispatch --round 1"
@@ -2869,7 +2867,7 @@ class LegacyMultiRunStateSafetyTest(unittest.TestCase):
             after = os.path.join(root, "after")
             for corpus, peaks in ((before, (10, 20)), (after, (30, 40))):
                 for index, peak in enumerate(peaks, 1):
-                    self._corpus(corpus, "run-{}.jsonl".format(index), peak)
+                    self._corpus(corpus, f"run-{index}.jsonl", peak)
             state = os.path.join(root, "state.json")
             with open(state, "w", encoding="utf-8") as fh:
                 json.dump({"rounds": [{
@@ -2965,8 +2963,8 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
         # the sentinel (never 0), and the missing turns are tallied (AC2).
         runs, _ = self._run_one([
             '{"type":"assistant","attributionSkill":"devflow:create-issue","message":{}}',
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":null}}}',
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":null}}}'),
         ])
         self.assertEqual(len(runs), 1)
         self.assertEqual(runs[0]["peak_context"], CICE.UNESTABLISHED)
@@ -2976,8 +2974,8 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
     def test_partial_unmeasured_keeps_measured_peak(self):
         runs, _ = self._run_one([
             '{"type":"assistant","attributionSkill":"devflow:create-issue","message":{}}',
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":42}}}',
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":42}}}'),
         ])
         self.assertEqual(runs[0]["peak_context"], 42)
         self.assertEqual(runs[0]["final_context"], 42)
@@ -2989,8 +2987,8 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
             _write(d, "a.jsonl", [
                 '{"type":"assistant","attributionSkill":"devflow:create-issue","message":{}}'])
             _write(d, "b.jsonl", [
-                '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-                '"message":{"usage":{"input_tokens":5}}}',
+                ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+                '"message":{"usage":{"input_tokens":5}}}'),
                 '{"type":"assistant","attributionSkill":"devflow:create-issue","message":{}}'])
             report = CICE.build_report(d)
         summary = report["summary"]
@@ -3033,10 +3031,10 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
 
     def test_infinity_token_count_is_unmeasured_not_a_crash(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":Infinity}}}',
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":70}}}',
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":Infinity}}}'),
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":70}}}'),
         ])
         self.assertEqual(runs[0]["peak_context"], 70)
         self.assertEqual(runs[0]["usage_missing_turns"], 1)
@@ -3045,8 +3043,8 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
         out, err = io.StringIO(), io.StringIO()
         with tempfile.TemporaryDirectory() as d:
             _write(d, "s.jsonl", [
-                '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-                '"message":{"usage":{"input_tokens":Infinity}}}'])
+                ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+                '"message":{"usage":{"input_tokens":Infinity}}}')])
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                 rc = CICE.main([d])
         self.assertEqual(rc, 0)
@@ -3067,11 +3065,11 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
         # (_auditor_cost). Pre-fix that raised OverflowError — not in eval_corpus's per-record
         # backstop tuple — and aborted the whole corpus walk (issue #1899).
         runs, skipped = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":5}}}',
-            '{"type":"assistant","isSidechain":true,'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":5}}}'),
+            ('{"type":"assistant","isSidechain":true,'
             '"attributionSkill":"devflow:create-issue",'
-            '"message":{"usage":{"input_tokens":Infinity,"output_tokens":3}}}',
+            '"message":{"usage":{"input_tokens":Infinity,"output_tokens":3}}}'),
         ])
         self.assertEqual(len(runs), 1)
         self.assertEqual(skipped["malformed_record"], 0)
@@ -3083,9 +3081,9 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
                  "cache_creation_input_tokens": 5, "output_tokens": 8}
         self.assertEqual(CICE._auditor_cost(usage), 133)  # 100+20+5 + 8
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            ('{"type":"assistant","attributionSkill":"devflow:create-issue",'
             '"message":{"usage":{"input_tokens":100,"cache_read_input_tokens":20,'
-            '"cache_creation_input_tokens":5,"output_tokens":8}}}',
+            '"cache_creation_input_tokens":5,"output_tokens":8}}}'),
         ])
         self.assertEqual(runs[0]["total_output_tokens"], 8)
         self.assertEqual(runs[0]["peak_context"], 125)  # residency excludes output

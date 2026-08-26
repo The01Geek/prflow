@@ -20,6 +20,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import ClassVar
 
 REPO = Path(__file__).resolve().parents[2]
 RENDERER = REPO / "scripts" / "render-audit-prompt.py"
@@ -44,8 +45,7 @@ def run_renderer(args, stdin=None):
     return subprocess.run(
         [sys.executable, str(RENDERER), *args],
         input=stdin,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         encoding="utf-8",
     )
 
@@ -76,8 +76,7 @@ def run_loader(cwd, section="## Audit dimensions"):
     return subprocess.run(
         ["bash", str(LOADER), "create-issue", "--section", section],
         cwd=cwd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         encoding="utf-8",
     )
 
@@ -506,8 +505,8 @@ class FailClosedAndAnchoring(unittest.TestCase):
         # would stay green against a mutant disabling the arm under test.
         shapes = {
             "nested open marker": (
-                "<!-- render-block: file -->\na\n<!-- render-block: embed -->\n"
-                "b\n<!-- render-block-end -->\n",
+                ("<!-- render-block: file -->\na\n<!-- render-block: embed -->\n"
+                "b\n<!-- render-block-end -->\n"),
                 "nested render-block open marker",
             ),
             "end without an open": (
@@ -1003,7 +1002,7 @@ class EnumerateDimensions(unittest.TestCase):
         import re as _re
         tmpl = TEMPLATE.read_text(encoding="utf-8")
         block = _re.search(r"<!-- render-block:[^>]*checklist[^>]*-->.*?(?=<!-- render-block:|\Z)",
-                           tmpl, _re.S)
+                           tmpl, _re.DOTALL)
         self.assertIsNotNone(block, "no checklist block found in the shipped template")
         with tempfile.TemporaryDirectory() as d:
             dup = Path(d) / "tmpl.md"
@@ -1243,8 +1242,8 @@ class DeclaredDimensionKeys(unittest.TestCase):
          "duplicate generic dimension key"),
         ("non-adjacent declaration",
          "<!-- dim-key: host-os-variance -->\n- **Host-OS variance**",
-         "<!-- dim-key: host-os-variance -->\nan intervening prose line\n"
-         "- **Host-OS variance**",
+         ("<!-- dim-key: host-os-variance -->\nan intervening prose line\n"
+         "- **Host-OS variance**"),
          "is not adjacent to its bullet"),
     )
 
@@ -1344,22 +1343,22 @@ class DeclaredDimensionKeys(unittest.TestCase):
     # defect wearing a different hat, on the arm nobody guarded.
     CONSUMER_FAIL_CLOSED_ARMS = (
         ("stacked declaration",
-         "## Audit dimensions\n\n<!-- dim-key: first -->\n<!-- dim-key: second -->\n"
-         "- **A** \u2014 x.\n",
+         ("## Audit dimensions\n\n<!-- dim-key: first -->\n<!-- dim-key: second -->\n"
+         "- **A** \u2014 x.\n"),
          "declares no bullet"),
         ("trailing declaration",
          "## Audit dimensions\n\n- **A** \u2014 x.\n<!-- dim-key: trailing -->\n",
          "declares no bullet"),
         ("non-adjacent declaration",
-         "## Audit dimensions\n\n<!-- dim-key: k -->\n\nintervening prose\n\n"
-         "- **A** \u2014 x.\n",
+         ("## Audit dimensions\n\n<!-- dim-key: k -->\n\nintervening prose\n\n"
+         "- **A** \u2014 x.\n"),
          "is not adjacent to its bullet"),
         ("malformed key",
          "## Audit dimensions\n\n<!-- dim-key: Bad Key -->\n- **A** \u2014 x.\n",
          "is not lowercase kebab-case"),
         ("declared duplicate key",
-         "## Audit dimensions\n\n<!-- dim-key: k -->\n- **A** \u2014 a.\n"
-         "<!-- dim-key: k -->\n- **B** \u2014 b.\n",
+         ("## Audit dimensions\n\n<!-- dim-key: k -->\n- **A** \u2014 a.\n"
+         "<!-- dim-key: k -->\n- **B** \u2014 b.\n"),
          "duplicate consumer dimension key"),
     )
 
@@ -1584,7 +1583,7 @@ class AbsPathHostAbsoluteWidening(unittest.TestCase):
     # (input, accepted-on-posixpath, accepted-on-ntpath). The full input-shape matrix
     # the path check must classify, each asserted on BOTH path modules because the same
     # string is absolute on one and relative on the other.
-    MATRIX = [
+    MATRIX: ClassVar[list[tuple[str, bool, bool]]] = [
         ("/Users/x/f.md", True, False),          # POSIX absolute
         ("C:/Users/x/f.md", False, True),        # drive-letter, forward slashes
         ("C:\\Users\\x\\f.md", False, True),     # drive-letter, backslashes

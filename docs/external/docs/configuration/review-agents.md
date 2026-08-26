@@ -29,6 +29,10 @@ A per-agent `model` override is expressible **only** as one of the four accepted
 
 An agent-specific entry replaces the `default` entry for that agent; the default does not fill missing fields inside a specific entry. The default applies only when no specific entry exists.
 
+<Warning>
+  These overrides apply to the shared review engine, so they change every review your repository runs, including the one a human reads before merging. Moving a reviewer to a smaller model to save money lowers the quality of that merge gate. Change one agent at a time and check the findings you get afterward.
+</Warning>
+
 ## Valid Override Example
 
 ```json
@@ -51,3 +55,5 @@ An agent-specific entry replaces the `default` entry for that agent; the default
   }
 }
 ```
+
+Expected result: every review agent runs at low effort, the deduper runs on Sonnet, the project-guidelines reviewer runs on Opus and takes part only in the first fix-loop iteration, and every other agent keeps the model resolved from `claude_model`.

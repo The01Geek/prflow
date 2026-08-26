@@ -127,7 +127,7 @@ _FUNCTION_DEF_RE = re.compile(r"([ \t]*)([A-Za-z_][A-Za-z0-9_]*)\(\)[ \t]*\{")
 _LABEL_RE = re.compile(r"#(\d{2,5})")
 
 
-def _function_bodies(lines: "list[str]") -> "dict[str, str]":
+def _function_bodies(lines: list[str]) -> dict[str, str]:
     """Map each `name() {` definition in LINES to its body text.
 
     A ONE-LINE definition (`mktemp() { return 1; }` — the fixture-stub shape
@@ -144,7 +144,7 @@ def _function_bodies(lines: "list[str]") -> "dict[str, str]":
     file would need each match's line number, and deriving that with `text.count("\n",
     0, start)` rescans the prefix per match — hundreds of megabytes of scanning on the
     50,000-line monolith, for a fact a single ordered pass already has."""
-    bodies: "dict[str, str]" = {}
+    bodies: dict[str, str] = {}
     for line_index, line in enumerate(lines):
         match = _FUNCTION_DEF_RE.match(line)
         if match is None:
@@ -163,7 +163,7 @@ def _function_bodies(lines: "list[str]") -> "dict[str, str]":
     return bodies
 
 
-def _assertion_heads(lines: "list[str]") -> "set[str]":
+def _assertion_heads(lines: list[str]) -> set[str]:
     """The base heads plus every module-private assertion wrapper defined in LINES.
 
     A wrapper is a function that FORWARDS ITS OWN FIRST POSITIONAL into a recognized
@@ -197,7 +197,7 @@ def _assertion_heads(lines: "list[str]") -> "set[str]":
     return heads
 
 
-def _forwarding_aliases(body: str) -> "set[str]":
+def _forwarding_aliases(body: str) -> set[str]:
     """Names inside BODY bound to the caller's own first positional.
 
     A wrapper does not always pass `"$1"` straight through: the repo's own
@@ -228,7 +228,7 @@ def _forwards_first_positional(head: str, body: str) -> bool:
     ) is not None
 
 
-def derive_labels(text: str) -> "set[str]":
+def derive_labels(text: str) -> set[str]:
     """Return the issue labels TEXT asserts, as bare digit strings.
 
     A label is derived only from the first quoted argument of an assertion call — the
@@ -242,14 +242,14 @@ def derive_labels(text: str) -> "set[str]":
     # comment lines are dropped before the scan — this is what makes a label token
     # that appears only in a comment underive, per the arm's positional contract.
     code = "\n".join(line for line in lines if not line.lstrip().startswith("#"))
-    labels: "set[str]" = set()
+    labels: set[str] = set()
     for match in call_re.finditer(code):
         labels.update(_LABEL_RE.findall(match.group(1)))
     return labels
 
 
-@functools.lru_cache(maxsize=None)
-def _call_pattern(heads: "frozenset[str]"):
+@functools.cache
+def _call_pattern(heads: frozenset[str]):
     """Compiled `<head> <quoted-name>` matcher for a head set.
 
     Cached because modules that define no wrapper all resolve to the same base head
@@ -281,7 +281,7 @@ def _under_lib_or_scripts(path: str) -> bool:
     return path.split("/")[0] in TOP_DIRS and "/" in path
 
 
-def _valid_owner(owner: object, valid_ids: "set[str] | None") -> bool:
+def _valid_owner(owner: object, valid_ids: set[str] | None) -> bool:
     if owner == UNMODULARIZED:
         return True
     if valid_ids is None:
@@ -292,7 +292,7 @@ def _valid_owner(owner: object, valid_ids: "set[str] | None") -> bool:
     return isinstance(owner, str) and owner in valid_ids
 
 
-def _registry_module_ids(registry_value: object) -> "set[str] | None":
+def _registry_module_ids(registry_value: object) -> set[str] | None:
     """Return the set of registered test_modules ids, or None if the registry is
     absent/unreadable/wrong-shape (including a non-object test_modules section)."""
     if not isinstance(registry_value, dict):
@@ -303,7 +303,7 @@ def _registry_module_ids(registry_value: object) -> "set[str] | None":
     return set(modules.keys())
 
 
-def _map_shape_error(map_value: object) -> "str | None":
+def _map_shape_error(map_value: object) -> str | None:
     """Return a specific breadcrumb if the map is not a well-shaped object, else None.
 
     Structural types only — arm 4. Owner *values* are checked by arm 3, and an
@@ -352,15 +352,15 @@ def evaluate(
     map_value,
     registry_value,
     *,
-    map_read_error: "str | None" = None,
-    registry_read_error: "str | None" = None,
-    run_sh_labels: "set[str] | None" = None,
-    module_labels: "dict[str, set[str]] | None" = None,
-    scan_read_errors: "list[str] | None" = None,
-    executable_files: "set[str] | None" = None,
-    implement_tokens: "set[str] | None" = None,
-    map_raw_text: "str | None" = None,
-    map_raw_error: "str | None" = None,
+    map_read_error: str | None = None,
+    registry_read_error: str | None = None,
+    run_sh_labels: set[str] | None = None,
+    module_labels: dict[str, set[str]] | None = None,
+    scan_read_errors: list[str] | None = None,
+    executable_files: set[str] | None = None,
+    implement_tokens: set[str] | None = None,
+    map_raw_text: str | None = None,
+    map_raw_error: str | None = None,
 ):
     """Return a list of violation breadcrumbs (empty ⇒ clean). Never raises.
 
@@ -439,9 +439,13 @@ def evaluate(
     # slash) matches `lib/test/x.sh` but NOT a sibling like `lib/testfoo/x.sh`.
     exempt_prefixes = [sub if sub.endswith("/") else sub + "/" for sub in exempt_subtrees]
     for path in sorted(tracked):
-        if _under_lib_or_scripts(path) and not _depth1(path) and _ext(path) in CODE_EXTS:
-            if not any(path.startswith(pref) for pref in exempt_prefixes):
-                violations.append(
+        if (
+            _under_lib_or_scripts(path)
+            and not _depth1(path)
+            and _ext(path) in CODE_EXTS
+            and not any(path.startswith(pref) for pref in exempt_prefixes)
+        ):
+            violations.append(
                     f"[arm6] git-tracked code file {path!r} is deeper than depth-1 and outside every exempt_subtrees entry — cover it or add its subtree to exempt_subtrees"
                 )
 
@@ -525,7 +529,7 @@ def _focused_test_target(value: str) -> str:
     return value.split("::", 1)[0]
 
 
-def _implement_profile_tokens(manifest_value: object) -> "set[str] | None":
+def _implement_profile_tokens(manifest_value: object) -> set[str] | None:
     """The `implement` profile's literal Bash(...) grant tokens, or None if unestablished.
 
     Group references (`@name`) are expanded one level — the manifest's own shape — so a token
@@ -553,7 +557,7 @@ def _implement_profile_tokens(manifest_value: object) -> "set[str] | None":
     return tokens
 
 
-def _config_implement_tokens(config_value: object) -> "set[str] | None":
+def _config_implement_tokens(config_value: object) -> set[str] | None:
     """`.prflow/config.json`'s `prflow_implement.allowed_tools` grant tokens, or None if
     unestablished. This is the self-repo-only grant channel (issue #1078): a token moved
     here is added to the effective cloud implement allowlist at trigger time (issue #593)
@@ -595,7 +599,7 @@ def _config_implement_tokens(config_value: object) -> "set[str] | None":
 
 def _resolve_implement_grant_tokens(
     manifest_value: object, config_value: object
-) -> "set[str] | None":
+) -> set[str] | None:
     """Union of the two cloud implement grant channels (issue #1078): the manifest's
     `implement` profile (the baked baseline) and `.prflow/config.json`'s
     `prflow_implement.allowed_tools` (the self-repo channel). None ONLY when NEITHER
@@ -689,7 +693,7 @@ def _fully_extracted(run_sh_labels, module_labels):
     extracted and is deliberately absent from this mapping: a single `owner` string
     cannot truthfully describe split coverage, so such a label keeps `unmodularized`
     and is never an attribution violation."""
-    carriers: "dict[str, list[str]]" = {}
+    carriers: dict[str, list[str]] = {}
     for module_id, labels in sorted(module_labels.items()):
         for label in _reportable(labels) - run_sh_labels:
             carriers.setdefault(label, []).append(module_id)
@@ -808,17 +812,17 @@ def _arm11(map_value, map_raw_text, map_raw_error):
     is never attempted on a malformed map."""
     if map_raw_error is not None:
         return [
-            f"[arm11] {MAP_REL} raw bytes could not be read ({map_raw_error}); its canonical "
-            f"form is an unestablished measurement, not a pass — {ARM11_REMEDY}"
+            (f"[arm11] {MAP_REL} raw bytes could not be read ({map_raw_error}); its canonical "
+            f"form is an unestablished measurement, not a pass — {ARM11_REMEDY}")
         ]
     if map_raw_text is None:
         return []
     if not _is_canonical(map_raw_text, map_value):
         return [
-            f"[arm11] {MAP_REL} on disk is not in canonical serialized form — its key order or "
+            (f"[arm11] {MAP_REL} on disk is not in canonical serialized form — its key order or "
             "formatting differs from what `--fix` writes (the parsed JSON value may be "
             "unchanged; only the serialized bytes drifted, e.g. from a merge-conflict "
-            f"resolution) — {ARM11_REMEDY}"
+            f"resolution) — {ARM11_REMEDY}")
         ]
     return []
 
@@ -887,7 +891,7 @@ def _scan_labels(repo_root: Path):
     an empty label set, which would silently read as "this file asserts nothing" and
     turn a real completeness violation into a clean pass. All file access lives here,
     in main()'s call path; `evaluate` stays pure."""
-    read_errors: "list[str]" = []
+    read_errors: list[str] = []
     try:
         run_sh_labels = derive_labels(
             (repo_root / RUN_SH_REL).read_text(encoding="utf-8")
@@ -895,7 +899,7 @@ def _scan_labels(repo_root: Path):
     except (OSError, UnicodeError) as error:
         run_sh_labels = None
         read_errors.append(f"{RUN_SH_REL} ({error})")
-    module_labels: "dict[str, set[str]]" = {}
+    module_labels: dict[str, set[str]] = {}
     for module_path in sorted((repo_root / "lib/test/modules").glob("*.sh")):
         module_id = module_path.stem
         try:
@@ -931,7 +935,7 @@ def _apply_fix(map_value, run_sh_labels, module_labels):
     return changed
 
 
-def _write_map(path: Path, map_value) -> "str | None":
+def _write_map(path: Path, map_value) -> str | None:
     """Write the map in its canonical serialized form via `_serialize_map` — the single
     definition of the pinned shape that arm 11 also checks against (issue #1065), so a
     `--fix` write and the canonical-form check can never disagree. Byte-identical to the

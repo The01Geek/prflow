@@ -736,7 +736,6 @@ def _payload_dir() -> str | None:
             "temp dir, OUTSIDE the workspace a cloud agent's Read tool can reach",
             file=sys.stderr,
         )
-        return None
 
     top = _run_git(["rev-parse", "--show-toplevel"])
     if top.returncode == 0 and top.stdout.strip():
@@ -1240,7 +1239,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return args.func(args)
-    except Exception as exc:  # noqa: BLE001 - fail closed: any unanticipated error
+    except Exception as exc:
         # An unanticipated exception would otherwise exit 1 — a fourth code
         # outside the {0,2,3} contract the §1.3.5 gate reads, which enumerates no
         # "other exit code" arm. Route it to UNAVAILABLE (never a silent PROCEED)

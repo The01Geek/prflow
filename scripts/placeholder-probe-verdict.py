@@ -69,6 +69,7 @@ import os
 import re
 import sys
 
+
 def _force_utf8_streams():
     """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
     streams of any process that imports this module for tests. Tolerates a stream that
@@ -135,12 +136,12 @@ def parse_execution_file(exec_file):
     diagnostic when the file was absent/empty/unparseable/partially corrupt, which
     forces INCONCLUSIVE."""
     if not (exec_file and os.path.isfile(exec_file)):
-        return [], "execution file path absent or not a regular file at '%s'" % exec_file
+        return [], f"execution file path absent or not a regular file at '{exec_file}'"
     try:
         with open(exec_file, encoding="utf-8", errors="replace") as fh:
             raw = fh.read()
     except OSError as e:
-        return [], "execution file present but unreadable (%s)" % e.__class__.__name__
+        return [], f"execution file present but unreadable ({e.__class__.__name__})"
     try:
         return json.loads(raw), ""
     except Exception:
@@ -162,7 +163,7 @@ def parse_execution_file(exec_file):
         return [], "execution file present but unparseable"
     if dropped:
         return parsed, (
-            "%d execution-file line(s) were unparseable — verdict may be incomplete" % dropped
+            f"{dropped} execution-file line(s) were unparseable — verdict may be incomplete"
         )
     return parsed, ""
 
@@ -254,14 +255,13 @@ def compute_verdict(tool_uses, note_top):
     if not (before and after):
         return (
             "INCONCLUSIVE",
-            "the session did not record both positive controls (%s=%s, %s=%s), so it may "
-            "not have reached or completed the measured action. NOTE: a missing %s is the "
+            (f"the session did not record both positive controls ({CONTROL_BEFORE}={before}, {CONTROL_AFTER}={after}), so it may "
+            f"not have reached or completed the measured action. NOTE: a missing {CONTROL_BEFORE} is the "
             "expected shape of the zero-turn ABORT hazard — an injected command exiting "
             "non-zero aborts the invocation before the model sees the body — but this probe's "
             "injected head, .github/probe-plugin/phprobe-read-env.sh, always exits 0 (the "
             "suite asserts it), so an abort here points at the harness rather than at the "
-            "command"
-            % (CONTROL_BEFORE, before, CONTROL_AFTER, after, CONTROL_BEFORE),
+            "command"),
             False,
             False,
         )
@@ -271,34 +271,34 @@ def compute_verdict(tool_uses, note_top):
     if unexecuted:
         return (
             "NOT_SUBSTITUTED",
-            "the echo-back carried the placeholder's UNEXECUTED command text, so "
+            ("the echo-back carried the placeholder's UNEXECUTED command text, so "
             "claude-code-action did not render a `!` placeholder in a plugin-sourced "
             "SKILL.md reached by a slash-command prompt. Limb (a) is NEGATIVE: route "
-            "issue #1264 to the workflow-side composition alternative",
+            "issue #1264 to the workflow-side composition alternative"),
             True,
             False,
         )
     if absent:
         return (
             "INCONCLUSIVE",
-            "the agent reported the placeholder line as absent from the body entirely, "
+            ("the agent reported the placeholder line as absent from the body entirely, "
             "which is neither substitution nor non-substitution — the skill may not have "
-            "loaded as authored",
+            "loaded as authored"),
             False,
             False,
         )
     if not reported:
         return (
             "INCONCLUSIVE",
-            "the echo-back recorded no observable value, so substitution is unestablished "
-            "rather than negative",
+            ("the echo-back recorded no observable value, so substitution is unestablished "
+            "rather than negative"),
             False,
             False,
         )
     if env_visible:
         return (
             "SUBSTITUTED_ENV_VISIBLE",
-            "the placeholder was substituted AND carried the step-level sentinel. Limb (a) "
+            ("the placeholder was substituted AND carried the step-level sentinel. Limb (a) "
             "POSITIVE: a `!` placeholder in a plugin-sourced SKILL.md IS rendered under a "
             "slash-command prompt. Limb (b) POSITIVE: the injected command sees "
             "DEVFLOW_PROMPT_EXTENSION_ROOT through $GITHUB_ENV, so render-time injection can "
@@ -310,18 +310,18 @@ def compute_verdict(tool_uses, note_top):
             "placeholder head is granted. The mechanism therefore works, subject to a design "
             "constraint issue #1264 does not yet state: the injected wrapper must carry a "
             "statically-analyzable command shape (no `${...}` expansion) and its head must be "
-            "granted in the resolved --allowed-tools of every tier that renders it",
+            "granted in the resolved --allowed-tools of every tier that renders it"),
             True,
             True,
         )
     # Substituted, but the sentinel did not reach the injected command.
     return (
         "SUBSTITUTED_ENV_UNSET",
-        "the placeholder was substituted and ran an ungranted head — limbs (a) and (c) "
+        ("the placeholder was substituted and ran an ungranted head — limbs (a) and (c) "
         "positive — but the injected command saw DEVFLOW_PROMPT_EXTENSION_ROOT as UNSET. "
         "Limb (b) is NEGATIVE: render-time injection works, but it cannot inherit the "
         "trusted base-ref closure this way, so the wrapper would resolve the repo-root "
-        "path instead",
+        "path instead"),
         True,
         False,
     )
@@ -337,8 +337,8 @@ def main(argv):
     print("=" * 72)
     print("issue #1264 precondition — render-time placeholder probe")
     print("=" * 72)
-    print("VERDICT: %s" % verdict)
-    print("REASON : %s" % reason)
+    print(f"VERDICT: {verdict}")
+    print(f"REASON : {reason}")
     print("RECORD IN #1264 THREAD: %s" % ("yes" if record_it else "no — re-run the probe"))
     print(
         "ROUTES TO: %s"
@@ -349,13 +349,12 @@ def main(argv):
         )
     )
     print("-" * 72)
-    print("recorded tool_use entries (%d):" % len(tool_uses))
+    print(f"recorded tool_use entries ({len(tool_uses)}):")
     for t in tool_uses:
         print("  " + t[:400])
     results = collect_results(parsed)
     print("-" * 72)
-    print("recorded tool_result entries (%d) — diagnostic only, never a verdict operand:"
-          % len(results))
+    print(f"recorded tool_result entries ({len(results)}) — diagnostic only, never a verdict operand:")
     for r in results:
         print("  " + r[:600].replace("\n", " | "))
     print("=" * 72)

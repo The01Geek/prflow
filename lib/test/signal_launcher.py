@@ -123,7 +123,7 @@ def run_detached(argv: list[str]) -> int:
         print("launch-detached: no command given", file=sys.stderr)
         raise SystemExit(2)
     try:
-        proc = subprocess.Popen(  # noqa: S603 - argv list, no shell
+        proc = subprocess.Popen(
             argv,
             start_new_session=True,
             preexec_fn=restore_default_signals,  # noqa: PLW1509 - POSIX-only by design

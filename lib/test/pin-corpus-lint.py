@@ -480,10 +480,9 @@ def _resolve_path_rhs(rhs, lib, path_vars):
     if inline is not None:
         return inline
     # A bare literal path (no `$`).
-    if "$" not in r and "(" not in r and r:
-        # Only treat as a path if it looks like one (has a slash or extension).
-        if "/" in r or "." in r:
-            return r if os.path.isabs(r) else os.path.normpath(os.path.join(lib or ".", r))
+    # Only treat as a path if it looks like one (a bare literal with a slash or extension).
+    if "$" not in r and "(" not in r and r and ("/" in r or "." in r):
+        return r if os.path.isabs(r) else os.path.normpath(os.path.join(lib or ".", r))
     return None
 
 
@@ -2229,7 +2228,7 @@ def discover_new_adjudication_delta_manifests(
                 if duplicates:
                     raise InfrastructureError(
                         "adjudication bundles have duplicate revival authorization: "
-                        f"{sorted(duplicates)[0]}"
+                        f"{min(duplicates)}"
                     )
                 revival_authorizations.update(parsed)
     if include_revivals:
@@ -2588,7 +2587,7 @@ def parse_diff(difftext):
     added = set()
     deleted = []
     for raw in difftext.split("\n"):
-        if raw.startswith("+++") or raw.startswith("---"):
+        if raw.startswith(("+++", "---")):
             continue
         if raw.startswith("+"):
             added.add(raw[1:].rstrip("\r"))
@@ -3285,7 +3284,7 @@ def _bundle_word_specs(words, lib, path_vars):
 def _bundle_loop_var_pattern(loop_var):
     """Match every reference to the loop variable — ``${_s}`` and bare ``$_s``."""
     escaped = re.escape(loop_var)
-    return re.compile(r"\$\{%s\}|\$%s(?![A-Za-z0-9_])" % (escaped, escaped))
+    return re.compile(rf"\$\{{{escaped}\}}|\${escaped}(?![A-Za-z0-9_])")
 
 
 def _bundle_template_specs(value, loop_var, stems, lib, path_vars):
@@ -3803,9 +3802,7 @@ def _python_read_target(node, repo_root):
             and isinstance(receiver.func, ast.Name)
             and receiver.func.id == "Path"
             and receiver.args
-        ):
-            path_arg = receiver.args[0]
-        elif (
+        ) or (
             child.func.attr == "read"
             and isinstance(receiver, ast.Call)
             and isinstance(receiver.func, ast.Name)
@@ -4303,9 +4300,9 @@ _RENAME_MAP_PATH = "lib/rename-map.json"
 # so ``devflow_module_pin_unique`` and ``.devflow-scratch`` are never reached by
 # the shorter ``devflow`` / ``.devflow`` rules even before the frozen guards run.
 _RENAME_TOKEN_CHARS = "A-Za-z0-9_"
-_RENAME_KEY_LEFT = "(?<![%s-])" % _RENAME_TOKEN_CHARS
-_RENAME_PATH_LEFT = "(?<![%s])" % _RENAME_TOKEN_CHARS
-_RENAME_RIGHT = "(?![%s-])" % _RENAME_TOKEN_CHARS
+_RENAME_KEY_LEFT = f"(?<![{_RENAME_TOKEN_CHARS}-])"
+_RENAME_PATH_LEFT = f"(?<![{_RENAME_TOKEN_CHARS}])"
+_RENAME_RIGHT = f"(?![{_RENAME_TOKEN_CHARS}-])"
 # One guard the map states as PROSE rather than as data, in its own
 # ``frozen._comment``: "Out of scope and tracked separately: the DEVFLOW_*
 # environment variables (#1004)". That prefix needs no pattern of its own -- the
@@ -4350,7 +4347,7 @@ _RENAME_IDENTIFIER_MATCHES = ("token", "prefix")
 def _rename_frozen_pattern(literal):
     """Compile one ``frozen`` entry, honouring the map's single ``*`` glob form."""
     if literal.endswith("*"):
-        return re.escape(literal[:-1]) + "[%s]*" % _RENAME_TOKEN_CHARS
+        return re.escape(literal[:-1]) + f"[{_RENAME_TOKEN_CHARS}]*"
     return re.escape(literal)
 
 
@@ -4928,7 +4925,7 @@ def scan_changed_sources(
         )
     unconsumed = revival_authorizations - consumed_revivals
     if unconsumed:
-        first = sorted(unconsumed)[0]
+        first = min(unconsumed)
         raise InfrastructureError(
             "adjudication bundle has unconsumed revival authorization: "
             f"{first.source_path} {first.literal_key}"
@@ -5827,7 +5824,7 @@ def scan_static_pin_changes(
     if missing_head_audited:
         raise InfrastructureError(
             "audited pin source absent from committed snapshot HEAD: "
-            f"{sorted(missing_head_audited)[0]}"
+            f"{min(missing_head_audited)}"
         )
     registry = load_registry(
         repo_root / "scripts/workflow-flight-recorder-registry.json"

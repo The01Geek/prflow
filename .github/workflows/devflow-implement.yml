@@ -847,7 +847,7 @@ jobs:
             echo "no tracked *.py — skipping ruff install"
             exit 0
           fi
-          python3 -m pip install --quiet 'ruff==0.15.*' \
+          python3 -m pip install --quiet 'ruff==0.16.*' \
             || echo "::warning::ruff install failed; the Python lint gate will self-skip in this run"
       # ── Third-party model provider resolution (issue #313) ─────────────────
       # Resolve this section's (prflow_implement) provider decision from

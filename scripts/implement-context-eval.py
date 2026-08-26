@@ -103,7 +103,9 @@ import sys
 # in scripts/context_eval_shared.py (issue #1900). Keep the sys.path insert: this file is
 # loaded by path (its test, no package parent), so the sibling import fails without it.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from context_eval_shared import (  # noqa: E402,F401
+import itertools
+
+from context_eval_shared import (  # noqa: F401
     UNESTABLISHED,
     _context_tokens,
     _iter_session_files,
@@ -162,13 +164,12 @@ def _attribution_ids():
         if malformed:
             print(
                 "implement-context-eval: the declared namespace set yielded malformed "
-                "attribution id(s) {} (expected `<namespace>:implement`); falling back "
-                "to the hardcoded attribution pair {}".format(
-                    malformed, _FALLBACK_ATTRIBUTION),
+                f"attribution id(s) {malformed} (expected `<namespace>:implement`); falling back "
+                f"to the hardcoded attribution pair {_FALLBACK_ATTRIBUTION}",
                 file=sys.stderr,
             )
             return _FALLBACK_ATTRIBUTION
-    except Exception as exc:  # noqa: BLE001 - lib/plugin_identity.py is FAIL-CLOSED and
+    except Exception as exc:
         # raises IdentityError when the identifier set cannot be established (an absent or
         # malformed .claude-plugin/plugin.json or lib/plugin-identity.json — a vendored or
         # partial-slice tree, a mid-migration checkout). Without this arm that exception
@@ -178,19 +179,18 @@ def _attribution_ids():
         # exception type is the identity module's to choose, not this instrument's.
         print(
             "implement-context-eval: could not resolve the declared namespace set from "
-            "{} ({}: {}); falling back to the hardcoded attribution pair {} — a run "
+            f"{_IDENTITY_PATH} ({type(exc).__name__}: {exc}); falling back to the hardcoded attribution pair {_FALLBACK_ATTRIBUTION} — a run "
             "recorded under any other namespace will not be attributed and this corpus "
-            "may report zero runs".format(
-                _IDENTITY_PATH, type(exc).__name__, exc, _FALLBACK_ATTRIBUTION),
+            "may report zero runs",
             file=sys.stderr,
         )
         return _FALLBACK_ATTRIBUTION
     if not ids:
         print(
             "implement-context-eval: the declared namespace set is empty; falling "
-            "back to the hardcoded attribution pair {} — a run recorded under any "
+            f"back to the hardcoded attribution pair {_FALLBACK_ATTRIBUTION} — a run recorded under any "
             "other namespace will not be attributed and this corpus may report zero "
-            "runs".format(_FALLBACK_ATTRIBUTION),
+            "runs",
             file=sys.stderr,
         )
         return _FALLBACK_ATTRIBUTION
@@ -228,8 +228,7 @@ SWEEP_REFERENCE_PHASE = "phase2"
 # so enforce it loudly at import (a plain assert is stripped under -O).
 if SWEEP_REFERENCE_PHASE not in PHASE_READ_LABELS:
     raise AssertionError(
-        "SWEEP_REFERENCE_PHASE {!r} must be a PHASE_READ_LABELS member".format(
-            SWEEP_REFERENCE_PHASE))
+        f"SWEEP_REFERENCE_PHASE {SWEEP_REFERENCE_PHASE!r} must be a PHASE_READ_LABELS member")
 
 
 def _phase_label_for_read(file_path):
@@ -370,7 +369,7 @@ def _gap_stats(times):
     out-of-order transcript cannot yield a negative gap.
     """
     ordered = sorted(times)
-    gaps = [round(b - a, GAP_DECIMALS) for a, b in zip(ordered, ordered[1:])]
+    gaps = [round(b - a, GAP_DECIMALS) for a, b in itertools.pairwise(ordered)]
     # `_median`'s even branch can return an unrounded `total / 2`, which would render
     # float noise into a report GAP_DECIMALS exists to keep clean. Round here rather than
     # in `_median`: GAP_DECIMALS is a gap-axis contract and `_median` is shared with the
@@ -589,9 +588,7 @@ def eval_corpus(corpus_root):
         except OSError as exc:
             skipped["unreadable_file"] += 1
             sys.stderr.write(
-                "warning: skipping unreadable session file {}: {}\n".format(
-                    session_file, exc
-                )
+                f"warning: skipping unreadable session file {session_file}: {exc}\n"
             )
             continue
         with handle:
@@ -630,9 +627,7 @@ def eval_corpus(corpus_root):
                     # burst of these warnings on one record type is a reason to suspect
                     # the instrument, not only the transcript.
                     sys.stderr.write(
-                        "warning: skipping malformed {} record at {}:{}: {}: {}\n".format(
-                            rtype, session_file, lineno, type(exc).__name__, exc
-                        )
+                        f"warning: skipping malformed {rtype} record at {session_file}:{lineno}: {type(exc).__name__}: {exc}\n"
                     )
                     continue
         if acc.attributed:
@@ -692,9 +687,9 @@ def aggregate(runs):
     # total, in the canonical sorted label order. Reported separately from the peak.
     for label in PHASE_READ_LABELS:
         counts = [r["phase_reads"][label] for r in runs]
-        summary["median_{}_reads".format(label)] = _median_or_unestablished(counts)
-        summary["max_{}_reads".format(label)] = _max_or_unestablished(counts)
-        summary["total_{}_reads".format(label)] = _sum_or_unestablished(counts)
+        summary[f"median_{label}_reads"] = _median_or_unestablished(counts)
+        summary[f"max_{label}_reads"] = _max_or_unestablished(counts)
+        summary[f"total_{label}_reads"] = _sum_or_unestablished(counts)
     totals = [r["total_phase_reads"] for r in runs]
     summary["median_total_phase_reads"] = _median_or_unestablished(totals)
     summary["max_total_phase_reads"] = _max_or_unestablished(totals)
@@ -703,9 +698,9 @@ def aggregate(runs):
     # in the canonical sorted label order.
     for label in TOOL_CATEGORY_LABELS:
         counts = [r["tool_calls"][label] for r in runs]
-        summary["median_{}_calls".format(label)] = _median_or_unestablished(counts)
-        summary["max_{}_calls".format(label)] = _max_or_unestablished(counts)
-        summary["total_{}_calls".format(label)] = _sum_or_unestablished(counts)
+        summary[f"median_{label}_calls"] = _median_or_unestablished(counts)
+        summary[f"max_{label}_calls"] = _max_or_unestablished(counts)
+        summary[f"total_{label}_calls"] = _sum_or_unestablished(counts)
     call_totals = [r["total_tool_calls"] for r in runs]
     summary["median_total_tool_calls"] = _median_or_unestablished(call_totals)
     summary["max_total_tool_calls"] = _max_or_unestablished(call_totals)
@@ -776,7 +771,7 @@ def render_text(runs, summary, skipped):
     # aggregate() builds this dict in the canonical field order, so iterating it renders
     # every field once with no per-field literal to keep in sync.
     for key, value in summary.items():
-        lines.append("- {}: {}".format(key, value))
+        lines.append(f"- {key}: {value}")
     lines.append("")
     # The two AXIS EXCLUSIONS are reported under their own heading rather than
     # inflating the skipped headline a maintainer reads as "bad transcript data":
@@ -786,10 +781,10 @@ def render_text(runs, summary, skipped):
     excluded = {k: skipped.get(k, 0)
                 for k in ("unusable_timestamp", "unresolvable_read_path")}
     record_skips = {k: v for k, v in skipped.items() if k not in excluded}
-    lines.append("## Skipped records and files: {}".format(sum(record_skips.values())))
+    lines.append(f"## Skipped records and files: {sum(record_skips.values())}")
     for reason in sorted(record_skips):
         if record_skips[reason]:
-            lines.append("- {}: {}".format(reason, record_skips[reason]))
+            lines.append(f"- {reason}: {record_skips[reason]}")
     lines.append("")
     lines.append("## Dropped from an axis (not a parse failure)")
     lines.append("- turns dropped from the gap population (unusable timestamp): "
@@ -830,7 +825,7 @@ def main(argv=None):
         # No corpus present: exit non-zero naming the missing path — never a
         # silently-empty baseline.
         sys.stderr.write(
-            "error: transcript directory not found: {}\n".format(corpus)
+            f"error: transcript directory not found: {corpus}\n"
         )
         return 2
 

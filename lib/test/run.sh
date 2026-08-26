@@ -176,6 +176,8 @@ _suite_tmp_file "$SKIPS_FILE"
 . "$LIB/test/summary.sh"
 # shellcheck source=lib/test/module-harness.sh disable=SC1091
 . "$LIB/test/module-harness.sh"
+# shellcheck source=lib/test/slice-source-fixture.sh disable=SC1091
+. "$LIB/test/slice-source-fixture.sh"
 
 # SKIP_HELPER_REGION_BEGIN — the SOLE `printf '  NOTE ` skip-emit lives inside skip();
 # the #456 meta-assertion below asserts no other NOTE emit appears in this file outside
@@ -18828,7 +18830,6 @@ _936_EXPECTED="$(cat <<'EOF'
 CLAUDE.md
 README.md
 docs/external/docs/reference/release-notes-archive-2026.md
-docs/external/docs/runs/cloud/installation.md
 docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md
 docs/internal/cloud-allowlist.md
 docs/internal/cloud-setup.md
@@ -24653,17 +24654,14 @@ rm -rf "$VS_EMPTY"
 # commit to the real repo (it is out of #161's git-mutation scope). Converting a clone dest
 # to git_sandbox would also break `git clone`, which requires its target to NOT pre-exist.
 VS_REMOTE="$(git_sandbox "vendor fetch fixture remote")"
-mkdir -p "$VS_REMOTE"/.claude-plugin "$VS_REMOTE"/agents "$VS_REMOTE"/docs \
-        "$VS_REMOTE"/lib "$VS_REMOTE"/scripts "$VS_REMOTE"/skills "$VS_REMOTE"/LICENSES "$VS_REMOTE"/.prflow
+# Members derived from vendor-slice.sh's own cp list (issue #1388), each carrying
+# a placeholder file so the clone below carries the whole slice — git won't track
+# empty dirs, and the real repo has no empty slice member either.
+assert_eq "#1388 the vendor fetch fixture remote builds from the slice’s own derived member list" "0" \
+  "$(devflow_build_slice_source_fixture "$VS_REMOTE" >/dev/null 2>&1; echo $?)"
 printf '{}' > "$VS_REMOTE/.claude-plugin/plugin.json"
 printf '{}' > "$VS_REMOTE/.claude-plugin/marketplace.json"
 : > "$VS_REMOTE/scripts/resolve-implement-trigger.sh"
-# git won't track empty dirs — give each slice dir a file so the clone carries
-# the whole slice (mirrors the real repo, where none of these dirs are empty).
-: > "$VS_REMOTE/agents/placeholder.md"
-: > "$VS_REMOTE/lib/placeholder.sh"
-: > "$VS_REMOTE/skills/placeholder.md"
-: > "$VS_REMOTE/LICENSES/placeholder-LICENSE"   # #671: LICENSES/ is now a copy-list member, so the fetch fixture must carry it
 # The fixture must CARRY every excluded subtree, otherwise the fetch-branch
 # exclusion assertions below would pass vacuously — absent from the source, never
 # pruned. With these present the assertions observe the prune actually running.
@@ -24710,7 +24708,7 @@ assert_eq "#677 vendor: fetch slice excludes docs/site (published-page HTML)" "n
 assert_eq "vendor: fetch slice excludes docs/external (published Mintlify source)" "no" "$(vexists "$VS_FETCH/docs/external")"
 assert_eq "#1188 vendor: fetch slice excludes docs/internal (DevFlow's maintainer documentation)" "no" "$(vexists "$VS_FETCH/docs/internal")"
 assert_eq "#677 vendor: fetch slice excludes lib/test (DevFlow's own test suite)" "no" "$(vexists "$VS_FETCH/lib/test")"
-assert_eq "#677 vendor: fetch slice keeps non-test lib/ contents" "yes" "$(vexists "$VS_FETCH/lib/placeholder.sh")"
+assert_eq "#677 vendor: fetch slice keeps non-test lib/ contents" "yes" "$(vexists "$VS_FETCH/lib/.placeholder")"
 
 # fetch branch pinned to a NON-TIP commit SHA. `--branch` rejects any raw SHA,
 # so this always takes the full-clone + checkout fallback (the path install.sh's
@@ -24907,19 +24905,12 @@ assert_eq "vendor: missing scripts/ leaves dest non-existent (no partial copy la
 # (b) source whose dirs all copy cleanly but with NO plugin.json — cp succeeds,
 #     so this genuinely reaches and trips the explicit sanity-floor check.
 VS_FLOORSRC="$(mktemp -d)"
-mkdir -p "$VS_FLOORSRC"/.claude-plugin "$VS_FLOORSRC"/agents "$VS_FLOORSRC"/docs \
-        "$VS_FLOORSRC"/lib "$VS_FLOORSRC"/scripts "$VS_FLOORSRC"/skills "$VS_FLOORSRC"/LICENSES "$VS_FLOORSRC"/.prflow
+# Members derived from vendor-slice.sh's own cp list (issue #1388) — a member
+# added there must not have to be transcribed here, or the cp aborts under set -e
+# and this case silently degrades into a duplicate of case (a).
+assert_eq "#1388 the vendor-slice floor fixture (b) builds from the slice’s own derived member list" "0" \
+  "$(devflow_build_slice_source_fixture "$VS_FLOORSRC" >/dev/null 2>&1; echo $?)"
 # NOTE: no .claude-plugin/plugin.json — the floor's plugin.json check must fire.
-# (LICENSES/ present so the cp succeeds and the run reaches the floor rather than
-# aborting early at the LICENSES copy.)
-printf '{}' > "$VS_FLOORSRC/.prflow/config.example.json"
-printf '{}' > "$VS_FLOORSRC/.prflow/config.schema.json"
-printf '{}' > "$VS_FLOORSRC/.prflow/tool-presets.json"
-# #1388: lint-manifest.json + install-state.json are now copy-list members too, so
-# this fixture must carry them or the .prflow cp aborts BEFORE the floor and case (b)
-# silently degrades into case (a) — the exact hazard the comment below guards against.
-printf '{}' > "$VS_FLOORSRC/.prflow/lint-manifest.json"
-printf '{}' > "$VS_FLOORSRC/.prflow/install-state.json"
 VS_FLOORSRC_DEST="$(mktemp -d)/dest"
 VS_FLOORSRC_RC=0
 # Capture stderr (the die stream) so we can assert the abort came from the FLOOR,
@@ -29911,7 +29902,7 @@ assert_eq "#222 AC6: workpad.py _run gh wrapper pins encoding=utf-8 (gh decode/e
 assert_eq "#222 AC7: workpad.py NamedTemporaryFile body write pins encoding=utf-8" "yes" \
   "$(grep -qF "'w', suffix='.md', delete=False, encoding=\"utf-8\"," "$U8_SCRIPTS/workpad.py" && echo yes || echo no)"
 assert_eq "#222 AC6: file-deferrals.py _run gh wrapper pins encoding=utf-8" "yes" \
-  "$(grep -qF 'stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",' "$U8_SCRIPTS/file-deferrals.py" && echo yes || echo no)"
+  "$(grep -qF 'capture_output=True, encoding="utf-8",' "$U8_SCRIPTS/file-deferrals.py" && echo yes || echo no)"
 assert_eq "#222 AC7: file-deferrals.py gh issue create pins input encoding=utf-8" "yes" \
   "$(grep -qF 'input=body, check=False, encoding="utf-8",' "$U8_SCRIPTS/file-deferrals.py" && echo yes || echo no)"
 assert_eq "#222 AC6: parse-acs.py _fetch_body pins gh decode encoding=utf-8" "yes" \
@@ -29919,7 +29910,7 @@ assert_eq "#222 AC6: parse-acs.py _fetch_body pins gh decode encoding=utf-8" "ye
 # match-deferrals.py's _run also reads gh PR/issue *bodies* (routinely non-ASCII),
 # so its decode is pinned too — closing the same Windows decode-crash path.
 assert_eq "#222 AC6: match-deferrals.py _run pins gh body-decode encoding=utf-8" "yes" \
-  "$(grep -qF 'stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",' "$U8_SCRIPTS/match-deferrals.py" && echo yes || echo no)"
+  "$(grep -qF 'capture_output=True, encoding="utf-8",' "$U8_SCRIPTS/match-deferrals.py" && echo yes || echo no)"
 
 # Smoke (not RED->GREEN): a gh stub returns a comment body containing a rocket;
 # workpad.py id must still decode it and print the matched id. On the Linux runner
@@ -48385,7 +48376,7 @@ rm -rf "$D487"
 # hand-edited workflow — driven end to end and joined to the shipped workflow's own
 # trigger-time guard.
 if ! devflow_run_full_suite_module "$LIB/test/modules/installer-wiring.sh" \
-  "installer-wiring" 304; then
+  "installer-wiring" 305; then
   printf 'ERROR: installer-wiring boundary could not record its result\n'
   exit 1
 fi
@@ -55114,20 +55105,22 @@ if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
     assert_eq "#1621 ruff Python-lint gate: tracked *.py pass ruff check" 0 "$RUFF_RC"
     if [ "$RUFF_RC" -ne 0 ]; then printf '%s\n' "$RUFF_OUT"; fi
   fi
-  # Non-vacuity proof. Do not relax the E731/rc-1 pair to "any nonzero rc": an inert or
+  # Non-vacuity proof. Do not relax the F401/rc-1 pair to "any nonzero rc": an inert or
   # errored ruff would then satisfy the proof. Keep the fixture under the gitignored
   # .prflow/tmp, or git ls-files adds it to the scanned set above and reddens the tree.
+  # F401 (unused-import), not E731: E731 left ruff's DEFAULT select in 0.16, so a
+  # default-config fixture keyed on it stops firing once the pin advances (issue #742).
   mkdir -p .prflow/tmp
   RUFF_FIX_DIR="$(mktemp -d .prflow/tmp/ruff-nonvacuity.XXXXXX)"
   [ -n "$RUFF_FIX_DIR" ] && [ -d "$RUFF_FIX_DIR" ] || { printf 'FATAL: mktemp -d failed for the #1621 ruff non-vacuity fixture\n' >&2; exit 1; }
-  printf '%s\n' '_mk = lambda: 0' > "$RUFF_FIX_DIR/violation.py"
+  printf '%s\n' 'import os' > "$RUFF_FIX_DIR/violation.py"
   RUFF_FIX_OUT="$("${RUFF_CMD[@]}" check --no-force-exclude "$RUFF_FIX_DIR/violation.py" 2>&1)"; RUFF_FIX_RC=$?
   rm -rf "$RUFF_FIX_DIR"
   # A missing grep short-circuits to FIRES=no → the assertion reddens (fail-closed).
-  if [ "$RUFF_FIX_RC" -eq 1 ] && printf '%s\n' "$RUFF_FIX_OUT" | grep -q 'E731'; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
-  assert_eq "#1621 ruff Python-lint gate fires on a known E731 violation (non-vacuity)" yes "$RUFF_FIX_FIRES"
+  if [ "$RUFF_FIX_RC" -eq 1 ] && printf '%s\n' "$RUFF_FIX_OUT" | grep -q 'F401'; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
+  assert_eq "#1621 ruff Python-lint gate fires on a known F401 violation (non-vacuity)" yes "$RUFF_FIX_FIRES"
 else
-  skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.15.*' arms it at the desk"
+  skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.16.*' arms it at the desk"
 fi
 
 # ── #1621: ci.yml's two ruff pins are a coupled pair; reconcile them mechanically ──

@@ -233,7 +233,7 @@ _reject_restore() {  # message
 #
 # KNOWN LIMITATION (deliberate — hence the breadcrumb below names the ref it pushed to): with
 # no usable upstream the helper cannot know the intended remote ref, so it assumes
-# `local branch name == remote ref name` — the DevFlow convention, and byte-for-byte what
+# `local branch name == remote ref name` — the PRFlow convention, and byte-for-byte what
 # Phase 1.5's own `git push -u origin HEAD` does. A checkout whose local name deliberately
 # differs from its PR target ref (a shepherd worktree checked out as `worktree-pr-N` against
 # `issue-N-…`) MUST set an upstream before the checkpoint runs; otherwise this arm pushes to

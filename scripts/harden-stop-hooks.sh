@@ -172,7 +172,7 @@ TRUSTED_DIR="${TRUSTED_DIR:-}"
 # "empty because the file is absent" from "empty because a read failed"; that ambiguity
 # is resolved by the CALLER (issue #460 SHADOW): devflow-runner.yml only invokes this
 # with a NON-EMPTY settings blob (it handles an empty read separately via `git cat-file
-# -e` — a present-but-unreadable settings.json fails CLOSED toward hardening so DevFlow's
+# -e` — a present-but-unreadable settings.json fails CLOSED toward hardening so PRFlow's
 # own floor is never dropped, an absent one skips), and it keeps a transient base-ref
 # FETCH FAILURE on its own fail-closed path. A substring match (not a JSON parse) is
 # deliberate: the entry paths appear verbatim in the hook command strings, and a

@@ -1,11 +1,23 @@
 ---
 title: "Reference"
-description: "Find PRFlow command availability, arguments, mutation authority and product terms."
+description: "Look up PRFlow command syntax, product terminology and past release notes."
 ---
 
-Find exact command syntax, client availability and definitions for PRFlow terminology.
+Use these pages when you know what you want and need the exact wording.
 
-- [Command Reference](/docs/reference/command-reference) lists every public command, its arguments, supported clients, run availability, mutation authority and expected result.
-- [Glossary](/docs/reference/glossary) defines the product terms used across the documentation.
+<CardGroup cols={2}>
+  <Card title="Command Reference" icon="terminal" href="/docs/reference/command-reference">
+    Every command you can invoke, its arguments, where it runs, what it may change and what it returns.
+  </Card>
+  <Card title="Glossary" icon="book" href="/docs/reference/glossary">
+    The terms PRFlow uses in its own output, defined in plain language.
+  </Card>
+  <Card title="Release Notes" icon="sparkles" href="/release-notes">
+    User-visible changes, fixes and upgrade notes for recent releases.
+  </Card>
+  <Card title="2026 Archive" icon="box-archive" href="/docs/reference/release-notes-archive-2026">
+    Earlier 2026 release notes, kept for reference.
+  </Card>
+</CardGroup>
 
-For task-selection guidance, start with [Workflows](/docs/workflows/index).
+If you are choosing which command fits a task rather than looking one up, start with [Workflows](/docs/workflows/index).

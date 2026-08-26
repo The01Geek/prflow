@@ -1,42 +1,72 @@
 ---
 title: "Workflows"
-description: "Choose the PRFlow workflow that matches the outcome and edit authority you want."
+description: "Pick the PRFlow workflow that matches the outcome you want and the edit authority you are willing to grant."
 ---
 
-Choose the smallest PRFlow workflow that can produce the outcome you need with the appropriate edit authority.
+Pick the smallest PRFlow workflow that produces the outcome you need with the least edit authority.
 
-The diagram uses PRFlow skill names without a client-specific command prefix. The command examples below show how to invoke them in each supported client.
+PRFlow commands are Claude Code skills. You run them as `/prflow:<skill>` in Claude Code, and you run four of them by leaving a comment on a GitHub issue or pull request. See [Local Runs](/docs/runs/local/index) and [Cloud Runs](/docs/runs/cloud/index) for the difference.
 
 ![A map of PRFlow skills grouped by outcome. The core delivery skills are prflow:create-issue, prflow:implement, prflow:review and prflow:review-and-fix. Supporting skills are prflow:pr-description, prflow:docs and prflow:retrospective-weekly.](/images/workflow-skill-map.svg)
 
+## The Delivery Path
+
+These four workflows carry a piece of work from an idea to a pull request a human can merge.
+
+<CardGroup cols={2}>
+  <Card title="Create an Issue" icon="circle-plus" href="/docs/workflows/create-issue">
+    Turn a rough idea or bug report into one approved GitHub issue. Creates nothing until you approve the final draft.
+  </Card>
+  <Card title="Implement an Issue" icon="code" href="/docs/workflows/implement">
+    Turn an open issue into a pull request. Creates a branch, commits code and docs, pushes and opens a pull request.
+  </Card>
+  <Card title="Review" icon="magnifying-glass" href="/docs/workflows/review">
+    Assess a pull request or branch and return a verdict. Never edits the reviewed tree.
+  </Card>
+  <Card title="Review and Fix" icon="wrench" href="/docs/workflows/review-and-fix">
+    Assess the same way, then correct what it finds. Commits to the active branch.
+  </Card>
+</CardGroup>
+
+## Supporting Workflows
+
+<CardGroup cols={2}>
+  <Card title="Pull Request Description" icon="file-lines" href="/docs/workflows/pr-description">
+    Write or refresh a pull request body from the current branch.
+  </Card>
+  <Card title="Documentation" icon="book" href="/docs/workflows/documentation">
+    Keep developer docs, public docs and release notes in step with the code.
+  </Card>
+  <Card title="Weekly Retrospective" icon="arrows-rotate" href="/docs/workflows/retrospective-weekly">
+    Learn from recently merged pull requests and file the findings for human triage.
+  </Card>
+</CardGroup>
+
 ## Choose a Workflow
 
-| **Goal** | **Workflow** | **What It Can Change** | **Expected Result** |
-| --- | --- | --- | --- |
-| Turn an idea or bug report into a ticket | [Create an Issue](/docs/workflows/create-issue) | Creates one approved GitHub issue | An approved issue. It is implementation-ready only when its Blocked section has no unresolved decision. |
-| Complete an existing issue | [Implement](/docs/workflows/implement) | Creates a branch, commits code and docs, pushes and opens a pull request | A review-ready or draft pull request with recorded verification evidence, or a Blocked result naming the required human action |
-| Assess a pull request or branch | [Review](/docs/workflows/review) | Does not edit the reviewed tree | Findings and an APPROVE or REJECT verdict |
-| Assess changes and authorize corrections | [Review and Fix](/docs/workflows/review-and-fix) | Commits corrections to the target branch | Corrections followed by recorded verification, or a report naming unresolved findings |
-| Generate or refresh a pull request body | [Pull Request Description](/docs/workflows/pr-description) | Updates the current branch's pull request body when one exists | A structured, current description |
-| Maintain developer docs, public docs or release notes | [Documentation](/docs/workflows/documentation) | Edits the selected documentation files | Documentation aligned with the current change |
-| Learn from recently merged pull requests | [Weekly Retrospective](/docs/workflows/retrospective-weekly) | Updates learning records, opens or updates a state pull request and files selected GitHub issues | A state pull request, human-triage issues and a report |
+Read down the "Your goal" column until you find your case.
 
-Use `review` for an assessment with no code edits. Use `review-and-fix` only when you explicitly authorize PRFlow to make and commit corrections.
+| Your goal | Use | What it may change |
+| --- | --- | --- |
+| Record work instead of building it now | [Create an Issue](/docs/workflows/create-issue) | Creates one GitHub issue, after you approve the draft |
+| Complete an issue that already exists | [Implement](/docs/workflows/implement) | Branch, commits, push, one draft pull request |
+| Get an opinion on a pull request or branch | [Review](/docs/workflows/review) | Nothing in the reviewed tree |
+| Get the problems found and corrected | [Review and Fix](/docs/workflows/review-and-fix) | Commits on the active branch |
+| Make a pull request body match the code | [Pull Request Description](/docs/workflows/pr-description) | The pull request body only |
+| Catch documentation up with a change | [Documentation](/docs/workflows/documentation) | The documentation files you select |
+| Find recurring delivery problems | [Weekly Retrospective](/docs/workflows/retrospective-weekly) | Learning records, one state pull request, new issues |
 
-## Command Syntax
+<Note>
+  `review` and `review-and-fix` share the same review engine and produce the same findings. The difference is authority: `review` reports, `review-and-fix` edits. Use `review-and-fix` only when you want PRFlow to change your branch.
+</Note>
 
-PRFlow commands use different prefixes in supported local clients:
+## What No Workflow Does
 
-| **Client** | **Example** |
-| --- | --- |
-| Claude Code | `/prflow:review 123` |
-| GitHub Copilot CLI | `/prflow/review 123` |
-| Codex CLI | `$prflow:review 123` |
-
-Supported GitHub comment commands always use the Claude-style `/prflow:` prefix. See the [command reference](/docs/reference/command-reference) for arguments, availability and mutation authority.
+No PRFlow workflow merges a pull request, and none of them approves its own work. Merge stays with your reviewers and your branch protection rules. See [Human Control](/docs/concepts/human-control).
 
 ## Related Articles
 
 - [Command Reference](/docs/reference/command-reference)
+- [The Lifecycle of a Change](/docs/concepts/lifecycle)
 - [Local Runs](/docs/runs/local/index)
 - [Cloud Runs](/docs/runs/cloud/index)

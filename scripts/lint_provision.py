@@ -115,7 +115,7 @@ def cache_key(os_name: str, arch: str, tool: str, version: str, digest: str,
     A change to any component invalidates the cache, so a stale
     binary can never satisfy a changed tuple. The digest is normalized to its
     64-hex body (the `sha256:` prefix dropped) so the key stays field-delimited."""
-    dig = digest[len("sha256:"):] if digest.startswith("sha256:") else digest
+    dig = digest.removeprefix("sha256:")
     return f"lintprov-{os_name}-{arch}-{tool}-{version}-{dig}-{installer_version}"
 
 
@@ -123,8 +123,19 @@ class Plan:
     """The resolved provisioning plan for one `(tool, os, arch)` — everything the
     shell provisioner needs, or a typed no-answer."""
 
-    __slots__ = ("status", "reason", "tool", "os", "arch", "version",
-                 "digest", "archive_type", "member", "strategy", "url")
+    __slots__ = (
+        "arch",
+        "archive_type",
+        "digest",
+        "member",
+        "os",
+        "reason",
+        "status",
+        "strategy",
+        "tool",
+        "url",
+        "version",
+    )
 
     _RESOLVED_FIELDS = ("version", "digest", "archive_type", "member", "strategy", "url")
 
@@ -255,8 +266,7 @@ def main(argv=None) -> int:
                         args.installer_version))
         return 0
     # plan: tab-separated so a shell `read` can split it field-by-field.
-    print("\t".join([plan.digest, plan.archive_type, plan.member, plan.strategy,
-                     plan.version, plan.url]))
+    print(f"{plan.digest}\t{plan.archive_type}\t{plan.member}\t{plan.strategy}\t{plan.version}\t{plan.url}")
     return 0
 
 

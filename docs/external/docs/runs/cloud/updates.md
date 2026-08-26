@@ -1,51 +1,96 @@
 ---
 title: "Cloud Updates"
-description: "Preview, apply and review PRFlow cloud-tier updates with a review-first process."
+description: "Preview, apply and review a PRFlow cloud-tier update without losing your configuration."
 ---
 
-Move an existing cloud installation to a newer PRFlow release without losing repository-specific configuration.
+Move an existing cloud installation to a newer PRFlow release, and keep the settings you changed.
 
-## Preview an Update
+The installer is review-first on an update: it previews by default, and it never silently overwrites a file you edited.
 
-Download the newer installer and use the same new release tag for its payload:
+## Update in Three Steps
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.49/install.sh -o devflow-install.sh
-# review devflow-install.sh, then:
-DEVFLOW_REF=v2.34.49 bash devflow-install.sh
-```
+<Note>
+  The examples below pin `v2.34.50`. Replace it with the tag you are moving to, from the [releases page](https://github.com/The01Geek/prflow/releases).
+</Note>
 
-An existing installation runs in dry-run mode by default. The installer does not intentionally change the target repository in this mode. It can create temporary files, and it still executes the downloaded installer. Inspect and verify the file before running it.
+<Steps>
+  <Step title="Preview the Update">
+    Download the newer installer and pass the same new tag as the payload.
 
-## Apply the Update
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.54/install.sh -o devflow-install.sh
+    # read devflow-install.sh, then:
+    DEVFLOW_REF=v2.34.54 bash devflow-install.sh
+    ```
 
-After reviewing the preview, apply the same payload:
+    On an existing installation this runs in dry-run mode. It does not intentionally change your repository, though it can create temporary files, and it does execute the script you downloaded. Read that file before you run it.
+  </Step>
+  <Step title="Apply It">
+    ```bash
+    DEVFLOW_REF=v2.34.54 bash devflow-install.sh --apply
+    ```
 
-```bash
-DEVFLOW_REF=v2.34.49 bash devflow-install.sh --apply
-```
+    This refreshes the managed workflows, the composite actions and the configuration schema. It backfills newly added configuration keys and preserves the values and arrays you already set.
+  </Step>
+  <Step title="Review Before Committing">
+    ```bash
+    git status
+    git diff
+    ```
 
-Review `git status` and `git diff` before committing. Re-running the installer refreshes managed workflows, actions and the schema. It backfills newly scaffolded config keys while preserving existing values and arrays.
+    Look for two things: changes under `.github/` that you accept, and any file ending in `.prflow-new`. The next section explains those.
+  </Step>
+</Steps>
 
 ## Resolve Preserved Files
 
-The installer records managed-artifact digests in `.prflow/install-manifest.json`. On an update:
+The installer records a digest for each file it manages, in `.prflow/install-manifest.json`. On an update it decides file by file:
 
-- An unchanged managed file can be replaced with the new version.
-- A locally modified file is preserved.
-- A file with no verifiable recorded digest is preserved.
-- The proposed replacement is written beside a preserved file as `<path>.prflow-new`.
+| **State of the File** | **What the Installer Does** |
+| --- | --- |
+| Unchanged since it was installed | Replaces it with the new version. |
+| Modified locally | Preserves your version. |
+| No verifiable recorded digest | Preserves your version. |
 
-Compare each sidecar with the file you maintain. Merge the needed changes by hand, then remove the sidecar. Sidecars are ignored so a broad `git add -A` does not commit them accidentally.
+Whenever it preserves your version, it writes the proposed replacement beside it as `<path>.prflow-new`.
 
-If Python cannot run, the installer cannot compare managed files or write the provenance manifest. It preserves existing artifacts and writes sidecars rather than risk overwriting local work. Fix Python, then run the same update again.
+<Steps>
+  <Step title="Compare Each Sidecar">
+    ```bash
+    git status --porcelain --ignored | grep '.prflow-new'
+    diff .prflow/config.schema.json .prflow/config.schema.json.prflow-new
+    ```
 
-## Keep Runtime and Workflow Pins Together
+    An empty list from the first command means nothing was preserved and there is nothing to merge.
+  </Step>
+  <Step title="Merge What You Need by Hand">
+    Copy the changes you want into the file you maintain.
+  </Step>
+  <Step title="Delete the Sidecar">
+    Remove each `.prflow-new` file once you have merged it. Sidecars are ignored by Git, so a broad `git add -A` will not commit them by accident.
+  </Step>
+</Steps>
 
-In thin mode, `prflow_version` controls the plugin fetched by the installed workflows. The installer re-stamps an empty or SHA-shaped value to the commit it installed. It preserves a hand-set non-SHA value such as a tag or branch.
+<Warning>
+  If Python cannot run, the installer cannot compare managed files or write the provenance manifest. It preserves every existing artifact and writes sidecars instead of risking your work. That is safe but it means nothing was updated in place. Fix Python, then run the same update again.
+</Warning>
 
-Updating only the workflows or only `prflow_version` can leave two halves of a feature out of sync. Prefer running the installer with the new tag and reviewing the resulting pin in the same change.
+## Keep the Workflow and the Version Pin Together
 
-Prompt-extension delivery is a current example. The skills that consume `.prflow/prompt-extensions/` ship in the plugin, while the permission entries their delivery mechanisms need ship in the workflow files. Bumping only `prflow_version` leaves a mechanism unpermitted, and a refused delivery is not reported as a failure.
+In a thin install, `prflow_version` in `.prflow/config.json` decides which plugin the installed workflows fetch at run time. The installer re-stamps an empty or SHA-shaped value to the commit it installed, and preserves a value you set by hand, such as a tag or a branch name.
 
-In vendored mode, `prflow_version` is ignored because the committed `.prflow/vendor/prflow/` tree supplies the runtime.
+<Warning>
+  Updating only the workflow files, or only `prflow_version`, can leave two halves of one feature out of sync. Run the installer with the new tag and review the resulting pin in the same change.
+</Warning>
+
+A current example makes the risk concrete. The skills that read `.prflow/prompt-extensions/` ship inside the plugin, while the permission entries their delivery needs ship in the workflow files. Raising only `prflow_version` leaves that delivery unpermitted, and a refused delivery is not reported as a failure. The run looks normal and quietly applies less of your configuration.
+
+<Note>
+  In a vendored install, `prflow_version` is ignored. The committed `.prflow/vendor/prflow/` tree supplies the runtime, so update that tree instead.
+</Note>
+
+## After the Update
+
+Run `/prflow:init` locally in the repository. It backfills newly added settings into `.prflow/config.json` without replacing the values you set. Then try one low-stakes command, such as `/prflow:review` on a throwaway pull request, before you rely on the automation again.
+
+If something stops working after an update, see [Cloud-Run Problems](/docs/troubleshooting/cloud-runs) and [Cloud Recovery](/docs/runs/cloud/recovery).

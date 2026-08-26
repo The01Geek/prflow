@@ -96,8 +96,10 @@ from pathlib import Path
 # stdout line-by-line for timing, which run_detached (which does not capture the
 # child's output) cannot provide — but it shares the signal handling below.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from signal_launcher import (  # noqa: E402
+from signal_launcher import (
     exit_status as _exit_status,
+)
+from signal_launcher import (
     restore_default_signals,
 )
 
@@ -165,7 +167,7 @@ def _repo_root(start: Path) -> Path:
     return fallback
 
 
-def _banner_set(run_sh: Path) -> "set[str]":
+def _banner_set(run_sh: Path) -> set[str]:
     """The literal texts run.sh prints as section banners.
 
     Derived from the SOURCE (not guessed from output shape) so an output line is
@@ -187,7 +189,7 @@ def _banner_set(run_sh: Path) -> "set[str]":
     return banners
 
 
-def _labels_of(name: str) -> "list[str]":
+def _labels_of(name: str) -> list[str]:
     """Every issue label in an assertion name, deduplicated, order-preserving.
 
     Returned BARE — `10`, not `#10`. `_LABEL_RE` already captures the bare group; the
@@ -216,15 +218,15 @@ class Profile:
     section that was current, and reported separately as `tail_s`.
     """
 
-    def __init__(self, banners: "set[str]") -> None:
+    def __init__(self, banners: set[str]) -> None:
         self.banners = banners
         self.section = _PREAMBLE_SECTION
-        self.sections: "dict[str, float]" = {}
-        self.section_counts: "dict[str, int]" = {}
-        self.labels: "dict[str, float]" = {}
-        self.label_counts: "dict[str, int]" = {}
-        self.assertions: "list[tuple[float, str, str, str]]" = []
-        self.events: "list[tuple[float, float, str, str, str]]" = []
+        self.sections: dict[str, float] = {}
+        self.section_counts: dict[str, int] = {}
+        self.labels: dict[str, float] = {}
+        self.label_counts: dict[str, int] = {}
+        self.assertions: list[tuple[float, str, str, str]] = []
+        self.events: list[tuple[float, float, str, str, str]] = []
         self.counts = {"PASS": 0, "FAIL": 0, "NOTE": 0}
         self.tail_s = 0.0
 
@@ -252,7 +254,7 @@ class Profile:
         self.sections[self.section] = self.sections.get(self.section, 0.0) + delta
 
 
-def _write_tsv(path: Path, header: "list[str]", rows) -> None:
+def _write_tsv(path: Path, header: list[str], rows) -> None:
     with path.open("w", encoding="utf-8") as fh:
         fh.write("\t".join(header) + "\n")
         for row in rows:
@@ -269,7 +271,7 @@ def _sanitize(text: str) -> str:
     return text.replace("\t", " ").replace("\r", " ").replace("\n", " ")
 
 
-def _emit(prof: Profile, out: Path, total: float, cmd: "list[str]", rc: int) -> None:
+def _emit(prof: Profile, out: Path, total: float, cmd: list[str], rc: int) -> None:
     total = total or 1e-9
     sec_rows = [
         (f"{s:.3f}", f"{100.0 * s / total:.2f}", prof.section_counts.get(name, 0), _sanitize(name))
@@ -318,7 +320,7 @@ def _emit(prof: Profile, out: Path, total: float, cmd: "list[str]", rc: int) -> 
     )
 
 
-def _resolve_lines(run_sh: Path, names: "list[str]") -> "dict[str, int]":
+def _resolve_lines(run_sh: Path, names: list[str]) -> dict[str, int]:
     """Best-effort assertion-name -> run.sh line number, for the report only.
 
     A name is looked up as a fixed substring; the FIRST hit wins and a name that is
@@ -340,7 +342,7 @@ def _resolve_lines(run_sh: Path, names: "list[str]") -> "dict[str, int]":
     return wanted
 
 
-def _report(out: Path, top: int, run_sh: "Path | None") -> int:
+def _report(out: Path, top: int, run_sh: Path | None) -> int:
     # `report --out DIR` exists to re-render a PRE-EXISTING directory, so a stale,
     # truncated, or hand-edited profile is its ordinary input, not an exotic one. Every
     # read below therefore degrades to this file's own `profile-suite: <reason>`
@@ -467,7 +469,7 @@ def _run(args: argparse.Namespace) -> int:
     # restoration now runs through the shared `restore_default_signals` (which
     # covers SIGHUP/SIGINT/SIGQUIT/SIGTERM, widening this from the former SIGINT-only
     # reset) so there is one source of that logic, not two divergent copies.
-    proc = subprocess.Popen(  # noqa: S603 - argv list, no shell
+    proc = subprocess.Popen(
         cmd,
         cwd=str(root),
         env=env,
@@ -515,7 +517,7 @@ def _run(args: argparse.Namespace) -> int:
     return rc
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Opt-in wall-clock profiler for lib/test/run.sh")
     sub = ap.add_subparsers(dest="mode", required=True)
 

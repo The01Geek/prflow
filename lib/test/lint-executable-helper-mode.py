@@ -366,10 +366,9 @@ def classify_path(path: str) -> tuple[str, str]:
     p = path.strip()
     while p.startswith("./"):
         p = p[2:]
-    if p.startswith(_VENDOR_PREFIX):  # vendored → repo-root path (AC3)
-        p = p[len(_VENDOR_PREFIX):]
+    p = p.removeprefix(_VENDOR_PREFIX)
     p = re.sub(r"/+", "/", p)
-    if not p or p.startswith("/") or p == ".." or p.startswith("../") or "/../" in p or p.endswith("/.."):
+    if not p or p.startswith(("/", "../")) or p == ".." or "/../" in p or p.endswith("/.."):
         return ("runtime", f"resolves to a path outside the repository ({path})")
     mode = _MODES.get(p)
     if mode is None:

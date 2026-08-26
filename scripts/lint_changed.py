@@ -115,7 +115,7 @@ class ChangedRecord:
     lint, or None when the record is examined-but-not-run (a delete, a rename/copy
     source, a symlink, or a submodule)."""
 
-    __slots__ = ("kind", "src", "dst", "run_path", "skip_reason")
+    __slots__ = ("dst", "kind", "run_path", "skip_reason", "src")
 
     def __init__(self, kind, *, src=None, dst=None, run_path=None, skip_reason=None):
         if kind not in RECORD_KINDS:
@@ -163,7 +163,7 @@ class Population:
     """Typed outcome of a changed-file enumeration: established (nonempty|empty) or
     unestablished with a specific reason. Never a plausible-but-unobserved empty."""
 
-    __slots__ = ("status", "records", "reason")
+    __slots__ = ("reason", "records", "status")
 
     def __init__(self, status, *, records=None, reason=None):
         if status not in ("nonempty", "empty", "unestablished"):
@@ -416,7 +416,7 @@ class Invocation:
     """One assembled lint invocation: a tool, its flags, the selected path bytes, and
     the operation id its receipt is keyed by."""
 
-    __slots__ = ("op_id", "tool", "flags", "paths", "timeout")
+    __slots__ = ("flags", "op_id", "paths", "timeout", "tool")
 
     def __init__(self, op_id, tool, flags, paths, timeout):
         # The type is the argv trust boundary, so refuse a self-contradictory invocation

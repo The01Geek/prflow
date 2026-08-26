@@ -27,9 +27,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 #: Single source of truth for the no-execution sweep (issue #528).
 #:
@@ -187,7 +187,7 @@ class Harness(unittest.TestCase):
 class TestDescriptorAndKey(Harness):
     def test_descriptor_deterministic(self):
         c1, o1 = self.run_cmd(["descriptor", "--input-file", self._write(_decl())])
-        c2, o2 = self.run_cmd(["descriptor", "--input-file", self._write(_decl())])
+        _c2, o2 = self.run_cmd(["descriptor", "--input-file", self._write(_decl())])
         self.assertEqual(c1, vf.EXIT_OK)
         self.assertEqual(o1["descriptor_digest"], o2["descriptor_digest"])
         self.assertEqual(o1["flight_key"], o2["flight_key"])
@@ -275,7 +275,7 @@ class TestClaimAndAttach(Harness):
         self.assertEqual(att["flight_key"], owner["flight_key"])
 
     def test_atomic_single_owner_no_second_token(self):
-        _, owner = self.claim()
+        _, _owner = self.claim()
         # Simulate a concurrent second claim on the same key: O_CREAT|O_EXCL
         # means only the first create wins; the rest attach.
         tokens = set()
@@ -610,7 +610,7 @@ class TestReadShapeMatrix(Harness):
         self.assertFalse(out["satisfies_verification"])
 
     def test_truncated_json(self):
-        code, out = self._corrupt(b'{"schema_version":1,"state":"pas')
+        code, _out = self._corrupt(b'{"schema_version":1,"state":"pas')
         self.assertEqual(code, vf.EXIT_UNREADABLE)
 
     def test_malformed_json(self):
@@ -625,7 +625,7 @@ class TestReadShapeMatrix(Harness):
         self.assertEqual(code, vf.EXIT_UNREADABLE)
 
     def test_scalar_toplevel(self):
-        code, out = self._corrupt(b'42')
+        code, _out = self._corrupt(b'42')
         self.assertEqual(code, vf.EXIT_UNREADABLE)
 
     def test_valid_falsy_state(self):
@@ -638,15 +638,15 @@ class TestReadShapeMatrix(Harness):
             self.assertEqual(code, vf.EXIT_UNREADABLE)
 
     def test_string_true_state(self):
-        code, out = self._corrupt(b'{"schema_version":1,"state":"true","flight_key":"k","descriptor_digest":"d","token_digest":"t"}')
+        _code, out = self._corrupt(b'{"schema_version":1,"state":"true","flight_key":"k","descriptor_digest":"d","token_digest":"t"}')
         self.assertEqual(out["reason"], "missing_or_invalid_state")
 
     def test_missing_required_field(self):
-        code, out = self._corrupt(b'{"schema_version":1,"state":"passed","descriptor_digest":"d","token_digest":"t"}')
+        _code, out = self._corrupt(b'{"schema_version":1,"state":"passed","descriptor_digest":"d","token_digest":"t"}')
         self.assertEqual(out["reason"], "missing_field:flight_key")
 
     def test_unknown_schema_version_in_file(self):
-        code, out = self._corrupt(b'{"schema_version":7,"state":"passed","flight_key":"k","descriptor_digest":"d","token_digest":"t"}')
+        _code, out = self._corrupt(b'{"schema_version":7,"state":"passed","flight_key":"k","descriptor_digest":"d","token_digest":"t"}')
         self.assertEqual(out["reason"], "unknown_schema_version")
 
 
@@ -688,7 +688,7 @@ class TestSubdirAndWorktree(Harness):
 
     def test_different_checkout_id_does_not_attach(self):
         _, owner = self.claim()
-        code, other = self.claim(_decl(checkout={"checkout_id": "OTHER_WORKTREE"}))
+        _code, other = self.claim(_decl(checkout={"checkout_id": "OTHER_WORKTREE"}))
         # A different checkout identity is a different key -> a fresh owner claim.
         self.assertEqual(other["role"], "owner")
         self.assertNotEqual(other["flight_key"], owner["flight_key"])
@@ -728,7 +728,7 @@ class TestFinishPropagation(Harness):
         # A pass whose summary carries skipped checks preserves them; the record
         # keeps them so the caller can refuse to report a clean pass.
         skipped = [{"name": "T6b", "kind": "host-capability", "reason": "no dash"}]
-        k, code, _ = self._finish("passed", {"command": "run.sh", "exit_status": 0,
+        k, _code, _ = self._finish("passed", {"command": "run.sh", "exit_status": 0,
                                              "skipped_checks": skipped})
         _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state])
         self.assertEqual(st["skipped_checks"], skipped)
@@ -1459,13 +1459,13 @@ class TestTerminalHandleIsOneShotPerKey(Harness):
         os.environ["DEVFLOW_FLIGHT_NOW"] = "1000"
         _, owner = self.claim(lease=10)
         os.environ["DEVFLOW_FLIGHT_NOW"] = "2000"
-        code, out = self.run_cmd([
+        _code, out = self.run_cmd([
             "status", "--flight", owner["flight_key"], "--state-dir", self.state,
             "--logs-dir", self.logs,
         ])
         self.assertEqual(out["state"], "incomplete")
         os.environ.pop("DEVFLOW_FLIGHT_NOW", None)
-        code2, again = self.run_cmd([
+        _code2, again = self.run_cmd([
             "claim", "--input-file", self._write(_decl()),
             "--state-dir", self.state, "--logs-dir", self.logs,
         ])
@@ -1499,7 +1499,7 @@ class TestUsageErrorsAreAttributable(Harness):
     def test_every_invalid_path_emits_the_same_key_set(self):
         """The _FlightArgumentParser docstring claims exactly this."""
         keys = set()
-        code, out = self.run_cmd_expecting_exit(["bogus"])
+        _code, out = self.run_cmd_expecting_exit(["bogus"])
         keys.add(frozenset(out))
         _, out2 = self.run_cmd(["descriptor", "--input-file",
                                 os.path.join(self.tmp, "does-not-exist.json")])
@@ -1587,7 +1587,7 @@ class TestCheckoutShapeGate(Harness):
     def test_checkout_id_stays_loose(self):
         # checkout_id is the producer's opaque --absolute-git-dir path, not an object
         # id, so an arbitrary non-empty string is still accepted for it.
-        code, out = self.run_cmd(["descriptor", "--input-file",
+        code, _out = self.run_cmd(["descriptor", "--input-file",
                                   self._write(_decl(checkout=_ck(checkout_id="/some/worktree/.git")))])
         self.assertEqual(code, vf.EXIT_OK)
 

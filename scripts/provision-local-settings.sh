@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
 # provision-local-settings.sh — provision a consumer repo's PROJECT
-# .claude/settings.json with DevFlow's local/interactive-tier conveniences.
+# .claude/settings.json with PRFlow's local/interactive-tier conveniences.
 #
 # Invoked ONLY from the /prflow:init skill flow — never from scaffold-config.sh
 # or install.sh. The cloud (CI) tier runs under claude-code-action with its own
@@ -11,12 +11,12 @@
 # keeping this out of the shared scaffolder is what guarantees a cloud-only
 # install.sh run writes no .claude/settings.json (issue #88, AC 7).
 #
-# It deep-merges the DevFlow marketplace registration into the project settings,
+# It deep-merges the PRFlow marketplace registration into the project settings,
 # additively and WITHOUT clobbering any value the user already set:
 #   - extraKnownMarketplaces["devflow-marketplace"]  (a github source for
 #       The01Geek/prflow + autoUpdate:true) and
 #       enabledPlugins["prflow@devflow-marketplace"]=true, so Claude Code keeps
-#       the DevFlow plugin updated.
+#       the PRFlow plugin updated.
 #
 # NOTE — selectable auto mode is NOT provisioned here. CLAUDE_CODE_ENABLE_AUTO_MODE
 # is a permission-gating env var, and Claude Code filters those out of PROJECT
@@ -40,7 +40,7 @@
 #   2  any precondition or I/O failure — the existing .claude/settings.json is
 #      a directory (not a regular file), unreadable, could not be read into a
 #      variable, contains a NUL byte, is not valid JSON, or is valid JSON of the
-#      wrong shape (a non-object root, or a DevFlow object-valued path present as
+#      wrong shape (a non-object root, or a PRFlow object-valued path present as
 #      a non-object); or jq is missing; or the settings dir / temp file could not
 #      be created or the merged file could not be written. In every exit-2 case the
 #      existing file is left BYTE-FOR-BYTE UNCHANGED and a specific `devflow-settings:`
@@ -70,7 +70,7 @@ fi
 # (lib/plugin-identity.json + .claude-plugin/plugin.json) through lib/plugin_identity.py
 # — the one reader — never spelled as literals here, so a change to the declared
 # identifier set reaches this provisioner without it being re-edited. python3 is a
-# hard DevFlow prerequisite (lib/preflight.sh), so this is a preflight-guaranteed
+# hard PRFlow prerequisite (lib/preflight.sh), so this is a preflight-guaranteed
 # derivation, not a non-preflight PATH tool deciding what gets written.
 # FAILS CLOSED: an unestablished identifier set writes nothing (exit 2) rather than
 # guessing a key name and provisioning a marketplace registration that never resolves.
@@ -81,7 +81,7 @@ if ! IDENTITY_JSON="$(python3 "$DEVFLOW_LIB_DIR/plugin_identity.py" --json 2>/de
   exit 2
 fi
 
-# The DevFlow defaults, composed from the derived canonical identifiers. The merge
+# The PRFlow defaults, composed from the derived canonical identifiers. The merge
 # below is `$defaults * $existing`, so the user's value wins at every depth and only
 # keys they have not set are filled. permissions.defaultMode is intentionally absent,
 # and no env var is written — see the auto-mode NOTE in the header.
@@ -97,7 +97,7 @@ if ! DEFAULTS="$(printf '%s' "$IDENTITY_JSON" | "$DEVFLOW_JQ" '
     },
     enabledPlugins: { (.canonical_plugin_spec): true }
   }')" || [ -z "$DEFAULTS" ]; then
-  warn "could not compose the DevFlow settings defaults from the resolved plugin identity; left $SETTINGS unchanged and provisioned nothing."
+  warn "could not compose the PRFlow settings defaults from the resolved plugin identity; left $SETTINGS unchanged and provisioned nothing."
   exit 2
 fi
 
@@ -206,7 +206,7 @@ fi
 #     path in $defaults (extraKnownMarketplaces, its devflow-marketplace entry, that
 #     entry's source object, enabledPlugins) — where the user holds a non-object
 #     value. jq's `*` does not error there; it silently keeps the user's value and
-#     drops DevFlow's whole subtree below it (e.g. a string at devflow-marketplace
+#     drops PRFlow's whole subtree below it (e.g. a string at devflow-marketplace
 #     drops the marketplace source + autoUpdate, so the plugin never auto-updates),
 #     yet still exits 0 with a success breadcrumb.
 # To catch EVERY level in one sweep (rather than enumerating them by hand and
@@ -235,7 +235,7 @@ if ! BAD_SHAPE="$(printf '%s' "$EXISTING" | "$DEVFLOW_JQ" -r --argjson defaults 
             # Flag a path the user has PRESENT as a non-object (any type, including
             # null — jq merge treats a right-hand null as a winning value that
             # replaces the whole defaults subtree, so a present null silently drops
-            # the DevFlow setting just like a string would). Test presence via the
+            # the PRFlow setting just like a string would). Test presence via the
             # parent has() check, not getpath alone: getpath returns null for BOTH an
             # absent path and a present-null one, and an absent path is fine (the
             # merge fills it). A non-object parent is skipped here and flagged by its
@@ -256,7 +256,7 @@ fi
 
 # MIGRATION — drop any SUPERSEDED registration before merging, so a repo provisioned
 # under a previously-declared identifier is not left with two live registrations of the
-# same plugin. Only the two DevFlow-owned containers are touched, and only for keys in
+# same plugin. Only the two PRFlow-owned containers are touched, and only for keys in
 # the derived superseded set: a user's unrelated marketplace/plugin entry is never
 # removed. Both containers are object-or-absent by the type-guard above; the `type`
 # tests keep this correct if that guard is ever relaxed. `$EXISTING_ORIG` keeps the
@@ -271,12 +271,12 @@ if ! EXISTING="$(printf '%s' "$EXISTING" | "$DEVFLOW_JQ" --argjson sup "$SUPERSE
   | (if (.enabledPlugins | type) == "object"
        then .enabledPlugins |= with_entries(.key as $k | select(($sup.specs | index($k)) == null))
        else . end)')"; then
-  warn "could not remove the superseded DevFlow registrations from $SETTINGS (migration probe failed); left it unchanged and provisioned nothing."
+  warn "could not remove the superseded PRFlow registrations from $SETTINGS (migration probe failed); left it unchanged and provisioned nothing."
   exit 2
 fi
 
 # The merge cannot fail post-guard ($existing is a validated object whose every
-# DevFlow object-path is object-or-absent, $defaults is a fixed valid object, so
+# PRFlow object-path is object-or-absent, $defaults is a fixed valid object, so
 # `*` always succeeds), but guard it anyway so an unanticipated jq failure
 # (OOM, a broken build) fails CLOSED with a breadcrumb rather than a raw error.
 if ! MERGED="$("$DEVFLOW_JQ" -n --argjson defaults "$DEFAULTS" --argjson existing "$EXISTING" '$defaults * $existing')"; then
@@ -287,7 +287,7 @@ fi
 # Only write on a real change (idempotent — no mtime churn on a re-run). Compare
 # canonical (sorted) forms so formatting differences never read as a change.
 if [ "$(printf '%s' "$EXISTING_ORIG" | "$DEVFLOW_JQ" -S .)" = "$(printf '%s' "$MERGED" | "$DEVFLOW_JQ" -S .)" ]; then
-  log ".claude/settings.json already has the DevFlow keys; nothing changed."
+  log ".claude/settings.json already has the PRFlow keys; nothing changed."
   exit 0
 fi
 
@@ -310,7 +310,7 @@ if ! { printf '%s\n' "$MERGED" > "$TMP" && mv "$TMP" "$SETTINGS"; }; then
 fi
 trap - EXIT
 
-# Friendly labels for the DevFlow marker keys the merge actually landed, derived
+# Friendly labels for the PRFlow marker keys the merge actually landed, derived
 # from the EXISTING->MERGED delta (a leaf differs) so the breadcrumb can never
 # claim a key the merge did not write. The top-level containers are guaranteed
 # object-or-absent by the type-guard above, so these two-level getpath probes
@@ -343,7 +343,7 @@ done <<< "$added_raw"
 
 if [ "${#added[@]}" -gt 0 ]; then
   joined="$(printf '%s, ' "${added[@]}")"; joined="${joined%, }"
-  log "provisioned $SETTINGS (added: $joined): the DevFlow marketplace is now registered and auto-updating. Review the change before committing."
+  log "provisioned $SETTINGS (added: $joined): the PRFlow marketplace is now registered and auto-updating. Review the change before committing."
 else
-  log "provisioned $SETTINGS: the DevFlow marketplace is now registered and auto-updating. Review the change before committing."
+  log "provisioned $SETTINGS: the PRFlow marketplace is now registered and auto-updating. Review the change before committing."
 fi

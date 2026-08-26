@@ -4,6 +4,44 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.54] — 2026-08-26
+
+### Changed
+- **Adopt ruff 0.16.x for Python linting.** The CI ruff pin advances from `0.15.*` to
+  `0.16.*` across the coupled workflow pin sites (the `ci.yml` lint and shard jobs and
+  `devflow-implement.yml`). `ruff.toml` gains four documented-convention ignores — `TRY004`
+  and `SIM115` globally, and `PLC3002`/`SIM117` scoped per-file to `lib/test/**` — carrying
+  one-line rationales, and the tree is brought clean under the new version (a mechanical
+  `--fix` pass plus by-hand triage of the residual findings). No `exclude`/`extend-exclude`/
+  `force-exclude` key is added, so the `#1621` `--no-force-exclude` gate stays meaningful. (#1997)
+
+## [2.34.53] — 2026-08-26
+
+### Changed
+- **Continue the brand-cased `DevFlow`→`PRFlow` prose sweep (batch 2).** Rewrote the
+  ordinary renameable brand-cased `DevFlow` prose to `PRFlow` in 24 `scripts/`
+  comment and docstring files and reseeded `pending_sweep_baseline` in
+  `lib/test/brand-devflow-buckets.json` to drop the drained files; the reconciling
+  lint stays clean. No frozen identifier, filename, or pinned literal changed
+  spelling. (#1995)
+
+## [2.34.52] — 2026-08-26
+
+### Changed
+Sweep batch 1 of the remaining brand-cased `DevFlow` prose to `PRFlow` (issue #1985, PR #1992): rename the product-name occurrences in 23 comment/docstring/prose files (`scripts/`, `lib/`, `docs/internal/shadow-review.md`, `.changeset/README.md`). All 23 were `pending_sweep_baseline` entries in `lib/test/brand-devflow-buckets.json` and are drained from it (dropping the baseline from 170 to 147 files). The swept files were selected to contain only current-product occurrences; the frozen buckets are unchanged (the baseline diff only removes drained pending entries) and the reconciling lint stays green. The remaining files — including those whose `DevFlow` is semantically frozen and those under `skills/`/`agents/`/prompt-extensions — are deferred to follow-up batches.
+
+## [2.34.51] — 2026-08-26
+
+### Fixed
+- **Close the two review-coverage self-excuse holes at the workpad `Complete` gate (#1990).** `scripts/workpad.py` now refuses a `--record-review-coverage` write whose `dispatch` is `attempted` and whose roster is a measured value unless per-member `--record-roster-member` rows corroborate that the always-on reviewers were dispatched (`[review-coverage-dispatch-uncorroborated]`), and `--review-coverage-disposition` takes a middle `<cause-class>` operand drawn from a closed vocabulary — `environment-denial` (corroborated by a recorded `missing` roster row) or `dispatched-but-lost`. A budget or elective cause is not in that vocabulary, so a run that dropped a review component to save budget, or judged its partial pass adequate, can no longer record a disposition and stops at `Blocked` (`[review-coverage-cause-inadmissible]`).
+
+## [2.34.50] — 2026-08-26
+
+### Fixed
+- **`workpad.py update` no longer loses ticks when a plan is replaced in the same call.** Whole-section replacements (`--replace-plan-file`, `--replace-acs-file`, `--set-reproduction-file`) now run before the checkbox ticks, so a single call combining `--replace-plan-file` with `--tick-plan-n` resolves each index against the new section instead of the pre-replace one — previously the replace landed while every index past the old row count recorded a volatile miss. (#1389)
+- **`workpad.py update` gained `--mark-deferred-filed-file`, the interpolation-free arm of `--mark-deferred-filed`.** A deferred criterion's normalized text routinely carries backticks and an apostrophe, which neither quoting style makes shell-safe on the cloud matcher, so the markers went unwritten and a later Phase 4 entry would re-file the same follow-up. Values are now read one per line from a file (or stdin). (#1446)
+- **`lib/efficiency-trace.sh --persist` now recovers fix commits whose subject carries trailing text after the `(iteration N)` clause.** The synthesis backstop required the subject to *end* with that clause, while a fix commit's subject is authored per-run rather than emitted by a template, and in practice most carry a trailing summary (` for issue #N — …`) — 304 of this repository's own fix commits do, against 314 in the bare form. Every one of those was skipped, so the backstop recovered nothing on roughly half the commits it exists to reconstruct from. The iteration token is now read up to the first `)`; only an unterminated clause is skipped. (#1946)
+
 ## [2.34.49] — 2026-08-26
 
 ### Added

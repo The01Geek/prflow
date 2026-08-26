@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""DevFlow checklist-verdict parse + wording-only normalization helper (Phase 2.2).
+"""PRFlow checklist-verdict parse + wording-only normalization helper (Phase 2.2).
 
 The checklist-verifier is a strict measuring instrument: it grades
 partially-correct claims FAIL and reports structured operands
@@ -117,10 +117,9 @@ if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation below
     # reported to the operator as a permission problem. Emitting on stdout routes it to
     # the bad-input arm, where the remedy quoted is the real one.
     print(json.dumps({"bad_input": True, "error": "unsupported_python",
-                      "detail": "Python 3.11+ required (found %s.%s.%s)"
-                                % sys.version_info[:3]}, indent=2))
+                      "detail": "Python 3.11+ required (found {}.{}.{})".format(*sys.version_info[:3])}, indent=2))
     sys.stderr.write(
-        "devflow: Python 3.11+ required (found %s.%s.%s).\n" % sys.version_info[:3]
+        "devflow: Python 3.11+ required (found {}.{}.{}).\n".format(*sys.version_info[:3])
     )
     sys.exit(1)
 
@@ -164,18 +163,17 @@ def _brace_objects(text):
             if depth == 0:
                 start = i
             depth += 1
-        elif ch == "}":
-            if depth > 0:
-                depth -= 1
-                if depth == 0 and start != -1:
-                    candidate = text[start:i + 1]
-                    try:
-                        parsed = json.loads(candidate)
-                    except (json.JSONDecodeError, ValueError):
-                        parsed = None
-                    if isinstance(parsed, dict):
-                        objs.append(parsed)
-                    start = -1
+        elif ch == "}" and depth > 0:
+            depth -= 1
+            if depth == 0 and start != -1:
+                candidate = text[start:i + 1]
+                try:
+                    parsed = json.loads(candidate)
+                except (json.JSONDecodeError, ValueError):
+                    parsed = None
+                if isinstance(parsed, dict):
+                    objs.append(parsed)
+                start = -1
     return objs
 
 
@@ -500,7 +498,7 @@ def run(pairs_file):
             continue
         try:
             result, retry, is_field_defect_fail = _process_pair(pair)
-        except Exception as e:  # noqa: BLE001 — blast-radius containment, deliberate
+        except Exception as e:
             # One corrupt element must never abort the batch. An uncaught exception
             # here exits non-zero with EMPTY stdout, and empty stdout is exactly what
             # this helper's contract reads as a matcher denial — so every OTHER pair's
@@ -569,7 +567,7 @@ def main(argv=None):
         return 2
     try:
         out = run(argv[0])
-    except Exception as e:  # noqa: BLE001 — top-level containment, same rationale
+    except Exception as e:
         sys.stderr.write(
             "normalize-verdicts.py: internal error — this is a helper defect:\n"
             + traceback.format_exc()

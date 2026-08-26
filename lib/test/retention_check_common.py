@@ -47,7 +47,7 @@ def read_config_base(repo_root: Path) -> str:
     return value or "main"
 
 
-def git_show_json(repo_root: Path, ref: str, rel: str) -> "tuple[object, str | None]":
+def git_show_json(repo_root: Path, ref: str, rel: str) -> tuple[object, str | None]:
     """Parse `git show <ref>:<rel>` as JSON. Returns (value, error).
 
     A path absent at REF (the artifact did not exist there) is the empty object, not an
@@ -72,7 +72,7 @@ def git_show_json(repo_root: Path, ref: str, rel: str) -> "tuple[object, str | N
         return None, f"{ref}:{rel} is malformed JSON ({error})"
 
 
-def merge_base(repo_root: Path, base_ref: str) -> "tuple[str | None, str | None, str | None]":
+def merge_base(repo_root: Path, base_ref: str) -> tuple[str | None, str | None, str | None]:
     """The merge base of HEAD and BASE_REF as (base, error, degraded_reason).
 
     Falls back to BASE_REF's own tip when a merge base cannot be computed (a shallow clone or

@@ -321,7 +321,14 @@ decision. A run under cost pressure that could dispatch the shadow dispatches it
 *was* dispatched and fell short records `not_verified` and its true cause, cost included — the
 coverage record reports coverage, not blame. What is refused is a budget or elective cause offered in
 place of a dispatch that was never attempted, and a run that never dispatched may not report its
-result as independently audited. A run that *cannot* dispatch at all has a named legal state to enter
+result as independently audited. **Issue #1984 gave this prohibition teeth in `workpad.py`:** a
+coverage-gap disposition now carries a cause class from a closed set with no elective member —
+`environment-denial` (a capability the runner did not expose, corroborated by a recorded `missing`
+roster row) or `dispatched-but-lost` (a dispatched reviewer whose result was lost) — so a budget
+belief or a "partial pass judged adequate" has no admissible cause and the run stops at `Blocked`
+rather than recording a self-excuse; and a `dispatch=attempted` record with a measured roster is
+refused unless per-member rows corroborate that the always-on reviewers were actually dispatched. A
+run that *cannot* dispatch at all has a named legal state to enter
 (issue #1490), so a cost-pressured run is never left reading the prohibition with no state to enter:
 a workpad-holding caller (the `/prflow:implement` orchestrator) stops at a non-terminal or `Blocked`
 status naming what prevented the fan-out — budget exhaustion included — and a caller with no workpad
@@ -547,7 +554,7 @@ This is not hypothetical and not a one-off:
 So the rule, stated operationally: **a clean in-loop shadow does not clear an `engine_self_modifying`
 diff that touches review/coverage/gate logic for merge — schedule the separate standalone
 `/prflow:review` and resolve its findings first.** The standalone review is mandatory here, not
-"default but waivable on a clean shadow." **The `engine_self_modifying` set that keys this rule is the three-arm one Phase 0.5 defines** — DevFlow's own source (`skills/**`/`agents/**`/`lib/**`), a prompt extension under the `.prflow/`/`.devflow/` state directory ending in `.md` at any depth, and a file whose basename is `CLAUDE.md` at any depth — so this highest-risk-clean-shadow rule now **does** fire on a diff that edits the review engine's own appended prompt (a prompt extension) or its root instruction file (`CLAUDE.md`), which it did not before that set was widened. (This narrows nothing for ordinary product-code diffs,
+"default but waivable on a clean shadow." **The `engine_self_modifying` set that keys this rule is the three-arm one Phase 0.5 defines** — PRFlow's own source (`skills/**`/`agents/**`/`lib/**`), a prompt extension under the `.prflow/`/`.devflow/` state directory ending in `.md` at any depth, and a file whose basename is `CLAUDE.md` at any depth — so this highest-risk-clean-shadow rule now **does** fire on a diff that edits the review engine's own appended prompt (a prompt extension) or its root instruction file (`CLAUDE.md`), which it did not before that set was widened. (This narrows nothing for ordinary product-code diffs,
 where the shared-blind-spot risk is lower and the standalone review remains the *recommended*
 default rather than a hard pre-merge gate — see the Counterfactual note this calibration was
 strengthened under.) The two sub-patterns above both fall under the `lenient-verdict` category (a gate ran and returned an

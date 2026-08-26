@@ -219,49 +219,49 @@ def assert_raises(name, exc_type, fn):
 
 def make_args(**overrides):
     """Build an argparse.Namespace matching cmd_update's expected shape."""
-    base = dict(
-        status=None, branch=None, run_link=None, pr_link=None,
-        tick_progress=[], tick_plan=[], tick_plan_n=[], tick_ac=[], tick_ac_n=[],
-        rewrite_ac=[],
-        replace_plan_file=None, replace_acs_file=None, set_reproduction_file=None,
-        note=[], reflection=[], reflection_kind=None, reflection_file=None,
-        note_file=None,
-        marker=None,
-        reconcile_reproduction=None, record_classification=None,
-        checkpoint=[], expect_comment_id=None, expect_status=None,
+    base = {
+        'status': None, 'branch': None, 'run_link': None, 'pr_link': None,
+        'tick_progress': [], 'tick_plan': [], 'tick_plan_n': [], 'tick_ac': [], 'tick_ac_n': [],
+        'rewrite_ac': [],
+        'replace_plan_file': None, 'replace_acs_file': None, 'set_reproduction_file': None,
+        'note': [], 'reflection': [], 'reflection_kind': None, 'reflection_file': None,
+        'note_file': None,
+        'marker': None,
+        'reconcile_reproduction': None, 'record_classification': None,
+        'checkpoint': [], 'expect_comment_id': None, 'expect_status': None,
         # issue #781 scope-decision records — this fixture encodes cmd_update's
         # arg shape, so every attribute `_apply_mutations` /
         # `_has_non_checkpoint_mutation` reads must be present here or those
         # reads raise AttributeError on every test that builds args this way.
-        scope_decision_deferred=[], scope_decision_rewritten=[],
-        bind_scope_decisions=None,
+        'scope_decision_deferred': [], 'scope_decision_rewritten': [],
+        'bind_scope_decisions': None,
         # issue #815 filed-marker writer — same reason as the scope-decision
         # attributes above: `_apply_mutations` reads it on every call.
-        mark_deferred_filed=[],
+        'mark_deferred_filed': [], 'mark_deferred_filed_file': None,
         # issue #1087 completion verification-flight evidence — `_apply_mutations`
         # and the terminal gate read these on every call.
-        record_completion_evidence=None, repo_root=None, claim_identity=None,
+        'record_completion_evidence': None, 'repo_root': None, 'claim_identity': None,
         # issue #1611 CI-derived completion evidence — `_apply_mutations` and the
         # terminal gate read this on every call. issue #1898 adds the repeatable
         # --completion-ci-check pairs read beside it.
-        record_completion_evidence_ci=None, completion_ci_check=None,
+        'record_completion_evidence_ci': None, 'completion_ci_check': None,
         # issue #1347 inherited required-artifact strip — read on every call.
-        strip_inherited_checkpoints=False,
+        'strip_inherited_checkpoints': False,
         # issue #1453 review-coverage record + dispositions — read on every call.
         # issue #1510 adds the optional as-of anchor head, read via getattr.
-        record_review_coverage=None, review_coverage_disposition=[],
+        'record_review_coverage': None, 'review_coverage_disposition': [],
         # issue #1512 shadow-roster per-member enumeration — read on every call.
-        record_roster_member=None,
-        record_review_coverage_head=None,
+        'record_roster_member': None,
+        'record_review_coverage_head': None,
         # issue #1509 review-coverage diff recomputation — read via getattr on the
         # write path; a base ref for the range and an explicit override channel.
-        record_review_coverage_base=None, record_review_coverage_override=None,
+        'record_review_coverage_base': None, 'record_review_coverage_override': None,
         # issue #1462 prompt-extension row reconciliation — read on every call.
-        reconcile_extension_rows=False,
+        'reconcile_extension_rows': False,
         # issue #1876 mid-phase resume-point record — read on every call.
-        record_resume_point=None,
-        print_body=False,
-    )
+        'record_resume_point': None,
+        'print_body': False,
+    }
     base.update(overrides)
     return argparse.Namespace(**base)
 
@@ -313,7 +313,7 @@ print("workpad._workpad_marker (issue #55 review-marker override)")
 # --> comment with the same helper. Precedence: the `--marker` CLI flag (passed as
 # a plain argument, so the command still starts with the allow-listed helper path)
 # > the DEVFLOW_WORKPAD_MARKER env var (back-compat) > config > built-in default.
-import os as _os  # noqa: E402
+import os as _os
 
 _saved = _os.environ.pop('DEVFLOW_WORKPAD_MARKER', None)
 try:
@@ -341,7 +341,7 @@ try:
     # passed default) we must run from a cwd with no .prflow/config.json. (Running
     # from the repo root would pass either way and prove nothing.) workpad resolves
     # config-get.sh via __file__, so the chdir does not break locating the helper.
-    import tempfile as _tempfile  # noqa: E402
+    import tempfile as _tempfile
     _os.environ['DEVFLOW_WORKPAD_MARKER'] = '   '
     _orig_cwd = _os.getcwd()
     with _tempfile.TemporaryDirectory() as _td:
@@ -497,7 +497,8 @@ finally:
 # new git-ROOT discovery path directly — the case the reported bug (config silently lost
 # from a subdir) actually hit. Asserts the returned VALUE, so it is symlink-robust
 # (macOS /tmp → /private/tmp) without comparing resolved paths.
-import subprocess as _sp295  # noqa: E402
+import subprocess as _sp295
+
 _orig_cwd_295 = _os.getcwd()
 _saved_295_env = _os.environ.pop('DEVFLOW_WORKPAD_MARKER', None)
 try:
@@ -528,8 +529,8 @@ print("workpad.cmd_id exit-code contract (issue #55 live-comment seeding)")
 # to a generic error (1) would make a transient API hiccup look identical to "no
 # comment yet", so the caller would post a DUPLICATE progress comment. These pin
 # all three codes by stubbing the gh calls (no network).
-import json as _json  # noqa: E402
-import subprocess as _subprocess  # noqa: E402
+import json as _json
+import subprocess as _subprocess
 
 
 class _FakeRun:
@@ -1205,15 +1206,15 @@ def _oc(label, expected_outcome, expected_remedy, expected_code, **kw):
     """Drive one terminating path and assert its tokens, exit code and line order."""
     _c, _o, _e, _p = _drive_cmd_update(OC_BODY, **kw)
     _line = _outcome_line(_e)
-    assert_eq("#1562: %s emits its outcome line LAST on stderr" % label,
+    assert_eq(f"#1562: {label} emits its outcome line LAST on stderr",
               True, _line is not None)
-    assert_eq("#1562: %s emits outcome=%s remedy=%s" % (label, expected_outcome, expected_remedy),
-              "workpad.py update: outcome=%s remedy=%s" % (expected_outcome, expected_remedy),
+    assert_eq(f"#1562: {label} emits outcome={expected_outcome} remedy={expected_remedy}",
+              f"workpad.py update: outcome={expected_outcome} remedy={expected_remedy}",
               _line)
-    assert_eq("#1562: %s exit code is unchanged" % label, expected_code, _c)
+    assert_eq(f"#1562: {label} exit code is unchanged", expected_code, _c)
     # A second emission would hand a line-parsing consumer two contradictory
     # tokens; _outcome_line reads only the last line and would not notice.
-    assert_eq("#1562: %s emits exactly one outcome line" % label,
+    assert_eq(f"#1562: {label} emits exactly one outcome line",
               1, _e.count(_OC_PREFIX))
     _OC_CASES.append((label, _e))
     return _e
@@ -1222,29 +1223,29 @@ def _oc(label, expected_outcome, expected_remedy, expected_code, **kw):
 # Keep these as data rows: as separate restatements, one row can be edited to a
 # different remedy without the block's intended uniformity being visibly broken.
 for _label, _prose, _kw in [
-    ("an id-lookup gh failure", 'workpad.py update id-lookup:', dict(fail_at='id-lookup')),
+    ("an id-lookup gh failure", 'workpad.py update id-lookup:', {'fail_at': 'id-lookup'}),
     ("an unparseable comments response", 'could not parse gh comments response',
-     dict(id_response='{not json')),
-    ("a body-fetch gh failure", 'workpad.py update body-fetch:', dict(fail_at='body-fetch')),
-    ("a PATCH-call failure", 'workpad.py update patch:', dict(patch_fails=True, note=['n'])),
-    ("no workpad found", 'no workpad found for issue', dict(id_response='[]')),
+     {'id_response': '{not json'}),
+    ("a body-fetch gh failure", 'workpad.py update body-fetch:', {'fail_at': 'body-fetch'}),
+    ("a PATCH-call failure", 'workpad.py update patch:', {'patch_fails': True, 'note': ['n']}),
+    ("no workpad found", 'no workpad found for issue', {'id_response': '[]'}),
     ("a structural _UpdateError", 'could not read',
-     dict(replace_plan_file='/nonexistent/plan-1562.md')),
+     {'replace_plan_file': '/nonexistent/plan-1562.md'}),
     ("an unreadable --reflection-file", '--reflection-file',
-     dict(reflection_file='/nonexistent/refl-1562.md')),
+     {'reflection_file': '/nonexistent/refl-1562.md'}),
 ]:
     _e = _oc(_label, "not-persisted", "reissue-call", 1, **_kw)
-    assert_eq("#1562: %s keeps its existing prose line" % _label, True, _prose in _e)
+    assert_eq(f"#1562: {_label} keeps its existing prose line", True, _prose in _e)
 
 # --- The two precondition guards: refused before any mutation, exit 4. ---
 for _label, _prose, _kw in [
     ("an --expect-comment-id mismatch", 'precondition mismatch — expected comment id',
-     dict(expect_comment_id='999999')),
+     {'expect_comment_id': '999999'}),
     ("an --expect-status mismatch", 'precondition mismatch — expected Status',
-     dict(expect_status='Complete')),
+     {'expect_status': 'Complete'}),
 ]:
     _e = _oc(_label, "precondition-mismatch", "re-resolve-state", 4, **_kw)
-    assert_eq("#1562: %s keeps its existing prose line" % _label, True, _prose in _e)
+    assert_eq(f"#1562: {_label} keeps its existing prose line", True, _prose in _e)
 
 # --- The checkpoint-only replay: no PATCH, exit 0. ---
 _OC_CPKEY = 'gha:1:1:phase1-entered'
@@ -1577,11 +1578,10 @@ def _oc_handler_emits(handler):
 
 for _exc in ('SystemExit', 'BaseException'):
     _hs = [h for h in _oc_handlers if _oc_handler_catches(h, _exc)]
-    assert_eq("#1562: the wrapper handles %s" % _exc, 1, len(_hs))
-    assert_eq("#1562: the wrapper's %s handler emits before re-raising" % _exc,
+    assert_eq(f"#1562: the wrapper handles {_exc}", 1, len(_hs))
+    assert_eq(f"#1562: the wrapper's {_exc} handler emits before re-raising",
               True, bool(_hs) and _oc_handler_emits(_hs[0]))
-    assert_eq("#1562: the wrapper's %s handler re-raises, preserving the exit status"
-              % _exc, True, bool(_hs) and _oc_handler_reraises(_hs[0]))
+    assert_eq(f"#1562: the wrapper's {_exc} handler re-raises, preserving the exit status", True, bool(_hs) and _oc_handler_reraises(_hs[0]))
 
 # A hard exit bypasses the wrapper's handlers entirely, so no outcome line would be
 # written; `os` is already imported here, so a future edit could reach it.
@@ -2349,7 +2349,7 @@ def _reflect_stdin(payload_bytes, kind='note'):
         sys.stdin = saved
     return out.split('## Devflow Reflection', 1)[1]
 
-rk_stdin = _reflect_stdin('via `stdin` — 🚀'.encode('utf-8'), kind='note')
+rk_stdin = _reflect_stdin('via `stdin` — 🚀'.encode(), kind='note')
 assert_eq("--reflection-file -: stdin honored, UTF-8 decoded at the bytes level", True,
           '- ℹ️ via `stdin` — 🚀' in rk_stdin)
 
@@ -2463,7 +2463,7 @@ def _note_stdin(payload_bytes):
         sys.stdin = saved
     return out.split('## Plan', 1)[0]
 
-nf_stdin = _note_stdin('via `stdin` — 🚀'.encode('utf-8'))
+nf_stdin = _note_stdin('via `stdin` — 🚀'.encode())
 assert_eq("--note-file -: stdin honored, UTF-8 decoded at the bytes level", True,
           '— via `stdin` — 🚀' in nf_stdin)
 
@@ -3183,7 +3183,7 @@ for _r_phase, _r_text, _r_substr in _XR:
 # implement orchestrator reads since #1549 — documents every subcommand and update-flag
 # the phase files invoke; a dropped `help=` for an invoked one fails RED here.
 # ---------------------------------------------------------------------------
-import subprocess as _sp1550  # noqa: E402
+import subprocess as _sp1550
 
 # Reject a prose mention ("if workpad.py fails (…)") of a subcommand: accept the token
 # only when a command-shaped operand (not a prose word) follows it.
@@ -3212,7 +3212,7 @@ for _p, _txt in _tick_md:
             _slice.append(_lines[_j])
         _blob = '\n'.join(_slice)
         _tail = _blob[_UPD_RE_1550.search(_blob).start():]
-        _tail = re.sub(r'"[^"]*"', ' ', _tail, flags=re.S)
+        _tail = re.sub(r'"[^"]*"', ' ', _tail, flags=re.DOTALL)
         for _fm in _FLAG_RE_1550.finditer(_tail):
             _live_flags_1550.add(_fm.group(0))
 _live_flags_1550 = sorted(_live_flags_1550)
@@ -4347,7 +4347,7 @@ assert_eq("parse_payload: empty payload comment → {}", {},
 
 print("match_deferrals #621: settled-by-disclosure foreclosure disclosure-verification guard")
 
-import json  # noqa: E402  (module-level `import json` lands later in this file)
+import json
 
 # _verify_disclosure is the new guard-4 (issue #621). It is pure except for a
 # file read and repo_root, so drive it directly against a real temp repo tree —
@@ -4664,8 +4664,8 @@ try:
     assert_eq("#621 file: mixed manifest exits 0", 0, _rc)
     assert_eq("#621 file: exactly one issue filed (ordinary only)", 1, len(_fd_created))
     _defs = json.loads(_mpath.read_text(encoding="utf-8"))["deferrals"]
-    _ord = [d for d in _defs if d.get("category") == "out-of-scope"][0]
-    _for = [d for d in _defs if d.get("category") == "settled-by-disclosure"][0]
+    _ord = next(d for d in _defs if d.get("category") == "out-of-scope")
+    _for = next(d for d in _defs if d.get("category") == "settled-by-disclosure")
     assert_eq("#621 file: ordinary entry got a follow_up issue", 55, _ord["follow_up"]["issue"])
     assert_eq("#621 file: foreclosure entry still has no follow_up", None, _for.get("follow_up"))
 
@@ -5232,8 +5232,9 @@ finally:
 # reads alone can't tell {} from an absent key, so read_raw probes the entry
 # object — this test guards that the probe stays wired (a pure-function test
 # alone would pass while the real config path silently let `default` backfill).
-import os as _os  # noqa: E402
-import tempfile as _tempfile  # noqa: E402
+import os as _os
+import tempfile as _tempfile
+
 _config_get_sh = str(SCRIPTS / 'config-get.sh')
 with _tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as _cf:
     _cf.write(
@@ -5500,9 +5501,9 @@ assert_eq("resolve(#1646): the warning names the rejected value AND the accepted
 for _accepted in ("sonnet", "opus", "haiku", "fable"):
     _av_res, _av_warn = _rro.resolve_overrides(
         {"devflow:code-reviewer": {"model": _accepted}}, ["devflow:code-reviewer"])
-    assert_eq("resolve(#1646): accepted alias %r forwarded unchanged" % _accepted,
+    assert_eq(f"resolve(#1646): accepted alias {_accepted!r} forwarded unchanged",
               {"model": _accepted}, _av_res["devflow:code-reviewer"])
-    assert_eq("resolve(#1646): accepted alias %r emits no warning" % _accepted,
+    assert_eq(f"resolve(#1646): accepted alias {_accepted!r} emits no warning",
               [], _av_warn)
 _adef_res, _ = _rro.resolve_overrides(
     {"default": {"model": "haiku"}}, ["devflow:comment-analyzer"])
@@ -5514,9 +5515,9 @@ assert_eq("resolve(#1646): accepted alias on `default` reaches a no-entry agent"
 for _bad in ("claude-opus-4-8", "z-ai/glm-5.2", "inherit", "sonnett", "Opus"):
     _bad_res, _bad_warn = _rro.resolve_overrides(
         {"devflow:code-reviewer": {"model": _bad}}, ["devflow:code-reviewer"])
-    assert_eq("resolve(#1646): out-of-set model %r yields no model key" % _bad,
+    assert_eq(f"resolve(#1646): out-of-set model {_bad!r} yields no model key",
               {}, _bad_res)
-    assert_eq("resolve(#1646): out-of-set model %r warns (names the value)" % _bad,
+    assert_eq(f"resolve(#1646): out-of-set model {_bad!r} warns (names the value)",
               True, _bad in _bad_warn[0] and "is not one of" in _bad_warn[0])
 
 # Exit-zero contract: main() returns 0 on every model shape, including the rejecting
@@ -5604,7 +5605,8 @@ finally:
 
 # main() CLI contract the engine depends on: pure JSON to stdout, warnings to
 # stderr (never stdout), exit 0 on config shape, and an unknown-agent warning.
-import json  # noqa: E402
+import json
+
 _out, _err = io.StringIO(), io.StringIO()
 with contextlib.redirect_stdout(_out), contextlib.redirect_stderr(_err):
     _rc = _rro.main(["devflow:code-reviewer", "--config", "/nonexistent/c.json"])
@@ -5832,11 +5834,9 @@ _ao_entries = (
 )
 for _ent_name, _ent in _ao_entries.items():
     _it = _ent.get("properties", {}).get("iterations")
-    assert_eq("#425 schema: agent_overrides[%s] declares iterations enum ['first-only']"
-              % _ent_name,
+    assert_eq(f"#425 schema: agent_overrides[{_ent_name}] declares iterations enum ['first-only']",
               {"type": "string", "enum": ["first-only"]}, _it)
-    assert_eq("#425 schema: agent_overrides[%s] stays additionalProperties:false"
-              % _ent_name,
+    assert_eq(f"#425 schema: agent_overrides[{_ent_name}] stays additionalProperties:false",
               False, _ent.get("additionalProperties"))
 assert_eq("#425 schema: VALID_ITERATIONS mirrors the schema enum",
           ("first-only",), _rro.VALID_ITERATIONS)
@@ -5854,8 +5854,7 @@ assert_eq("#1646 schema: agent_overrides declares a non-trivial entry set (loop 
           True, len(_ao_entries) >= 19)
 for _ent_name, _ent in _ao_entries.items():
     _mdl = _ent.get("properties", {}).get("model")
-    assert_eq("#1646 schema: agent_overrides[%s] declares model enum sonnet/opus/haiku/fable"
-              % _ent_name,
+    assert_eq(f"#1646 schema: agent_overrides[{_ent_name}] declares model enum sonnet/opus/haiku/fable",
               {"type": "string", "enum": ["sonnet", "opus", "haiku", "fable"]}, _mdl)
 assert_eq("#1646 schema: VALID_MODELS mirrors the schema model enum",
           ("sonnet", "opus", "haiku", "fable"), _rro.VALID_MODELS)
@@ -7826,7 +7825,9 @@ def _round(num, arm, outcome, digest='D1', findings=0, degraded=False, markers=(
            # silently becoming a steering-withheld one and re-testing the new gate at
            # every unrelated row. Rows that mean to exercise the withheld path pass
            # steering=None (no record at all) or an explicit not-established dict.
-           steering={'state': 'established', 'reason': 'canonical-match'}):
+           steering=None):
+    if steering is None:
+        steering = {'state': 'established', 'reason': 'canonical-match'}
     return {'round': num,
             'attempts': [{'arm': arm, 'digest': digest, 'body_digest': 'B' + digest,
                           'sentinel_open': None, 'sentinel_close': None,
@@ -8363,14 +8364,14 @@ _so_b_embed = _state([_round(1, 'embed', 'REVISE', 'D1')], revisions=(1, 1), ove
     {'kind': 'user-decline', 'surface': 'step4-offer', 'recorded_at_ordinal': 1,
      'draft_digest': 'D2'}])
 for _label, _st in (('file-arm', _so_b_file), ('embed-arm', _so_b_embed)):
-    assert_eq("#611 stale-override remedy (b, %s epoch): does NOT instruct "
-              "record-revision again" % _label,
+    assert_eq(f"#611 stale-override remedy (b, {_label} epoch): does NOT instruct "
+              "record-revision again",
               False, 'record-revision' in _so_remedy(_st, 'D3'))
-    assert_eq("#611 stale-override remedy (b, %s epoch): states the revision is already "
-              "recorded" % _label,
+    assert_eq(f"#611 stale-override remedy (b, {_label} epoch): states the revision is already "
+              "recorded",
               True, 'already recorded' in _so_remedy(_st, 'D3'))
-    assert_eq("#611 stale-override remedy (b, %s epoch): still names the fresh-election "
-              "step" % _label,
+    assert_eq(f"#611 stale-override remedy (b, {_label} epoch): still names the fresh-election "
+              "step",
               True, 'fresh explicit user election' in _so_remedy(_st, 'D3'))
 
 # (c1) a CURRENT-ordinal override carrying NO digest on a file-arm epoch — the
@@ -8431,16 +8432,16 @@ assert_eq("#611 stale-override remedy (c2): names the no-current-override cause,
 for _label, _st, _dg in (('a1', _so_a1, 'D9'), ('a2', _so_a2, 'D9'),
                          ('b', _so_b_file, 'D3'), ('c1', _so_c1, 'D9'),
                          ('c2', _so_c2, 'D9')):
-    assert_eq("#611 stale-override remedy (%s): never instructs a bare "
-              "record-revision-then-record-override pair" % _label,
+    assert_eq(f"#611 stale-override remedy ({_label}): never instructs a bare "
+              "record-revision-then-record-override pair",
               False, 'record-override' in _so_remedy(_st, _dg))
 
 # Every arm accompanies a refusal whose STDOUT contract is unchanged — the breadcrumb is
 # additive on stderr, never a new token or a changed one.
 for _label, _st, _dg in (('a1', _so_a1, 'D9'), ('b', _so_b_file, 'D3'),
                          ('c1', _so_c1, 'D9'), ('c2', _so_c2, 'D9')):
-    assert_eq("#611 stale-override remedy (%s): the underlying reason token is still "
-              "stale-override" % _label,
+    assert_eq(f"#611 stale-override remedy ({_label}): the underlying reason token is still "
+              "stale-override",
               'stale-override',
               issue_audit_state.evaluate_eligibility(_st, 'approve', _dg)['reason'])
 
@@ -8551,11 +8552,11 @@ for _label, _ord in (('string', '1'), ('None', None), ('absent', '__omit__'),
     except Exception:
         _txt = ''
         _crashed = True
-    assert_eq("#611 malformed ordinal (%s): degrades to a fail-safe remedy, never a "
-              "traceback from a refusal surface" % _label,
+    assert_eq(f"#611 malformed ordinal ({_label}): degrades to a fail-safe remedy, never a "
+              "traceback from a refusal surface",
               (False, True), (_crashed, 'fresh explicit user election' in _txt))
-    assert_eq("#611 malformed ordinal (%s): makes no already-recorded claim it cannot "
-              "establish" % _label,
+    assert_eq(f"#611 malformed ordinal ({_label}): makes no already-recorded claim it cannot "
+              "establish",
               False, 'already recorded' in _txt)
 
 # (e) query-summary is the reason token's THIRD reader — a RENDERING surface, not a
@@ -9436,7 +9437,7 @@ with tempfile.TemporaryDirectory() as _td:
 print()
 print("issue-audit-state: #1040 write-serialization (state_section + mkstemp)")
 
-import time as _time1040  # noqa: E402
+import time as _time1040
 
 
 def _ias1040_sentinel(root):
@@ -9582,7 +9583,8 @@ with tempfile.TemporaryDirectory() as _td:
 # stale-break. Driven deterministically by a threading.Timer that unlinks the planted
 # sentinel ~60ms in, with stale_after_s large enough that no break happens. This is the
 # retry-loop's acquire-after-plain-release branch — the mechanism's whole purpose.
-import threading as _threading1040  # noqa: E402
+import threading as _threading1040
+
 with tempfile.TemporaryDirectory() as _td:
     _R = Path(_td)
     (_R / '.prflow' / 'tmp' / 'create-issue' / 's').mkdir(parents=True)
@@ -9752,7 +9754,7 @@ with tempfile.TemporaryDirectory() as _td:
     try:
         with contextlib.redirect_stderr(_err_buf):
             _sec.__exit__(ValueError, ValueError('the real one'), None)
-    except Exception as _e:  # noqa: BLE001
+    except Exception as _e:
         _raised['kind'] = type(_e).__name__
     finally:
         issue_audit_state.os.unlink = _orig_unlink
@@ -9995,7 +9997,7 @@ def _drive1040(fn, args, root):
                 ending = 'returned'
             except SystemExit as _e:
                 ending = f'SystemExit({_e.code})'
-            except Exception as _e:  # noqa: BLE001 - the ending is the assertion operand
+            except Exception as _e:
                 ending = type(_e).__name__
     finally:
         issue_audit_state._repo_root = _orig_root
@@ -10015,10 +10017,10 @@ with tempfile.TemporaryDirectory() as _td:
     # condition. The ending is compared as a STRING so this row cannot be satisfied by the
     # crash it exists to remove.
     def _ev1040(**kw):
-        base = dict(cmd='record-finding-evidence', slug='s', nonce='n0', round=1,
-                    finding_id=1, observed_stdin=True, locator='src/x.py:1',
-                    command='grep -c x', baseline_revision=None, baseline_identity=None,
-                    _stdin_data=None, _stdin_missing=False, _stdin_error=None)
+        base = {'cmd': 'record-finding-evidence', 'slug': 's', 'nonce': 'n0', 'round': 1,
+                    'finding_id': 1, 'observed_stdin': True, 'locator': 'src/x.py:1',
+                    'command': 'grep -c x', 'baseline_revision': None, 'baseline_identity': None,
+                    '_stdin_data': None, '_stdin_missing': False, '_stdin_error': None}
         base.update(kw)
         return _ns(**base)
 
@@ -10081,7 +10083,7 @@ for _failing1040 in ('urandom', 'write', 'close'):
                 _sec1040._try_create()
             except issue_audit_state.StateError as _e:
                 _ending1040, _msg1040 = 'StateError', str(_e)
-            except Exception as _e:  # noqa: BLE001 - the ending is the assertion operand
+            except Exception as _e:
                 _ending1040 = type(_e).__name__
         finally:
             issue_audit_state.os = _orig_os1040
@@ -10553,17 +10555,17 @@ assert_eq("#537 handoff AC3: adopted-existing round-trips",
 
 # AC4: each degradation class below prints `unknown`, exits 0, WITH a breadcrumb.
 _deg = [
-    ("missing file", dict(write=False)),
-    ("unreadable/undecodable", dict(raw="\xff\xfe not utf8-ish \x80\x81")),
-    ("malformed JSON", dict(raw="{not json")),
-    ("array", dict(payload=[1, 2, 3])),
-    ("scalar", dict(raw='"hi"')),
-    ("null", dict(raw="null")),
-    ("unsupported schema version", dict(payload={**_VALID, "schema_version": 2})),
-    ("wrong field type (issue str)", dict(payload={**_VALID, "issue": "537"})),
-    ("identity mismatch (run_id)", dict(payload={**_VALID, "run_id": "999"})),
-    ("run_attempt mismatch", dict(payload={**_VALID, "run_attempt": "2"})),
-    ("unknown origin token", dict(payload={**_VALID, "origin": "bogus"})),
+    ("missing file", {'write': False}),
+    ("unreadable/undecodable", {'raw': "\xff\xfe not utf8-ish \x80\x81"}),
+    ("malformed JSON", {'raw': "{not json"}),
+    ("array", {'payload': [1, 2, 3]}),
+    ("scalar", {'raw': '"hi"'}),
+    ("null", {'raw': "null"}),
+    ("unsupported schema version", {'payload': {**_VALID, "schema_version": 2}}),
+    ("wrong field type (issue str)", {'payload': {**_VALID, "issue": "537"}}),
+    ("identity mismatch (run_id)", {'payload': {**_VALID, "run_id": "999"}}),
+    ("run_attempt mismatch", {'payload': {**_VALID, "run_attempt": "2"}}),
+    ("unknown origin token", {'payload': {**_VALID, "origin": "bogus"}}),
 ]
 for _name, _kw in _deg:
     # `payload=` passes a dict/list; a `raw=`/`write=` case passes no payload.
@@ -10622,7 +10624,7 @@ def _write_handoff(gate, issue="537", run_id="29624899689", run_attempt="1"):
     except SystemExit as e:
         if e.code not in (0, None):
             return ("exit", None)
-    except Exception as e:  # noqa: BLE001 — a raise (e.g. non-int issue) is a valid outcome
+    except Exception as e:
         return (type(e).__name__, None)
     origin = _json.loads(p.read_text(encoding="utf-8"))["origin"]
     return (0, origin)
@@ -11636,10 +11638,8 @@ def _rc_members_for(roster):
 def _rc_roster_rows(members):
     """The ## Progress roster-member bullets for `members` (a list of (member, status))."""
     return "".join(
-        "\n  - 03:00:0%d — %s %s" % (
-            i + 1,
-            workpad._render_review_roster_member(m, s),
-            workpad._review_roster_marker(m, s))
+        f"\n  - 03:00:0{i + 1} — {workpad._render_review_roster_member(m, s)}"
+        f" {workpad._review_roster_marker(m, s)}"
         for i, (m, s) in enumerate(members))
 
 
@@ -11767,6 +11767,54 @@ assert_eq("#1453 AC7: a full-coverage record completes with no disposition",
 assert_eq("#1453 AC7: an intentionally-skipped checklist is not a shortfall",
           None, _rc_complete(_rc_row("full:attempted:complete:skipped-intentional")))
 
+# ── issue #1984: refuse elective dispositions + uncorroborated shadow-dispatch ──
+# Reproduction / positive control (AC8): replaying issue #1388's captured
+# record-and-disposition sequence in its writable-at-head form must NOT reach
+# Status: Complete. Pre-fix this reaches Complete (the defect this issue closes);
+# post-fix the elective 2-operand disposition write is refused, so Complete is
+# unreachable — the planted-defect positive control for the prevention claim.
+def _replay_1388():
+    body = _rc_row("not-verified:attempted:unestablished:skipped", members=[])
+    try:
+        body = apply_mut(body, make_args(review_coverage_disposition=[
+            ["shadow-coverage",
+             "the shadow fan-out was dropped to conserve orchestrator budget"],
+            ["roster",
+             "the final-pass reviewer was not dispatched to conserve budget"],
+            ["checklist",
+             "the checklist phase was skipped; the partial pass judged adequate"],
+        ]), [])
+    except workpad._UpdateError:
+        return False
+    return _rc_complete(body) is None
+assert_eq("#1984 AC8: the #1388 budget-excuse sequence does NOT reach Complete",
+          False, _replay_1388())
+
+
+# AC8, step-wise: replay the #1388 sequence and NAME the refusal literal that fires at
+# each refused step. Step 1 (the coverage record) writes; the budget-cause disposition
+# has no admissible class ([review-coverage-cause-inadmissible]); and the undispositioned
+# record cannot reach Complete ([review-coverage-gap]).
+def _replay_1388_steps():
+    body = _rc_row("not-verified:attempted:unestablished:skipped", members=[])
+    out = {}
+    try:
+        apply_mut(body, make_args(review_coverage_disposition=[
+            ["shadow-coverage", "budget",
+             "the shadow fan-out was dropped to conserve orchestrator budget"]]), [])
+        out["disposition"] = None
+    except workpad._UpdateError as _e:
+        out["disposition"] = str(_e)
+    out["complete"] = _rc_complete(body)
+    return out
+_1388_steps = _replay_1388_steps()
+assert_eq("#1984 AC8: the #1388 budget disposition is refused [review-coverage-cause-inadmissible]",
+          True, _1388_steps["disposition"] is not None
+          and "[review-coverage-cause-inadmissible]" in _1388_steps["disposition"])
+assert_eq("#1984 AC8: the undispositioned #1388 record cannot reach Complete [review-coverage-gap]",
+          True, _1388_steps["complete"] is not None
+          and "[review-coverage-gap]" in _1388_steps["complete"])
+
 # AC2/AC6: the absent-record shape is UNESTABLISHED, never complete.
 _rc_absent = _rc_complete(_RC_BASE)
 assert_eq("#1453 AC2/AC6: a Complete with no review-coverage record is refused",
@@ -11818,14 +11866,14 @@ for _payload, _gap in (
 # AC2/AC9: a disposition covering only ONE of two gaps is refused, naming the other.
 _two_gaps = _rc_row("full:attempted:short:skipped")
 _msg = _rc_complete(_two_gaps, review_coverage_disposition=[
-    ["roster", _RC_REASONS["roster"]]])
+    ["roster", "dispatched-but-lost", _RC_REASONS["roster"]]])
 assert_eq("#1453 AC9: a partial gap-set disposition is refused naming the uncovered gap",
           True, _msg is not None and "[review-coverage-gap]" in _msg
           and "checklist" in _msg)
 assert_eq("#1453 AC2: a disposition covering EVERY gap is accepted",
           None, _rc_complete(_two_gaps, review_coverage_disposition=[
-              ["roster", _RC_REASONS["roster"]],
-              ["checklist", _RC_REASONS["checklist"]]]))
+              ["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+              ["checklist", "dispatched-but-lost", _RC_REASONS["checklist"]]]))
 
 # AC3: the predicate is the recorded dispatch-attempted operand, NOT a reason-string
 # blocklist — paired controls on both operand values with the same class of reason.
@@ -11834,17 +11882,17 @@ _cost_reason = ("the shadow fan-out was dispatched and returned 2 of 5 agents "
 assert_eq("#1453 AC3: a cost-naming reason over a DISPATCHED record is ACCEPTED",
           None, _rc_complete(_rc_row("not-verified:attempted:complete:complete"),
                              review_coverage_disposition=[
-                                 ["shadow-coverage", _cost_reason]]))
+                                 ["shadow-coverage", "dispatched-but-lost", _cost_reason]]))
 for _dispatch in ("never", "unestablished"):
     _msg = _rc_complete(_rc_row(f"not-verified:{_dispatch}:complete:complete"),
                         review_coverage_disposition=[
-                            ["shadow-coverage", _cost_reason]])
+                            ["shadow-coverage", "dispatched-but-lost", _cost_reason]])
     assert_eq(f"#1453 AC3: a disposition over dispatch={_dispatch} is REFUSED",
               True, _msg is not None
               and "[review-coverage-undispatched]" in _msg)
     _msg2 = _rc_complete(_rc_row(f"not-verified:{_dispatch}:complete:complete"),
                          review_coverage_disposition=[
-                             ["shadow-coverage",
+                             ["shadow-coverage", "dispatched-but-lost",
                               "the roster fell short for a reason unrelated to cost"]])
     assert_eq(f"#1453 AC3: dispatch={_dispatch} is refused regardless of the reason",
               True, _msg2 is not None
@@ -11927,7 +11975,7 @@ for _boiler in ("n/a", "TBD", "  ", "see above", "not applicable to this run",
     _err_msg = None
     try:
         apply_mut(_RC_BASE, make_args(
-            review_coverage_disposition=[["roster", _boiler]]), [])
+            review_coverage_disposition=[["roster", "dispatched-but-lost", _boiler]]), [])
     except workpad._UpdateError as e:
         _err_msg = str(e)
     assert_eq(f"#1453 AC9: the boilerplate reason {_boiler!r} is refused",
@@ -11939,7 +11987,7 @@ assert_eq("#1453 AC9: a specific, gap-naming reason is accepted at write time",
 # AC8: an accepted disposition files its own dropped-failed reflection — the kind
 # `lib/cheap-gate.jq` counts as friction — without the caller passing --reflection-kind.
 _rc_disp = apply_mut(_RC_BASE, make_args(
-    review_coverage_disposition=[["roster", _RC_REASONS["roster"]]]))
+    review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]]]))
 _DF_GLYPH, _DF_LABEL, _ = workpad._REFLECTION_KINDS["dropped-failed"]
 assert_eq("#1453 AC8: the disposition files a dropped-failed reflection bullet",
           True, _DF_GLYPH in _rc_disp and _DF_LABEL in _rc_disp
@@ -11987,7 +12035,7 @@ assert_eq("#1453: --strip-inherited-checkpoints removes an inherited coverage re
 # ...and a dispositions-only call must NOT strip the record it explains.
 _rc_kept = apply_mut(
     _rc_row("full:attempted:short:complete"),
-    make_args(review_coverage_disposition=[["roster", _RC_REASONS["roster"]]]))
+    make_args(review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]]]))
 assert_eq("#1453: a dispositions-only write preserves the coverage record",
           ["full:attempted:short:complete"],
           workpad._review_coverage_payloads(_rc_kept))
@@ -11996,11 +12044,11 @@ assert_eq("#1453: a dispositions-only write preserves the coverage record",
 # the [review-coverage-boilerplate] token, which is why it needs its own control): a
 # row planted directly in ## Progress — hand-edited, or written by an older workpad.py
 # — never passed the write-time validation, so only this branch can refuse it.
-def _planted_disposition(gap, text):
+def _planted_disposition(gap, text, cause="dispatched-but-lost"):
     return _rc_row("full:attempted:short:complete").replace(
         "- [ ] **Implement**",
         "  - 04:00:00 — " + text + " "
-        + workpad._review_coverage_disposition_marker(gap)
+        + workpad._review_coverage_disposition_marker(gap, cause)
         + "\n- [ ] **Implement**")
 
 
@@ -12054,11 +12102,12 @@ assert_eq("#1453: a fresh record strips the superseded dispositions and their bu
 # two of each — the dispositions-only strip's matching branch.
 _rc_restate = apply_mut(
     apply_mut(_rc_row("full:attempted:short:complete"), make_args(
-        review_coverage_disposition=[["roster", _RC_REASONS["roster"]]])),
+        review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]]])),
     make_args(review_coverage_disposition=[
-        ["roster", "the roster fell short because the analyzer gate read false"]]))
+        ["roster", "dispatched-but-lost", "the roster fell short because the analyzer gate read false"]]))
 assert_eq("#1453: re-stating a gap replaces its row, and the gate judges the new reason",
-          ({"roster": "the roster fell short because the analyzer gate read false"}, 1),
+          ({"roster": ("dispatched-but-lost",
+                       "the roster fell short because the analyzer gate read false")}, 1),
           (workpad._review_coverage_dispositions(_rc_restate),
            _rc_restate.count(workpad._REVIEW_COVERAGE_REFLECTION_PREFIX + "roster")))
 
@@ -12083,16 +12132,19 @@ for _label, _kwargs, _needle in (
      "takes exactly 4 values"),
     ("a disposition element of the wrong arity",
      {"review_coverage_disposition": [["roster"]]},
-     "takes exactly 2 values"),
+     "takes exactly 3 values"),
     ("an unknown gap token",
-     {"review_coverage_disposition": [["shadow", _RC_REASONS["roster"]]]},
+     {"review_coverage_disposition": [["shadow", "dispatched-but-lost", _RC_REASONS["roster"]]]},
      "unknown gap"),
+    ("an inadmissible cause class",
+     {"review_coverage_disposition": [["roster", "budget", _RC_REASONS["roster"]]]},
+     "[review-coverage-cause-inadmissible]"),
     ("a gap given twice",
-     {"review_coverage_disposition": [["roster", _RC_REASONS["roster"]],
-                                      ["roster", _RC_REASONS["checklist"]]]},
+     {"review_coverage_disposition": [["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+                                      ["roster", "dispatched-but-lost", _RC_REASONS["checklist"]]]},
      "more than once"),
     ("a multi-line reason",
-     {"review_coverage_disposition": [["roster", _RC_REASONS["roster"] + "\nand more"]]},
+     {"review_coverage_disposition": [["roster", "dispatched-but-lost", _RC_REASONS["roster"] + "\nand more"]]},
      "single line"),
 ):
     _perr = None
@@ -12160,7 +12212,7 @@ for _fld, _kw in (
     ("--note", {"note": ["review pass done " + workpad._review_coverage_marker(
         "full:attempted:complete:complete")]}),
     ("--checkpoint text", {"checkpoint": [["some-key", "x " +
-        workpad._review_coverage_disposition_marker("roster")]]}),
+        workpad._review_coverage_disposition_marker("roster", "dispatched-but-lost")]]}),
     # The guard lives at the `_append_progress_note` chokepoint, so a channel it was
     # never hand-listed for — the classification rationale, whose text lands at the
     # bullet's tail — is screened by construction rather than by enumeration.
@@ -12224,10 +12276,13 @@ assert_eq("#1512: ...and round-trips through the read-time Complete gate",
 # refusal names the missing member — the defect against today's code (accepted before).
 _1512_missing = _rc_write(["full", "attempted", "complete", "complete"],
                           [[m, "dispatched"] for m in _1512_ALWAYS[:3]])
-assert_eq("#1512 AC2: complete missing an always-on member is refused at write time",
+# issue #1984: the dispatch-corroboration check runs BEFORE the roster incoherence
+# check, so a complete roster lacking an always-on member's row is now refused with the
+# unified [review-coverage-dispatch-uncorroborated] literal (still naming the members).
+assert_eq("#1512/#1984 AC2: complete missing an always-on member is refused at write time",
           True, _1512_missing is not None
           and "requesting-code-review" in _1512_missing
-          and "roster=complete requires every always-on member" in _1512_missing)
+          and "[review-coverage-dispatch-uncorroborated]" in _1512_missing)
 # ...and equally at read time, over a persisted three-of-four enumeration.
 _1512_missing_read = _rc_complete(_rc_row(
     "full:attempted:complete:complete",
@@ -12261,8 +12316,8 @@ assert_eq("#1512: short with no missing member is refused",
                  or "").find("at least one missing") >= 0)
 # A measured axis requires an enumeration at WRITE time; a self-reported complete with
 # none is refused there, closing the self-report hole at the source.
-assert_eq("#1512 AC1: roster=complete with no per-member enumeration is refused at write time",
-          True, "no review-roster row is present"
+assert_eq("#1512/#1984 AC1: roster=complete with no per-member enumeration is refused at write time",
+          True, "[review-coverage-dispatch-uncorroborated]"
           in (_rc_write(["full", "attempted", "complete", "complete"], None) or ""))
 # At READ time (finalize) a rosterless complete record is GRANDFATHERED: the write-time
 # gate already enforces the enumeration, so a rosterless record reaching finalize predates
@@ -12572,7 +12627,7 @@ _dup_disp = _dup_disp.replace(
     "- [ ] **Implement**",
     "  - 05:00:00 — " + workpad._render_review_coverage_disposition(
         "roster", _RC_REASONS["roster"]) + " "
-    + workpad._review_coverage_disposition_marker("roster")
+    + workpad._review_coverage_disposition_marker("roster", "dispatched-but-lost")
     + "\n- [ ] **Implement**")
 assert_eq("#1453: two rows for one gap resolve to the unresolvable sentinel",
           workpad._REVIEW_COVERAGE_DUPLICATE_DISPOSITION,
@@ -12584,13 +12639,14 @@ assert_eq("#1453: ...and the Complete write is refused rather than taking the la
 # A dispositions-only write replaces only the gaps it re-states, leaving the others.
 _two_then_one = apply_mut(
     apply_mut(_rc_row("full:attempted:short:skipped"), make_args(
-        review_coverage_disposition=[["roster", _RC_REASONS["roster"]],
-                                     ["checklist", _RC_REASONS["checklist"]]])),
+        review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+                                     ["checklist", "dispatched-but-lost", _RC_REASONS["checklist"]]])),
     make_args(review_coverage_disposition=[
-        ["roster", "the roster fell short because the analyzer gate read false"]]))
+        ["roster", "dispatched-but-lost", "the roster fell short because the analyzer gate read false"]]))
 assert_eq("#1453: re-stating one gap leaves the OTHER gap's disposition intact",
-          {"roster": "the roster fell short because the analyzer gate read false",
-           "checklist": _RC_REASONS["checklist"]},
+          {"roster": ("dispatched-but-lost",
+                      "the roster fell short because the analyzer gate read false"),
+           "checklist": ("dispatched-but-lost", _RC_REASONS["checklist"])},
           workpad._review_coverage_dispositions(_two_then_one))
 
 # A coverage-only call alongside an already-recorded checkpoint must still PATCH —
@@ -12618,8 +12674,8 @@ assert_eq("#1453 AC2/AC7: a clean record PATCHes at the process level, Status fl
 # --reflection-kind does not override the fixed dropped-failed kind.
 _rc_two = apply_mut(_rc_row("full:attempted:short:skipped"), make_args(
     reflection_kind="note",
-    review_coverage_disposition=[["roster", _RC_REASONS["roster"]],
-                                 ["checklist", _RC_REASONS["checklist"]]]))
+    review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+                                 ["checklist", "dispatched-but-lost", _RC_REASONS["checklist"]]]))
 assert_eq("#1453 AC8: each of two gaps files its own dropped-failed bullet",
           (2, True),
           (_rc_two.count(workpad._REVIEW_COVERAGE_REFLECTION_PREFIX),
@@ -12632,7 +12688,7 @@ _norefl = _norefl[:_norefl.index("## Devflow Reflection")]
 _rerr = None
 try:
     apply_mut(_norefl, make_args(
-        review_coverage_disposition=[["roster", _RC_REASONS["roster"]]]), [])
+        review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]]]), [])
 except workpad._UpdateError as _e:
     _rerr = str(_e)
 assert_eq("#1453 AC8: a disposition is refused when it cannot file its friction bullet",
@@ -12708,9 +12764,9 @@ _rc_gap = apply_mut(_CP_BODY, make_args(
     record_roster_member=_rc_members_for("short"),
     record_review_coverage_head=_rc_head,
     review_coverage_disposition=[
-        ["shadow-coverage", _RC_REASONS["shadow-coverage"]],
-        ["roster", _RC_REASONS["roster"]],
-        ["checklist", _RC_REASONS["checklist"]]]))
+        ["shadow-coverage", "dispatched-but-lost", _RC_REASONS["shadow-coverage"]],
+        ["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+        ["checklist", "dispatched-but-lost", _RC_REASONS["checklist"]]]))
 assert_eq("#1510 AC2: a carried coverage gap is worded about the run's own review pass",
           True, "run's own review pass" in _rc_gap)
 assert_eq("#1510 AC2: a carried gap is NOT worded 'carried forward' "
@@ -12738,9 +12794,9 @@ _rc_anchored_gate = apply_mut(_RC_BASE, make_args(
     record_roster_member=_rc_members_for("short"),
     record_review_coverage_head=_rc_head,
     review_coverage_disposition=[
-        ["shadow-coverage", _RC_REASONS["shadow-coverage"]],
-        ["roster", _RC_REASONS["roster"]],
-        ["checklist", _RC_REASONS["checklist"]]]))
+        ["shadow-coverage", "dispatched-but-lost", _RC_REASONS["shadow-coverage"]],
+        ["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+        ["checklist", "dispatched-but-lost", _RC_REASONS["checklist"]]]))
 assert_eq("#1510: the Complete gate passes over an anchored 6-field record with dispositioned gaps",
           None, _rc_complete(_rc_anchored_gate))
 
@@ -12817,6 +12873,193 @@ assert_eq("#1510 AC3: re-recording at a later reviewed head rebinds the anchor t
               workpad._review_coverage_payloads(_rc_recB)[0]) or {}).get("head"),
            len(workpad._review_coverage_payloads(_rc_recB))))
 
+# ── issue #1984: refuse elective dispositions + uncorroborated shadow-dispatch claims ──
+_1984_R = ("the reviewer's result was lost after the shadow contract's single bounded "
+           "re-dispatch")
+_1984_ENV = ("the runner did not expose the requesting-code-review agent type this run, "
+             "so the final-pass reviewer could not be dispatched")
+_1984_ALWAYS = list(workpad._SHADOW_ALWAYS_ON_MEMBERS)
+
+# AC1: a measured roster (short) lacking a row for every always-on reviewer is refused
+# with the dispatch-uncorroborated literal — no rows, and a partial enumeration.
+assert_eq("#1984 AC1: dispatch=attempted + short roster + NO rows is dispatch-uncorroborated",
+          True, "[review-coverage-dispatch-uncorroborated]" in (_rc_write(
+              ["not-verified", "attempted", "short", "complete"], None) or ""))
+assert_eq("#1984 AC1: dispatch=attempted + short roster + a partial enumeration is refused",
+          True, "[review-coverage-dispatch-uncorroborated]" in (_rc_write(
+              ["not-verified", "attempted", "short", "complete"],
+              [[_1984_ALWAYS[0], "missing"]]) or ""))
+# AC2: all four always-on rows present but NONE dispatched (a short roster whose members
+# are all missing — which the incoherence check alone would admit) is refused.
+assert_eq("#1984 AC2: all four present, none dispatched, is dispatch-uncorroborated",
+          True, "[review-coverage-dispatch-uncorroborated]" in (_rc_write(
+              ["not-verified", "attempted", "short", "complete"],
+              [[m, "missing"] for m in _1984_ALWAYS]) or ""))
+# AC2 positive control: three dispatched + one missing (the evidenced-denial shape) is
+# corroborated and writes cleanly.
+assert_eq("#1984 AC2: three dispatched + one missing writes cleanly (corroborated)",
+          None, _rc_write(["not-verified", "attempted", "short", "complete"],
+                          _rc_members_for("short")))
+# AC1 exemption: the lost-write shape (dispatch=attempted, roster=unestablished) is NOT
+# measured, so it stays legal with no roster rows.
+assert_eq("#1984 AC3: the lost-write shape (unestablished roster) is accepted with no rows",
+          None, _rc_write(["not-verified", "attempted", "unestablished", "complete"], None))
+
+# AC3: the lost-write record's shadow-coverage and roster gaps are dischargeable ONLY
+# with dispatched-but-lost — environment-denial has no corroborating missing row here.
+_1984_lostwrite = _rc_row("not-verified:attempted:unestablished:complete", members=[])
+assert_eq("#1984 AC3: the lost-write gaps reach Complete with dispatched-but-lost",
+          None, _rc_complete(_1984_lostwrite, review_coverage_disposition=[
+              ["shadow-coverage", "dispatched-but-lost", _RC_REASONS["shadow-coverage"]],
+              ["roster", "dispatched-but-lost", _1984_R]]))
+assert_eq("#1984 AC3: the lost-write gaps CANNOT be discharged with environment-denial",
+          True, "[review-coverage-cause-inadmissible]" in (_rc_complete(
+              _1984_lostwrite, review_coverage_disposition=[
+                  ["shadow-coverage", "environment-denial", _1984_ENV],
+                  ["roster", "dispatched-but-lost", _1984_R]]) or ""))
+
+# AC4: the cause-class vocabulary is a CLOSED set of exactly two, and every out-of-set
+# spelling — empty, unknown, case-drifted, whitespace-padded — is refused at write time.
+assert_eq("#1984 AC4: the cause-class vocabulary is exactly two values, complete by construction",
+          ("environment-denial", "dispatched-but-lost"),
+          workpad._REVIEW_COVERAGE_CAUSE_CLASSES)
+for _bad_cause in ("", "budget", "elective", "Environment-Denial", " environment-denial ",
+                   "dispatched"):
+    _cerr = None
+    try:
+        apply_mut(_RC_BASE, make_args(
+            review_coverage_disposition=[["roster", _bad_cause, _RC_REASONS["roster"]]]), [])
+    except workpad._UpdateError as _e:
+        _cerr = str(_e)
+    assert_eq(f"#1984 AC4: cause class {_bad_cause!r} is refused as inadmissible",
+              True, _cerr is not None
+              and "[review-coverage-cause-inadmissible]" in _cerr)
+# AC4: a missing cause operand (the 2-operand pre-change call shape) is an arity refusal.
+_aerr = None
+try:
+    apply_mut(_RC_BASE, make_args(
+        review_coverage_disposition=[["roster", _RC_REASONS["roster"]]]), [])
+except workpad._UpdateError as _e:
+    _aerr = str(_e)
+assert_eq("#1984 AC4: a 2-operand disposition call is an arity refusal",
+          True, _aerr is not None and "takes exactly 3 values" in _aerr)
+
+# AC5: environment-denial on a roster gap is refused unless a `missing` roster row
+# corroborates the denied member; a workpad with a missing row admits it.
+_e5 = None
+try:
+    apply_mut(_RC_BASE, make_args(
+        review_coverage_disposition=[["roster", "environment-denial", _1984_ENV]]), [])
+except workpad._UpdateError as _e:
+    _e5 = str(_e)
+assert_eq("#1984 AC5: environment-denial with no recorded missing roster row is refused",
+          True, _e5 is not None and "[review-coverage-cause-inadmissible]" in _e5)
+# ...but over a record whose enumeration DOES name a missing member it is admitted.
+_e5ok = None
+try:
+    apply_mut(_rc_row("not-verified:attempted:short:complete"), make_args(
+        review_coverage_disposition=[["roster", "environment-denial", _1984_ENV]]))
+except workpad._UpdateError as _e:
+    _e5ok = str(_e)
+assert_eq("#1984 AC5: environment-denial over a recorded missing member is admitted",
+          None, _e5ok)
+
+# AC6: a disposition marker in the two-operand pre-change form (no cause-class segment)
+# discharges nothing — the gap is treated as undispositioned and refused [review-coverage-gap].
+_1984_legacy = _rc_row("full:attempted:short:complete").replace(
+    "- [ ] **Implement**",
+    "  - 04:00:00 — "
+    + workpad._render_review_coverage_disposition("roster", _RC_REASONS["roster"]) + " "
+    + workpad._checkpoint_marker(
+        workpad._REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX + "roster")
+    + "\n- [ ] **Implement**")
+assert_eq("#1984 AC6: a legacy two-operand disposition marker discharges nothing",
+          True, "[review-coverage-gap]" in (_rc_complete(_1984_legacy) or ""))
+# ...and the reader does not resolve a legacy marker into a disposition entry.
+assert_eq("#1984 AC6: the reader skips a legacy two-operand disposition marker",
+          {}, workpad._review_coverage_dispositions(_1984_legacy))
+
+# AC7: the new validation runs only inside the three named call paths — a note-only
+# write over a workpad carrying an incomplete/uncorroborated record is not re-read.
+assert_eq("#1984 AC7: a note-only write does not invoke the new coverage/disposition checks",
+          True, isinstance(apply_mut(
+              _rc_row("not-verified:attempted:unestablished:complete", members=[]),
+              make_args(note=["touch"])), str))
+
+# AC9: the evidenced-denial shape — attempted, all four always-on rows (3 dispatched, 1
+# missing), roster short, checklist complete, coverage not-verified, both gaps disposed
+# environment-denial — reaches Status: Complete.
+assert_eq("#1984 AC9: the evidenced-denial record reaches Complete",
+          None, _rc_complete(
+              _rc_row("not-verified:attempted:short:complete"),
+              review_coverage_disposition=[
+                  ["shadow-coverage", "environment-denial", _1984_ENV],
+                  ["roster", "environment-denial", _1984_ENV]]))
+
+# AC6/strip: re-stating a gap under a DIFFERENT cause class replaces the prior row (the
+# strip matches on the gap part of `<gap>:<cause>` only), leaving exactly one row that
+# carries the new cause — over a body whose roster names a missing member so the new
+# environment-denial cause is admissible.
+_1984_recause = apply_mut(
+    apply_mut(_rc_row("not-verified:attempted:short:complete"), make_args(
+        review_coverage_disposition=[["roster", "dispatched-but-lost", _1984_R]])),
+    make_args(review_coverage_disposition=[["roster", "environment-denial", _1984_ENV]]))
+assert_eq("#1984: re-stating a gap under a new cause class leaves one row carrying the new cause",
+          {"roster": ("environment-denial", _1984_ENV)},
+          workpad._review_coverage_dispositions(_1984_recause))
+
+# AC4 (read time): a persisted 3-segment disposition marker whose cause class is OUT of
+# the closed set is refused at the Complete gate too, not only at write time.
+_1984_badcause = _rc_row("full:attempted:short:complete").replace(
+    "- [ ] **Implement**",
+    "  - 04:00:00 — "
+    + workpad._render_review_coverage_disposition("roster", _RC_REASONS["roster"]) + " "
+    + workpad._review_coverage_disposition_marker("roster", "budget")
+    + "\n- [ ] **Implement**")
+assert_eq("#1984 AC4: an out-of-vocabulary cause marker is refused at the Complete gate",
+          True, "[review-coverage-cause-inadmissible]" in (_rc_complete(_1984_badcause) or ""))
+
+# AC1/AC2 (read time): a persisted record (from a pre-#1984 writer) that reads
+# dispatch=attempted with a measured `short` roster whose rows name NO dispatched member
+# is refused at the Complete gate — the read-time defense-in-depth re-check.
+assert_eq("#1984: an uncorroborated short-roster record is refused at the Complete gate",
+          True, "[review-coverage-dispatch-uncorroborated]" in (_rc_complete(_rc_row(
+              "not-verified:attempted:short:complete",
+              members=[(m, "missing") for m in _1984_ALWAYS])) or ""))
+# ...while the evidenced short roster (>=1 dispatched) still passes the read-time re-check.
+assert_eq("#1984: a corroborated short-roster record passes the read-time re-check (control)",
+          None, _rc_complete(
+              _rc_row("not-verified:attempted:short:complete"),
+              review_coverage_disposition=[
+                  ["shadow-coverage", "environment-denial", _1984_ENV],
+                  ["roster", "environment-denial", _1984_ENV]]))
+# The corroboration helper is colon-free-pinned so cause classes round-trip the marker key.
+assert_eq("#1984: every cause class is colon-free (marker round-trip invariant, asserted)",
+          True, all(":" not in c for c in workpad._REVIEW_COVERAGE_CAUSE_CLASSES))
+
+# AC5 (read time, isolated): a PLANTED environment-denial disposition over a record with
+# NO missing roster row is refused at the Complete gate — exercising the verdict's own
+# cause-rejection arm (not the write-time kwarg path). Single gap (roster=unestablished)
+# so the cause check is reached, not [review-coverage-gap].
+_1984_env_readtime = _rc_row(
+    "full:attempted:unestablished:complete", members=[]).replace(
+    "- [ ] **Implement**",
+    "  - 04:00:00 — "
+    + workpad._render_review_coverage_disposition("roster", _RC_REASONS["roster"]) + " "
+    + workpad._review_coverage_disposition_marker("roster", "environment-denial")
+    + "\n- [ ] **Implement**")
+assert_eq("#1984 AC5: a planted environment-denial with no missing row is refused at the Complete gate",
+          True, "[review-coverage-cause-inadmissible]" in (_rc_complete(_1984_env_readtime) or ""))
+
+# AC7 (strengthened): a note-only write leaves the coverage record intact — it is not
+# re-read, dropped, or corrupted by any operation this change adds.
+_1984_noteonly = apply_mut(
+    _rc_row("not-verified:attempted:unestablished:complete", members=[]),
+    make_args(note=["touch"]))
+assert_eq("#1984 AC7: a note-only write leaves the coverage record intact",
+          ["not-verified:attempted:unestablished:complete"],
+          workpad._review_coverage_payloads(_1984_noteonly))
+
 # The strip reads BOTH the current and the superseded reflection-bullet wording, so a bullet a
 # pre-#1510 code version wrote ("carried forward") is cleaned when a fresh record supersedes it —
 # otherwise a stale friction bullet would survive an upgrade and keep tripping the retrospective gate.
@@ -12853,7 +13096,7 @@ def _rc_diff_repo(name, before, after, *, base='main', plugin=False):
     rc = _rc_git(['init', '-q', '-b', base, '.'], d)
     if rc.returncode != 0:
         raise AssertionError(
-            '#1509 harness: git init failed (rc=%d): %s' % (rc.returncode, rc.stderr))
+            f'#1509 harness: git init failed (rc={rc.returncode}): {rc.stderr}')
     if plugin:
         (d / '.claude-plugin').mkdir(parents=True, exist_ok=True)
         (d / '.claude-plugin' / 'plugin.json').write_text('{"name": "prflow"}\n')
@@ -13176,10 +13419,10 @@ _p05_arm1 = re.search(r'`skills/\*\*`\s+OR\s+`agents/\*\*`\s+OR\s+`lib/\*\*`', _
 # AC12 pins the whole engine-source *arm set*, not only arm 1, so a coupled-mirror
 # drift on arm 2 (e.g. retiring the `.devflow/` sub-arm) or arm 3 must turn this RED.
 _p05_arm2 = re.search(
-    r'Arm 2 —.*?(?=\n\s+- Arm 3 —)', _p05_text, re.S)
+    r'Arm 2 —.*?(?=\n\s+- Arm 3 —)', _p05_text, re.DOTALL)
 _p05_arm2_dirs = (tuple(sorted(set(re.findall(r'`(\.\w+)/`', _p05_arm2.group(0)))))
                   if _p05_arm2 else None)
-_p05_arm3 = re.search(r'Arm 3 —.*?basename is `CLAUDE\.md`', _p05_text, re.S)
+_p05_arm3 = re.search(r'Arm 3 —.*?basename is `CLAUDE\.md`', _p05_text, re.DOTALL)
 assert_eq("#1509 AC12: phase-0-setup.md yields each profile-row arm (non-vacuous parse)",
           True, all(x is not None for x in
                     (_p05_line, _p05_file, _p05_exts, _p05_arm1, _p05_arm2,
@@ -13525,8 +13768,8 @@ assert_eq("#548 summary: an open trailing round does not blank the last complete
 # issue #543. The validator's rejection matrix is closed at exactly 17 classes;
 # every class is driven below against an isolated fixture with injected deps.
 # ─────────────────────────────────────────────────────────────────────────────
-import hashlib  # noqa: E402
-import json  # noqa: E402
+import hashlib
+import json
 
 _LIBTEST = Path(__file__).resolve().parent
 cwc = _load('cloud_writer_contract', _LIBTEST / 'cloud_writer_contract.py')
@@ -13544,7 +13787,7 @@ with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False, encoding='ut
     _fresh_manifest_1445 = _fm1445f.name
 # `delete=False` keeps the path readable by the assertions further down this linear script;
 # without this unlink the suite leaks one temp file per run.
-import atexit as _atexit1445  # noqa: E402
+import atexit as _atexit1445
 
 _atexit1445.register(lambda: os.path.exists(_fresh_manifest_1445) and os.unlink(_fresh_manifest_1445))
 
@@ -13690,9 +13933,9 @@ assert_eq("#650 AC9: the sanctioned-wildcard map is keyed by exactly the ROOTS p
 for _pr in sorted(cwc.ROOTS):
     _gs_pr_text = (cwc.REPO_ROOT / cwc.ROOTS[_pr]["workflow"]).read_text(encoding="utf-8")
     for _sw in sorted(cwc.SANCTIONED_WILDCARD_GRANTS[_pr]):
-        assert_eq("#650 AC9: sanctioned wildcard '%s' is a real grant in profile '%s's OWN "
-                  "workflow (exemption coupled per profile, not tree-wide)" % (_sw, _pr),
-                  True, ("Bash(%s:" % _sw) in _gs_pr_text)
+        assert_eq(f"#650 AC9: sanctioned wildcard '{_sw}' is a real grant in profile '{_pr}'s OWN "
+                  "workflow (exemption coupled per profile, not tree-wide)",
+                  True, (f"Bash({_sw}:") in _gs_pr_text)
     # The converse: a profile whose workflow does NOT carry the wildcard must not
     # be exempting it. This is the arm that catches a profile-blind exemption.
     # Union over EVERY ROOTS profile, not a hardcoded pair: a fourth profile
@@ -13700,9 +13943,8 @@ for _pr in sorted(cwc.ROOTS):
     # question, silently re-opening the profile-blind hole this arm exists to catch.
     for _sw in sorted(set().union(
             *(cwc.SANCTIONED_WILDCARD_GRANTS[_p] for _p in cwc.ROOTS))):
-        if ("Bash(%s:" % _sw) not in _gs_pr_text:
-            assert_eq("#650 AC9: profile '%s' does not exempt wildcard '%s' it never grants"
-                      % (_pr, _sw),
+        if (f"Bash({_sw}:") not in _gs_pr_text:
+            assert_eq(f"#650 AC9: profile '{_pr}' does not exempt wildcard '{_sw}' it never grants",
                       False, _sw in cwc.SANCTIONED_WILDCARD_GRANTS[_pr])
 
 # The live tree passes — the real workflows grant every reachable literal and
@@ -13716,7 +13958,7 @@ assert_eq("#650 AC9: grant-sync main subcommand exits 0 on the live tree",
 def _cw_healthy_grants():
     """A synthetic {profile: text} granting exactly the reachable literals."""
     return {
-        pr: "\n".join("TOOLS='Bash(%s:*)'" % lit
+        pr: "\n".join(f"TOOLS='Bash({lit}:*)'"
                       for lit in cwc.REQUIRED_HELPER_HEADS[pr])
         for pr in cwc.ROOTS
     }
@@ -13735,7 +13977,7 @@ assert_eq("#650 AC9: the implement head list has >=2 entries (precondition of th
 _gs_dropped = cwc.REQUIRED_HELPER_HEADS["implement"][0]
 _gs_miss = _cw_healthy_grants()
 _gs_miss["implement"] = "\n".join(
-    "TOOLS='Bash(%s:*)'" % lit for lit in cwc.REQUIRED_HELPER_HEADS["implement"][1:])
+    f"TOOLS='Bash({lit}:*)'" for lit in cwc.REQUIRED_HELPER_HEADS["implement"][1:])
 assert_eq("#650 AC9: a reachable literal lacking an explicit grant is caught, naming that literal",
           True, any("grants no explicit" in e and _gs_dropped in e
                     for e in cwc.check_grant_sync(_gs_miss)))
@@ -13837,8 +14079,8 @@ for _q in ("'", '"'):
     _gs_quoted = _cw_healthy_grants()
     _gs_quoted["review"] = _gs_quoted["review"].replace(
         "TOOLS='Bash(.prflow/vendor/prflow/scripts/workpad.py:*)'",
-        "TOOLS=%sBash(git:*) # issue 650, not a comment: "
-        "Bash(.prflow/vendor/prflow/scripts/workpad.py:*)%s" % (_q, _q))
+        f"TOOLS={_q}Bash(git:*) # issue 650, not a comment: "
+        f"Bash(.prflow/vendor/prflow/scripts/workpad.py:*){_q}")
     assert_eq("#650 AC9: a '#' inside a %s-quoted scalar does not truncate the grant "
               "that follows it on the same line" % ("single" if _q == "'" else "double"),
               [], cwc.check_grant_sync(_gs_quoted))
@@ -13871,9 +14113,9 @@ assert_eq("#650 AC9: _strip_yaml_comment strips past an unterminated quote",
 # that drift RED here rather than leaving it to a future reader of the regex.
 for _pr in cwc.ROOTS:
     for _lit in cwc.REQUIRED_HELPER_HEADS[_pr]:
-        assert_eq("#650 AC9: head '%s' is matchable by _VENDORED_GRANT_RE "
-                  "(scripts|lib alternation coupled to REQUIRED_HELPER_HEADS)" % _lit,
-                  [_lit], cwc._VENDORED_GRANT_RE.findall("Bash(%s:*)" % _lit))
+        assert_eq(f"#650 AC9: head '{_lit}' is matchable by _VENDORED_GRANT_RE "
+                  "(scripts|lib alternation coupled to REQUIRED_HELPER_HEADS)",
+                  [_lit], cwc._VENDORED_GRANT_RE.findall(f"Bash({_lit}:*)"))
 
 # (j) Widening polarity is FAIL-CLOSED: a grant covering a reachable helper is a
 # violation regardless of whether its shape is one of the named classes. Each row
@@ -13891,14 +14133,13 @@ for _spec, _why in (
         (".prflow/vendor/prflow/scripts/workpad.p?", "single-char '?' glob"),
 ):
     _gs_cover = _cw_healthy_grants()
-    _gs_cover["implement"] += "\nTOOLS='Bash(%s:*)'" % _spec
+    _gs_cover["implement"] += f"\nTOOLS='Bash({_spec}:*)'"
     # Assert ATTRIBUTION, not mere existence: the violation must name the
     # offending spec and its class label. An enumeration bug attributing the
     # widening to a different granted token would leave a bare `any("widens")`
     # green while sending a reader to a grant that is fine.
-    assert_eq("#650 AC9: a covering grant '%s' (%s) is caught and attributed to that spec"
-              % (_spec, _why),
-              True, any("widens" in e and ("'%s'" % _spec) in e
+    assert_eq(f"#650 AC9: a covering grant '{_spec}' ({_why}) is caught and attributed to that spec",
+              True, any("widens" in e and (f"'{_spec}'") in e
                         and cwc._classify_widening(_spec) in e
                         for e in cwc.check_grant_sync(_gs_cover)))
 
@@ -13911,7 +14152,7 @@ for _spec, _label in (("/abs/workpad.py", "absolute"), ("*/workpad.py", "basenam
                       # covering-grant loop above only reaches it incidentally), so
                       # the label table covers every arm _classify_widening returns.
                       ("foo/bar.sh", "unclassified")):
-    assert_eq("#650 AC9: _classify_widening('%s') labels as '%s' (never None)" % (_spec, _label),
+    assert_eq(f"#650 AC9: _classify_widening('{_spec}') labels as '{_label}' (never None)",
               _label, cwc._classify_widening(_spec))
 
 # (l) Arm (2) is exercised on EVERY profile, not just implement. A non-sanctioned
@@ -13921,8 +14162,8 @@ for _spec, _label in (("/abs/workpad.py", "absolute"), ("*/workpad.py", "basenam
 for _wp in ("review", "light-command"):
     _gs_other = _cw_healthy_grants()
     _gs_other[_wp] += "\nTOOLS='Bash(/abs/path/workpad.py:*)'"
-    assert_eq("#650 AC9: an unsanctioned widening in the '%s' profile is caught" % _wp,
-              True, any("widens" in e and ("'%s'" % _wp) in e and "absolute" in e
+    assert_eq(f"#650 AC9: an unsanctioned widening in the '{_wp}' profile is caught",
+              True, any("widens" in e and (f"'{_wp}'") in e and "absolute" in e
                         for e in cwc.check_grant_sync(_gs_other)))
 
 # (m) Arm (1) and arm (2) fire on the SAME run: the guard ACCUMULATES errors
@@ -13930,12 +14171,12 @@ for _wp in ("review", "light-command"):
 # a widened grant (arm 2) into one profile, then assert both violations are
 # present in the single returned list.
 _gs_both = _cw_healthy_grants()
-_gs_both_lit = sorted(cwc.REQUIRED_HELPER_HEADS["implement"])[0]
+_gs_both_lit = min(cwc.REQUIRED_HELPER_HEADS["implement"])
 _gs_both["implement"] = _gs_both["implement"].replace(
-    "TOOLS='Bash(%s:*)'" % _gs_both_lit, "") + "\nTOOLS='Bash(/abs/path/workpad.py:*)'"
+    f"TOOLS='Bash({_gs_both_lit}:*)'", "") + "\nTOOLS='Bash(/abs/path/workpad.py:*)'"
 _gs_both_errs = cwc.check_grant_sync(_gs_both)
 assert_eq("#650 AC9: arm (1) and arm (2) violations accumulate in one run (missing literal)",
-          True, any("grants no explicit Bash(%s:*)" % _gs_both_lit in e for e in _gs_both_errs))
+          True, any(f"grants no explicit Bash({_gs_both_lit}:*)" in e for e in _gs_both_errs))
 assert_eq("#650 AC9: arm (1) and arm (2) violations accumulate in one run (widened grant)",
           True, any("widens" in e and "absolute" in e for e in _gs_both_errs))
 
@@ -14051,7 +14292,7 @@ assert_eq("#678 AC9-residual: region scoping is non-vacuous — the review workf
 # disclosed as fail-open: whole-file pooling read the echo as a grant and went
 # green on a helper the profile could not actually execute.
 _gsr_lit = cwc.REQUIRED_HELPER_HEADS["review"][0]
-_gsr_stripped = _gsr_review_text.replace("Bash(%s:*)," % _gsr_lit, "", 1)
+_gsr_stripped = _gsr_review_text.replace(f"Bash({_gsr_lit}:*),", "", 1)
 # Non-vacuity of the fixture itself: if the generated literal ever stopped carrying
 # the trailing comma (e.g. the head sorted last), the replace would be a silent
 # no-op and the forged workflow would STILL grant the literal in its region — so
@@ -14059,7 +14300,7 @@ _gsr_stripped = _gsr_review_text.replace("Bash(%s:*)," % _gsr_lit, "", 1)
 assert_eq("#678 AC9-residual: the forged fixture's grant-removal actually edits the "
           "workflow (a no-op replace would make the arm below vacuous)",
           True, _gsr_stripped != _gsr_review_text)
-_gsr_forged = _gsr_stripped + "\n      - run: echo \"grant it with Bash(%s:*)\"\n" % _gsr_lit
+_gsr_forged = _gsr_stripped + f"\n      - run: echo \"grant it with Bash({_gsr_lit}:*)\"\n"
 _gsr_fixture = cwc.REPO_ROOT / ".prflow" / "tmp" / "gsr-678-forged.yml"
 _gsr_orig_wf = cwc.ROOTS["review"]["workflow"]
 try:
@@ -14200,8 +14441,8 @@ assert_eq("#678 AC9-residual: ROOTS['implement'] workflow restored after the imp
 # than one line": a second widened TOOLS='...' copy wins at runtime while a first-match
 # parse would audit the canonical leading one, so it must fail closed naming its cause.
 for _gsr_body, _gsr_label, _gsr_phrase in (
-        ("jobs:\n  a:\n    steps:\n      - run: |\n          TOOLS='Read'\n"
-         "          TOOLS='Read, Bash(git:*)'\n",
+        (("jobs:\n  a:\n    steps:\n      - run: |\n          TOOLS='Read'\n"
+         "          TOOLS='Read, Bash(git:*)'\n"),
          "a duplicated TOOLS='...' line",
          "expected exactly one"),
 ):
@@ -14209,8 +14450,8 @@ for _gsr_body, _gsr_label, _gsr_phrase in (
         _gsr_impl.parent.mkdir(parents=True, exist_ok=True)
         _gsr_impl.write_text(_gsr_body, encoding="utf-8")
         cwc.ROOTS["implement"]["workflow"] = ".prflow/tmp/gsr-678-noblock.yml"
-        assert_eq("#678 AC9-residual: %s fails closed with its own cause, never a "
-                  "partial region" % _gsr_label,
+        assert_eq(f"#678 AC9-residual: {_gsr_label} fails closed with its own cause, never a "
+                  "partial region",
                   True, any("grant source unavailable" in e and _gsr_phrase in e
                             for e in cwc.check_grant_sync()))
     finally:
@@ -14292,7 +14533,7 @@ assert_eq("#678 AC9-residual: _looks_like_whole_workflow detects a workflow's to
           True, cwc._looks_like_whole_workflow("name: x\non: push\njobs:\n  a: {}\n"))
 assert_eq("#678 AC9-residual: _looks_like_whole_workflow does not flag a long scoped region",
           False, cwc._looks_like_whole_workflow(
-              "TOOLS='" + ",".join("Bash(x%d:*)" % i for i in range(200)) + "'"))
+              "TOOLS='" + ",".join(f"Bash(x{i}:*)" for i in range(200)) + "'"))
 
 # The retired scope-limit (ii) note states the guard's vendored grant set equals the
 # validator's on the healthy tree. That is a live measured property, so bind it to an
@@ -14302,11 +14543,11 @@ for _gsr_p in sorted(cwc.ROOTS):
     _gsr_wf = (cwc.REPO_ROOT / cwc.ROOTS[_gsr_p]["workflow"]).read_text(encoding="utf-8")
     _gsr_ours = cwc._scan_grants(cwc._scope_grant_region(_gsr_p, _gsr_wf)[0])[0]
     _gsr_theirs = set(vcwc.extract_profile_grants(cwc.REPO_ROOT / cwc.ROOTS[_gsr_p]["workflow"]))
-    assert_eq("#678 AC9-residual: profile '%s' — the region-scoped vendored grant set is "
-              "never a superset of the runtime validator's (holds by construction)" % _gsr_p,
+    assert_eq(f"#678 AC9-residual: profile '{_gsr_p}' — the region-scoped vendored grant set is "
+              "never a superset of the runtime validator's (holds by construction)",
               True, _gsr_ours <= _gsr_theirs)
-    assert_eq("#678 AC9-residual: profile '%s' — and on the healthy tree the two sets are "
-              "EQUAL (the measured half of the retired-limit note, bound live)" % _gsr_p,
+    assert_eq(f"#678 AC9-residual: profile '{_gsr_p}' — and on the healthy tree the two sets are "
+              "EQUAL (the measured half of the retired-limit note, bound live)",
               _gsr_theirs, _gsr_ours)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -14619,7 +14860,7 @@ assert_eq("#678 AC8: stripping the frozenset declarations actually removed them 
           ("REVIEW_RULES = " in _sc_shapes_emit_src,
            "IMPLEMENT_RULES = " in _sc_shapes_emit_src,
            "COMMAND_RULES = " in _sc_shapes_emit_src))
-_sc_src_review = set(re.findall(r'^\s*\("[^"]+",\s*"(R\d+)",', _sc_shapes_emit_src, re.M))
+_sc_src_review = set(re.findall(r'^\s*\("[^"]+",\s*"(R\d+)",', _sc_shapes_emit_src, re.MULTILINE))
 _sc_src_implement = set(re.findall(r'"(IR\d+)"', _sc_shapes_emit_src))
 # COMMAND_RULES derives from the mapping, so this check catches only a hardcoded retype.
 # The production mapped/excluded partition rejects new unclassified IR rules at import;
@@ -14649,13 +14890,13 @@ for _sc_profile, _sc_table in sorted(cwc.PROFILE_SHAPE_TABLES.items()):
     # RED is the planted defect and not a pre-existing hit. Asserted once per
     # (profile, asset) rather than once per rule — the baseline does not vary
     # with the rule being planted.
-    assert_eq("#678 AC8: %s is clean under %s before any plant" % (_sc_asset, _sc_profile),
+    assert_eq(f"#678 AC8: {_sc_asset} is clean under {_sc_profile} before any plant",
               [], cwc.shape_violations_in(_sc_profile, _sc_body))
     for _sc_rule in sorted(_sc_table["rules"]):
-        _sc_mutated = _sc_body + "\n```bash\n%s\n```\n" % _sc_planted[_sc_rule]
+        _sc_mutated = _sc_body + f"\n```bash\n{_sc_planted[_sc_rule]}\n```\n"
         _sc_hits = cwc.shape_violations_in(_sc_profile, _sc_mutated)
-        assert_eq("#678 AC8: planting a %s violation in %s is observed RED under the "
-                  "%s profile" % (_sc_rule, _sc_asset, _sc_profile),
+        assert_eq(f"#678 AC8: planting a {_sc_rule} violation in {_sc_asset} is observed RED under the "
+                  f"{_sc_profile} profile",
                   True, any(_sc_rule == rule for _, rule, _ in _sc_hits))
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -14766,9 +15007,8 @@ def _wd_emits_command_path(text_line):
         return False
     if _wd_assign_only.match(s):      # a pure VAR=value assignment: a data string
         return False
-    if _wd_for_in.search(s):          # a `for X in …` data list, not a command path
-        return False
-    return True
+    # False on a `for X in …` data list, not a command path.
+    return not _wd_for_in.search(s)
 
 # Branch-level controls for the predicate (issue #855). The pointer-population
 # snapshot below pins the aggregate over the live corpus, but the drift guarantee it
@@ -14785,7 +15025,7 @@ for _wd_line, _wd_want, _wd_why in [
     ('DEFERRALS_FILE=".prflow/tmp/x.json"', False, "a pure VAR=value assignment value"),
     ("echo mydocs/x", False, "word-internal token (mydocs/), not a bare path"),
 ]:
-    assert_eq("#855: _wd_emits_command_path(%r) == %s (%s)" % (_wd_line, _wd_want, _wd_why),
+    assert_eq(f"#855: _wd_emits_command_path({_wd_line!r}) == {_wd_want} ({_wd_why})",
               _wd_want, _wd_emits_command_path(_wd_line))
 
 # Reuse the finder's OWN fence parser (`_fence_line_offsets`) so the sweep's notion of
@@ -14830,9 +15070,8 @@ def _ir5_rules(txt):
 # separated stdout/stderr/append/&>. (Maps to the IR5-definition criterion.)
 for _ir5_spelling in ("> /tmp/f", "2> /tmp/f", ">> /tmp/f", "&> /tmp/f",
                       ">| /tmp/f", ">/tmp/f", "2>/tmp/f", "&>/tmp/f", ">|/tmp/f"):
-    _ir5_fence = "```bash\ncmd %s\n```" % _ir5_spelling
-    assert_eq("#915 IR5: a /tmp redirect '%s' is flagged IR5 under --profile implement"
-              % _ir5_spelling, True, "IR5" in _ir5_rules(_ir5_fence))
+    _ir5_fence = f"```bash\ncmd {_ir5_spelling}\n```"
+    assert_eq(f"#915 IR5: a /tmp redirect '{_ir5_spelling}' is flagged IR5 under --profile implement", True, "IR5" in _ir5_rules(_ir5_fence))
 # Issue #1514: an in-workspace target is not sufficient evidence. The historic
 # echo row remains the exact positive control, while an unmeasured production head
 # is rejected so authors use Write-tool or helper-owned output instead.
@@ -14929,7 +15168,7 @@ for _mf in _MIGRATED_FILES:
         for _m in re.finditer(r"/tmp/", _line):
             if not _line[max(0, _m.start() - 8):_m.start()].endswith(".prflow"):
                 _bare_tmp += 1
-print("residual bare-/tmp lines: %d" % _bare_tmp)
+print(f"residual bare-/tmp lines: {_bare_tmp}")
 assert_eq("#915: no bare-/tmp scratch target remains in the migrated files",
           0, _bare_tmp)
 
@@ -14959,7 +15198,7 @@ _STEM_HOME_PREFIX = r"(?:\.prflow/tmp/|<scratch-dir>/)"
 for _mf, _stems in _STEM_HOMES.items():
     _text = (cwc.REPO_ROOT / _mf).read_text(encoding="utf-8")
     for _stem in _stems:
-        assert_eq("#915: stem '%s' is present under a .prflow/tmp/ path in %s" % (_stem, _mf),
+        assert_eq(f"#915: stem '{_stem}' is present under a .prflow/tmp/ path in {_mf}",
                   True,
                   bool(re.search(_STEM_HOME_PREFIX + r"[^\s`\"')]*" + re.escape(_stem), _text)))
 
@@ -14970,7 +15209,7 @@ _pf_spec = importlib.util.spec_from_file_location(
     "_pf915", str(cwc.REPO_ROOT / "scripts" / "preflight.py"))
 _pf915 = importlib.util.module_from_spec(_pf_spec)
 _pf_spec.loader.exec_module(_pf915)
-import subprocess as _sp915  # noqa: E402
+import subprocess as _sp915
 
 
 def _pf_git_bad(args):
@@ -15266,10 +15505,10 @@ _hb_A = "${CLAUDE_SKILL_DIR:-x}"
 _hb_names = {"workpad.py", "apply-labels.sh"}
 _hb_launch = {"env", "python3", "xargs", "bash", "timeout"}
 _hb_matrix = {
-    "sanctioned":  ("```bash\n\"%s\"/../../scripts/workpad.py id 5\n```" % _hb_A, None),
+    "sanctioned":  (f"```bash\n\"{_hb_A}\"/../../scripts/workpad.py id 5\n```", None),
     "absolute":    ("```bash\n/home/runner/scripts/workpad.py id 5\n```", "absolute-path"),
     "repo-root":   ("```bash\nscripts/workpad.py id 5\n```", "repo-root-path"),
-    "unexpanded":  ("```bash\n\"%s\"/../scripts/workpad.py id 5\n```" % _hb_A, "unexpanded-anchor"),
+    "unexpanded":  (f"```bash\n\"{_hb_A}\"/../scripts/workpad.py id 5\n```", "unexpanded-anchor"),
     "launch-env":  ("```bash\nenv .prflow/vendor/prflow/scripts/workpad.py id 5\n```",
                     "launcher-prefixed:env"),
     "launch-timeout": ("```bash\ntimeout 30 .prflow/vendor/prflow/scripts/apply-labels.sh 1 X\n```",
@@ -15283,17 +15522,17 @@ _hb_matrix = {
     # An UNTERMINATED ```bash fence must still be audited (fail-closed), not dropped
     # as if the file were clean.
     "unterminated-fence": ("```bash\nscripts/workpad.py id 5", "repo-root-path"),
-    "capture-ok":  ("```bash\nWID=$(\"%s\"/../../scripts/workpad.py id 5)\n```" % _hb_A, None),
-    "pipe-ok":     ("```bash\nprintf x | \"%s\"/../../scripts/run-jq.sh -r .\n```" % _hb_A, None),
+    "capture-ok":  (f"```bash\nWID=$(\"{_hb_A}\"/../../scripts/workpad.py id 5)\n```", None),
+    "pipe-ok":     (f"```bash\nprintf x | \"{_hb_A}\"/../../scripts/run-jq.sh -r .\n```", None),
     "echo-arg-ok": ("```bash\necho \"see .prflow/vendor/prflow/scripts/workpad.py here\"\n```", None),
 }
 for _hb_name, (_hb_txt, _hb_expect) in sorted(_hb_matrix.items()):
     _hb_got = [r for _, r, _ in _hb_ech.helper_boundary_violations(_hb_txt, _hb_names, _hb_launch)]
     if _hb_expect is None:
-        assert_eq("#701 AC3: '%s' is clean (no boundary escape, no false positive)" % _hb_name,
+        assert_eq(f"#701 AC3: '{_hb_name}' is clean (no boundary escape, no false positive)",
                   [], _hb_got)
     else:
-        assert_eq("#701 AC3: '%s' is classified '%s'" % (_hb_name, _hb_expect),
+        assert_eq(f"#701 AC3: '{_hb_name}' is classified '{_hb_expect}'",
                   True, _hb_expect in _hb_got)
 
 # #1470: bash's APPEND assignment form is an assignment, not a command head. Without the
@@ -15341,7 +15580,7 @@ _hb_orig_pd = cwc.SKILL_ASSETS[_hb_asset_key]
 _hb_planted = cwc.REPO_ROOT / ".prflow" / "tmp" / "hb-701-planted.md"
 # Path-family plants: reason class -> a fenced statement exhibiting it.
 _hb_path_plants = {
-    "unexpanded-anchor":  '"%s"/../scripts/apply-labels.sh 1 X' % _hb_A,
+    "unexpanded-anchor":  f'"{_hb_A}"/../scripts/apply-labels.sh 1 X',
     "absolute-path":      "/home/runner/scripts/apply-labels.sh 1 X",
     "repo-root-path":     "scripts/apply-labels.sh 1 X",
     # a helper-shaped path under some other prefix: neither vendored, absolute,
@@ -15376,10 +15615,10 @@ try:
               [], [e for e in cwc.check_helper_boundary() if "hb-701-planted.md" in e])
     # PATH family — one plant per reason class, each observed RED end-to-end.
     for _hb_reason, _hb_stmt in sorted(_hb_path_plants.items()):
-        _hb_planted.write_text(_hb_base + "\n```bash\n%s\n```\n" % _hb_stmt, encoding="utf-8")
+        _hb_planted.write_text(_hb_base + f"\n```bash\n{_hb_stmt}\n```\n", encoding="utf-8")
         _hb_errs = cwc.check_helper_boundary()
-        assert_eq("#701 AC8: planting a '%s' cloud call site is observed RED" % _hb_reason,
-                  True, any("hb-701-planted.md" in e and "'%s'" % _hb_reason in e
+        assert_eq(f"#701 AC8: planting a '{_hb_reason}' cloud call site is observed RED",
+                  True, any("hb-701-planted.md" in e and f"'{_hb_reason}'" in e
                             for e in _hb_errs))
     # LAUNCHER family — one plant per granted launcher head in the implement table,
     # generated from the parsed launcher table (complete by construction).
@@ -15388,13 +15627,12 @@ try:
     for _hb_l in sorted(_hb_impl_launchers):
         # A wrapper-with-operand (timeout/nice) needs its own numeric operand before
         # the helper; every other launcher head takes the helper directly.
-        _hb_pre = ("%s 30" % _hb_l) if _hb_l in cwc._heads.WRAPPERS_WITH_OPERAND else _hb_l
-        _hb_stmt = "%s .prflow/vendor/prflow/scripts/apply-labels.sh 1 X" % _hb_pre
-        _hb_planted.write_text(_hb_base + "\n```bash\n%s\n```\n" % _hb_stmt, encoding="utf-8")
+        _hb_pre = (f"{_hb_l} 30") if _hb_l in cwc._heads.WRAPPERS_WITH_OPERAND else _hb_l
+        _hb_stmt = f"{_hb_pre} .prflow/vendor/prflow/scripts/apply-labels.sh 1 X"
+        _hb_planted.write_text(_hb_base + f"\n```bash\n{_hb_stmt}\n```\n", encoding="utf-8")
         _hb_errs = cwc.check_helper_boundary()
-        assert_eq("#701 AC8: a helper behind the granted launcher head '%s' is observed RED"
-                  % _hb_l,
-                  True, any("hb-701-planted.md" in e and "launcher-prefixed:%s" % _hb_l in e
+        assert_eq(f"#701 AC8: a helper behind the granted launcher head '{_hb_l}' is observed RED",
+                  True, any("hb-701-planted.md" in e and f"launcher-prefixed:{_hb_l}" in e
                             for e in _hb_errs))
 finally:
     cwc.SKILL_ASSETS[_hb_asset_key] = _hb_orig_pd
@@ -15603,7 +15841,7 @@ with tempfile.TemporaryDirectory() as _cwd_td:
     _pyf.write_text("import os\nimport requests\n", encoding="utf-8")
     _orig_read = cwd._read
     try:
-        cwd._read = lambda rel: _pyf.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _pyf.read_text(encoding="utf-8")
         _probe_imports = cwd._scan_python_imports("scripts/probe.py")
     finally:
         cwd._read = _orig_read
@@ -15666,7 +15904,7 @@ with tempfile.TemporaryDirectory() as _cwd_td:
     _orig_root = cwd.REPO_ROOT
     try:
         cwd.REPO_ROOT = _repo_root
-        cwd._read = lambda rel: (_repo_root / rel).read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: (_repo_root / rel).read_text(encoding="utf-8")
         _repo_imports = cwd._scan_python_imports("scripts/probe.py")
     finally:
         cwd.REPO_ROOT = _orig_root
@@ -15704,7 +15942,7 @@ with tempfile.TemporaryDirectory() as _cwd_td:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _shf.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shf.read_text(encoding="utf-8")
         _probe_src = cwd._scan_shell_sources("scripts/probe.sh")
     finally:
         cwd._read = _orig_read
@@ -15755,7 +15993,7 @@ assert_eq("#583 AC5: efficiency-trace.sh's config_fingerprint.py exec edge is re
 # its declared exec edges (#583 review finding).
 _cwd_orig_pyscan = cwd._scan_python_imports
 try:
-    cwd._scan_python_imports = lambda helper: []  # noqa: E731 — simulate an import-scan regression
+    cwd._scan_python_imports = lambda helper: []
     assert_eq("#583 AC5: a .py entry point yielding zero import edges is caught (coverage not masked by exec edges)",
               True, any("import scan gap" in v for v in cwd.check_dependencies()))
 finally:
@@ -15768,7 +16006,7 @@ _cwd_orig_read3 = cwd._read
 _cwd_orig_exec3 = cwd.EXEC_EDGES
 try:
     cwd.entry_points = lambda: ["scripts/empty.sh"]
-    cwd._read = lambda rel: ""  # noqa: E731
+    cwd._read = lambda rel: ""
     cwd.EXEC_EDGES = {}
     assert_eq("#583 AC5: a shell entry point yielding zero total edges is caught",
               True, any("no edges scanned" in v for v in cwd.check_dependencies()))
@@ -15784,7 +16022,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
     _cmt.write_text("# this helper no longer shells out to git\necho done\n", encoding="utf-8")
     _orig_read2 = cwd._read
     try:
-        cwd._read = lambda rel: _cmt.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _cmt.read_text(encoding="utf-8")
         _comment_only = cwd._exec_target_present("scripts/probe.sh", "git", cwd._EXT)
     finally:
         cwd._read = _orig_read2
@@ -15793,7 +16031,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
     _code = Path(_cwd_ctd) / "probe2.sh"
     _code.write_text('# runs the tool\ngit rev-parse HEAD\n', encoding="utf-8")
     try:
-        cwd._read = lambda rel: _code.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _code.read_text(encoding="utf-8")
         _code_present = cwd._exec_target_present("scripts/probe2.sh", "git", cwd._EXT)
     finally:
         cwd._read = _orig_read2
@@ -15807,7 +16045,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_strings.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_strings.read_text(encoding="utf-8")
         _python_string_only = cwd._exec_target_present("scripts/probe.py", "git", cwd._EXT)
     finally:
         cwd._read = _orig_read2
@@ -15823,7 +16061,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_exec.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_exec.read_text(encoding="utf-8")
         _devflow_form = cwd._exec_target_present("scripts/probe_exec.py", "gh", cwd._EXT)
         _exe_form = cwd._exec_target_present("scripts/probe_exec.py", "git", cwd._EXT)
     finally:
@@ -15841,7 +16079,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_cross_scope.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_cross_scope.read_text(encoding="utf-8")
         _cross_scope_only = cwd._exec_target_present(
             "scripts/probe_cross_scope.py", "git", cwd._EXT
         )
@@ -15859,7 +16097,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_order.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_order.read_text(encoding="utf-8")
         _later_or_unreachable = cwd._exec_target_present(
             "scripts/probe_order.py", "git", cwd._EXT
         )
@@ -15876,7 +16114,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_closure.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_closure.read_text(encoding="utf-8")
         _closure_binding = cwd._exec_target_present(
             "scripts/probe_closure.py", "git", cwd._EXT
         )
@@ -15894,7 +16132,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_branch.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_branch.read_text(encoding="utf-8")
         _branch_binding = cwd._exec_target_present(
             "scripts/probe_branch.py", "git", cwd._EXT
         )
@@ -15908,7 +16146,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         'import subprocess\ncmd = ["git"]; subprocess.run(cmd)\n', encoding="utf-8"
     )
     try:
-        cwd._read = lambda rel: _py_same_line.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_same_line.read_text(encoding="utf-8")
         _same_line_binding = cwd._exec_target_present(
             "scripts/probe_same_line.py", "git", cwd._EXT
         )
@@ -15930,10 +16168,10 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         '    inner()\n    cmd = ["git"]\n', encoding="utf-8"
     )
     try:
-        cwd._read = lambda rel: _py_lexical_timing.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_lexical_timing.read_text(encoding="utf-8")
         _lexical_before_overwrite = cwd._exec_target_present(
             "scripts/probe_lexical_timing.py", "git", cwd._EXT)
-        cwd._read = lambda rel: _py_lexical_reverse.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_lexical_reverse.read_text(encoding="utf-8")
         _lexical_after_call = cwd._exec_target_present(
             "scripts/probe_lexical_reverse.py", "git", cwd._EXT)
     finally:
@@ -15957,7 +16195,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_control_bindings.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_control_bindings.read_text(encoding="utf-8")
         _control_binding_evidence = cwd._exec_target_present(
             "scripts/probe_control_bindings.py", "git", cwd._EXT)
     finally:
@@ -15971,7 +16209,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         'subprocess.run(True or "git")\n', encoding="utf-8"
     )
     try:
-        cwd._read = lambda rel: _py_dead_bool.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_dead_bool.read_text(encoding="utf-8")
         _dead_bool_evidence = cwd._exec_target_present(
             "scripts/probe_dead_bool.py", "git", cwd._EXT)
     finally:
@@ -15986,7 +16224,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         'def _run(value):\n    print(value)\n_run(["git"])\n', encoding="utf-8"
     )
     try:
-        cwd._read = lambda rel: _py_shadow_sink.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_shadow_sink.read_text(encoding="utf-8")
         _shadow_sink_evidence = cwd._exec_target_present(
             "scripts/probe_shadow_sink.py", "git", cwd._EXT)
     finally:
@@ -16000,7 +16238,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         'sp.run(["git"])\nexecute(args=["git"])\n', encoding="utf-8"
     )
     try:
-        cwd._read = lambda rel: _py_alias_sink.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_alias_sink.read_text(encoding="utf-8")
         _alias_sink_evidence = cwd._exec_target_present(
             "scripts/probe_alias_sink.py", "git", cwd._EXT)
     finally:
@@ -16014,7 +16252,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_parameter_name.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_parameter_name.read_text(encoding="utf-8")
         _unbound_parameter_name = cwd._exec_target_present(
             "scripts/probe_parameter_name.py", "git", cwd._EXT
         )
@@ -16031,7 +16269,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_path_parent.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_path_parent.read_text(encoding="utf-8")
         _path_parent_external = cwd._exec_target_present(
             "scripts/probe_path_parent.py", "git", cwd._EXT
         )
@@ -16052,7 +16290,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_dynamic.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_dynamic.read_text(encoding="utf-8")
         _dynamic_string_only = cwd._exec_target_present(
             "scripts/probe_dynamic.py", "git", cwd._EXT
         )
@@ -16069,7 +16307,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_env_data.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_env_data.read_text(encoding="utf-8")
         _environment_key_data = cwd._exec_target_present(
             "scripts/probe_env_data.py", "git", cwd._EXT
         )
@@ -16089,7 +16327,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_repo_data.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_repo_data.read_text(encoding="utf-8")
         _python_repo_data_only = cwd._exec_target_present(
             "scripts/probe_repo_data.py", "scripts/config-get.sh", cwd._REPO
         )
@@ -16108,7 +16346,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_cli_flow.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_cli_flow.read_text(encoding="utf-8")
         _bound_cli_flow = cwd._exec_target_present(
             "scripts/probe_cli_flow.py", "scripts/config-get.sh", cwd._REPO
         )
@@ -16132,7 +16370,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_cli_wrong_parser.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_cli_wrong_parser.read_text(encoding="utf-8")
         _unbound_cli_flow = cwd._exec_target_present(
             "scripts/probe_cli_wrong_parser.py", "scripts/config-get.sh", cwd._REPO
         )
@@ -16153,7 +16391,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_cli_extended.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_cli_extended.read_text(encoding="utf-8")
         _extended_cli_flow = cwd._exec_target_present(
             "scripts/probe_cli_extended.py", "scripts/config-get.sh", cwd._REPO)
     finally:
@@ -16185,7 +16423,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _py_cli_dead_defaults.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _py_cli_dead_defaults.read_text(encoding="utf-8")
         _dead_cli_defaults = cwd._exec_target_present(
             "scripts/probe_cli_dead_defaults.py", "scripts/config-get.sh", cwd._REPO)
     finally:
@@ -16199,54 +16437,54 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         "import-after-invocation": (
             "def f():\n subprocess.run(['git'])\nf()\nimport subprocess\n", False),
         "aliased-closure-invocation": (
-            "import subprocess\ndef outer():\n cmd=['git']\n"
-            " def inner(): subprocess.run(cmd)\n alias=inner\n alias()\nouter()\n", True),
+            ("import subprocess\ndef outer():\n cmd=['git']\n"
+            " def inner(): subprocess.run(cmd)\n alias=inner\n alias()\nouter()\n"), True),
         "wrapper-uses-second-parameter": (
-            "import subprocess\ndef wrap(x, cmd): subprocess.run(cmd)\n"
-            "wrap('git', 'echo')\n", False),
+            ("import subprocess\ndef wrap(x, cmd): subprocess.run(cmd)\n"
+            "wrap('git', 'echo')\n"), False),
         "keyword-only-wrapper": (
-            "import subprocess\ndef wrap(*, cmd): subprocess.run(cmd)\n"
-            "wrap(cmd='git')\n", True),
+            ("import subprocess\ndef wrap(*, cmd): subprocess.run(cmd)\n"
+            "wrap(cmd='git')\n"), True),
         "module-function-vs-method-name": (
-            "import subprocess\ndef run(cmd): pass\nclass X:\n"
-            " def run(self, cmd): subprocess.run(cmd)\nrun('git')\n", False),
+            ("import subprocess\ndef run(cmd): pass\nclass X:\n"
+            " def run(self, cmd): subprocess.run(cmd)\nrun('git')\n"), False),
         "exhaustive-match-overwrite": (
-            "import subprocess\ncmd=['git']\nmatch 1:\n case _:\n  cmd=['echo']\n"
-            "subprocess.run(cmd)\n", False),
+            ("import subprocess\ncmd=['git']\nmatch 1:\n case _:\n  cmd=['echo']\n"
+            "subprocess.run(cmd)\n"), False),
         "try-handler-sees-body-binding": (
-            "import subprocess\ntry:\n cmd=['git']; raise ValueError\n"
-            "except ValueError:\n subprocess.run(cmd)\n", True),
+            ("import subprocess\ntry:\n cmd=['git']; raise ValueError\n"
+            "except ValueError:\n subprocess.run(cmd)\n"), True),
         "try-star-handler": (
-            "import subprocess\ntry:\n cmd=['git']; "
+            ("import subprocess\ntry:\n cmd=['git']; "
             "raise ExceptionGroup('x',[ValueError()])\n"
-            "except* ValueError:\n subprocess.run(cmd)\n", True),
+            "except* ValueError:\n subprocess.run(cmd)\n"), True),
         "walrus-binding": (
             "import subprocess\nif (cmd := ['git']): subprocess.run(cmd)\n", True),
         "unreachable-walrus-and": (
-            "import subprocess\ncmd='echo'\nFalse and (cmd := 'git')\n"
-            "subprocess.run([cmd])\n", False),
+            ("import subprocess\ncmd='echo'\nFalse and (cmd := 'git')\n"
+            "subprocess.run([cmd])\n"), False),
         "unreachable-walrus-if-expression": (
-            "import subprocess\ncmd='echo'\n"
-            "(cmd := 'git') if False else None\nsubprocess.run([cmd])\n", False),
+            ("import subprocess\ncmd='echo'\n"
+            "(cmd := 'git') if False else None\nsubprocess.run([cmd])\n"), False),
         "multi-hop-closure-alias": (
-            "import subprocess\ndef outer():\n cmd='git'\n"
+            ("import subprocess\ndef outer():\n cmd='git'\n"
             " def inner(): subprocess.run([cmd])\n a=inner; b=a; b(); cmd='echo'\n"
-            "outer()\n", True),
+            "outer()\n"), True),
         "executable-class-base": (
             "import subprocess\nclass C(factory(subprocess.run(['git']))): pass\n",
             True),
         "unrelated-same-name-method": (
-            "import subprocess\nclass A:\n"
+            ("import subprocess\nclass A:\n"
             " def go(self,cmd): subprocess.run(cmd)\nclass B:\n"
-            " def go(self,cmd): pass\nB().go(['git'])\n", False),
+            " def go(self,cmd): pass\nB().go(['git'])\n"), False),
         "executable-overrides-argv-false": (
             "import subprocess\nsubprocess.run(['git'], executable='echo')\n", False),
         "executable-overrides-argv-true": (
             "import subprocess\nsubprocess.run(['echo'], executable='git')\n", True),
         "shadowed-os-environment": (
-            "import subprocess\nclass O: pass\nos=O(); os.environ=O(); "
+            ("import subprocess\nclass O: pass\nos=O(); os.environ=O(); "
             "os.environ.get=lambda *x:'git'\n"
-            "subprocess.run([os.environ.get('DEVFLOW_GIT','echo')])\n", False),
+            "subprocess.run([os.environ.get('DEVFLOW_GIT','echo')])\n"), False),
     }
     for _case, (_source, _expected) in _python_sink_cases.items():
         assert_eq(f"#583 AC5 reviewer exact Python sink: {_case}", _expected,
@@ -16260,67 +16498,67 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
 
     _python_cli_cases = {
         "subprocess-alias": (
-            "import argparse,subprocess as sp\np=argparse.ArgumentParser();"
+            ("import argparse,subprocess as sp\np=argparse.ArgumentParser();"
             "p.add_argument('--config-get',default='config-get.sh');"
-            "a=p.parse_args();sp.run([a.config_get])\n", True),
+            "a=p.parse_args();sp.run([a.config_get])\n"), True),
         "shadowed-subprocess": (
-            "import argparse\nclass X:\n def run(self,*x): pass\nsubprocess=X();"
+            ("import argparse\nclass X:\n def run(self,*x): pass\nsubprocess=X();"
             "p=argparse.ArgumentParser();p.add_argument('--config-get',"
             "default='config-get.sh');a=p.parse_args();"
-            "subprocess.run([a.config_get])\n", False),
+            "subprocess.run([a.config_get])\n"), False),
         "global-config-after-invocation": (
-            "import argparse,subprocess\np=argparse.ArgumentParser()\ndef f():\n"
+            ("import argparse,subprocess\np=argparse.ArgumentParser()\ndef f():\n"
             " a=p.parse_args(); subprocess.run([a.config_get])\nf();"
-            "p.add_argument('--config-get',default='config-get.sh')\n", False),
+            "p.add_argument('--config-get',default='config-get.sh')\n"), False),
         "setup-after-parse": (
-            "import argparse,subprocess\ndef setup(p):"
+            ("import argparse,subprocess\ndef setup(p):"
             "p.add_argument('--config-get',default='config-get.sh')\n"
             "p=argparse.ArgumentParser();a=p.parse_args();setup(p);"
-            "subprocess.run([a.config_get])\n", False),
+            "subprocess.run([a.config_get])\n"), False),
         "one-branch-overwrite": (
-            "import argparse,subprocess\np=argparse.ArgumentParser();"
+            ("import argparse,subprocess\np=argparse.ArgumentParser();"
             "p.add_argument('--config-get',default='config-get.sh');"
             "a=p.parse_args();x=a.config_get\nif flag:x='echo'\n"
-            "subprocess.run([x])\n", True),
+            "subprocess.run([x])\n"), True),
         "constant-if-expression": (
-            "import argparse,subprocess\np=argparse.ArgumentParser();"
+            ("import argparse,subprocess\np=argparse.ArgumentParser();"
             "p.add_argument('--config-get',default='config-get.sh');"
-            "a=p.parse_args();subprocess.run([a.config_get if False else 'echo'])\n",
+            "a=p.parse_args();subprocess.run([a.config_get if False else 'echo'])\n"),
             False),
         "named-concatenated-default": (
-            "import argparse,subprocess\nPART='config-';DEFAULT=PART+'get.sh';"
+            ("import argparse,subprocess\nPART='config-';DEFAULT=PART+'get.sh';"
             "p=argparse.ArgumentParser();p.add_argument('--config-get',default=DEFAULT);"
-            "a=p.parse_args();subprocess.run([a.config_get])\n", True),
+            "a=p.parse_args();subprocess.run([a.config_get])\n"), True),
         "executable-overrides-cli": (
-            "import argparse,subprocess\np=argparse.ArgumentParser();"
+            ("import argparse,subprocess\np=argparse.ArgumentParser();"
             "p.add_argument('--config-get',default='config-get.sh');"
-            "a=p.parse_args();subprocess.run([a.config_get],executable='echo')\n",
+            "a=p.parse_args();subprocess.run([a.config_get],executable='echo')\n"),
             False),
         "unrelated-parser-parsed-before-setup": (
-            "import argparse,subprocess\nq=argparse.ArgumentParser();q.parse_args([])\n"
+            ("import argparse,subprocess\nq=argparse.ArgumentParser();q.parse_args([])\n"
             "def setup(p):p.add_argument('--config-get',default='config-get.sh')\n"
             "p=argparse.ArgumentParser();setup(p);a=p.parse_args([]);"
-            "subprocess.run([a.config_get])\n", True),
+            "subprocess.run([a.config_get])\n"), True),
         "subprocess-shadowed-after-call": (
-            "import argparse,subprocess\np=argparse.ArgumentParser();"
+            ("import argparse,subprocess\np=argparse.ArgumentParser();"
             "p.add_argument('--config-get',default='config-get.sh');a=p.parse_args([])\n"
-            "def f():subprocess.run([a.config_get])\nf();subprocess=Logger()\n",
+            "def f():subprocess.run([a.config_get])\nf();subprocess=Logger()\n"),
             True),
         "unused-local-subprocess-import": (
-            "import argparse\np=argparse.ArgumentParser();"
+            ("import argparse\np=argparse.ArgumentParser();"
             "p.add_argument('--config-get',default='config-get.sh');a=p.parse_args([])\n"
             "def unused():import subprocess as sp\n"
-            "def f():sp.run([a.config_get])\nf()\n", False),
+            "def f():sp.run([a.config_get])\nf()\n"), False),
         "global-parsed-args-in-function": (
-            "import argparse,subprocess\np=argparse.ArgumentParser();"
+            ("import argparse,subprocess\np=argparse.ArgumentParser();"
             "p.add_argument('--config-get',default='config-get.sh');a=p.parse_args([])\n"
-            "def f():subprocess.run([a.config_get])\nf()\n", True),
+            "def f():subprocess.run([a.config_get])\nf()\n"), True),
         "unrelated-same-name-sink-method": (
-            "import argparse,subprocess\nclass A:\n"
+            ("import argparse,subprocess\nclass A:\n"
             " def go(self,x):subprocess.run([x])\nclass B:\n"
             " def go(self,x):pass\np=argparse.ArgumentParser();"
             "p.add_argument('--config-get',default='config-get.sh');a=p.parse_args([]);"
-            "B().go(a.config_get)\n", False),
+            "B().go(a.config_get)\n"), False),
     }
     for _case, (_source, _expected) in _python_cli_cases.items():
         assert_eq(f"#583 AC5 reviewer exact argparse flow: {_case}", _expected,
@@ -16330,7 +16568,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
     _shell_string.write_text('message="git rev-parse is documentation data"\necho "$message"\n',
                              encoding="utf-8")
     try:
-        cwd._read = lambda rel: _shell_string.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_string.read_text(encoding="utf-8")
         _shell_string_only = cwd._exec_target_present("scripts/probe-string.sh", "git", cwd._EXT)
     finally:
         cwd._read = _orig_read2
@@ -16344,7 +16582,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _shell_multiline_data.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_multiline_data.read_text(encoding="utf-8")
         _shell_multiline_only = cwd._exec_target_present(
             "scripts/probe-multiline.sh", "git", cwd._EXT
         )
@@ -16370,7 +16608,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _shell_structural_data.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_structural_data.read_text(encoding="utf-8")
         _shell_structural_only = cwd._exec_target_present(
             "scripts/probe-structural.sh", "git", cwd._EXT
         )
@@ -16387,7 +16625,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _shell_nested_exec.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_nested_exec.read_text(encoding="utf-8")
         _shell_nested_exec_present = cwd._exec_target_present(
             "scripts/probe-nested-exec.sh", "git", cwd._EXT
         )
@@ -16401,7 +16639,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         'value=$(( $(git --version) + 1 ))\n', encoding="utf-8"
     )
     try:
-        cwd._read = lambda rel: _shell_arithmetic_exec.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_arithmetic_exec.read_text(encoding="utf-8")
         _arithmetic_nested_exec = cwd._exec_target_present(
             "scripts/probe-arithmetic-exec.sh", "git", cwd._EXT
         )
@@ -16416,7 +16654,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _quoted_heredoc_text.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _quoted_heredoc_text.read_text(encoding="utf-8")
         _after_quoted_marker = cwd._exec_target_present(
             "scripts/probe-quoted-heredoc-text.sh", "git", cwd._EXT
         )
@@ -16432,7 +16670,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         'cat <<<EOF\ngit --version\n', encoding="utf-8"
     )
     try:
-        cwd._read = lambda rel: _shell_heredoc_exec.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_heredoc_exec.read_text(encoding="utf-8")
         _heredoc_exec = cwd._exec_target_present(
             "scripts/probe-heredoc-exec.sh", "git", cwd._EXT)
     finally:
@@ -16447,7 +16685,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         'value=$((\n1 << 2\n))\ngit --version\n', encoding="utf-8"
     )
     try:
-        cwd._read = lambda rel: _shell_nested_complex.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_nested_complex.read_text(encoding="utf-8")
         _nested_complex_exec = cwd._exec_target_present(
             "scripts/probe-nested-complex.sh", "git", cwd._EXT)
     finally:
@@ -16463,7 +16701,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _shell_stale_bindings.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_stale_bindings.read_text(encoding="utf-8")
         _stale_repo_binding = cwd._exec_target_present(
             "scripts/probe-stale-bindings.sh", "scripts/config-get.sh", cwd._REPO
         )
@@ -16488,7 +16726,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         '"$TOOL" hi\nTOOL=config-get.sh; "$TOOL" again\n', encoding="utf-8"
     )
     try:
-        cwd._read = lambda rel: _shell_repo_bound.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_repo_bound.read_text(encoding="utf-8")
         _branch_repo_binding = cwd._exec_target_present(
             "scripts/probe-repo-bound.sh", "scripts/config-get.sh", cwd._REPO)
     finally:
@@ -16504,7 +16742,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         'echo ok;# if git status\necho ok;# data; git status\n', encoding="utf-8"
     )
     try:
-        cwd._read = lambda rel: _shell_keyword_data.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_keyword_data.read_text(encoding="utf-8")
         _keyword_data_exec = cwd._exec_target_present(
             "scripts/probe-keyword-data.sh", "git", cwd._EXT)
     finally:
@@ -16515,7 +16753,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
     _shell_repo_data = Path(_cwd_ctd) / "probe-repo-data.sh"
     _shell_repo_data.write_text("echo config-get.sh\n", encoding="utf-8")
     try:
-        cwd._read = lambda rel: _shell_repo_data.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_repo_data.read_text(encoding="utf-8")
         _shell_repo_data_only = cwd._exec_target_present(
             "scripts/probe-repo-data.sh", "scripts/config-get.sh", cwd._REPO
         )
@@ -16560,8 +16798,8 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
 
     _shell_repo_cases = {
         "elif-binding-union": (
-            "if x; then TOOL=echo; elif y; then TOOL=config-get.sh; "
-            "else TOOL=echo; fi; \"$TOOL\"\n", True),
+            ("if x; then TOOL=echo; elif y; then TOOL=config-get.sh; "
+            "else TOOL=echo; fi; \"$TOOL\"\n"), True),
         "loop-zero-or-more-union": (
             "TOOL=echo; while x; do TOOL=config-get.sh; done; \"$TOOL\"\n", True),
         "parameter-default-command": ("${TOOL:-config-get.sh} x\n", True),
@@ -16587,7 +16825,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _shell_source_context.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_source_context.read_text(encoding="utf-8")
         _context_sources = cwd._scan_shell_sources("scripts/probe-source-context.sh")
     finally:
         cwd._read = _orig_read2
@@ -16606,7 +16844,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
         encoding="utf-8",
     )
     try:
-        cwd._read = lambda rel: _shell_source_data.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _shell_source_data.read_text(encoding="utf-8")
         _data_sources = cwd._scan_shell_sources("scripts/probe-source-data.sh")
     finally:
         cwd._read = _orig_read2
@@ -16616,7 +16854,7 @@ with tempfile.TemporaryDirectory() as _cwd_ctd:
     _absolute_source = Path(_cwd_ctd) / "probe-absolute-source.sh"
     _absolute_source.write_text('. /etc/evil.sh\n', encoding="utf-8")
     try:
-        cwd._read = lambda rel: _absolute_source.read_text(encoding="utf-8")  # noqa: E731
+        cwd._read = lambda rel: _absolute_source.read_text(encoding="utf-8")
         _absolute_edges = cwd._scan_shell_sources("scripts/probe-absolute-source.sh")
     finally:
         cwd._read = _orig_read2
@@ -16784,15 +17022,15 @@ for _wo_name, _wo_src, in (
     ("embedded variable inside the tail",
      '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n. "$HERE/x${EVIL}y.sh"\n'),
     ("embedded variable via the binding channel",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'F="$HERE/lib${EVIL}.sh"\n. "$F"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'F="$HERE/lib${EVIL}.sh"\n. "$F"\n')),
     ("suffix bytes after .sh in a var tail",
      '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n. "$HERE/x.sh.bak"\n'),
     ("suffix bytes after .sh in an anchored operand",
      '#!/usr/bin/env bash\n. "$(cd "$(dirname "$0")" && pwd)/x.sh.bak"\n'),
     ("missing separator after the proved var (brace form, existing target)",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     '. "${HERE}config-get.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     '. "${HERE}config-get.sh"\n')),
     ("dot-concatenated remnant after the proved var",
      '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n. "$HERE../x.sh"\n'),
     ("dash-concatenated remnant after the proved var",
@@ -16887,47 +17125,47 @@ assert_eq("#598 iter-3: a substitution-body-only anchor binding never proves the
 # any of them stays unproved.
 for _rb_name, _rb_src in (
     ("for-loop rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'for HERE in /evil; do :; done\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'for HERE in /evil; do :; done\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("read rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'read -r HERE\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'read -r HERE\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("read rebind with option argument",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'read -p "path: " HERE\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'read -p "path: " HERE\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("mapfile rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'mapfile -t HERE\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'mapfile -t HERE\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("printf -v rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'printf -v HERE /evil\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'printf -v HERE /evil\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("quoted printf -v rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'printf -v "HERE" %s /evil\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'printf -v "HERE" %s /evil\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("select rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'select HERE in /evil; do break; done\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'select HERE in /evil; do break; done\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("nameref rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'declare -n REF=HERE\nREF=/evil\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'declare -n REF=HERE\nREF=/evil\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("assign-default rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     ': "${HERE:=/evil}"\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     ': "${HERE:=/evil}"\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("backslash-continuation read rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'read -r \\\n  HERE\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'read -r \\\n  HERE\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("readarray rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'readarray -t HERE\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'readarray -t HERE\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("getopts rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'getopts a: HERE\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'getopts a: HERE\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("unset rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'unset HERE\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'unset HERE\n. "$HERE/../lib/resolve-jq.sh"\n')),
     ("append rebind",
-     '#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
-     'HERE+=/evil\n. "$HERE/../lib/resolve-jq.sh"\n'),
+     ('#!/usr/bin/env bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\n'
+     'HERE+=/evil\n. "$HERE/../lib/resolve-jq.sh"\n')),
 ):
     try:
         cwd._read = lambda rel, _s=_rb_src: _s
@@ -16995,8 +17233,8 @@ assert_eq("#598: the guard flags the dotted-through-flat broken leaf on disk",
 _pg_cases = {
     "no declaration": ("#!/usr/bin/env bash\n_need git\n", "found 0"),
     "two declarations": (
-        "readonly -a _DEVFLOW_PREFLIGHT_GUARANTEES=(git)\n"
-        "readonly -a _DEVFLOW_PREFLIGHT_GUARANTEES=(gh)\n", "found 2"),
+        ("readonly -a _DEVFLOW_PREFLIGHT_GUARANTEES=(git)\n"
+        "readonly -a _DEVFLOW_PREFLIGHT_GUARANTEES=(gh)\n"), "found 2"),
     "duplicate token": ("readonly -a _DEVFLOW_PREFLIGHT_GUARANTEES=(git git)\n",
                         "duplicate token"),
     "malformed token": ("readonly -a _DEVFLOW_PREFLIGHT_GUARANTEES=(g!t)\n",
@@ -17582,7 +17820,8 @@ assert_eq("#703 AC19 pairing2: no AC1-reached fence emits a denied shape (the 'o
 # merge-base check catches a hand-authored branch mutation. The seven acceptance criteria
 # are exercised end to end below.
 # ─────────────────────────────────────────────────────────────────────────────
-import hashlib as _h1445  # noqa: E402
+import hashlib as _h1445
+
 _regen1445 = _load('regenerate_artifacts_1445', _LIBTEST / 'regenerate-artifacts.py')
 _cwr1445 = _load('cloud_writer_retention_1445', _LIBTEST / 'cloud-writer-retention-check.py')
 
@@ -17597,8 +17836,8 @@ def _git1445(cwd, *args):
     r = _git1445_raw(cwd, *args)
     if r.returncode != 0:
         raise AssertionError(
-            "#1445 fixture: git %s failed rc=%d: %s"
-            % (' '.join(args), r.returncode, (r.stderr or '').strip()))
+            f"#1445 fixture: git {' '.join(args)} failed rc={r.returncode}:"
+            f" {(r.stderr or '').strip()}")
     return r
 
 
@@ -17619,8 +17858,8 @@ def _mt_conflict1445(repo, ref_a, ref_b):
     r = _git1445_raw(repo, 'merge-tree', '--write-tree', ref_a, ref_b)
     if r.returncode not in (0, 1):
         raise AssertionError(
-            "#1445 fixture: git merge-tree --write-tree errored rc=%d (needs git >= 2.38): %s"
-            % (r.returncode, (r.stderr or '').strip()))
+            f"#1445 fixture: git merge-tree --write-tree errored rc={r.returncode}"
+            f" (needs git >= 2.38): {(r.stderr or '').strip()}")
     return r.returncode == 1 or 'CONFLICT' in r.stdout or 'CONFLICT' in r.stderr
 
 
@@ -18554,7 +18793,7 @@ with tempfile.TemporaryDirectory() as _pm_base:
         print("  #1374 AC6 differential unavailable: this host cannot run the fence's `tr` chain")
     else:
         for _bn, _want in zip(_PM_BRANCH_INPUTS, _pm_expected):
-            assert_eq("#1374 AC6: in-Python slug matches the fence's live tr chain for %r" % _bn,
+            assert_eq(f"#1374 AC6: in-Python slug matches the fence's live tr chain for {_bn!r}",
                       _want, discover_deferrals._derive_branch_slug(_bn))
 
     # ---- The escape guard. The filter keeps `.` and `-`, so a branch named `..`
@@ -18583,8 +18822,8 @@ with tempfile.TemporaryDirectory() as _pm_base:
             # branch-unresolvable — so every fixture below would fail on the unestablished
             # arm instead. Raise here so the failure is attributed to `git init`.
             raise AssertionError(
-                '#1374 harness: git init -b %r failed (rc=%d); the presence-mode fixtures '
-                'cannot be built: %s' % (branch, _gi.returncode, _gi.stderr))
+                f'#1374 harness: git init -b {branch!r} failed (rc={_gi.returncode}); '
+                f'the presence-mode fixtures cannot be built: {_gi.stderr}')
         return d, d / '.prflow' / 'tmp' / 'review'
 
     # ---- Happy path 1: one non-empty run-scoped manifest under the PR slug.
@@ -18704,7 +18943,7 @@ with tempfile.TemporaryDirectory() as _pm_base:
     _d, _rev = _pm_tree('unestablished-usage')
     for _bad in ([_PM_FLAG], [_PM_FLAG, ''], [_PM_FLAG, 'abc'], [_PM_FLAG, '1', '2']):
         _rc, _so, _se = _dm_run(_bad, _d)
-        assert_eq("#1374 AC5: malformed invocation %r reports unestablished (exit 2) naming that reason" % (_bad,),
+        assert_eq(f"#1374 AC5: malformed invocation {_bad!r} reports unestablished (exit 2) naming that reason",
                   (2, True), (_rc, 'unestablished: reason=malformed-invocation' in _so))
     # `str.isdigit()` is Unicode-aware, so a non-ASCII digit would otherwise compose a
     # search directory no producer writes and report `absent` — the one answer this mode
@@ -19039,13 +19278,13 @@ def _ias_run(argv, cwd, stdin=None):
                     os.chdir(cwd)
                     sys.argv = [_IAS603, *[str(a) for a in argv]]
                     _ias_reset_module_state()
-                except BaseException:  # noqa: BLE001 - the child has no other reporter
+                except BaseException:
                     import traceback
                     try:
                         with os.fdopen(os.dup(2), 'w', encoding='utf-8') as _diag:
                             _diag.write('_ias_run: fork-child setup failed\n')
                             traceback.print_exc(file=_diag)
-                    except BaseException:  # noqa: BLE001 - diagnostics are best-effort
+                    except BaseException:
                         pass
                     raise
                 rc = 0
@@ -19054,7 +19293,7 @@ def _ias_run(argv, cwd, stdin=None):
                 except SystemExit as exc:
                     rc = 0 if exc.code is None else (
                         exc.code if isinstance(exc.code, int) else 1)
-                except BaseException:  # noqa: BLE001 - mirrors the interpreter's top level
+                except BaseException:
                     import traceback
                     traceback.print_exc()
                     rc = 1
@@ -19087,7 +19326,7 @@ def _ias_run(argv, cwd, stdin=None):
                             break
                         buf.append(b)
                 chunks[key] = b''.join(buf)
-            except BaseException as exc:  # noqa: BLE001 - re-raised in the parent below
+            except BaseException as exc:
                 failures[key] = exc
                 # Release this pipe end HERE when `os.fdopen` never took it: the parent
                 # reaches `os.waitpid` before its own finally arm, so an undrained,
@@ -19309,7 +19548,7 @@ def _with_run603(fn):
 # those verdicts rather than fail. These rows grade the driver directly, against the real
 # spawn it replaced.
 
-import signal as _signal1567  # noqa: E402
+import signal as _signal1567
 
 
 def _ias_driver_rows(r):
@@ -19881,9 +20120,7 @@ for _node in ast.walk(_tree603):
                     if (isinstance(_st603, ast.Assign)
                             and any(isinstance(_t603, ast.Name)
                                     and _t603.id == _sub603.id
-                                    for _t603 in _st603.targets)):
-                        _work603.append(_st603.value)
-                    elif (isinstance(_st603, (ast.AugAssign, ast.AnnAssign))
+                                    for _t603 in _st603.targets)) or (isinstance(_st603, (ast.AugAssign, ast.AnnAssign))
                           and isinstance(_st603.target, ast.Name)
                           and _st603.target.id == _sub603.id
                           and _st603.value is not None):
@@ -20574,7 +20811,7 @@ _src19 = Path(_IAS603).read_text(encoding='utf-8').replace(
 assert_eq("#603-19/AC12 mutation control: the drift mutation actually applied to the source",
           True, "'drifted'" in _src19)
 try:
-    exec(compile(_src19, _IAS603, 'exec'), {'__name__': '_ias603_drift'})
+    exec(compile(_src19, _IAS603, 'exec'), {'__name__': '_ias603_drift'})  # noqa: S102
     _drift19 = 'no raise'
 except RuntimeError as _exc19:
     _drift19 = 'named' if 'have drifted' in str(_exc19) else f'unnamed: {_exc19}'
@@ -20593,7 +20830,7 @@ for _n20, _stdin20 in (
         ('the read itself fails', 'raise'),
 ):
     class _Stdin20:
-        class buffer:  # noqa: N801 - mirrors the attribute shape `_ingest_ledger` reads
+        class buffer:
             @staticmethod
             def read():
                 raise OSError('simulated read failure')
@@ -23940,8 +24177,8 @@ def _row792_slot_per_digest(r):
               "does not re-fire against unchanged bytes",
               'not-hold', _field704(r.fb(), 'final_byte_trigger='))
     assert_eq("#792 AC121: ... a decline is NOT recorded as a user-decline override",
-              'user_declined=no', [t for t in r.summary().split()
-                                   if t.startswith('user_declined=')][0])
+              'user_declined=no', next(t for t in r.summary().split()
+                                   if t.startswith('user_declined=')))
     assert_eq("#792 AC122: ... and it grounds no eligibility answer",
               'eligible=no reason=steering-unestablished', r.eligibility())
     # Re-arm: a recorded revision that changes the canonical bytes.
@@ -24194,7 +24431,7 @@ def _row792_selectors_exclude_pass(r, pass_verdict='REVISE'):
         return [t for t in r.summary().split()
                 if t.startswith(('coverage_backing=', 'coverage_reason='))]
 
-    before_cal = [t for t in r.summary().split() if t.startswith('calibration_backing=')][0]
+    before_cal = next(t for t in r.summary().split() if t.startswith('calibration_backing='))
     before_cov = _cov_tokens()
     assert_eq(f"#792 AC111 precondition ({pass_verdict} pass): the run is calibration-ESTABLISHED "
               "before the pass, so the comparison below is discriminating rather than "
@@ -24211,8 +24448,8 @@ def _row792_selectors_exclude_pass(r, pass_verdict='REVISE'):
               before_cov, _cov_tokens())
     assert_eq(f"#792 AC110/AC111: ... nor the calibration axis, which any superseding "
               f"adjudication would otherwise retire ({pass_verdict} pass)",
-              before_cal, [t for t in r.summary().split()
-                           if t.startswith('calibration_backing=')][0])
+              before_cal, next(t for t in r.summary().split()
+                           if t.startswith('calibration_backing=')))
 
 
 # AC111 asserts BOTH variants separately: the coverage axis is retired by any non-`FILE` latest
@@ -24504,7 +24741,7 @@ def _open_pass_round(r, n=2):
     r('record-dispatch', '--kind', 'discovery', r.slug, '--round', str(n), '--arm', 'file',
       '--draft-file', r.draft, nonce=True)
     doc = _json.loads(_state792(r).read_text(encoding='utf-8'))
-    rnd = [x for x in doc['rounds'] if x['round'] == n][0]
+    rnd = next(x for x in doc['rounds'] if x['round'] == n)
     assert_eq(f"#792 harness precondition: round {n} opened as the funded final-byte pass "
               "carrying the digest the slot was armed on",
               (True, True),
@@ -25072,7 +25309,7 @@ _dp_decision_src = '\n'.join(
 assert_eq("#815 the presence-mode decision path shells out to no un-guaranteed PATH tool",
           [],
           [t for t in ('grep', 'tr', 'sed', 'wc', 'cut', 'head')
-           if re.search(r'\b%s\b' % t, _dp_decision_src)])
+           if re.search(rf'\b{t}\b', _dp_decision_src)])
 
 # The three-state routing itself, driven through the subcommand so the exit code —
 # the operand Phase 4 actually reads — is what is asserted, not just the counts.
@@ -25159,8 +25396,8 @@ assert_eq("#815 two deferred records sharing one normalized key exit 2, never di
 # The unestablished arm exits BEFORE the outstanding set is computed, so without the
 # filed: projection a never-bound workpad re-files on every fresh Phase 4 entry.
 assert_eq("#815 an unestablished answer still names what a prior entry already filed",
-          (2, "unestablished: reason=unbound-records unbound=1 corrupted=0\n"
-              f"filed: {DP_CRIT}\n"),
+          (2, ("unestablished: reason=unbound-records unbound=1 corrupted=0\n"
+              f"filed: {DP_CRIT}\n")),
           _dp_run(_dp_body(
               progress_extra=_dp_note(_dp_rec('pending', 'deferred', DP_CRIT))
               + _dp_note(workpad._render_deferred_filed(DP_CRIT)))))
@@ -25196,6 +25433,31 @@ assert_eq("#815 a written filed marker is read back by the predicate as a discha
           _dp_run(apply_mut(
               _dp_body(progress_extra=_dp_note(_dp_rec(42, 'deferred', DP_CRIT))),
               make_args(mark_deferred_filed=[DP_CRIT]))))
+
+
+# ── issue #1446: the interpolation-free arm. A criterion text carrying a backtick
+# and an apostrophe cannot be safely quoted inline on the cloud matcher, so the run
+# that hit this wrote no markers at all and a later Phase 4 entry would re-file the
+# same follow-up. `--mark-deferred-filed-file` takes one value per line off disk.
+_DP1446 = "the run\u2019s `arrived` state is recorded, not $inferred"
+with tempfile.TemporaryDirectory() as _d1446:
+    _f1446 = os.path.join(_d1446, "filed.txt")
+    with open(_f1446, "w", encoding="utf-8") as _fh:
+        _fh.write("\n" + _DP1446 + "\n\n")          # blank lines are ignored
+    assert_eq("#1446 --mark-deferred-filed-file discharges a criterion whose text "
+              "carries a backtick, an apostrophe and a $",
+              (1, "not-outstanding: 1\n"),
+              _dp_run(apply_mut(
+                  _dp_body(progress_extra=_dp_note(_dp_rec(42, "deferred", _DP1446))),
+                  make_args(mark_deferred_filed_file=_f1446))))
+    _blank1446 = os.path.join(_d1446, "blank.txt")
+    with open(_blank1446, "w", encoding="utf-8") as _fh:
+        _fh.write("   \n\n")
+    assert_raises("#1446 an all-blank --mark-deferred-filed-file aborts rather than "
+                  "silently marking nothing",
+                  workpad._UpdateError,
+                  lambda: apply_mut(_dp_body(),
+                                    make_args(mark_deferred_filed_file=_blank1446)))
 
 
 # ── #815 the argv surface itself ───────────────────────────────────────────────
@@ -25462,7 +25724,7 @@ _dra_decision_src = '\n'.join(
 assert_eq("#1513 the audit decision path shells out to no un-guaranteed PATH tool",
           [],
           [t for t in ('grep', 'tr', 'sed', 'wc', 'cut', 'head')
-           if re.search(r'\b%s\b' % t, _dra_decision_src)])
+           if re.search(rf'\b{t}\b', _dra_decision_src)])
 
 
 # --- the three-state routing, driven through the subcommand (the exit code Phase 4 reads) ---
@@ -25627,16 +25889,16 @@ _dp_div_filed = _dp_body(
                     + _dp_note(workpad._render_deferred_filed(DP_CRIT))),
     acs_extra=_dp_rec(42, 'deferred', DP_OTHER))
 assert_eq("#815 the reader-divergence arm still names what a prior entry filed",
-          (2, "unestablished: reason=reader-divergence unbound=0 corrupted=0\n"
-              f"filed: {DP_CRIT}\n"),
+          (2, ("unestablished: reason=reader-divergence unbound=0 corrupted=0\n"
+              f"filed: {DP_CRIT}\n")),
           _dp_run(_dp_div_filed))
 _dp_ambig_filed = _dp_body(progress_extra=(
     _dp_note(_dp_rec(42, 'deferred', 'ship  the widget'))
     + _dp_note(_dp_rec(42, 'deferred', 'ship the widget'))
     + _dp_note(workpad._render_deferred_filed(DP_OTHER))))
 assert_eq("#815 the ambiguous-criteria arm still names what a prior entry filed",
-          (2, "unestablished: reason=ambiguous-criteria unbound=0 corrupted=0\n"
-              f"filed: {DP_OTHER}\n"),
+          (2, ("unestablished: reason=ambiguous-criteria unbound=0 corrupted=0\n"
+              f"filed: {DP_OTHER}\n")),
           _dp_run(_dp_ambig_filed))
 # Multiple filed criteria print sorted — the property that makes the output
 # diffable — and multiple outstanding criteria print one line each.
@@ -25645,8 +25907,8 @@ _dp_multi_filed = _dp_body(progress_extra=(
     + _dp_note(workpad._render_deferred_filed('zzz last'))
     + _dp_note(workpad._render_deferred_filed('aaa first'))))
 assert_eq("#815 multiple filed: lines print in sorted order, not insertion order",
-          (2, "unestablished: reason=unbound-records unbound=1 corrupted=0\n"
-              "filed: aaa first\nfiled: zzz last\n"),
+          (2, ("unestablished: reason=unbound-records unbound=1 corrupted=0\n"
+              "filed: aaa first\nfiled: zzz last\n")),
           _dp_run(_dp_multi_filed))
 assert_eq("#815 two outstanding records print the count plus one criterion: line each",
           (0, f"outstanding: 2\ncriterion: {DP_CRIT}\ncriterion: {DP_OTHER}\n"),
@@ -26063,7 +26325,7 @@ def _drive_cmd_patch_body(existing_body, new_body, *, want=None):
             # `--jq .body` or addressed another comment would otherwise pass.
             assert '/repos/owner/repo/issues/comments/7' in cmd, cmd
             assert '--jq' in cmd and '.body' in cmd, cmd
-            operand = [c for c in cmd if c.startswith('body=@')][0]
+            operand = next(c for c in cmd if c.startswith('body=@'))
             sent['path'] = Path(operand[len('body=@'):])
             sent['body'] = sent['path'].read_text(encoding='utf-8')
             return _FakeRun(sent['body'])
@@ -26157,7 +26419,7 @@ def _drive_cmd_patch_read_failure(new_body=None, live=None):
 
     def _fake(cmd, **kw):
         if '-X' in cmd and 'PATCH' in cmd:
-            operand = [c for c in cmd if c.startswith('body=@')][0]
+            operand = next(c for c in cmd if c.startswith('body=@'))
             sent['body'] = Path(operand[len('body=@'):]).read_text(encoding='utf-8')
             return _FakeRun(sent['body'])
         if live is None:
@@ -26610,13 +26872,12 @@ def _run_acs_resolve_capture_err(issue_arg):
 # shell S1 guard's `*[!0-9]*` contract (whose matching row lives in lib/test/run.sh).
 for _acs_bad in ('abc', '', '+5', '007x', '1a', '٥'):
     _acs_code, _acs_out = _run_acs_resolve_capture(_acs_bad)
-    assert_eq("#857 acs_resolve_routes_non_numeric: %r exits 0" % _acs_bad, 0, _acs_code)
-    assert_eq("#857 acs_resolve_routes_non_numeric: %r emits source: resolver-unavailable"
-              % _acs_bad, True, 'source: resolver-unavailable' in _acs_out)
+    assert_eq(f"#857 acs_resolve_routes_non_numeric: {_acs_bad!r} exits 0", 0, _acs_code)
+    assert_eq(f"#857 acs_resolve_routes_non_numeric: {_acs_bad!r} emits source: resolver-unavailable", True, 'source: resolver-unavailable' in _acs_out)
     # A CALLER bug must be distinguishable from an infrastructure denial: both route to
     # the same stdout token, so the stderr breadcrumb is the only discriminator.
-    assert_eq("#857 acs_resolve_routes_non_numeric: %r breadcrumbs the non-numeric cause "
-              "on stderr" % _acs_bad, True,
+    assert_eq(f"#857 acs_resolve_routes_non_numeric: {_acs_bad!r} breadcrumbs the non-numeric cause "
+              "on stderr", True,
               'is not numeric' in _run_acs_resolve_capture_err(_acs_bad))
 
 # Positive control for the guard above: a VALID numeric argument is NOT short-circuited
@@ -26639,7 +26900,7 @@ assert_eq("#857 acs_resolve numeric happy path: no non-numeric breadcrumb is emi
 print()
 print("issue #1214: acs-gate defined degradation + failed-write buffering/replay")
 
-import stat as _stat1214  # noqa: E402
+import stat as _stat1214
 
 
 def _run_acs_gate(read_effect, fallback='(unset)'):
@@ -26792,18 +27053,18 @@ _MARK1214 = '<!-- prflow:workpad -->'
 
 
 def _update_args(**kw):
-    base = dict(
-        issue=1214, marker=None, status=None, branch=None, run_link=None,
-        pr_link=None, tick_progress=[], tick_plan=[], tick_plan_n=[], tick_ac=[],
-        tick_ac_n=[], rewrite_ac=[], note=[], reflection=[], reflection_file=None,
-        note_file=None,
-        reflection_kind=None, replace_plan_file=None, replace_acs_file=None,
-        set_reproduction_file=None, checkpoint=None, record_completion_evidence=None,
-        record_classification=None, reconcile_reproduction=None, mark_deferred_filed=None,
-        bind_scope_decisions=None, scope_decision_deferred=None,
-        scope_decision_rewritten=None, print_body=False, expect_comment_id=None,
-        expect_status=None,
-    )
+    base = {
+        'issue': 1214, 'marker': None, 'status': None, 'branch': None, 'run_link': None,
+        'pr_link': None, 'tick_progress': [], 'tick_plan': [], 'tick_plan_n': [], 'tick_ac': [],
+        'tick_ac_n': [], 'rewrite_ac': [], 'note': [], 'reflection': [], 'reflection_file': None,
+        'note_file': None,
+        'reflection_kind': None, 'replace_plan_file': None, 'replace_acs_file': None,
+        'set_reproduction_file': None, 'checkpoint': None, 'record_completion_evidence': None,
+        'record_classification': None, 'reconcile_reproduction': None, 'mark_deferred_filed': None,
+        'bind_scope_decisions': None, 'scope_decision_deferred': None,
+        'scope_decision_rewritten': None, 'print_body': False, 'expect_comment_id': None,
+        'expect_status': None,
+    }
     base.update(kw)
     return argparse.Namespace(**base)
 
@@ -26880,7 +27141,7 @@ _dupnote = 'idempotent-replay-note'
     encoding='utf-8')
 # The live body ALREADY contains the buffered note (a prior replay landed it).
 _body_with_note = _WP1214.replace(
-    "- [ ] **Setup**\n", "- [ ] **Setup**\n  - 00:00:00 — %s\n" % _dupnote)
+    "- [ ] **Setup**\n", f"- [ ] **Setup**\n  - 00:00:00 — {_dupnote}\n")
 _code, _pb, _n = _run_cmd_update(
     _update_args(status='Reviewing'),
     live_body=_body_with_note, patch_fails=False, buffer_dir=_bufdir2)
@@ -27110,14 +27371,14 @@ assert_eq("#1214 exact identity: the substring-collision replay exits 0", 0, _co
 assert_eq("#1214 exact identity: a buffered note that is only a SUBSTRING of existing "
           "content is still replayed as its own bullet",
           True, _pb is not None
-          and re.search(r'^\s*-\s+\d{2}:\d{2}:\d{2}\s+—\s+503$', _pb, re.M) is not None)
+          and re.search(r'^\s*-\s+\d{2}:\d{2}:\d{2}\s+—\s+503$', _pb, re.MULTILINE) is not None)
 
 
 def _rendered_reflection_line(kind, text):
     """The bullet `_insert_reflection_bullet` writes for (kind, text) — derived
     from the shipped taxonomy so the expectation tracks the renderer."""
     _glyph, _label, _ = workpad._REFLECTION_KINDS[kind]
-    return '- %s %s%s' % (_glyph, ('**%s:** ' % _label) if _label else '', text)
+    return '- {} {}{}'.format(_glyph, (f'**{_label}:** ') if _label else '', text)
 
 
 # A replayed reflection is filed under the REPLAYING call's kind; this call passes
@@ -27145,12 +27406,12 @@ _exact_rfl = 'exact-reflection-already-rendered'
 # The reflection is rendered under the SAME kind the replay would use, so this is
 # the plain same-shape dedup; the cross-kind case is driven separately below.
 _body_exact = _WP1214.replace(
-    "- [ ] **Setup**\n", "- [ ] **Setup**\n  - 00:00:00 — %s\n" % _exact_note
+    "- [ ] **Setup**\n", f"- [ ] **Setup**\n  - 00:00:00 — {_exact_note}\n"
 ).replace(
     "<summary>Devflow Reflection (click to expand)</summary>\n\n",
     "<summary>Devflow Reflection (click to expand)</summary>\n\n"
     "### ℹ️ Notes\n"
-    "%s\n\n" % _rendered_reflection_line(_replay_kind, _exact_rfl)
+    f"{_rendered_reflection_line(_replay_kind, _exact_rfl)}\n\n"
 )
 _code, _pb, _n = _run_cmd_update(
     _update_args(status='Reviewing'),
@@ -27178,7 +27439,7 @@ _body_crosskind = _WP1214.replace(
     "<summary>Devflow Reflection (click to expand)</summary>\n\n",
     "<summary>Devflow Reflection (click to expand)</summary>\n\n"
     "### ⚠️ Action required\n"
-    "%s\n\n" % _rendered_reflection_line('blocked', _crosskind)
+    "{}\n\n".format(_rendered_reflection_line('blocked', _crosskind))
 )
 _code, _pb, _n = _run_cmd_update(
     _update_args(status='Reviewing'),
@@ -27198,7 +27459,7 @@ _offsection = 'text-that-lives-in-another-section'
     encoding='utf-8')
 _body_offsection = _WP1214.replace(
     "## Acceptance Criteria\n- [ ] a\n",
-    "## Acceptance Criteria\n- [ ] a\n- [ ] %s\n" % _offsection)
+    f"## Acceptance Criteria\n- [ ] a\n- [ ] {_offsection}\n")
 _code, _pb, _n = _run_cmd_update(
     _update_args(status='Reviewing'),
     live_body=_body_offsection, patch_fails=False, buffer_dir=_bufdir12)
@@ -27206,8 +27467,8 @@ assert_eq("#1214 exact identity: the off-section replay exits 0", 0, _code)
 assert_eq("#1214 exact identity: a match OUTSIDE '## Progress' does not count as "
           "already-applied", True,
           _pb is not None
-          and re.search(r'^\s*-\s+\d{2}:\d{2}:\d{2}\s+—\s+%s$' % re.escape(_offsection),
-                        _pb, re.M) is not None)
+          and re.search(rf'^\s*-\s+\d{{2}}:\d{{2}}:\d{{2}}\s+—\s+{re.escape(_offsection)}$',
+                        _pb, re.MULTILINE) is not None)
 
 
 # AC11: a 503 response does not match the credential-failure pattern in gh-fresh.sh.
@@ -27216,7 +27477,7 @@ _sig_m = re.search(r"SIG='([^']*)'", _ghfresh_src)
 assert_eq("#1214 AC11: the gh-fresh.sh SIG literal is present", True, _sig_m is not None)
 _SIG1214 = _sig_m.group(1)
 for _503 in ('gh: HTTP 503 Service Unavailable', 'HTTP 503', 'server returned 503'):
-    assert_eq("#1214 AC11: a 503 (%r) does NOT match the credential pattern" % _503,
+    assert_eq(f"#1214 AC11: a 503 ({_503!r}) does NOT match the credential pattern",
               None, re.search(_SIG1214, _503, re.IGNORECASE))
 # Positive control: the pattern still matches a real credential failure.
 assert_eq("#1214 AC11: a real 401/Bad credentials DOES still match (positive control)",
@@ -27363,7 +27624,7 @@ def _row795_suggestion_is_runnable(r):
     assert_eq("#795 runnable: query-arm renders a record-dispatch invocation", True,
               line.startswith('next_call=<state-owner> record-dispatch '))
     tokens = line.split(' ')[1:]                      # drop the next_call= placeholder
-    needs = [t for t in tokens if t.startswith('needs=')][0][len('needs='):]
+    needs = next(t for t in tokens if t.startswith('needs='))[len('needs='):]
     needs = [] if needs == 'none' else needs.split(',')
     # Fill each caller-supplied flag with a value the caller plainly has in hand.
     supplied = {'--round': '1', '--draft-file': 'd.md'}
@@ -27568,9 +27829,9 @@ assert_eq("#795 multi-round: an EXPLICIT --round is honoured verbatim over the l
 # required flag added to a subparser silently produced a suggestion that argparse refuses
 # the moment a caller copies it -- reproducing the accidental-failure class this channel
 # exists to reduce. Drive every arm and diff the two sets.
-_ias795_subparsers = [a for a in _ias795.build_parser()._actions
+_ias795_subparsers = next(a for a in _ias795.build_parser()._actions
                       if getattr(a, 'choices', None)
-                      and all(hasattr(v, '_actions') for v in a.choices.values())][0].choices
+                      and all(hasattr(v, '_actions') for v in a.choices.values())).choices
 
 
 def _ias795_required_flags(subcommand):
@@ -27686,7 +27947,7 @@ def _alc_refuses(label, mutate):
         check()
     except _alc795.Refusal:
         return True
-    except Exception:                                    # noqa: BLE001
+    except Exception:
         return False
     return False
 
@@ -28102,7 +28363,7 @@ try:
     # `isinstance(..., Refusal)` explicitly — the same shape the `_alc_dedup` row uses.
     try:
         _alc795._load_extractor()
-    except Exception as _exc:  # noqa: BLE001 - the row's subject is WHICH exception type escapes
+    except Exception as _exc:
         _alc_load_refusal = str(_exc) if isinstance(_exc, _alc795.Refusal) else None
 finally:
     _alc795._ECH = _alc_ech_saved
@@ -29066,8 +29327,8 @@ for _u_label, _u_body in (
         ('unclosed fence to EOF',
          '## Technical Context\n\n```\nverified against origin/main\n'),
         ('fence opened in section, closed after it',
-         '## Technical Context\n\n```\nverified against x\n'
-         '## Desired Behavior\nchecked against y\n```\n')):
+         ('## Technical Context\n\n```\nverified against x\n'
+         '## Desired Behavior\nchecked against y\n```\n'))):
     _cvp_rc, _cvp_out = _cvp_run(_u_body)
     assert_eq(f"#1634 helper: a collocation inside a {_u_label} produces no ungraded line",
               True, _cvp_ungraded_lines(_cvp_out) == [])
@@ -31174,8 +31435,8 @@ with tempfile.TemporaryDirectory() as _t_eab, tempfile.TemporaryDirectory() as _
                       '--carriage-sentinel-close', 'AUDIT-WRONG-CLOSE', nonce=True)  # mismatch
     assert_eq("#1103: the embed-arm absent-carriage breadcrumb names the sentinel remedy, "
               "exit 0, stdout contract line unchanged",
-              (0, True, True, 'classification=no-parseable-verdict outcome=pending '
-                              'steering=unestablished steering_reason=none'),
+              (0, True, True, ('classification=no-parseable-verdict outcome=pending '
+                              'steering=unestablished steering_reason=none')),
               (_p_eab.returncode,
                'carriage-absent' in _p_eab.stderr,
                '--carriage-sentinel-open' in _p_eab.stderr
@@ -31562,7 +31823,7 @@ assert_eq("#1104: recording the same staged write twice leaves ONE history entry
           (len(_1104_state(_1104_id)['staged_paths']), _1104_idd.returncode,
            len(_1104_state(_1104_id)['rounds'])))
 
-import shutil as shutil1104  # noqa: E402
+import shutil as shutil1104
 
 shutil1104.rmtree(_1104_ROOT, ignore_errors=True)
 
@@ -31574,9 +31835,9 @@ shutil1104.rmtree(_1104_ROOT, ignore_errors=True)
 # root. To drive it hermetically (isolated store, no collision with the real repo or the
 # parallel pool), each invocation runs in a throwaway git repo that carries copies of the
 # guard's importlib closure at their committed relative paths.
-import shutil as shutil805  # noqa: E402
-import subprocess as _sp805  # noqa: E402
-import json as _json805  # noqa: E402
+import json as _json805
+import shutil as shutil805
+import subprocess as _sp805
 
 _GUARD_SRC = SCRIPTS / 'pretooluse-shape-guard.py'
 _SHAPES_SRC = Path(__file__).resolve().parent / 'extract-command-shapes.py'
@@ -31584,7 +31845,7 @@ _HEADS_SRC = Path(__file__).resolve().parent / 'extract-command-heads.py'
 _shapes_mod = _load('shapes805', _SHAPES_SRC)
 
 
-import collections as _collections805  # noqa: E402
+import collections as _collections805
 
 # One parent TemporaryDirectory owns every rig root, so the ~20 rigs this block builds are
 # removed when the process exits instead of leaking `mkdtemp()` roots (each with a `git
@@ -31653,7 +31914,7 @@ class _GuardRig:
             obj = _json805.loads(out)
             dec = obj['hookSpecificOutput']['permissionDecision']
             reason = obj['hookSpecificOutput'].get('permissionDecisionReason', '')
-        except Exception:  # noqa: BLE001
+        except Exception:
             dec, reason = ('PARSE-FAIL', out)
         return _GuardResult(p.returncode, dec, reason, err)
 
@@ -31790,8 +32051,8 @@ assert_eq("#805 guard: DENY_ARMS is exactly the REMEDIATION key set (unrepresent
 # arm-level classifier by construction. This reads REVIEW_RULES (the operand the old
 # control ignored) and the table's own projection.
 assert_eq("#805 shapes: REVIEW_ARMS and REVIEW_RULES are both derived from the one arm table",
-          (set(a for a, _r, _p in _shapes_mod._REVIEW_ARM_TABLE),
-           set(r for _a, r, _p in _shapes_mod._REVIEW_ARM_TABLE)),
+          ({a for a, _r, _p in _shapes_mod._REVIEW_ARM_TABLE},
+           {r for _a, r, _p in _shapes_mod._REVIEW_ARM_TABLE}),
           (set(_shapes_mod.REVIEW_ARMS), set(_shapes_mod.REVIEW_RULES)))
 # The two classifiers cannot disagree: for every statement, classify() must equal the
 # arm->rule projection of classify_arms(). Driven over one planted statement per arm plus
@@ -32273,7 +32534,7 @@ assert_eq("#805 guard: no tool_use_id — the per-arm counter counted exactly tw
 # exactly the contention the lock exists for, a run whose repeats never escalate would
 # otherwise be indistinguishable from one that had none. Driven by holding the lock file
 # from this process for longer than the guard's bounded wait.
-import fcntl as _fcntl805  # noqa: E402
+import fcntl as _fcntl805
 
 _rig_lk = _GuardRig()
 _rig_lk.run(_payload('echo hi', tid='seed-lock'))
@@ -32414,7 +32675,7 @@ assert_eq("#805 guard: seen-eviction positive control — an under-bound map is 
 # apply-issue-dependencies.py imports it. Both are exercised here: the function
 # directly (in-process), and the helper as a real subprocess with a stubbed gh so
 # its per-outcome stderr breadcrumbs and always-exit-0 contract are asserted.
-import subprocess as _sp1011  # noqa: E402
+import subprocess as _sp1011
 
 _preflight1011 = _load('preflight_1011', SCRIPTS / 'preflight.py')
 
@@ -32919,8 +33180,8 @@ assert_eq("#1011 import-failure: breadcrumb names the recognizer import failure"
 print("issue #1087: completion verification-flight evidence gate")
 
 cce = _load('check_completion_evidence', SCRIPTS / 'check-completion-evidence.py')
-import json as _json1087  # noqa: E402
-import tempfile as _tmp1087  # noqa: E402
+import json as _json1087
+import tempfile as _tmp1087
 
 
 def _write_flight(rec):
@@ -33080,11 +33341,11 @@ _CI_YML = (
     "jobs:\n"
     "  test:\n"
     "    # prflow:required-check\n"
-    "    name: %s\n"
+    f"    name: {_CI_REQUIRED_A}\n"
     "  lint:\n"
     "    # prflow:required-check\n"
-    "    name: %s\n"
-) % (_CI_REQUIRED_A, _CI_REQUIRED_B)
+    f"    name: {_CI_REQUIRED_B}\n"
+)
 
 
 def _make_ci_repo():
@@ -33236,7 +33497,7 @@ try:
     _raised_internal = False
 except cce._Internal:
     _raised_internal = True
-except Exception:  # noqa: BLE001
+except Exception:
     _raised_internal = False
 assert_eq("#1611 well-formed record over a non-git repo_root raises _Internal (no verdict)",
           True, _raised_internal)
@@ -33353,9 +33614,8 @@ try:
               True, _raised and 'missing-evidence' in _msg)
 
     # one flight + one CI marker → multiple-marker refusal (counted across families).
-    _pc_both = ('- [x] a <!-- prflow:checkpoint completion-verification:%s -->\n'
-                '- [x] b <!-- prflow:checkpoint completion-ci:%s -->\n'
-                % ('a' * 64, _enc_ci))
+    _pc_both = ('- [x] a <!-- prflow:checkpoint completion-verification:{} -->\n'
+                '- [x] b <!-- prflow:checkpoint completion-ci:{} -->\n'.format('a' * 64, _enc_ci))
     try:
         workpad._completion_evidence_verdict(_mk(), _pc_both)
         _raised, _msg = False, ''
@@ -33365,8 +33625,8 @@ try:
               True, _raised and 'exactly one' in _msg)
 
     # two CI markers → multiple-marker refusal.
-    _pc_two = ('- [x] a <!-- prflow:checkpoint completion-ci:%s -->\n'
-               '- [x] b <!-- prflow:checkpoint completion-ci:%s -->\n' % (_enc_ci, _enc_ci))
+    _pc_two = (f'- [x] a <!-- prflow:checkpoint completion-ci:{_enc_ci} -->\n'
+               f'- [x] b <!-- prflow:checkpoint completion-ci:{_enc_ci} -->\n')
     try:
         workpad._completion_evidence_verdict(_mk(), _pc_two)
         _raised = False
@@ -33389,7 +33649,7 @@ try:
     finally:
         workpad._load_completion_validator = _saved_loader_ci
     # An older sibling present but lacking validate_implement_completion_ci also fails closed.
-    class _StubNoCi:  # noqa: N801 - test stub
+    class _StubNoCi:
         pass
     workpad._load_completion_validator = lambda: _StubNoCi()
     try:
@@ -33414,7 +33674,7 @@ try:
     # Both marker spellings recognised for the CI family: a single valid marker in
     # either spelling validates to a clean pass (no raise).
     for _spell in ('prflow', 'devflow'):
-        _pc_one = '- [x] a <!-- %s:checkpoint completion-ci:%s -->\n' % (_spell, _enc_ci)
+        _pc_one = f'- [x] a <!-- {_spell}:checkpoint completion-ci:{_enc_ci} -->\n'
         try:
             workpad._completion_evidence_verdict(_mk(), _pc_one)
             _ok = True
@@ -33429,7 +33689,7 @@ finally:
 # The reception (direct) and fix-loop (loop) passes reach the CI validation through
 # check-completion-evidence.py's own CLI, supplying a --ci-record. Drive cce.main(argv)
 # and read its exit code + the single verdict line, exactly as the production caller does.
-import contextlib as _ctx1898  # noqa: E402
+import contextlib as _ctx1898
 
 
 def _write_json_1898(obj):
@@ -33525,7 +33785,7 @@ assert_eq("#1898 the deferral refusal names non-durable-deferral", True,
 # single-flight consultation round-trips in the same record.
 # ─────────────────────────────────────────────────────────────────────────────
 focused_selection = _load('focused_selection', SCRIPTS / 'focused_selection.py')
-import json as _json1229  # noqa: E402
+import json as _json1229
 
 # A record naming one or more surfaces, mixing both entry shapes (AC3): one a
 # discharging focused result, one an exemption ground.
@@ -33613,7 +33873,8 @@ assert_raises("#1229 build_record rejects a non-list surfaces argument",
 _bad_b64 = "<!-- prflow:focused-selection !!!not-base64!!! -->"
 assert_eq("#1229 decode fails closed on non-base64 payload", [],
           focused_selection.decode_markers(_bad_b64))
-import base64 as _b641229  # noqa: E402
+import base64 as _b641229
+
 _b64_nonjson = "<!-- prflow:focused-selection " + \
     _b641229.b64encode(b"not json at all").decode("ascii") + " -->"
 assert_eq("#1229 decode fails closed on a payload that is valid base64 but not JSON",
@@ -33789,7 +34050,7 @@ _FS_RAISED = "<<raised>>"
 def _fs_guard(fn, *a):
     try:
         return fn(*a)
-    except Exception as e:  # noqa: BLE001 - an escape IS the failure being asserted
+    except Exception as e:
         return f"{_FS_RAISED} {type(e).__name__}: {e}"
 
 
@@ -34173,8 +34434,8 @@ with tempfile.TemporaryDirectory(prefix='psg1350-') as _R1350:
     assert_eq("#1350 rendered figures carry thousands separators (the only form a "
               "real prompt surface ever produces)",
               (0, ['| `skills/alpha/SKILL.md` | 6 | 12,345 | +12,339 | +205,650.0% |',
-                   '| **Whole covered surface** | **17** | **12,356** | **+12,339** '
-                   '| **+72,582.4%** |']),
+                   ('| **Whole covered surface** | **17** | **12,356** | **+12,339** '
+                   '| **+72,582.4%** |')]),
               (_rc1350j, _psg_rows1350(_out1350j)))
 
     # ── Repo-root anchoring: a subdirectory invocation reports the same thing ───────
@@ -34262,8 +34523,8 @@ with tempfile.TemporaryDirectory(prefix='psg1350o-') as _R1350o:
     assert_eq("#1350 the merge-base resolves through origin/HEAD, so a repo whose "
               "default branch is not `main` is measured against ITS default",
               (0, True, ['| `skills/alpha/SKILL.md` | 6 | 11 | +5 | +83.3% |',
-                         '| **Whole covered surface** | **6** | **11** | **+5** '
-                         '| **+83.3%** |']),
+                         ('| **Whole covered surface** | **6** | **11** | **+5** '
+                         '| **+83.3%** |')]),
               (_rc1350o, '(`origin/develop`)' in _out1350o,
                _psg_rows1350(_out1350o)))
 
@@ -34380,7 +34641,7 @@ with tempfile.TemporaryDirectory(prefix='psg1350n-') as _R1350n:
 # resolves to a typed `unestablished` result with a specific reason, never a
 # plausible-but-unobserved "N/A". These assertions pin both the established path
 # (the shipped manifest validates) and the full rejection matrix AC #1276 names.
-import copy as _lm_copy  # noqa: E402
+import copy as _lm_copy
 
 lint_manifest = _load('lint_manifest', SCRIPTS / 'lint_manifest.py')
 
@@ -34721,8 +34982,8 @@ assert_eq("#1484 member '..' rejected by the shared traversal arm",
           (False, f"{_LM_MEMBER_WHERE} '..' escapes the repository via '..'"),
           _lm_member(".."))
 assert_eq("#1484 dash-leading member rejected by the shared argv-safety arm",
-          (False, f"{_LM_MEMBER_WHERE} '-rf' starts with '-' "
-                  "(would be parsed as an option, not a path)"),
+          (False, (f"{_LM_MEMBER_WHERE} '-rf' starts with '-' "
+                  "(would be parsed as an option, not a path)")),
           _lm_member("-rf"))
 # Positive controls: the three rejections above must not pass vacuously by
 # banning every member. The shipped manifest's own end-to-end `established`
@@ -36277,7 +36538,8 @@ assert_eq("#1702: the shipped Step 3.6 set is within the per-member limit and ag
 # `descriptor` (the same validation `claim` runs) accepts it — then prove RED-on-drift with
 # the two planted defects the helper refuses: external_services off the only accepted "none",
 # and an object-id field off the 40/64-hex shape _validate_checkout requires.
-import subprocess as _sp1560  # noqa: E402
+import subprocess as _sp1560
+
 _PHASE4_1560 = SCRIPTS.parent / "skills" / "implement" / "phases" / "phase-4-documentation.md"
 _VFLIGHT_1560 = SCRIPTS / "verification-flight.py"
 
@@ -36285,7 +36547,7 @@ _VFLIGHT_1560 = SCRIPTS / "verification-flight.py"
 def _extract_json_template_1560(text):
     # Fail closed on the fence count: the file must carry EXACTLY ONE ```json fence, so a
     # second json fence added later cannot silently change what is validated.
-    blocks = re.findall(r"```json\n(.*?)\n```", text, re.S)
+    blocks = re.findall(r"```json\n(.*?)\n```", text, re.DOTALL)
     assert len(blocks) == 1, f"expected exactly one ```json fence in phase-4-documentation.md, found {len(blocks)}"
     return blocks[0]
 
@@ -36425,9 +36687,10 @@ for _label_1882, _pem_1882 in (
               _KEYMARK_1882 not in _msg_1882 and _keymark_b64_1882 not in _msg_1882)
 
 # ── issue #1027: out-of-band stall observer (reports, never kills) ───────────
-import json as _json1027  # noqa: E402
-import subprocess as _sp1027  # noqa: E402
-from datetime import datetime as _dt1027, timezone as _tz1027  # noqa: E402
+import json as _json1027
+import subprocess as _sp1027
+from datetime import datetime as _dt1027
+from datetime import timezone as _tz1027
 
 stall_observer = _load('stall_observer', SCRIPTS / 'stall-observer-scan.py')
 
@@ -36746,8 +37009,8 @@ finally:
 
 
 # ── issue #1388: provision-lint-tools.sh fail-closed arms (driven end-to-end) ──
-import subprocess as _sp1388  # noqa: E402
-import tarfile as _tar1388  # noqa: E402
+import subprocess as _sp1388
+import tarfile as _tar1388
 
 _HELPER_1388 = SCRIPTS.parent / '.github' / 'actions' / 'setup-project-env' / 'provision-lint-tools.sh'
 
@@ -36965,7 +37228,8 @@ finally:
 
 
 # ── issue #1388 (review fixes): version-anchoring, within-job reuse, zip, guards ──
-import zipfile as _zip1388  # noqa: E402
+import zipfile as _zip1388
+
 _d1388d = Path(tempfile.mkdtemp())
 try:
     # Whole-token version match: manifest pins 1.2, the tool reports 1.24.1 -> wrong
@@ -37207,7 +37471,7 @@ finally:
 # The security control (base-ref materialization + PR-head prune) is executed as the
 # exact bytes the workflow ships: the `run` block is extracted from the YAML, so an
 # edit to the step is exercised here with no mirror script to drift.
-import yaml as _yaml1388  # noqa: E402
+import yaml as _yaml1388
 
 _runner_yaml_1388 = _yaml1388.safe_load(
     (SCRIPTS.parent / ".github" / "workflows" / "devflow-runner.yml").read_text(encoding="utf-8"))
@@ -37322,7 +37586,7 @@ assert_eq("#1388 action: declares a lint_mode input", True,  # structural-pin-ok
 assert_eq("#1388 action: refuses an unknown lint_mode (closed set)", True,  # structural-pin-ok: schema-config-vocabulary -- fail-closed refusal of an out-of-set value
           "unknown lint_mode" in _ACTION_1388)
 assert_eq("#1388 action: none mode returns from the step without dispatching", True,  # structural-pin-ok: routing-dispatch-contract -- the none-mode arm returns before the helper dispatch
-          re.search(r"^\s*none\)\n(?:.*\n)*?\s*exit 0\n", _ACTION_1388, re.M) is not None)
+          re.search(r"^\s*none\)\n(?:.*\n)*?\s*exit 0\n", _ACTION_1388, re.MULTILINE) is not None)
 assert_eq("#1388 action: provision invokes the provisioning helper", True,  # structural-pin-ok: routing-dispatch-contract -- provision dispatches the bundled helper
           "provision-lint-tools.sh" in _ACTION_1388)
 assert_eq("#1388 action: caches the toolchain keyed on the AC5 tuple (OS/arch + manifest+marker hash)", True,  # structural-pin-ok: routing-dispatch-contract -- cross-run cache restore keyed on {OS,arch,tool,version,digest,installer}
@@ -37543,8 +37807,8 @@ assert_eq("#1963 tuple: install.sh's --component operands match COMPONENTS exact
 # path, and vice versa: a --digest-root with no --record-path binds source bytes to a
 # consumer path that will never carry them (the permanently-unready marker above), and a
 # --record-path with no --digest-root digests a path absent from the consumer tree.
-_dg_1963 = set(m.split("=", 1)[0] for m in re.findall(r'--digest-root\s+"([^"]+)"', _INSTALL_1388))
-_rp_1963 = set(m.split("=", 1)[0] for m in re.findall(r'--record-path\s+"([^"]+)"', _INSTALL_1388))
+_dg_1963 = {m.split("=", 1)[0] for m in re.findall(r'--digest-root\s+"([^"]+)"', _INSTALL_1388)}
+_rp_1963 = {m.split("=", 1)[0] for m in re.findall(r'--record-path\s+"([^"]+)"', _INSTALL_1388)}
 assert_eq("#1963 tuple: source-digested components are exactly the runtime-path ones",
           _dg_1963, _rp_1963)
 assert_eq("#1963 tuple: every source-digested component is in the tuple", set(),
@@ -37559,7 +37823,7 @@ assert_eq("#1388 installer: validates the manifest before publishing (fail-close
 # ── issue #1811: cleanup-create-issue-run.sh — per-run create-issue scratch reaper ──
 print()
 print("cleanup-create-issue-run.sh: per-run create-issue scratch cleanup (issue #1811)")
-import subprocess as _sp1811  # noqa: E402
+import subprocess as _sp1811
 
 _CLEANUP1811 = SCRIPTS / 'cleanup-create-issue-run.sh'
 
@@ -37838,7 +38102,8 @@ assert_eq("#1740 agent-body record schema declares exactly the validator's chart
           sorted(validate_ica.CHARTERED_PASSES), _ica_agent_passes)
 
 # CLI exit-code contract via a real temp file, driving main().
-import tempfile as _tf1740  # noqa: E402
+import tempfile as _tf1740
+
 with _tf1740.TemporaryDirectory() as _d1740:
     _p_ok = Path(_d1740) / "ok.md"
     _p_ok.write_text(_ica_record(), encoding="utf-8")
@@ -37873,8 +38138,8 @@ with _tf1740.TemporaryDirectory() as _d1740:
 # distinct outcomes, manifest-driven selection (run.sh special routing + the `--`
 # separator), and atomic-receipt sequencing — each fails first because the module
 # did not exist before this change.
-import json as _json1389  # noqa: E402
-import subprocess as _subprocess1389  # noqa: E402
+import json as _json1389
+import subprocess as _subprocess1389
 
 _lint_changed = _load('lint_changed', SCRIPTS / 'lint_changed.py')
 _lint_manifest_1389 = _json1389.loads((cwc.REPO_ROOT / '.prflow' / 'lint-manifest.json').read_text())
@@ -37987,8 +38252,8 @@ _argv = _by_op["shell-portable"].argv()
 assert_eq("#1389 broad argv places -- before the first selected path",
           "scripts/foo.sh", _argv[_argv.index("--") + 1])
 # A file named like a value-taking option is passed as a path (after --).
-_optinv = [i for i in _lint_changed.select_invocations([b"--exclude=x.py"], _lint_manifest_1389)
-           if i.op_id == "python"][0]
+_optinv = next(i for i in _lint_changed.select_invocations([b"--exclude=x.py"], _lint_manifest_1389)
+           if i.op_id == "python")
 _oargv = _optinv.argv()
 assert_eq("#1389 an option-named file is linted as a path, not a flag",
           "--exclude=x.py", _oargv[_oargv.index("--") + 1])
@@ -38006,8 +38271,8 @@ _pop_dup = _lint_changed.Population("nonempty", records=[
 assert_eq("#1389 a destination in several sources runs once, order preserved",
           [b"a.py", b"b.py"], _pop_dup.run_paths())
 # Selection batches multiple same-language paths into one invocation, in order, after --.
-_batch = [i for i in _lint_changed.select_invocations([b"one.py", b"two.py"], _lint_manifest_1389)
-          if i.op_id == "python"][0]
+_batch = next(i for i in _lint_changed.select_invocations([b"one.py", b"two.py"], _lint_manifest_1389)
+          if i.op_id == "python")
 _bargv = _batch.argv()
 assert_eq("#1389 same-language paths batch into one invocation after -- in order",
           ["one.py", "two.py"], _bargv[_bargv.index("--") + 1:])
@@ -38298,6 +38563,87 @@ assert_eq("#1389 a [!...] glob class negates rather than matching a literal !",
           (False, True),
           (_lint_changed._glob_match("s/[!x].py", "s/x.py"),
            _lint_changed._glob_match("s/[!x].py", "s/y.py")))
+
+# ── issue #1389 dogfood fix: a single `update` combining `--replace-plan-file`
+# with `--tick-plan-n` resolves the tick indices against the POST-replace Plan.
+# Before the fix the ticks resolved against the pre-replace body, so on a seed
+# one-row Plan every index above 1 recorded a volatile miss while the replace
+# itself landed — the ticks were silently lost.
+_WP1389_BODY = (
+    "<!-- prflow:workpad -->\n# Workpad\n\n"
+    "**Last updated:** 2026-05-15T00:00:00Z\n\n"
+    "## Plan\n\n- [ ] seed placeholder\n\n"
+    "## Progress\n\n- [ ] **Implement**\n"
+)
+with tempfile.TemporaryDirectory() as _d1389w:
+    _plan1389 = os.path.join(_d1389w, "plan.md")
+    with open(_plan1389, "w", encoding="utf-8") as _fh:
+        _fh.write("- [ ] one\n- [ ] two\n- [ ] three\n")
+    _failed1389 = []
+    _out1389 = workpad._apply_mutations(
+        _WP1389_BODY,
+        make_args(replace_plan_file=_plan1389, tick_plan_n=[2, 3]),
+        _failed1389,
+    )
+    _plan_section_1389 = _out1389[_out1389.index("## Plan"):_out1389.index("## Progress")]
+    assert_eq("#1389 replace-plan-file + tick-plan-n in one call ticks the "
+              "post-replace rows and records no volatile miss",
+              ([], True, True),
+              (_failed1389,
+               "- [x] two" in _plan_section_1389,
+               "- [x] three" in _plan_section_1389))
+
+# ── issue #1388: the derived slice-member list and the fixture builder must FAIL
+# CLOSED. Both exist so a fixture cannot be built against a member set that has
+# silently gone empty — a fixture built from an empty list passes vacuously, which
+# is the exact failure these two replace. Exercise the refusals directly: the
+# rc==0 callers elsewhere only prove the happy path.
+_SSM = Path(__file__).resolve().parent / 'slice-source-members.py'
+_SSF = Path(__file__).resolve().parent / 'slice-source-fixture.sh'
+_ssm_mod = _load('slice_source_members', _SSM)
+
+assert_eq("#1388 members() reads only the devflow_copy_slice body, not a later function",
+          [("dir", "agents")],
+          _ssm_mod.members(
+              'devflow_copy_slice() {\n  cp -R "$src/agents" "$stage/"\n}\n'
+              'other_fn() {\n  cp -R "$src/NOTMINE" "$x/"\n}\n'))
+assert_eq("#1388 members() yields nothing when devflow_copy_slice is absent",
+          [], _ssm_mod.members('other_fn() {\n  cp -R "$src/agents" "$x/"\n}\n'))
+assert_eq("#1388 members() yields nothing when the body names no $src/ operand",
+          [], _ssm_mod.members('devflow_copy_slice() {\n  mkdir -p "$stage"\n}\n'))
+assert_eq("#1388 members() classifies a multi-segment operand as a file, a bare one as a dir",
+          [("dir", "lib"), ("file", ".prflow/x.json")],
+          _ssm_mod.members(
+              'devflow_copy_slice() {\n  cp -R "$src/lib" "$stage/"\n'
+              '  cp "$src/.prflow/x.json" "$stage/.prflow/"\n}\n'))
+
+with tempfile.TemporaryDirectory() as _d1388:
+    _slice_dir = os.path.join(_d1388, '.github', 'actions', 'vendor-plugin')
+    os.makedirs(_slice_dir)
+    with open(os.path.join(_slice_dir, 'vendor-slice.sh'), 'w', encoding='utf-8') as _fh:
+        _fh.write('devflow_copy_slice() {\n  mkdir -p "$stage"\n}\n')
+    _r = _sp1550.run([sys.executable, str(_SSM), _d1388], capture_output=True, text=True)
+    assert_eq("#1388 an empty derived member list exits 2 rather than reporting an empty set",
+              (2, True, ''),
+              (_r.returncode, 'refusing to report an empty member list' in _r.stderr,
+               _r.stdout))
+    _r2 = _sp1550.run([sys.executable, str(_SSM), os.path.join(_d1388, 'nope')],
+                      capture_output=True, text=True)
+    assert_eq("#1388 an unreadable slice exits 2 and names the path it could not read",
+              (2, True),
+              (_r2.returncode,
+               'cannot read' in _r2.stderr and 'vendor-slice.sh' in _r2.stderr))
+
+    def _ssf1388(*argv):
+        return _sp1550.run(
+            ['bash', '-c', '. "$1"; shift; devflow_build_slice_source_fixture "$@"',
+             'x', str(_SSF)] + list(argv),
+            capture_output=True, text=True, cwd=_d1388)
+    assert_eq("#1388 the builder refuses a missing root operand", 2, _ssf1388('').returncode)
+    _r3 = _ssf1388(os.path.join(_d1388, 'out'), _d1388)
+    assert_eq("#1388 the builder propagates the member-list refusal, building no tree",
+              (2, False),
+              (_r3.returncode, os.path.isdir(os.path.join(_d1388, 'out'))))
 
 
 print()

@@ -99,12 +99,12 @@ def parse_execution_file(exec_file):
     diagnostic when the file was absent/empty/unparseable/partially corrupt, which
     forces INCONCLUSIVE."""
     if not (exec_file and os.path.isfile(exec_file)):
-        return [], "execution file path absent or not a regular file at '%s'" % exec_file
+        return [], f"execution file path absent or not a regular file at '{exec_file}'"
     try:
         with open(exec_file, encoding="utf-8", errors="replace") as fh:
             raw = fh.read()
     except OSError as e:
-        return [], "execution file present but unreadable (%s)" % e.__class__.__name__
+        return [], f"execution file present but unreadable ({e.__class__.__name__})"
     try:
         return json.loads(raw), ""
     except Exception:
@@ -126,7 +126,7 @@ def parse_execution_file(exec_file):
         return [], "execution file present but unparseable"
     if dropped:
         return parsed, (
-            "%d execution-file line(s) were unparseable — verdict may be incomplete" % dropped
+            f"{dropped} execution-file line(s) were unparseable — verdict may be incomplete"
         )
     return parsed, ""
 
@@ -205,44 +205,43 @@ def compute_verdict(entries, note_top):
     if not (before and after):
         return (
             "INCONCLUSIVE",
-            "the session did not record both positive controls (%s=%s, %s=%s), so it may "
-            "not have reached or completed the measured actions"
-            % (CONTROL_BEFORE, before, CONTROL_AFTER, after),
+            (f"the session did not record both positive controls ({CONTROL_BEFORE}={before}, {CONTROL_AFTER}={after}), so it may "
+            "not have reached or completed the measured actions"),
             False,
         )
     if not (hop1_reported and hop2_reported):
         return (
             "INCONCLUSIVE",
-            "a hop reported nothing at all (hop1_reported=%s, hop2_reported=%s), so its "
-            "visibility is unestablished rather than negative" % (hop1_reported, hop2_reported),
+            (f"a hop reported nothing at all (hop1_reported={hop1_reported}, hop2_reported={hop2_reported}), so its "
+            "visibility is unestablished rather than negative"),
             False,
         )
     if hop1 and hop2:
         return (
             "BOTH_HOPS",
-            "the sentinel was visible to the orchestrator's own Bash command AND to the "
-            "dispatched Task's, so a job-scoped env value reaches both depths",
+            ("the sentinel was visible to the orchestrator's own Bash command AND to the "
+            "dispatched Task's, so a job-scoped env value reaches both depths"),
             True,
         )
     if hop1 and not hop2:
         return (
             "ORCHESTRATOR_ONLY",
-            "the sentinel was visible at hop one but NOT inside the dispatched Task, so "
-            "the Phase-3 requesting-code-review load would fall back to the repo-root path",
+            ("the sentinel was visible at hop one but NOT inside the dispatched Task, so "
+            "the Phase-3 requesting-code-review load would fall back to the repo-root path"),
             True,
         )
     if hop2 and not hop1:
         return (
             "DISPATCHED_TASK_ONLY",
-            "the sentinel was visible inside the dispatched Task but NOT to the "
+            ("the sentinel was visible inside the dispatched Task but NOT to the "
             "orchestrator's own command — an inversion of the expected shape; treat the "
-            "run as suspect and re-dispatch before recording",
+            "run as suspect and re-dispatch before recording"),
             False,
         )
     return (
         "NEITHER_HOP",
-        "both hops reported, and neither saw the sentinel: a step-level env: entry is not "
-        "visible to agent-run commands at either depth",
+        ("both hops reported, and neither saw the sentinel: a step-level env: entry is not "
+        "visible to agent-run commands at either depth"),
         True,
     )
 
@@ -261,13 +260,13 @@ def render(exec_file):
     out = []
     out.append("## Step-level `env:` propagation probe (issue #874)")
     out.append("")
-    out.append("**Verdict: `%s`**" % verdict)
+    out.append(f"**Verdict: `{verdict}`**")
     out.append("")
     out.append(reason + ".")
     out.append("")
     out.append(
         "Deterministic verdict from the execution file's recorded `tool_use` inputs and "
-        "`tool_result` outputs — the model's prose is never the measurement. Sentinel: `%s`." % SENTINEL
+        f"`tool_result` outputs — the model's prose is never the measurement. Sentinel: `{SENTINEL}`."
     )
     out.append("")
     if record_it:
@@ -281,7 +280,7 @@ def render(exec_file):
             "Re-dispatch the probe."
         )
     out.append("")
-    out.append("### Raw recorded entries — tool_use inputs + tool_result outputs (%d)" % len(entries))
+    out.append(f"### Raw recorded entries — tool_use inputs + tool_result outputs ({len(entries)})")
     out.append("")
     if entries:
         out.append("```")
@@ -320,7 +319,7 @@ def main():
         except OSError as e:
             sys.stderr.write(
                 "env-propagation-probe-verdict: could not append to GITHUB_STEP_SUMMARY "
-                "(%s); verdict is on stdout\n" % e.__class__.__name__
+                f"({e.__class__.__name__}); verdict is on stdout\n"
             )
     return 0
 

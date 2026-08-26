@@ -96,12 +96,12 @@ def parse_execution_file(exec_file):
     diagnostic when the file was absent/empty/unparseable/partially corrupt, which
     forces every root to `unestablished`."""
     if not (exec_file and os.path.isfile(exec_file)):
-        return [], "execution file path absent or not a regular file at '%s'" % exec_file
+        return [], f"execution file path absent or not a regular file at '{exec_file}'"
     try:
         with open(exec_file, encoding="utf-8", errors="replace") as fh:
             raw = fh.read()
     except OSError as e:
-        return [], "execution file present but unreadable (%s)" % e.__class__.__name__
+        return [], f"execution file present but unreadable ({e.__class__.__name__})"
     # Upstream of BOTH parse paths: moving this inside the json.loads branch leaves the
     # published artifact's caveat line on every JSONL record and drops the whole file.
     raw = strip_leading_comments(raw)
@@ -123,7 +123,7 @@ def parse_execution_file(exec_file):
         return [], "execution file present but unparseable"
     if dropped:
         return parsed, (
-            "%d execution-file line(s) were unparseable — verdict may be incomplete" % dropped
+            f"{dropped} execution-file line(s) were unparseable — verdict may be incomplete"
         )
     return parsed, ""
 
@@ -285,73 +285,71 @@ def verdict_for_root(skill_name, path, pairs, note_top):
     matches = _pairs_for_root(skill_name, pairs)
     if not matches:
         return "unestablished", (
-            "no recorded Skill tool_use names %s, so nothing bound this root. %d Skill load(s) "
+            f"no recorded Skill tool_use names {skill_name}, so nothing bound this root. {len(pairs)} Skill load(s) "
             "were recorded in total: a count of zero means the transcript carried no Skill "
             "tool_use at all — the skill was not invoked, or the file parsed but holds no such "
             "record — while a non-zero count means every recorded load named some other skill, "
-            "or carried this one outside a JSON string value" % (skill_name, len(pairs))
+            "or carried this one outside a JSON string value"
         )
     if len(matches) > 1:
         return "unestablished", (
-            "%d recorded Skill loads name %s, so this root resolves to no single load — the "
+            f"{len(matches)} recorded Skill loads name {skill_name}, so this root resolves to no single load — the "
             "ambiguity is what could not be measured, not any one of those loads (a retried "
-            "load, or an argument string equal to this root's name)" % (len(matches), skill_name)
+            "load, or an argument string equal to this root's name)"
         )
     pair = matches[0]
     if not pair["has_result"]:
         return "unestablished", (
-            "a Skill tool_use for %s was recorded but no tool_result was paired to it, "
-            "so nothing was delivered to measure" % skill_name
+            f"a Skill tool_use for {skill_name} was recorded but no tool_result was paired to it, "
+            "so nothing was delivered to measure"
         )
     if pair["is_error"]:
         return "unestablished", (
-            "the Skill load of %s returned an error tool_result (refused or aborted), so "
-            "no body was delivered — the abort mode, not a truncation" % skill_name
+            f"the Skill load of {skill_name} returned an error tool_result (refused or aborted), so "
+            "no body was delivered — the abort mode, not a truncation"
         )
     body_recs = _bodies_for_root(pair, path)
     if not body_recs:
         return "unestablished", (
-            "the recorded Skill load bound to %s carried no following body record naming its own "
-            "directory (%r), so no delivered body could be located to measure — "
+            f"the recorded Skill load bound to {skill_name} carried no following body record naming its own "
+            f"directory ({root_dir_for(path)!r}), so no delivered body could be located to measure — "
             "the paired tool_result is a launch stub, not the body"
-            % (skill_name, root_dir_for(path))
         )
     if len(body_recs) > 1:
         return "unestablished", (
-            "%d body records in the Skill load bound to %s name its own directory (%r), so no "
+            f"{len(body_recs)} body records in the Skill load bound to {skill_name} name its own directory ({root_dir_for(path)!r}), so no "
             "single delivered body could be selected — measuring one of them would make the "
-            "verdict depend on record order" % (len(body_recs), skill_name, root_dir_for(path))
+            "verdict depend on record order"
         )
     body = body_recs[0]["text"]
     tail, mid = read_controls(path)
     if tail is None:
         return "unestablished", (
-            "the on-disk file %s could not be read for controls — it is unreadable, or it is "
+            f"the on-disk file {path} could not be read for controls — it is unreadable, or it is "
             "present but has no non-empty line — so the delivered body cannot be checked "
-            "against it" % path
+            "against it"
         )
     for marker in _TRUNCATION_MARKERS:
         if marker in body:
             return "short-delivery", (
-                "the delivered body carried a truncation/cap notice (%r), so the Skill tool "
-                "clipped %s" % (marker, skill_name)
+                f"the delivered body carried a truncation/cap notice ({marker!r}), so the Skill tool "
+                f"clipped {skill_name}"
             )
     if tail not in body:
         return "short-delivery", (
             "the delivered body did NOT contain the file's last non-empty line, so the tail "
-            "of %s was lost (for the review root the tail is the routing/verdict-emitter "
-            "region)" % skill_name
+            f"of {skill_name} was lost (for the review root the tail is the routing/verdict-emitter "
+            "region)"
         )
     if mid is not None and mid not in body:
         return "short-delivery", (
             "the delivered body contained the tail control but NOT the interior control, so "
-            "%s lost content before its final line" % skill_name
+            f"{skill_name} lost content before its final line"
         )
     return "delivered-whole", (
-        "the delivered Skill body record for %s contained the file's last non-empty line %s; "
+        "the delivered Skill body record for {} contained the file's last non-empty line {}; "
         "no truncation/cap notice was present. This detects a lost tail and one interior "
-        "point, NOT an arbitrary middle elision"
-        % (skill_name,
+        "point, NOT an arbitrary middle elision".format(skill_name,
            "and a distinctive interior line" if mid is not None
            else "(the file offered no distinctive interior line, so only the tail was checked)")
     )
@@ -370,16 +368,16 @@ def audit(exec_file, roots):
 
     parsed, note_top = parse_execution_file(exec_file)
     pairs = collect_skill_pairs(parsed)
-    lines.append("AUDIT: audited %d root(s)" % len(roots))
+    lines.append(f"AUDIT: audited {len(roots)} root(s)")
     if note_top:
         lines.append("NOTE: " + note_top)
-    lines.append("recorded Skill tool_use pairs: %d" % len(pairs))
+    lines.append(f"recorded Skill tool_use pairs: {len(pairs)}")
     for name, path in roots:
         verdict, reason = verdict_for_root(name, path, pairs, note_top)
         lines.append("-" * 72)
-        lines.append("ROOT   : %s (%s)" % (name, path))
-        lines.append("VERDICT: %s" % verdict)
-        lines.append("REASON : %s" % reason)
+        lines.append(f"ROOT   : {name} ({path})")
+        lines.append(f"VERDICT: {verdict}")
+        lines.append(f"REASON : {reason}")
     return 0, lines
 
 
@@ -388,7 +386,7 @@ def _parse_root(spec):
     name, sep, path = spec.partition("=")
     if not sep or not name or not path:
         raise argparse.ArgumentTypeError(
-            "root spec must be NAME=PATH, got %r" % spec
+            f"root spec must be NAME=PATH, got {spec!r}"
         )
     return name, path
 
@@ -408,9 +406,9 @@ def main(argv):
 
     print("=" * 72)
     print("issue #1618 — Skill-tool body-delivery probe%s"
-          % (" (tier: %s)" % args.tier if args.tier else ""))
+          % (f" (tier: {args.tier})" if args.tier else ""))
     if args.ref or args.head_commit:
-        print("ref: %s  head: %s" % (args.ref, args.head_commit))
+        print(f"ref: {args.ref}  head: {args.head_commit}")
     print("=" * 72)
     for ln in lines:
         print(ln)

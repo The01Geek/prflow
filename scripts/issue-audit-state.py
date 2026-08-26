@@ -986,7 +986,7 @@ def _fail(prefix, msg, code=1):
 
 def _run(cmd, *, data=None):
     return subprocess.run(
-        cmd, input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True,
+        cmd, input=data, capture_output=True, check=True,
     )
 
 
@@ -3497,7 +3497,7 @@ def issue_token(nonce, ground, key):
     trustworthy canonical file exists to key on. `hashlib` rather than git: the token
     is not a content hash and the tool's only subprocess is git for object IDs.
     """
-    material = f'{nonce}:{ground}:{key}'.encode('utf-8')
+    material = f'{nonce}:{ground}:{key}'.encode()
     return 'eat_' + hashlib.sha256(material).hexdigest()[:16]
 
 
@@ -4128,13 +4128,13 @@ def _section_tokens(text):
     body = []
     for i in range(n):
         if lines[i].startswith('## '):
-            end = i if i >= start else start   # the line before this heading (1-based)
+            end = max(i, start)   # the line before this heading (1-based)
             yield _key(heading), start, end, body
             heading, body = lines[i].strip(), []
             start = i + 1
         else:
             body.append(lines[i])
-    end = n if n >= start else start
+    end = max(n, start)
     yield _key(heading), start, end, body
 
 
@@ -4909,7 +4909,7 @@ def _emit_next_call(cmd_name, args, ctx):
         _block = _summary_block_line(summary_fields(state))
     except AssertionError:
         raise
-    except Exception as _exc:  # noqa: BLE001 - secondary channel; the primary next_call must survive
+    except Exception as _exc:
         # Name the swallow on stderr: without it a `summary_fields` data-shape bug drops the
         # block for every caller with no signal, leaving the loss indistinguishable from a
         # subcommand that legitimately emits none.
@@ -7201,7 +7201,7 @@ def _load_generator():
     mod = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(mod)
-    except Exception as exc:  # noqa: BLE001 - a module body may raise anything; every
+    except Exception as exc:
         # shape is the same decided outcome here (the comparand cannot be regenerated),
         # and narrowing to the import-shaped exceptions let a ValueError/NameError at
         # module scope escape as a traceback that aborted record-return mid-round.
@@ -7235,7 +7235,7 @@ def regenerate_instructions_digest(slug, inputs):
     try:
         template_path = (Path(inputs['template_path']) if inputs.get('template_path')
                          else mod.default_template_path())
-    except Exception as exc:  # noqa: BLE001 - same decided arm as the render below: any
+    except Exception as exc:
         # failure resolving the comparand's template is a regeneration failure, never a
         # traceback out of record-return.
         raise _DigestError(f'could not resolve the dispatch-instruction template: '
@@ -7279,7 +7279,7 @@ def regenerate_instructions_digest(slug, inputs):
         rendered = mod.instructions_bytes(
             template_path, slug, inputs['draft_path'], inputs['instructions_path'],
             draft_text, scope_text)
-    except Exception as exc:  # noqa: BLE001 - the generator's own RenderError type is
+    except Exception as exc:
         # not importable by name here without coupling to its module identity; every
         # failure lands on the same fail-closed `regeneration-failed` arm regardless of
         # type, so the broad catch is the DECIDED behavior rather than a swallowed error
@@ -8553,7 +8553,7 @@ def cmd_query_boundary(args):
     for name, produce in _BOUNDARY_PRODUCERS:
         try:
             out.append(produce(state, args.nonce))
-        except Exception as exc:  # noqa: BLE001 - see below
+        except Exception as exc:
             # A DELIBERATELY broad catch, narrowly scoped to ONE producer call. The
             # producers read a document a human can hand-corrupt, and their failure modes
             # are open-ended (a missing key, a wrong-typed field, a value that will not
@@ -9563,8 +9563,8 @@ def build_parser():
 def registered_subcommands():
     """The subcommand names the parser actually exposes (issue #795)."""
     parser = build_parser()
-    for action in parser._actions:  # noqa: SLF001 - argparse exposes no public accessor
-        if isinstance(action, argparse._SubParsersAction):  # noqa: SLF001
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
             return frozenset(action.choices)
     raise AssertionError('issue-audit-state: build_parser() registered no subparsers')
 
@@ -9683,7 +9683,7 @@ def main():
     if args.cmd not in _NEXT_CALL_EXCLUDED:
         try:
             _emit_next_call(args.cmd, args, ctx)
-        except Exception as exc:  # noqa: BLE001 - see below
+        except Exception as exc:
             # DELIBERATELY broad, and never a swallow. By this point the decided answer
             # line is already printed and any mutation is already persisted, so an
             # exception escaping here would exit non-zero on a call that SUCCEEDED — and

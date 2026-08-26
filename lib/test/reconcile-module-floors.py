@@ -18,13 +18,12 @@ import copy
 import difflib
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 from typing import NamedTuple
-
 
 REGISTRY_PATH = "scripts/workflow-flight-recorder-registry.json"
 RUN_PATH = "lib/test/run.sh"
@@ -57,11 +56,11 @@ class Measurement(NamedTuple):
     refusal: str | None
 
     @classmethod
-    def clean(cls, module_id: str, passed: int) -> "Measurement":
+    def clean(cls, module_id: str, passed: int) -> Measurement:
         return cls(module_id, passed, None)
 
     @classmethod
-    def refused(cls, module_id: str, refusal: str) -> "Measurement":
+    def refused(cls, module_id: str, refusal: str) -> Measurement:
         return cls(module_id, None, refusal)
 
 
@@ -218,11 +217,11 @@ def _site_pattern(module_id: str) -> re.Pattern[str]:
 
 def _patch(root: Path, before: dict[Path, str], after: dict[Path, str]) -> bool:
     chunks: list[str] = []
-    for path in before:
+    for path, before_text in before.items():
         relative = path.relative_to(root).as_posix()
         chunks.extend(
             difflib.unified_diff(
-                before[path].splitlines(keepends=True),
+                before_text.splitlines(keepends=True),
                 after[path].splitlines(keepends=True),
                 fromfile=f"a/{relative}",
                 tofile=f"b/{relative}",
@@ -354,7 +353,7 @@ def reconcile(root: Path, runner: Path) -> int:
             """
             try:
                 return measure_one(module_id)
-            except Exception as error:  # noqa: BLE001 - contract: never raise from a worker
+            except Exception as error:
                 return Measurement.refused(
                     module_id,
                     f"{module_id}: the measurement raised an unexpected "

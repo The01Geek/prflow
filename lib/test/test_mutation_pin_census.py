@@ -18,7 +18,6 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent
 SCRIPT = HERE / "mutation-pin-census.py"

@@ -119,8 +119,7 @@ def decide(facts, now, threshold_minutes, enabled):
     if facts.last_updated is None:
         return Decision("unreadable", None, "workpad **Last updated:** line missing or unparseable")
     minutes = int((now - facts.last_updated).total_seconds() // 60)
-    if minutes < 0:
-        minutes = 0  # clock skew: never report negative silence
+    minutes = max(minutes, 0)  # clock skew: never report negative silence
     if minutes < threshold_minutes:
         return Decision("fresh", minutes, f"silent for {minutes} min (< advisory threshold {threshold_minutes} min)")
     cp = f"; last checkpoint: {facts.last_checkpoint}" if facts.last_checkpoint else ""

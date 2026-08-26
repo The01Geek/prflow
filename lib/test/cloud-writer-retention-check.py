@@ -55,7 +55,7 @@ from pathlib import Path
 # Import the shared merge-base plumbing whether this file is run as a script from the repo
 # root or loaded by path (spec_from_file_location) in the focused test.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import retention_check_common as common  # noqa: E402
+import retention_check_common as common
 
 MANIFEST_REL = "scripts/devflow-cloud-writer-contract.json"
 # The three outcomes. Named constants because the focused test asserts them by name.
@@ -92,7 +92,7 @@ def _is_asset_addition_only(base_manifest: dict, head_manifest: dict) -> bool:
     return all(head_assets.get(path) == digest for path, digest in base_assets.items())
 
 
-def detect_mutation(base_manifest: object, head_manifest: object) -> "list[str]":
+def detect_mutation(base_manifest: object, head_manifest: object) -> list[str]:
     """Return violations (empty ⇒ unchanged). Pure — never raises, never reads a file.
 
     A base or head that is not a well-shaped object contributes a fail-closed breadcrumb
@@ -119,26 +119,26 @@ def detect_mutation(base_manifest: object, head_manifest: object) -> "list[str]"
         # Distinct from the changed-entry arm below: telling an author to revert an entry
         # change misdirects them when the manifest lost its asset map altogether.
         return [
-            f"[cloud-writer-retain] {MANIFEST_REL} has no readable `{ASSET_KEY}` map on one "
+            (f"[cloud-writer-retain] {MANIFEST_REL} has no readable `{ASSET_KEY}` map on one "
             "side — comparand unestablished, so a difference proves nothing about what the "
-            "branch changed. Restore the manifest's shape and re-run."
+            "branch changed. Restore the manifest's shape and re-run.")
         ]
     return [
-        f"[cloud-writer-retain] {MANIFEST_REL} changes or drops an entry the merge-base "
+        (f"[cloud-writer-retain] {MANIFEST_REL} changes or drops an entry the merge-base "
         "manifest already carries — a feature branch may only ADD entries for skill assets it "
         "adds (the artifact is otherwise written on `main` alone, by "
         ".github/workflows/version-consolidate.yml). Revert your change to the existing "
-        "entries; their digests are regenerated on `main` from the merged tree."
+        "entries; their digests are regenerated on `main` from the merged tree.")
     ]
 
 
 def classify_outcome(
-    violations: "list[str]",
-    unestablished: "list[str]",
+    violations: list[str],
+    unestablished: list[str],
     allow_degraded: bool,
     base_ref: str,
     comparand_substituted: bool,
-) -> "tuple[int, list[str]]":
+) -> tuple[int, list[str]]:
     """Select the outcome. Pure — the focused test drives every reachable arm and the arm ORDER.
 
     COMPARAND_SUBSTITUTED says the comparison ran against BASE_REF's own tip rather than a
@@ -171,8 +171,8 @@ def classify_outcome(
         return EXIT_MUTATED, lines
     if violations or unestablished:
         lines = [
-            "[cloud-writer-retain] the base comparand could not be established, so this run "
-            "proves nothing about branch-side mutation — it is NOT a clean pass:"
+            ("[cloud-writer-retain] the base comparand could not be established, so this run "
+            "proves nothing about branch-side mutation — it is NOT a clean pass:")
         ]
         lines.extend(f"[cloud-writer-retain]   - {reason}" for reason in unestablished)
         if violations:
@@ -204,7 +204,7 @@ def classify_outcome(
     ]
 
 
-def main(argv: "list[str]") -> int:
+def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("repo_root", nargs="?", default=".", help="repository root (default: cwd)")
     parser.add_argument(
@@ -231,7 +231,7 @@ def main(argv: "list[str]") -> int:
 
     # Every reason the base comparand cannot be trusted. Non-empty ⇒ a green result would be
     # a claim the run never established, so it routes to EXIT_UNESTABLISHED.
-    unestablished: "list[str]" = []
+    unestablished: list[str] = []
 
     merge_base, mb_error, mb_degraded = common.merge_base(repo_root, base_ref)
     if merge_base is None:

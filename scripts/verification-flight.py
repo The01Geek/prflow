@@ -1243,7 +1243,7 @@ class _FlightArgumentParser(argparse.ArgumentParser):
     read actually present.
     """
 
-    def error(self, message: str):  # noqa: D102 - argparse override
+    def error(self, message: str):
         _print({"ok": False, "result": "invalid",
                 "reason": f"usage_error:{message}", "satisfies_verification": False})
         self.exit(EXIT_INVALID)

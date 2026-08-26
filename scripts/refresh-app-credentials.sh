@@ -5,7 +5,7 @@
 # past the GitHub App installation token's 60-minute lifetime (issue #487).
 #
 # A GitHub App installation token expires exactly one hour after minting and
-# cannot be renewed — only replaced by a fresh mint. DevFlow's writer jobs mint
+# cannot be renewed — only replaced by a fresh mint. PRFlow's writer jobs mint
 # ONE token at job start and ride it for the whole run; a `claude` step that
 # outlives that hour then spends its remainder with dead credentials (`git push`
 # and agent-side `gh` both 401). This helper, started as a background process

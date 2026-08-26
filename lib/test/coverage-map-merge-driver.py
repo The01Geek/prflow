@@ -78,7 +78,7 @@ _serialize_map = _guard._serialize_map
 class MergeConflict(Exception):
     """Raised when a per-key three-way merge cannot resolve without a human."""
 
-    def __init__(self, conflicts: "list[str]") -> None:
+    def __init__(self, conflicts: list[str]) -> None:
         super().__init__("; ".join(conflicts))
         self.conflicts = conflicts
 
@@ -108,7 +108,7 @@ def _three_way_object(base: dict, ours: dict, theirs: dict, where: str) -> dict:
     The union of DISTINCT added keys resolves cleanly: each added key is absent on
     the other side and in the base, so exactly one of the middle two rules fires."""
     merged: dict = {}
-    conflicts: "list[str]" = []
+    conflicts: list[str] = []
     absent = object()
     for key in sorted(set(base) | set(ours) | set(theirs)):
         b = base.get(key, absent)
@@ -140,7 +140,7 @@ def merge_maps(base: dict, ours: dict, theirs: dict) -> dict:
     if not all(isinstance(m, dict) for m in (base, ours, theirs)):
         raise MergeConflict(["a merge input is not a JSON object"])
     merged: dict = {}
-    conflicts: "list[str]" = []
+    conflicts: list[str] = []
     per_key_objects = ("files", "run_sh_blocks")
     for section in per_key_objects:
         b = base.get(section, {})
@@ -170,7 +170,7 @@ def merge_maps(base: dict, ours: dict, theirs: dict) -> dict:
     return merged
 
 
-def _conflict_body(ours_path: Path, theirs_path: Path, conflicts: "list[str]") -> str:
+def _conflict_body(ours_path: Path, theirs_path: Path, conflicts: list[str]) -> str:
     """A git-style conflict-marked body describing the genuine divergence.
 
     Left in the ours-path so a human sees exactly which keys diverged. It is
@@ -188,7 +188,7 @@ def _conflict_body(ours_path: Path, theirs_path: Path, conflicts: "list[str]") -
     )
 
 
-def _run_merge(argv: "list[str]") -> int:
+def _run_merge(argv: list[str]) -> int:
     if len(argv) < 3:
         print(
             "coverage-map-merge-driver: merge mode needs three paths (%O %A %B)",
@@ -242,7 +242,7 @@ def _run_merge(argv: "list[str]") -> int:
     return 0
 
 
-def _git_config_get(key: str) -> "str | None":
+def _git_config_get(key: str) -> str | None:
     try:
         result = subprocess.run(
             ["git", "config", "--local", "--get", key],
@@ -304,7 +304,7 @@ def _run_check() -> int:
     return 1
 
 
-def main(argv: "list[str]") -> int:
+def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(add_help=True, description=__doc__)
     parser.add_argument("--register", action="store_true", help="register the driver in this clone")
     parser.add_argument("--check", action="store_true", help="verify the driver is active; exit non-zero if not")

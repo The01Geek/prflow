@@ -29,11 +29,11 @@ context_number="${CONTEXT_NUMBER:-}"
 
 # --- Self-trigger guard (runs BEFORE detection / authorization) -------------
 # Defense-in-depth mirrored from resolve-implement-trigger.sh: decline any body
-# that carries a DevFlow self-comment marker, so DevFlow's own marker-tagged
+# that carries a PRFlow self-comment marker, so PRFlow's own marker-tagged
 # comments (the review engine's run-keyed live progress comment, or an implement
 # workpad) can never re-enter the gate — regardless of who authored them or what
 # phrase they quote. The anchoring below is the authoritative gate for quoted
-# prose; this guard cheaply catches DevFlow's own progress comment (whose
+# prose; this guard cheaply catches PRFlow's own progress comment (whose
 # narrative naturally quotes `/devflow:review`).
 #
 # The effective markers default to their built-in values (the run-keyed

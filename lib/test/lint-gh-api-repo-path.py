@@ -166,7 +166,7 @@ def considered_lines(text: str, markdown: bool) -> list[tuple[int, str]]:
             # Both CommonMark fence spellings toggle: a `~~~bash` block is a fence like
             # any other, and recognizing only backticks would leave its interior silently
             # treated as prose.
-            if stripped.startswith("```") or stripped.startswith("~~~"):
+            if stripped.startswith(("```", "~~~")):
                 inside = not inside
                 continue
             if inside:

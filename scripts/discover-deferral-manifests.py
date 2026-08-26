@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""DevFlow deferrals-manifest discovery for /implement Phase 4.0.5.
+"""PRFlow deferrals-manifest discovery for /implement Phase 4.0.5.
 
 Phase 4.0.5 of `/devflow:implement` files follow-up GitHub issues for review
 findings deferred during the Phase 3.3 fix loop. Its first step discovers the
@@ -187,8 +187,7 @@ def classify_root(root):
         # raises no OSError, so without its own write it would be the one failure the
         # operator cannot attribute to a root.
         sys.stderr.write(
-            "devflow: discovery: root %s failed traversal (not a directory)\n"
-            % os.path.abspath(root)
+            f"devflow: discovery: root {os.path.abspath(root)} failed traversal (not a directory)\n"
         )
         return "failed", []
     matches = []
@@ -211,8 +210,7 @@ def classify_root(root):
                     matches.append(_posix(candidate))
     except OSError as exc:
         sys.stderr.write(
-            "devflow: discovery: root %s failed traversal (%s)\n"
-            % (os.path.abspath(root), exc)
+            f"devflow: discovery: root {os.path.abspath(root)} failed traversal ({exc})\n"
         )
         return "failed", []
     return "ok", matches
@@ -285,14 +283,13 @@ def _resolve_current_branch():
         )
     except (OSError, subprocess.SubprocessError) as exc:
         sys.stderr.write(
-            "devflow: presence: could not run git to resolve the current branch (%s)\n"
-            % exc
+            f"devflow: presence: could not run git to resolve the current branch ({exc})\n"
         )
         return BRANCH_UNRESOLVABLE
     if proc.returncode != 0:
         sys.stderr.write(
-            "devflow: presence: git branch --show-current exited %d: %s\n"
-            % (proc.returncode, (proc.stderr or "").strip())
+            f"devflow: presence: git branch --show-current exited {proc.returncode}:"
+            f" {(proc.stderr or '').strip()}\n"
         )
         return BRANCH_UNRESOLVABLE
     return proc.stdout.strip()
@@ -313,15 +310,13 @@ def _probe_review_root():
         return "missing"
     except OSError as exc:
         sys.stderr.write(
-            "devflow: presence: review root %s could not be inspected (%s)\n"
-            % (os.path.abspath(REVIEW_ROOT), exc)
+            f"devflow: presence: review root {os.path.abspath(REVIEW_ROOT)} could not be inspected ({exc})\n"
         )
         return "failed"
     import stat as _stat
     if not _stat.S_ISDIR(st.st_mode):
         sys.stderr.write(
-            "devflow: presence: review root %s exists but is not a directory\n"
-            % os.path.abspath(REVIEW_ROOT)
+            f"devflow: presence: review root {os.path.abspath(REVIEW_ROOT)} exists but is not a directory\n"
         )
         return "failed"
     return "ok"
@@ -349,8 +344,7 @@ def _probe_aggregate(agg_path):
         return "absent"
     except OSError as exc:
         sys.stderr.write(
-            "devflow: presence: aggregate %s could not be inspected (%s)\n"
-            % (os.path.abspath(agg_path), exc)
+            f"devflow: presence: aggregate {os.path.abspath(agg_path)} could not be inspected ({exc})\n"
         )
         return "failed"
     import stat as _stat
@@ -359,8 +353,7 @@ def _probe_aggregate(agg_path):
         # convention classify_root states), so the operator sees the reason and not only
         # the path the `root:` line names.
         sys.stderr.write(
-            "devflow: presence: aggregate %s exists but is not a regular file\n"
-            % os.path.abspath(agg_path)
+            f"devflow: presence: aggregate {os.path.abspath(agg_path)} exists but is not a regular file\n"
         )
         return "failed"
     return "ok" if st.st_size > 0 else "absent"
@@ -374,9 +367,9 @@ def _print_presence_unestablished(reason, root=None):
     reflection cannot drift between call sites. Returns the exit code rather than
     exiting, so `main` keeps one return path and the suite can drive it in-process.
     """
-    sys.stdout.write("unestablished: reason=%s\n" % reason)
+    sys.stdout.write(f"unestablished: reason={reason}\n")
     if root is not None:
-        sys.stdout.write("root: %s\n" % os.path.abspath(root))
+        sys.stdout.write(f"root: {os.path.abspath(root)}\n")
     return 2
 
 
@@ -393,14 +386,13 @@ def cmd_presence(rest):
     # reach by accident.
     if len(rest) != 1 or not (rest[0].isascii() and rest[0].isdigit()):
         sys.stderr.write(
-            "devflow: presence: usage: discover-deferral-manifests.py %s N\n"
-            % PRESENCE_FLAG
+            f"devflow: presence: usage: discover-deferral-manifests.py {PRESENCE_FLAG} N\n"
         )
         return _print_presence_unestablished(REASON_MALFORMED_INVOCATION)
     pr_number = rest[0]
 
-    slug_dir = "%s/pr-%s" % (REVIEW_ROOT, pr_number)
-    agg_path = "%s/%s" % (slug_dir, MANIFEST_NAME)
+    slug_dir = f"{REVIEW_ROOT}/pr-{pr_number}"
+    agg_path = f"{slug_dir}/{MANIFEST_NAME}"
     candidates = [slug_dir]
 
     # A genuinely missing review root can hold nothing, so the branch derivation — and
@@ -430,8 +422,8 @@ def cmd_presence(rest):
             # an unsearchable sole-source candidate is an answer it could not establish,
             # not an absence.
             sys.stderr.write(
-                "devflow: presence: branch %r derives an empty slug (every character is "
-                "outside [a-z0-9._-]); the branch candidate cannot be formed\n" % branch
+                f"devflow: presence: branch {branch!r} derives an empty slug (every character is "
+                "outside [a-z0-9._-]); the branch candidate cannot be formed\n"
             )
             return _print_presence_unestablished(REASON_BRANCH_SLUG_EMPTY)
         if branch_slug:
@@ -440,13 +432,12 @@ def cmd_presence(rest):
                 # a normal one; dropping its evidence silently would be the absent-shaped
                 # answer this mode must not reach by accident.
                 sys.stderr.write(
-                    "devflow: presence: branch slug %r would resolve outside %s\n"
-                    % (branch_slug, os.path.abspath(REVIEW_ROOT))
+                    f"devflow: presence: branch slug {branch_slug!r} would resolve outside {os.path.abspath(REVIEW_ROOT)}\n"
                 )
                 return _print_presence_unestablished(
                     REASON_BRANCH_SLUG_ESCAPES, REVIEW_ROOT
                 )
-            branch_dir = "%s/%s" % (REVIEW_ROOT, branch_slug)
+            branch_dir = f"{REVIEW_ROOT}/{branch_slug}"
             if branch_dir != slug_dir:
                 candidates.append(branch_dir)
 
@@ -466,8 +457,7 @@ def cmd_presence(rest):
             pass
         except OSError as exc:
             sys.stderr.write(
-                "devflow: presence: candidate %s could not be inspected (%s)\n"
-                % (os.path.abspath(root), exc)
+                f"devflow: presence: candidate {os.path.abspath(root)} could not be inspected ({exc})\n"
             )
             return _print_presence_unestablished(REASON_UNREADABLE_DIRECTORY, root)
         status, matches = classify_root(root)
@@ -481,8 +471,7 @@ def cmd_presence(rest):
     agg_state = _probe_aggregate(agg_path)
 
     sys.stderr.write(
-        "devflow: presence roots: %s aggregate %s=%s\n"
-        % (" ".join("%s=%s" % (os.path.abspath(r), s) for r, s in results),
+        "devflow: presence roots: {} aggregate {}={}\n".format(" ".join(f"{os.path.abspath(r)}={s}" for r, s in results),
            os.path.abspath(agg_path), agg_state)
     )
 
@@ -496,7 +485,7 @@ def cmd_presence(rest):
     # not made less present by a directory it could not read, and both answers route
     # the caller to the same place.
     if present:
-        sys.stdout.write("present: %d\n" % present)
+        sys.stdout.write(f"present: {present}\n")
         return 0
     if agg_state == "failed":
         return _print_presence_unestablished(REASON_UNREADABLE_AGGREGATE, agg_path)
@@ -519,7 +508,7 @@ def _run_presence(rest):
     """
     try:
         return cmd_presence(rest)
-    except BaseException:  # noqa: BLE001 - deliberate: see docstring
+    except BaseException:
         # The recovery itself must not be able to re-raise: it writes, and if the original
         # fault WAS a stdout error the write raises again, escapes, and CPython exits 1 —
         # `absent`, the one answer this wrapper exists to make unreachable. Whatever the
@@ -527,11 +516,11 @@ def _run_presence(rest):
         try:
             import traceback
             traceback.print_exc(file=sys.stderr)
-        except BaseException:  # noqa: BLE001 - the return below is the contract
+        except BaseException:
             pass
         try:
             _print_presence_unestablished(REASON_INTERNAL_ERROR)
-        except BaseException:  # noqa: BLE001 - the return below is the contract
+        except BaseException:
             pass
         return 2
 
@@ -562,9 +551,9 @@ def main(argv=None):
     # caller reads directly, rather than silent. The zero-arg
     # usage error returns above, before any root exists to echo.
     echo = " ".join(
-        "%s=%s" % (os.path.abspath(root), status) for root, status in results
+        f"{os.path.abspath(root)}={status}" for root, status in results
     )
-    sys.stderr.write("devflow: discovery roots: %s\n" % echo)
+    sys.stderr.write(f"devflow: discovery roots: {echo}\n")
 
     # stdout: sorted, de-duplicated, POSIX-form. Printed even on a partial run —
     # output production must NOT be able to alter the exit status below.
@@ -577,12 +566,12 @@ def main(argv=None):
         return 0
     if failed == total:
         sys.stderr.write(
-            "%s all %d candidate root(s) failed traversal.\n" % (MARKER_FAILED, total)
+            f"{MARKER_FAILED} all {total} candidate root(s) failed traversal.\n"
         )
         return 4
     sys.stderr.write(
-        "%s %d of %d candidate root(s) failed traversal; discovered manifests printed "
-        "from the rest.\n" % (MARKER_PARTIAL, failed, total)
+        f"{MARKER_PARTIAL} {failed} of {total} candidate root(s) failed traversal; discovered manifests printed "
+        "from the rest.\n"
     )
     return 3
 

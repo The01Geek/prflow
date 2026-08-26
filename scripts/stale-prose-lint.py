@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 """Deterministic stale counted-prose lint (issue #423).
 
-Detects the top defect class escaping DevFlow's in-run review-and-fix loop to the
+Detects the top defect class escaping PRFlow's in-run review-and-fix loop to the
 standalone review: **diff-added prose asserting counts, ranges, sums, or absolutes
 that the same PR's later commits outgrow or falsify**. Modeled on
 ``lib/test/pin-corpus-lint.py`` (deterministic scanner + fail-closed accounting).
@@ -27,7 +27,7 @@ markdown. None of the four historical escape shapes lived on those surfaces.
 **Excluded population: machine-appended corpora (issue #672).** Diff-added lines under
 ``.prflow/learnings/`` and ``.prflow/logs/``, and in the single rendered census artifact
 ``lib/test/mutation-pin-corpus-adjudications.tsv``, are not examined at all. Those files are
-records DevFlow *writes* — a retrospective, an experiment record, a log — each quoting
+records PRFlow *writes* — a retrospective, an experiment record, a log — each quoting
 reviewed prose verbatim inside a JSON string. The quoted text is data about a past PR, never
 an assertion about the file it now sits in, and no referent for it exists in the post-diff
 state to resolve against. The trigger was PR #673, whose only edit to two such records
@@ -867,8 +867,7 @@ def _run_git(args):
     the single exit-2 catalog.)"""
     proc = subprocess.run(
         ["git", *args],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         encoding="utf-8",
         errors="replace",
     )
@@ -952,7 +951,7 @@ def parse_diff_full(diff_text):
         # ``++ ``-leading added line renders as ``+++ ``), which is why the budget, not a
         # prefix test, decides those.
         in_hunk = budget > 0 or pre_budget > 0
-        if in_hunk and (line.startswith("@@") or line.startswith("diff --git ")):
+        if in_hunk and (line.startswith(("@@", "diff --git "))):
             budget = pre_budget = 0
             in_hunk = False
         if not in_hunk:
@@ -967,7 +966,7 @@ def parse_diff_full(diff_text):
                     src_path = None
                 else:
                     src = _unquote_path(src)
-                    src_path = src[2:] if src.startswith("a/") else src
+                    src_path = src.removeprefix("a/")
                 continue
             if line.startswith("+++ "):
                 target = line[4:].strip()
@@ -977,7 +976,7 @@ def parse_diff_full(diff_text):
                     continue
                 target = _unquote_path(target)
                 # Strip a leading "b/" (git) prefix.
-                path = target[2:] if target.startswith("b/") else target
+                path = target.removeprefix("b/")
                 added = files.setdefault(path, {})
                 continue
             if line.startswith("diff --git "):
@@ -1781,7 +1780,7 @@ def main(argv):
 
         try:
             raw = sys.stdin.buffer.read()
-        except Exception as exc:  # noqa: BLE001 — any stdin read failure is exit-2
+        except Exception as exc:
             sys.stderr.write(f"stale-prose-lint.py: could not read stdin ({exc})\n")
             return 2
         try:
@@ -1796,7 +1795,7 @@ def main(argv):
     except InternalError as exc:
         sys.stderr.write(f"stale-prose-lint.py: {exc}\n")
         return 2
-    except Exception as exc:  # noqa: BLE001 — never surface a traceback as a verdict
+    except Exception as exc:
         sys.stderr.write(f"stale-prose-lint.py: internal error ({type(exc).__name__}: {exc})\n")
         return 2
 

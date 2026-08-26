@@ -171,6 +171,5 @@ def normalize_criterion(text: str) -> str:
     report divergence every time and carry no signal.
     """
     stripped = text.strip()
-    if stripped.endswith(POST_MERGE_TAG.strip()):
-        stripped = stripped[: -len(POST_MERGE_TAG.strip())]
+    stripped = stripped.removesuffix(POST_MERGE_TAG.strip())
     return _WS_RE.sub(' ', stripped).strip()

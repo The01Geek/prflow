@@ -22,7 +22,7 @@
 #   CONTEXT_NUMBER  the issue number the event is attached to: the fallback
 #                   target when TRIGGER_TEXT has no explicit number.
 #   SELF_COMMENT_MARKER  the repo's effective workpad marker. When TRIGGER_TEXT
-#                   contains it (literal substring), the comment is one DevFlow
+#                   contains it (literal substring), the comment is one PRFlow
 #                   posted itself (the workpad), so we decline — a self-trigger
 #                   guard. Defaults to '<!-- prflow:workpad -->' when unset/empty
 #                   (matching scripts/workpad.py's own fallback).
@@ -67,7 +67,7 @@ esac
 is_pull_request="${IS_PULL_REQUEST:-}"
 
 # --- Self-trigger guard (runs BEFORE authorization / number resolution) -----
-# DevFlow's own workpad comment quotes the literal phrase `/devflow:implement`
+# PRFlow's own workpad comment quotes the literal phrase `/devflow:implement`
 # (e.g. the "/devflow:implement run started" note) and carries no `@claude`, so
 # it would otherwise re-enter the gate and fire a duplicate run on its own
 # thread. The workpad always begins with the marker (workpad.py matches it with

@@ -105,7 +105,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Resolve the config path the same way DevFlow's shared resolver does when no
+# Resolve the config path the same way PRFlow's shared resolver does when no
 # explicit file is given: anchored to the git repo ROOT (issue #295), falling back
 # to the working directory. A non-empty explicit --config-file is honored verbatim.
 if [ -z "$_cfg" ]; then

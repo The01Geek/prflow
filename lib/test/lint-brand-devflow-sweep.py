@@ -196,7 +196,7 @@ def scan(root: Path, buckets: dict, skipped: list[str] | None = None) -> tuple[d
     audited = 0
     for rel, blob in iter_blobs(root, skipped):
         audited += 1
-        _bucket, fcount, pcount = classify(rel, blob, frozen, prov_files)
+        _bucket, _fcount, pcount = classify(rel, blob, frozen, prov_files)
         if pcount:
             pending[rel] = pcount
         if rel in prov_files:

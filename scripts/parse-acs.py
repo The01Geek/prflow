@@ -85,7 +85,7 @@ from pathlib import Path
 # `lib/test/test_python_scripts.py` drives this directory's helpers) does not.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from section_parse import (  # noqa: E402
+from section_parse import (
     POST_MERGE_TAG,
     extract_section,
     parse_checkboxes,

@@ -6,8 +6,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from workflow_flight_recorder import _run_git, import_inventory_session
 

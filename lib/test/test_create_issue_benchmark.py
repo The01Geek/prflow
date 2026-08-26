@@ -8,14 +8,13 @@ import importlib.util
 import inspect
 import io
 import json
-from pathlib import Path
 import socket
 import subprocess
 import sys
 import tempfile
 import unittest
 import unittest.mock
-
+from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPOSITORY = HERE.parent.parent

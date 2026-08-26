@@ -245,9 +245,7 @@ def model_effort_permitted(explicit_config: str | None) -> bool:
     if not isinstance(section, dict):
         return True
     value = section.get(_CONFIG_KEY)
-    if value is False:
-        return False
-    return True
+    return value is not False
 
 
 def render_line(*, command: str, explicit_config: str | None = None) -> str | None:

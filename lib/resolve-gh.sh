@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# resolve-gh.sh — DevFlow's GitHub-CLI (`gh`) selection contract, sourced by
+# resolve-gh.sh — PRFlow's GitHub-CLI (`gh`) selection contract, sourced by
 # lib/preflight.sh and every gh-calling shell helper. Since issue #247 the
 # generic detect-and-verify mechanics live in lib/resolve-bin.sh (the shared
 # execution-verified resolver, extracted from this file); devflow_resolve_gh is
@@ -41,7 +41,7 @@ esac
 if [ -f "$_RESOLVE_GH_DIR/resolve-bin.sh" ] \
    && . "$_RESOLVE_GH_DIR/resolve-bin.sh" \
    && type devflow_resolve_bin >/dev/null 2>&1; then
-  # devflow_resolve_gh — echo the `gh` invocation DevFlow should use. See
+  # devflow_resolve_gh — echo the `gh` invocation PRFlow should use. See
   # lib/resolve-bin.sh for the full override/probe/fallback contract.
   devflow_resolve_gh() {
     devflow_resolve_bin gh

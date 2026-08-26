@@ -104,7 +104,7 @@
 # see scripts/dedupe-implement-run.sh's header):
 # `cancel-in-progress: true` cancels the in-flight run (wrong run) and `false`
 # QUEUES the duplicate so it eventually runs (not ignored). GitHub has no
-# "skip if already running" primitive, so both DevFlow duplicate checks — the
+# "skip if already running" primitive, so both PRFlow duplicate checks — the
 # implement path's and this command path's — detect duplicates themselves.
 #
 # MODES
@@ -195,7 +195,7 @@ BACKSTOP_MARKER_SUPERSEDED='<!-- devflow:review-backstop'
 mode="${MODE:-detect}"
 
 # ── notice composition ──────────────────────────────────────────────────────
-# CRITICAL: every notice body must carry NO DevFlow trigger phrase (no `/prflow:`,
+# CRITICAL: every notice body must carry NO PRFlow trigger phrase (no `/prflow:`,
 # `/devflow:`, `@claude`). Under the optional App token this comment fires a real
 # issue_comment event, so a trigger substring here would re-enter the gate and
 # loop. The legacy causes name the `Devflow Review` check + its Re-run button

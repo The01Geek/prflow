@@ -212,7 +212,7 @@ def considered_lines(text: str, markdown: bool) -> list[tuple[int, str]]:
     for number, line in enumerate(text.split("\n"), start=1):
         stripped = line.lstrip()
         if markdown:
-            if stripped.startswith("```") or stripped.startswith("~~~"):
+            if stripped.startswith(("```", "~~~")):
                 inside = not inside
                 continue
             if inside:
@@ -321,9 +321,8 @@ def detect_forms(statement: str) -> list[str]:
             forms.append("gh-issue-view-no-json")
         elif _json_has_body(json_value):
             forms.append("gh-issue-view-body")
-    if gh and "api" in rest:
-        if _addresses_issue_resource(tokens) and _reads_body(tokens):
-            forms.append("gh-api-issue-body")
+    if gh and "api" in rest and _addresses_issue_resource(tokens) and _reads_body(tokens):
+        forms.append("gh-api-issue-body")
     if _helper_invoked(tokens, "parse-acs.py") and "--issue" in tokens:
         forms.append("parse-acs-issue")
     if _helper_invoked(tokens, "preflight.py") and "--issue" in tokens:
