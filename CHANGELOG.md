@@ -4,6 +4,20 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.56] — 2026-08-26
+
+### Changed
+`lib/test/run-parallel.sh` now runs the two sub-second, read-only cheap lints — the
+reference-size ceiling and the brand-baseline sweep — as part of its pre-launch checks,
+on both the coordinator's own flow and the standalone `--preflight` route. Both are
+`run.sh`-resident, so previously nothing cheaper than a full coordinator pass caught
+either: a cloud implement run spent 12.6 minutes discovering one, then a further 12.5
+minutes on the mandatory relaunch after a one-line fix. The gate refuses in well under a
+second instead. It fails closed only on a positively-attributed finding (keyed on each
+lint's own completion sentinel, since a traceback shares a finding's exit code) and fails
+open on any outcome that leaves the check unusable, matching the existing generated-artifact
+preflight's verdict contract.
+
 ## [2.34.55] — 2026-08-26
 
 ### Changed
