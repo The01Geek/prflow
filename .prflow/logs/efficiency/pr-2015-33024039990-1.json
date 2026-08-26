@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2015",
+  "generated_at": "2026-08-26T23:49:27Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.166681,
+    "tokens": {
+      "input_tokens": 52,
+      "output_tokens": 32819,
+      "cache_read_input_tokens": 3793377,
+      "cache_creation_input_tokens": 207706,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 110,
+        "outputTokens": 66179,
+        "cacheReadInputTokens": 5399892,
+        "cacheCreationInputTokens": 485250,
+        "webSearchRequests": 0,
+        "costUSD": 8.166681,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 39,
+    "duration_ms": 619795
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run=${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "RUN_ID=$(printf '%s-%s' \"${GITHUB_RUN_ID:-local}\" \"${GITHUB_RUN_ATTEMPT:-1}\"); echo \"$RUN_ID\"",
+      "lib/test/profile-suite.py --help 2>&1 | head -40",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "for f in scripts/apply-labels.sh scripts/post-issue-comment.sh; do git cat-file -e d61977feeedfebdce336a24ee7d7317eb17c3265:$f 2>/dev/null && echo \"EXISTS: $f\" || echo \"ABSENT: $f\"; done",
+      "git ls-tree d61977feeedfebdce336a24ee7d7317eb17c3265 scripts/apply-labels.sh scripts/post-issue-comment.sh 2>/dev/null; echo \"---devflow-implement BASH_MAX_TIMEOUT---\"; git show d61977feeedfebdce336a24ee7d7317eb17c3265:.github/workflows/devflow-implement.yml 2>/dev/null | grep -nE 'BASH_MAX_TIMEOUT_MS' | head",
+      "git ls-tree d61977feeedfebdce336a24ee7d7317eb17c3265 scripts/apply-labels.sh scripts/post-issue-comment.sh",
+      "cd /home/runner/work/prflow/prflow\necho \"=== _report function ===\"\ngrep -nE 'def _report' lib/test/profile-suite.py\nsed -n '/def _report/,/^def /p' lib/test/profile-suite.py | grep -nE 'print|top |Top|section|label|assert|===' | head -30"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
