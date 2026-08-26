@@ -4,6 +4,21 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.39] — 2026-08-26
+
+### Changed
+- **Internal documentation corpus repairs from the docs-audit session.** Made `docs/internal/index.md` enumerate every flat-root page with a size signal, added a standalone glossary, a DevFlow/PRFlow naming page, a marketing `positioning.md` split out of the system overview, and an `operations/development.md` page for the test-suite workflow; converted the canonical stubs' source-of-truth doc references into links, renamed three duplicate-basename stub pages, fixed the stale repository-layout tree and several soft-rot enumerations, and gave every cutover record an H1 and a historical banner. Documentation only — no executable behavior changes. (#1978)
+
+## [2.34.38] — 2026-08-26
+
+### Changed
+Close the internal-docs consumption loop: code-explorer and code-architect read a dispatch-named documentation index first (code stays authoritative), Phase 2.1 names `index.md` as the exploration entry point, `PRIMARY_PATHS` supplements the doc map instead of replacing it, and the `.docs.internal` root is resolved orchestrator-side rather than inside the Bash-less explorer's prompt.
+
+## [2.34.37] — 2026-08-26
+
+### Changed
+CLAUDE.md documentation routing: link the internal-docs entry map (`docs/internal/index.md`) beside the full system reference, and append machine-readable `<!-- canonical: docs/internal/<file>.md -->` markers to the seven bullets that explicitly name a canonical internal-docs page, so tooling can derive the canonical-page set instead of hand-maintaining it.
+
 ## [2.34.36] — 2026-08-26
 
 ### Changed

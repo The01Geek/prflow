@@ -1,8 +1,12 @@
 # Cutovers
 
+<!-- verified-against: 26c9ad96d 2026-08-25 -->
+
 These are historical implementation and migration records. They explain why a current rule exists, what was moved, and what evidence supported the change. They are not the source of truth for current behavior: start from the relevant page in the categorized documentation and use these records for history or rationale that the current page links to.
 
 The records remain in this directory because their issue-oriented names and links are part of the repository's historical documentation surface.
+
+Each record's frontmatter carries a `kind:` field. `kind: growth` marks a byte-budget justification memo for a prompt-surface size increase — its figures were true at merge time and say nothing about current behavior, so a reader mapping the present system can skip it. `kind: cutover` marks a migration record, and `kind: relocate` a content move.
 
 ## Records
 

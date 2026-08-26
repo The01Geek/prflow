@@ -23,7 +23,7 @@ The same skill runs through multiple clients and workflow wrappers. A working-di
 - `lib/resolve-state-dir.sh` and path-resolution helpers under `lib/` — repository and state paths.
 - `skills/*/SKILL.md` — command-specific path invocation conventions.
 - `.github/workflows/*.yml` — cloud checkout and workspace setup.
-- `docs/internal/working-directory-contract.md` — detailed tier contract and evidence.
+- [`docs/internal/working-directory-contract.md`](../working-directory-contract.md) — detailed tier contract and evidence.
 - [Command permissions](command-permissions.md) — shape rules that interact with cwd.
 
 ## Related topics

@@ -24,7 +24,7 @@ Performance and workflow research needs a durable, reproducible record, but tran
 - `scripts/workflow_flight_recorder.py` — event parsing, inventory, import, and analysis.
 - `.claude/settings.json` and hook configuration — local observation wiring.
 - `scripts/workflow-flight-recorder-registry.json` — registered workflows.
-- `docs/internal/workflow-flight-recorder.md` — detailed lifecycle, privacy, and validation evidence.
+- [`docs/internal/workflow-flight-recorder.md`](../workflow-flight-recorder.md) — detailed lifecycle, privacy, and validation evidence.
 
 ## Related topics
 

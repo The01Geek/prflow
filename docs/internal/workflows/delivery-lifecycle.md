@@ -26,7 +26,7 @@ Separating issue shaping from implementation gives the implementer an approved, 
 - `skills/implement/phases/` — phase handoffs.
 - `.github/workflows/devflow.yml` and `.github/workflows/devflow-implement.yml` — cloud entry points.
 - `scripts/workpad.py` — durable lifecycle state.
-- `docs/internal/workflow-triggers.md` — event and command routing details.
+- [`docs/internal/workflow-triggers.md`](../workflow-triggers.md) — event and command routing details.
 
 ## Related topics
 
