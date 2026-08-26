@@ -507,6 +507,11 @@
       "note": "create-issue Step 3.6 audit-lifecycle state owner; the shell-level CLI drivers live in the issue-audit-state module, the pure-function coverage in the focused Python test named above",
       "owner": "issue-audit-state"
     },
+    "scripts/lint_changed.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1389 changed-file lint layer (population/selection/receipts/base64url) behind preflight.py lint-changed/lint-full",
+      "owner": "unmodularized"
+    },
     "scripts/lint_manifest.py": {
       "focused_test": "lib/test/test_python_scripts.py",
       "note": "issue #1276 declarative lint-manifest strict reader/validator",
