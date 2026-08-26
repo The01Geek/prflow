@@ -112,9 +112,9 @@ writes changes into your repository, so download it, read it, then run the file 
 read:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.45/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.49/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.34.45 bash devflow-install.sh
+DEVFLOW_REF=v2.34.49 bash devflow-install.sh
 ```
 
 Both refs are pinned to the same **release tag**, so the install is reproducible.
@@ -1273,6 +1273,69 @@ The `setup` block covers more than Python/Node, in this provisioning order
 `php_extensions`, and `services` — the judgement-heavy fields a marker→list table
 can't infer. Review its additions before committing; service `env` and `install`
 lines run in CI from your committed (base-branch) config.
+
+### Lint-tool provisioning (`setup-project-env`'s `lint_mode`, issue #1388)
+
+`setup-project-env` also carries a closed `lint_mode` input — `provision` or
+`none`, and **any other value is refused** (`::error::`, before the model runs).
+It is **not** a `.prflow/config.json` key; the calling workflow sets it, and the
+three shipped workflows pass tested modes:
+
+| Workflow | `lint_mode` | Why |
+| --- | --- | --- |
+| `devflow-implement.yml` (`/prflow:implement`) | `provision` | Implement runs need ShellCheck/Ruff, so they start with verified tools instead of improvising installs in paid turns. |
+| `devflow.yml` (light `/prflow:*` command tier) | `none` | The command tier does no linting of its own. |
+| `devflow-runner.yml` (automated review runner) | `none` | The read-only reviewer takes in **no manifest-derived bytes** (a security boundary). |
+
+- **`provision`** — before the Claude action, the action installs the bounded
+  ShellCheck/Ruff toolchain named in `.prflow/lint-manifest.json`, gated on the
+  digest-bound `.prflow/install-state.json` marker. Installation is **run-local
+  (no `sudo`)**, verifies the pinned archive digest before extracting and the
+  executable version (whole-token) before treating the tool as ready, and
+  **fails closed** — before the model runs — on any readiness or verification
+  failure. The readiness reasons (`install-state-missing`, `digest-mismatch`,
+  `component-missing`, `manifest-missing`) refuse the whole pass before any tool
+  is selected, so they name the component rather than a tool; the per-tool
+  failures (a checksum/archive/version mismatch, a network failure, an
+  unwritable target) name the tool. An unsupported OS/arch tuple
+  degrades instead: it reuses a version-matching tool already on PATH, else
+  warns and continues unprovisioned. The toolchain is cached via `actions/cache` keyed on `{OS, arch, manifest +
+  marker hash}`; a cache-restored binary is re-verified under that key before
+  use. The closed OS/arch → artifact + trusted-download-URL mapping lives in the
+  trusted Python helpers (`scripts/lint_provision.py`), never in
+  manifest-supplied command strings or URLs — the manifest declares *what* to
+  install, never *how* (issue #1276 trust model).
+- **`none`** — no lint-tool work and **no manifest validation** at all.
+
+### The review runner never runs a PR-head setup action (issue #1388)
+
+`devflow-runner.yml` checks out the pull-request head, so a plain
+`uses: ./.github/actions/setup-project-env` would execute the **PR's own copy**
+of the action body — a PR editing that action could run its edit inside the
+read-only review job. Gated on the same `prflow_runner.provision_env` opt-in as
+the provisioning it protects, a hardening step runs first: it fetches the
+trusted **base ref** (the same `BASE_REF` derivation `baseprovision` uses),
+enumerates every file of the action directory as it exists on that base ref via
+`git ls-tree FETCH_HEAD`, materializes each over the workspace copy, and
+**prunes any PR-added file** not present on the base ref — so the subsequent
+`uses:` step executes trusted bytes only, and a file the action gains later is
+covered with no edit to this step. It **fails closed**: if the trusted bytes
+cannot be materialized (no base ref, a failed fetch, or the base ref carrying no
+`action.yml`), the whole job aborts rather than falling back to the PR-head
+copy. Combined with `lint_mode: none`, no manifest-derived bytes and no PR-head
+**setup**-action body ever enter the review job. The runner's other composite
+invocations — `read-project-config` and `vendor-plugin` — remain PR-head-resolved:
+the recorded residual (it predates issue #1388; see #874 for the `vendor-plugin`
+`ref:` hardening), pinned in both directions in `lib/test/test_python_scripts.py`
+so extending the hardened set forces this statement to be restated.
+
+### CI validates the candidate manifest without write credentials
+
+A `lint-manifest` job in `.github/workflows/ci.yml` validates and exercises the
+candidate `.prflow/lint-manifest.json` on every PR under workflow-level
+`contents: read` (no repository write credentials), so a manifest change is
+proven before it becomes implement-active — which it only does after merge
+(workflow/config resolution is post-merge for the trigger-time channel).
 
 ## Extending the tool allowlist
 

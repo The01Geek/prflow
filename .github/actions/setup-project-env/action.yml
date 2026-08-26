@@ -25,6 +25,14 @@ inputs:
   config_json:
     description: '.prflow/config.json contents, as emitted by the read-project-config action (steps.<id>.outputs.json). The automated reviewer (devflow-runner.yml, provision_env path) instead passes the TRUSTED base-ref config it reads directly via git show + `jq -c` — a different provenance but the same shape (a JSON object with a `.setup` block), so this action consumes it identically.'
     required: true
+  lint_mode:
+    description: >-
+      Lint-tool provisioning mode. Closed set: "provision" installs the
+      manifest's bounded ShellCheck/Ruff toolchain (run-local, no sudo, digest
+      and version verified) before the Claude action; "none" does no lint-tool
+      work and validates no manifest. Any other value is refused.
+    required: false
+    default: 'none'
 
 outputs:
   health_summary:
@@ -222,6 +230,70 @@ runs:
             printf '%s\n' "$delim"
           } >> "$GITHUB_OUTPUT"
         fi
+
+    # The hashFiles(manifest, marker) key covers the whole AC5 tuple transitively —
+    # do not add tuple components to it by hand. A restored $DEST_BIN is still
+    # re-verified by the provisioning step: a cache hit is never verification.
+    - name: Cache the provisioned lint toolchain
+      if: inputs.lint_mode == 'provision'
+      uses: actions/cache@v5
+      with:
+        path: ${{ runner.temp }}/prflow-lint-bin
+        key: lintprov-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.prflow/lint-manifest.json', '.prflow/install-state.json') }}
+
+    # Must stay ordered BEFORE the Claude action (provisioning after model start
+    # defeats #1388), and the os/arch → artifact/URL mapping stays in the trusted
+    # Python helpers — never manifest-supplied strings (#1276 trust model).
+    - name: Provision lint toolchain (before model)
+      shell: bash
+      env:
+        LINT_MODE: ${{ inputs.lint_mode }}
+      run: |
+        set -euo pipefail
+        case "$LINT_MODE" in
+          none)
+            echo "lint_mode=none: no lint-tool provisioning and no manifest validation."
+            exit 0
+            ;;
+          provision) ;;
+          *)
+            echo "::error::setup-project-env: unknown lint_mode '$LINT_MODE' (closed set: provision | none)."
+            exit 1
+            ;;
+        esac
+        # Resolve the trusted bundled helpers: this repo's own scripts/ (self /
+        # committed), else the vendored slice a thin consumer materializes.
+        # Probe BOTH helpers the provisioning step invokes, and refuse when neither
+        # candidate carries them: probing only lint_provision.py let a failed vendor
+        # materialization fall through and surface as a marker-readiness refusal,
+        # sending the operator to re-run an installer that was never the problem.
+        SCRIPTS_DIR=""
+        for _cand in "scripts" ".prflow/vendor/prflow/scripts"; do
+          if [ -f "$_cand/lint_provision.py" ] && [ -f "$_cand/install_state.py" ]; then
+            SCRIPTS_DIR="$_cand"
+            break
+          fi
+        done
+        if [ -z "$SCRIPTS_DIR" ]; then
+          echo "::error::setup-project-env: neither scripts/ nor .prflow/vendor/prflow/scripts/ carries both lint_provision.py and install_state.py — the plugin vendor step did not materialize the bundled helpers."
+          exit 1
+        fi
+        case "${RUNNER_OS:-}" in
+          Linux) TARGET_OS=linux ;;
+          macOS) TARGET_OS=macos ;;
+          Windows) TARGET_OS=windows ;;
+          *) echo "::error::setup-project-env: unsupported RUNNER_OS '${RUNNER_OS:-}'"; exit 1 ;;
+        esac
+        case "${RUNNER_ARCH:-}" in
+          X64) TARGET_ARCH=x86_64 ;;
+          ARM64) TARGET_ARCH=arm64 ;;
+          *) echo "::error::setup-project-env: unsupported RUNNER_ARCH '${RUNNER_ARCH:-}'"; exit 1 ;;
+        esac
+        export LINT_MANIFEST=".prflow/lint-manifest.json"
+        export INSTALL_STATE=".prflow/install-state.json"
+        export DEST_BIN="${RUNNER_TEMP:-/tmp}/prflow-lint-bin"
+        export TARGET_OS TARGET_ARCH SCRIPTS_DIR
+        bash "$GITHUB_ACTION_PATH/provision-lint-tools.sh"
 
     - name: Provision project dependencies
       shell: bash

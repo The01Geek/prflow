@@ -12396,7 +12396,7 @@ echo "load-prompt-extension.sh (consumer prompt-extension reader)"
 # module owns the whole former in-file section; see its .inventory.md for the
 # coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/prompt-extension-reader.sh" \
-  "prompt-extension-reader" 177; then
+  "prompt-extension-reader" 215; then
   printf 'ERROR: prompt-extension-reader boundary could not record its result\n'
   exit 1
 fi
@@ -18829,8 +18829,8 @@ _936_EXPECTED="$(cat <<'EOF'
 .prflow/config.schema.json
 CLAUDE.md
 README.md
+docs/external/docs/reference/release-notes-archive-2026.md
 docs/external/docs/runs/cloud/installation.md
-docs/external/release-notes.md
 docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md
 docs/internal/cloud-allowlist.md
 docs/internal/cloud-setup.md
@@ -18934,7 +18934,7 @@ assert_eq "#936/#582: install.sh's workflow copy loop ships exactly devflow + de
 assert_eq "#936/#582: the withheld auto-review tier is absent from install.sh's copy loop" \
   "absent" "$(case " $_582_SHIPPED " in *" devflow-review "*|*" devflow-runner "*|*" telemetry-push "*) echo present ;; *) echo absent ;; esac)"
 _582_RETAINED="devflow-runner telemetry-push"
-_582_INTERNAL="ci matcher-probe version-consolidate agents-seam-probe stall-observer"
+_582_INTERNAL="ci matcher-probe version-consolidate agents-seam-probe stall-observer mintlify-check"
 # Exhaustive-and-disjoint: compare the on-disk basename set against the three lists
 # concatenated. A duplicate across lists makes the concatenated count exceed the
 # deduplicated count; a missing file makes the sorted sets differ. Both are asserted.
@@ -21318,7 +21318,9 @@ fi
 # The setup-project-env step is gated on the base-ref provision flag.
 assert_eq "provision: setup-project-env step present" "1" \
   "$(grep -c 'uses: ./.github/actions/setup-project-env' "$RUNNER" || true)"
-assert_eq "provision: setup-project-env gated on base provision_env" "1" \
+# TWO steps gate on the base provision flag: the #1388 setup-env hardening step
+# (materializes the trusted base-ref action body) and the provision step it protects.
+assert_eq "provision: setup-project-env gated on base provision_env" "2" \
   "$(grep -c "if: steps.baseprovision.outputs.provision_env == 'true'" "$RUNNER" || true)"
 
 # Coupling: the tool-profile guard and the provision step must read the SAME
@@ -22115,15 +22117,15 @@ assert_eq "provision: malformed/non-object base config warns + read-only (basepr
 # Trust boundary: the flag and setup block come from the base ref. BASE_REF is
 # sourced from the trusted event payload, fetched from origin, and read out of
 # FETCH_HEAD — never the checked-out PR head.
-# FOUR sites read the trusted BASE_REF from the event payload and fetch it (issue #908
-# review: was three before the new harden_guard step): the baseprovision step, the
-# #458 harden-stop-hooks step, the #874 baseversion step, and the #908 harden_guard
-# step (all under the same trusted-source rule — the guard's own trusted-copy
-# displacement needs its own independent fetch, for the same reason #874's baseversion
-# step does not rely on another step's FETCH_HEAD surviving).
-assert_eq "provision: base ref from trusted event payload (baseprovision + #458 harden + #874 baseversion + #908 harden_guard)" "4" \
+# These sites read the trusted BASE_REF from the event payload and fetch it (the
+# assertions below pin the exact count): the baseprovision step, the #458
+# harden-stop-hooks step, the #874 baseversion step, the #908 harden_guard step, and
+# the #1388 setup-env hardening step (all under the same trusted-source rule — each
+# trusted-copy displacement needs its own independent fetch, for the same reason
+# #874's baseversion step does not rely on another step's FETCH_HEAD surviving).
+assert_eq "provision: base ref from trusted event payload (baseprovision + #458 harden + #874 baseversion + #908 harden_guard + #1388 setup-env harden)" "5" \
   "$(grep -c 'github.event.pull_request.base.ref || github.event.repository.default_branch' "$RUNNER" || true)"
-assert_eq "provision: base config fetched from origin BASE_REF (baseprovision + #458 harden + #874 baseversion + #908 harden_guard)" "4" \
+assert_eq "provision: base config fetched from origin BASE_REF (baseprovision + #458 harden + #874 baseversion + #908 harden_guard + #1388 setup-env harden)" "5" \
   "$(grep -c 'git fetch --depth=1 origin "\$BASE_REF"' "$RUNNER" || true)"
 # Two readers of the trusted base config: baseprovision (provision_env, allowed_tools,
 # setup) and the #874 baseversion step (prflow_version).
@@ -24674,6 +24676,8 @@ mkdir -p "$VS_REMOTE/docs/site" "$VS_REMOTE/docs/external" "$VS_REMOTE/docs/inte
 printf '{}' > "$VS_REMOTE/.prflow/config.example.json"
 printf '{}' > "$VS_REMOTE/.prflow/config.schema.json"
 printf '{}' > "$VS_REMOTE/.prflow/tool-presets.json"
+printf '{}' > "$VS_REMOTE/.prflow/lint-manifest.json"   # #1388: shipped by devflow_copy_slice
+printf '{}' > "$VS_REMOTE/.prflow/install-state.json"   # #1388: the compatibility marker ships too
 ( cd "$VS_REMOTE" && git init -q -b main && git add -A \
     && git -c user.email=t@t -c user.name=t commit -qm fixture ) >/dev/null 2>&1
 # Capture the BASE (non-tip) commit, then add a second commit carrying a
@@ -24796,6 +24800,9 @@ assert_eq "vendor: self ships no docs/ tree after pruning" "no" "$(vexists "$VS_
 assert_eq "vendor: self copies lib/" "yes" "$(vexists "$VS_SELF/lib")"
 assert_eq "vendor: self copies skills/" "yes" "$(vexists "$VS_SELF/skills")"
 assert_eq "vendor: self copies .prflow/tool-presets.json" "yes" "$(vexists "$VS_SELF/.prflow/tool-presets.json")"
+# #1388: the lint manifest and its digest-bound compatibility marker ship to consumers.
+assert_eq "#1388 vendor: self ships .prflow/lint-manifest.json" "yes" "$(vexists "$VS_SELF/.prflow/lint-manifest.json")"
+assert_eq "#1388 vendor: self ships .prflow/install-state.json marker" "yes" "$(vexists "$VS_SELF/.prflow/install-state.json")"
 
 # #677 exclusions: the produced slice must ship neither the published GitHub Pages
 # HTML (docs/site), the Mintlify source (docs/external), nor DevFlow's own test suite
@@ -48370,7 +48377,7 @@ rm -rf "$D487"
 # hand-edited workflow — driven end to end and joined to the shipped workflow's own
 # trigger-time guard.
 if ! devflow_run_full_suite_module "$LIB/test/modules/installer-wiring.sh" \
-  "installer-wiring" 298; then
+  "installer-wiring" 305; then
   printf 'ERROR: installer-wiring boundary could not record its result\n'
   exit 1
 fi
@@ -52997,7 +53004,7 @@ assert_eq "#1402/#1423 lint: an empty DEVFLOW_WITHHELD_TIER does not refuse (the
 # The print flag exits before the slice and schema reads, so a query about the workflow set
 # cannot be refused by — or misdiagnosed against — a source it never consults.
 assert_eq "#1402 lint: --print-never-shipped-set is independent of the slice and schema sources" \
-  "rc=0|agents-seam-probe ci devflow-runner matcher-probe stall-observer telemetry-push version-consolidate" \
+  "rc=0|agents-seam-probe ci devflow-runner matcher-probe mintlify-check stall-observer telemetry-push version-consolidate" \
   "$(cd "$LIB/.." && sp_encode --print-never-shipped-set --slice-source /dev/null --schema-source /dev/null)"
 # Selection collects every candidate before choosing, so ambiguity refuses rather than
 # resolving by position. Both conjuncts say nothing about a loop's DIRECTION — the fixture's
@@ -53031,7 +53038,7 @@ assert_eq "#1402 lint: --print-never-shipped-set joins the mutually exclusive pr
 # copy loop, turns this RED rather than silently widening or narrowing the audit.
 SP_NEVER_REAL="$(cd "$LIB/.." && python3 "$SP_LINT" --print-never-shipped-set | python3 -c 'import sys; print(" ".join(sys.stdin.read().split()))')"
 assert_eq "#1402 lint: the real never-shipped set matches the checked-in expectation" \
-  "agents-seam-probe ci devflow-runner matcher-probe stall-observer telemetry-push version-consolidate" "$SP_NEVER_REAL"
+  "agents-seam-probe ci devflow-runner matcher-probe mintlify-check stall-observer telemetry-push version-consolidate" "$SP_NEVER_REAL"
 # The #582 partition names this same group from its own transcribed literals: everything the
 # copy loop does NOT install, i.e. the plugin-internal group PLUS the retained-but-unshipped
 # withheld tier (issue #1423 — a withheld name reaches no fresh consumer, so it is forbidden
@@ -54021,20 +54028,92 @@ import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
-link_pattern = re.compile(r"(?<!!)\[[^]]+\]\((/[^)\s]+)")
+# Markdown links only: JSX href= attributes on the custom homepage are outside this contract.
+link_pattern = re.compile(r"(?<!!)\[[^]]+\]\(([^)\s]+)")
+fence_pattern = re.compile(r"^\s*(```|~~~)")
+heading_pattern = re.compile(r"^#{1,6}\s+(.+)$")
+# Anchored to an element opening: a bare id="..." match would count incidental
+# prose mentions as valid fragment targets, silently widening the accepted set.
+id_pattern = re.compile(r"<[^<>]*\sid=\"([^\"]+)\"")
+DOC_SUFFIXES = {".md", ".mdx"}
 
-for page in root.rglob("*"):  # tree-walk-ok: scoped to the selected public-site source root, including unstaged Markdown pages but never repository worktrees
-    if not page.is_file() or page.suffix not in {".md", ".mdx"}:
-        continue
-    for href in link_pattern.findall(page.read_text(encoding="utf-8")):
-        route = href.split("#", 1)[0].split("?", 1)[0].lstrip("/")
-        if not route:
+
+class UnterminatedFence(Exception):
+    pass
+
+
+def slugify(text):
+    # GitHub/Mintlify hyphenate each whitespace character separately -- collapsing a run
+    # to one hyphen ("\s+") mis-slugs headings with punctuation between spaces
+    # ("Foo & Bar" -> foo--bar on the site).
+    text = re.sub(r"[`*_]", "", text).strip().lower()
+    text = re.sub(r"[^a-z0-9\s-]", "", text)
+    return re.sub(r"\s", "-", text)
+
+
+def unfenced_lines(page):
+    in_fence = False
+    lines = []
+    for line in page.read_text(encoding="utf-8").splitlines():
+        if fence_pattern.match(line):
+            in_fence = not in_fence
             continue
-        candidates = (root / route, root / f"{route}.md", root / f"{route}.mdx")
-        if not any(candidate.is_file() for candidate in candidates):
-            print("no")
-            raise SystemExit(0)
+        if not in_fence:
+            lines.append(line)
+    if in_fence:
+        # A fence left open at EOF would silently exclude every later link from
+        # validation -- fail closed instead of returning the truncated line set.
+        raise UnterminatedFence(str(page))
+    return lines
 
+
+def page_anchors(page):
+    anchors = set()
+    for line in unfenced_lines(page):
+        match = heading_pattern.match(line)
+        if match:
+            anchors.add(slugify(match.group(1)))
+        anchors.update(value.lower() for value in id_pattern.findall(line))
+    return anchors
+
+
+def scan(root):
+    for page in root.rglob("*"):  # tree-walk-ok: scoped to the selected public-site source root, including unstaged Markdown pages but never repository worktrees
+        if not page.is_file() or page.suffix not in DOC_SUFFIXES:
+            continue
+        for href in (h for line in unfenced_lines(page) for h in link_pattern.findall(line)):
+            if href.startswith(("http://", "https://", "mailto:")):
+                continue
+            target, _, fragment = href.partition("#")
+            target = target.split("?", 1)[0]
+            if target == "":
+                target_page = page
+            elif target.startswith("/"):
+                route = target.lstrip("/")
+                candidates = (root / route, root / f"{route}.md", root / f"{route}.mdx")
+                target_page = next((c for c in candidates if c.is_file()), None)
+                if target_page is None:
+                    print("no")
+                    raise SystemExit(0)
+            else:
+                # A bare relative link renders differently per route depth, so the site
+                # convention is root-relative; a relative form is refused outright.
+                print("no")
+                raise SystemExit(0)
+            if fragment and target_page.suffix in DOC_SUFFIXES:
+                anchors = page_anchors(target_page)
+                # A page with no derivable anchors (e.g. a JSX-only page) is left
+                # unverified rather than failed; explicit id= anchors are honored.
+                if anchors and fragment.lower() not in anchors:
+                    print("no")
+                    raise SystemExit(0)
+
+
+try:
+    scan(root)
+except UnterminatedFence:
+    print("no")
+    raise SystemExit(0)
 print("yes")
 PY
 }
@@ -54201,6 +54280,48 @@ assert_eq "public site guard: a missing root-relative link target is rejected" "
   "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
 printf '# Present\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
 assert_eq "public site guard: the same link fixture passes when its target exists" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n[Relative](missing)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a bare relative internal link is rejected" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n```text\n[Relative](missing)\n```\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a pseudo-link inside a code fence is not checked" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n[Anchor](/docs/missing#absent-heading)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a fragment matching no heading in its target page is rejected" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Present\n\n## Known Heading: Kept\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n[Anchor](/docs/missing#known-heading-kept)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a fragment matching a derived heading slug passes" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n```text\n[Relative](missing)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: an unterminated code fence fails closed" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Present\n\n## Foo & Bar\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n[Anchor](/docs/missing#foo--bar)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: punctuation between spaces derives one hyphen per space" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n[Anchor](/docs/missing#foo-bar)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: the run-collapsed slug of that heading is rejected" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Present\n\n<div id="Explicit-Anchor"></div>\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n[Anchor](/docs/missing#explicit-anchor)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: an explicit element id anchor is honored" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Present\n\nSet id="fake" in the config.\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n[Anchor](/docs/missing#fake)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a prose id= mention is not a fragment target" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf 'Plain body with no headings or ids.\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n[Anchor](/docs/missing#anything)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a page with no derivable anchors is left unverified" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Present\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n## Local Heading\n\n[Jump](#local-heading)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a same-page fragment matching a heading passes" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n## Local Heading\n\n[Jump](#absent)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a same-page fragment matching nothing is rejected" "no" \
   "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
 
 # The four guards below were hardcoded to the live tree and observed only its passing state, so
@@ -54764,6 +54885,180 @@ elif [ -n "$RSZ_NF_REAL" ]; then
   printf '%s\n' "#1614 near-full advisory (covered files nearing the reader-cap ceiling; trim while cheap):"
   printf '%s\n' "$RSZ_NF_REAL" | rsz_nf_render
 fi
+
+# ── #1745 brand-cased DevFlow bucket reconciliation (lib/test/lint-brand-devflow-sweep.py) ──
+# Every brand-cased 'DevFlow' occurrence in the tracked tree is classified into a recorded
+# bucket; the lint fails closed BOTH ways — an unclassified/new occurrence and a stale
+# assignment each turn RED. Drive the exit code and finding lines, not the prose.
+echo "#1745 brand-devflow sweep: every brand-cased DevFlow occurrence stays classified, fail-closed both ways"
+BDS_LINT="$LIB/test/lint-brand-devflow-sweep.py"
+BDS_FX="$(git_sandbox '#1745 fixture repo')"
+python3 - "$BDS_FX" <<'BDS_BUILD'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+def w(rel, body):
+    p = root / rel; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(body, encoding="utf-8")
+w("docs/keep.md", "DevFlow is great and DevFlow ships.\n")          # 2 pending prose
+w(".prflow/learnings/x.jsonl", '{"note":"DevFlow ran"}\n')          # frozen-record
+w("CHANGELOG.md", "## old\nDevFlow did a thing\n")                  # frozen-historical
+w("lib/scan.sh", "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n")  # 1 frozen value + 1 pending
+w("lib/classify-pr-kind.jq", 'select(.label == "DevFlow")\n')      # frozen-provenance VALUE only, NOT baselined
+w(".changeset/issue-9.md", "a DevFlow changeset consumed on merge\n")  # transient (excluded)
+w(".changeset/README.md", "DevFlow changesets readme\n")              # transient exception -> pending 1
+w("lib/test/fake-tool.py", "BRAND = 'DevFlow'  # the tooling literal\n")  # frozen-tooling
+buckets = {"schema_version": 1,
+  "frozen": {"transient_prefixes": [".changeset/"], "transient_exceptions": [".changeset/README.md"],
+             "record_prefixes": [".prflow/learnings/", ".prflow/logs/"],
+             "historical_files": ["CHANGELOG.md"], "tooling_files": ["lib/test/fake-tool.py"],
+             "provenance": [{"file": "lib/scan.sh"}, {"file": "lib/classify-pr-kind.jq"}]},
+  "pending_sweep_baseline": [{"path": ".changeset/README.md"},
+                             {"path": "docs/keep.md"}, {"path": "lib/scan.sh"}]}
+w("lib/test/brand-devflow-buckets.json", json.dumps(buckets, indent=2) + "\n")
+subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_BUILD
+bds_run() { local out rc; out="$(python3 "$BDS_LINT" --root "$1" 2>&1)"; rc=$?; printf 'rc=%s|%s' "$rc" "$out"; }
+bds_has() { case "$2" in *"$1"*) echo yes ;; *) echo no ;; esac; }
+bds_stage() { git -C "$BDS_FX" add -A; }
+
+# A fully-classified tree is clean; frozen buckets are covered without a baseline row.
+BDS_CLEAN="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a fully-classified tree is clean" "rc=0" "${BDS_CLEAN%%|*}"
+assert_eq "#1745 a frozen record path needs no baseline row" "no" "$(bds_has "learnings/x.jsonl" "$BDS_CLEAN")"
+# classify-pr-kind.jq's only DevFlow is the quoted provenance VALUE and it is NOT baselined, so
+# the forward guard must not demand it as unclassified — assert absence of the lint's real
+# forward-finding string (a regression routing the value to pending would emit exactly this).
+assert_eq "#1745 a frozen-provenance value is not demanded as unclassified" "no" "$(bds_has "lib/classify-pr-kind.jq: brand-cased 'DevFlow' in a file with no pending_sweep_baseline entry" "$BDS_CLEAN")"
+assert_eq "#1745 a frozen-tooling file needs no baseline entry" "no" "$(bds_has "fake-tool.py" "$BDS_CLEAN")"
+# Growth inside a frozen bucket stays green (frozen buckets are not count-bounded) — a new
+# CHANGELOG entry mentioning DevFlow must not re-red.
+printf '## old\nDevFlow one\nDevFlow two\nDevFlow three\n' > "$BDS_FX/CHANGELOG.md"; bds_stage
+assert_eq "#1745 growth inside a frozen bucket stays green" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+printf '## old\nDevFlow did a thing\n' > "$BDS_FX/CHANGELOG.md"; bds_stage
+# A transient changeset (deleted by version-consolidate on merge) is excluded, never demanded
+# as unclassified — and its README exception stays pending, proving the exception fires.
+assert_eq "#1745 a transient changeset needs no baseline row" "no" "$(bds_has "changeset/issue-9.md" "$BDS_CLEAN")"
+# Deleting the transient changeset (the merge-time behavior) must NOT fire a stale-row RED —
+# the reverse-direction false-RED-on-main defect the shadow caught.
+rm -f "$BDS_FX/.changeset/issue-9.md"; bds_stage
+assert_eq "#1745 deleting a transient changeset does not fire a stale-row RED" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+# A malformed bucket record is a fail-closed read error (exit 2), never a vacuous pass.
+printf 'not json {' > "$BDS_FX/bad-buckets.json"
+BDS_BAD_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/bad-buckets.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a malformed bucket record fails closed with exit 2" "2" "$BDS_BAD_RC"
+rm -f "$BDS_FX/bad-buckets.json"
+# A structurally-valid record with a wrong SHAPE also fails closed with exit 2 (a specific
+# breadcrumb), never an uncaught KeyError/TypeError traceback (adversarial-parser convention):
+# a missing 'frozen' object, and a sub-row missing its 'file'/'path' key.
+printf '{"schema_version": 1, "pending_sweep_baseline": []}' > "$BDS_FX/nofrozen.json"
+BDS_NF_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/nofrozen.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a record missing the 'frozen' object fails closed with exit 2" "2" "$BDS_NF_RC"
+printf '{"schema_version": 1, "frozen": {"provenance": [{"detail": "no file key"}]}, "pending_sweep_baseline": []}' > "$BDS_FX/badrow.json"
+BDS_BR_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badrow.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a provenance row missing its 'file' key fails closed with exit 2" "2" "$BDS_BR_RC"
+# The twin: a pending_sweep_baseline row missing its 'path' key is the sibling shape guard;
+# it fails closed with exit 2 too (a refactor regressing it would otherwise raise an uncaught
+# KeyError with the suite staying green).
+printf '{"schema_version": 1, "frozen": {"provenance": []}, "pending_sweep_baseline": [{"note": "no path key"}]}' > "$BDS_FX/badpending.json"
+BDS_BP_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badpending.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a pending row missing its 'path' key fails closed with exit 2" "2" "$BDS_BP_RC"
+# A list-valued frozen key given a JSON string (not a list of strings) also fails closed with
+# exit 2 (else startswith would iterate characters and silently misclassify).
+printf '{"schema_version": 1, "frozen": {"provenance": [], "record_prefixes": "not-a-list"}, "pending_sweep_baseline": []}' > "$BDS_FX/badlist.json"
+BDS_BL_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badlist.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a list-valued frozen key given a JSON string fails closed with exit 2" "2" "$BDS_BL_RC"
+# The 'provenance'/'pending_sweep_baseline' containers themselves given a SCALAR (not a list)
+# also fail closed with the clean exit-2 breadcrumb, never an uncaught TypeError from enumerate().
+# A NON-iterable scalar (7), not a string: a string is iterated char-by-char and rejected by the
+# downstream row-shape check, so it exits 2 even with the guard removed (vacuous). An int forces
+# the TypeError the guard prevents, so removing the guard reds this assertion.
+printf '{"schema_version": 1, "frozen": {"provenance": 7}, "pending_sweep_baseline": []}' > "$BDS_FX/scalarprov.json"
+BDS_SP_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/scalarprov.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a scalar 'provenance' fails closed with exit 2 (not a TypeError)" "2" "$BDS_SP_RC"
+printf '{"schema_version": 1, "frozen": {"provenance": []}, "pending_sweep_baseline": 7}' > "$BDS_FX/scalarpending.json"
+BDS_SPB_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/scalarpending.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a scalar 'pending_sweep_baseline' fails closed with exit 2 (not a TypeError)" "2" "$BDS_SPB_RC"
+rm -f "$BDS_FX/nofrozen.json" "$BDS_FX/badrow.json" "$BDS_FX/badpending.json" "$BDS_FX/badlist.json" "$BDS_FX/scalarprov.json" "$BDS_FX/scalarpending.json"
+
+# --print-population emits one line per bucket per file; a provenance file with both a
+# frozen value and a pending remainder emits the dual line pair (the documented contract).
+BDS_POP="$(python3 "$BDS_LINT" --root "$BDS_FX" --print-population 2>&1)"
+assert_eq "#1745 --print-population reports a pending file at its count" "yes" \
+  "$(bds_has "$(printf 'pending\tdocs/keep.md\t2')" "$BDS_POP")"
+assert_eq "#1745 --print-population emits a provenance file's pending line" "yes" \
+  "$(bds_has "$(printf 'pending\tlib/scan.sh\t1')" "$BDS_POP")"
+assert_eq "#1745 --print-population emits a provenance file's frozen line (dual emit)" "yes" \
+  "$(bds_has "$(printf 'frozen-provenance\tlib/scan.sh\t1')" "$BDS_POP")"
+
+# --update-baseline reseeds the pending baseline from the tree; on an already-reconciled
+# clean tree it is idempotent (rewrites the same file set) and the reconciliation stays green.
+BDS_RESEED="$(python3 "$BDS_LINT" --root "$BDS_FX" --update-baseline 2>&1)"; BDS_RESEED_RC=$?
+assert_eq "#1745 --update-baseline exits 0 and reports a reseed" "rc=0" \
+  "$([ "$BDS_RESEED_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s' "$BDS_RESEED_RC")"
+assert_eq "#1745 --update-baseline names the reseeded file count" "yes" \
+  "$(bds_has "reseeded pending_sweep_baseline with 3 file(s)" "$BDS_RESEED")"
+assert_eq "#1745 an idempotent reseed leaves the reconciliation green" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+
+# An unreadable tracked file fails the reconciliation CLOSED: a dangling symlink read_bytes
+# cannot follow is skipped, so its DevFlow occurrences escape classification and the run goes
+# RED (chmod 000 is unreliable under a root CI uid, so a dangling symlink is the portable probe).
+ln -s nonexistent-target "$BDS_FX/docs/dangling.md"; bds_stage
+BDS_SKIP="$(bds_run "$BDS_FX")"
+assert_eq "#1745 an unreadable tracked file fails the suite closed" "rc=1" "${BDS_SKIP%%|*}"
+assert_eq "#1745 the finding names the unreadable file" "yes" \
+  "$(bds_has "docs/dangling.md: unreadable tracked file" "$BDS_SKIP")"
+rm -f "$BDS_FX/docs/dangling.md"; bds_stage
+
+# AC3: a currently-clean file (no baseline entry) that gains renameable DevFlow fails the suite.
+printf 'a new DevFlow prose line\n' > "$BDS_FX/docs/new.md"; bds_stage
+BDS_NEW="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a new file with renameable DevFlow fails the suite" "rc=1" "${BDS_NEW%%|*}"
+assert_eq "#1745 the finding names the new unclassified file" "yes" \
+  "$(bds_has "docs/new.md: brand-cased 'DevFlow' in a file with no pending_sweep_baseline entry" "$BDS_NEW")"
+rm -f "$BDS_FX/docs/new.md"; bds_stage
+
+# Churn-robustness (the count-drift Critical fix): adding MORE DevFlow to an ALREADY-pending
+# file stays GREEN — reconciliation is per-file presence, not exact count, so a concurrent
+# clean-textual merge on a hot-spot file cannot red the required check on main.
+printf 'DevFlow one DevFlow two DevFlow three DevFlow four\n' > "$BDS_FX/docs/keep.md"; bds_stage
+assert_eq "#1745 adding DevFlow to an already-pending file does not re-red (presence, not count)" "rc=0" \
+  "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+printf 'DevFlow is great and DevFlow ships.\n' > "$BDS_FX/docs/keep.md"; bds_stage
+
+# A stale baseline entry (its file fully swept) fails the suite.
+printf 'all swept now to PRFlow\n' > "$BDS_FX/docs/keep.md"; bds_stage
+BDS_STALE="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a stale baseline entry fails the suite" "rc=1" "${BDS_STALE%%|*}"
+assert_eq "#1745 the finding names the stale entry" "yes" "$(bds_has "docs/keep.md: stale pending_sweep_baseline entry" "$BDS_STALE")"
+printf 'DevFlow is great and DevFlow ships.\n' > "$BDS_FX/docs/keep.md"; bds_stage
+
+# A stale frozen-provenance entry (its value moved/removed) fails the suite.
+printf '# all PRFlow prose now, no value\n' > "$BDS_FX/lib/scan.sh"; bds_stage
+BDS_PROV="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a stale frozen-provenance entry fails the suite" "rc=1" "${BDS_PROV%%|*}"
+assert_eq "#1745 the finding names the stale provenance entry" "yes" "$(bds_has "lib/scan.sh: stale frozen-provenance entry" "$BDS_PROV")"
+printf "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n" > "$BDS_FX/lib/scan.sh"; bds_stage
+
+# Provenance-drain steady-state: a provenance file that loses only its prose remainder (keeping
+# the frozen value) fires a stale-baseline RED (its pending row is now empty) while the
+# frozen-provenance guard stays green (the value still matches).
+printf "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# all other prose swept to PRFlow\n" > "$BDS_FX/lib/scan.sh"; bds_stage
+BDS_DRAIN="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a drained provenance file fires a stale-baseline entry" "yes" \
+  "$(bds_has "lib/scan.sh: stale pending_sweep_baseline entry" "$BDS_DRAIN")"
+assert_eq "#1745 a drained provenance file's frozen value stays green (no stale-provenance)" "no" \
+  "$(bds_has "lib/scan.sh: stale frozen-provenance entry" "$BDS_DRAIN")"
+printf "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n" > "$BDS_FX/lib/scan.sh"; bds_stage
+
+# Real-tree gate: the tree stays fully classified as it stands.
+BDS_REAL="$(python3 "$BDS_LINT" 2>&1)"; BDS_REAL_RC=$?
+assert_eq "#1745 the real-tree bucket reconciliation is clean as the tree stands" "rc=0" \
+  "$([ "$BDS_REAL_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$BDS_REAL_RC" "$BDS_REAL")"
+assert_eq "#1745 the real-tree audit covered a positive number of files" "yes" \
+  "$(printf '%s' "$BDS_REAL" | python3 -c 'import re,sys
+m = re.search(r"audited (\d+) of", sys.stdin.read())
+print("yes" if m and int(m.group(1)) > 0 else "no")')"
 
 # ── issue #1621: ruff Python-lint gate (monolith-shard-resident) ─────────────
 # Rationale and scope: docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, the #1621 paragraph.

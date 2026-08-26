@@ -14804,7 +14804,8 @@ assert_eq("#855: the pointer-population sweep matches the recorded snapshot exac
           "(a new skill emitting a bare repo-relative command path turns this RED)",
           {"implement", "retrospective-weekly", "review", "review-and-fix",
            "pr-description", "docs-sync-internal", "docs-sync-external",
-           "docs-release-notes", "docs-bootstrap-internal", "docs"},
+           "docs-release-notes", "docs-bootstrap-internal", "docs-bootstrap-external",
+           "docs"},
           _wd_pointer_pop)
 
 # Regression pin: `Bash(cd:*)` is revoked from prflow_implement.allowed_tools
@@ -36624,6 +36625,961 @@ _dnc1027 = stall_observer.decide(stall_observer.parse_workpad(_wp1027(checkpoint
 assert_eq("#1027 decide: stale-advisory with no checkpoint -> stale-advisory", "stale-advisory", _dnc1027.token)
 assert_eq("#1027 decide: stale-advisory with no checkpoint omits the checkpoint clause",
           True, "last checkpoint" not in _dnc1027.message)
+
+# ── issue #1388: lint-provisioning helpers (lint_provision.py, install_state.py) ──
+_lint_provision = _load('lint_provision', SCRIPTS / 'lint_provision.py')
+_install_state = _load('install_state', SCRIPTS / 'install_state.py')
+_MANIFEST_1388 = SCRIPTS.parent / '.prflow' / 'lint-manifest.json'
+
+# lint_provision.build_plan — established tuple resolves artifact + trusted URL.
+_p1388 = _lint_provision.build_plan(_MANIFEST_1388, 'shellcheck', 'linux', 'x86_64')
+assert_eq("#1388 plan: linux/x86_64 shellcheck established", "established", _p1388.status)
+# The expected digest is read from the manifest itself (not a hardcoded constant) — this
+# assertion's purpose is that build_plan surfaces the manifest's digest verbatim (plumbing),
+# so a dynamic expected stays meaningful across future manifest version bumps.
+with open(_MANIFEST_1388, encoding='utf-8') as _mf1388:
+    _manifest1388 = json.load(_mf1388)
+_expected_digest_1388 = next(
+    a['digest'] for a in _manifest1388['tools']['shellcheck']['artifacts']
+    if a['os'] == 'linux' and a['arch'] == 'x86_64'
+)
+assert_eq("#1388 plan: resolves the manifest's pinned digest",
+          _expected_digest_1388, _p1388.digest)
+assert_eq("#1388 plan: trusted URL keyed on version+os+arch (no manifest string)",
+          "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz",
+          _p1388.url)
+# Windows shellcheck uses the single per-release zip form.
+assert_eq("#1388 plan: windows shellcheck single-zip URL",
+          "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.zip",
+          _lint_provision.build_plan(_MANIFEST_1388, 'shellcheck', 'windows', 'x86_64').url)
+# ruff target-triple mapping.
+assert_eq("#1388 plan: ruff macos/arm64 target triple",
+          "https://github.com/astral-sh/ruff/releases/download/0.6.9/ruff-aarch64-apple-darwin.tar.gz",
+          _lint_provision.build_plan(_MANIFEST_1388, 'ruff', 'macos', 'arm64').url)
+
+# unsupported-lint-platform — a VALID manifest declaring no artifact for the tuple.
+_u1388 = _lint_provision.build_plan(_MANIFEST_1388, 'shellcheck', 'windows', 'arm64')
+assert_eq("#1388 plan: unsupported (os,arch) -> unsupported", "unsupported", _u1388.status)
+assert_eq("#1388 plan: unsupported reason literal", "unsupported-lint-platform", _u1388.reason)
+# an unknown tool is a DISTINCT no-answer from a platform gap: the shell caller
+# degrades only the platform case and fails closed on a tool it cannot handle.
+_ut1388 = _lint_provision.build_plan(_MANIFEST_1388, 'gcc', 'linux', 'x86_64')
+assert_eq("#1388 plan: unknown tool -> unsupported",
+          "unsupported", _ut1388.status)
+assert_eq("#1388 plan: unknown tool carries the unknown-lint-tool reason (not the platform reason)",
+          "unknown-lint-tool", _ut1388.reason)
+# an unestablished manifest is NOT unsupported — it carries a typed reason.
+_bad1388 = _lint_provision.build_plan(SCRIPTS / 'nope-manifest.json', 'ruff', 'linux', 'x86_64')
+assert_eq("#1388 plan: missing manifest -> unestablished (not unsupported)", "unestablished", _bad1388.status)
+assert_eq("#1388 plan: unestablished carries the manifest reason",
+          True, _bad1388.reason.startswith("missing:"))
+
+# cache_key: field-delimited, digest normalized to its 64-hex body, installer version last.
+assert_eq("#1388 cache_key: {os,arch,tool,version,digest,installer} composed",
+          "lintprov-linux-x86_64-ruff-0.6.9-" + "0" * 62 + "c1-v9",
+          _lint_provision.cache_key('linux', 'x86_64', 'ruff', '0.6.9',
+                                    'sha256:' + '0' * 62 + 'c1', 'v9'))
+
+# install_state.validate_state — six-shape fail-closed matrix.
+def _mk_state(**over):
+    st = {"schema_version": 1, "installer_version": "v0.1.0",
+          "components": {"manifest": {"path": ".prflow/lint-manifest.json",
+                                      "digest": "sha256:" + "a" * 64}}}
+    st.update(over)
+    return st
+
+assert_eq("#1388 state: well-formed establishes", True,
+          _install_state.validate_state(_mk_state()).established)
+assert_eq("#1388 state: top-level scalar -> wrong-type", True,
+          _install_state.validate_state(5).reason.startswith("wrong-type:"))
+assert_eq("#1388 state: bool top level -> wrong-type (valid-falsy)", True,
+          _install_state.validate_state(False).reason.startswith("wrong-type:"))
+assert_eq("#1388 state: unknown field rejected", True,
+          _install_state.validate_state(_mk_state(extra=1)).reason.startswith("unknown-field:"))
+assert_eq("#1388 state: bad schema_version -> unknown-version", True,
+          _install_state.validate_state(_mk_state(schema_version=2)).reason.startswith("unknown-version:"))
+assert_eq("#1388 state: bool schema_version -> wrong-type (valid-falsy)", True,
+          _install_state.validate_state(_mk_state(schema_version=True)).reason.startswith("wrong-type:"))
+assert_eq("#1388 state: installer_version with shell metachar rejected", True,
+          _install_state.validate_state(_mk_state(installer_version="v1; rm -rf /")).reason.startswith("invalid-value:"))
+assert_eq("#1388 state: empty components rejected", True,
+          _install_state.validate_state(_mk_state(components={})).reason.startswith("invalid-value:"))
+assert_eq("#1388 state: absolute component path rejected", True,
+          _install_state.validate_state(_mk_state(components={"m": {"path": "/etc/x", "digest": "sha256:" + "a" * 64}})).reason.startswith("invalid-value:"))
+assert_eq("#1388 state: traversal component path rejected", True,
+          _install_state.validate_state(_mk_state(components={"m": {"path": "../x", "digest": "sha256:" + "a" * 64}})).reason.startswith("invalid-value:"))
+assert_eq("#1388 state: non-sha256 digest rejected", True,
+          _install_state.validate_state(_mk_state(components={"m": {"path": "x", "digest": "md5:abc"}})).reason.startswith("invalid-value:"))
+# parse_state I/O shapes.
+assert_eq("#1388 state: empty bytes -> empty", True,
+          _install_state.parse_state(b"").reason.startswith("empty:"))
+assert_eq("#1388 state: invalid utf-8 -> invalid-utf8", True,
+          _install_state.parse_state(b"\xff\xfe").reason.startswith("invalid-utf8:"))
+assert_eq("#1388 state: malformed json -> malformed-json", True,
+          _install_state.parse_state(b"{not json").reason.startswith("malformed-json:"))
+assert_eq("#1388 state: duplicate key -> duplicate-key", True,
+          _install_state.parse_state(b'{"schema_version":1,"schema_version":1}').reason.startswith("duplicate-key:"))
+assert_eq("#1388 state: load_state missing -> install-state-missing",
+          "install-state-missing", _install_state.load_state(SCRIPTS / 'nope-state.json').reason)
+
+# install_state build + check_readiness — the fail-closed provisioning gate.
+_d1388 = Path(tempfile.mkdtemp())
+try:
+    _root = _d1388 / "repo"
+    (_root / ".prflow").mkdir(parents=True)
+    (_root / "scripts").mkdir()
+    _man = _root / ".prflow" / "lint-manifest.json"
+    _man.write_bytes(_MANIFEST_1388.read_bytes())
+    _hlp = _root / "scripts" / "lint_manifest.py"
+    _hlp.write_text("print('x')\n", encoding="utf-8")
+    _state = _install_state.build_state("v0.1.0",
+        {"manifest": ".prflow/lint-manifest.json", "helper": "scripts/lint_manifest.py"},
+        repo_root=_root)
+    _statef = _root / ".prflow" / "install-state.json"
+    _statef.write_text(json.dumps(_state) + "\n", encoding="utf-8")
+    # first-install: marker present, all digests match, manifest establishes -> READY.
+    assert_eq("#1388 readiness: first-install ready", True,
+              _install_state.check_readiness(_statef, _man, repo_root=_root).ready)
+    # backfill / interrupted-publication: marker absent while components present -> refuse.
+    assert_eq("#1388 readiness: absent marker (backfill/interrupted) -> install-state-missing",
+              "install-state-missing",
+              _install_state.check_readiness(_root / ".prflow" / "nope.json", _man, repo_root=_root).reason)
+    # version-skew (either direction) flips a component digest -> digest-mismatch.
+    _hlp.write_text("print('changed')\n", encoding="utf-8")
+    _vr = _install_state.check_readiness(_statef, _man, repo_root=_root)
+    assert_eq("#1388 readiness: version-skew -> not ready", False, _vr.ready)
+    assert_eq("#1388 readiness: version-skew names the component", "digest-mismatch:helper", _vr.reason)
+    # component removed on disk -> component-missing (distinct from a skew).
+    _hlp.unlink()
+    assert_eq("#1388 readiness: removed component -> component-missing",
+              "component-missing:helper",
+              _install_state.check_readiness(_statef, _man, repo_root=_root).reason)
+    # manifest missing -> manifest-missing.
+    _man.unlink()
+    _hlp.write_text("print('x')\n", encoding="utf-8")  # restore helper so we isolate the manifest arm
+    _state2 = _install_state.build_state("v0.1.0", {"helper": "scripts/lint_manifest.py"}, repo_root=_root)
+    _statef.write_text(json.dumps(_state2) + "\n", encoding="utf-8")
+    assert_eq("#1388 readiness: manifest gone -> manifest-missing",
+              "manifest-missing",
+              _install_state.check_readiness(_statef, _man, repo_root=_root).reason)
+    # build_state fails BEFORE publishing when a component is unreadable.
+    assert_raises("#1388 build_state: unreadable component raises (no marker published)",
+                  ValueError,
+                  lambda: _install_state.build_state("v0.1.0", {"gone": "scripts/nope.py"}, repo_root=_root))
+finally:
+    shutil.rmtree(_d1388, ignore_errors=True)
+
+
+# ── issue #1388: provision-lint-tools.sh fail-closed arms (driven end-to-end) ──
+import subprocess as _sp1388  # noqa: E402
+import tarfile as _tar1388  # noqa: E402
+
+_HELPER_1388 = SCRIPTS.parent / '.github' / 'actions' / 'setup-project-env' / 'provision-lint-tools.sh'
+
+
+def _mk_archive_1388(root, member, version_report, *, valid=True, archive_type="tar.gz"):
+    """Build an archive holding a fake `member` executable that reports
+    `version_report`; return (archive_path, sha256-digest). `valid=False`
+    writes non-archive bytes (a corrupt download whose digest still pins).
+    `archive_type` selects the compression — production shellcheck ships tar.xz."""
+    arc = root / f"artifact.{archive_type}"
+    if not valid:
+        arc.write_bytes(b"this is not a tar archive\n")
+    else:
+        tooldir = root / "tool"
+        tooldir.mkdir(exist_ok=True)
+        exe = tooldir / member
+        exe.write_text(f"#!/bin/sh\necho '{member} {version_report}'\n", encoding="utf-8")
+        exe.chmod(0o755)
+        with _tar1388.open(arc, "w:" + {"tar.gz": "gz", "tar.xz": "xz"}[archive_type]) as tf:
+            tf.add(exe, arcname=f"nested-{version_report}/{member}")
+    return arc, _install_state.digest_bytes(arc.read_bytes())
+
+
+def _mk_manifest_1388(digest, *, version="9.9.9", archive_type="tar.gz"):
+    return {
+        "schema_version": 1,
+        "tools": {
+            "shellcheck": {"version": version, "timeout_seconds": 600,
+                           "artifacts": [{"os": "linux", "arch": "x86_64", "digest": digest,
+                                          "archive_type": archive_type, "member": "shellcheck",
+                                          "strategy": "extract-tar"}]},
+            "ruff": {"version": "1.0.0", "timeout_seconds": 600,
+                     "artifacts": [{"os": "linux", "arch": "x86_64", "digest": "sha256:" + "b" * 64,
+                                    "archive_type": "tar.gz", "member": "ruff",
+                                    "strategy": "extract-tar"}]},
+        },
+        "selectors": [{"id": "s", "language": "shell", "include_globs": ["**/*.sh"]}],
+        "full_profiles": [{"id": "p", "tool": "shellcheck", "selector": "s"}],
+    }
+
+
+def _run_helper_1388(root, *, tools="shellcheck", os_name="linux", arch="x86_64",
+                     archive=None, curl_rc=0, dest_bin=None, extra_env=None,
+                     curl_marker=None, path_tools=None, github_path=None):
+    """Run provision-lint-tools.sh in fixture `root` with a fake curl that copies
+    `archive` (or exits `curl_rc`) and, when `curl_marker` is given, touches that
+    path so a test can assert the downloader was (not) invoked. `path_tools`, a
+    {name: version_report} dict, materializes fake PATH executables in a
+    directory prepended to PATH ahead of the real inherited PATH. Returns
+    (returncode, stderr+stdout)."""
+    fakecurl = root / "fakecurl.sh"
+    marker_line = f'touch "{curl_marker}"\n' if curl_marker else ""
+    if curl_rc != 0:
+        fakecurl.write_text(f"#!/bin/sh\n{marker_line}exit {curl_rc}\n", encoding="utf-8")
+    else:
+        fakecurl.write_text(
+            '#!/bin/sh\n' + marker_line +
+            'out=""\nwhile [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; *) shift;; esac; done\n'
+            f'cp "{archive}" "$out"\n', encoding="utf-8")
+    fakecurl.chmod(0o755)
+    env = dict(os.environ)
+    env.pop("GITHUB_PATH", None)
+    if github_path is not None:
+        env["GITHUB_PATH"] = str(github_path)
+    path_prefix = ""
+    if path_tools:
+        pathdir = root / "pathtools"
+        pathdir.mkdir(exist_ok=True)
+        for name, version_report in path_tools.items():
+            exe = pathdir / name
+            exe.write_text(f"#!/bin/sh\necho '{name} {version_report}'\n", encoding="utf-8")
+            exe.chmod(0o755)
+        path_prefix = str(pathdir) + os.pathsep
+    env.update({
+        "LINT_MANIFEST": ".prflow/lint-manifest.json",
+        "INSTALL_STATE": ".prflow/install-state.json",
+        "DEST_BIN": str(dest_bin if dest_bin else (root / "bin")),
+        "TARGET_OS": os_name, "TARGET_ARCH": arch,
+        "SCRIPTS_DIR": str(SCRIPTS),
+        "TOOLS": tools,
+        "LINTPROV_CURL": str(fakecurl),
+        "PATH": path_prefix + env.get("PATH", ""),
+    })
+    if extra_env:
+        env.update(extra_env)
+    proc = _sp1388.run(["bash", str(_HELPER_1388)], cwd=str(root), env=env,
+                       capture_output=True, text=True)
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+def _mk_repo_1388(tmp, manifest):
+    """Materialize a fixture repo with the manifest, a real helper component, and a
+    valid install-state marker binding both by digest."""
+    root = Path(tmp) / "repo"
+    (root / ".prflow").mkdir(parents=True)
+    (root / "scripts").mkdir()
+    (root / ".prflow" / "lint-manifest.json").write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+    (root / "scripts" / "lint_manifest.py").write_bytes((SCRIPTS / "lint_manifest.py").read_bytes())
+    state = _install_state.build_state("v0",
+        {"manifest": ".prflow/lint-manifest.json", "helper": "scripts/lint_manifest.py"},
+        repo_root=root)
+    (root / ".prflow" / "install-state.json").write_text(json.dumps(state) + "\n", encoding="utf-8")
+    return root
+
+
+_d1388b = Path(tempfile.mkdtemp())
+try:
+    # Happy path: valid archive whose digest the manifest pins; fake tool reports 9.9.9.
+    _arc, _dig = _mk_archive_1388(_d1388b, "shellcheck", "9.9.9")
+    _repo = _mk_repo_1388(_d1388b / "ok", _mk_manifest_1388(_dig))
+    _rc, _out = _run_helper_1388(_repo, archive=_arc)
+    assert_eq("#1388 helper: happy path installs + version-verifies (rc 0)", 0, _rc)
+    assert_eq("#1388 helper: reports version-verified install", True, "version-verified" in _out)
+    assert_eq("#1388 helper: installed the executable run-local", True, (_repo / "bin" / "shellcheck").exists())
+    # PR #1963 reception: tar.xz is the archive type every real shellcheck artifact
+    # uses, and no test extracted one — the whole download+extract path was proven
+    # only against a compression production never sees.
+    _xzdir = _d1388b / "xz"
+    _xzdir.mkdir(exist_ok=True)
+    _xz_arc, _xz_dig = _mk_archive_1388(_xzdir, "shellcheck", "9.9.9", archive_type="tar.xz")
+    _repo_xz = _mk_repo_1388(_d1388b / "xz-repo",
+                             _mk_manifest_1388(_xz_dig, archive_type="tar.xz"))
+    _rc_xz, _out_xz = _run_helper_1388(_repo_xz, archive=_xz_arc)
+    assert_eq("#1963 helper: tar.xz extracts and version-verifies (rc 0)", 0, _rc_xz)
+    assert_eq("#1963 helper: tar.xz installed the executable run-local", True,
+              (_repo_xz / "bin" / "shellcheck").exists())
+
+    # PR #1963 reception: the GITHUB_PATH append is what makes the provisioned tools
+    # visible to the model. Every other fixture pops GITHUB_PATH, so deleting the append
+    # left every fail-closed arm green while the model saw no shellcheck/ruff on PATH.
+    _gp1963 = _d1388b / "github_path_file"
+    _gp1963.write_text("", encoding="utf-8")
+    _repo_gp = _mk_repo_1388(_d1388b / "ok-gp", _mk_manifest_1388(_dig))
+    _rc_gp, _ = _run_helper_1388(_repo_gp, archive=_arc, github_path=_gp1963)
+    assert_eq("#1963 helper: GITHUB_PATH run still succeeds", 0, _rc_gp)
+    assert_eq("#1963 helper: appends DEST_BIN to GITHUB_PATH so the model sees the tools",
+              str(_repo_gp / "bin"), _gp1963.read_text(encoding="utf-8").strip())
+
+    # unsupported-lint-platform: no artifact for the requested (os,arch), and no
+    # pre-provisioned tool on PATH -> degrade (warn + continue), not fail closed.
+    _um1 = _d1388b / "unsupported-nopath.marker"
+    _rc, _out = _run_helper_1388(_repo, archive=_arc, arch="arm64", curl_marker=_um1)
+    assert_eq("#1388 helper: unsupported tuple degrades (rc 0)", 0, _rc)
+    assert_eq("#1388 helper: unsupported names the tool + reason", True,
+              "shellcheck: unsupported-lint-platform" in _out)
+    assert_eq("#1388 helper: unsupported emits a GitHub warning annotation", True,
+              "::warning::" in _out)
+    assert_eq("#1388 helper: unsupported degrade never invoked the downloader", False, _um1.exists())
+
+    # unsupported-lint-platform + a pre-provisioned tool on PATH at the pinned
+    # version -> reused, no download.
+    _um2 = _d1388b / "unsupported-path.marker"
+    _rc, _out = _run_helper_1388(_repo, archive=_arc, arch="arm64", curl_marker=_um2,
+                                  path_tools={"shellcheck": "9.9.9"})
+    assert_eq("#1388 helper: unsupported + PATH tool at pinned version reuses (rc 0)", 0, _rc)
+    assert_eq("#1388 helper: unsupported PATH reuse reports reused pre-provisioned", True,
+              "reused pre-provisioned" in _out)
+    assert_eq("#1388 helper: unsupported PATH reuse never invoked the downloader", False, _um2.exists())
+
+    # not-ready: corrupt a bound component so readiness refuses BEFORE any tool work.
+    _repo_nr = _mk_repo_1388(_d1388b / "nr", _mk_manifest_1388(_dig))
+    (_repo_nr / "scripts" / "lint_manifest.py").write_text("changed\n", encoding="utf-8")
+    _rc, _out = _run_helper_1388(_repo_nr, archive=_arc)
+    assert_eq("#1388 helper: readiness refusal fails closed", 1, _rc)
+    assert_eq("#1388 helper: readiness refusal names digest-mismatch", True, "digest-mismatch:helper" in _out)
+
+    # missing installer primitive: an absent downloader (fresh repo — no cache hit).
+    _repo_mp = _mk_repo_1388(_d1388b / "mp", _mk_manifest_1388(_dig))
+    _rc, _out = _run_helper_1388(_repo_mp, archive=_arc, extra_env={"LINTPROV_CURL": "/nonexistent/curl-xyz"})
+    assert_eq("#1388 helper: missing primitive fails closed", 1, _rc)
+    assert_eq("#1388 helper: missing primitive named", True, "installer primitive not found" in _out)
+
+    # network failure: downloader exits non-zero (fresh repo — no cache hit).
+    _repo_nf = _mk_repo_1388(_d1388b / "nf", _mk_manifest_1388(_dig))
+    _rc, _out = _run_helper_1388(_repo_nf, archive=_arc, curl_rc=7)
+    assert_eq("#1388 helper: network failure fails closed", 1, _rc)
+    assert_eq("#1388 helper: network failure names the tool", True, "shellcheck: network failure" in _out)
+
+    # checksum mismatch: manifest pins a digest the downloaded bytes do not match.
+    _repo_cm = _mk_repo_1388(_d1388b / "cm", _mk_manifest_1388("sha256:" + "e" * 64))
+    _rc, _out = _run_helper_1388(_repo_cm, archive=_arc)
+    assert_eq("#1388 helper: checksum mismatch fails closed", 1, _rc)
+    assert_eq("#1388 helper: checksum mismatch named", True, "checksum mismatch" in _out)
+
+    # archive mismatch: digest pins corrupt (non-archive) bytes; extraction fails.
+    _bad_arc, _bad_dig = _mk_archive_1388(_d1388b, "shellcheck", "x", valid=False)
+    _repo_am = _mk_repo_1388(_d1388b / "am", _mk_manifest_1388(_bad_dig))
+    _rc, _out = _run_helper_1388(_repo_am, archive=_bad_arc)
+    assert_eq("#1388 helper: archive mismatch fails closed", 1, _rc)
+    assert_eq("#1388 helper: archive mismatch named", True, "archive mismatch" in _out)
+
+    # wrong version: fake tool reports a version the manifest does not declare.
+    _wv_arc, _wv_dig = _mk_archive_1388(_d1388b, "shellcheck", "1.1.1")
+    _repo_wv = _mk_repo_1388(_d1388b / "wv", _mk_manifest_1388(_wv_dig, version="9.9.9"))
+    _rc, _out = _run_helper_1388(_repo_wv, archive=_wv_arc)
+    assert_eq("#1388 helper: wrong version fails closed", 1, _rc)
+    assert_eq("#1388 helper: wrong version named", True, "wrong version" in _out)
+
+    # unwritable target: DEST_BIN under a read-only directory. Guarded on uid like the
+    # two sibling permission fixtures in this file — root ignores the mode bits, so
+    # unguarded this is an environment-dependent RED that attributes itself to the
+    # helper rather than to the fixture.
+    if _os.geteuid() != 0:
+        _ro = _d1388b / "roparent"
+        _ro.mkdir()
+        _ro.chmod(0o555)
+        try:
+            _rc, _out = _run_helper_1388(_repo, archive=_arc, dest_bin=_ro / "sub" / "bin")
+            assert_eq("#1388 helper: unwritable target fails closed", 1, _rc)
+            assert_eq("#1388 helper: unwritable target named", True, "unwritable target" in _out)
+        finally:
+            _ro.chmod(0o755)
+finally:
+    shutil.rmtree(_d1388b, ignore_errors=True)
+
+
+# ── issue #1388 (review fixes): version-anchoring, within-job reuse, zip, guards ──
+import zipfile as _zip1388  # noqa: E402
+_d1388d = Path(tempfile.mkdtemp())
+try:
+    # Whole-token version match: manifest pins 1.2, the tool reports 1.24.1 -> wrong
+    # version (a substring match would have accepted it).
+    _va_arc, _va_dig = _mk_archive_1388(_d1388d, "shellcheck", "1.24.1")
+    _repo_va = _mk_repo_1388(_d1388d / "va", _mk_manifest_1388(_va_dig, version="1.2"))
+    _rc, _out = _run_helper_1388(_repo_va, archive=_va_arc)
+    assert_eq("#1388 helper: superset version (1.2 vs 1.24.1) is rejected", 1, _rc)
+    assert_eq("#1388 helper: superset version named wrong version", True, "wrong version" in _out)
+
+    # Within-job reuse: a second run over the same repo+DEST_BIN reuses the verified
+    # install (no re-download) instead of failing.
+    _ok_arc, _ok_dig = _mk_archive_1388(_d1388d, "shellcheck", "9.9.9")
+    _repo_ru = _mk_repo_1388(_d1388d / "ru", _mk_manifest_1388(_ok_dig))
+    _rc1, _o1 = _run_helper_1388(_repo_ru, archive=_ok_arc)
+    _rc2, _o2 = _run_helper_1388(_repo_ru, archive=_ok_arc)
+    assert_eq("#1388 helper: first install succeeds", 0, _rc1)
+    assert_eq("#1388 helper: second run reuses the verified install (no re-download)", 0, _rc2)
+    assert_eq("#1388 helper: reuse path names the verified reuse", True, "reused verified install" in _o2)
+
+    # extract-zip end-to-end (only where a real unzip is on PATH, else the missing-primitive
+    # arm is exercised instead — both are valid fail-open-free outcomes).
+    _zdir = _d1388d / "z"
+    _zdir.mkdir()
+    _member = _zdir / "shellcheck"
+    _member.write_text("#!/bin/sh\necho 'shellcheck 9.9.9'\n", encoding="utf-8")
+    _member.chmod(0o755)
+    _zarc = _d1388d / "artifact.zip"
+    with _zip1388.ZipFile(_zarc, "w") as zf:
+        zf.write(_member, arcname="nested/shellcheck")
+    _zdig = _install_state.digest_bytes(_zarc.read_bytes())
+    _zman = _mk_manifest_1388(_ok_dig)
+    _zman["tools"]["shellcheck"]["artifacts"][0].update(
+        {"digest": _zdig, "archive_type": "zip", "strategy": "extract-zip"})
+    _repo_z = _mk_repo_1388(_d1388d / "zr", _zman)
+    _rc, _out = _run_helper_1388(_repo_z, archive=_zarc)
+    if _sp1388.run(["sh", "-c", "command -v unzip"], capture_output=True).returncode == 0:
+        assert_eq("#1388 helper: extract-zip strategy installs + verifies", 0, _rc)
+    else:
+        assert_eq("#1388 helper: extract-zip without unzip fails closed on the primitive", 1, _rc)
+        assert_eq("#1388 helper: missing unzip primitive named", True, "installer primitive not found" in _out)
+
+    # Established plan + a pre-provisioned tool on PATH at the pinned version -> reused,
+    # downloader never invoked.
+    _pp_repo = _mk_repo_1388(_d1388d / "pp", _mk_manifest_1388(_ok_dig))
+    _pp_marker = _d1388d / "pp.marker"
+    _rc, _out = _run_helper_1388(_pp_repo, archive=_ok_arc, curl_marker=_pp_marker,
+                                  path_tools={"shellcheck": "9.9.9"})
+    assert_eq("#1388 helper: established + matching PATH tool reuses (rc 0)", 0, _rc)
+    assert_eq("#1388 helper: established PATH reuse reports reused pre-provisioned", True,
+              "reused pre-provisioned" in _out)
+    assert_eq("#1388 helper: established PATH reuse never invoked the downloader", False, _pp_marker.exists())
+
+    # Established plan + a PATH tool at the WRONG version -> download path taken.
+    _wp_repo = _mk_repo_1388(_d1388d / "wp", _mk_manifest_1388(_ok_dig))
+    _wp_marker = _d1388d / "wp.marker"
+    _rc, _out = _run_helper_1388(_wp_repo, archive=_ok_arc, curl_marker=_wp_marker,
+                                  path_tools={"shellcheck": "1.1.1"})
+    assert_eq("#1388 helper: established + wrong-version PATH tool still installs (rc 0)", 0, _rc)
+    assert_eq("#1388 helper: wrong-version PATH tool triggers the download path", True, _wp_marker.exists())
+
+    # LINTPROV_SKIP_PATH_REUSE=1 + a matching PATH tool on an established plan -> the
+    # rung is skipped and the download path is taken anyway.
+    _sk_repo = _mk_repo_1388(_d1388d / "sk", _mk_manifest_1388(_ok_dig))
+    _sk_marker = _d1388d / "sk.marker"
+    _rc, _out = _run_helper_1388(_sk_repo, archive=_ok_arc, curl_marker=_sk_marker,
+                                  path_tools={"shellcheck": "9.9.9"},
+                                  extra_env={"LINTPROV_SKIP_PATH_REUSE": "1"})
+    assert_eq("#1388 helper: LINTPROV_SKIP_PATH_REUSE=1 forces the download path (rc 0)", 0, _rc)
+    assert_eq("#1388 helper: LINTPROV_SKIP_PATH_REUSE=1 invoked the downloader", True, _sk_marker.exists())
+
+    # Version-token guard: a PATH tool reporting 0.10.01 must NOT satisfy pinned 0.10.0
+    # (whole-token match, not a substring/prefix match).
+    _vt_man = _mk_manifest_1388(_ok_dig, version="0.10.0")
+    _vt_repo = _mk_repo_1388(_d1388d / "vt", _vt_man)
+    _vt_marker = _d1388d / "vt.marker"
+    _rc, _out = _run_helper_1388(_vt_repo, archive=_ok_arc, curl_marker=_vt_marker,
+                                  path_tools={"shellcheck": "0.10.01"})
+    assert_eq("#1388 helper: 0.10.01 does not satisfy pinned 0.10.0 (download path taken)", True,
+              _vt_marker.exists())
+finally:
+    shutil.rmtree(_d1388d, ignore_errors=True)
+
+# Type guards make illegal states unrepresentable (review type-design finding).
+assert_raises("#1388 Plan: an out-of-vocabulary status raises (no else-is-established fail-open)",
+              ValueError, lambda: _lint_provision.Plan("bogus"))
+assert_raises("#1388 StateResult: established with no state raises",
+              ValueError, lambda: _install_state.StateResult("established"))
+assert_raises("#1388 Readiness: not-ready with no reason raises",
+              ValueError, lambda: _install_state.Readiness(False))
+# PR #1963 reception: the invariants are enforced at construction, not by convention.
+assert_raises("#1388 Plan: established without resolved fields raises",
+              ValueError, lambda: _lint_provision.Plan("established", tool="shellcheck",
+                                                       os="linux", arch="x86_64"))
+assert_raises("#1388 Plan: a no-answer status without a reason raises",
+              ValueError, lambda: _lint_provision.Plan("unsupported"))
+assert_raises("#1388 Readiness: ready with a (stale) reason raises",
+              ValueError, lambda: _install_state.Readiness(True, "leftover-reason"))
+# Round 2: the XOR is enforced in BOTH directions and the verdicts are frozen.
+assert_raises("#1388 Plan: established with a (stale) reason raises",
+              ValueError, lambda: _lint_provision.Plan(
+                  "established", tool="shellcheck", os="linux", arch="x86_64",
+                  version="1", digest="sha256:" + "a" * 64, archive_type="tar.gz",
+                  member="shellcheck", strategy="extract-tar", url="https://x",
+                  reason="leftover"))
+assert_raises("#1388 Plan: a no-answer status smuggling resolved fields raises",
+              ValueError, lambda: _lint_provision.Plan(
+                  "unsupported", reason="unsupported-lint-platform", url="https://x"))
+assert_raises("#1388 StateResult: established with a (stale) reason raises",
+              ValueError, lambda: _install_state.StateResult(
+                  "established", state={"k": 1}, reason="leftover"))
+assert_raises("#1388 StateResult: unestablished smuggling a state raises",
+              ValueError, lambda: _install_state.StateResult(
+                  "unestablished", reason="r", state={"k": 1}))
+
+
+def _mutate_1388(obj, name):
+    def _do():
+        setattr(obj, name, "tampered")
+    return _do
+
+
+assert_raises("#1388 Readiness: post-construction assignment raises (frozen)",
+              AttributeError, _mutate_1388(_install_state.Readiness(True), "ready"))
+assert_raises("#1388 StateResult: post-construction assignment raises (frozen)",
+              AttributeError,
+              _mutate_1388(_install_state.StateResult("unestablished", reason="r"), "reason"))
+assert_raises("#1388 Plan: post-construction assignment raises (frozen)",
+              AttributeError,
+              _mutate_1388(_lint_provision.Plan("unsupported", reason="x"), "status"))
+# Round 2: a slash-bearing branch-ref installer_version (e.g. a consumer pinning
+# `feature/x`) is legal — build and validate stay in lockstep on the shared regex.
+assert_eq("#1388 state: slash-bearing installer_version validates (branch-ref pin)", True,
+          _install_state.validate_state(_mk_state(installer_version="feature/x")).established)
+# PR #1963 reception: readiness names an INVALID (present) manifest distinctly, and the
+# helper's final summary reports only what actually landed.
+_d1388e = Path(tempfile.mkdtemp())
+try:
+    _e_arc, _e_dig = _mk_archive_1388(_d1388e, "shellcheck", "9.9.9")
+    _repo_e = _mk_repo_1388(_d1388e / "sum", _mk_manifest_1388(_e_dig))
+    # Positive control on the same fixture: the component is readable, so the ONLY
+    # rejection cause below is the installer_version — never an unreadable component.
+    assert_eq("#1388 build_state: control — same component builds under a valid installer_version", True,
+              isinstance(_install_state.build_state(
+                  "v1", {"manifest": ".prflow/lint-manifest.json"}, repo_root=_repo_e), dict))
+    assert_raises("#1388 build_state: an installer_version validate_state would reject raises (no marker published)",
+                  ValueError, lambda: _install_state.build_state(
+                      "bad ref;x", {"manifest": ".prflow/lint-manifest.json"}, repo_root=_repo_e))
+    (_repo_e / ".prflow" / "bad-manifest.json").write_text("{not json", encoding="utf-8")
+    _mu = _install_state.check_readiness(_repo_e / ".prflow" / "install-state.json",
+                                         _repo_e / ".prflow" / "bad-manifest.json",
+                                         repo_root=_repo_e)
+    assert_eq("#1388 readiness: present-but-invalid manifest -> manifest-unestablished:<reason>", True,
+              (not _mu.ready) and _mu.reason.startswith("manifest-unestablished:"))
+    # Round 2 (I-1): a PRESENT manifest with a structural `missing:` reason (a missing
+    # required key) must NOT be mislabeled `manifest-missing` — that label is reserved
+    # for the file-absent sentinel, or an operator hunts for a file that exists.
+    (_repo_e / ".prflow" / "keyless-manifest.json").write_text('{"schema_version": 1}\n',
+                                                              encoding="utf-8")
+    _mk_r2 = _install_state.check_readiness(_repo_e / ".prflow" / "install-state.json",
+                                            _repo_e / ".prflow" / "keyless-manifest.json",
+                                            repo_root=_repo_e)
+    assert_eq("#1388 readiness: present manifest with structural missing-key -> manifest-unestablished, never manifest-missing", True,
+              (not _mk_r2.ready)
+              and _mk_r2.reason.startswith("manifest-unestablished:missing:")
+              and _mk_r2.reason != "manifest-missing")
+    _rc_e, _out_e = _run_helper_1388(_repo_e, archive=_e_arc, arch="arm64")
+    assert_eq("#1388 helper: degraded tool listed as unprovisioned, not provisioned", True,
+              "unprovisioned (degraded): shellcheck" in _out_e
+              and "provisioned: shellcheck" not in _out_e)
+    _rc_e2, _out_e2 = _run_helper_1388(_repo_e, archive=_e_arc)
+    assert_eq("#1388 helper: provisioned summary lists the installed tool", True,
+              "provisioned: shellcheck" in _out_e2)
+finally:
+    shutil.rmtree(_d1388e, ignore_errors=True)
+# Matrix completeness: component sub-object shapes and a missing required top-level key.
+assert_eq("#1388 state: components wrong-type (array) rejected", True,
+          _install_state.validate_state(_mk_state(components=[])).reason.startswith("invalid-value:"))
+assert_eq("#1388 state: a missing required top-level key rejected", True,
+          _install_state.parse_state(b'{"schema_version":1,"installer_version":"v"}').reason.startswith("missing:"))
+assert_eq("#1388 state: component missing digest rejected", True,
+          _install_state.validate_state(_mk_state(components={"m": {"path": "x"}})).reason.startswith("missing:"))
+
+# Round 3: ManifestResult enforces the same both-direction XOR + freeze as its
+# three siblings (Plan/StateResult/Readiness), and Readiness types its verdict.
+assert_raises("#1388 ManifestResult: established without a manifest raises",
+              ValueError, lambda: lint_manifest.ManifestResult("established"))
+assert_raises("#1388 ManifestResult: established with a (stale) reason raises",
+              ValueError, lambda: lint_manifest.ManifestResult(
+                  "established", manifest={"k": 1}, reason="leftover"))
+assert_raises("#1388 ManifestResult: unestablished without a reason raises",
+              ValueError, lambda: lint_manifest.ManifestResult("unestablished"))
+assert_raises("#1388 ManifestResult: unestablished smuggling a manifest raises",
+              ValueError, lambda: lint_manifest.ManifestResult(
+                  "unestablished", reason="r", manifest={"k": 1}))
+assert_raises("#1388 ManifestResult: post-construction assignment raises (frozen)",
+              AttributeError,
+              _mutate_1388(lint_manifest.ManifestResult("unestablished", reason="r"), "reason"))
+assert_raises("#1388 Readiness: a truthy non-bool ready raises (typed verdict)",
+              ValueError, lambda: _install_state.Readiness(1))
+
+# Round 3: unknown-lint-tool is fail-closed end-to-end — distinct exit code from
+# the resolver (4, never the degradable 3) and a refusal from the shell helper.
+_d1388f = Path(tempfile.mkdtemp())
+try:
+    _f_arc, _f_dig = _mk_archive_1388(_d1388f, "shellcheck", "9.9.9")
+    _repo_f = _mk_repo_1388(_d1388f / "ut", _mk_manifest_1388(_f_dig))
+    _cli_f = _sp1388.run(
+        [sys.executable, str(SCRIPTS / "lint_provision.py"), "plan",
+         "--manifest", str(_repo_f / ".prflow" / "lint-manifest.json"),
+         "--tool", "gcc", "--os", "linux", "--arch", "x86_64"],
+        capture_output=True, text=True)
+    assert_eq("#1388 CLI: unknown tool exits 4 (distinct from unsupported platform's 3)",
+              (4, "unknown-lint-tool"), (_cli_f.returncode, _cli_f.stdout.strip()))
+    _cli_f3 = _sp1388.run(
+        [sys.executable, str(SCRIPTS / "lint_provision.py"), "plan",
+         "--manifest", str(_repo_f / ".prflow" / "lint-manifest.json"),
+         "--tool", "shellcheck", "--os", "linux", "--arch", "arm64"],
+        capture_output=True, text=True)
+    assert_eq("#1388 CLI: unsupported platform still exits 3 with its own reason",
+              (3, "unsupported-lint-platform"), (_cli_f3.returncode, _cli_f3.stdout.strip()))
+    _ut_marker = _d1388f / "ut.marker"
+    _rc_f, _out_f = _run_helper_1388(_repo_f, archive=_f_arc, tools="gcc",
+                                     curl_marker=_ut_marker,
+                                     path_tools={"gcc": "9.9.9"})
+    assert_eq("#1388 helper: unknown tool fails closed even with a PATH candidate (rc 1)", 1, _rc_f)
+    assert_eq("#1388 helper: unknown tool named", True, "gcc: unknown-lint-tool" in _out_f)
+    assert_eq("#1388 helper: unknown tool never invoked the downloader", False, _ut_marker.exists())
+    # Round 3 (S-5): a readiness refusal names the operator remedy, not just the cause.
+    (_repo_f / "scripts" / "lint_manifest.py").write_bytes(b"# drifted component\n")
+    _rc_r, _out_r = _run_helper_1388(_repo_f, archive=_f_arc)
+    assert_eq("#1388 helper: readiness refusal names the re-run-installer remedy", True,
+              _rc_r == 1 and "remedy: re-run the PRFlow installer" in _out_r)
+finally:
+    shutil.rmtree(_d1388f, ignore_errors=True)
+
+
+# ── issue #1388: devflow-runner.yml hardensetup — the SHIPPED step body, end-to-end ──
+# The security control (base-ref materialization + PR-head prune) is executed as the
+# exact bytes the workflow ships: the `run` block is extracted from the YAML, so an
+# edit to the step is exercised here with no mirror script to drift.
+import yaml as _yaml1388  # noqa: E402
+
+_runner_yaml_1388 = _yaml1388.safe_load(
+    (SCRIPTS.parent / ".github" / "workflows" / "devflow-runner.yml").read_text(encoding="utf-8"))
+_harden_run_1388 = None
+for _job1388 in _runner_yaml_1388.get("jobs", {}).values():
+    for _step1388 in _job1388.get("steps", []) or []:
+        if isinstance(_step1388, dict) and _step1388.get("id") == "hardensetup":
+            _harden_run_1388 = _step1388.get("run")
+assert_eq("#1388 hardensetup: the step exists and carries a run block", True,
+          isinstance(_harden_run_1388, str) and "set -euo pipefail" in _harden_run_1388)
+
+
+def _git_1388(cwd, *args):
+    return _sp1388.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                        "-c", "commit.gpgsign=false", *args],
+                       cwd=str(cwd), capture_output=True, text=True, check=True)
+
+
+def _run_harden_1388(head_repo, base_ref, github_output=None):
+    env = dict(os.environ)
+    env["BASE_REF"] = base_ref
+    env.pop("GITHUB_OUTPUT", None)
+    if github_output is not None:
+        env["GITHUB_OUTPUT"] = str(github_output)
+    proc = _sp1388.run(["bash", "-c", _harden_run_1388], cwd=str(head_repo),
+                       env=env, capture_output=True, text=True)
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+_d1388h = Path(tempfile.mkdtemp())
+try:
+    _adir = Path(".github/actions/setup-project-env")
+    # Trusted origin: main carries the action dir with known-good bytes.
+    _origin_h = _d1388h / "origin"
+    (_origin_h / _adir).mkdir(parents=True)
+    (_origin_h / _adir / "action.yml").write_text("trusted-action\n", encoding="utf-8")
+    (_origin_h / _adir / "trusted.sh").write_text("trusted-helper\n", encoding="utf-8")
+    _git_1388(_origin_h, "init", "-b", "main", ".")
+    _git_1388(_origin_h, "add", "-A")
+    _git_1388(_origin_h, "commit", "-m", "base")
+    # PR head: a clone whose head EDITS action.yml and ADDS a helper.
+    _head_h = _d1388h / "head"
+    _git_1388(_d1388h, "clone", "file://" + str(_origin_h), str(_head_h))
+    (_head_h / _adir / "action.yml").write_text("evil-edit\n", encoding="utf-8")
+    (_head_h / _adir / "evil.sh").write_text("evil-addition\n", encoding="utf-8")
+    _git_1388(_head_h, "add", "-A")
+    _git_1388(_head_h, "commit", "-m", "pr head")
+    _go_h = _d1388h / "harden_output"
+    _go_h.write_text("", encoding="utf-8")
+    _rc_h, _out_h = _run_harden_1388(_head_h, "main", github_output=_go_h)
+    assert_eq("#1388 hardensetup: succeeds against a trusted base ref (rc 0)", 0, _rc_h)
+    assert_eq("#1388 hardensetup: a PR-head EDIT is overwritten by the base bytes",
+              "trusted-action\n", (_head_h / _adir / "action.yml").read_text(encoding="utf-8"))
+    assert_eq("#1388 hardensetup: a base file the PR left alone survives with base bytes",
+              "trusted-helper\n", (_head_h / _adir / "trusted.sh").read_text(encoding="utf-8"))
+    assert_eq("#1388 hardensetup: a PR-head ADDED file is pruned", False,
+              (_head_h / _adir / "evil.sh").exists())
+    # PR #1963 reception: the step DISPLACES PR-head bytes, so it must disclose them.
+    # Undisclosed, the reviewing agent reads these base-ref bytes as untouched PR-head
+    # content — on exactly the file a PR editing this action is under review for.
+    _disc_1963 = _go_h.read_text(encoding="utf-8")
+    assert_eq("#1963 hardensetup: publishes a displaced_setup_paths output at all", True,
+              "displaced_setup_paths<<" in _disc_1963)
+    for _want_1963 in (str(_adir / "action.yml"), str(_adir / "trusted.sh"),
+                       str(_adir / "evil.sh")):
+        assert_eq(f"#1963 hardensetup: discloses {_want_1963}", True,
+                  _want_1963 in _disc_1963)
+    # And the join must actually carry it, or the disclosure never reaches the prompt.
+    assert_eq("#1963 hardensetup: displaced_join consumes the hardensetup producer", True,  # structural-pin-ok: cross-file-phase-contract -- the producer->join wiring is the disclosure path
+              "steps.hardensetup.outputs.displaced_setup_paths" in (SCRIPTS.parent / ".github" / "workflows" / "devflow-runner.yml").read_text(encoding="utf-8"))
+    # Outside Actions (no GITHUB_OUTPUT) the security control still runs and succeeds.
+    _head_h2 = _d1388h / "head2"
+    _git_1388(_d1388h, "clone", "file://" + str(_origin_h), str(_head_h2))
+    assert_eq("#1963 hardensetup: runs with no GITHUB_OUTPUT set (rc 0)", 0,
+              _run_harden_1388(_head_h2, "main")[0])
+    # Fail-closed: a base ref with NO action dir refuses (never falls back to PR-head bytes).
+    _origin_n = _d1388h / "origin-none"
+    _origin_n.mkdir()
+    (_origin_n / "README.md").write_text("no action dir\n", encoding="utf-8")
+    _git_1388(_origin_n, "init", "-b", "main", ".")
+    _git_1388(_origin_n, "add", "-A")
+    _git_1388(_origin_n, "commit", "-m", "base without action dir")
+    _head_n = _d1388h / "head-none"
+    _git_1388(_d1388h, "clone", "file://" + str(_origin_n), str(_head_n))
+    (_head_n / _adir).mkdir(parents=True)
+    (_head_n / _adir / "action.yml").write_text("pr-injected-action\n", encoding="utf-8")
+    _git_1388(_head_n, "add", "-A")
+    _git_1388(_head_n, "commit", "-m", "pr adds the action dir")
+    _rc_n, _out_n = _run_harden_1388(_head_n, "main")
+    assert_eq("#1388 hardensetup: base ref without the action dir fails closed", True,
+              _rc_n != 0 and "carries no" in _out_n)
+    assert_eq("#1388 hardensetup: the refusal leaves no PR-injected action body blessed", True,
+              (_head_n / _adir / "action.yml").read_text(encoding="utf-8") == "pr-injected-action\n")
+    # Fail-closed: an unfetchable base ref refuses.
+    _rc_u, _out_u = _run_harden_1388(_head_h, "no-such-ref")
+    assert_eq("#1388 hardensetup: an unfetchable base ref fails closed", True,
+              _rc_u != 0 and "could not fetch base ref" in _out_u)
+finally:
+    shutil.rmtree(_d1388h, ignore_errors=True)
+
+
+# ── issue #1388: workflow + composite-action wiring pins (cross-file contract) ──
+_WF_1388 = SCRIPTS.parent / '.github' / 'workflows'
+_ACTION_1388 = (SCRIPTS.parent / '.github' / 'actions' / 'setup-project-env' / 'action.yml').read_text(encoding='utf-8')
+_dv1388 = (_WF_1388 / 'devflow.yml').read_text(encoding='utf-8')
+_di1388 = (_WF_1388 / 'devflow-implement.yml').read_text(encoding='utf-8')
+_dr1388 = (_WF_1388 / 'devflow-runner.yml').read_text(encoding='utf-8')
+
+# AC4/AC6: the composite action declares a closed lint_mode input and refuses an unknown value.
+assert_eq("#1388 action: declares a lint_mode input", True,  # structural-pin-ok: schema-config-vocabulary -- the closed lint_mode input is the action's typed contract
+          "lint_mode:" in _ACTION_1388)
+assert_eq("#1388 action: refuses an unknown lint_mode (closed set)", True,  # structural-pin-ok: schema-config-vocabulary -- fail-closed refusal of an out-of-set value
+          "unknown lint_mode" in _ACTION_1388)
+assert_eq("#1388 action: none mode returns from the step without dispatching", True,  # structural-pin-ok: routing-dispatch-contract -- the none-mode arm returns before the helper dispatch
+          re.search(r"^\s*none\)\n(?:.*\n)*?\s*exit 0\n", _ACTION_1388, re.M) is not None)
+assert_eq("#1388 action: provision invokes the provisioning helper", True,  # structural-pin-ok: routing-dispatch-contract -- provision dispatches the bundled helper
+          "provision-lint-tools.sh" in _ACTION_1388)
+assert_eq("#1388 action: caches the toolchain keyed on the AC5 tuple (OS/arch + manifest+marker hash)", True,  # structural-pin-ok: routing-dispatch-contract -- cross-run cache restore keyed on {OS,arch,tool,version,digest,installer}
+          "uses: actions/cache@v5" in _ACTION_1388
+          and "lintprov-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.prflow/lint-manifest.json', '.prflow/install-state.json') }}" in _ACTION_1388)
+
+# AC7: the three callers pass tested lint modes none / provision / none.
+assert_eq("#1388 wiring: devflow.yml passes lint_mode: none", 1,  # structural-pin-ok: routing-dispatch-contract -- command tier lint mode
+          _dv1388.count("lint_mode: none"))
+assert_eq("#1388 wiring: devflow-implement.yml passes lint_mode: provision", 1,  # structural-pin-ok: routing-dispatch-contract -- implement tier lint mode
+          _di1388.count("lint_mode: provision"))
+assert_eq("#1388 wiring: devflow-runner.yml passes lint_mode: none", 1,  # structural-pin-ok: routing-dispatch-contract -- review tier lint mode
+          _dr1388.count("lint_mode: none"))
+# Pinned below: the review tier passes lint_mode: none, never provision (count == 0).
+assert_eq("#1388 wiring: only implement provisions (review never does)", 0,  # structural-pin-ok: security-credential-boundary -- no manifest-derived bytes in the review job
+          _dr1388.count("lint_mode: provision"))
+
+# AC8: the review runner hardens the setup action onto trusted base-ref bytes and
+# never executes the PR-head action body. The hardening step must precede the use.
+assert_eq("#1388 review-isolation: runner hardens setup-project-env onto base-ref bytes", True,  # structural-pin-ok: security-credential-boundary -- trusted-base materialization of the action body
+          "Harden setup-project-env onto trusted base-ref bytes" in _dr1388)
+_hard_idx = _dr1388.find("Harden setup-project-env onto trusted base-ref bytes")
+_prov_idx = _dr1388.find("Provision project environment (opt-in)")
+assert_eq("#1388 review-isolation: hardening precedes the provision step", True,  # structural-pin-ok: cross-file-phase-contract -- ordering: trusted bytes materialized before use
+          0 <= _hard_idx < _prov_idx)
+assert_eq("#1388 review-isolation: hardening materializes every base-ref action file from FETCH_HEAD", True,  # structural-pin-ok: security-credential-boundary -- whole-dir base-ref materialization
+          'git ls-tree -r --name-only FETCH_HEAD -- "$dir"' in _dr1388 and 'git show "FETCH_HEAD:$f"' in _dr1388)
+# Addendum (issue #1388, 2026-08-25): AC8's narrowed scope pinned in BOTH directions —
+# the hardened set is exactly {setup-project-env}; read-project-config and
+# vendor-plugin stay PR-head-resolved (the recorded residual, predating this issue).
+assert_eq("#1388 review-isolation: hardened set is exactly setup-project-env", 1,  # structural-pin-ok: security-credential-boundary -- widening or shrinking the hardened set must restate the recorded residual
+          _dr1388.count('dir=".github/actions/setup-project-env"'))
+assert_eq("#1388 review-isolation: read-project-config stays PR-head-resolved (recorded residual)", True,  # structural-pin-ok: security-credential-boundary -- the residual set, pinned so it cannot silently grow or vanish
+          "uses: ./.github/actions/read-project-config" in _dr1388)
+assert_eq("#1388 review-isolation: vendor-plugin stays PR-head-resolved (recorded residual)", True,  # structural-pin-ok: security-credential-boundary -- the residual set, pinned so it cannot silently grow or vanish
+          "uses: ./.github/actions/vendor-plugin" in _dr1388)
+
+
+# ── issue #1388: the tracked marker ships, validates, and stays in sync ──
+_REPO_1388 = SCRIPTS.parent
+# AC3: git ls-files proves the manifest AND the marker both ship.
+_tracked_1388 = _sp1388.run(
+    ["git", "ls-files", ".prflow/lint-manifest.json", ".prflow/install-state.json"],
+    cwd=str(_REPO_1388), capture_output=True, text=True).stdout.split()
+assert_eq("#1388 ships: lint-manifest.json is tracked", True, ".prflow/lint-manifest.json" in _tracked_1388)
+assert_eq("#1388 ships: install-state.json marker is tracked", True, ".prflow/install-state.json" in _tracked_1388)
+
+# The committed marker validates and is READY against the repo tree (self-consistent).
+_marker_1388 = _install_state.load_state(_REPO_1388 / ".prflow" / "install-state.json")
+assert_eq("#1388 marker: committed marker validates (establishes)", True, _marker_1388.established)
+assert_eq("#1388 marker: committed marker is READY against the repo tree", True,
+          _install_state.check_readiness(_REPO_1388 / ".prflow" / "install-state.json",
+                                         _REPO_1388 / ".prflow" / "lint-manifest.json",
+                                         repo_root=_REPO_1388).ready)
+
+# Drift gate: the generator's --check must pass, or a bound component changed
+# without the marker being regenerated (RED names the regeneration command).
+_drift_1388 = _sp1388.run(
+    ["python3", str(_REPO_1388 / "lib" / "generate-install-state.py"), "--check"],
+    cwd=str(_REPO_1388), capture_output=True, text=True)
+assert_eq("#1388 marker: install-state marker is in sync with its bound components", 0, _drift_1388.returncode)
+
+# PR #1963 reception: the drift gate needs a RED direction. Asserting only that
+# --check exits 0 on the current tree leaves an inverted comparison inert with nothing
+# to say so. Drive it over a COPY of the repo — never the working tree — so an
+# interrupted check cannot leave a real component mutated.
+_d1963d = Path(tempfile.mkdtemp())
+try:
+    _rc1963 = _d1963d / "repo"
+    shutil.copytree(_REPO_1388, _rc1963, symlinks=True,
+                    ignore=shutil.ignore_patterns(".git", ".claude", "node_modules"))
+    assert_eq("#1963 drift gate: control — the copied tree is in sync (exit 0)", 0,
+              _sp1388.run(["python3", str(_rc1963 / "lib" / "generate-install-state.py"), "--check"],
+                          cwd=str(_rc1963), capture_output=True, text=True).returncode)
+    _bound_1963 = _rc1963 / ".github" / "actions" / "setup-project-env" / "provision-lint-tools.sh"
+    _bound_1963.write_text(_bound_1963.read_text(encoding="utf-8") + "\n# drift\n", encoding="utf-8")
+    _red_1963 = _sp1388.run(
+        ["python3", str(_rc1963 / "lib" / "generate-install-state.py"), "--check"],
+        cwd=str(_rc1963), capture_output=True, text=True)
+    assert_eq("#1963 drift gate: a mutated bound component goes RED (exit 1)", 1, _red_1963.returncode)
+    assert_eq("#1963 drift gate: the RED breadcrumb names the regeneration command", True,
+              "lib/generate-install-state.py" in _red_1963.stderr)
+    assert_eq("#1963 drift gate: an unrecognized argument refuses instead of writing", 2,
+              _sp1388.run(["python3", str(_rc1963 / "lib" / "generate-install-state.py"), "--chek"],
+                          cwd=str(_rc1963), capture_output=True, text=True).returncode)
+finally:
+    shutil.rmtree(_d1963d, ignore_errors=True)
+
+
+# ── issue #1388: install.sh publish path — digest SOURCE, record RUNTIME (skew) ──
+_d1388c = Path(tempfile.mkdtemp())
+try:
+    _src = _d1388c / "src"
+    (_src / ".prflow").mkdir(parents=True)
+    (_src / "scripts").mkdir()
+    (_src / ".prflow" / "lint-manifest.json").write_bytes(_MANIFEST_1388.read_bytes())
+    (_src / "scripts" / "lint_manifest.py").write_text("READER-BYTES\n", encoding="utf-8")
+    _sk = _install_state.build_state(
+        "abc123",
+        {"manifest": ".prflow/lint-manifest.json", "reader": "scripts/lint_manifest.py"},
+        repo_root=_src,
+        record_paths={"reader": ".prflow/vendor/prflow/scripts/lint_manifest.py"})
+    assert_eq("#1388 publish: records the RUNTIME path, not the source path",
+              ".prflow/vendor/prflow/scripts/lint_manifest.py", _sk["components"]["reader"]["path"])
+    # A consumer tree laid out at the runtime paths with IDENTICAL bytes verifies READY.
+    _con = _d1388c / "consumer"
+    (_con / ".prflow" / "vendor" / "prflow" / "scripts").mkdir(parents=True)
+    (_con / ".prflow" / "lint-manifest.json").write_bytes(_MANIFEST_1388.read_bytes())
+    (_con / ".prflow" / "vendor" / "prflow" / "scripts" / "lint_manifest.py").write_text("READER-BYTES\n", encoding="utf-8")
+    _mk = _con / ".prflow" / "install-state.json"
+    _mk.write_text(json.dumps(_sk) + "\n", encoding="utf-8")
+    assert_eq("#1388 publish: runtime tree with identical bytes is READY", True,
+              _install_state.check_readiness(_mk, _con / ".prflow" / "lint-manifest.json", repo_root=_con).ready)
+    # A runtime helper whose bytes drifted from the pinned source -> digest-mismatch.
+    (_con / ".prflow" / "vendor" / "prflow" / "scripts" / "lint_manifest.py").write_text("DRIFTED\n", encoding="utf-8")
+    assert_eq("#1388 publish: drifted runtime helper -> digest-mismatch names it",
+              "digest-mismatch:reader",
+              _install_state.check_readiness(_mk, _con / ".prflow" / "lint-manifest.json", repo_root=_con).reason)
+finally:
+    shutil.rmtree(_d1388c, ignore_errors=True)
+
+# ── PR #1963 reception: the marker describes the CONSUMER tree, not the source ──
+# A component install.sh PRESERVES (install_managed's modified/unverified/unreadable
+# arms) or SKIPS (the tier1_rc != 0 workflow arm) keeps its OLD consumer bytes. Binding
+# such a component to SOURCE bytes publishes a marker no consumer tree can satisfy, so
+# check_readiness returns digest-mismatch forever and the provisioning helper _die's the
+# whole implement job — with a re-run-the-installer remedy that reproduces it exactly.
+def _marker_1963(root, state):
+    p = root / ".prflow" / "install-state.json"
+    p.write_text(json.dumps(state) + "\n", encoding="utf-8")
+    return p
+
+
+_d1963 = Path(tempfile.mkdtemp())
+try:
+    _s1963 = _d1963 / "src"
+    _c1963 = _d1963 / "consumer"
+    for _r1963 in (_s1963, _c1963):
+        (_r1963 / ".prflow").mkdir(parents=True)
+        (_r1963 / ".github" / "actions" / "setup-project-env").mkdir(parents=True)
+        (_r1963 / ".prflow" / "lint-manifest.json").write_bytes(_MANIFEST_1388.read_bytes())
+    (_s1963 / "scripts").mkdir()
+    (_s1963 / "scripts" / "lint_manifest.py").write_text("READER\n", encoding="utf-8")
+    (_c1963 / ".prflow" / "vendor" / "prflow" / "scripts").mkdir(parents=True)
+    (_c1963 / ".prflow" / "vendor" / "prflow" / "scripts" / "lint_manifest.py").write_text(
+        "READER\n", encoding="utf-8")
+    (_s1963 / ".github" / "actions" / "setup-project-env" / "action.yml").write_text(
+        "NEW-ACTION\n", encoding="utf-8")
+    # The consumer edited theirs, so install_managed PRESERVED it (.prflow-new sidecar).
+    (_c1963 / ".github" / "actions" / "setup-project-env" / "action.yml").write_text(
+        "LOCALLY-EDITED\n", encoding="utf-8")
+    _comps1963 = {"manifest": ".prflow/lint-manifest.json",
+                  "setup-action": ".github/actions/setup-project-env/action.yml",
+                  "manifest-reader": "scripts/lint_manifest.py"}
+    _recp1963 = {"manifest-reader": ".prflow/vendor/prflow/scripts/lint_manifest.py"}
+    _man1963 = _c1963 / ".prflow" / "lint-manifest.json"
+    # RED direction: digesting every component from the SOURCE tree binds bytes the
+    # consumer never received, and no consumer action can ever converge it.
+    _old1963 = _install_state.build_state("abc123", _comps1963, repo_root=_s1963,
+                                          record_paths=_recp1963)
+    assert_eq("#1963 marker: source-digested preserved artifact is permanently unready",
+              "digest-mismatch:setup-action",
+              _install_state.check_readiness(_marker_1963(_c1963, _old1963), _man1963,
+                                             repo_root=_c1963).reason)
+    # GREEN: digest the CONSUMER tree by default; only the vendor-fetched reader is
+    # digested from the source, because it is not in the consumer tree at install time.
+    _new1963 = _install_state.build_state("abc123", _comps1963, repo_root=_c1963,
+                                          record_paths=_recp1963,
+                                          digest_roots={"manifest-reader": _s1963})
+    assert_eq("#1963 marker: consumer-digested marker is READY over a preserved artifact",
+              True,
+              _install_state.check_readiness(_marker_1963(_c1963, _new1963), _man1963,
+                                             repo_root=_c1963).ready)
+    assert_eq("#1963 marker: the vendor-fetched reader still records its RUNTIME path",
+              ".prflow/vendor/prflow/scripts/lint_manifest.py",
+              _new1963["components"]["manifest-reader"]["path"])
+    assert_eq("#1963 marker: the vendor-fetched reader is digested from the SOURCE tree",
+              _install_state.digest_file(_s1963 / "scripts" / "lint_manifest.py"),
+              _new1963["components"]["manifest-reader"]["digest"])
+    # Post-install drift on a consumer-digested component is still caught — the fix
+    # re-anchors the comparand, it does not disarm the gate.
+    (_c1963 / ".github" / "actions" / "setup-project-env" / "action.yml").write_text(
+        "DRIFTED-LATER\n", encoding="utf-8")
+    assert_eq("#1963 marker: post-install drift on a consumer-digested component refuses",
+              "digest-mismatch:setup-action",
+              _install_state.check_readiness(_c1963 / ".prflow" / "install-state.json",
+                                             _man1963, repo_root=_c1963).reason)
+    # An unreadable digest_roots component still raises BEFORE any marker is published.
+    assert_raises("#1963 marker: unreadable digest_roots component raises (no marker)",
+                  ValueError,
+                  lambda: _install_state.build_state(
+                      "abc123", {"reader": "scripts/gone.py"}, repo_root=_c1963,
+                      digest_roots={"reader": _s1963}))
+finally:
+    shutil.rmtree(_d1963, ignore_errors=True)
+
+# AC1: install.sh ships the manifest and publishes the marker after validating it.
+_INSTALL_1388 = (SCRIPTS.parent / "install.sh").read_text(encoding="utf-8")
+
+# ── PR #1963 reception: reconcile the compatibility tuple's two transcriptions ──
+# The population is written twice — generate-install-state.py's COMPONENTS (the primary
+# repo's committed marker) and install.sh section 4b's --component operands (every
+# consumer's marker). Nothing linked them, so a component added to one side silently
+# narrowed the other's marker while the drift gate and the 4b end-to-end tests stayed
+# green. Compare name→path both ways round, so either side's omission fails here.
+_gis_1963 = importlib.util.spec_from_file_location(
+    "generate_install_state_1963", SCRIPTS.parent / "lib" / "generate-install-state.py")
+_gis_mod_1963 = importlib.util.module_from_spec(_gis_1963)
+_gis_1963.loader.exec_module(_gis_mod_1963)
+_sh_components_1963 = dict(
+    m.split("=", 1) for m in re.findall(
+        r'--component\s+"([^"]+)"', _INSTALL_1388))
+assert_eq("#1963 tuple: install.sh section 4b declares components at all", True,
+          len(_sh_components_1963) > 0)
+assert_eq("#1963 tuple: install.sh's --component operands match COMPONENTS exactly",
+          _gis_mod_1963.COMPONENTS, _sh_components_1963)
+# Every component the installer digests from the SOURCE tree must also record a runtime
+# path, and vice versa: a --digest-root with no --record-path binds source bytes to a
+# consumer path that will never carry them (the permanently-unready marker above), and a
+# --record-path with no --digest-root digests a path absent from the consumer tree.
+_dg_1963 = set(m.split("=", 1)[0] for m in re.findall(r'--digest-root\s+"([^"]+)"', _INSTALL_1388))
+_rp_1963 = set(m.split("=", 1)[0] for m in re.findall(r'--record-path\s+"([^"]+)"', _INSTALL_1388))
+assert_eq("#1963 tuple: source-digested components are exactly the runtime-path ones",
+          _dg_1963, _rp_1963)
+assert_eq("#1963 tuple: every source-digested component is in the tuple", set(),
+          _dg_1963 - set(_sh_components_1963))
+assert_eq("#1388 installer: ships the lint manifest", True,  # structural-pin-ok: routing-dispatch-contract -- installer copy of the manifest
+          'install_managed ".prflow/lint-manifest.json"' in _INSTALL_1388)
+assert_eq("#1388 installer: publishes the install-state marker via install_state.py build", True,  # structural-pin-ok: routing-dispatch-contract -- marker publication call
+          'scripts/install_state.py" build' in _INSTALL_1388)
+assert_eq("#1388 installer: validates the manifest before publishing (fail-closed order)", True,  # structural-pin-ok: security-credential-boundary -- publish gated on validation
+          'lint-manifest.json did not validate' in _INSTALL_1388)
 
 # ── issue #1811: cleanup-create-issue-run.sh — per-run create-issue scratch reaper ──
 print()

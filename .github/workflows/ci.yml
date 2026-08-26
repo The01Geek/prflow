@@ -53,6 +53,61 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Never give this job write credentials or an App token (issue #1388): it exercises
+  # a lint manifest supplied by the PR head, which is untrusted until merged.
+  lint-manifest:
+    name: lint-manifest (validate + exercise, no write creds)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Validate the candidate manifest (strict reader/validator)
+        run: python3 scripts/lint_manifest.py .prflow/lint-manifest.json
+      - name: Exercise the candidate manifest (platform matrix + marker readiness + drift gate)
+        run: |
+          set -euo pipefail
+          # Every declared (tool, os, arch) resolves deterministically to an
+          # `established` plan or `unsupported-lint-platform` — never a crash.
+          python3 - <<'PY'
+          import importlib.util, itertools, sys
+          from pathlib import Path
+          def _load(name, path):
+              spec = importlib.util.spec_from_file_location(name, path)
+              m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+          lp = _load("lint_provision", Path("scripts/lint_provision.py"))
+          manifest = Path(".prflow/lint-manifest.json")
+          established = 0
+          for tool, os_name, arch in itertools.product(lp.KNOWN_TOOLS, lp.KNOWN_OS, lp.KNOWN_ARCH):
+              plan = lp.build_plan(manifest, tool, os_name, arch)
+              assert plan.status in ("established", "unsupported"), (tool, os_name, arch, plan.status, plan.reason)
+              if plan.status == "established":
+                  assert plan.url and plan.digest.startswith("sha256:")
+                  established += 1
+          assert established > 0, "no (tool, os, arch) tuple resolved — manifest declares no artifacts"
+          print(f"exercised the manifest matrix: {established} established tuples")
+          PY
+          # The compatibility marker is READY against the tree, and it is in sync
+          # with its bound components.
+          python3 scripts/install_state.py verify --state .prflow/install-state.json --manifest .prflow/lint-manifest.json
+          python3 lib/generate-install-state.py --check
+      - name: Exercise a real provisioning pass (linux-x86_64, real downloads + digest verify)
+        env:
+          LINT_MANIFEST: .prflow/lint-manifest.json
+          INSTALL_STATE: .prflow/install-state.json
+          DEST_BIN: ${{ runner.temp }}/lint-exercise-bin
+          TARGET_OS: linux
+          TARGET_ARCH: x86_64
+          SCRIPTS_DIR: scripts
+          LINTPROV_SKIP_PATH_REUSE: "1"
+        run: bash .github/actions/setup-project-env/provision-lint-tools.sh
+      - name: Assert the provisioned binaries run
+        run: |
+          "$RUNNER_TEMP"/lint-exercise-bin/shellcheck --version
+          "$RUNNER_TEMP"/lint-exercise-bin/ruff --version
+
   # The suite is split across concurrent SHARD jobs (issue #877) so wall-clock is
   # bounded by the slowest shard rather than the sum. Each shard runs a subset via
   # lib/test/run-shard.sh — the `monolith` shard runs lib/test/run.sh with the module

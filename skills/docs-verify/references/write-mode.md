@@ -24,6 +24,7 @@ Path C: Documentation is missing
 - Analyze the codebase thoroughly
 - Draft comprehensive documentation
 - Create a new `.md` file in appropriate `[[INTERNAL_DOC_LOCATION]]` subdirectory
+- When the documentation root keeps an `index.md` routing map, place the page where that map's taxonomy says it belongs and add a routing line for the page to the index in the same pass — an unregistered page is invisible to readers who navigate by the map
 - Include all essential information about the topic
 
 ## Quality Checklist
@@ -40,6 +41,7 @@ Path C: Documentation is missing
 ### Creating New Documentation
 - Create in appropriate `[[INTERNAL_DOC_LOCATION]]` subdirectory
 - Use Markdown formatting with clear structure
+- Open with a 2-4 line plain-language summary of what the page covers and who reads it, and write timeless present-tense reference prose — issue numbers stay out of headings and provenance goes in a single trailing line, because per-change narrative turns a reference page into a decision log
 - Include: Overview, Key Components, Code Examples, Configuration, Important Notes
 - Follow existing documentation style and formatting in `[[INTERNAL_DOC_LOCATION]]`
 - Reference source files by bare path only (e.g., `src/app/server.py`) — never append line numbers (e.g., do not write `server.py:42`); use function or class names instead, as line numbers change as code evolves
@@ -59,6 +61,7 @@ Use descriptive names matching the topic:
 
 ## Quality Standards
 
+- Audience: future coding agents and developers exploring this codebase — the documentation is their map, so optimize every page for a reader arriving with zero context
 - Accuracy: Every statement must reflect current code implementation
 - Completeness: All essential information about the topic must be included
 - Clarity: Use simple, clear language that developers can understand
@@ -89,6 +92,9 @@ Before completing, verify you have:
 - [ ] Determined if documentation needs to be Created, Edited, or is Accurate
 - [ ] Created or edited documentation files as needed
 - [ ] Ensured documentation aligns with current code
+- [ ] Re-opened the source for every factual claim you added or edited — file paths, symbol names, counts, described behavior — and corrected any mismatch; a claim you cannot verify against the code is removed or rewritten until you can, never shipped on faith
+- [ ] Set or refreshed a `<!-- verified-against: <short-sha> <date> -->` marker near the top of each page you verified, so a later reader can tell a checked page from an abandoned one
+- [ ] Registered any created page in the documentation root's `index.md` routing map, where one exists
 - [ ] Verified documentation is complete and accurate
 - [ ] Stayed within `[[INTERNAL_DOC_LOCATION]]` boundaries
 
@@ -98,5 +104,6 @@ Before completing, verify you have:
 2. All important details about the topic are documented
 3. No contradictions between documentation and code
 4. Documentation file(s) created/updated in `[[INTERNAL_DOC_LOCATION]]`
+5. Nothing is committed — leave committing to the caller
 
 <!-- prflow:docs-verify-ref mode=write file=skills/docs-verify/references/write-mode.md end -->

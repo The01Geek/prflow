@@ -35,6 +35,10 @@ from pathlib import Path
 
 # ── Closed vocabularies. A value outside any of these is `unknown-enum`. ──────
 SUPPORTED_SCHEMA_VERSIONS = frozenset({1})
+# The FILE-ABSENT sentinel, exactly as load_manifest emits it. Consumers that must
+# tell an absent file from a present-but-invalid manifest compare EQUALITY with this
+# constant — a `missing:` prefix match also catches structural missing-key reasons.
+MISSING_FILE_REASON = "missing: manifest file does not exist"
 KNOWN_TOOLS = ("shellcheck", "ruff")
 KNOWN_OS = frozenset({"linux", "macos", "windows"})
 KNOWN_ARCH = frozenset({"x86_64", "arm64"})
@@ -79,9 +83,29 @@ class ManifestResult:
     def __init__(self, status: str, *, manifest=None, reason: str | None = None):
         if status not in ("established", "unestablished"):
             raise ValueError(f"invalid manifest-result status: {status!r}")
-        self.status = status
-        self.manifest = manifest
-        self.reason = reason
+        # Enforce the XOR in BOTH directions at construction (like Plan/StateResult/
+        # Readiness): an established result smuggling a reason, or an unestablished
+        # one carrying a manifest or losing its reason, must be unrepresentable.
+        if status == "established":
+            if manifest is None:
+                raise ValueError("established ManifestResult requires a manifest")
+            if reason is not None:
+                raise ValueError("established ManifestResult must not carry a reason")
+        else:
+            if not reason:
+                raise ValueError("unestablished ManifestResult requires a reason")
+            if manifest is not None:
+                raise ValueError("unestablished ManifestResult must not carry a manifest")
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "manifest", manifest)
+        object.__setattr__(self, "reason", reason)
+
+    def __setattr__(self, name, value):
+        # Frozen after construction: a post-init write would defeat the XOR above.
+        raise AttributeError(f"ManifestResult is immutable (attempted to set {name!r})")
+
+    def __delattr__(self, name):
+        raise AttributeError(f"{type(self).__name__} is immutable (attempted to delete {name!r})")
 
     @property
     def established(self) -> bool:
@@ -145,7 +169,7 @@ def load_manifest(path) -> ManifestResult:
     try:
         raw = p.read_bytes()
     except FileNotFoundError:
-        return _unestablished("missing: manifest file does not exist")
+        return _unestablished(MISSING_FILE_REASON)
     except (IsADirectoryError, PermissionError, OSError) as exc:
         return _unestablished(f"unreadable: {exc.__class__.__name__}")
     return parse_manifest(raw)

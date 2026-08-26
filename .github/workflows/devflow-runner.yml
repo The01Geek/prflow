@@ -1390,21 +1390,102 @@ jobs:
           adelim="OUT_EOF_$(date +%s%N)_$$"
           { printf 'args<<%s\n' "$adelim"; printf '%s\n' "$ARGS"; printf '%s\n' "$adelim"; } >> "$GITHUB_OUTPUT"
 
+      # A local `uses: ./…` action runs the WORKSPACE copy, and this job checks out
+      # the PR head — so never let the trusted bytes fall back to the PR-head copy,
+      # or a PR editing this action runs its own edit in the review job (issue #1388).
+      - name: Harden setup-project-env onto trusted base-ref bytes
+        id: hardensetup
+        if: steps.baseprovision.outputs.provision_env == 'true'
+        shell: bash
+        env:
+          # Same trusted derivation as baseprovision's BASE_REF — the PR's target
+          # branch, never a PR-controlled value.
+          BASE_REF: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          [ -n "$BASE_REF" ] || { echo "::error::no BASE_REF to harden setup-project-env against"; exit 1; }
+          # Keep the fetch's own diagnostic: this is a fail-closed security arm, and
+          # discarding stderr leaves an operator with no way to tell a missing ref from
+          # a transport failure on the step that aborts every review run.
+          if ! _fetch_err=$(git fetch --depth=1 origin "$BASE_REF" 2>&1 >/dev/null); then
+            echo "::error::could not fetch base ref '$BASE_REF' to harden setup-project-env: ${_fetch_err:-no diagnostic}"
+            exit 1
+          fi
+          dir=".github/actions/setup-project-env"
+          # Enumerate the action's files as they exist on the TRUSTED base ref and
+          # materialize EVERY one over the PR-head copy, so a file the action gains
+          # later is covered with no edit to this step (a hardcoded file list would
+          # silently leave a new PR-head helper executable in the review job). Then
+          # prune any PR-head file NOT present on the base ref, so no PR-authored
+          # addition survives. action.yml must exist on the base ref or the action
+          # cannot run.
+          # while-read, not mapfile: a bash-3.2 self-hosted macOS consumer runner has
+          # no mapfile, and this security step failing there would abort every review.
+          base_files=()
+          while IFS= read -r bf; do base_files+=("$bf"); done < <(git ls-tree -r --name-only FETCH_HEAD -- "$dir")
+          [ "${#base_files[@]}" -gt 0 ] || { echo "::error::base ref '$BASE_REF' carries no $dir; refusing to run a PR-head action body"; exit 1; }
+          for f in "${base_files[@]}"; do
+            mkdir -p "$(dirname "$f")"
+            if git show "FETCH_HEAD:$f" > "$f.trusted" 2>/dev/null; then
+              mv "$f.trusted" "$f"
+            else
+              rm -f "$f.trusted"
+              echo "::error::could not materialize trusted $f from base ref '$BASE_REF'"; exit 1
+            fi
+          done
+          # Membership by bash builtin, never `grep`: preflight guarantees no grep, and
+          # a missing one fails every test on the left of `||`, where set -e cannot
+          # fire, and prunes every trusted file this step just materialized.
+          _is_base_file() {
+            local cand=$1 bf
+            for bf in "${base_files[@]}"; do
+              [ "$bf" = "$cand" ] && return 0
+            done
+            return 1
+          }
+          # A newline-accumulated string, not an array: under `set -u` bash 3.2 treats
+          # ${#arr[@]} on a never-assigned-to array as unbound and aborts this
+          # security step on the ordinary nothing-to-prune run.
+          pruned=""
+          while IFS= read -r head_f; do
+            if ! _is_base_file "$head_f"; then
+              rm -f "$head_f"
+              pruned="${pruned}${head_f}"$'\n'
+            fi
+          done < <(git ls-files -- "$dir")
+          [ -f "$dir/action.yml" ] || { echo "::error::base ref '$BASE_REF' carries no $dir/action.yml; refusing to run a PR-head action body"; exit 1; }
+          chmod +x "$dir"/*.sh 2>/dev/null || true
+          # Disclose what this step displaced. Without it the reviewing agent reads
+          # these base-ref bytes as untouched PR-head content — on exactly the file a
+          # PR editing this action is under review for.
+          if [ -n "${GITHUB_OUTPUT:-}" ]; then
+            _hs_d="HARDENSETUP_EOF_$(date +%s%N)_$$"
+            {
+              printf 'displaced_setup_paths<<%s\n' "$_hs_d"
+              printf '%s\n' "${base_files[@]}"
+              [ -n "$pruned" ] && printf '%s' "$pruned"
+              printf '%s\n' "$_hs_d"
+            } >> "$GITHUB_OUTPUT"
+          fi
+          echo "hardened setup-project-env from trusted base ref '$BASE_REF'"
+
       # Provision the runtime BEFORE Claude runs, but ONLY when the trusted base
       # config opted in via prflow_runner.provision_env. config_json is the
       # BASE ref's config (steps.baseprovision), never the PR head, so PR edits
       # to `setup.install` cannot inject commands here — the same trust boundary
-      # setup-project-env already documents for `services`. (The action body and
-      # the install commands still execute from / against the PR checkout once
-      # enabled; that residual vector is the documented opt-in — see
-      # docs/internal/cloud-setup.md.) When the flag is absent/false this step is skipped
-      # and the runner behaves exactly as before: read-only, no build tools.
+      # setup-project-env already documents for `services`. The action BODY is now
+      # the trusted base-ref copy too (hardensetup above), closing the residual
+      # PR-head-action-body vector for the review job. lint_mode is `none`: no
+      # manifest-derived bytes may enter the read-only review job (issue #1388).
+      # When the flag is absent/false this step is skipped and the runner behaves
+      # exactly as before: read-only, no build tools.
       - name: Provision project environment (opt-in)
         id: provision
         if: steps.baseprovision.outputs.provision_env == 'true'
         uses: ./.github/actions/setup-project-env
         with:
           config_json: ${{ steps.baseprovision.outputs.config_json }}
+          lint_mode: none
 
       # Provisioning is best-effort: a service container that never becomes
       # healthy emits a `::warning::` and the job continues (see
@@ -2008,7 +2089,7 @@ jobs:
             printf '%s\n' "$_df_d"
           } >> "$GITHUB_OUTPUT"
 
-      # Join the two displaced-path producers (issue #874). HARDENED_PATHS used to
+      # Join every displaced-path producer (issue #874). HARDENED_PATHS used to
       # bind a SINGLE step's output, and harden_hooks publishes that output EMPTY on
       # its relevance-gate skip arm — so the truncated prompt-extension paths would
       # vanish from the grounding block on exactly the consumer runs where the
@@ -2038,6 +2119,10 @@ jobs:
           # the case this producer exists for, and it is a DevFlow-repo case, not the
           # consumer arm. The consumer below already handles empty (`[ -n "$GUARD_PATHS" ]`).
           GUARD_PATHS: ${{ steps.harden_guard.outputs.guard_paths }}
+          # Fourth producer (issue #1388), legitimately empty when hardensetup's
+          # `provision_env` gate skipped it. Omitting it let the reviewing agent read
+          # base-ref bytes as untouched PR-head content.
+          SETUP_PATHS: ${{ steps.hardensetup.outputs.displaced_setup_paths }}
         run: |
           set -euo pipefail
           _j_d="JOINED_EOF_$(date +%s%N)_$$"
@@ -2048,6 +2133,7 @@ jobs:
             [ -n "$HOOK_PATHS" ] && printf '%s\n' "$HOOK_PATHS"
             [ -n "$EXT_PATHS" ] && printf '%s\n' "$EXT_PATHS"
             [ -n "$GUARD_PATHS" ] && printf '%s\n' "$GUARD_PATHS"
+            [ -n "$SETUP_PATHS" ] && printf '%s\n' "$SETUP_PATHS"
             printf '%s\n' "$_j_d"
           } >> "$GITHUB_OUTPUT"
 

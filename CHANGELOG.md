@@ -4,6 +4,64 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.49] — 2026-08-26
+
+### Added
+- **Provision the bounded lint toolchain before the model runs.** The installer now ships the
+  lint manifest and publishes a digest-bound compatibility marker (`.prflow/install-state.json`)
+  only after validating the staged tuple of manifest, readers, setup action, and implement
+  workflow. `setup-project-env` gains a closed `lint_mode` input (`provision` installs the
+  manifest's ShellCheck/Ruff set run-local, digest- and version-verified, before the Claude
+  action; `none` does no lint work and validates no manifest; an unknown value is refused), wired
+  `none`/`provision`/`none` across `devflow.yml`/`devflow-implement.yml`/`devflow-runner.yml`. The
+  review runner hardens its setup invocation by materializing trusted base-ref bytes over the
+  composite-action directory before it runs, so the read-only review job executes the base-ref
+  action body rather than a PR-head edit, and CI validates and exercises the candidate manifest
+  with no repository write credentials. An unsupported platform degrades with a warning instead of
+  failing, and a version-verified pre-provisioned runner-image tool is reused instead of
+  downloaded. (#1963)
+
+### Changed
+Add a machine-checkable bucket classification for the brand-cased `DevFlow`
+occurrences in the tracked tree, enforced by a fail-closed reconciling lint
+(`lib/test/lint-brand-devflow-sweep.py`, data in `lib/test/brand-devflow-buckets.json`).
+The lint derives its population via `git ls-files`, classifies an occurrence into a
+frozen bucket (append-only record contents, historical CHANGELOG, the superseded
+provenance-label value, this feature's own tooling) or a per-file pending-sweep baseline,
+and turns the suite RED on an unclassified/new occurrence or a stale assignment in either
+direction — so the `devflow` → `PRFlow` rename residue cannot re-accumulate (PR #1973,
+issue #1745). The actual prose sweep of the pending renameable population is deferred to a
+follow-up that drains the baseline to empty.
+
+## [2.34.48] — 2026-08-26
+
+### Added
+- **Job-level prompt-extension / skill-body arrival enforcement.** A cloud implement run now
+  establishes — on a channel independent of the delivery channel under test — whether the
+  consumer prompt extension (and, by the durable evidence its loaded body must produce, the
+  skill body itself) actually reached the agent, and no longer reports `Complete` when it did
+  not. A new `scripts/prompt-extension-arrival.py` reads the extension root directly
+  (resolving the same canonical `.prflow/` root the `load-prompt-extension.sh` ladder resolves)
+  and classifies each
+  surface as `arrived` / `absent` / `unestablished`; `devflow-implement.yml` records that
+  expectation before the agent runs and reconciles it against the run's durable workpad after,
+  failing the job with an `::error::` (noting that `permission_denials_count` is blind to a lost
+  skill-body load) and flipping the workpad `Status` off `Complete` when arrival is
+  unestablished. (#1970)
+
+### Changed
+docs-verify: index-map routing in Step 1, runner-tool-first searches, an unestablished-state arm on the prompt-extension loader, and write-mode claim-verification, freshness-marker, index-registration, prose-shape, and do-not-commit rules — aligning the last docs-family skill with the campaign standards.
+
+## [2.34.47] — 2026-08-26
+
+### Changed
+Complete the docs-audit follow-up ledger: docs-sync-internal's analysis output now records the required Public-doc impact list the external step and the /prflow:docs router consume; docs-bootstrap-external's prompt-extension loader gains the vendored-literal-first three-tier ladder (enrolled in the anchor-fallback lint); the internal system overview's release-note format quote matches the current docs-release-notes spec; lib/test/lint-worktree-fence-shapes.py regains its executable bit.
+
+## [2.34.46] — 2026-08-26
+
+### Fixed
+- **Public documentation site repairs.** The docs site's one dead relative link is fixed, the four diagrams are recolored to the site palette and made legible in dark mode, July 2026 release notes move to a navigated archive page, bare issue references in release notes are linked, the command reference states its user-invocable-only scope, migration instructions gain a Codex CLI section, installation uses per-client tabs, cloud-run troubleshooting sections lead with the verbatim error signal and a runnable diagnostic, and the CI link check now also rejects bare relative links and fragments that match no heading in their target page. (#1982)
+
 ## [2.34.45] — 2026-08-26
 
 ### Changed

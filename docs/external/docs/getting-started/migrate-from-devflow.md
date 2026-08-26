@@ -92,6 +92,19 @@ To manage PRFlow entirely in VS Code, add `The01Geek/prflow` to `chat.plugins.ma
 
 If PRFlow does not appear, check that your organization allows Agent Plugins and `chat.plugins.enabled` is on. As a fallback, run `/prflow/init` from Copilot CLI in the integrated terminal.
 
+## Codex CLI
+
+Codex CLI does not rename the installed plugin automatically, so replace DevFlow with PRFlow. Update the marketplace and install PRFlow with the same commands the [installation guide](/docs/getting-started/installation) uses:
+
+```bash
+codex plugin marketplace add The01Geek/prflow
+codex plugin add prflow@devflow-marketplace
+```
+
+If a DevFlow-named plugin is still installed, remove it with your Codex CLI version's plugin-management command; see the Codex CLI plugin documentation for the exact syntax.
+
+Start a new Codex CLI session in each repository that needs migration and run the `init` skill (Codex CLI spells it `$prflow:init`). Follow the agent's instructions until initialization is complete.
+
 ## What `init` Changes
 
 Run `init` once in every repository configured before the rename, including repositories that use GitHub Actions. It first applies these rename changes together:
