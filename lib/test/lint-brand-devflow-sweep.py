@@ -36,6 +36,10 @@ Buckets (first match wins), read from ``lib/test/brand-devflow-buckets.json``:
   are the machinery that matches the brand, not prose to sweep.
 - ``frozen-provenance`` — a quoted ``"DevFlow"`` / ``'DevFlow'`` VALUE inside a recorded
   provenance-selector file (the superseded label the scan/classify/fetch path matches).
+- ``transient``         — a file under a recorded transient prefix (a consumed changeset
+  ``version-consolidate`` deletes on merge), excluded from reconciliation so a baseline
+  row cannot fire a false RED on main after the file is deleted; a recorded exception
+  (``.changeset/README.md``) is permanent and stays ``pending``.
 - ``pending``           — everything else: ordinary renameable prose not yet swept,
   recorded per file in ``pending_sweep_baseline`` and drained by the follow-up sweep.
 
@@ -43,7 +47,7 @@ Population enumeration is via index-reading ``git ls-files`` (never a root-ancho
 recursive walk, issue #711), so sibling worktrees under ``.claude/worktrees/`` are not
 counted.
 
-Modes: ``--check`` (default) reconciles and exits non-zero on any finding;
+Modes: the default (no flag) reconciles and exits non-zero on any finding;
 ``--update-baseline`` reseeds ``pending_sweep_baseline`` from the tree (used to seed the
 record and by the deferred sweep follow-up as it drains the bucket);
 ``--print-population`` prints one or more ``bucket<TAB>path<TAB>count`` lines per file
@@ -127,6 +131,13 @@ def classify(rel: str, blob: bytes, frozen: dict, prov_files: set[str]) -> tuple
     total = blob.count(BRAND)
     if total == 0:
         return ("", 0, 0)
+    # Transient files (a consumed changeset that `version-consolidate` DELETES on merge to
+    # main) are excluded from reconciliation: a baseline row for one would fire the reverse
+    # stale-row check on main's push CI the moment the file is deleted, a false RED that
+    # blocks every later PR. Not pending (never baselined), not a frozen stale comparand.
+    if (any(rel.startswith(pfx) for pfx in frozen.get("transient_prefixes", []))
+            and rel not in frozen.get("transient_exceptions", [])):
+        return ("transient", total, 0)
     if any(rel.startswith(pfx) for pfx in frozen.get("record_prefixes", [])):
         return ("frozen-record", total, 0)
     if rel in frozen.get("historical_files", []):

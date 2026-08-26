@@ -54781,11 +54781,15 @@ w("docs/keep.md", "DevFlow is great and DevFlow ships.\n")          # 2 pending 
 w(".prflow/learnings/x.jsonl", '{"note":"DevFlow ran"}\n')          # frozen-record
 w("CHANGELOG.md", "## old\nDevFlow did a thing\n")                  # frozen-historical
 w("lib/scan.sh", "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n")  # 1 frozen value + 1 pending
+w(".changeset/issue-9.md", "a DevFlow changeset consumed on merge\n")  # transient (excluded)
+w(".changeset/README.md", "DevFlow changesets readme\n")              # transient exception -> pending 1
 buckets = {"schema_version": 1,
-  "frozen": {"record_prefixes": [".prflow/learnings/", ".prflow/logs/"],
+  "frozen": {"transient_prefixes": [".changeset/"], "transient_exceptions": [".changeset/README.md"],
+             "record_prefixes": [".prflow/learnings/", ".prflow/logs/"],
              "historical_files": ["CHANGELOG.md"], "tooling_files": [],
              "provenance": [{"file": "lib/scan.sh"}]},
-  "pending_sweep_baseline": [{"path": "docs/keep.md", "count": 2}, {"path": "lib/scan.sh", "count": 1}]}
+  "pending_sweep_baseline": [{"path": ".changeset/README.md", "count": 1},
+                             {"path": "docs/keep.md", "count": 2}, {"path": "lib/scan.sh", "count": 1}]}
 w("lib/test/brand-devflow-buckets.json", json.dumps(buckets, indent=2) + "\n")
 subprocess.run(["git", "init", "-q"], cwd=root, check=True)
 subprocess.run(["git", "add", "-A"], cwd=root, check=True)
@@ -54799,6 +54803,18 @@ BDS_CLEAN="$(bds_run "$BDS_FX")"
 assert_eq "#1745 a fully-classified tree is clean" "rc=0" "${BDS_CLEAN%%|*}"
 assert_eq "#1745 a frozen record path needs no baseline row" "no" "$(bds_has "learnings/x.jsonl" "$BDS_CLEAN")"
 assert_eq "#1745 a frozen-provenance value is not demanded as unclassified" "no" "$(bds_has "scan.sh: 1 unclassified" "$BDS_CLEAN")"
+# A transient changeset (deleted by version-consolidate on merge) is excluded, never demanded
+# as unclassified — and its README exception stays pending, proving the exception fires.
+assert_eq "#1745 a transient changeset needs no baseline row" "no" "$(bds_has "changeset/issue-9.md" "$BDS_CLEAN")"
+# Deleting the transient changeset (the merge-time behavior) must NOT fire a stale-row RED —
+# the reverse-direction false-RED-on-main defect the shadow caught.
+rm -f "$BDS_FX/.changeset/issue-9.md"; bds_stage
+assert_eq "#1745 deleting a transient changeset does not fire a stale-row RED" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+# A malformed bucket record is a fail-closed read error (exit 2), never a vacuous pass.
+printf 'not json {' > "$BDS_FX/bad-buckets.json"
+BDS_BAD_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/bad-buckets.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a malformed bucket record fails closed with exit 2" "2" "$BDS_BAD_RC"
+rm -f "$BDS_FX/bad-buckets.json"
 
 # --print-population emits one line per bucket per file; a provenance file with both a
 # frozen value and a pending remainder emits the dual line pair (the documented contract).
@@ -54816,7 +54832,7 @@ BDS_RESEED="$(python3 "$BDS_LINT" --root "$BDS_FX" --update-baseline 2>&1)"; BDS
 assert_eq "#1745 --update-baseline exits 0 and reports a reseed" "rc=0" \
   "$([ "$BDS_RESEED_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s' "$BDS_RESEED_RC")"
 assert_eq "#1745 --update-baseline names the reseeded file count" "yes" \
-  "$(bds_has "reseeded pending_sweep_baseline with 2 file(s)" "$BDS_RESEED")"
+  "$(bds_has "reseeded pending_sweep_baseline with 3 file(s)" "$BDS_RESEED")"
 assert_eq "#1745 an idempotent reseed leaves --check green" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
 
 # An unreadable tracked file fails --check CLOSED: a dangling symlink read_bytes cannot

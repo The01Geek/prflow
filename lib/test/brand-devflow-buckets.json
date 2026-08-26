@@ -1,7 +1,13 @@
 {
   "schema_version": 1,
-  "_comment": "Bucket classification for every case-sensitive brand-cased 'DevFlow' occurrence in the tracked tree (issue #1745). Read and reconciled by lib/test/lint-brand-devflow-sweep.py, which fails closed in both directions. The `frozen` block records the occurrences that are NEVER swept to 'PRFlow' (append-only record contents, historical CHANGELOG, this feature's own tooling, and the superseded provenance-label value a selector still matches); `pending_sweep_baseline` records, per file, the ordinary renameable-prose occurrences not yet swept — this bucket is drained to empty by the follow-up sweep. Seed or reconcile it with `lint-brand-devflow-sweep.py --update-baseline`; do not hand-edit the counts.",
+  "_comment": "Bucket classification for the case-sensitive brand-cased 'DevFlow' occurrences in the tracked tree (issue #1745). Read and reconciled by lib/test/lint-brand-devflow-sweep.py, which fails closed on an unclassified/new renameable occurrence and on a stale assignment. The `frozen` block records the occurrences that are NEVER swept to 'PRFlow': `transient_prefixes` (a consumed changeset that version-consolidate deletes on merge — excluded from reconciliation so its deletion cannot fire a false RED on main; `transient_exceptions` keeps a permanent member like .changeset/README.md in `pending`); append-only record contents; historical CHANGELOG; this feature's own tooling; and the superseded provenance-label value a selector still matches. `pending_sweep_baseline` records, per file, the ordinary renameable-prose occurrences not yet swept — this bucket is drained to empty by the follow-up sweep. Seed or reconcile it with `lint-brand-devflow-sweep.py --update-baseline`; do not hand-edit the counts.",
   "frozen": {
+    "transient_prefixes": [
+      ".changeset/"
+    ],
+    "transient_exceptions": [
+      ".changeset/README.md"
+    ],
     "record_prefixes": [
       ".prflow/learnings/",
       ".prflow/logs/"
@@ -36,10 +42,6 @@
     {
       "path": ".changeset/README.md",
       "count": 2
-    },
-    {
-      "path": ".changeset/issue-1745-brand-devflow-buckets.md",
-      "count": 1
     },
     {
       "path": ".github/actions/read-project-config/action.yml",
@@ -415,7 +417,7 @@
     },
     {
       "path": "lib/test/run.sh",
-      "count": 268
+      "count": 270
     },
     {
       "path": "lib/test/summary.sh",
