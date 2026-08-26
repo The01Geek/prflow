@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2005",
+  "generated_at": "2026-08-26T20:07:49Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.257230500000002,
+    "tokens": {
+      "input_tokens": 72,
+      "output_tokens": 36170,
+      "cache_read_input_tokens": 5658073,
+      "cache_creation_input_tokens": 223094,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 144,
+        "outputTokens": 78350,
+        "cacheReadInputTokens": 7882991,
+        "cacheCreationInputTokens": 723146,
+        "webSearchRequests": 0,
+        "costUSD": 11.257230500000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 53,
+    "duration_ms": 608505
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "printf '%s' \"${GITHUB_RUN_ID:-EMPTY}\"; echo \" <- run id\"; echo \"attempt=${GITHUB_RUN_ATTEMPT:-1}\"",
+      "for f in \"lib/test/run.sh\" \"lib/test/run-parallel.sh\" \"lib/test/run-shard.sh\" \"lib/test/modules/parallel-suite-runner.sh\" \"lib/test/modules/coverage-map.json\"; do echo \"===== $f =====\"; sed -n \"/^diff --git a\\/$（echo $f | sed 's/\\//\\\\\\//g'）/,/^diff --git /p\" .prflow/tmp/review/pr-2005/33007781837-1/diff.patch; done 2>/dev/null | head -5; echo \"fallback below\"",
+      "mkdir -p .prflow/tmp\nrm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\ngit status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n[ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n[ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\ngit hash-object \".prflow/tmp/review-dirty-tree-before\""
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
