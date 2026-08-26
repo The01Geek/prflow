@@ -337,6 +337,9 @@
       "path": "requirements.txt"
     },
     {
+      "path": "scripts/lint_manifest.py"
+    },
+    {
       "path": "scripts/post-review-backstop-comment.sh"
     },
     {
@@ -347,6 +350,9 @@
     },
     {
       "path": "scripts/render-grounding-block.sh"
+    },
+    {
+      "path": "scripts/resolve-extra-plugins.sh"
     },
     {
       "path": "scripts/scaffold-config.sh"

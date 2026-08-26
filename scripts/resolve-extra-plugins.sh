@@ -40,9 +40,9 @@
 #       claude-md-management@claude-plugins-official, prflow@devflow-marketplace):
 #       silent skip (already installed by the baseline).
 #     - key with no @marketplace suffix: breadcrumb, not emitted.
-#     - key whose plugin name (the part before @) is one of PRFlow's own accepted
+#     - key whose plugin name (the part before @) is one of DevFlow's own accepted
 #       plugin names: silent skip (always installed via the baked baseline spec).
-#       That accepted set — and the PRFlow half of the two sets above — is compiled
+#       That accepted set — and the DevFlow half of the two sets above — is compiled
 #       from lib/plugin-identity.json + .claude-plugin/plugin.json into the generated
 #       identity region below, never hand-spelled in this helper.
 #     - key whose marketplace suffix is outside the known set — the union of
@@ -83,7 +83,7 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 0
 fi
 
-# PRFlow's own accepted plugin/marketplace identifiers, compiled from
+# DevFlow's own accepted plugin/marketplace identifiers, compiled from
 # lib/plugin-identity.json + .claude-plugin/plugin.json. BAKED rather than read at
 # runtime because the review tier materializes THIS FILE ALONE from the trusted base ref
 # into a flat $RUNNER_TEMP directory: there is no sibling lib/ there, so a runtime read
@@ -173,15 +173,15 @@ else:
     market_kinds = {}
 
 
-# PRFlow own-identity sets, read from the BAKED lists in the shell preamble (see
-# there for why they are baked). An empty set is unestablished, not "PRFlow owns
-# nothing": that would make this helper emit PRFlow own entries back to the compose
+# DevFlow own-identity sets, read from the BAKED lists in the shell preamble (see
+# there for why they are baked). An empty set is unestablished, not "DevFlow owns
+# nothing": that would make this helper emit DevFlow own entries back to the compose
 # step as third-party plugins. This helper is best-effort by contract, so it names the
 # defect and emits nothing, leaving the composing step with exactly the baked baseline.
 DEVFLOW_PLUGIN_NAMES = frozenset(os.environ.get("DEVFLOW_PLUGIN_NAMES", "").split())
 DEVFLOW_MARKETPLACES = frozenset(os.environ.get("DEVFLOW_MARKETPLACE_NAMES", "").split())
 if not DEVFLOW_PLUGIN_NAMES or not DEVFLOW_MARKETPLACES:
-    warn("the accepted PRFlow plugin/marketplace identifier set is empty or unset"
+    warn("the accepted DevFlow plugin/marketplace identifier set is empty or unset"
          " (the generated identity region in this helper is missing or was not"
          " regenerated); emitting nothing")
     sys.exit(0)
@@ -189,7 +189,7 @@ DEVFLOW_PLUGIN_SPECS = frozenset(
     p + "@" + m for p in DEVFLOW_PLUGIN_NAMES for m in DEVFLOW_MARKETPLACES
 )
 
-# The non-PRFlow half of the baked baseline stays a literal: those are third-party
+# The non-DevFlow half of the baked baseline stays a literal: those are third-party
 # plugin ids this project does not own and no rename of ours can move.
 FOREIGN_BAKED_PLUGINS = frozenset((
     "code-review@claude-plugins-official",
