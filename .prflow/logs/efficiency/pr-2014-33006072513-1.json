@@ -270,5 +270,99 @@
       "iter": 3,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 50.266577049999995,
+    "tokens": {
+      "input_tokens": 278,
+      "output_tokens": 144825,
+      "cache_read_input_tokens": 42834055,
+      "cache_creation_input_tokens": 506521,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 624,
+        "outputTokens": 249739,
+        "cacheReadInputTokens": 54275495,
+        "cacheCreationInputTokens": 2103920,
+        "webSearchRequests": 0,
+        "costUSD": 48.43329624999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 140,
+        "outputTokens": 27025,
+        "cacheReadInputTokens": 4112404,
+        "cacheCreationInputTokens": 296108,
+        "webSearchRequests": 0,
+        "costUSD": 1.8332807999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 187,
+    "duration_ms": 3581530
+  },
+  "permission_denials": {
+    "count": 32,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset}\"; echo \"GITHUB_EVENT_PATH=${GITHUB_EVENT_PATH:-unset}\"; git rev-parse --show-toplevel; git branch --show-current",
+      ".prflow/vendor/prflow/scripts/workpad.py handoff-state \".prflow/tmp/implement-handoff-2011-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json\" --issue 2011 --run-id \"$GITHUB_RUN_ID\" --run-attempt \"$GITHUB_RUN_ATTEMPT\"; echo \"EXIT=$?\"",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"BASE=$BASE CUR=$CUR COMMON_DIR=$COMMON_DIR GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      "git push -u origin HEAD 2>&1 | tail -5; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "echo \"DEVFLOW_APP_ID=[${DEVFLOW_APP_ID:-}]\"",
+      "printenv DEVFLOW_APP_ID",
+      "gh api repos/The01Geek/prflow/actions/jobs/98260138128/logs > .prflow/tmp/log-rest.txt 2>.prflow/tmp/log-rest.err; echo \"EXIT=$?\"; wc -l .prflow/tmp/log-rest.txt; head -3 .prflow/tmp/log-rest.txt; echo \"---ERR---\"; cat .prflow/tmp/log-rest.err",
+      "for s in $(lib/test/run-shard.sh --list-shards); do lib/test/run-shard.sh --modules-of \"$s\"; echo; done; echo \"=== list-shards ===\"; lib/test/run-shard.sh --list-shards",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2014/33006072513-1 && git diff origin/main...HEAD > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2014/33006072513-1/diff.patch && wc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2014/33006072513-1/diff.patch && echo \"cached\"",
+      "for s in monolith python-pool modules-pin modules-large modules-rest; do bash lib/test/run-shard.sh --modules-of \"$s\"; echo; done | tr ' ' '\\n' | grep . | sort | uniq -d; echo \"---dupes above (none=clean)---\"; for s in monolith python-pool modules-pin modules-large modules-rest; do bash lib/test/run-shard.sh --modules-of \"$s\"; echo; done | tr ' ' '\\n' | grep -c .; python3 -c 'import json; print(len(json.load(open(\"scripts/workflow-flight-recorder-registry.json\"))[\"test_modules\"]))'",
+      "cd /home/runner/work/prflow/prflow\nreg=$(jq -r '.modules | keys[]' scripts/workflow-flight-recorder-registry.json 2>/dev/null | sort)\nif [ -z \"$reg\" ]; then reg=$(python3 -c \"import json;d=json.load(open('scripts/workflow-flight-recorder-registry.json'));print('\\n'.join(sorted(d.get('modules',{}).keys())))\"); fi\nunion=$(printf '%s %s %s\\n' 'harness-python-guards' 'retrospective-lifecycle review-trigger-helpers create-issue-contract review-stall-backstop efficiency-trace-telemetry installer-wirin …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nREG=$(python3 -c 'import json;print(\" \".join(sorted(json.load(open(\"scripts/workflow-flight-recorder-registry.json\"))[\"test_modules\"])))')\nUNION=$(for s in monolith python-pool modules-pin modules-large modules-rest; do bash lib/test/run-shard.sh --modules-of \"$s\" 2>/dev/null; done | sort)\nUNIONU=$(printf '%s\\n' $UNION | sort -u | tr '\\n' ' ')\nRAW=$(for s in monolith python-pool modules-pin modules-large modules-rest; do bash lib/test/run-shard.sh --modules-of  …[per-command-truncated]",
+      "python3 - <<'PY'\nimport json, subprocess\nreg = set(json.load(open(\"scripts/workflow-flight-recorder-registry.json\"))[\"test_modules\"])\nshards = subprocess.run([\"bash\",\"lib/test/run-shard.sh\",\"--list-shards\"],capture_output=True,text=True).stdout.split()\nallmods=[]\nfor s in shards:\n    out=subprocess.run([\"bash\",\"lib/test/run-shard.sh\",\"--modules-of\",s],capture_output=True,text=True).stdout.split()\n    allmods+=out\nfrom collections import Counter\nc=Counter(allmods)\nprint(\"shard names:\", shards)\npr …[per-command-truncated]",
+      "python3 - .prflow/tmp/review/pr-2014/33006072513-1/dummy <<'EOF' 2>/dev/null || grep -n \"_REVIEW_PROGRESS_ROWS\" -A 20 scripts/workpad.py\nEOF",
+      "cd /home/runner/work/prflow/prflow\necho \"=== all modules emitted ===\"; for s in $(lib/test/run-shard.sh --list-shards); do lib/test/run-shard.sh --modules-of \"$s\"; done | sort | tee /tmp/emitted.txt | tr '\\n' ' '; echo\necho \"=== dup check ===\"; sort /tmp/emitted.txt | uniq -d | tr '\\n' ' '; echo \"(none above = no dups)\"\necho \"=== list-shards order ===\"; lib/test/run-shard.sh --list-shards | tr '\\n' ' '; echo\necho \"=== registry modules ===\"; python3 -c \"import json;d=json.load(open('scripts/workf …[per-command-truncated]",
+      "for s in $(lib/test/run-shard.sh --list-shards); do lib/test/run-shard.sh --modules-of \"$s\"; echo; done | tr ' ' '\\n' | grep -v '^$' | sort > /tmp/shardmods.txt; python3 -c \"import json;print('\\n'.join(sorted(json.load(open('scripts/workflow-flight-recorder-registry.json')).keys())))\" 2>/dev/null | sort > /tmp/reg.txt; echo \"=== dup check ===\"; sort /tmp/shardmods.txt | uniq -d; echo \"=== registry keys top ===\"; head -3 /tmp/reg.txt",
+      "cd /home/runner/work/prflow/prflow\necho \"=== list-shards ===\"; lib/test/run-shard.sh --list-shards\necho \"=== union of modules-of over all shards ===\"\nfor s in $(lib/test/run-shard.sh --list-shards); do lib/test/run-shard.sh --modules-of \"$s\"; echo; done | tr ' ' '\\n' | grep -v '^$' | sort > /tmp/emitted.txt\necho \"=== registry modules ===\"\npython3 -c \"import json;print('\\n'.join(sorted(json.load(open('scripts/workflow-flight-recorder-registry.json')).keys())))\" 2>/dev/null | head -50 > /tmp/regke …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; sed -n '40,80p' lib/test/run-shard.sh; echo \"===LIST-SHARDS===\"; ./lib/test/run-shard.sh --list-shards 2>&1; echo; echo \"===union test refs #877===\"; grep -rn \"877\\|union\\|_shard_modules\\|all modules\" lib/test/run.sh lib/test/modules/parallel-suite-runner.sh 2>/dev/null | head -40",
+      "./lib/test/run-shard.sh --list-shards; echo \"===modules-of each===\"; for s in $(./lib/test/run-shard.sh --list-shards); do echo -n \"$s: \"; ./lib/test/run-shard.sh --modules-of \"$s\"; echo; done",
+      "./lib/test/run-shard.sh --list-shards",
+      "cd /home/runner/work/prflow/prflow\necho \"=== registry module ids ===\"\npython3 -c \"import json;d=json.load(open('scripts/workflow-flight-recorder-registry.json'));print(type(d))\" 2>/dev/null\npython3 - <<'EOF'\nimport json,subprocess\nreg=json.load(open('scripts/workflow-flight-recorder-registry.json'))\n# find module ids\ndef collect(o,acc):\n    if isinstance(o,dict):\n        for k,v in o.items(): collect(v,acc)\n    elif isinstance(o,list):\n        for v in o: collect(v,acc)\n# print keys structure\npr …[per-command-truncated]",
+      "python3 - <<'EOF'\nimport json,re\nreg=json.load(open('scripts/workflow-flight-recorder-registry.json'))\ntm=reg['test_modules']\nif isinstance(tm,dict): regids=set(tm.keys())\nelse: regids=set(x.get('id') or x.get('module') for x in tm)\nsrc=open('lib/test/run-shard.sh').read()\nunion=set()\nfor name in ['modules-pin','modules-large','modules-rest']:\n    m=re.search(name+r\"\\)\\s*printf '%s' '([^']*)'\", src)\n    union|=set(m.group(1).split())\nprint(\"registry module count:\",len(regids))\nprint(\"union==regi …[per-command-truncated]",
+      "python3 - <<'EOF'\nmods={'regenerate-artifacts':116.86,'installer-wiring':70.13,'issue-audit-state':67.97,'parallel-suite-runner':18.36,'tier1-rename-migration':13.38,'experiment-records':7.94,'capability-profiles':7.30,'review-contract':4.32,'workpad-cli':3.68,'workflow-flight-recorder':2.98,'phase2-durability-checkpoint':2.80,'prompt-extension-reader':1.68,'implement-contract':0.76,'review-and-fix-contract':0.27}\nrest_total=round(sum(mods.values()),2)\nlarge_total=round(50.28+21.67+12.84+11.23+7 …[per-command-truncated]",
+      "cat > /tmp/flight-input.json <<'EOF'\n{\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-shard.sh\", \"monolith\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {}\n  },\n  \"checkout\": {\n    \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n    \"head\": \"80f58aba9ea03b94c5ecbec937edc72500f9d4be\",\n    \"index_digest\": \"d4ab8b130a6bbf74cb549f972324beaee1e544cc\",\n    \"tracked_digest\": \"d4ab8b130a6bbf74cb549f972324beaee …[per-command-truncated]",
+      "python3 - <<'PYEOF'\nimport json\ndata = {\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-shard.sh\", \"monolith\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {}\n  },\n  \"checkout\": {\n    \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n    \"head\": \"80f58aba9ea03b94c5ecbec937edc72500f9d4be\",\n    \"index_digest\": \"d4ab8b130a6bbf74cb549f972324beaee1e544cc\",\n    \"tracked_digest\": \"d4ab8b130a6bbf74cb549f972324bea …[per-command-truncated]",
+      "printf '%s' '{\"profile\":{\"profile_version\":1,\"argv\":[\"lib/test/run-shard.sh\",\"monolith\"],\"cwd\":\"/home/runner/work/prflow/prflow\",\"environment\":{},\"toolchain\":{},\"dependencies\":{}},\"checkout\":{\"checkout_id\":\"/home/runner/work/prflow/prflow/.git\",\"head\":\"80f58aba9ea03b94c5ecbec937edc72500f9d4be\",\"index_digest\":\"d4ab8b130a6bbf74cb549f972324beaee1e544cc\",\"tracked_digest\":\"d4ab8b130a6bbf74cb549f972324beaee1e544cc\",\"untracked_digest\":\"4b825dc642cb6eb9a060e54bf8d69288fbee4904\"},\"candidate_identity\":\"pr …[per-command-truncated]",
+      "/opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff --version; echo \"=== stale ===\"; /home/runner/work/_temp/prflow-lint-bin/ruff --version; echo \"=== PATH order ===\"; echo \"$PATH\" | tr ':' '\\n' | grep -nE \"prflow-lint-bin|hostedtoolcache/Python/3.11.16/x64/bin\"",
+      "/opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff --version; /home/runner/work/_temp/prflow-lint-bin/ruff --version",
+      "echo \"===EXT===\"; .prflow/vendor/prflow/scripts/load-prompt-extension.sh pr-description 2>&1 || scripts/load-prompt-extension.sh pr-description 2>&1 || echo \"LADDER_RC=$?\"\necho \"===WORKPAD===\"; WID=$(scripts/workpad.py id 2011 2>/dev/null || true); echo \"id=$WID\"; [ -n \"$WID\" ] && scripts/workpad.py body \"$WID\" 2>/dev/null | grep -iE '\\(post-merge\\)' || echo \"(no post-merge items)\"\necho \"===DEFERRALS===\"; ls -la .prflow/tmp/review/pr-2014/deferrals.json 2>&1 || echo \"(no deferrals file)\"",
+      "B=$(gh pr view 2014 --json body --jq '.body'); printf '%s' \"$B\" | grep -q \"Work in progress — automated review pending\" && echo \"STILL-PLACEHOLDER\" || echo \"NOT-PLACEHOLDER\"; printf '%s' \"$B\" | grep -q \"32994517846\" && echo \"SOURCE-RUN:present\" || echo \"SOURCE-RUN:MISSING\"; printf '%s' \"$B\" | grep -qc \"Duration (s)\" && echo \"DURATION-TABLES:present\"; printf '%s' \"$B\" | grep -q \"4.75s\" && echo \"BALANCE-<=30s:present\" || echo \"BALANCE:MISSING\"",
+      "gh pr view 2014 --json body --jq '.body' > /home/runner/work/prflow/prflow/.prflow/tmp/pr-2014-final.md; wc -l /home/runner/work/prflow/prflow/.prflow/tmp/pr-2014-final.md",
+      "rm /home/runner/work/_temp/prflow-lint-bin/ruff; echo \"removed\"; ruff --version"
+    ],
+    "total": 32,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
