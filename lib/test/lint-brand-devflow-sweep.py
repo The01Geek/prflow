@@ -120,16 +120,25 @@ def occ_file_map(frozen: dict) -> dict[str, list[str]]:
     return m
 
 
-def occurrence_frozen_count(blob: bytes, contexts: list[str]) -> int:
+def occurrence_frozen_count(blob: bytes, contexts: list[str],
+                            exclude: "re.Pattern[bytes] | None" = None) -> int:
     """Count brand occurrences on lines that contain any listed `context` substring — the
-    per-occurrence freeze (issue #2003), subtracted from the file's renameable remainder."""
+    per-occurrence freeze (issue #2003), subtracted from the file's renameable remainder.
+
+    `exclude` (a compiled bytes pattern) subtracts, per line, the brand occurrences already
+    counted by another frozen mechanism — the provenance branch passes ``PROVENANCE_VALUE`` so
+    a context matching the quoted-value line is not counted in BOTH ``value`` and ``occ`` (a
+    double-subtract that would mask a renameable occurrence behind the caller's max(...,0))."""
     if not contexts:
         return 0
     ctx_bytes = [c.encode("utf-8") for c in contexts]
     n = 0
     for line in blob.splitlines():
         if BRAND in line and any(cb in line for cb in ctx_bytes):
-            n += line.count(BRAND)
+            c = line.count(BRAND)
+            if exclude is not None:
+                c -= len(exclude.findall(line))
+            n += max(c, 0)
     return n
 
 
@@ -222,10 +231,15 @@ def classify(rel: str, blob: bytes, frozen: dict, prov_files: set[str],
         return ("frozen-historical", total, 0)
     if rel in frozen.get("tooling_files", []):
         return ("frozen-tooling", total, 0)
-    occ = occurrence_frozen_count(blob, occ_by_file.get(rel, []))
+    contexts = occ_by_file.get(rel, [])
     if rel in prov_files:
         value = len(PROVENANCE_VALUE.findall(blob))
+        # Exclude the quoted-value brand from occ so a context that also matches the value
+        # line is not counted in both value and occ (over-subtracting, masking a renameable
+        # occurrence); disjoint counts mean value + occ never exceeds total.
+        occ = occurrence_frozen_count(blob, contexts, exclude=PROVENANCE_VALUE)
         return ("frozen-provenance", value + occ, max(total - value - occ, 0))
+    occ = occurrence_frozen_count(blob, contexts)
     if occ:
         return ("frozen-occurrence", occ, max(total - occ, 0))
     return ("", 0, total)
