@@ -17,10 +17,16 @@ Each key under `providers` is a provider name.
 | `providers.<name>.effort_supported` | Boolean | `false` | Cloud only. False removes `--effort` to avoid gateway rejection. | `"effort_supported": false` |
 | `providers.<name>.env` | Object with environment-variable names and string values | Empty object | Cloud only. Values are exported into the job environment. Some names are refused outright — see *Refused `env` names* below. | `"env": {"CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1"}` |
 
-**Warning:** `.prflow/config.json` is committed repository content. Never place tokens, passwords, private keys or other secret values in `providers.<name>.env`. Store credentials in GitHub Actions secrets and reference only supported secret-backed inputs.
+<Warning>
+  `.prflow/config.json` is committed repository content. Never place tokens, passwords, private keys or other secret values in `providers.<name>.env`. Store credentials in GitHub Actions secrets and reference only supported secret-backed inputs.
+</Warning>
 
-### Refused `env` names
+### Names Checked in the `env` Map
 
+The `env` map is checked before anything is exported. Some names stop the run outright, and four others produce a warning and keep running. Open the list you need.
+
+<AccordionGroup>
+  <Accordion title="Names the job refuses outright">
 The `env` map is exported into the environment of the whole job, not just the model step, so a
 name that means something to the runner does more than add a variable. Before exporting anything,
 the job checks every key against a fixed list of names and **fails with an error naming the key**
@@ -38,9 +44,8 @@ To supply the provider credential, set the `DEVFLOW_PROVIDER_API_KEY` secret ins
 only the background model, use `ANTHROPIC_DEFAULT_HAIKU_MODEL`, which is not refused. The
 remaining names have no alternative and must be removed from the map — including `NODE_OPTIONS`
 and `PYTHONPATH`, which are refused even where your intended use is benign.
-
-### Warned `env` names
-
+  </Accordion>
+  <Accordion title="Names the job warns about and still exports">
 Separately from the refused names above — which stop the run — four names are **warned but not
 refused**. If your `env` map sets any of them, the job prints a warning naming every one it found
 and then **keeps running**; the value you set still takes effect. These are:
@@ -57,6 +62,8 @@ field or the job's own setting. The warning exists so this override is visible i
 rather than surprising you. Matching ignores case and is whole-name, the same rule the refused
 list uses: `home` warns exactly as `HOME` does, while `HOMEDIR` produces no warning. A map that
 names none of the four warned names logs nothing new.
+  </Accordion>
+</AccordionGroup>
 
 ## Section Routing Settings
 
@@ -100,6 +107,8 @@ names none of the four warned names logs nothing new.
 }
 ```
 
+Expected result: the general command path and implementation runs send their model requests to `https://gateway.example.com` using the key in `DEVFLOW_PROVIDER_API_KEY`, and neither passes an effort value, because this entry declares that the route does not support one.
+
 ## Route Through Amazon Bedrock
 
 Set `auth` to `bedrock_api_key` to reach Amazon Bedrock instead of an HTTP gateway. Store a long-lived Bedrock API key in the same `DEVFLOW_PROVIDER_API_KEY` secret — no second secret and no AWS role setup. Such an entry needs no `base_url`; instead it **must** set `AWS_REGION` in its `env` map, and its section's `claude_model` must be a Bedrock-form model identifier (the shipped Claude default is not served by Bedrock).
@@ -122,6 +131,8 @@ Set `auth` to `bedrock_api_key` to reach Amazon Bedrock instead of an HTTP gatew
   }
 }
 ```
+
+Expected result: implementation runs reach Claude through Amazon Bedrock in `us-east-1` with the Bedrock API key in `DEVFLOW_PROVIDER_API_KEY`. Every other section keeps the default Anthropic route.
 
 A `bedrock_api_key` job whose `env` map sets no `AWS_REGION` fails before the model action starts, with an error naming the section and provider. A `bedrock_api_key` entry that also carries a `base_url` runs, but the `base_url` is ignored with a warning.
 

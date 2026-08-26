@@ -25,6 +25,7 @@
         "group": "Documentation",
         "pages": [
           "docs/index",
+          "docs/quickstart",
           {
             "group": "Getting started",
             "pages": [
@@ -57,6 +58,8 @@
               "docs/concepts/lifecycle",
               "docs/concepts/workpads-and-resume",
               "docs/concepts/review-system",
+              "docs/concepts/verification",
+              "docs/concepts/security",
               "docs/concepts/human-control"
             ]
           },
@@ -79,9 +82,10 @@
                   "docs/runs/cloud/index",
                   "docs/runs/cloud/installation",
                   "docs/runs/cloud/setup",
-                  "docs/runs/cloud/updates",
-                  "docs/runs/cloud/triggers",
                   "docs/runs/cloud/runners",
+                  "docs/runs/cloud/triggers",
+                  "docs/runs/cloud/auto-review",
+                  "docs/runs/cloud/updates",
                   "docs/runs/cloud/recovery"
                 ]
               }
@@ -96,6 +100,7 @@
               "docs/configuration/implementation",
               "docs/configuration/review",
               "docs/configuration/review-agents",
+              "docs/configuration/prompt-extensions",
               "docs/configuration/providers",
               "docs/configuration/runtime-setup",
               "docs/configuration/tool-permissions",
