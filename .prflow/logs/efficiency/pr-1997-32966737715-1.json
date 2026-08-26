@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1997",
+  "generated_at": "2026-08-26T12:20:51Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.53",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.902885500000001,
+    "tokens": {
+      "input_tokens": 54,
+      "output_tokens": 24292,
+      "cache_read_input_tokens": 3625362,
+      "cache_creation_input_tokens": 167475,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 148,
+        "outputTokens": 60563,
+        "cacheReadInputTokens": 7142191,
+        "cacheCreationInputTokens": 350231,
+        "webSearchRequests": 0,
+        "costUSD": 7.902885500000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 31,
+    "duration_ms": 772846
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-1997/run-current; gh pr diff 1997 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1997/run-current/diff.patch | grep -c '^diff --git'",
+      "cd /home/runner/work/prflow/prflow 2>/dev/null; echo \"===== ruff.toml =====\"; git show d201f900:ruff.toml; echo; echo \"===== ci.yml ruff pins (head) =====\"; grep -n 'ruff==' .github/workflows/ci.yml .github/workflows/devflow-implement.yml",
+      "for f in exec-with-default-signals signal_launcher launch-detached; do echo \"===== $f =====\"; awk -v pat=\"lib/test/$f.py\" '$0 ~ \"^diff --git a/lib/test/\"f\".py\" {found=1} found&&/^diff --git/&&$0!~\"lib/test/\"f\".py\"{found=0} found' f=\"$f\" .prflow/tmp/review/pr-1997/run-current/diff.patch 2>/dev/null | grep -E '^[+-]' | grep -iE 'lambda|preexec|def ' | head; done",
+      "cd /home/runner/work/prflow/prflow; for f in lib/test/assertion-floor-retention-check.py lib/generate-plugin-identity.py lib/migrate-config-values.py scripts/branch-for-issue.py scripts/discover-deferral-manifests.py scripts/inventory-workflow-transcripts.py scripts/stall-observer-scan.py; do printf '%s: ' \"$f\"; git show d201f900:\"$f\" 2>/dev/null | grep -q 'from __future__ import annotations' && echo HAS || echo MISSING; done",
+      "cd /home/runner/work/prflow/prflow; for f in lib/test/assertion-floor-retention-check.py lib/generate-plugin-identity.py lib/migrate-config-values.py scripts/branch-for-issue.py scripts/discover-deferral-manifests.py scripts/inventory-workflow-transcripts.py scripts/stall-observer-scan.py scripts/reception_identity.py scripts/section_parse.py scripts/workflow_flight_recorder.py; do r=$(git show \"d201f900:$f\" 2>/dev/null | grep -c 'from __future__ import annotations'); echo \"$f: $r\"; done"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
