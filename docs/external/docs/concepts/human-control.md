@@ -1,40 +1,72 @@
 ---
 title: "Human Control"
-description: "See which decisions, permissions and merge actions remain with people."
+description: "See which decisions, permissions and merge actions stay with people."
 ---
 
-PRFlow can prepare and review changes, but people retain authority over the repository. These boundaries clarify what the agent may do and which decisions remain yours.
+See exactly where PRFlow stops and you decide.
+
+PRFlow can prepare and review a change, but people keep authority over the repository. The boundaries below are deliberate. They are what makes an autonomous run something you can adopt without giving up control of what lands.
 
 ## Before a Run
 
-- The `create-issue` workflow displays the complete issue draft and waits for explicit approval before creating it.
-- A local coding client can ask for clarification and tool permission during a run.
-- Repository maintainers decide which configuration, prompt extensions and permission scopes to commit.
-- Cloud comment triggers require an authorized collaborator or allowed bot. An outside fork contributor cannot start a privileged review run.
+- The [create-issue workflow](/docs/workflows/create-issue) shows you the complete issue draft and waits for your explicit approval before it creates anything.
+- A local run can ask you for clarification, and it asks your client for tool permission as it goes. See [Local Permissions](/docs/runs/local/permissions).
+- Maintainers decide which configuration, prompt extensions and permission scopes are committed to the repository. A run can only use what you committed.
+- A cloud run starts only for an authorized collaborator or an allowed bot. An outside fork contributor cannot start one. See [Security and Trust](/docs/concepts/security).
 
 ## During a Run
 
-- Review permission requests at the narrowest useful scope.
-- Inspect `Blocked` workpad entries before retriggering an implementation.
-- Treat scope changes, deferred acceptance criteria and failed verification as decisions that need evidence, not inconveniences to bypass.
-- Keep broad shell, filesystem and credential access outside the run unless the repository workflow genuinely needs it.
-
-PRFlow can create issue comments, branches, commits, pull requests, reviews and follow-up issues when the active identity has permission. Those writes remain visible in Git and GitHub for review.
+<CardGroup cols={2}>
+  <Card title="Grant narrowly" icon="key">
+    Review each permission request at the narrowest scope that still lets the work proceed. Keep broad shell, filesystem and credential access out of the run unless the workflow genuinely needs it.
+  </Card>
+  <Card title="Read Blocked before retrying" icon="octagon-exclamation">
+    A `Blocked` workpad entry names a cause. Read it and resolve it. Retriggering the run without resolving the cause reproduces the same stop.
+  </Card>
+  <Card title="Treat gaps as decisions" icon="scale-balanced">
+    A scope change, a deferred acceptance criterion or a verification that did not run is a decision that needs evidence. It is not an inconvenience to route around.
+  </Card>
+  <Card title="Watch the writes" icon="eye">
+    PRFlow writes issue comments, branches, commits, pull requests, reviews and follow-up issues, when the active identity has permission. All of it stays visible in Git and GitHub.
+  </Card>
+</CardGroup>
 
 ## Pull-Request State
 
-Implementation opens a draft pull request before its review and documentation phases finish. The default completion path publishes it as ready for review. Maintainers can configure PRFlow to leave it as a draft.
+An implementation run opens a **draft** pull request before its review and documentation work finishes. When the run completes, the default is to publish it as ready for review. Maintainers can configure PRFlow to leave it as a draft instead.
 
-Ready means the configured lifecycle completed. It does not mean a person approved the change, branch protection passed or deployment risk is acceptable.
+<Warning>
+  "Ready for review" means the configured workflow completed. It does not mean a person approved the change, that branch protection passed or that the deployment risk is acceptable.
+</Warning>
 
 ## The Merge Boundary
 
-PRFlow never merges a pull request. A human must:
+PRFlow never merges a pull request. Before you do, work through these:
 
-1. Review the code, tests and documentation.
-2. Read the workpad's acceptance-criteria evidence and reflections.
-3. Evaluate review findings and any remaining caveats.
-4. Wait for required repository checks and approvals.
-5. Merge or request changes through the team's normal process.
+<Steps>
+  <Step title="Review the change">
+    Read the code, the tests and the documentation the run produced, the same way you would read a colleague's pull request.
+  </Step>
+  <Step title="Read the workpad">
+    Check the acceptance-criteria evidence and the `Devflow Reflection` section, which is where blockers, deferrals and dropped work are recorded. See [Workpads and Resume](/docs/concepts/workpads-and-resume).
+  </Step>
+  <Step title="Evaluate the review findings">
+    Read the verdict and any remaining caveats. An approval-family verdict is evidence, not proof. See [The Review System](/docs/concepts/review-system).
+  </Step>
+  <Step title="Wait for your own checks">
+    Required repository checks and required approvals apply exactly as they always did. See [How PRFlow Verifies a Change](/docs/concepts/verification).
+  </Step>
+  <Step title="Merge or request changes">
+    Use your team's normal process. This step has no PRFlow equivalent.
+  </Step>
+</Steps>
 
-This boundary is deliberate. PRFlow automates preparation and evidence gathering while leaving the irreversible integration decision with the repository's maintainers.
+This boundary is the point of the design. PRFlow automates the preparation and the evidence gathering, and leaves the irreversible decision with the people who own the repository.
+
+## Related Documentation
+
+- [Security and Trust](/docs/concepts/security)
+- [The Review System](/docs/concepts/review-system)
+- [How PRFlow Verifies a Change](/docs/concepts/verification)
+- [Workpads and Resume](/docs/concepts/workpads-and-resume)
+- [Local Permissions](/docs/runs/local/permissions)

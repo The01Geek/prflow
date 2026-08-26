@@ -18830,7 +18830,6 @@ _936_EXPECTED="$(cat <<'EOF'
 CLAUDE.md
 README.md
 docs/external/docs/reference/release-notes-archive-2026.md
-docs/external/docs/runs/cloud/installation.md
 docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md
 docs/internal/cloud-allowlist.md
 docs/internal/cloud-setup.md
