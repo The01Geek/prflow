@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1963",
+  "generated_at": "2026-08-26T00:30:31Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.35",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 27.930223799999986,
+    "tokens": {
+      "input_tokens": 98,
+      "output_tokens": 88494,
+      "cache_read_input_tokens": 10262478,
+      "cache_creation_input_tokens": 344760,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 172,
+        "outputTokens": 158726,
+        "cacheReadInputTokens": 12389798,
+        "cacheCreationInputTokens": 1164942,
+        "webSearchRequests": 0,
+        "costUSD": 18.737646499999993,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 558,
+        "outputTokens": 69165,
+        "cacheReadInputTokens": 12064344,
+        "cacheCreationInputTokens": 2434777,
+        "webSearchRequests": 0,
+        "costUSD": 9.192577300000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 116,
+    "duration_ms": 1556164
+  },
+  "permission_denials": {
+    "count": 39,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 -- .prflow/ | grep -E \"install-state.json|lint-manifest.json\"",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 -- .prflow/ 2>&1 | grep -E \"install-state.json|lint-manifest.json\"",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 -- .prflow/",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 -- .prflow > /tmp/lstree.txt; grep -E \"install-state.json|lint-manifest.json\" /tmp/lstree.txt",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 .prflow",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20",
+      "rm -f /tmp/none",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only | grep -c '^\\.changeset/.*\\.md$'; git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only | grep '^\\.changeset/'",
+      "git show 20f911711603cac7503593381793119fe3ff3b20:.prflow/lint-manifest.json 2>&1 | head -5; echo \"---\"; git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only | grep -i \"install-state\\|lint-manifest\"",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only | grep -i \"install-state\\|lint-manifest\"",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only 2>&1 | grep -i \"install-state\" ; echo DONE",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only",
+      "for p in .prflow/lint-manifest.json scripts/lint_manifest.py scripts/install_state.py .github/workflows/devflow-implement.yml; do\n  echo \"$p:\"\n  git show 20f911711603cac7503593381793119fe3ff3b20:\"$p\" | sha256sum\ndone",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 -- .prflow/ | grep -E \"install-state|lint-manifest\"",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 -- .prflow/ 2>&1 | grep -E \"install-state|lint-manifest\"",
+      "for f in devflow.yml devflow-implement.yml devflow-runner.yml; do echo \"== $f ==\"; git show 20f911711603cac7503593381793119fe3ff3b20:.github/workflows/$f | grep -n -i \"lint_mode\\|lint-mode\" ; done",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 -- .prflow/",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 -- .prflow > /tmp/lstree.txt; wc -l /tmp/lstree.txt",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 -- .prflow",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20",
+      "git show 20f911711603cac7503593381793119fe3ff3b20 --stat | grep -i \"vendor\\|copy_slice\\|copy-slice\"\ngit grep -n \"devflow_copy_slice\" $(git show 20f911711603cac7503593381793119fe3ff3b20 --stat --name-only | tr '\\n' ' ') 2>/dev/null\ngit show 20f911711603cac7503593381793119fe3ff3b20:lib/vendor-copy.sh 2>/dev/null | head -5\ngit show 20f911711603cac7503593381793119fe3ff3b20 --name-only | grep -i vendor",
+      "for f in scripts/lint_manifest.py scripts/install_state.py scripts/lint_provision.py .github/actions/setup-project-env/action.yml .github/actions/setup-project-env/provision-lint-tools.sh .github/workflows/devflow-implement.yml .prflow/lint-manifest.json; do\n  git cat-file -e 20f911711603cac7503593381793119fe3ff3b20:\"$f\" 2>/dev/null && echo \"OK $f\" || echo \"MISSING $f\"\ndone",
+      "git show 20f911711603cac7503593381793119fe3ff3b20 --stat 2>&1 | head -5\ngit show 20f911711603cac7503593381793119fe3ff3b20:scripts/provision-lint-tools.sh 2>&1 | head -20\necho \"---find---\"\ngit ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only | grep -i lint-tools",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only | grep -i lint-tools",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only > /tmp/files.txt; grep -i lint-tools /tmp/files.txt",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only | grep -i \"provision-lint\" ; echo done",
+      "git --no-pager grep -l \"provision-lint\" 20f911711603cac7503593381793119fe3ff3b20 -- '*.py' '*.sh' 2>&1 | head -20",
+      "git show 20f911711603cac7503593381793119fe3ff3b20:.github/workflows/devflow-runner.yml > /tmp/runner.yml\necho \"provision_env true gate:\"; grep -c \"if: steps.baseprovision.outputs.provision_env == 'true'\" /tmp/runner.yml\necho \"trusted payload:\"; grep -c 'github.event.pull_request.base.ref || github.event.repository.default_branch' /tmp/runner.yml\necho \"origin fetch:\"; grep -c 'git fetch --depth=1 origin \"\\$BASE_REF\"' /tmp/runner.yml",
+      "git show 20f911711603cac7503593381793119fe3ff3b20:.github/workflows/devflow-runner.yml > /tmp/runner.yml && wc -l /tmp/runner.yml",
+      "git show 20f911711603cac7503593381793119fe3ff3b20:.github/workflows/devflow-runner.yml > /tmp/runner.yml",
+      "git show 20f911711603cac7503593381793119fe3ff3b20:.github/workflows/devflow-runner.yml > /home/runner/work/prflow/prflow/tmp_runner.yml",
+      "git show 20f911711603cac7503593381793119fe3ff3b20 --stat | head -50\necho \"---find---\"\ngit ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only | grep -i vendor-slice",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only | grep -i vendor",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only 2>&1 | grep -i vendor",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only > /tmp/files.txt; wc -l /tmp/files.txt",
+      "git ls-tree -r 20f911711603cac7503593381793119fe3ff3b20 --name-only"
+    ],
+    "total": 39,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
