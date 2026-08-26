@@ -17,14 +17,14 @@ from __future__ import annotations
 
 import json
 import math
-import subprocess
 import statistics
+import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from context_eval_shared import UNESTABLISHED, _median  # noqa: E402
+from context_eval_shared import UNESTABLISHED, _median
 
 STORE_RELPATH = ".prflow/learnings/experiment-records.jsonl"
 

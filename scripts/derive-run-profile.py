@@ -38,7 +38,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from context_eval_shared import UNESTABLISHED  # noqa: E402
+from context_eval_shared import UNESTABLISHED
 
 
 def _load_workpad():

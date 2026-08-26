@@ -28,8 +28,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from context_eval_shared import UNESTABLISHED  # noqa: E402
-from implement_records import (  # noqa: E402
+from context_eval_shared import UNESTABLISHED
+from implement_records import (
     fmt,
     load_runs_with_status,
     mean_or_unestablished,
@@ -91,10 +91,10 @@ def render_runs(runs, n, status="read"):
         duration = run["duration_ms"]
         duration_s = f"{duration / 1000:.0f}s" if duration is not None else UNESTABLISHED
         lines.append(
-            f"{str(run['run_id'] or UNESTABLISHED):>14}  {duration_s:>10}  "
+            f"{run['run_id'] or UNESTABLISHED!s:>14}  {duration_s:>10}  "
             f"{fmt(run['cost_usd']):>9}  "
-            f"{str(run['terminal_status'] or UNESTABLISHED):<13}  "
-            f"{str(run['verdict'] or UNESTABLISHED):<20}  {_top_phases(run)}")
+            f"{run['terminal_status'] or UNESTABLISHED!s:<13}  "
+            f"{run['verdict'] or UNESTABLISHED!s:<20}  {_top_phases(run)}")
     durations = [r["duration_ms"] for r in recent]
     costs = [r["cost_usd"] for r in recent]
     lines.append("")

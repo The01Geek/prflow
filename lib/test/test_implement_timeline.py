@@ -150,7 +150,7 @@ class MalformedInputs(unittest.TestCase):
             _rec("2026-08-26T10:00:05.000Z", "user", [_result("d2")]),
         )
         out = tl.build_timeline(denied)
-        denied_step = [s for s in out["steps"] if s["tool_use_id"] == "d1"][0]
+        denied_step = next(s for s in out["steps"] if s["tool_use_id"] == "d1")
         self.assertEqual(denied_step["duration_ms"], UNESTABLISHED)
         # d1 contributes nothing to either sum; only d2's 3s does.
         self.assertEqual(out["activities"]["Bash"], 3_000)

@@ -28,8 +28,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from context_eval_shared import UNESTABLISHED  # noqa: E402
-from implement_records import (  # noqa: E402
+from context_eval_shared import UNESTABLISHED
+from implement_records import (
     fmt,
     is_reject,
     load_runs_with_status,
@@ -102,8 +102,8 @@ def withholding_reasons(label_a, stats_a, label_b, stats_b):
 def _render_cohort(label, fingerprint, stats):
     return "\n".join([
         f"Cohort {label} — {fingerprint}",
-        f"  runs:                 {stats['count']} "
-        f"({stats['established_durations']} with an established duration)",
+        (f"  runs:                 {stats['count']} "
+         f"({stats['established_durations']} with an established duration)"),
         f"  duration mean:        {seconds(stats['duration_mean_ms'])}",
         f"  duration median:      {seconds(stats['duration_median_ms'])}",
         f"  duration stdev:       {seconds(stats['duration_stdev_ms'])}",
