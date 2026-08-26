@@ -11767,6 +11767,54 @@ assert_eq("#1453 AC7: a full-coverage record completes with no disposition",
 assert_eq("#1453 AC7: an intentionally-skipped checklist is not a shortfall",
           None, _rc_complete(_rc_row("full:attempted:complete:skipped-intentional")))
 
+# ── issue #1984: refuse elective dispositions + uncorroborated shadow-dispatch ──
+# Reproduction / positive control (AC8): replaying issue #1388's captured
+# record-and-disposition sequence in its writable-at-head form must NOT reach
+# Status: Complete. Pre-fix this reaches Complete (the defect this issue closes);
+# post-fix the elective 2-operand disposition write is refused, so Complete is
+# unreachable — the planted-defect positive control for the prevention claim.
+def _replay_1388():
+    body = _rc_row("not-verified:attempted:unestablished:skipped", members=[])
+    try:
+        body = apply_mut(body, make_args(review_coverage_disposition=[
+            ["shadow-coverage",
+             "the shadow fan-out was dropped to conserve orchestrator budget"],
+            ["roster",
+             "the final-pass reviewer was not dispatched to conserve budget"],
+            ["checklist",
+             "the checklist phase was skipped; the partial pass judged adequate"],
+        ]), [])
+    except workpad._UpdateError:
+        return False
+    return _rc_complete(body) is None
+assert_eq("#1984 AC8: the #1388 budget-excuse sequence does NOT reach Complete",
+          False, _replay_1388())
+
+
+# AC8, step-wise: replay the #1388 sequence and NAME the refusal literal that fires at
+# each refused step. Step 1 (the coverage record) writes; the budget-cause disposition
+# has no admissible class ([review-coverage-cause-inadmissible]); and the undispositioned
+# record cannot reach Complete ([review-coverage-gap]).
+def _replay_1388_steps():
+    body = _rc_row("not-verified:attempted:unestablished:skipped", members=[])
+    out = {}
+    try:
+        apply_mut(body, make_args(review_coverage_disposition=[
+            ["shadow-coverage", "budget",
+             "the shadow fan-out was dropped to conserve orchestrator budget"]]), [])
+        out["disposition"] = None
+    except workpad._UpdateError as _e:
+        out["disposition"] = str(_e)
+    out["complete"] = _rc_complete(body)
+    return out
+_1388_steps = _replay_1388_steps()
+assert_eq("#1984 AC8: the #1388 budget disposition is refused [review-coverage-cause-inadmissible]",
+          True, _1388_steps["disposition"] is not None
+          and "[review-coverage-cause-inadmissible]" in _1388_steps["disposition"])
+assert_eq("#1984 AC8: the undispositioned #1388 record cannot reach Complete [review-coverage-gap]",
+          True, _1388_steps["complete"] is not None
+          and "[review-coverage-gap]" in _1388_steps["complete"])
+
 # AC2/AC6: the absent-record shape is UNESTABLISHED, never complete.
 _rc_absent = _rc_complete(_RC_BASE)
 assert_eq("#1453 AC2/AC6: a Complete with no review-coverage record is refused",
@@ -11818,14 +11866,14 @@ for _payload, _gap in (
 # AC2/AC9: a disposition covering only ONE of two gaps is refused, naming the other.
 _two_gaps = _rc_row("full:attempted:short:skipped")
 _msg = _rc_complete(_two_gaps, review_coverage_disposition=[
-    ["roster", _RC_REASONS["roster"]]])
+    ["roster", "dispatched-but-lost", _RC_REASONS["roster"]]])
 assert_eq("#1453 AC9: a partial gap-set disposition is refused naming the uncovered gap",
           True, _msg is not None and "[review-coverage-gap]" in _msg
           and "checklist" in _msg)
 assert_eq("#1453 AC2: a disposition covering EVERY gap is accepted",
           None, _rc_complete(_two_gaps, review_coverage_disposition=[
-              ["roster", _RC_REASONS["roster"]],
-              ["checklist", _RC_REASONS["checklist"]]]))
+              ["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+              ["checklist", "dispatched-but-lost", _RC_REASONS["checklist"]]]))
 
 # AC3: the predicate is the recorded dispatch-attempted operand, NOT a reason-string
 # blocklist — paired controls on both operand values with the same class of reason.
@@ -11834,17 +11882,17 @@ _cost_reason = ("the shadow fan-out was dispatched and returned 2 of 5 agents "
 assert_eq("#1453 AC3: a cost-naming reason over a DISPATCHED record is ACCEPTED",
           None, _rc_complete(_rc_row("not-verified:attempted:complete:complete"),
                              review_coverage_disposition=[
-                                 ["shadow-coverage", _cost_reason]]))
+                                 ["shadow-coverage", "dispatched-but-lost", _cost_reason]]))
 for _dispatch in ("never", "unestablished"):
     _msg = _rc_complete(_rc_row(f"not-verified:{_dispatch}:complete:complete"),
                         review_coverage_disposition=[
-                            ["shadow-coverage", _cost_reason]])
+                            ["shadow-coverage", "dispatched-but-lost", _cost_reason]])
     assert_eq(f"#1453 AC3: a disposition over dispatch={_dispatch} is REFUSED",
               True, _msg is not None
               and "[review-coverage-undispatched]" in _msg)
     _msg2 = _rc_complete(_rc_row(f"not-verified:{_dispatch}:complete:complete"),
                          review_coverage_disposition=[
-                             ["shadow-coverage",
+                             ["shadow-coverage", "dispatched-but-lost",
                               "the roster fell short for a reason unrelated to cost"]])
     assert_eq(f"#1453 AC3: dispatch={_dispatch} is refused regardless of the reason",
               True, _msg2 is not None
@@ -11927,7 +11975,7 @@ for _boiler in ("n/a", "TBD", "  ", "see above", "not applicable to this run",
     _err_msg = None
     try:
         apply_mut(_RC_BASE, make_args(
-            review_coverage_disposition=[["roster", _boiler]]), [])
+            review_coverage_disposition=[["roster", "dispatched-but-lost", _boiler]]), [])
     except workpad._UpdateError as e:
         _err_msg = str(e)
     assert_eq(f"#1453 AC9: the boilerplate reason {_boiler!r} is refused",
@@ -11939,7 +11987,7 @@ assert_eq("#1453 AC9: a specific, gap-naming reason is accepted at write time",
 # AC8: an accepted disposition files its own dropped-failed reflection — the kind
 # `lib/cheap-gate.jq` counts as friction — without the caller passing --reflection-kind.
 _rc_disp = apply_mut(_RC_BASE, make_args(
-    review_coverage_disposition=[["roster", _RC_REASONS["roster"]]]))
+    review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]]]))
 _DF_GLYPH, _DF_LABEL, _ = workpad._REFLECTION_KINDS["dropped-failed"]
 assert_eq("#1453 AC8: the disposition files a dropped-failed reflection bullet",
           True, _DF_GLYPH in _rc_disp and _DF_LABEL in _rc_disp
@@ -11987,7 +12035,7 @@ assert_eq("#1453: --strip-inherited-checkpoints removes an inherited coverage re
 # ...and a dispositions-only call must NOT strip the record it explains.
 _rc_kept = apply_mut(
     _rc_row("full:attempted:short:complete"),
-    make_args(review_coverage_disposition=[["roster", _RC_REASONS["roster"]]]))
+    make_args(review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]]]))
 assert_eq("#1453: a dispositions-only write preserves the coverage record",
           ["full:attempted:short:complete"],
           workpad._review_coverage_payloads(_rc_kept))
@@ -11996,11 +12044,11 @@ assert_eq("#1453: a dispositions-only write preserves the coverage record",
 # the [review-coverage-boilerplate] token, which is why it needs its own control): a
 # row planted directly in ## Progress — hand-edited, or written by an older workpad.py
 # — never passed the write-time validation, so only this branch can refuse it.
-def _planted_disposition(gap, text):
+def _planted_disposition(gap, text, cause="dispatched-but-lost"):
     return _rc_row("full:attempted:short:complete").replace(
         "- [ ] **Implement**",
         "  - 04:00:00 — " + text + " "
-        + workpad._review_coverage_disposition_marker(gap)
+        + workpad._review_coverage_disposition_marker(gap, cause)
         + "\n- [ ] **Implement**")
 
 
@@ -12054,11 +12102,12 @@ assert_eq("#1453: a fresh record strips the superseded dispositions and their bu
 # two of each — the dispositions-only strip's matching branch.
 _rc_restate = apply_mut(
     apply_mut(_rc_row("full:attempted:short:complete"), make_args(
-        review_coverage_disposition=[["roster", _RC_REASONS["roster"]]])),
+        review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]]])),
     make_args(review_coverage_disposition=[
-        ["roster", "the roster fell short because the analyzer gate read false"]]))
+        ["roster", "dispatched-but-lost", "the roster fell short because the analyzer gate read false"]]))
 assert_eq("#1453: re-stating a gap replaces its row, and the gate judges the new reason",
-          ({"roster": "the roster fell short because the analyzer gate read false"}, 1),
+          ({"roster": ("dispatched-but-lost",
+                       "the roster fell short because the analyzer gate read false")}, 1),
           (workpad._review_coverage_dispositions(_rc_restate),
            _rc_restate.count(workpad._REVIEW_COVERAGE_REFLECTION_PREFIX + "roster")))
 
@@ -12083,16 +12132,19 @@ for _label, _kwargs, _needle in (
      "takes exactly 4 values"),
     ("a disposition element of the wrong arity",
      {"review_coverage_disposition": [["roster"]]},
-     "takes exactly 2 values"),
+     "takes exactly 3 values"),
     ("an unknown gap token",
-     {"review_coverage_disposition": [["shadow", _RC_REASONS["roster"]]]},
+     {"review_coverage_disposition": [["shadow", "dispatched-but-lost", _RC_REASONS["roster"]]]},
      "unknown gap"),
+    ("an inadmissible cause class",
+     {"review_coverage_disposition": [["roster", "budget", _RC_REASONS["roster"]]]},
+     "[review-coverage-cause-inadmissible]"),
     ("a gap given twice",
-     {"review_coverage_disposition": [["roster", _RC_REASONS["roster"]],
-                                      ["roster", _RC_REASONS["checklist"]]]},
+     {"review_coverage_disposition": [["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+                                      ["roster", "dispatched-but-lost", _RC_REASONS["checklist"]]]},
      "more than once"),
     ("a multi-line reason",
-     {"review_coverage_disposition": [["roster", _RC_REASONS["roster"] + "\nand more"]]},
+     {"review_coverage_disposition": [["roster", "dispatched-but-lost", _RC_REASONS["roster"] + "\nand more"]]},
      "single line"),
 ):
     _perr = None
@@ -12160,7 +12212,7 @@ for _fld, _kw in (
     ("--note", {"note": ["review pass done " + workpad._review_coverage_marker(
         "full:attempted:complete:complete")]}),
     ("--checkpoint text", {"checkpoint": [["some-key", "x " +
-        workpad._review_coverage_disposition_marker("roster")]]}),
+        workpad._review_coverage_disposition_marker("roster", "dispatched-but-lost")]]}),
     # The guard lives at the `_append_progress_note` chokepoint, so a channel it was
     # never hand-listed for — the classification rationale, whose text lands at the
     # bullet's tail — is screened by construction rather than by enumeration.
@@ -12224,10 +12276,13 @@ assert_eq("#1512: ...and round-trips through the read-time Complete gate",
 # refusal names the missing member — the defect against today's code (accepted before).
 _1512_missing = _rc_write(["full", "attempted", "complete", "complete"],
                           [[m, "dispatched"] for m in _1512_ALWAYS[:3]])
-assert_eq("#1512 AC2: complete missing an always-on member is refused at write time",
+# issue #1984: the dispatch-corroboration check runs BEFORE the roster incoherence
+# check, so a complete roster lacking an always-on member's row is now refused with the
+# unified [review-coverage-dispatch-uncorroborated] literal (still naming the members).
+assert_eq("#1512/#1984 AC2: complete missing an always-on member is refused at write time",
           True, _1512_missing is not None
           and "requesting-code-review" in _1512_missing
-          and "roster=complete requires every always-on member" in _1512_missing)
+          and "[review-coverage-dispatch-uncorroborated]" in _1512_missing)
 # ...and equally at read time, over a persisted three-of-four enumeration.
 _1512_missing_read = _rc_complete(_rc_row(
     "full:attempted:complete:complete",
@@ -12261,8 +12316,8 @@ assert_eq("#1512: short with no missing member is refused",
                  or "").find("at least one missing") >= 0)
 # A measured axis requires an enumeration at WRITE time; a self-reported complete with
 # none is refused there, closing the self-report hole at the source.
-assert_eq("#1512 AC1: roster=complete with no per-member enumeration is refused at write time",
-          True, "no review-roster row is present"
+assert_eq("#1512/#1984 AC1: roster=complete with no per-member enumeration is refused at write time",
+          True, "[review-coverage-dispatch-uncorroborated]"
           in (_rc_write(["full", "attempted", "complete", "complete"], None) or ""))
 # At READ time (finalize) a rosterless complete record is GRANDFATHERED: the write-time
 # gate already enforces the enumeration, so a rosterless record reaching finalize predates
@@ -12572,7 +12627,7 @@ _dup_disp = _dup_disp.replace(
     "- [ ] **Implement**",
     "  - 05:00:00 — " + workpad._render_review_coverage_disposition(
         "roster", _RC_REASONS["roster"]) + " "
-    + workpad._review_coverage_disposition_marker("roster")
+    + workpad._review_coverage_disposition_marker("roster", "dispatched-but-lost")
     + "\n- [ ] **Implement**")
 assert_eq("#1453: two rows for one gap resolve to the unresolvable sentinel",
           workpad._REVIEW_COVERAGE_DUPLICATE_DISPOSITION,
@@ -12584,13 +12639,14 @@ assert_eq("#1453: ...and the Complete write is refused rather than taking the la
 # A dispositions-only write replaces only the gaps it re-states, leaving the others.
 _two_then_one = apply_mut(
     apply_mut(_rc_row("full:attempted:short:skipped"), make_args(
-        review_coverage_disposition=[["roster", _RC_REASONS["roster"]],
-                                     ["checklist", _RC_REASONS["checklist"]]])),
+        review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+                                     ["checklist", "dispatched-but-lost", _RC_REASONS["checklist"]]])),
     make_args(review_coverage_disposition=[
-        ["roster", "the roster fell short because the analyzer gate read false"]]))
+        ["roster", "dispatched-but-lost", "the roster fell short because the analyzer gate read false"]]))
 assert_eq("#1453: re-stating one gap leaves the OTHER gap's disposition intact",
-          {"roster": "the roster fell short because the analyzer gate read false",
-           "checklist": _RC_REASONS["checklist"]},
+          {"roster": ("dispatched-but-lost",
+                      "the roster fell short because the analyzer gate read false"),
+           "checklist": ("dispatched-but-lost", _RC_REASONS["checklist"])},
           workpad._review_coverage_dispositions(_two_then_one))
 
 # A coverage-only call alongside an already-recorded checkpoint must still PATCH —
@@ -12618,8 +12674,8 @@ assert_eq("#1453 AC2/AC7: a clean record PATCHes at the process level, Status fl
 # --reflection-kind does not override the fixed dropped-failed kind.
 _rc_two = apply_mut(_rc_row("full:attempted:short:skipped"), make_args(
     reflection_kind="note",
-    review_coverage_disposition=[["roster", _RC_REASONS["roster"]],
-                                 ["checklist", _RC_REASONS["checklist"]]]))
+    review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+                                 ["checklist", "dispatched-but-lost", _RC_REASONS["checklist"]]]))
 assert_eq("#1453 AC8: each of two gaps files its own dropped-failed bullet",
           (2, True),
           (_rc_two.count(workpad._REVIEW_COVERAGE_REFLECTION_PREFIX),
@@ -12632,7 +12688,7 @@ _norefl = _norefl[:_norefl.index("## Devflow Reflection")]
 _rerr = None
 try:
     apply_mut(_norefl, make_args(
-        review_coverage_disposition=[["roster", _RC_REASONS["roster"]]]), [])
+        review_coverage_disposition=[["roster", "dispatched-but-lost", _RC_REASONS["roster"]]]), [])
 except workpad._UpdateError as _e:
     _rerr = str(_e)
 assert_eq("#1453 AC8: a disposition is refused when it cannot file its friction bullet",
@@ -12708,9 +12764,9 @@ _rc_gap = apply_mut(_CP_BODY, make_args(
     record_roster_member=_rc_members_for("short"),
     record_review_coverage_head=_rc_head,
     review_coverage_disposition=[
-        ["shadow-coverage", _RC_REASONS["shadow-coverage"]],
-        ["roster", _RC_REASONS["roster"]],
-        ["checklist", _RC_REASONS["checklist"]]]))
+        ["shadow-coverage", "dispatched-but-lost", _RC_REASONS["shadow-coverage"]],
+        ["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+        ["checklist", "dispatched-but-lost", _RC_REASONS["checklist"]]]))
 assert_eq("#1510 AC2: a carried coverage gap is worded about the run's own review pass",
           True, "run's own review pass" in _rc_gap)
 assert_eq("#1510 AC2: a carried gap is NOT worded 'carried forward' "
@@ -12738,9 +12794,9 @@ _rc_anchored_gate = apply_mut(_RC_BASE, make_args(
     record_roster_member=_rc_members_for("short"),
     record_review_coverage_head=_rc_head,
     review_coverage_disposition=[
-        ["shadow-coverage", _RC_REASONS["shadow-coverage"]],
-        ["roster", _RC_REASONS["roster"]],
-        ["checklist", _RC_REASONS["checklist"]]]))
+        ["shadow-coverage", "dispatched-but-lost", _RC_REASONS["shadow-coverage"]],
+        ["roster", "dispatched-but-lost", _RC_REASONS["roster"]],
+        ["checklist", "dispatched-but-lost", _RC_REASONS["checklist"]]]))
 assert_eq("#1510: the Complete gate passes over an anchored 6-field record with dispositioned gaps",
           None, _rc_complete(_rc_anchored_gate))
 
@@ -12816,6 +12872,193 @@ assert_eq("#1510 AC3: re-recording at a later reviewed head rebinds the anchor t
           ((workpad._parse_review_coverage_anchor(
               workpad._review_coverage_payloads(_rc_recB)[0]) or {}).get("head"),
            len(workpad._review_coverage_payloads(_rc_recB))))
+
+# ── issue #1984: refuse elective dispositions + uncorroborated shadow-dispatch claims ──
+_1984_R = ("the reviewer's result was lost after the shadow contract's single bounded "
+           "re-dispatch")
+_1984_ENV = ("the runner did not expose the requesting-code-review agent type this run, "
+             "so the final-pass reviewer could not be dispatched")
+_1984_ALWAYS = list(workpad._SHADOW_ALWAYS_ON_MEMBERS)
+
+# AC1: a measured roster (short) lacking a row for every always-on reviewer is refused
+# with the dispatch-uncorroborated literal — no rows, and a partial enumeration.
+assert_eq("#1984 AC1: dispatch=attempted + short roster + NO rows is dispatch-uncorroborated",
+          True, "[review-coverage-dispatch-uncorroborated]" in (_rc_write(
+              ["not-verified", "attempted", "short", "complete"], None) or ""))
+assert_eq("#1984 AC1: dispatch=attempted + short roster + a partial enumeration is refused",
+          True, "[review-coverage-dispatch-uncorroborated]" in (_rc_write(
+              ["not-verified", "attempted", "short", "complete"],
+              [[_1984_ALWAYS[0], "missing"]]) or ""))
+# AC2: all four always-on rows present but NONE dispatched (a short roster whose members
+# are all missing — which the incoherence check alone would admit) is refused.
+assert_eq("#1984 AC2: all four present, none dispatched, is dispatch-uncorroborated",
+          True, "[review-coverage-dispatch-uncorroborated]" in (_rc_write(
+              ["not-verified", "attempted", "short", "complete"],
+              [[m, "missing"] for m in _1984_ALWAYS]) or ""))
+# AC2 positive control: three dispatched + one missing (the evidenced-denial shape) is
+# corroborated and writes cleanly.
+assert_eq("#1984 AC2: three dispatched + one missing writes cleanly (corroborated)",
+          None, _rc_write(["not-verified", "attempted", "short", "complete"],
+                          _rc_members_for("short")))
+# AC1 exemption: the lost-write shape (dispatch=attempted, roster=unestablished) is NOT
+# measured, so it stays legal with no roster rows.
+assert_eq("#1984 AC3: the lost-write shape (unestablished roster) is accepted with no rows",
+          None, _rc_write(["not-verified", "attempted", "unestablished", "complete"], None))
+
+# AC3: the lost-write record's shadow-coverage and roster gaps are dischargeable ONLY
+# with dispatched-but-lost — environment-denial has no corroborating missing row here.
+_1984_lostwrite = _rc_row("not-verified:attempted:unestablished:complete", members=[])
+assert_eq("#1984 AC3: the lost-write gaps reach Complete with dispatched-but-lost",
+          None, _rc_complete(_1984_lostwrite, review_coverage_disposition=[
+              ["shadow-coverage", "dispatched-but-lost", _RC_REASONS["shadow-coverage"]],
+              ["roster", "dispatched-but-lost", _1984_R]]))
+assert_eq("#1984 AC3: the lost-write gaps CANNOT be discharged with environment-denial",
+          True, "[review-coverage-cause-inadmissible]" in (_rc_complete(
+              _1984_lostwrite, review_coverage_disposition=[
+                  ["shadow-coverage", "environment-denial", _1984_ENV],
+                  ["roster", "dispatched-but-lost", _1984_R]]) or ""))
+
+# AC4: the cause-class vocabulary is a CLOSED set of exactly two, and every out-of-set
+# spelling — empty, unknown, case-drifted, whitespace-padded — is refused at write time.
+assert_eq("#1984 AC4: the cause-class vocabulary is exactly two values, complete by construction",
+          ("environment-denial", "dispatched-but-lost"),
+          workpad._REVIEW_COVERAGE_CAUSE_CLASSES)
+for _bad_cause in ("", "budget", "elective", "Environment-Denial", " environment-denial ",
+                   "dispatched"):
+    _cerr = None
+    try:
+        apply_mut(_RC_BASE, make_args(
+            review_coverage_disposition=[["roster", _bad_cause, _RC_REASONS["roster"]]]), [])
+    except workpad._UpdateError as _e:
+        _cerr = str(_e)
+    assert_eq(f"#1984 AC4: cause class {_bad_cause!r} is refused as inadmissible",
+              True, _cerr is not None
+              and "[review-coverage-cause-inadmissible]" in _cerr)
+# AC4: a missing cause operand (the 2-operand pre-change call shape) is an arity refusal.
+_aerr = None
+try:
+    apply_mut(_RC_BASE, make_args(
+        review_coverage_disposition=[["roster", _RC_REASONS["roster"]]]), [])
+except workpad._UpdateError as _e:
+    _aerr = str(_e)
+assert_eq("#1984 AC4: a 2-operand disposition call is an arity refusal",
+          True, _aerr is not None and "takes exactly 3 values" in _aerr)
+
+# AC5: environment-denial on a roster gap is refused unless a `missing` roster row
+# corroborates the denied member; a workpad with a missing row admits it.
+_e5 = None
+try:
+    apply_mut(_RC_BASE, make_args(
+        review_coverage_disposition=[["roster", "environment-denial", _1984_ENV]]), [])
+except workpad._UpdateError as _e:
+    _e5 = str(_e)
+assert_eq("#1984 AC5: environment-denial with no recorded missing roster row is refused",
+          True, _e5 is not None and "[review-coverage-cause-inadmissible]" in _e5)
+# ...but over a record whose enumeration DOES name a missing member it is admitted.
+_e5ok = None
+try:
+    apply_mut(_rc_row("not-verified:attempted:short:complete"), make_args(
+        review_coverage_disposition=[["roster", "environment-denial", _1984_ENV]]))
+except workpad._UpdateError as _e:
+    _e5ok = str(_e)
+assert_eq("#1984 AC5: environment-denial over a recorded missing member is admitted",
+          None, _e5ok)
+
+# AC6: a disposition marker in the two-operand pre-change form (no cause-class segment)
+# discharges nothing — the gap is treated as undispositioned and refused [review-coverage-gap].
+_1984_legacy = _rc_row("full:attempted:short:complete").replace(
+    "- [ ] **Implement**",
+    "  - 04:00:00 — "
+    + workpad._render_review_coverage_disposition("roster", _RC_REASONS["roster"]) + " "
+    + workpad._checkpoint_marker(
+        workpad._REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX + "roster")
+    + "\n- [ ] **Implement**")
+assert_eq("#1984 AC6: a legacy two-operand disposition marker discharges nothing",
+          True, "[review-coverage-gap]" in (_rc_complete(_1984_legacy) or ""))
+# ...and the reader does not resolve a legacy marker into a disposition entry.
+assert_eq("#1984 AC6: the reader skips a legacy two-operand disposition marker",
+          {}, workpad._review_coverage_dispositions(_1984_legacy))
+
+# AC7: the new validation runs only inside the three named call paths — a note-only
+# write over a workpad carrying an incomplete/uncorroborated record is not re-read.
+assert_eq("#1984 AC7: a note-only write does not invoke the new coverage/disposition checks",
+          True, isinstance(apply_mut(
+              _rc_row("not-verified:attempted:unestablished:complete", members=[]),
+              make_args(note=["touch"])), str))
+
+# AC9: the evidenced-denial shape — attempted, all four always-on rows (3 dispatched, 1
+# missing), roster short, checklist complete, coverage not-verified, both gaps disposed
+# environment-denial — reaches Status: Complete.
+assert_eq("#1984 AC9: the evidenced-denial record reaches Complete",
+          None, _rc_complete(
+              _rc_row("not-verified:attempted:short:complete"),
+              review_coverage_disposition=[
+                  ["shadow-coverage", "environment-denial", _1984_ENV],
+                  ["roster", "environment-denial", _1984_ENV]]))
+
+# AC6/strip: re-stating a gap under a DIFFERENT cause class replaces the prior row (the
+# strip matches on the gap part of `<gap>:<cause>` only), leaving exactly one row that
+# carries the new cause — over a body whose roster names a missing member so the new
+# environment-denial cause is admissible.
+_1984_recause = apply_mut(
+    apply_mut(_rc_row("not-verified:attempted:short:complete"), make_args(
+        review_coverage_disposition=[["roster", "dispatched-but-lost", _1984_R]])),
+    make_args(review_coverage_disposition=[["roster", "environment-denial", _1984_ENV]]))
+assert_eq("#1984: re-stating a gap under a new cause class leaves one row carrying the new cause",
+          {"roster": ("environment-denial", _1984_ENV)},
+          workpad._review_coverage_dispositions(_1984_recause))
+
+# AC4 (read time): a persisted 3-segment disposition marker whose cause class is OUT of
+# the closed set is refused at the Complete gate too, not only at write time.
+_1984_badcause = _rc_row("full:attempted:short:complete").replace(
+    "- [ ] **Implement**",
+    "  - 04:00:00 — "
+    + workpad._render_review_coverage_disposition("roster", _RC_REASONS["roster"]) + " "
+    + workpad._review_coverage_disposition_marker("roster", "budget")
+    + "\n- [ ] **Implement**")
+assert_eq("#1984 AC4: an out-of-vocabulary cause marker is refused at the Complete gate",
+          True, "[review-coverage-cause-inadmissible]" in (_rc_complete(_1984_badcause) or ""))
+
+# AC1/AC2 (read time): a persisted record (from a pre-#1984 writer) that reads
+# dispatch=attempted with a measured `short` roster whose rows name NO dispatched member
+# is refused at the Complete gate — the read-time defense-in-depth re-check.
+assert_eq("#1984: an uncorroborated short-roster record is refused at the Complete gate",
+          True, "[review-coverage-dispatch-uncorroborated]" in (_rc_complete(_rc_row(
+              "not-verified:attempted:short:complete",
+              members=[(m, "missing") for m in _1984_ALWAYS])) or ""))
+# ...while the evidenced short roster (>=1 dispatched) still passes the read-time re-check.
+assert_eq("#1984: a corroborated short-roster record passes the read-time re-check (control)",
+          None, _rc_complete(
+              _rc_row("not-verified:attempted:short:complete"),
+              review_coverage_disposition=[
+                  ["shadow-coverage", "environment-denial", _1984_ENV],
+                  ["roster", "environment-denial", _1984_ENV]]))
+# The corroboration helper is colon-free-pinned so cause classes round-trip the marker key.
+assert_eq("#1984: every cause class is colon-free (marker round-trip invariant, asserted)",
+          True, all(":" not in c for c in workpad._REVIEW_COVERAGE_CAUSE_CLASSES))
+
+# AC5 (read time, isolated): a PLANTED environment-denial disposition over a record with
+# NO missing roster row is refused at the Complete gate — exercising the verdict's own
+# cause-rejection arm (not the write-time kwarg path). Single gap (roster=unestablished)
+# so the cause check is reached, not [review-coverage-gap].
+_1984_env_readtime = _rc_row(
+    "full:attempted:unestablished:complete", members=[]).replace(
+    "- [ ] **Implement**",
+    "  - 04:00:00 — "
+    + workpad._render_review_coverage_disposition("roster", _RC_REASONS["roster"]) + " "
+    + workpad._review_coverage_disposition_marker("roster", "environment-denial")
+    + "\n- [ ] **Implement**")
+assert_eq("#1984 AC5: a planted environment-denial with no missing row is refused at the Complete gate",
+          True, "[review-coverage-cause-inadmissible]" in (_rc_complete(_1984_env_readtime) or ""))
+
+# AC7 (strengthened): a note-only write leaves the coverage record intact — it is not
+# re-read, dropped, or corrupted by any operation this change adds.
+_1984_noteonly = apply_mut(
+    _rc_row("not-verified:attempted:unestablished:complete", members=[]),
+    make_args(note=["touch"]))
+assert_eq("#1984 AC7: a note-only write leaves the coverage record intact",
+          ["not-verified:attempted:unestablished:complete"],
+          workpad._review_coverage_payloads(_1984_noteonly))
 
 # The strip reads BOTH the current and the superseded reflection-bullet wording, so a bullet a
 # pre-#1510 code version wrote ("carried forward") is cleaned when a fresh record supersedes it —
