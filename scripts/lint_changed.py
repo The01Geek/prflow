@@ -380,6 +380,17 @@ def _tool_timeout(manifest: dict, tool: str) -> int:
     return int(manifest["tools"][tool]["timeout_seconds"])
 
 
+def _selector_claims(path: str, sel: dict, exclusions: list) -> bool:
+    """One definition of the broad-selector claim rule — an include match, no exclude
+    match, and no top-level exclusion — so the changed-file and full paths cannot drift
+    a selection-semantics change between two inlined copies."""
+    if not any(_glob_match(g, path) for g in sel["include_globs"]):
+        return False
+    if any(_glob_match(g, path) for g in sel.get("exclude_globs", [])):
+        return False
+    return not any(_glob_match(g, path) for g in exclusions)
+
+
 def select_invocations(run_paths: list[bytes], manifest: dict) -> list[Invocation]:
     """Map deduped final-state run paths through the manifest's closed selector and
     special-invocation rules into assembled invocations.
@@ -407,12 +418,8 @@ def select_invocations(run_paths: list[bytes], manifest: dict) -> list[Invocatio
         if claimed is not None:
             special_batches.setdefault(claimed, []).append(raw)
             continue
-        if any(_glob_match(g, path) for g in exclusions):
-            continue
         for sel in selectors:
-            if any(_glob_match(g, path) for g in sel["include_globs"]):
-                if any(_glob_match(g, path) for g in sel.get("exclude_globs", [])):
-                    continue
+            if _selector_claims(path, sel, exclusions):
                 selector_batches.setdefault(sel["id"], []).append(raw)
                 break
 
@@ -441,13 +448,16 @@ def select_full_invocations(top: str, manifest: dict) -> list[Invocation]:
     selector's manifest-matched tracked files, plus each special invocation over its
     own path when that file is tracked."""
     tracked = _git_bytes(top, ["ls-files", "-z"])
-    tracked_paths = [p for p in tracked.stdout.split(b"\x00") if p] if tracked.returncode == 0 else []
+    tracked_raw = [p for p in tracked.stdout.split(b"\x00") if p] if tracked.returncode == 0 else []
+    # Decode the (repo-sized) tracked set once and reuse across every special and profile,
+    # rather than re-decoding each path once per manifest rule.
+    tracked_paths = [(raw, os.fsdecode(raw)) for raw in tracked_raw]
     exclusions = manifest.get("exclusions", [])
     selectors = {s["id"]: s for s in manifest["selectors"]}
 
     invocations: list[Invocation] = []
     for si in manifest.get("special_invocations", []):
-        matched = [p for p in tracked_paths if _glob_match(si["path"], os.fsdecode(p))]
+        matched = [raw for raw, path in tracked_paths if _glob_match(si["path"], path)]
         if matched:
             tool = si["tool"]
             invocations.append(
@@ -455,19 +465,13 @@ def select_full_invocations(top: str, manifest: dict) -> list[Invocation]:
             )
     for prof in manifest["full_profiles"]:
         sel = selectors[prof["selector"]]
-        paths = []
-        for raw in tracked_paths:
-            path = os.fsdecode(raw)
-            if not any(_glob_match(g, path) for g in sel["include_globs"]):
-                continue
-            if any(_glob_match(g, path) for g in sel.get("exclude_globs", [])):
-                continue
-            if any(_glob_match(g, path) for g in exclusions):
-                continue
-            paths.append(raw)
+        paths = [raw for raw, path in tracked_paths if _selector_claims(path, sel, exclusions)]
         if not paths:
             continue
-        tool = prof["tool"]
+        # Single-source the tool from the selector's language (the changed-file path does the
+        # same), so a manifest whose full_profile.tool disagreed with its selector's language
+        # cannot silently lint a language with the wrong tool here.
+        tool = _LANGUAGE_TOOL[sel["language"]]
         invocations.append(
             Invocation(prof["id"], tool, list(_BROAD_FLAGS[tool]), paths, _tool_timeout(manifest, tool))
         )
@@ -562,10 +566,15 @@ def _examined_population(pop: Population) -> list[dict]:
     return entries
 
 
-def _run_invocation(inv: Invocation, top: str) -> dict:
+def _run_invocation(inv: Invocation, top: str, tool_cache: dict) -> dict:
     """Execute one invocation advisorily and return its receipt outcome fields. A tool
-    absent from PATH is a named non-success (``tool-absent``), never an install."""
-    tool_bin = shutil.which(inv.tool)
+    absent from PATH is a named non-success (``tool-absent``), never an install. The
+    tool binary and its ``--version`` are resolved once per tool via ``tool_cache``, so
+    a run with several invocations of the same tool spawns no redundant probes."""
+    if inv.tool not in tool_cache:
+        _bin = shutil.which(inv.tool)
+        tool_cache[inv.tool] = (_bin, _tool_version(_bin) if _bin else None)
+    tool_bin, tool_version = tool_cache[inv.tool]
     result = {
         "tool": inv.tool,
         "argv": inv.argv(),
@@ -575,8 +584,10 @@ def _run_invocation(inv: Invocation, top: str) -> dict:
     if tool_bin is None:
         result.update(exit=None, duration_ms=0, outcome="tool-absent", tool_version=None)
         return result
-    result["tool_version"] = _tool_version(tool_bin)
-    argv = [tool_bin, *inv.flags, "--", *[os.fsdecode(p) for p in inv.paths]]
+    result["tool_version"] = tool_version
+    # Reuse Invocation.argv()'s shape (tool, flags, --, paths) with the resolved binary
+    # in argv[0], so the executed command and the receipt's recorded argv cannot drift.
+    argv = [tool_bin, *inv.argv()[1:]]
     started = time.monotonic()
     try:
         proc = subprocess.run(
@@ -679,8 +690,9 @@ def _emit_invocations(invocations, pop, top, writer, base_fields, examined) -> i
     """Run each invocation, write its receipt, and return the receipt count. A named
     receipt non-success raises `ReceiptError` to the caller."""
     written = 0
+    tool_cache: dict = {}
     for inv in invocations:
-        outcome = _run_invocation(inv, top)
+        outcome = _run_invocation(inv, top, tool_cache)
         fields = dict(base_fields)
         fields.update(outcome)
         if examined is not None:
