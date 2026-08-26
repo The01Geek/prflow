@@ -36,6 +36,58 @@
         "file": "lib/rename-map.json",
         "detail": "identifiers[].superseded == \"DevFlow\""
       }
+    ],
+    "occurrences": [
+      {
+        "file": "lib/scan.sh",
+        "context": "reserved DevFlow label",
+        "reason": "comment naming the superseded provenance label the selector still matches"
+      },
+      {
+        "file": "lib/scan.sh",
+        "context": "DevFlow-label",
+        "reason": "comment naming the superseded provenance-label selector"
+      },
+      {
+        "file": "lib/scan.sh",
+        "context": "DevFlow spelling",
+        "reason": "comments on the superseded provenance spelling the selector accepts"
+      },
+      {
+        "file": "docs/internal/index.md",
+        "context": "DevFlow and PRFlow both appear",
+        "reason": "two-spelling explainer pointer to naming.md"
+      },
+      {
+        "file": "docs/internal/implement-skill.md",
+        "context": "superseded `DevFlow` spelling",
+        "reason": "superseded-spelling reference for the provenance label"
+      },
+      {
+        "file": "docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md",
+        "context": "`DevFlow` provenance",
+        "reason": "provenance-selector reference in a historical cutover note"
+      },
+      {
+        "file": "docs/internal/glossary.md",
+        "context": "superseded spelling `DevFlow`",
+        "reason": "glossary entry naming the superseded provenance spelling"
+      },
+      {
+        "file": "docs/internal/claude-md-relocated-rationale.md",
+        "context": "DevFlow-layout",
+        "reason": "example token in a token-matching explanation"
+      },
+      {
+        "file": "docs/external/docs/getting-started/updates.md",
+        "context": "Migrate from DevFlow",
+        "reason": "old-name reference: the migration-page link title"
+      },
+      {
+        "file": "docs/external/docs/getting-started/index.md",
+        "context": "Migrate from DevFlow",
+        "reason": "old-name reference: the migration-page card title"
+      }
     ]
   },
   "pending_sweep_baseline": [
@@ -157,9 +209,6 @@
       "path": "agents/deferral-drafter.md"
     },
     {
-      "path": "docs/external/docs/getting-started/index.md"
-    },
-    {
       "path": "docs/external/docs/getting-started/initialization.md"
     },
     {
@@ -167,9 +216,6 @@
     },
     {
       "path": "docs/external/docs/getting-started/migrate-from-devflow.md"
-    },
-    {
-      "path": "docs/external/docs/getting-started/updates.md"
     },
     {
       "path": "docs/external/docs/reference/glossary.md"
@@ -184,22 +230,7 @@
       "path": "docs/internal/claude-md-extension-audit-coupled-sites.md"
     },
     {
-      "path": "docs/internal/claude-md-relocated-rationale.md"
-    },
-    {
       "path": "docs/internal/cloud-setup.md"
-    },
-    {
-      "path": "docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md"
-    },
-    {
-      "path": "docs/internal/glossary.md"
-    },
-    {
-      "path": "docs/internal/implement-skill.md"
-    },
-    {
-      "path": "docs/internal/index.md"
     },
     {
       "path": "docs/internal/install.md"
@@ -242,9 +273,6 @@
     },
     {
       "path": "lib/render-report.sh"
-    },
-    {
-      "path": "lib/scan.sh"
     },
     {
       "path": "lib/telemetry-branch.sh"
