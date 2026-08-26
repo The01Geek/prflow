@@ -6,20 +6,15 @@
       rect[fill="#FFFFFF"] { fill: #5D4230; }
       [fill="#555934"] { fill: #6C7440; }
       [stroke="#555934"] { stroke: #A9B06B; }
-      [fill="#565A35"] { fill: #A9B06B; }
       [fill="#4F5430"] { fill: #DCE0B8; }
-      [fill="#6E7544"] { fill: #B9BF7E; }
       [fill="#E7DFC6"] { fill: #3E4425; }
-      [fill="#DDD3BC"] { fill: #4E5330; }
-      [fill="#EEE7D3"] { fill: #4F3A28; }
-      [fill="#A89F84"] { fill: #B7A98F; }
+      [stroke="#DDD3BC"] { stroke: #6C7440; }
       [fill="#3B2A1E"] { fill: #F2E6D8; }
       [fill="#6E5D4C"] { fill: #D9C6B2; }
-      [fill="#FFF8EC"] { fill: #4C3A20; }
-      [fill="#7A4D00"] { fill: #F0C980; }
-      [fill="#F0F8F4"] { fill: #2E4034; }
       [fill="#E8F5EF"] { fill: #2E4034; }
       [fill="#2F6B51"] { fill: #9FD4BC; }
+      [stroke="#70A38B"] { stroke: #9FD4BC; }
+      [fill="#F7F3E6"] { fill: #FFFFFF; }
     }
   </style>
   <title id="title">Choose a PRFlow skill by outcome</title>
