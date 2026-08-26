@@ -37213,6 +37213,136 @@ with tempfile.TemporaryDirectory() as _d1389c:
     assert_raises("#1389 a pre-existing receipt path is a named non-success",
                   _lint_changed.ReceiptError, lambda: _w2.write("shell", {"outcome": "ran"}))
 
+# `_config_base` over the six-shape adversarial config matrix (CLAUDE.md best-effort-parser
+# rule): every shape resolves to the documented `main` default, and every shape that is
+# present-but-unusable emits a SPECIFIC breadcrumb — the valid-falsy rows are the
+# off-switch-that-never-worked class (#312/#304), and they are why the non-string arm exists.
+def _config_base_shape(payload):
+    """Return (resolved base, stderr text) for a `.prflow/config.json` holding `payload`
+    verbatim, or with no config file at all when payload is the sentinel None-marker."""
+    with tempfile.TemporaryDirectory() as _d:
+        if payload is not _ABSENT_1389:
+            (Path(_d) / ".prflow").mkdir()
+            (Path(_d) / ".prflow" / "config.json").write_text(payload, encoding="utf-8")
+        _err = io.StringIO()
+        with contextlib.redirect_stderr(_err):
+            _base = _lint_changed._config_base(_d)
+        return _base, _err.getvalue()
+
+
+_ABSENT_1389 = object()
+
+for _label, _payload, _want_crumb in [
+    ("object value", '{"base_branch": {"a": 1}}', "base_branch is dict"),
+    ("array value", '{"base_branch": ["main"]}', "base_branch is list"),
+    ("non-string scalar", '{"base_branch": 123}', "base_branch is int"),
+    ("valid-falsy false", '{"base_branch": false}', "base_branch is bool"),
+    ("valid-falsy zero", '{"base_branch": 0}', "base_branch is int"),
+    ("valid-falsy empty string", '{"base_branch": ""}', "base_branch is str"),
+    ("non-object top level", '["main"]', "malformed .prflow/config.json (AttributeError)"),
+    ("wrong-type top level (scalar)", '"main"', "malformed .prflow/config.json (AttributeError)"),
+    ("unparseable JSON", '{"base_branch":', "malformed .prflow/config.json (JSONDecodeError)"),
+]:
+    _got_base, _got_err = _config_base_shape(_payload)
+    assert_eq(f"#1389 _config_base falls back to main for a {_label}", "main", _got_base)
+    assert_eq(f"#1389 _config_base breadcrumbs a {_label} specifically",
+              True, _want_crumb in _got_err)
+
+# The two shapes that are NOT corruption resolve silently: an absent config, and an absent key.
+for _label, _payload in [("absent config file", _ABSENT_1389), ("missing key", '{"other": 1}')]:
+    _got_base, _got_err = _config_base_shape(_payload)
+    assert_eq(f"#1389 _config_base is silent and defaults to main for an {_label}",
+              ("main", ""), (_got_base, _got_err))
+
+assert_eq("#1389 _config_base honours a well-formed base_branch",
+          "trunk", _config_base_shape('{"base_branch": "trunk"}')[0])
+
+# `_untracked_records` classifies an untracked symlink and an untracked nested repository
+# as examined-but-not-run, and an ordinary untracked file as runnable. `git ls-files
+# --others` DOES surface a nested repository (as a trailing-slash directory entry), so both
+# nested-repo shapes are reachable — a `.git` DIRECTORY and a `.git` FILE (a separate-gitdir
+# or worktree checkout). Classifying the `.git`-file shape as an `add` would hand the whole
+# directory path to a linter as if it were a source file.
+with tempfile.TemporaryDirectory() as _d1389u:
+    _git1389(_d1389u, "init", "-q", "-b", "main")
+    (Path(_d1389u) / "plain.py").write_text("x = 1\n")
+    (Path(_d1389u) / "alink").symlink_to("plain.py")
+    (Path(_d1389u) / "nested_dir").mkdir()
+    _git1389(Path(_d1389u) / "nested_dir", "init", "-q", "-b", "main")
+    (Path(_d1389u) / "nested_dir" / "inner.py").write_text("z = 3\n")
+    (Path(_d1389u) / "nested_file").mkdir()
+    _subprocess1389.run(
+        ["git", "-C", str(Path(_d1389u) / "nested_file"), "init", "-q", "-b", "main",
+         "--separate-git-dir", str(Path(_d1389u) / "sep.git")],
+        check=True, capture_output=True)
+    (Path(_d1389u) / "nested_file" / "inner.py").write_text("w = 4\n")
+    _urecs = _lint_changed._untracked_records(_d1389u)
+    _ukinds = {os.fsdecode(r.dst).rstrip("/"): (r.kind, r.run_path is not None) for r in _urecs}
+    assert_eq("#1389 an untracked plain file is a runnable add",
+              ("add", True), _ukinds.get("plain.py"))
+    assert_eq("#1389 an untracked symlink is examined-but-not-run",
+              ("symlink", False), _ukinds.get("alink"))
+    assert_eq("#1389 an untracked nested repo with a .git DIRECTORY is examined-but-not-run",
+              ("submodule", False), _ukinds.get("nested_dir"))
+    assert_eq("#1389 an untracked nested repo with a .git FILE (separate gitdir) is "
+              "examined-but-not-run, never a runnable add",
+              ("submodule", False), _ukinds.get("nested_file"))
+
+# `cmd_lint_full` end-to-end: the entrypoint's exit-code contract and its pop=None receipt
+# branch (only `select_full_invocations` was unit-tested).
+with tempfile.TemporaryDirectory() as _dfull:
+    _git1389(_dfull, "init", "-q", "-b", "main")
+    _git1389(_dfull, "config", "user.email", "a@b.c")
+    _git1389(_dfull, "config", "user.name", "t")
+    (Path(_dfull) / ".prflow").mkdir()
+    (Path(_dfull) / ".prflow" / "lint-manifest.json").write_text(
+        (cwc.REPO_ROOT / ".prflow" / "lint-manifest.json").read_text(encoding="utf-8"),
+        encoding="utf-8")
+    (Path(_dfull) / "a.py").write_text("x = 1\n")
+    _git1389(_dfull, "add", "-A")
+    _git1389(_dfull, "commit", "-qm", "base")
+    _cwd_full = os.getcwd()
+    try:
+        os.chdir(_dfull)
+        _nsf = argparse.Namespace(manifest=None, run_id="full1389", run_attempt="1")
+        _rcf = _lint_changed.cmd_lint_full(_nsf)
+    finally:
+        os.chdir(_cwd_full)
+    assert_eq("#1389 cmd_lint_full returns LINT_OK (0) on an established manifest", 0, _rcf)
+    _freceipts = sorted((Path(_dfull) / ".prflow" / "tmp" / "lint" / "full1389" / "1").glob("*.json"))
+    assert_eq("#1389 cmd_lint_full wrote at least one receipt", True, len(_freceipts) >= 1)
+    _fjson = _json1389.loads(_freceipts[0].read_text(encoding="utf-8"))
+    assert_eq("#1389 the lint-full receipt records its subcommand", "lint-full", _fjson["subcommand"])
+    assert_eq("#1389 the lint-full receipt omits the changed-file examined population "
+              "(pop=None branch)", None, _fjson.get("examined"))
+
+# Construction guards added after review: a run_path outside the record's own paths, and an
+# empty op_id, are both unrepresentable rather than latent.
+assert_raises("#1389 a run_path outside the record's own src/dst is refused",
+              ValueError,
+              lambda: _lint_changed.ChangedRecord("add", dst=b"a.py", run_path=b"other.py"))
+assert_eq("#1389 a rename running its destination is accepted",
+          b"b.py",
+          _lint_changed.ChangedRecord("rename", src=b"a.py", dst=b"b.py", run_path=b"b.py").run_path)
+assert_raises("#1389 an empty op_id is refused at Invocation construction",
+              ValueError,
+              lambda: _lint_changed.Invocation("", "ruff", ["check"], [b"a.py"], 60))
+
+# A manifest-supplied op id containing path separators cannot escape its attempt directory.
+with tempfile.TemporaryDirectory() as _d1389s:
+    _ws = _lint_changed.ReceiptWriter(_d1389s, "run", "1")
+    _ts, _ = _ws.write("../escape", {"outcome": "ran"})
+    assert_eq("#1389 a receipt op id's path separators are sanitized away, keeping the "
+              "receipt inside its own attempt directory",
+              (True, ".._escape-0.json"),
+              (Path(_ts).parent == _ws.dir, Path(_ts).name))
+
+# A glob-negated character class translates to a regex-negated one, not a literal `!`.
+assert_eq("#1389 a [!...] glob class negates rather than matching a literal !",
+          (False, True),
+          (_lint_changed._glob_match("s/[!x].py", "s/x.py"),
+           _lint_changed._glob_match("s/[!x].py", "s/y.py")))
+
 
 print()
 print(f"{PASS} passed, {FAIL} failed")

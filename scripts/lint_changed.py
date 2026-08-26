@@ -38,7 +38,6 @@ Design invariants this module enforces (each is the wrong outcome it prevents):
 from __future__ import annotations
 
 import base64
-import fcntl
 import hashlib
 import json
 import os
@@ -48,6 +47,13 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # non-POSIX (Windows): receipts cannot take the sequence lock
+    # Do not degrade to an unlocked sequence — two writers would mint the same seq and
+    # O_EXCL would reject the second receipt as a duplicate rather than as the real cause.
+    fcntl = None
 
 # Running under preflight.py already puts scripts/ on sys.path, but a test that
 # loads this module via importlib.util.spec_from_file_location does not — so the
@@ -123,6 +129,12 @@ class ChangedRecord:
             raise ValueError(
                 f"record {kind!r} must set exactly one of run_path / skip_reason "
                 "(run, xor examined-but-not-run)"
+            )
+        if run_path is not None and run_path not in (src, dst):
+            # A run_path outside this record's own paths would lint a file the receipt's
+            # examined population never lists, so the receipt could not attribute the run.
+            raise ValueError(
+                f"record {kind!r} run_path must be its own src or dst, got {run_path!r}"
             )
         self.kind = kind
         self.src = src
@@ -287,7 +299,10 @@ def _untracked_records(top: str) -> list[ChangedRecord] | None:
         abspath = os.path.join(os.fsencode(top), raw)
         if os.path.islink(abspath):
             records.append(ChangedRecord("symlink", dst=raw, skip_reason="symlink-not-executed"))
-        elif os.path.isdir(abspath) and os.path.isdir(os.path.join(abspath, b".git")):
+        # `.git` is tested with exists(), not isdir(): a separate-gitdir or worktree
+        # checkout carries `.git` as a FILE, and isdir() would classify it as a runnable
+        # `add`, handing a whole directory path to a linter as if it were a source file.
+        elif os.path.isdir(abspath) and os.path.exists(os.path.join(abspath, b".git")):
             records.append(ChangedRecord("submodule", dst=raw, skip_reason="submodule-not-executed"))
         else:
             records.append(ChangedRecord("add", dst=raw, run_path=raw))
@@ -347,7 +362,8 @@ def enumerate_population(base: str, top: str) -> Population:
 def _glob_to_regex(pattern: str) -> re.Pattern:
     """Translate a manifest glob into an anchored regex. ``**/`` matches zero or more
     leading directories, ``**`` matches across ``/``, ``*`` stays within one segment,
-    ``?`` matches one non-``/`` char, and ``[...]`` is a character class. Any other
+    ``?`` matches one non-``/`` char, and ``[...]`` is a character class
+    (``[!...]`` negated). Any other
     metacharacter is matched literally."""
     out = ["(?s)\\A"]
     i, n = 0, len(pattern)
@@ -371,7 +387,12 @@ def _glob_to_regex(pattern: str) -> re.Pattern:
                 out.append("\\[")
                 i += 1
             else:
-                out.append("[" + pattern[i + 1 : j] + "]")
+                body = pattern[i + 1 : j]
+                # A glob negates a class with `!`; regex uses `^`. Passing `!` through
+                # would build a class matching a literal `!` plus the members it excludes.
+                if body.startswith("!"):
+                    body = "^" + body[1:]
+                out.append("[" + body + "]")
                 i = j + 1
         else:
             out.append(re.escape(c))
@@ -400,6 +421,9 @@ class Invocation:
     def __init__(self, op_id, tool, flags, paths, timeout):
         # The type is the argv trust boundary, so refuse a self-contradictory invocation
         # at construction rather than emitting a broken command or a zero-timeout run.
+        if not op_id:
+            # op_id keys the receipt filename; an empty one would collide across profiles.
+            raise ValueError("Invocation requires a non-empty op_id")
         if not tool:
             raise ValueError("Invocation requires a non-empty tool")
         if not isinstance(timeout, int) or timeout <= 0:
@@ -555,6 +579,11 @@ class ReceiptWriter:
     def _next_seq(self) -> int:
         """Read-increment-write the monotonic sequence under an exclusive file lock, so
         two concurrent writers in the same run directory cannot mint the same seq."""
+        if fcntl is None:
+            raise ReceiptError(
+                "sequence-lock-unsupported: fcntl is unavailable on this platform "
+                f"({sys.platform}); the changed-file lint layer requires POSIX file locking"
+            )
         with open(self._lock_path, "w", encoding="utf-8") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             try:
@@ -569,7 +598,10 @@ class ReceiptWriter:
 
     def write(self, op: str, fields: dict) -> tuple[str, int]:
         seq = self._next_seq()
-        target = self.dir / f"{op}-{seq}.json"
+        # `op` reaches here from a manifest-supplied profile/tool id, so sanitize it the
+        # same way the run/attempt components are: an unsanitized `/` or `..` would place
+        # the receipt outside its attempt directory.
+        target = self.dir / f"{_safe(op)}-{seq}.json"
         payload = dict(fields)
         payload["sequence"] = seq
         payload["operation"] = op
@@ -692,14 +724,24 @@ def _config_base(top: str) -> str:
         value = data.get("base_branch")
         if isinstance(value, str) and value:
             return value
+        if value is not None:
+            # A present key holding a non-string or valid-falsy value (`123`, `false`, `""`)
+            # never raises, so without this arm it would fall through to the default with no
+            # breadcrumb — the silent valid-falsy coercion this function's malformed-config
+            # arm below exists to make visible.
+            print(
+                f"LINT config-base fallback: .prflow/config.json base_branch is "
+                f"{type(value).__name__} {value!r}, not a non-empty string; defaulting base=main",
+                file=sys.stderr,
+            )
     except FileNotFoundError:
         # No config is the ordinary "base is main" case, not a corruption — stay silent.
         pass
     except (OSError, ValueError, AttributeError) as exc:
-        # A present-but-malformed config (bad JSON, a non-object top level, a non-string
-        # base) is distinct from an absent one: emit a breadcrumb so a corrupt config that
-        # silently reshapes the changed population against origin/main is visible, rather
-        # than reading identically to "no config". The read still never fails (returns main).
+        # A present-but-malformed config (bad JSON, or a non-object top level) is distinct
+        # from an absent one: emit a breadcrumb so a corrupt config that silently reshapes
+        # the changed population against origin/main is visible, rather than reading
+        # identically to "no config". The read still never fails (returns main).
         print(
             f"LINT config-base fallback: malformed .prflow/config.json "
             f"({exc.__class__.__name__}); defaulting base=main",
