@@ -118,7 +118,8 @@ def scan(root: Path, buckets: dict) -> tuple[dict[str, int], dict[str, int], int
         p = root / rel
         try:
             blob = p.read_bytes()
-        except OSError:
+        except OSError as exc:
+            print(f"lint-brand-devflow-sweep: skipping unreadable tracked file {rel}: {exc}", file=sys.stderr)
             continue
         audited += 1
         fcount, pcount = classify_file(rel, blob, frozen)
@@ -134,7 +135,8 @@ def cmd_check(root: Path, buckets: dict) -> int:
     baseline = {row["path"]: row["count"] for row in buckets.get("pending_sweep_baseline", [])}
     findings: list[str] = []
 
-    # Forward direction: every pending occurrence covered, at exactly its recorded count.
+    # Forward direction: a pending occurrence lacking a baseline row, or drifted from its
+    # recorded count, is unclassified.
     for rel, count in sorted(pending.items()):
         recorded = baseline.get(rel)
         if recorded is None:
@@ -150,7 +152,7 @@ def cmd_check(root: Path, buckets: dict) -> int:
                 f"(run --update-baseline after a deliberate sweep)"
             )
 
-    # Reverse direction: no stale baseline row (its file has no remaining pending occurrences).
+    # Reverse direction: a baseline row whose file is fully swept is stale.
     for rel in sorted(baseline):
         if rel not in pending:
             findings.append(
@@ -158,7 +160,7 @@ def cmd_check(root: Path, buckets: dict) -> int:
                 f"brand-cased 'DevFlow' occurrence any more; remove the row (run --update-baseline)"
             )
 
-    # Reverse direction: no stale frozen-provenance entry (matches no quoted value).
+    # Reverse direction: a frozen-provenance entry matching zero quoted values is stale.
     for entry in buckets["frozen"].get("provenance", []):
         rel = entry["file"]
         if frozen_prov.get(rel, 0) == 0:
@@ -190,7 +192,8 @@ def cmd_print_population(root: Path, buckets: dict) -> int:
         p = root / rel
         try:
             blob = p.read_bytes()
-        except OSError:
+        except OSError as exc:
+            print(f"lint-brand-devflow-sweep: skipping unreadable tracked file {rel}: {exc}", file=sys.stderr)
             continue
         total = blob.count(BRAND)
         if total == 0:

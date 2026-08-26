@@ -54797,7 +54797,7 @@ assert_eq "#1745 a fully-classified tree is clean" "rc=0" "${BDS_CLEAN%%|*}"
 assert_eq "#1745 a frozen record path needs no baseline row" "no" "$(bds_has "learnings/x.jsonl" "$BDS_CLEAN")"
 assert_eq "#1745 a frozen-provenance value is not demanded as unclassified" "no" "$(bds_has "scan.sh: 1 unclassified" "$BDS_CLEAN")"
 
-# An unclassified occurrence (a file with no baseline row) fails the suite.
+# A file whose pending count lacks a baseline row fails the suite.
 printf 'a new DevFlow prose line\n' > "$BDS_FX/docs/new.md"; bds_stage
 BDS_NEW="$(bds_run "$BDS_FX")"
 assert_eq "#1745 an unclassified occurrence fails the suite" "rc=1" "${BDS_NEW%%|*}"
