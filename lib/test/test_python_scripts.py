@@ -37040,6 +37040,22 @@ assert_eq("#1389 an option-named file is linted as a path, not a flag",
 assert_eq("#1389 a top-level-excluded fixtures path is selected by no invocation",
           [], _lint_changed.select_invocations([b"lib/test/fixtures/a.sh"], _lint_manifest_1389))
 
+# Cardinality: run_paths dedupes a destination present in several sources to run-once
+# and preserves first-seen order (issue #1389 §2.3.7 — a multi-element, with-duplicate case).
+_pop_dup = _lint_changed.Population("nonempty", records=[
+    _lint_changed.ChangedRecord("modify", src=b"a.py", dst=b"a.py", run_path=b"a.py"),
+    _lint_changed.ChangedRecord("add", dst=b"b.py", run_path=b"b.py"),
+    _lint_changed.ChangedRecord("modify", src=b"a.py", dst=b"a.py", run_path=b"a.py"),
+])
+assert_eq("#1389 a destination in several sources runs once, order preserved",
+          [b"a.py", b"b.py"], _pop_dup.run_paths())
+# Selection batches multiple same-language paths into one invocation, in order, after --.
+_batch = [i for i in _lint_changed.select_invocations([b"one.py", b"two.py"], _lint_manifest_1389)
+          if i.op_id == "python"][0]
+_bargv = _batch.argv()
+assert_eq("#1389 same-language paths batch into one invocation after -- in order",
+          ["one.py", "two.py"], _bargv[_bargv.index("--") + 1:])
+
 # Atomic receipts: monotonic sequence, and a duplicate path is a named non-success.
 with tempfile.TemporaryDirectory() as _d1389c:
     _w = _lint_changed.ReceiptWriter(_d1389c, "run", "1")

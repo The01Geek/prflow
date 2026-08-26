@@ -11,7 +11,7 @@ Writing standard. Before composing this phase's first `--reflection` bullet, rea
 
 ### 3.0 Changed-file lint (advisory)
 
-Lint exactly what this branch changed by invoking `preflight.py lint-changed` as a direct leading token — never `python3 <path>` (the matcher denies that interpreter head), never a `bash` wrapper. It selects the changed population through the trigger-time validated lint manifest and runs the per-file invocation each file needs, so a file requiring a special invocation is linted with its own form rather than the broad one or not at all. Repository-wide advisory lint is `preflight.py lint-full`. These in-session lint results are advisory feedback, never terminal completion evidence, and a lint tool absent from PATH is a named non-success in the receipt, not an install to attempt.
+Lint the branch's changed files by invoking `preflight.py lint-changed` as a direct leading token — never `python3 <path>` (the matcher denies that interpreter head), never a `bash` wrapper. It selects the changed population through the trigger-time validated lint manifest and runs the invocation the manifest selects for a changed file, so a file requiring a special invocation is linted with its own form rather than the broad one or not at all. Repository-wide advisory lint is `preflight.py lint-full`. These in-session lint results are advisory feedback, never terminal completion evidence, and a lint tool absent from PATH is a named non-success in the receipt, not an install to attempt.
 
 ### 3.1 Create Draft PR
 

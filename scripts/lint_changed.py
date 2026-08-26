@@ -121,7 +121,7 @@ class ChangedRecord:
         self.skip_reason = skip_reason
 
     def examined_paths(self) -> list[bytes]:
-        """Every distinct path this record touched — both a rename's source and
+        """The distinct paths this record touched — both a rename's source and
         destination — for the receipt's examined population. A plain modify has
         src == dst, so dedupe keeps it a single examined entry rather than two."""
         return list(dict.fromkeys(p for p in (self.src, self.dst) if p is not None))
@@ -202,8 +202,8 @@ def _parse_raw_z(data: bytes) -> list[ChangedRecord] | None:
     """Parse `git diff --raw -z` bytes into records, or None on a malformed stream.
 
     Each record is a metadata token (``:m1 m2 s1 s2 STATUS``) followed by one path
-    (two for rename/copy). Returning None routes the caller to *unestablished
-    malformed-status* rather than a clean empty set.
+    (two for rename/copy). A None return signals *unestablished malformed-status*
+    to the caller rather than a clean empty parse.
     """
     tokens = data.split(b"\x00")
     records: list[ChangedRecord] = []
@@ -494,14 +494,14 @@ class ReceiptWriter:
     def _next_seq(self) -> int:
         """Read-increment-write the monotonic sequence under an exclusive file lock, so
         two concurrent writers in the same run directory cannot mint the same seq."""
-        with open(self._lock_path, "w") as lock:
+        with open(self._lock_path, "w", encoding="utf-8") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             try:
                 try:
-                    current = int(self._seq_path.read_text())
+                    current = int(self._seq_path.read_text(encoding="utf-8"))
                 except (FileNotFoundError, ValueError):
                     current = 0
-                self._seq_path.write_text(str(current + 1))
+                self._seq_path.write_text(str(current + 1), encoding="utf-8")
                 return current
             finally:
                 fcntl.flock(lock, fcntl.LOCK_UN)
@@ -536,7 +536,8 @@ def _safe(component: str) -> str:
 def _tool_version(tool_bin: str) -> str | None:
     try:
         proc = subprocess.run(
-            [tool_bin, "--version"], capture_output=True, text=True, timeout=30, check=False
+            [tool_bin, "--version"], capture_output=True, text=True,
+            errors="replace", timeout=30, check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -579,7 +580,8 @@ def _run_invocation(inv: Invocation, top: str) -> dict:
     started = time.monotonic()
     try:
         proc = subprocess.run(
-            argv, cwd=top, capture_output=True, text=True, timeout=inv.timeout, check=False
+            argv, cwd=top, capture_output=True, text=True,
+            errors="replace", timeout=inv.timeout, check=False,
         )
     except subprocess.TimeoutExpired:
         result.update(exit=None, duration_ms=int((time.monotonic() - started) * 1000), outcome="timeout")
