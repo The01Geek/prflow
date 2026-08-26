@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1999",
+  "generated_at": "2026-08-26T17:21:22Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.55",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 3.919768,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 18031,
+      "cache_read_input_tokens": 2638125,
+      "cache_creation_input_tokens": 135364,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 54,
+        "outputTokens": 22658,
+        "cacheReadInputTokens": 2850166,
+        "cacheCreationInputTokens": 227256,
+        "webSearchRequests": 0,
+        "costUSD": 3.919768,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 31,
+    "duration_ms": 295023
+  },
+  "permission_denials": {
+    "count": 1,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/compose-run-url.sh ; echo \"---\" ; .prflow/vendor/prflow/scripts/config-get.sh .prflow_review.live_progress_comment_enabled true ; echo \"rid=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\""
+    ],
+    "total": 1,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
