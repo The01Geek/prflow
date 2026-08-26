@@ -107,6 +107,11 @@ ENROLLED: tuple[tuple[str, str], ...] = (
     ("skills/docs-sync-internal/SKILL.md", "load-prompt-extension.sh docs-sync-internal"),
     ("skills/docs-sync-external/SKILL.md", "load-prompt-extension.sh docs-sync-external"),
     ("skills/docs-release-notes/SKILL.md", "load-prompt-extension.sh docs-release-notes"),
+    # Enrolled with the docs-audit bootstrap pass: /prflow:init dispatches this skill as
+    # a subagent that receives no $CLAUDE_SKILL_DIR, the same unresolvable-anchor case
+    # as the four #1432 rows above, so the vendored-literal-first arm must stay present.
+    ("skills/docs-bootstrap-internal/SKILL.md",
+     "load-prompt-extension.sh docs-bootstrap-internal"),
 )
 
 #: The portable source anchor prefix (issue #275), byte-identical to the ``lpe-coverage``

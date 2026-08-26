@@ -14804,7 +14804,7 @@ assert_eq("#855: the pointer-population sweep matches the recorded snapshot exac
           "(a new skill emitting a bare repo-relative command path turns this RED)",
           {"implement", "retrospective-weekly", "review", "review-and-fix",
            "pr-description", "docs-sync-internal", "docs-sync-external",
-           "docs-release-notes"},
+           "docs-release-notes", "docs-bootstrap-internal"},
           _wd_pointer_pop)
 
 # Regression pin: `Bash(cd:*)` is revoked from prflow_implement.allowed_tools
