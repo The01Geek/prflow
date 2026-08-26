@@ -201,9 +201,8 @@ def scan(root: Path, buckets: dict, skipped: list[str] | None = None) -> tuple[d
             pending[rel] = pcount
         if rel in prov_files:
             # Count the quoted value INDEPENDENTLY of classify()'s first-match short-circuit: a
-            # provenance file that also matches an earlier frozen bucket would otherwise store
-            # that bucket's total here, leaving the reverse stale-provenance guard fail-open when
-            # the quoted value itself disappears.
+            # provenance file also matching an earlier frozen bucket would otherwise store that
+            # bucket's total, leaving the reverse stale-provenance guard fail-open.
             frozen_prov[rel] = len(PROVENANCE_VALUE.findall(blob))
     return pending, frozen_prov, audited
 

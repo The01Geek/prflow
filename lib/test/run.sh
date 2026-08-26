@@ -54804,10 +54804,9 @@ bds_stage() { git -C "$BDS_FX" add -A; }
 BDS_CLEAN="$(bds_run "$BDS_FX")"
 assert_eq "#1745 a fully-classified tree is clean" "rc=0" "${BDS_CLEAN%%|*}"
 assert_eq "#1745 a frozen record path needs no baseline row" "no" "$(bds_has "learnings/x.jsonl" "$BDS_CLEAN")"
-# classify-pr-kind.jq's only DevFlow is the quoted provenance VALUE and it is NOT in the
-# baseline, so the forward guard must not demand it as unclassified — assert absence of the
-# lint's real forward-finding string (a regression that stopped recognizing the value would
-# route it to pending and emit exactly this).
+# classify-pr-kind.jq's only DevFlow is the quoted provenance VALUE and it is NOT baselined, so
+# the forward guard must not demand it as unclassified — assert absence of the lint's real
+# forward-finding string (a regression routing the value to pending would emit exactly this).
 assert_eq "#1745 a frozen-provenance value is not demanded as unclassified" "no" "$(bds_has "lib/classify-pr-kind.jq: brand-cased 'DevFlow' in a file with no pending_sweep_baseline entry" "$BDS_CLEAN")"
 assert_eq "#1745 a frozen-tooling file needs no baseline entry" "no" "$(bds_has "fake-tool.py" "$BDS_CLEAN")"
 # Growth inside a frozen bucket stays green (frozen buckets are not count-bounded) — a new
@@ -54849,7 +54848,10 @@ BDS_BL_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badlist.jso
 assert_eq "#1745 a list-valued frozen key given a JSON string fails closed with exit 2" "2" "$BDS_BL_RC"
 # The 'provenance'/'pending_sweep_baseline' containers themselves given a SCALAR (not a list)
 # also fail closed with the clean exit-2 breadcrumb, never an uncaught TypeError from enumerate().
-printf '{"schema_version": 1, "frozen": {"provenance": "not-a-list"}, "pending_sweep_baseline": []}' > "$BDS_FX/scalarprov.json"
+# A NON-iterable scalar (7), not a string: a string is iterated char-by-char and rejected by the
+# downstream row-shape check, so it exits 2 even with the guard removed (vacuous). An int forces
+# the TypeError the guard prevents, so removing the guard reds this assertion.
+printf '{"schema_version": 1, "frozen": {"provenance": 7}, "pending_sweep_baseline": []}' > "$BDS_FX/scalarprov.json"
 BDS_SP_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/scalarprov.json" >/dev/null 2>&1; echo $?)"
 assert_eq "#1745 a scalar 'provenance' fails closed with exit 2 (not a TypeError)" "2" "$BDS_SP_RC"
 printf '{"schema_version": 1, "frozen": {"provenance": []}, "pending_sweep_baseline": 7}' > "$BDS_FX/scalarpending.json"
