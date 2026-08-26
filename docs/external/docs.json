@@ -114,7 +114,8 @@
             "pages": [
               "docs/reference/index",
               "docs/reference/command-reference",
-              "docs/reference/glossary"
+              "docs/reference/glossary",
+              "docs/reference/release-notes-archive-2026"
             ]
           },
           {
