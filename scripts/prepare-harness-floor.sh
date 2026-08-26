@@ -50,12 +50,20 @@ COMMAND="${2:-}"
 CANDIDATE="${3:-}"
 COST_OUT="${4:-}"
 
-# Emit the two eval-able env assignments and exit 0. $1 = PR (digits or empty),
-# $2 = command class (a known class or empty). Single-quoting is safe because both are
-# sanitized to a fixed shape before this is called.
+# Emit the four eval-able env assignments and exit 0. $1 = PR (digits or empty),
+# $2 = command class (a known class or empty), $3 = issue number (digits or empty),
+# $4 = the reason no PR resolved (a fixed-vocabulary token or empty). Single-quoting is
+# safe because all four are sanitized to a fixed shape before this is called.
+#
+# $3 is non-empty ONLY on the `implement` arm. Every other class's <candidate_number> is
+# a PR number, so emitting it here would key the PR-less record to a PR as if it were an
+# issue. devflow.yml's trigger negates /prflow:implement, so class `implement` reaches
+# this glue only from devflow-implement.yml, whose candidate is the issue number.
 _emit() {
   printf "DEVFLOW_EXECUTION_PR='%s'\n" "$1"
   printf "DEVFLOW_COMMAND_CLASS='%s'\n" "$2"
+  printf "DEVFLOW_ISSUE_NUMBER='%s'\n" "${3:-}"
+  printf "DEVFLOW_NO_PR_REASON='%s'\n" "${4:-}"
   exit 0
 }
 
@@ -173,14 +181,36 @@ _verify_pr() {
 # issue"). Uses `gh pr list --search … --json closingIssuesReferences`, the same
 # branch-naming-independent closes-issue predicate lib/scan.sh and the Phase-1 resume
 # pre-check use. Prints the PR number (or nothing). Best-effort.
+#
+# Reports WHICH failure fired through its EXIT CODE, never a variable: the sole caller
+# invokes this in a command substitution, so an assignment made here happens in a
+# subshell the parent never sees, and the reason would always read empty. 2 = the issue
+# number is unusable, 3 = the gh lookup itself failed, 4 = gh succeeded and no closing PR
+# exists. Never collapse the three onto one token: a transport failure and a genuinely
+# PR-less run are different facts, and the PR-less record's reason field must not assert
+# a cause this code did not observe.
 _resolve_pr_for_issue() {
-  local issue="$1" num
-  case "$issue" in ''|*[!0-9]*) return 1 ;; esac
+  local issue="$1" num rc
+  case "$issue" in
+    ''|*[!0-9]*) return 2 ;;
+  esac
   num="$("$DEVFLOW_GH" pr list --search "${issue} in:body" --state all \
         --json number,closingIssuesReferences \
-        --jq "map(select(any(.closingIssuesReferences[]?; .number == ${issue}))) | (.[0].number // empty)" 2>/dev/null)" || return 1
-  [ -n "$num" ] || return 1
+        --jq "map(select(any(.closingIssuesReferences[]?; .number == ${issue}))) | (.[0].number // empty)" 2>/dev/null)"
+  rc=$?
+  [ "$rc" -eq 0 ] || return 3
+  [ -n "$num" ] || return 4
   printf '%s\n' "$num"
+}
+
+# The exit code above → the fixed-vocabulary token the PR-less record carries.
+_no_pr_reason_for_rc() {
+  case "$1" in
+    2) printf 'issue-number-unusable\n' ;;
+    3) printf 'gh-lookup-failed\n' ;;
+    4) printf 'no-closing-pr-found\n' ;;
+    *) printf 'unestablished\n' ;;
+  esac
 }
 
 case "$CLASS" in
@@ -201,11 +231,14 @@ case "$CLASS" in
       _emit "" "$CLASS"
     fi ;;
   implement)
-    if PR="$(_resolve_pr_for_issue "$CANDIDATE")"; then
-      _emit "$PR" "$CLASS"
+    PR="$(_resolve_pr_for_issue "$CANDIDATE")"
+    PR_RC=$?
+    if [ "$PR_RC" -eq 0 ]; then
+      _emit "$PR" "$CLASS" "$CANDIDATE" ""
     else
-      echo "::warning::prepare-harness-floor: could not resolve the PR opened for issue '$CANDIDATE' (no closing PR found, or the gh lookup failed); DEVFLOW_EXECUTION_PR left empty (skeleton skipped)" >&2
-      _emit "" "$CLASS"
+      NO_PR_REASON="$(_no_pr_reason_for_rc "$PR_RC")"
+      echo "::warning::prepare-harness-floor: could not resolve the PR opened for issue '$CANDIDATE' (reason: $NO_PR_REASON); DEVFLOW_EXECUTION_PR left empty, DEVFLOW_ISSUE_NUMBER carries the issue so the PR-less record can still be keyed" >&2
+      _emit "" "$CLASS" "$CANDIDATE" "$NO_PR_REASON"
     fi ;;
   *)
     echo "::warning::prepare-harness-floor: unrecognized command '$COMMAND' (no record-deriving class); DEVFLOW_EXECUTION_PR left empty" >&2
