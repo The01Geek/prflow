@@ -264,7 +264,7 @@ _ruff_version_preflight() {
   local probe="${DEVFLOW_RUFF_VERSION_PROBE-ruff --version}"
   local manifest="$REPO_ROOT/.prflow/lint-manifest.json"
   local helper="$REPO_ROOT/scripts/ruff-version-skew.py"
-  local out rc verdict vrc
+  local out rc verdict
   [ -n "$probe" ] || return 0
   # Nothing to compare when this checkout lacks the manifest pin or the helper: skip silently.
   { [ -s "$manifest" ] && [ -r "$helper" ]; } || return 0
@@ -276,18 +276,25 @@ _ruff_version_preflight() {
     return 0
   fi
   verdict="$(python3 "$helper" --manifest "$manifest" --reported "$out" 2>&1)"
-  vrc=$?
-  case "$vrc" in
-    0) return 0 ;;
-    1)
-      printf '%s\n' "$verdict" >&2
-      printf 'run-parallel: the ruff-version cheap-lint gate found a version skew (see above); launching no shard — install the pinned ruff and re-run\n' >&2
-      return 1 ;;
-    *)
-      printf 'run-parallel: WARNING: the ruff-version cheap-lint check was inconclusive (exit %s); proceeding\n' "$vrc" >&2
-      [ -z "$verdict" ] || printf '%s\n' "$verdict" >&2
-      return 0 ;;
-  esac
+  # Do NOT key the refusal on the helper's exit code — an uncaught traceback exits 1 exactly
+  # as a skew does — so the comparand is the helper's own `ruff-version-skew: SKEW` completion
+  # sentinel, matched at the START of a line (a crash prints none and fails open), mirroring
+  # the sibling `_cheap_lint_run` gates above.
+  local skew=0 line
+  while IFS= read -r line; do
+    case "$line" in
+      'ruff-version-skew: SKEW'*) skew=1; break ;;
+    esac
+  done <<< "$verdict"
+  if [ "$skew" -eq 1 ]; then
+    printf '%s\n' "$verdict" >&2
+    printf 'run-parallel: the ruff-version cheap-lint gate found a version skew (see above); launching no shard — install the pinned ruff and re-run\n' >&2
+    return 1
+  fi
+  # No SKEW sentinel: a clean match is silent, an inconclusive/crash result fails open with
+  # whatever the helper reported (never a refusal).
+  [ -z "$verdict" ] || printf 'run-parallel: WARNING: the ruff-version cheap-lint check was inconclusive; proceeding\n%s\n' "$verdict" >&2
+  return 0
 }
 
 # Returns 0 to PROCEED, 1 on the first positively-attributed finding; a refusal

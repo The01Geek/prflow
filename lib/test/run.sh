@@ -55241,12 +55241,13 @@ RUFF_MANIFEST_VER="$(devflow_ruff_manifest_version "$LIB/../.prflow/lint-manifes
 case "$RUFF_MANIFEST_VER" in [0-9]*) RUFF_MANIFEST_VER_OK=yes ;; *) RUFF_MANIFEST_VER_OK=no ;; esac
 # structural-pin-ok: cross-file-phase-contract -- positive control: a sentinel version here would make the family reconciliation below vacuous
 assert_eq "#2009 lint-manifest declares a concrete ruff version (arms the reconciliation)" yes "$RUFF_MANIFEST_VER_OK"
-if [ "$(devflow_ruff_family "$RUFF_MANIFEST_VER")" = "$(devflow_ruff_family "$RUFF_PIN_LINT")" ]; then RUFF_PIN_MANIFEST_AGREE=yes; else RUFF_PIN_MANIFEST_AGREE=no; fi
+# Agreement holds iff the two pins share a minor family; the same predicate drives the live
+# check and the discrimination matrix below, so one definition owns the comparison.
+_ruff_fam_agree() { if [ "$(devflow_ruff_family "$1")" = "$(devflow_ruff_family "$2")" ]; then printf yes; else printf no; fi; }
 # structural-pin-ok: cross-file-phase-contract -- the manifest pin (installed into prflow-lint-bin) and ci.yml's ruff== family must agree, or the #1621 gate reddens on version skew; editing either pin alone flips this
-assert_eq "#2009 lint-manifest ruff version is within ci.yml's ruff== pin family" yes "$RUFF_PIN_MANIFEST_AGREE"
+assert_eq "#2009 lint-manifest ruff version is within ci.yml's ruff== pin family" yes "$(_ruff_fam_agree "$RUFF_MANIFEST_VER" "$RUFF_PIN_LINT")"
 
 # Discrimination: editing either pin alone across the minor family flips agreement to RED.
-_ruff_fam_agree() { if [ "$(devflow_ruff_family "$1")" = "$(devflow_ruff_family "$2")" ]; then printf yes; else printf no; fi; }
 assert_eq "#2009 reconciliation: matching families agree" yes "$(_ruff_fam_agree 0.16.4 "0.16.*")"
 assert_eq "#2009 reconciliation: manifest bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree 0.17.0 "0.16.*")"
 assert_eq "#2009 reconciliation: ci pin bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree 0.16.4 "0.17.*")"

@@ -10,16 +10,25 @@ that makes the in-suite `#1621` ruff gate go RED on rule-set drift rather than o
 findings. The expected version is read from the manifest at run time, so the caller keeps
 no second copy of it.
 
-Verdict (exit code):
-  0  the reported minor family matches the pinned family — no skew.
-  1  a positively-attributed skew — the families differ. The actionable message, with a
-     manifest-derived `pip install 'ruff==<family>.*'` remedy, is printed to STDOUT.
+Verdict — the caller keys on the STDOUT sentinel, never on the exit code, because an
+uncaught traceback also exits 1: only a positively-attributed skew prints a line beginning
+with the `ruff-version-skew: SKEW` sentinel, so a crash prints no sentinel and the caller
+fails open exactly as the sibling cheap-lint gates do. The exit code mirrors the sentinel
+for a direct caller:
+  0  the reported minor family matches the pinned family — no skew (silent).
+  1  a positively-attributed skew — the families differ. The actionable message begins with
+     the `ruff-version-skew: SKEW` sentinel and carries a manifest-derived
+     `pip install 'ruff==<family>.*'` remedy, printed to STDOUT.
   2  inconclusive — the manifest could not be read (missing/malformed/wrong shape) or the
-     reported version could not be parsed. The caller FAILS OPEN (proceeds) on this, so
-     an absent, non-executing, or unreadable comparand never turns into a refusal.
+     reported version could not be parsed. The message is printed to STDERR and carries no
+     SKEW sentinel, so the caller FAILS OPEN (proceeds); an absent, non-executing, or
+     unreadable comparand never turns into a refusal.
 
 Fail-closed to 2 (never 0) on any manifest read problem: an unusable comparand is unknown,
 not "matches". Unknown is not zero.
+
+The `SKEW` sentinel: without it, a caller keying on exit code would read an uncaught
+traceback (exit 1) as a real skew and refuse a whole-suite launch on a helper bug.
 """
 
 from __future__ import annotations
@@ -94,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     if expected == reported:
         return 0
     print(
-        f"ruff-version-skew: the ruff on PATH reports the {reported} family but the lint "
+        f"ruff-version-skew: SKEW the ruff on PATH reports the {reported} family but the lint "
         f"manifest pins the {expected} family; fix: "
         f"python3 -m pip install --user --force-reinstall 'ruff=={expected}.*'"
     )

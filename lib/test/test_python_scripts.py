@@ -38646,6 +38646,47 @@ with tempfile.TemporaryDirectory() as _d1388:
               (_r3.returncode, os.path.isdir(os.path.join(_d1388, 'out'))))
 
 
+# ── issue #2009: scripts/ruff-version-skew.py — family extraction + fail-open manifest read ──
+# Grounds the helper's defensive isinstance ladder (each malformed manifest shape -> None ->
+# the caller's fail-open arm) directly in the language it lives in, rather than only through
+# the shell coordinator's skew/match/absent arms.
+_ruff_skew = _load('ruff_version_skew', SCRIPTS / 'ruff-version-skew.py')
+assert_eq("#2009 minor_family: major.minor from a ruff --version line", "0.16",
+          _ruff_skew.minor_family("ruff 0.16.4"))
+assert_eq("#2009 minor_family: major.minor from a pin spec", "0.16",
+          _ruff_skew.minor_family("0.16.*"))
+assert_eq("#2009 minor_family: an unparseable string -> None", None,
+          _ruff_skew.minor_family("ruff (broken)"))
+assert_eq("#2009 minor_family: None input -> None", None, _ruff_skew.minor_family(None))
+
+
+def _rs_manifest_family(text):
+    _fd, _p = tempfile.mkstemp(suffix=".json")
+    try:
+        with os.fdopen(_fd, "w", encoding="utf-8") as _f:
+            _f.write(text)
+        return _ruff_skew.manifest_ruff_family(_p)
+    finally:
+        os.unlink(_p)
+
+
+assert_eq("#2009 manifest_ruff_family: reads the pinned family", "0.16",
+          _rs_manifest_family('{"tools":{"ruff":{"version":"0.16.4"}}}'))
+assert_eq("#2009 manifest_ruff_family: missing file -> None (fail open)", None,
+          _ruff_skew.manifest_ruff_family("/no/such/ruff-manifest-2009.json"))
+assert_eq("#2009 manifest_ruff_family: malformed JSON -> None", None,
+          _rs_manifest_family('not json{'))
+assert_eq("#2009 manifest_ruff_family: top-level array -> None", None,
+          _rs_manifest_family('[]'))
+assert_eq("#2009 manifest_ruff_family: non-object tools -> None", None,
+          _rs_manifest_family('{"tools":[]}'))
+assert_eq("#2009 manifest_ruff_family: non-object ruff -> None", None,
+          _rs_manifest_family('{"tools":{"ruff":"x"}}'))
+assert_eq("#2009 manifest_ruff_family: missing version -> None", None,
+          _rs_manifest_family('{"tools":{"ruff":{}}}'))
+assert_eq("#2009 manifest_ruff_family: non-string version -> None", None,
+          _rs_manifest_family('{"tools":{"ruff":{"version":123}}}'))
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

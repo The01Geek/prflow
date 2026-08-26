@@ -1500,4 +1500,20 @@ assert_eq "#2009 ruff-version gate: bumping the manifest family alone turns a fo
 assert_eq "#2009 ruff-version gate: the manifest-driven refusal names the new pinned family" "yes" \
   "$(case "$PSR_RV_OUT" in *"'ruff==0.17."*) echo yes ;; *) echo no ;; esac)"
 
+# (g) A ruff that RUNS (exit 0) but reports an unparseable version leaves the helper with no
+# SKEW sentinel to emit — the gate must FAIL OPEN, never refuse. This is the sentinel-not-
+# exit-code contract: the helper's inconclusive exit (2) is not a refusal, and equally an
+# uncaught helper crash (exit 1, no sentinel) could not refuse the launch either.
+printf '%s\n' '{"schema_version":1,"tools":{"ruff":{"version":"0.16.4"}}}' > "$PSR_RV_TREE/.prflow/lint-manifest.json"
+PSR_RV_GARBLE="$(psr_plant_preflight ruff-garble 0 "ruff wat")"
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_GARBLE" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: an unparseable-but-executing ruff proceeds (exit 0)" "0" "$PSR_RV_RC"
+assert_eq "#2009 ruff-version gate: an unparseable-but-executing ruff launches the shard, not a refusal" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launching no shard"*) echo no ;; *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+
 rm -rf "$PSR_ROOT"
