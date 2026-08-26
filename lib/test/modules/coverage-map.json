@@ -591,6 +591,10 @@
       "note": "issue #805 PreToolUse command-shape guard",
       "owner": "unmodularized"
     },
+    "scripts/prompt-extension-arrival.py": {
+      "note": "issue #1446 independent-channel prompt-extension / skill-body arrival detector (classify + reconcile); driven per input shape by the prompt-extension-reader module",
+      "owner": "prompt-extension-reader"
+    },
     "scripts/prompt-surface-growth.py": {
       "focused_test": "lib/test/test_python_scripts.py",
       "note": "issue #1350 static prompt-surface byte-delta table rendered into the PR description by .prflow/prompt-extensions/pr-description.md; driven end-to-end over committed git fixtures (added/deleted/new covered file, out-of-population change, unresolvable merge-base, HEAD == merge-base, agents-only change, multi-file aggregate)",
