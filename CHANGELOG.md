@@ -4,6 +4,27 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.55] — 2026-08-26
+
+### Changed
+- **Continue the brand-cased `DevFlow`→`PRFlow` prose sweep (batch 3).** Rewrote the
+  ordinary renameable brand-cased `DevFlow` prose to `PRFlow` in four fully-cleared
+  comment-only files (`lib/preflight.sh`, `requirements.txt`, `.gitignore`,
+  `.prflow/tool-presets.json`) and reseeded `pending_sweep_baseline` in
+  `lib/test/brand-devflow-buckets.json` to drop the drained files; the reconciling
+  lint stays clean. No frozen identifier, filename, or pinned literal changed
+  spelling. (#1999)
+Name the `monolith` shard runner in the implement extension's repo-specific command table, so a `run.sh`-resident surface iterating mid-run selects `lib/test/run-shard.sh monolith` instead of the whole-suite coordinator.
+`scripts/prompt-surface-growth.py`'s invocation contract now names the vendored literal
+`.prflow/vendor/prflow/scripts/prompt-surface-growth.py` as the form to try FIRST, with the
+repo-relative `scripts/prompt-surface-growth.py` as the fallback for a checkout where the
+vendored path does not resolve. The previous wording named the repo-relative spelling first
+and the vendored literal as a parenthetical alternative, which is inverted for the cloud
+tier: only the vendored literal is granted in the `implement` and `command` profiles, so a
+cloud run following the docstring order spends a permission denial before reaching the form
+that works. Ordering matches the ladder `.prflow/prompt-extensions/pr-description.md`
+already prescribes. Docstring only — no behaviour change.
+
 ## [2.34.54] — 2026-08-26
 
 ### Changed
