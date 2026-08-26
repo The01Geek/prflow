@@ -1465,6 +1465,22 @@ assert_eq "psr fp: a non-existent fingerprint helper is caught and recorded unes
 assert_eq "psr fp: the non-existent-helper record is unestablished" "yes" \
   "$(case "$(cat "$PSR_FP_NX/fingerprint.json" 2>/dev/null)" in *'"unestablished": true'*) echo yes ;; *) echo no ;; esac)"
 
+# The rc!=0 conjunct: a producer printing a well-formed five-field fingerprint but EXITING
+# NON-ZERO must NOT be trusted — a failed producer's stale-but-valid output can never discharge
+# the gate (guards the `returncode == 0 and ...` conjunct against a fail-open weakening).
+PSR_FP_OKFAIL="$PSR_FP/fp-ok-but-fail.sh"
+cat > "$PSR_FP_OKFAIL" <<'PSR_EOF'
+#!/usr/bin/env bash
+printf '{"checkout_id":"/fix/.git","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","index_digest":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","tracked_digest":"cccccccccccccccccccccccccccccccccccccccc","untracked_digest":"dddddddddddddddddddddddddddddddddddddddd"}\n'
+exit 1
+PSR_EOF
+chmod +x "$PSR_FP_OKFAIL"
+PSR_FP_OF="$PSR_FP/rec-okfail"
+assert_eq "psr fp: a well-formed fingerprint from a non-zero-exit producer records unestablished (rc 0)" "0" \
+  "$(DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_OKFAIL" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_OF" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: a non-zero-exit producer's well-formed output is NOT trusted (unestablished)" "yes" \
+  "$(case "$(cat "$PSR_FP_OF/fingerprint.json" 2>/dev/null)" in *'"unestablished": true'*) echo yes ;; *) echo no ;; esac)"
+
 # AC1 wiring: the coordinator records the fingerprint in its retained run root at launch.
 PSR_FPC="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_FPC"
 ( cd "$PSR_FPC" && SYN_SHARDS=alpha SYN_SLEEP=0.05 DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" \
