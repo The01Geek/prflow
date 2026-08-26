@@ -57,7 +57,7 @@
     },
     "harness-python-guards": {
       "path": "lib/test/modules/harness-python-guards.sh",
-      "minimum_assertions": 45,
+      "minimum_assertions": 49,
       "assertion_floor_policy": "exact",
       "description": "Focused monolith-only Python guard drivers whose subject is a single code unit and whose verification is self-contained: the #600 render-audit-prompt renderer, the #527 verification-launch baseline analyzer, the #528 single-flight verification ledger, the #668 reception-identity producer, the #798 pin-corpus classifier unit tests, the #810 pin-corpus authoring-gate unit tests plus the red-on-removal and residual-prose retirement censuses/current-corpus closure, the #985 opt-in suite wall-clock profiler unit tests, the #591 coverage-map ratchet guard (live-tree invocation, unit test, and a planted coverage-map drift as the coverage-map guard's positive control), and the #1194 coverage-map merge tooling (the JSON-aware git merge driver driven against real offline merges plus the CI-side key-retention check), and the #1287 assertion-floor retention check (its pure detect_decreases/classify_outcome core over every decrease, retirement, malformed-comparand, escape-hatch and arm-order shape, plus the CLI end-to-end against a real offline git repository)"
     },

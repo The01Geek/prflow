@@ -49281,7 +49281,7 @@ assert_eq "issue #1900: shared context-eval helpers focused tests pass" "0" "$CE
 # this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/harness-python-guards.sh" \
-  "harness-python-guards" 45; then
+  "harness-python-guards" 49; then
   printf 'ERROR: harness-python-guards boundary could not record its result\n'
   exit 1
 fi
