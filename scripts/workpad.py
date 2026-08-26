@@ -4273,17 +4273,17 @@ _REVIEW_COVERAGE_AXIS_GAP = {s['name']: s['gap'] for s in _REVIEW_COVERAGE_AXIS_
 _REVIEW_COVERAGE_GAPS = tuple(
     dict.fromkeys(s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS))
 # The CLOSED cause-class vocabulary a `--review-coverage-disposition` must name
-# (issue #1984). There is deliberately NO elective member, so a budget or elective
-# cause has no admissible class. Both values are colon-free and lowercase so the
-# cause class round-trips as the third segment of the disposition marker key
-# `review-coverage-disposition:<gap>:<cause-class>`.
+# (issue #1984) — no elective member, so a budget or elective cause has no admissible
+# class. It rides the disposition marker key as `…:<gap>:<cause-class>`.
 #   `environment-denial`   — a capability the runner did not expose. Admissible only
-#     with a recorded `missing` roster row (the denied member), so a record with no
-#     missing roster row cannot use it.
+#     with a recorded `missing` roster row, so a record with none cannot use it.
 #   `dispatched-but-lost`  — a reviewer that WAS dispatched, whose result was lost.
 _REVIEW_COVERAGE_CAUSE_CLASSES = ('environment-denial', 'dispatched-but-lost')
-assert all(':' not in c for c in _REVIEW_COVERAGE_CAUSE_CLASSES), (
-    'a cause class must be colon-free to round-trip through the disposition marker key')
+if any(':' in c for c in _REVIEW_COVERAGE_CAUSE_CLASSES):
+    # An explicit raise (not a bare `assert`, which `python3 -O` strips) pins the
+    # marker-key round-trip invariant for this producer/consumer contract.
+    raise AssertionError(
+        'a cause class must be colon-free to round-trip through the disposition marker key')
 # Shadow-review roster membership (issue #1512): the per-member dispatch enumeration
 # `_review_roster_incoherence` cross-checks the summary `roster` axis against, so a
 # `complete` claim omitting an always-on member is refused rather than self-reported.
@@ -5119,7 +5119,7 @@ def _review_coverage_verdict(progress_content: str) -> None:
             f"incomplete ({_render_review_coverage_state(record)}) and gap(s) "
             f"{', '.join(missing)} carry no "
             "disposition [review-coverage-gap]. Either complete the review pass, or "
-            "record one `--review-coverage-disposition <gap> \"<reason>\"` per gap "
+            "record one `--review-coverage-disposition <gap> <cause-class> \"<reason>\"` per gap "
             "naming what was not verified and why. No PATCH was made."
         )
     # #1230: the disposition is an honest-degradation record, never an election

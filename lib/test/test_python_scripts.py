@@ -13012,6 +13012,29 @@ assert_eq("#1984: a corroborated short-roster record passes the read-time re-che
 assert_eq("#1984: every cause class is colon-free (marker round-trip invariant, asserted)",
           True, all(":" not in c for c in workpad._REVIEW_COVERAGE_CAUSE_CLASSES))
 
+# AC5 (read time, isolated): a PLANTED environment-denial disposition over a record with
+# NO missing roster row is refused at the Complete gate — exercising the verdict's own
+# cause-rejection arm (not the write-time kwarg path). Single gap (roster=unestablished)
+# so the cause check is reached, not [review-coverage-gap].
+_1984_env_readtime = _rc_row(
+    "full:attempted:unestablished:complete", members=[]).replace(
+    "- [ ] **Implement**",
+    "  - 04:00:00 — "
+    + workpad._render_review_coverage_disposition("roster", _RC_REASONS["roster"]) + " "
+    + workpad._review_coverage_disposition_marker("roster", "environment-denial")
+    + "\n- [ ] **Implement**")
+assert_eq("#1984 AC5: a planted environment-denial with no missing row is refused at the Complete gate",
+          True, "[review-coverage-cause-inadmissible]" in (_rc_complete(_1984_env_readtime) or ""))
+
+# AC7 (strengthened): a note-only write leaves the coverage record intact — it is not
+# re-read, dropped, or corrupted by any operation this change adds.
+_1984_noteonly = apply_mut(
+    _rc_row("not-verified:attempted:unestablished:complete", members=[]),
+    make_args(note=["touch"]))
+assert_eq("#1984 AC7: a note-only write leaves the coverage record intact",
+          ["not-verified:attempted:unestablished:complete"],
+          workpad._review_coverage_payloads(_1984_noteonly))
+
 # The strip reads BOTH the current and the superseded reflection-bullet wording, so a bullet a
 # pre-#1510 code version wrote ("carried forward") is cleaned when a fresh record supersedes it —
 # otherwise a stale friction bullet would survive an upgrade and keep tripping the retrospective gate.
