@@ -100,7 +100,10 @@ extension was lost to compaction still reads a phase-file sentence sufficient to
 shape.
 
 - **The project's own test command** is `lib/test/run.sh` (the serial primitive) and, for the whole
-  suite, `lib/test/run-parallel.sh`; a focused surface uses `lib/test/run-module.sh <module-id>`.
+  suite, `lib/test/run-parallel.sh`; a focused surface uses `lib/test/run-module.sh <module-id>`, and
+  the `monolith` result named above is `lib/test/run-shard.sh monolith`. Select the whole-suite
+  coordinator only for the Phase 4.3 obligation — selecting it to iterate pays the whole-suite cost
+  twice in one run.
 - **The project's own relocation check** is `lib/test/pin-corpus-lint.py --reloc`, which turns a
   bare `ABSENT` pin into `relocated to <file>` and fails closed on a genuine deletion or an
   unresolvable search set. It has no direct-token grant on the cloud implement tier and
