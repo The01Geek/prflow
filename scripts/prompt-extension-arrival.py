@@ -150,25 +150,27 @@ def cmd_classify(args: argparse.Namespace) -> int:
     return EXIT_FAULT if state in _FAULT_TOKENS else EXIT_OK
 
 
-def _has_positive_arrival(body: str, marker: str) -> bool:
-    """A positive arrival record is a TICKED checkbox row carrying the marker — the
-    durable evidence the loaded body was contractually required to produce (AC6/AC7).
-    A `state not established` line carrying the marker is explicitly NOT positive."""
+def _scan_arrival(body: str, marker: str) -> str:
+    """One pass over the durable body, returning the strongest signal for the marker:
+
+    * ``positive`` — a TICKED checkbox row carrying the marker, the durable evidence the
+      loaded body was contractually required to produce (AC6/AC7);
+    * ``state-not-established`` — a line carrying the marker AND the ``state not
+      established`` sentinel (an explicitly non-positive self-report);
+    * ``none`` — no marker line, or an unticked one.
+
+    ``positive`` wins over ``state-not-established`` if both appear.
+    """
+    saw_state_not_established = False
     for line in body.splitlines():
         if marker not in line:
             continue
         if "state not established" in line:
+            saw_state_not_established = True
             continue
         if "[x]" in line or "[X]" in line:
-            return True
-    return False
-
-
-def _has_state_not_established(body: str, marker: str) -> bool:
-    for line in body.splitlines():
-        if marker in line and "state not established" in line:
-            return True
-    return False
+            return "positive"
+    return "state-not-established" if saw_state_not_established else "none"
 
 
 def _reconcile_record(skill: str, cause: str) -> str:
@@ -205,9 +207,10 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
             cause = "deliverable content was present but the run wrote no durable artifact to record its arrival"
         else:
             body = sys.stdin.read()
-            if _has_positive_arrival(body, args.arrival_marker):
+            signal = _scan_arrival(body, args.arrival_marker)
+            if signal == "positive":
                 final = FINAL_ARRIVED
-            elif _has_state_not_established(body, args.arrival_marker):
+            elif signal == "state-not-established":
                 final = FINAL_UNESTABLISHED
                 cause = "the run recorded 'state not established' for its arrival"
             else:
