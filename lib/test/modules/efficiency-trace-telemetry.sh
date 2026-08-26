@@ -7161,6 +7161,14 @@ RP_INERT2_ERR="$( ( cd "$RP_INERT2" && GITHUB_RUN_ID=4012 GITHUB_RUN_ATTEMPT=1 \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
 assert_eq "#2006 run-profile: with NEITHER operand set the floor stays silent" "yes" \
   "$(printf '%s' "$RP_INERT2_ERR" | grep -q 'run-profile floor' && echo no || echo yes)"
+# Positive control: silence must mean the floor declined, not that --persist died before
+# reaching it. The cost floor's own skeleton for the same run is the completion witness.
+( cd "$RP_INERT2" && GITHUB_RUN_ID=4013 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 run-profile: --persist DID complete on that run (silence is a decline, not a death)" "yes" \
+  "$(_et_on_branch "$RP_INERT2" ".prflow/logs/efficiency/pr-42-4013-1.json")"
+assert_eq "#2006 run-profile: and that completed run carries no run_profile key" "false" \
+  "$(_et_show "$RP_INERT2" ".prflow/logs/efficiency/pr-42-4013-1.json" | jq -r 'has("run_profile")')"
 rm -rf "$RP_INERT2"
 
 # ── #2006: prior_record_count counts IMPLEMENT records, as its name says ──────

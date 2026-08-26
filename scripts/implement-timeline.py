@@ -52,6 +52,10 @@ from workflow_flight_recorder import _timestamp_ms  # noqa: E402
 PHASE_PREFIX = "skills/implement/phases/"
 UNATTRIBUTED = "unattributed"
 
+# How many per-step rows the TEXT channel renders; a real implement transcript runs to
+# thousands of tool calls, and --json always carries every one.
+PER_STEP_RENDER_CAP = 200
+
 
 class ArtifactExpired(Exception):
     """The run's transcript artifact is gone — expired past retention, or never uploaded."""
@@ -118,11 +122,14 @@ def resolve_artifact_name(run_id: str, listing):
 
 
 def _list_run_artifacts(gh, run_id, repo):
-    """The run's artifact listing, or None when it could not be established."""
-    cmd = [gh, "api", f"repos/{{owner}}/{{repo}}/actions/runs/{run_id}/artifacts",
-           "--jq", ".artifacts"]
-    if repo:
-        cmd = [gh, "api", f"repos/{repo}/actions/runs/{run_id}/artifacts", "--jq", ".artifacts"]
+    """The run's artifact listing. Raises RuntimeError when it could not be established.
+
+    Paginated: a run with more artifacts than one page would otherwise resolve to no match
+    and be reported as an expired artifact, which is success-shaped.
+    """
+    slug = repo if repo else "{owner}/{repo}"
+    cmd = [gh, "api", "--paginate",
+           f"repos/{slug}/actions/runs/{run_id}/artifacts", "--jq", ".artifacts[]"]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True)
     except OSError as exc:
@@ -132,10 +139,16 @@ def _list_run_artifacts(gh, run_id, repo):
         if _classify_download_failure(detail) == "run-missing":
             raise RuntimeError(f"run {run_id} was not found in this repository: {detail}")
         raise RuntimeError(f"gh api artifacts failed (rc {proc.returncode}): {detail}")
-    try:
-        return json.loads(proc.stdout or "[]")
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"could not parse the artifact listing for run {run_id}: {exc}") from exc
+    items = []
+    for line in (proc.stdout or "").splitlines():
+        if not line.strip():
+            continue
+        try:
+            items.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"could not parse the artifact listing for run {run_id}: {exc}") from exc
+    return items
 
 
 def download_transcript(run_id: str, dest: Path, repo: str | None = None) -> Path:
@@ -338,8 +351,12 @@ def _render(timeline: dict) -> str:
     for tool, ms in sorted(timeline["activities"].items(), key=lambda kv: -kv[1]):
         out.append(f"  {ms / 1000:9.1f}s  {tool}")
     out.append("")
-    out.append(f"Per-step wall clock ({len(timeline['steps'])} step(s), in order)")
-    for index, step in enumerate(timeline["steps"], start=1):
+    steps = timeline["steps"]
+    shown = steps if len(steps) <= PER_STEP_RENDER_CAP else steps[:PER_STEP_RENDER_CAP]
+    out.append(f"Per-step wall clock ({len(steps)} step(s), in order"
+               + (f"; showing the first {PER_STEP_RENDER_CAP} — pass --json for all)"
+                  if len(shown) < len(steps) else ")"))
+    for index, step in enumerate(shown, start=1):
         duration = step["duration_ms"]
         rendered = (UNESTABLISHED if duration == UNESTABLISHED
                     else f"{duration / 1000:.1f}s")

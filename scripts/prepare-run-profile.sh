@@ -27,6 +27,18 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKPAD="$HERE/workpad.py"
 DERIVER="$HERE/derive-run-profile.py"
 
+# Echo a helper's captured diagnostic with builtins only. `sed` is not preflight-guaranteed,
+# and its absence would drop the very diagnostic this exists to surface; a `::`-leading line
+# is prefixed so the runner reads it as text rather than as a workflow command.
+_echo_captured() {
+  while IFS= read -r _line; do
+    case "$_line" in
+      ::*) printf '  |%s\n' "$_line" >&2 ;;
+      *)   printf '  %s\n' "$_line" >&2 ;;
+    esac
+  done < "$1"
+}
+
 ISSUE="${1:-}"
 OUT="${2:-}"
 
@@ -85,7 +97,7 @@ if [ "$BODY_RC" -ne 0 ]; then
   # Preserve the helper's own diagnostic: auth failure, rate limit, 404 and a parse failure
   # are different causes, and one causeless warning names none of them.
   echo "::warning::prepare-run-profile: workpad.py body exited $BODY_RC for comment $COMMENT_ID (issue $ISSUE); its own diagnostic follows, then no run profile is derived this run" >&2
-  sed "s/^::/  ::/" "$BODY_ERR" >&2
+  _echo_captured "$BODY_ERR"
   rm -f "$BODY_FILE" "$BODY_ERR" 2>/dev/null
   exit 0
 fi
@@ -103,7 +115,7 @@ if [ "$DERIVE_RC" -eq 0 ] && [ -s "$OUT" ]; then
   echo "devflow: prepare-run-profile: derived the run profile for issue $ISSUE from workpad comment $COMMENT_ID" >&2
 elif [ "$DERIVE_RC" -ne 0 ]; then
   echo "::warning::prepare-run-profile: derive-run-profile.py exited $DERIVE_RC for workpad comment $COMMENT_ID (issue $ISSUE); its own diagnostic follows, then no run profile is derived this run" >&2
-  sed "s/^::/  ::/" "$DERIVE_ERR" >&2
+  _echo_captured "$DERIVE_ERR"
   rm -f "$OUT" 2>/dev/null
 else
   echo "::warning::prepare-run-profile: derive-run-profile.py exited 0 but wrote an empty profile for workpad comment $COMMENT_ID (issue $ISSUE); no run profile derived this run" >&2

@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import re
 import sys
 import tempfile
 import types
@@ -327,7 +328,7 @@ class ReviewFindingsRound1(unittest.TestCase):
 
         def fake_run(cmd, **kwargs):
             if "api" in cmd:
-                return _Proc('[{"name": "claude-execution-transcript-123-1"}]')
+                return _Proc('{"name": "claude-execution-transcript-123-1"}\n')
             return _Proc("Downloading artifacts... no artifacts found in the other repo\n")
 
         with tempfile.TemporaryDirectory() as td:
@@ -341,10 +342,36 @@ class ReviewFindingsRound1(unittest.TestCase):
                 sp.run = real
         self.assertEqual(Path(path).name, "transcript.jsonl")
 
-    def test_an_absent_gh_binary_is_a_named_error_not_a_traceback(self):
+    def test_an_absent_gh_binary_on_the_LISTING_call_is_a_named_error(self):
         import subprocess as sp
 
         def fake_run(cmd, **kwargs):
+            raise OSError(2, "No such file or directory")
+
+        real = sp.run
+        sp.run = fake_run
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                with self.assertRaises(RuntimeError) as ctx:
+                    tl.download_transcript("123", Path(td))
+        finally:
+            sp.run = real
+        self.assertIn("could not run", str(ctx.exception))
+
+    def test_an_absent_gh_binary_on_the_DOWNLOAD_call_is_a_named_error(self):
+        """Raise only on the download call, so this exercises the download arm's own guard
+        rather than the listing arm's — a stub that raises for every call reaches only the
+        first and leaves the second untested."""
+        import subprocess as sp
+
+        class _Proc:
+            returncode = 0
+            stdout = '{"name": "claude-execution-transcript-123-1"}\n'
+            stderr = ""
+
+        def fake_run(cmd, **kwargs):
+            if "api" in cmd:
+                return _Proc()
             raise OSError(2, "No such file or directory")
 
         real = sp.run
@@ -386,10 +413,14 @@ class TextChannelRendersAllThreeViews(unittest.TestCase):
         self.assertIn("Per-phase wall clock", out)
         self.assertIn("Per-activity wall clock", out)
         self.assertIn("Per-step wall clock", out)
-        # Each step's own duration, not merely a count of steps.
-        self.assertIn("5.0s", out)   # the first Bash call
-        self.assertIn("10.0s", out)  # the second Bash call
-        self.assertIn("phase-1-setup.md", out)
+        # Assert the per-step ROW SHAPE — an ordinal, a duration, a tool and a phase on one
+        # line. A bare substring check is satisfied by the per-phase and per-activity rows,
+        # so it survives deleting the whole per-step loop.
+        rows = [ln for ln in out.splitlines()
+                if re.match(r"^\s+\d+\s+[\d.]+s\s+\w+\s+\S", ln)]
+        self.assertEqual(len(rows), 5, f"expected five per-step rows, got: {rows}")
+        self.assertRegex(rows[1], r"^\s+2\s+5\.0s\s+Bash\s+phase-1-setup\.md$")
+        self.assertRegex(rows[4], r"^\s+5\s+6\.0s\s+Read\s+phase-2-implement\.md$")
 
 
 

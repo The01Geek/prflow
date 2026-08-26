@@ -1586,7 +1586,7 @@ _floor_merge_key_staged() {
 # unreadable tree alike, so its empty output cannot distinguish a real zero from a failed
 # read — the exact fail-open this count must not inherit.
 _prior_implement_record_count() {
-  local root="$1" pr="$2" issue="$3" ident="$4" ref rel base blob _match n=0 rc=0 listing
+  local root="$1" pr="$2" issue="$3" ident="$4" ref rel base blob _match _class n=0 rc=0 listing
   ref="$(devflow_telemetry_ref)"
   git -C "$root" rev-parse --verify --quiet "$ref" >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 1 ]; then
@@ -1615,11 +1615,25 @@ _prior_implement_record_count() {
     [ "$_match" = yes ] || continue
     # A review or review-and-fix run on the same PR shares this key, so confirm the class
     # rather than counting it: the field names implement records specifically.
-    blob="$(devflow_telemetry_show_blob "$root" "$ref" "$rel")" || continue
-    [ -n "$blob" ] || continue
-    if printf '%s' "$blob" | "$DEVFLOW_JQ" -e '(.harness_cost.command? // "") == "implement"' >/dev/null 2>&1; then
-      n=$((n + 1))
+    if ! blob="$(devflow_telemetry_show_blob "$root" "$ref" "$rel")" || [ -z "$blob" ]; then
+      # An unreadable candidate leaves the count unestablished. Skipping it would print a
+      # decimal that silently omits a record this function could not classify.
+      printf 'unestablished\n'; return 0
     fi
+    # An implement record persisted with no cost operand carries no harness_cost at all, so
+    # the class is read from three positive signals; a candidate matching none of them is
+    # unclassifiable, not "some other class".
+    _class="$(printf '%s' "$blob" | "$DEVFLOW_JQ" -r '
+        if (.harness_cost.command? // null) == "implement" then "implement"
+        elif (.harness_cost.command? // null) != null then "other"
+        elif (.slug? // "") | startswith("issue-") then "implement"
+        elif (.run_profile.issue_number? // null) != null then "implement"
+        else "unknown" end' 2>/dev/null)" || _class=""
+    case "$_class" in
+      implement) n=$((n + 1)) ;;
+      other) : ;;
+      *) printf 'unestablished\n'; return 0 ;;
+    esac
   done <<EOF
 $listing
 EOF
@@ -1681,7 +1695,7 @@ apply_run_profile_floor() {
           final_status: (.final_status // "unestablished"),
           prior_record_count: $prior,
           issue_number: $issue,
-          engine_outcome: (if $outcome == "" then "unestablished" else $outcome end)}' 2>/dev/null)"; then
+          engine_outcome: (if ($outcome | IN("success","failure","cancelled","skipped")) then $outcome else "unestablished" end)}' 2>/dev/null)"; then
     echo "::warning::efficiency-trace.sh --persist: run-profile floor: could not assemble the run_profile object (jq failed); no floor write" >&2
     return 0
   fi
