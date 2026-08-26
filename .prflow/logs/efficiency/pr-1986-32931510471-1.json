@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1986",
+  "generated_at": "2026-08-26T04:55:46Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.46",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.99352775,
+    "tokens": {
+      "input_tokens": 22,
+      "output_tokens": 15149,
+      "cache_read_input_tokens": 1279814,
+      "cache_creation_input_tokens": 133757,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 90,
+        "outputTokens": 36842,
+        "cacheReadInputTokens": 3116603,
+        "cacheCreationInputTokens": 321942,
+        "webSearchRequests": 0,
+        "costUSD": 4.99352775,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 19,
+    "duration_ms": 408026
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "cd /home/runner/work/prflow/prflow; grep -n \"anchor-fallback-arm\\|anchor_fallback\" lib/test/test_python_scripts.py | head; echo \"=== green dir contents comparison ===\"; for d in docs docs-bootstrap-internal docs-bootstrap-external; do echo \"$d:\"; ls lib/test/fixtures/anchor-fallback-arm/green/skills/$d/ 2>/dev/null; done",
+      "cd /home/runner/work/prflow/prflow; echo \"green rc:\"; python3 lib/test/lint-anchor-fallback-arm.py --root lib/test/fixtures/anchor-fallback-arm/green >/dev/null 2>&1; echo $?; echo \"red rc:\"; python3 lib/test/lint-anchor-fallback-arm.py --root lib/test/fixtures/anchor-fallback-arm/red >/dev/null 2>&1; echo $?"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
