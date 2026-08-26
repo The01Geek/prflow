@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1990",
+  "generated_at": "2026-08-26T07:30:21Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.50",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.431825250000001,
+    "tokens": {
+      "input_tokens": 40,
+      "output_tokens": 27646,
+      "cache_read_input_tokens": 3118760,
+      "cache_creation_input_tokens": 210561,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 104,
+        "outputTokens": 67995,
+        "cacheReadInputTokens": 5318203,
+        "cacheCreationInputTokens": 685236,
+        "webSearchRequests": 0,
+        "costUSD": 9.431825250000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 33,
+    "duration_ms": 670252
+  },
+  "permission_denials": {
+    "count": 1,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-} ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\""
+    ],
+    "total": 1,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
