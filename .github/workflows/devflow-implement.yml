@@ -2305,7 +2305,18 @@ jobs:
           CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
         run: |
           set +e
-          [ -n "${EXPECTED:-}" ] || { echo "prompt-extension-arrival: no pre-agent expectation recorded; nothing to reconcile"; exit 0; }
+          if [ -z "${EXPECTED:-}" ]; then
+            # No pre-agent expectation recorded — the classify step failed or was skipped.
+            # When the agent step itself succeeded, that gap disabled the whole check, so
+            # fail closed rather than exit clean; when the job is already non-green, there
+            # is nothing to enforce.
+            if [ "$CLAUDE_OUTCOME" = "success" ]; then
+              echo "::error::prompt-extension-arrival: the pre-agent classify step recorded no expectation, so the post-agent arrival check could not run on a run the agent reported successful — refusing to treat it as clean."
+              exit 1
+            fi
+            echo "prompt-extension-arrival: no pre-agent expectation and claude outcome '${CLAUDE_OUTCOME:-unknown}' (already non-green); nothing to reconcile"
+            exit 0
+          fi
           if [ "$EXPECTED" = "absent" ]; then
             echo "prompt-extension-arrival: implement extension absent (a clean consumer state); Complete permitted"
             exit 0
@@ -2340,24 +2351,45 @@ jobs:
             fi
             exit 0
           fi
-          # A workpad exists. If its Status is already non-Complete, the unestablished
+          # A workpad exists. Read its Status, failing CLOSED on a read that did not
+          # establish the Status — workpad.py status exits 0 (Status read), 1 (Status
+          # missing/empty/unrecognized), 2 (workpad disappeared), 3 (gh/transport/auth).
+          # Only exit 0 establishes the Status; every non-zero read is unknown-is-not-zero,
+          # so it must fail closed here rather than be reinterpreted as "not Complete" — a
+          # transport/auth failure reading the Status is exactly the fail-open path this
+          # surface exists to close.
+          STATUS_LINE="$(python3 "$W" status "$ISSUE_NUMBER" 2>/dev/null)"; STATUS_RC=$?
+          if [ "$STATUS_RC" != 0 ]; then
+            fail_closed "could not read the workpad Status (workpad.py status exit $STATUS_RC) to confirm the run is not claiming Complete"
+            exit 1
+          fi
+          # Status established. If it is already non-Complete, the unestablished-terminal
           # criterion (a lost load must merely not report Complete) is already satisfied.
-          STATUS_LINE="$(python3 "$W" status "$ISSUE_NUMBER" 2>/dev/null)"
           case "$STATUS_LINE" in
             *Complete*) : ;;
             *) echo "prompt-extension-arrival: workpad Status is not Complete ('${STATUS_LINE:-unknown}'); the unestablished-terminal criterion is already satisfied"; exit 0 ;;
           esac
-          BODY="$(python3 "$W" body "$WID" 2>/dev/null)"
+          # Status reads Complete: reconcile arrival against the durable body, failing
+          # closed if the body could not be read (an unreadable body cannot establish
+          # arrival — unknown is not zero).
+          BODY="$(python3 "$W" body "$WID" 2>/dev/null)"; BODY_RC=$?
+          if [ "$BODY_RC" != 0 ]; then
+            fail_closed "the workpad reads Complete but its body could not be read (workpad.py body exit $BODY_RC) to confirm the extension arrived"
+            exit 1
+          fi
           OUT="$(printf '%s' "$BODY" | python3 "$H" reconcile --expected "$EXPECTED" --arrival-marker 'extension resolved: implement' --durable-source workpad --skill implement)"
           echo "$OUT"
           FINAL="${OUT#final=}"; FINAL="${FINAL%% *}"
-          if [ "$FINAL" = "unestablished" ]; then
+          # Block unless reconcile positively returned arrived or absent. An empty or
+          # unrecognized FINAL (reconcile crashed, exited on a bad token, or was refused)
+          # is unestablished, never clean — the allow-list shape the no-workpad arm uses.
+          if [ "$FINAL" != "arrived" ] && [ "$FINAL" != "absent" ]; then
             REC="$(printf '%s\n' "$OUT" | sed -n 's/^record=//p')"
-            fail_closed "${REC:-the implement skill body / extension did not arrive}"
+            fail_closed "${REC:-the implement skill body / extension did not arrive (reconcile returned '${FINAL:-no parseable result}')}"
             # Force the durable non-arrival record onto the workpad and flip Status OFF
             # Complete (best-effort; the ::error:: + non-zero exit already fails the job).
             python3 "$W" update "$ISSUE_NUMBER" --status Blocked --reflection-kind blocked --reflection "${REC:-prompt-extension arrival unestablished (implement) — the skill body / consumer extension did not reach the agent}" || echo "::warning::prompt-extension-arrival: could not write the durable non-arrival record / flip Status off Complete"
             exit 1
           fi
-          echo "prompt-extension-arrival: implement extension arrival reconciled: ${FINAL:-unknown}"
+          echo "prompt-extension-arrival: implement extension arrival reconciled: $FINAL"
           exit 0

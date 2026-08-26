@@ -82,8 +82,11 @@ def _validate_skill(name: str) -> None:
 
 
 def _git_root() -> str:
-    """The repo root the fallback branch anchors on, mirroring
-    ``load-prompt-extension.sh``: ``git rev-parse --show-toplevel``, else the cwd."""
+    """The repo root the fallback branch anchors on, like
+    ``load-prompt-extension.sh``'s fallback: ``git rev-parse --show-toplevel``, else the
+    cwd. (The ladder additionally reads a superseded ``.devflow/`` when no ``.prflow/``
+    exists; this detector composes the canonical ``.prflow/`` root only — inert on any
+    tree that carries ``.prflow/``, including the cloud implement tier.)"""
     try:
         out = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -100,8 +103,9 @@ def _git_root() -> str:
 
 
 def _resolve_ext_dir(root_arg: str | None) -> str:
-    """Resolve the extension DIRECTORY exactly as ``load-prompt-extension.sh`` does, so
-    the detector and the delivery channel read the same root (AC8).
+    """Resolve the extension DIRECTORY the way ``load-prompt-extension.sh`` does, so the
+    detector and the delivery channel read the same root (AC8) — see ``_git_root`` for
+    the one canonical-vs-transitional caveat on the git-root fallback.
 
     Precedence, honoring the DEVFLOW_* convention (honored when set and non-empty):
     an explicit ``--root``, else ``DEVFLOW_PROMPT_EXTENSION_ROOT``. Either names the
@@ -206,6 +210,14 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
             final = FINAL_UNESTABLISHED
             cause = "deliverable content was present but the run wrote no durable artifact to record its arrival"
         else:
+            # An empty marker would match every line (``marker not in line`` never true),
+            # so any ticked row would read as a positive arrival — a fail-open. Require it.
+            if not args.arrival_marker:
+                sys.stderr.write(
+                    "prompt-extension-arrival.py: --arrival-marker is required to scan a "
+                    "durable body (an empty marker would match every row)\n"
+                )
+                return EXIT_BADARGS
             body = sys.stdin.read()
             signal = _scan_arrival(body, args.arrival_marker)
             if signal == "positive":
