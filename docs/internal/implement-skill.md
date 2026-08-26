@@ -1073,6 +1073,31 @@ matcher-denied on cloud, where the recap rides in the runner log instead). The r
 preserves `run.sh`'s exit status, so `scripts/verification-flight.py` still records
 `failed` for a RED suite; on a clean run nothing extra prints.
 
+## Changed-file advisory lint: `preflight.py lint-changed` / `lint-full` (issue #1389)
+
+The changed-file lint layer from #1276 lets a run lint **exactly what it changed with the invocation each file needs**, so the PR #1888 class of miss — a special-invocation file linted with the wrong form, or not at all — stops reaching CI. It ships as two `scripts/preflight.py` subcommands that delegate to the `scripts/lint_changed.py` sibling module (kept out of `preflight.py` so its git-enumeration, base64url, selection, and receipt machinery does not bloat the Phase 1 preflight surface).
+
+**Invocation contract — one direct-leading-token form on every tier.** Both subcommands are invoked as a **direct leading token** — the vendored literal `.prflow/vendor/prflow/scripts/preflight.py lint-changed` (or `lint-full`) on cloud, `scripts/preflight.py …` locally — never `python3 <path>` (the cloud matcher denies that interpreter head) and never a `bash` wrapper. This is the single tier-correct executable contract stated identically in `.prflow/prompt-extensions/implement.md`'s "Changed-file lint" block and `skills/implement/phases/phase-3-review.md` §3.0, reconciling the former wrapper guidance with Phase 3's direct-token rule so the two prompt surfaces no longer disagree. `preflight.py` is already a granted leading token in the implement profile, so no new capability grant is needed. Optional flags: `--manifest` (pass the trigger-time **validated** manifest artifact rather than the candidate-edited working-tree copy), `--base`, `--run-id`, `--run-attempt`.
+
+- `lint-changed` runs focused advisory lint over the changed population selected through the validated manifest.
+- `lint-full` runs the repository-wide shell and Python profiles from the same manifest.
+
+**Advisory, never terminal.** Per #1276's trust model, in-session lint results are **advisory feedback, never terminal completion evidence** — they discharge no completion gate. A ShellCheck or Ruff absent from PATH is a **named non-success** recorded in the receipt (`outcome: tool-absent`), not an install to attempt (provisioning is #1388's scope).
+
+**The changed population** is the NUL-safe union of typed records from committed merge-base→HEAD, staged, unstaged, and untracked git enumerations (`git diff --raw -z --find-renames --find-copies` over the three diff domains plus `ls-files --others --exclude-standard -z`), over the closed record vocabulary add/modify/delete/rename/copy/mode/type/symlink/submodule. Final-state eligibility governs execution: deleted paths and rename/copy **sources** are examined but not run; eligible **destinations** run once; symlinks and submodules are never executed and carry a typed skip reason (`symlink-not-executed`, `submodule-not-executed`).
+
+**Three distinct population outcomes**, so a fail-closed enumeration is never laundered into a clean empty result:
+
+- `established-nonempty` — records to lint.
+- `established-empty` — nothing changed.
+- `unestablished` — a specific fail-closed reason (`missing-base-ref`, `head-unresolved`, `no-merge-base` on shallow history, `diff-failed`, `malformed-status`, `untracked-failed`, `concurrent-mutation` when HEAD moves mid-enumeration), returning exit `LINT_UNESTABLISHED` (2), never a plausible-but-unobserved empty. The `Population` type couples its record set and reason to the status so these three cannot be confused.
+
+**Canonical path identity is unpadded base64url of the raw path bytes** (`b64url` / `unb64url`, the same idiom `workpad.py` uses), carried beside a **display-only** text field that participates in no identity, dedupe, hashing, or selection decision — so invalid-UTF-8, tab, and newline path bytes round-trip producer → JSON → store without identity loss.
+
+**Manifest-driven selection with special-invocation routing.** Invocations are assembled by trusted code from typed fields, reading the manifest's closed selector and `special_invocations` rules. A path a special invocation claims is linted by that invocation **alone** and is absent from every broad selector's population — so a changed `lib/test/run.sh` takes its dedicated `--extended-analysis=false` special invocation and appears in no broad shell invocation. Assembled argv always places an end-of-options `--` **before the first selected path** (`[tool, *flags, "--", *paths]`), so a file named like a value-taking option (`--exclude=x.py`) reaches the tool as a path rather than an option.
+
+**Atomic receipts.** Each invocation writes exactly one receipt under `.prflow/tmp/lint/<run-id>/<attempt>/<op>-<seq>.json` (run-id/attempt default from `$GITHUB_RUN_ID`/`$GITHUB_RUN_ATTEMPT`), carrying the full recorded field set: run/attempt/operation, manifest and helper provenance, tool versions, canonical byte paths, examined and selected populations, argv, timeout, exit, skips, duration, and outcome. `<seq>` is a monotonic per-directory sequence minted under an exclusive `flock`, and the file is created with `O_CREAT|O_EXCL` — a duplicate `<op>-<seq>` or a pre-existing path is refused as a named non-success (`ReceiptError`), never a silent overwrite.
+
 ## PR-body composition: two writers and the provenance line (issue #1655)
 
 A `/prflow:implement` PR body has **two distinct writers**, and both must be understood together

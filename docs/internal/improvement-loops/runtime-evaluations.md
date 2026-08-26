@@ -31,8 +31,8 @@ Prompt size, delivered context, and model behavior are related but not identical
 - `scripts/workflow_flight_recorder.py` — transcript and workflow evidence.
 - `scripts/prompt-surface-growth.py` — prompt-surface measurement.
 - `lib/test/` evaluation guards and fixtures — reproducibility checks.
-- `docs/internal/skill-body-load-delivery.md` — skill delivery evidence.
-- `docs/internal/implement-context.md` and `docs/internal/review-and-fix-split-wording-study.md` — detailed studies.
+- [`docs/internal/skill-body-load-delivery.md`](../skill-body-load-delivery.md) — skill delivery evidence.
+- [`docs/internal/implement-context.md`](../implement-context.md) and [`docs/internal/review-and-fix-split-wording-study.md`](../review-and-fix-split-wording-study.md) — detailed studies.
 
 ## Controlled create-issue benchmark workflow
 
@@ -89,4 +89,4 @@ Quality is reported before efficiency. Each pair passes quality only when its ca
 
 - [Skill loading](../skills/skill-loading.md)
 - [Efficiency telemetry](efficiency-telemetry.md)
-- [Workflow flight recorder](workflow-flight-recorder.md)
+- [Workflow flight recorder](workflow-flight-recorder-overview.md)

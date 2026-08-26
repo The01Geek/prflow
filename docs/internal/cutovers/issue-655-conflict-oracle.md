@@ -5,6 +5,8 @@ kind: growth
 
 # Issue #655 — the artifact registry as the merge-conflict oracle
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 ## Files
 
 `.prflow/prompt-extensions/review-and-fix.md` and

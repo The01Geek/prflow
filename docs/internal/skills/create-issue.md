@@ -115,7 +115,7 @@ The obsolete `step-3-6-audit.md` size exemption was removed from `lib/test/refer
 - `skills/create-issue/references/fallback-no-task-tool.md` — the inline checklist fallback and its state-file mirror.
 - `scripts/check-verified-premises.py` and `scripts/parse-acs.py` — verified-premise and acceptance-criteria handling.
 - `scripts/render-pr-provenance-line.py` — shared renderer of the provenance signature (`--command /prflow:create-issue`), gated by `prflow.publish_model_effort`.
-- `docs/internal/create-issue-context.md` — runtime context and evaluation evidence.
+- [`docs/internal/create-issue-context.md`](../create-issue-context.md) — runtime context and evaluation evidence.
 
 ## Related topics
 
