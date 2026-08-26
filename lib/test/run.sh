@@ -54894,6 +54894,180 @@ elif [ -n "$RSZ_NF_REAL" ]; then
   printf '%s\n' "$RSZ_NF_REAL" | rsz_nf_render
 fi
 
+# ── #1745 brand-cased DevFlow bucket reconciliation (lib/test/lint-brand-devflow-sweep.py) ──
+# Every brand-cased 'DevFlow' occurrence in the tracked tree is classified into a recorded
+# bucket; the lint fails closed BOTH ways — an unclassified/new occurrence and a stale
+# assignment each turn RED. Drive the exit code and finding lines, not the prose.
+echo "#1745 brand-devflow sweep: every brand-cased DevFlow occurrence stays classified, fail-closed both ways"
+BDS_LINT="$LIB/test/lint-brand-devflow-sweep.py"
+BDS_FX="$(git_sandbox '#1745 fixture repo')"
+python3 - "$BDS_FX" <<'BDS_BUILD'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+def w(rel, body):
+    p = root / rel; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(body, encoding="utf-8")
+w("docs/keep.md", "DevFlow is great and DevFlow ships.\n")          # 2 pending prose
+w(".prflow/learnings/x.jsonl", '{"note":"DevFlow ran"}\n')          # frozen-record
+w("CHANGELOG.md", "## old\nDevFlow did a thing\n")                  # frozen-historical
+w("lib/scan.sh", "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n")  # 1 frozen value + 1 pending
+w("lib/classify-pr-kind.jq", 'select(.label == "DevFlow")\n')      # frozen-provenance VALUE only, NOT baselined
+w(".changeset/issue-9.md", "a DevFlow changeset consumed on merge\n")  # transient (excluded)
+w(".changeset/README.md", "DevFlow changesets readme\n")              # transient exception -> pending 1
+w("lib/test/fake-tool.py", "BRAND = 'DevFlow'  # the tooling literal\n")  # frozen-tooling
+buckets = {"schema_version": 1,
+  "frozen": {"transient_prefixes": [".changeset/"], "transient_exceptions": [".changeset/README.md"],
+             "record_prefixes": [".prflow/learnings/", ".prflow/logs/"],
+             "historical_files": ["CHANGELOG.md"], "tooling_files": ["lib/test/fake-tool.py"],
+             "provenance": [{"file": "lib/scan.sh"}, {"file": "lib/classify-pr-kind.jq"}]},
+  "pending_sweep_baseline": [{"path": ".changeset/README.md"},
+                             {"path": "docs/keep.md"}, {"path": "lib/scan.sh"}]}
+w("lib/test/brand-devflow-buckets.json", json.dumps(buckets, indent=2) + "\n")
+subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_BUILD
+bds_run() { local out rc; out="$(python3 "$BDS_LINT" --root "$1" 2>&1)"; rc=$?; printf 'rc=%s|%s' "$rc" "$out"; }
+bds_has() { case "$2" in *"$1"*) echo yes ;; *) echo no ;; esac; }
+bds_stage() { git -C "$BDS_FX" add -A; }
+
+# A fully-classified tree is clean; frozen buckets are covered without a baseline row.
+BDS_CLEAN="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a fully-classified tree is clean" "rc=0" "${BDS_CLEAN%%|*}"
+assert_eq "#1745 a frozen record path needs no baseline row" "no" "$(bds_has "learnings/x.jsonl" "$BDS_CLEAN")"
+# classify-pr-kind.jq's only DevFlow is the quoted provenance VALUE and it is NOT baselined, so
+# the forward guard must not demand it as unclassified — assert absence of the lint's real
+# forward-finding string (a regression routing the value to pending would emit exactly this).
+assert_eq "#1745 a frozen-provenance value is not demanded as unclassified" "no" "$(bds_has "lib/classify-pr-kind.jq: brand-cased 'DevFlow' in a file with no pending_sweep_baseline entry" "$BDS_CLEAN")"
+assert_eq "#1745 a frozen-tooling file needs no baseline entry" "no" "$(bds_has "fake-tool.py" "$BDS_CLEAN")"
+# Growth inside a frozen bucket stays green (frozen buckets are not count-bounded) — a new
+# CHANGELOG entry mentioning DevFlow must not re-red.
+printf '## old\nDevFlow one\nDevFlow two\nDevFlow three\n' > "$BDS_FX/CHANGELOG.md"; bds_stage
+assert_eq "#1745 growth inside a frozen bucket stays green" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+printf '## old\nDevFlow did a thing\n' > "$BDS_FX/CHANGELOG.md"; bds_stage
+# A transient changeset (deleted by version-consolidate on merge) is excluded, never demanded
+# as unclassified — and its README exception stays pending, proving the exception fires.
+assert_eq "#1745 a transient changeset needs no baseline row" "no" "$(bds_has "changeset/issue-9.md" "$BDS_CLEAN")"
+# Deleting the transient changeset (the merge-time behavior) must NOT fire a stale-row RED —
+# the reverse-direction false-RED-on-main defect the shadow caught.
+rm -f "$BDS_FX/.changeset/issue-9.md"; bds_stage
+assert_eq "#1745 deleting a transient changeset does not fire a stale-row RED" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+# A malformed bucket record is a fail-closed read error (exit 2), never a vacuous pass.
+printf 'not json {' > "$BDS_FX/bad-buckets.json"
+BDS_BAD_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/bad-buckets.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a malformed bucket record fails closed with exit 2" "2" "$BDS_BAD_RC"
+rm -f "$BDS_FX/bad-buckets.json"
+# A structurally-valid record with a wrong SHAPE also fails closed with exit 2 (a specific
+# breadcrumb), never an uncaught KeyError/TypeError traceback (adversarial-parser convention):
+# a missing 'frozen' object, and a sub-row missing its 'file'/'path' key.
+printf '{"schema_version": 1, "pending_sweep_baseline": []}' > "$BDS_FX/nofrozen.json"
+BDS_NF_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/nofrozen.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a record missing the 'frozen' object fails closed with exit 2" "2" "$BDS_NF_RC"
+printf '{"schema_version": 1, "frozen": {"provenance": [{"detail": "no file key"}]}, "pending_sweep_baseline": []}' > "$BDS_FX/badrow.json"
+BDS_BR_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badrow.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a provenance row missing its 'file' key fails closed with exit 2" "2" "$BDS_BR_RC"
+# The twin: a pending_sweep_baseline row missing its 'path' key is the sibling shape guard;
+# it fails closed with exit 2 too (a refactor regressing it would otherwise raise an uncaught
+# KeyError with the suite staying green).
+printf '{"schema_version": 1, "frozen": {"provenance": []}, "pending_sweep_baseline": [{"note": "no path key"}]}' > "$BDS_FX/badpending.json"
+BDS_BP_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badpending.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a pending row missing its 'path' key fails closed with exit 2" "2" "$BDS_BP_RC"
+# A list-valued frozen key given a JSON string (not a list of strings) also fails closed with
+# exit 2 (else startswith would iterate characters and silently misclassify).
+printf '{"schema_version": 1, "frozen": {"provenance": [], "record_prefixes": "not-a-list"}, "pending_sweep_baseline": []}' > "$BDS_FX/badlist.json"
+BDS_BL_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badlist.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a list-valued frozen key given a JSON string fails closed with exit 2" "2" "$BDS_BL_RC"
+# The 'provenance'/'pending_sweep_baseline' containers themselves given a SCALAR (not a list)
+# also fail closed with the clean exit-2 breadcrumb, never an uncaught TypeError from enumerate().
+# A NON-iterable scalar (7), not a string: a string is iterated char-by-char and rejected by the
+# downstream row-shape check, so it exits 2 even with the guard removed (vacuous). An int forces
+# the TypeError the guard prevents, so removing the guard reds this assertion.
+printf '{"schema_version": 1, "frozen": {"provenance": 7}, "pending_sweep_baseline": []}' > "$BDS_FX/scalarprov.json"
+BDS_SP_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/scalarprov.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a scalar 'provenance' fails closed with exit 2 (not a TypeError)" "2" "$BDS_SP_RC"
+printf '{"schema_version": 1, "frozen": {"provenance": []}, "pending_sweep_baseline": 7}' > "$BDS_FX/scalarpending.json"
+BDS_SPB_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/scalarpending.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a scalar 'pending_sweep_baseline' fails closed with exit 2 (not a TypeError)" "2" "$BDS_SPB_RC"
+rm -f "$BDS_FX/nofrozen.json" "$BDS_FX/badrow.json" "$BDS_FX/badpending.json" "$BDS_FX/badlist.json" "$BDS_FX/scalarprov.json" "$BDS_FX/scalarpending.json"
+
+# --print-population emits one line per bucket per file; a provenance file with both a
+# frozen value and a pending remainder emits the dual line pair (the documented contract).
+BDS_POP="$(python3 "$BDS_LINT" --root "$BDS_FX" --print-population 2>&1)"
+assert_eq "#1745 --print-population reports a pending file at its count" "yes" \
+  "$(bds_has "$(printf 'pending\tdocs/keep.md\t2')" "$BDS_POP")"
+assert_eq "#1745 --print-population emits a provenance file's pending line" "yes" \
+  "$(bds_has "$(printf 'pending\tlib/scan.sh\t1')" "$BDS_POP")"
+assert_eq "#1745 --print-population emits a provenance file's frozen line (dual emit)" "yes" \
+  "$(bds_has "$(printf 'frozen-provenance\tlib/scan.sh\t1')" "$BDS_POP")"
+
+# --update-baseline reseeds the pending baseline from the tree; on an already-reconciled
+# clean tree it is idempotent (rewrites the same file set) and the reconciliation stays green.
+BDS_RESEED="$(python3 "$BDS_LINT" --root "$BDS_FX" --update-baseline 2>&1)"; BDS_RESEED_RC=$?
+assert_eq "#1745 --update-baseline exits 0 and reports a reseed" "rc=0" \
+  "$([ "$BDS_RESEED_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s' "$BDS_RESEED_RC")"
+assert_eq "#1745 --update-baseline names the reseeded file count" "yes" \
+  "$(bds_has "reseeded pending_sweep_baseline with 3 file(s)" "$BDS_RESEED")"
+assert_eq "#1745 an idempotent reseed leaves the reconciliation green" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+
+# An unreadable tracked file fails the reconciliation CLOSED: a dangling symlink read_bytes
+# cannot follow is skipped, so its DevFlow occurrences escape classification and the run goes
+# RED (chmod 000 is unreliable under a root CI uid, so a dangling symlink is the portable probe).
+ln -s nonexistent-target "$BDS_FX/docs/dangling.md"; bds_stage
+BDS_SKIP="$(bds_run "$BDS_FX")"
+assert_eq "#1745 an unreadable tracked file fails the suite closed" "rc=1" "${BDS_SKIP%%|*}"
+assert_eq "#1745 the finding names the unreadable file" "yes" \
+  "$(bds_has "docs/dangling.md: unreadable tracked file" "$BDS_SKIP")"
+rm -f "$BDS_FX/docs/dangling.md"; bds_stage
+
+# AC3: a currently-clean file (no baseline entry) that gains renameable DevFlow fails the suite.
+printf 'a new DevFlow prose line\n' > "$BDS_FX/docs/new.md"; bds_stage
+BDS_NEW="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a new file with renameable DevFlow fails the suite" "rc=1" "${BDS_NEW%%|*}"
+assert_eq "#1745 the finding names the new unclassified file" "yes" \
+  "$(bds_has "docs/new.md: brand-cased 'DevFlow' in a file with no pending_sweep_baseline entry" "$BDS_NEW")"
+rm -f "$BDS_FX/docs/new.md"; bds_stage
+
+# Churn-robustness (the count-drift Critical fix): adding MORE DevFlow to an ALREADY-pending
+# file stays GREEN — reconciliation is per-file presence, not exact count, so a concurrent
+# clean-textual merge on a hot-spot file cannot red the required check on main.
+printf 'DevFlow one DevFlow two DevFlow three DevFlow four\n' > "$BDS_FX/docs/keep.md"; bds_stage
+assert_eq "#1745 adding DevFlow to an already-pending file does not re-red (presence, not count)" "rc=0" \
+  "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+printf 'DevFlow is great and DevFlow ships.\n' > "$BDS_FX/docs/keep.md"; bds_stage
+
+# A stale baseline entry (its file fully swept) fails the suite.
+printf 'all swept now to PRFlow\n' > "$BDS_FX/docs/keep.md"; bds_stage
+BDS_STALE="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a stale baseline entry fails the suite" "rc=1" "${BDS_STALE%%|*}"
+assert_eq "#1745 the finding names the stale entry" "yes" "$(bds_has "docs/keep.md: stale pending_sweep_baseline entry" "$BDS_STALE")"
+printf 'DevFlow is great and DevFlow ships.\n' > "$BDS_FX/docs/keep.md"; bds_stage
+
+# A stale frozen-provenance entry (its value moved/removed) fails the suite.
+printf '# all PRFlow prose now, no value\n' > "$BDS_FX/lib/scan.sh"; bds_stage
+BDS_PROV="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a stale frozen-provenance entry fails the suite" "rc=1" "${BDS_PROV%%|*}"
+assert_eq "#1745 the finding names the stale provenance entry" "yes" "$(bds_has "lib/scan.sh: stale frozen-provenance entry" "$BDS_PROV")"
+printf "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n" > "$BDS_FX/lib/scan.sh"; bds_stage
+
+# Provenance-drain steady-state: a provenance file that loses only its prose remainder (keeping
+# the frozen value) fires a stale-baseline RED (its pending row is now empty) while the
+# frozen-provenance guard stays green (the value still matches).
+printf "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# all other prose swept to PRFlow\n" > "$BDS_FX/lib/scan.sh"; bds_stage
+BDS_DRAIN="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a drained provenance file fires a stale-baseline entry" "yes" \
+  "$(bds_has "lib/scan.sh: stale pending_sweep_baseline entry" "$BDS_DRAIN")"
+assert_eq "#1745 a drained provenance file's frozen value stays green (no stale-provenance)" "no" \
+  "$(bds_has "lib/scan.sh: stale frozen-provenance entry" "$BDS_DRAIN")"
+printf "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n" > "$BDS_FX/lib/scan.sh"; bds_stage
+
+# Real-tree gate: the tree stays fully classified as it stands.
+BDS_REAL="$(python3 "$BDS_LINT" 2>&1)"; BDS_REAL_RC=$?
+assert_eq "#1745 the real-tree bucket reconciliation is clean as the tree stands" "rc=0" \
+  "$([ "$BDS_REAL_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$BDS_REAL_RC" "$BDS_REAL")"
+assert_eq "#1745 the real-tree audit covered a positive number of files" "yes" \
+  "$(printf '%s' "$BDS_REAL" | python3 -c 'import re,sys
+m = re.search(r"audited (\d+) of", sys.stdin.read())
+print("yes" if m and int(m.group(1)) > 0 else "no")')"
+
 # ── issue #1621: ruff Python-lint gate (monolith-shard-resident) ─────────────
 # Rationale and scope: docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, the #1621 paragraph.
 # Do not swap this execution probe for `command -v`: a present-but-unrunnable ruff

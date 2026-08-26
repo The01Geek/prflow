@@ -1,0 +1,541 @@
+{
+  "schema_version": 1,
+  "_comment": "Bucket classification of the brand-cased 'DevFlow' occurrences in the tracked tree (issue #1745). Read and reconciled by lib/test/lint-brand-devflow-sweep.py, whose module docstring is the source of truth for the bucket semantics and the presence-not-count rationale. 'frozen' records the never-swept occurrences; 'pending_sweep_baseline' is the grandfathered renameable set (PATHS only) drained by the follow-up sweep — reseed it with '--update-baseline'; do not hand-edit it.",
+  "frozen": {
+    "transient_prefixes": [
+      ".changeset/"
+    ],
+    "transient_exceptions": [
+      ".changeset/README.md"
+    ],
+    "record_prefixes": [
+      ".prflow/learnings/",
+      ".prflow/logs/"
+    ],
+    "historical_files": [
+      "CHANGELOG.md"
+    ],
+    "tooling_files": [
+      "lib/test/brand-devflow-buckets.json",
+      "lib/test/lint-brand-devflow-sweep.py"
+    ],
+    "provenance": [
+      {
+        "file": "lib/scan.sh",
+        "detail": "PROVENANCE_LABEL_SUPERSEDED='DevFlow'"
+      },
+      {
+        "file": "lib/classify-pr-kind.jq",
+        "detail": "any(. == \"PRFlow\" or . == \"DevFlow\")"
+      },
+      {
+        "file": "lib/fetch-pr-context.sh",
+        "detail": "any(. == \"PRFlow\" or . == \"DevFlow\")"
+      },
+      {
+        "file": "lib/rename-map.json",
+        "detail": "identifiers[].superseded == \"DevFlow\""
+      }
+    ]
+  },
+  "pending_sweep_baseline": [
+    {
+      "path": ".changeset/README.md"
+    },
+    {
+      "path": ".github/actions/read-project-config/action.yml"
+    },
+    {
+      "path": ".github/actions/vendor-plugin/action.yml"
+    },
+    {
+      "path": ".github/actions/vendor-plugin/vendor-slice.sh"
+    },
+    {
+      "path": ".github/workflows/agents-seam-probe.yml"
+    },
+    {
+      "path": ".github/workflows/devflow-implement.yml"
+    },
+    {
+      "path": ".github/workflows/devflow-runner.yml"
+    },
+    {
+      "path": ".github/workflows/devflow.yml"
+    },
+    {
+      "path": ".github/workflows/matcher-probe.yml"
+    },
+    {
+      "path": ".github/workflows/stall-observer.yml"
+    },
+    {
+      "path": ".github/workflows/telemetry-push.yml"
+    },
+    {
+      "path": ".github/workflows/version-consolidate.yml"
+    },
+    {
+      "path": ".gitignore"
+    },
+    {
+      "path": ".prflow/config.schema.json"
+    },
+    {
+      "path": ".prflow/prompt-extensions/create-issue.md"
+    },
+    {
+      "path": ".prflow/prompt-extensions/create-issue.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-bootstrap-external.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-bootstrap-internal.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-release-notes.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-sync-external.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-sync-internal.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-verify.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/implement.md"
+    },
+    {
+      "path": ".prflow/prompt-extensions/implement.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/init.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/pr-description.md"
+    },
+    {
+      "path": ".prflow/prompt-extensions/pr-description.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/receiving-code-review.md"
+    },
+    {
+      "path": ".prflow/prompt-extensions/receiving-code-review.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/requesting-code-review.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/retrospective-audit.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/retrospective-weekly.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/retrospective.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/review-and-fix.md"
+    },
+    {
+      "path": ".prflow/prompt-extensions/review-and-fix.md.example"
+    },
+    {
+      "path": ".prflow/prompt-extensions/review.md"
+    },
+    {
+      "path": ".prflow/prompt-extensions/review.md.example"
+    },
+    {
+      "path": ".prflow/tool-presets.json"
+    },
+    {
+      "path": "CLAUDE.md"
+    },
+    {
+      "path": "README.md"
+    },
+    {
+      "path": "agents/deferral-drafter.md"
+    },
+    {
+      "path": "docs/external/docs/getting-started/initialization.md"
+    },
+    {
+      "path": "docs/external/docs/getting-started/installation.md"
+    },
+    {
+      "path": "docs/external/docs/getting-started/migrate-from-devflow.md"
+    },
+    {
+      "path": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"
+    },
+    {
+      "path": "docs/internal/claude-md-extension-audit-coupled-sites.md"
+    },
+    {
+      "path": "docs/internal/claude-md-relocated-rationale.md"
+    },
+    {
+      "path": "docs/internal/cloud-setup.md"
+    },
+    {
+      "path": "docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md"
+    },
+    {
+      "path": "docs/internal/glossary.md"
+    },
+    {
+      "path": "docs/internal/implement-skill.md"
+    },
+    {
+      "path": "docs/internal/index.md"
+    },
+    {
+      "path": "docs/internal/install.md"
+    },
+    {
+      "path": "docs/internal/naming.md"
+    },
+    {
+      "path": "docs/internal/shadow-review.md"
+    },
+    {
+      "path": "install.sh"
+    },
+    {
+      "path": "lib/capability-profiles.json"
+    },
+    {
+      "path": "lib/classify-pr-kind.jq"
+    },
+    {
+      "path": "lib/dispatch-disposition.jq"
+    },
+    {
+      "path": "lib/efficiency-trace.sh"
+    },
+    {
+      "path": "lib/fetch-pr-context.sh"
+    },
+    {
+      "path": "lib/generate-capability-profiles.py"
+    },
+    {
+      "path": "lib/generate-plugin-identity.py"
+    },
+    {
+      "path": "lib/implement-stop-guard.sh"
+    },
+    {
+      "path": "lib/meta-issue.sh"
+    },
+    {
+      "path": "lib/migrate-config-values.py"
+    },
+    {
+      "path": "lib/plugin-identity.json"
+    },
+    {
+      "path": "lib/plugin_identity.py"
+    },
+    {
+      "path": "lib/preflight.sh"
+    },
+    {
+      "path": "lib/rename-map.json"
+    },
+    {
+      "path": "lib/render-report.sh"
+    },
+    {
+      "path": "lib/resolve-bin.sh"
+    },
+    {
+      "path": "lib/resolve-gh.sh"
+    },
+    {
+      "path": "lib/resolve-jq.sh"
+    },
+    {
+      "path": "lib/resolve-python.sh"
+    },
+    {
+      "path": "lib/scan.sh"
+    },
+    {
+      "path": "lib/telemetry-branch.sh"
+    },
+    {
+      "path": "lib/test/fixtures/FAILED-prcomments.json"
+    },
+    {
+      "path": "lib/test/fixtures/issue-304-body.md"
+    },
+    {
+      "path": "lib/test/fixtures/shipped-pruned-path/slices/comment-apostrophe.sh"
+    },
+    {
+      "path": "lib/test/fixtures/skill-body-load-transcript.observed.txt"
+    },
+    {
+      "path": "lib/test/lint-shipped-pruned-path.py"
+    },
+    {
+      "path": "lib/test/lint-subagent-extension-handoff.py"
+    },
+    {
+      "path": "lib/test/module-harness.sh"
+    },
+    {
+      "path": "lib/test/modules/create-issue-contract.sh"
+    },
+    {
+      "path": "lib/test/modules/efficiency-trace-telemetry.sh"
+    },
+    {
+      "path": "lib/test/modules/experiment-records.sh"
+    },
+    {
+      "path": "lib/test/modules/installer-wiring.sh"
+    },
+    {
+      "path": "lib/test/modules/regenerate-artifacts.inventory.md"
+    },
+    {
+      "path": "lib/test/modules/regenerate-artifacts.sh"
+    },
+    {
+      "path": "lib/test/modules/retrospective-lifecycle.sh"
+    },
+    {
+      "path": "lib/test/modules/review-stall-backstop.sh"
+    },
+    {
+      "path": "lib/test/modules/review-trigger-helpers.sh"
+    },
+    {
+      "path": "lib/test/modules/tier1-rename-migration.sh"
+    },
+    {
+      "path": "lib/test/modules/workpad-cli.sh"
+    },
+    {
+      "path": "lib/test/pin-corpus-lint.py"
+    },
+    {
+      "path": "lib/test/run.sh"
+    },
+    {
+      "path": "lib/test/summary.sh"
+    },
+    {
+      "path": "lib/test/test_pin_corpus_lint.py"
+    },
+    {
+      "path": "lib/test/test_python_scripts.py"
+    },
+    {
+      "path": "lib/test/test_verification_baseline.py"
+    },
+    {
+      "path": "lib/test/test_workflow_flight_recorder.py"
+    },
+    {
+      "path": "requirements.txt"
+    },
+    {
+      "path": "scripts/analyze-workflow-runs.py"
+    },
+    {
+      "path": "scripts/apply-labels.sh"
+    },
+    {
+      "path": "scripts/authorize-actor.sh"
+    },
+    {
+      "path": "scripts/build-experiment-records.py"
+    },
+    {
+      "path": "scripts/check-verified-premises.py"
+    },
+    {
+      "path": "scripts/config-get.sh"
+    },
+    {
+      "path": "scripts/consolidate-changesets.py"
+    },
+    {
+      "path": "scripts/decide-verdict-gap-job-status.sh"
+    },
+    {
+      "path": "scripts/dedupe-review-command.sh"
+    },
+    {
+      "path": "scripts/discover-deferral-manifests.py"
+    },
+    {
+      "path": "scripts/emit-git-env.sh"
+    },
+    {
+      "path": "scripts/extract-execution-shape.sh"
+    },
+    {
+      "path": "scripts/file-deferrals.py"
+    },
+    {
+      "path": "scripts/gh-fresh.sh"
+    },
+    {
+      "path": "scripts/harden-stop-hooks.sh"
+    },
+    {
+      "path": "scripts/install-gh-wrapper.sh"
+    },
+    {
+      "path": "scripts/lint_manifest.py"
+    },
+    {
+      "path": "scripts/load-prompt-extension.sh"
+    },
+    {
+      "path": "scripts/loop-verdict-marker.py"
+    },
+    {
+      "path": "scripts/match-deferrals.py"
+    },
+    {
+      "path": "scripts/match-lint-adjudications.py"
+    },
+    {
+      "path": "scripts/normalize-verdicts.py"
+    },
+    {
+      "path": "scripts/post-review-backstop-comment.sh"
+    },
+    {
+      "path": "scripts/pretooluse-shape-guard.py"
+    },
+    {
+      "path": "scripts/prompt-surface-growth.py"
+    },
+    {
+      "path": "scripts/provision-auto-mode.sh"
+    },
+    {
+      "path": "scripts/provision-local-settings.sh"
+    },
+    {
+      "path": "scripts/provision-python3-shim.sh"
+    },
+    {
+      "path": "scripts/publish-release.sh"
+    },
+    {
+      "path": "scripts/react-to-trigger.sh"
+    },
+    {
+      "path": "scripts/refresh-app-credentials.sh"
+    },
+    {
+      "path": "scripts/render-grounding-block.sh"
+    },
+    {
+      "path": "scripts/resolve-command-trigger.sh"
+    },
+    {
+      "path": "scripts/resolve-committer-identity.sh"
+    },
+    {
+      "path": "scripts/resolve-existing-pr.sh"
+    },
+    {
+      "path": "scripts/resolve-extra-plugins.sh"
+    },
+    {
+      "path": "scripts/resolve-implement-trigger.sh"
+    },
+    {
+      "path": "scripts/resolve-review-overrides.py"
+    },
+    {
+      "path": "scripts/scaffold-config.sh"
+    },
+    {
+      "path": "scripts/stale-prose-lint.py"
+    },
+    {
+      "path": "scripts/summarize-ci-checks.sh"
+    },
+    {
+      "path": "scripts/surface-execution-diagnostics.sh"
+    },
+    {
+      "path": "scripts/update-branch-checkpoint.sh"
+    },
+    {
+      "path": "scripts/version_pins.py"
+    },
+    {
+      "path": "scripts/workflow-flight-recorder-registry.json"
+    },
+    {
+      "path": "scripts/workflow_flight_recorder.py"
+    },
+    {
+      "path": "scripts/workpad.py"
+    },
+    {
+      "path": "skills/create-issue/references/step-4-present-create.md"
+    },
+    {
+      "path": "skills/implement/SKILL.md"
+    },
+    {
+      "path": "skills/implement/phases/phase-2-implement.md"
+    },
+    {
+      "path": "skills/implement/phases/phase-3-fix-loop.md"
+    },
+    {
+      "path": "skills/implement/phases/phase-3-review.md"
+    },
+    {
+      "path": "skills/init/SKILL.md"
+    },
+    {
+      "path": "skills/receiving-code-review/SKILL.md"
+    },
+    {
+      "path": "skills/requesting-code-review/SKILL.md"
+    },
+    {
+      "path": "skills/retrospective-weekly/SKILL.md"
+    },
+    {
+      "path": "skills/retrospective/SKILL.md"
+    },
+    {
+      "path": "skills/review-and-fix/references/loop-exit.md"
+    },
+    {
+      "path": "skills/review-and-fix/references/shadow-review.md"
+    },
+    {
+      "path": "skills/review/SKILL.md"
+    },
+    {
+      "path": "skills/review/phases/phase-0-setup.md"
+    },
+    {
+      "path": "skills/review/phases/phase-4-verdict.md"
+    }
+  ]
+}
