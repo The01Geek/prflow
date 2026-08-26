@@ -112,6 +112,11 @@ ENROLLED: tuple[tuple[str, str], ...] = (
     # as the four #1432 rows above, so the vendored-literal-first arm must stay present.
     ("skills/docs-bootstrap-internal/SKILL.md",
      "load-prompt-extension.sh docs-bootstrap-internal"),
+    # Enrolled with the docs-audit ledger pass: docs-sync-external's preflight defers to
+    # this skill, so it is reachable inside implement Phase 4.1's docs subagent, which
+    # receives no $CLAUDE_SKILL_DIR — the vendored-literal-first arm must stay present.
+    ("skills/docs-bootstrap-external/SKILL.md",
+     "load-prompt-extension.sh docs-bootstrap-external"),
     # Enrolled with the docs-router hardening pass: the router runs inside implement
     # Phase 4.1's docs subagent, which receives no $CLAUDE_SKILL_DIR — the same
     # unresolvable-anchor case as the #1432 rows — so its extension load carries the
