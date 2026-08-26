@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1995",
+  "generated_at": "2026-08-26T10:13:17Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.52",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.875499199999998,
+    "tokens": {
+      "input_tokens": 86,
+      "output_tokens": 56696,
+      "cache_read_input_tokens": 7587783,
+      "cache_creation_input_tokens": 271985,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 172,
+        "outputTokens": 89682,
+        "cacheReadInputTokens": 10045199,
+        "cacheCreationInputTokens": 767611,
+        "webSearchRequests": 0,
+        "costUSD": 13.083021999999994,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 138,
+        "outputTokens": 19647,
+        "cacheReadInputTokens": 2849906,
+        "cacheCreationInputTokens": 810300,
+        "webSearchRequests": 0,
+        "costUSD": 2.7924772,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 84,
+    "duration_ms": 980134
+  },
+  "permission_denials": {
+    "count": 16,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run_id=${GITHUB_RUN_ID:-<empty>} attempt=${GITHUB_RUN_ATTEMPT:-<empty>} actions=${GITHUB_ACTIONS:-<empty>}\"",
+      "for f in scripts/analyze-workflow-runs.py scripts/apply-labels.sh scripts/build-experiment-records.py scripts/check-verified-premises.py scripts/decide-verdict-gap-job-status.sh scripts/dedupe-review-command.sh scripts/discover-deferral-manifests.py scripts/emit-git-env.sh scripts/extract-execution-shape.sh scripts/file-deferrals.py scripts/load-prompt-extension.sh scripts/match-deferrals.py scripts/match-lint-adjudications.py scripts/pretooluse-shape-guard.py scripts/prompt-surface-growth.py sc …[per-command-truncated]",
+      "for ref in scripts/match-deferrals.py scripts/provision-local-settings.sh scripts/emit-git-env.sh scripts/resolve-implement-trigger.sh; do echo \"== $ref ==\"; git show 1721a55735847306bff219a6734139f84b396e21:\"$ref\" | grep -n 'DevFlow' || echo \"(none)\"; done",
+      "for f in scripts/analyze-workflow-runs.py scripts/apply-labels.sh scripts/emit-git-env.sh scripts/workflow_flight_recorder.py scripts/resolve-review-overrides.py scripts/stale-prose-lint.py; do\necho \"=== $f ===\"\ngit show 1721a55735847306bff219a6734139f84b396e21:$f | grep -n \"DevFlow\" \ndone",
+      "for f in scripts/build-experiment-records.py scripts/check-verified-premises.py scripts/decide-verdict-gap-job-status.sh scripts/dedupe-review-command.sh scripts/discover-deferral-manifests.py scripts/extract-execution-shape.sh scripts/file-deferrals.py scripts/load-prompt-extension.sh scripts/match-deferrals.py scripts/match-lint-adjudications.py scripts/pretooluse-shape-guard.py scripts/prompt-surface-growth.py scripts/provision-local-settings.sh scripts/react-to-trigger.sh scripts/resolve-com …[per-command-truncated]",
+      "mkdir -p .prflow/tmp ; rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled ; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before ; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "for f in analyze-workflow-runs.py apply-labels.sh build-experiment-records.py check-verified-premises.py decide-verdict-gap-job-status.sh dedupe-review-command.sh discover-deferral-manifests.py emit-git-env.sh extract-execution-shape.sh file-deferrals.py load-prompt-extension.sh match-deferrals.py match-lint-adjudications.py pretooluse-shape-guard.py prompt-surface-growth.py provision-local-settings.sh react-to-trigger.sh resolve-command-trigger.sh resolve-existing-pr.sh resolve-implement-trigge …[per-command-truncated]",
+      "cd /tmp && rm -rf pr1995 && mkdir pr1995 && cd pr1995\nfor f in scripts/analyze-workflow-runs.py scripts/apply-labels.sh scripts/build-experiment-records.py scripts/check-verified-premises.py scripts/decide-verdict-gap-job-status.sh scripts/dedupe-review-command.sh scripts/discover-deferral-manifests.py scripts/emit-git-env.sh scripts/extract-execution-shape.sh scripts/file-deferrals.py scripts/load-prompt-extension.sh scripts/match-deferrals.py scripts/match-lint-adjudications.py scripts/pretool …[per-command-truncated]",
+      "for f in scripts/analyze-workflow-runs.py scripts/apply-labels.sh scripts/build-experiment-records.py scripts/check-verified-premises.py scripts/decide-verdict-gap-job-status.sh scripts/dedupe-review-command.sh scripts/discover-deferral-manifests.py scripts/emit-git-env.sh scripts/extract-execution-shape.sh scripts/file-deferrals.py scripts/load-prompt-extension.sh scripts/match-deferrals.py scripts/match-lint-adjudications.py scripts/pretooluse-shape-guard.py scripts/prompt-surface-growth.py sc …[per-command-truncated]",
+      "cat > /tmp/chk.sh <<'EOF'\ncd /home/runner/work/prflow/prflow\nSHA=1721a55735847306bff219a6734139f84b396e21\nfor f in scripts/analyze-workflow-runs.py scripts/apply-labels.sh scripts/build-experiment-records.py scripts/check-verified-premises.py scripts/decide-verdict-gap-job-status.sh scripts/dedupe-review-command.sh scripts/discover-deferral-manifests.py scripts/emit-git-env.sh scripts/extract-execution-shape.sh scripts/file-deferrals.py scripts/load-prompt-extension.sh scripts/match-deferrals.py …[per-command-truncated]",
+      "bash /tmp/chk.sh",
+      "bash /tmp/chk.sh",
+      "git cat-file -t 1721a55735847306bff219a6734139f84b396e21 2>&1; git worktree add --detach /tmp/wt-head 1721a55735847306bff219a6734139f84b396e21 2>&1 | tail -3",
+      "git worktree add --detach /tmp/wt-head 1721a55735847306bff219a6734139f84b396e21 2>&1 | tail -3",
+      "git worktree add --detach /tmp/wt-head 1721a55735847306bff219a6734139f84b396e21",
+      "git worktree add --detach /tmp/wt-head 1721a55735847306bff219a6734139f84b396e21"
+    ],
+    "total": 16,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
