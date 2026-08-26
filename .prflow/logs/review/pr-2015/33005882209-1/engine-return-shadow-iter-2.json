@@ -1,0 +1,76 @@
+{
+  "root_completeness": "complete",
+  "verdict": "APPROVE",
+  "report": "Shadow re-review of PR #2015 (adds Step 8.5 suite-runtime profiling pass and Step 8.6 ceiling tripwire to skills/retrospective-weekly/SKILL.md, plus changeset). Fanned-out roster of the always-on four dispatched from fresh context, blinded (prior findings = none, full diff, no focus clause). All three acceptance criteria from issue #2010 are satisfied: AC1 (profiling step runs lib/test/profile-suite.py --with-modules, ranks sections/labels/assertions, files targeted follow-ups), AC2 (tripwire reads latest run-parallel: elapsed from CI logs, compares to 85% of BASH_MAX_TIMEOUT_MS read live from devflow-implement.yml, files/annotates a maintenance issue with named reading+threshold and one-sentence rationale, dedups fail-closed on the exact title), AC3 (non-goal stated with reason; nothing gates on duration). Load-bearing facts verified against tree: profile-suite.py + --with-modules flag, apply-labels.sh, post-issue-comment.sh, run-parallel: elapsed line (run-parallel.sh:654), BASH_MAX_TIMEOUT_MS=1200000 (devflow-implement.yml:1653). Integer arithmetic correct (elapsed_s*100000 > 85*ceiling_ms == elapsed_ms > 0.85*ceiling_ms; THRESHOLD_S=1020s). Fail-closed gh-query routing, empty-URL guards, and numeric case-validation all confirmed sound. pruned-path-ok markers valid. No Critical or Important findings surfaced by any reviewer. All findings are Minor/Suggestion and non-blocking. Verdict: APPROVE.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Minor",
+      "description": "Step 8.6 has no cheap 'not the PRFlow suite' early-skip (unlike Step 8.5's [ -f lib/test/profile-suite.py ] guard). In a consumer install lib/test/run-parallel.sh is pruned, so the step is inert but still fetches up to 15 full `gh run view --log` outputs each weekly run before concluding 'unknown'. Suggest gating the reading loop on [ -f lib/test/run-parallel.sh ].",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": "1073-1080", "kind": "efficiency-inert-in-consumer"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Minor",
+      "description": "Annotate arm unconditionally echoes 'recorded new reading on the open maintenance issue #$OPEN' after post-issue-comment.sh, which always exits 0 and reports failure only via a stderr breadcrumb. If the POST silently fails, the reading is dropped while stdout (scraped by Step 9's status report) asserts it was recorded. Route the echo on the helper's own exit status, matching the create arm.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": "1129-1130", "kind": "silent-failure-reported-success"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Minor",
+      "description": "Both steps echo 'Step 8.x filed: $URL' unconditionally after apply-labels.sh, which also always exits 0 (breadcrumb-only on failure), so a failed PRFlow label application is swallowed and a filed issue can silently lack its provenance label. Consistent with the repo-wide best-effort-labels convention; acceptable as-is, tighten by surfacing exit status if desired.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": "1036-1037,1135-1136", "kind": "silent-failure-label-swallowed"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Minor",
+      "description": "Both data extractions are grep-coupled to exact literal shapes in other files (run-parallel.sh printf, devflow-implement.yml settings JSON) with no verifiable signal. A reword of either producer makes the grep return empty, routing to OVER=unknown 'not established' indefinitely (fail-closed but invisible) so the tripwire silently dies exactly when needed. No mechanical fix for agent prose; note the coupling. CEILING_MS grep additionally not anchored against a future comment adopting the quoted-JSON shape (tail -1 would pick file-order-last).",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": "1076,1086", "kind": "unverifiable-signal-coupling"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Minor",
+      "description": "Prose says the coordinator prints one `run-parallel: elapsed <N>s` line 'per cloud run'; per CLAUDE.md a single run can launch the coordinator twice, so a run log can carry multiple lines. Code is already robust (grep | tail -1, break on first run). Prose-vs-code accuracy nit; suggest softening to 'at least one ... line per cloud run that launched the coordinator; take the last'.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": "1071-1077", "kind": "prose-inaccuracy-nonbug"}
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "Steps roll their own gh issue create + hand-written dedup instead of the hardened lib/meta-issue.sh path the rest of the skill uses. Create guard is only [ -n \"$URL\" ] vs meta-issue.sh's issue-URL-shape validation; a gh create exiting 0 with non-URL output would pass a non-numeric token to apply-labels.sh (contained, since apply-labels validates numeric). Also the only bare-gh invocations in the skill (bypass resolve-gh.sh shim rejection). Consider reusing meta-issue.sh or matching its URL-shape guard.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": "1034-1037,1132-1136", "kind": "weaker-guard-vs-established-path"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Change adds ~163 lines to a skill root already over the reference-size ceiling and carried under an expiring exemption (reference-size-exemptions.json, recorded 83427 bytes; file now ~80524). Growth stays under the recorded snapshot so the lint passes, but moves the file away from the expiry the exemption exists to reach. Inline is defensible (retrospective-weekly is monolithic, no phase bundle); worth a conscious note.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": "989-1152", "kind": "reference-size-growth"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Changeset body closes with (#2015) while the filename and task reference issue #2010. Fine if #2015 is the PR number; confirm it is not a transposition. (Non-comment observation, flagged by multiple reviewers.)",
+      "defect_signature": {"file": ".changeset/issue-2010-suite-runtime-profiling-tripwire.md", "line_range": "11", "kind": "reference-number-consistency"}
+    }
+  ],
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "files_changed": 2,
+    "insertions": 170,
+    "deletions": 0,
+    "surfaces": ["skills/retrospective-weekly/SKILL.md", ".changeset/issue-2010-suite-runtime-profiling-tripwire.md"],
+    "diff_kind": "agent-executed skill prose (bash-in-markdown) + changeset",
+    "new_types": false,
+    "new_test_files": false,
+    "gated_out_reviewers": ["prflow:type-design-analyzer", "prflow:pr-test-analyzer"],
+    "gate_reason": "config-only prose diff with no new types and no test files"
+  },
+  "cap_drops": [],
+  "per_reviewer_assessment": [
+    {"agent": "prflow:code-reviewer", "returned": true},
+    {"agent": "prflow:silent-failure-hunter", "returned": true},
+    {"agent": "prflow:comment-analyzer", "returned": true},
+    {"agent": "prflow:requesting-code-review", "returned": true}
+  ]
+}

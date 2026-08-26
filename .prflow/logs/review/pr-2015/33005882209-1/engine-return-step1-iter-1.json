@@ -1,0 +1,74 @@
+{
+  "root_completeness": "established",
+  "verdict": "REJECT",
+  "report": "## Verdict: REJECT (Step 8.5 describes `profile-suite.py run` as a \"diagnostic full-suite launch\", but that invocation profiles the monolith shard only — a diff-added claim false against HEAD, which is a non-demotable self-contradicting-diff carve-out; plus four Important silent-failure defects in the two new filing/dedup paths.)\n\n## Issue Compliance\nReviewed against issue #2010: weekly retrospective suite-runtime profiling + ceiling tripwire — criteria from caller-supplied override; scope unchanged. Writing-skills evidence gate: a four-slot `Writing-skills evidence:` marker is confirmed present on issue #2010's workpad (skill-loaded / guidance-applied / pressure-scenario / micro-tests), discharging the prompt-surface-edit routing gate for the `skills/**` change.\n\n## Diff classification\nengine_self_modifying (config_only also set; small_diff false, has_new_types false, detect_all_audit false) → full Phase 1+2 checklist (checklist_skipped=null); Phase 3 roster gated to the always-on four (type-design-analyzer skipped: no new types; pr-test-analyzer skipped: docs/config-only diff with no test-file change).\n\n## Code Review Findings\n\n### 🟠 Important / Major\n1. Step 8.5 frames `lib/test/profile-suite.py run` as a \"diagnostic full-suite launch\" that profiles \"the test suite that already exists\", but `run` with neither a `-- CMD` nor `--with-modules` sets DEVFLOW_SKIP_SUITE_MODULES=1 and DEVFLOW_SKIP_PYTHON_POOL=1 (profile-suite.py:449-458) — i.e. it profiles the CI `monolith` shard only, excluding the module tier and the pooled Python suites. The tool's own usage banner calls this \"profile the monolith shard\"; `--with-modules` is the flag that \"profile[s] a FULL run\". So the prose is false against HEAD (documented_falsehood), and the offender ranking systematically omits every module-tier section/label/assertion, under-satisfying issue #2010's \"ranks slowest sections/labels/assertions ... files targeted follow-up issues for top offenders\". Remedy: invoke `run --with-modules`, or correct the prose to say it profiles the monolith shard and scope the claim accordingly. (raised by 1/4 agents) [self-contradicting-diff carve-out: skills/retrospective-weekly/SKILL.md]\n2. Step 8.5's `gh issue create` (and Step 8.6's identical shape) is unguarded: `URL=\"$(gh issue create ...)\"` is used immediately by `apply-labels.sh \"${URL##*/}\"` and echoed as \"filed\" without checking creation succeeded. On an API failure `URL` is empty, `${URL##*/}` passes an empty issue-number to apply-labels.sh, and the run reports a filing that never happened — a silent failure surfaced as success. Every other side-effecting step in this skill guards its writes; these two are the outlier. (raised by 1/4 agents)\n3. Step 8.5 and Step 8.6 dedup reads (`EXISTING=$(gh issue list ...)` / `OPEN=$(gh issue list ...)`) cannot distinguish an API-query failure from \"nothing open\": a transient `gh issue list` failure yields empty and takes the \"none open → file\" branch, defeating the stated dedup intent and fail-OPEN into a duplicate filing. A dedup guard should fail closed (skip filing) on an unestablished query. (raised by 1/4 agents)\n\n### 🟡 Suggestion / Minor\n1. Step 8.6's elapsed-figure extraction assumes the coordinator's `run-parallel: elapsed <N>s` line surfaces in `gh run view --log`; if claude-code-action does not forward that bash-tool stdout into the Actions job log, the grep is empty for every run and the tripwire silently never fires (fail-open reading as \"no breach\"). Worth confirming against a real devflow-implement.yml run log. The numeric case-guard fails closed on garbage, but not on a systematically-empty read. (raised by 1/4 agents)\n2. The elapsed-reading loop / log pipeline (`gh run view --log 2>/dev/null | grep | tail | grep`) cannot distinguish a gh outage from \"no run logged the line\" — both yield ELAPSED_S=\"\". This fails safely (OVER=unknown, no filing), but a one-line \"could not read any run log\" breadcrumb on loop exhaustion would make the outage case observable. (raised by 1/4 agents)\n\n### ✅ Verified correct (not defects)\n- `scripts/apply-labels.sh` and `scripts/post-issue-comment.sh` exist with matching positional signatures; the label-via-REST / comment-via-REST gotchas are honored; `gh issue create` is the same mechanism `lib/meta-issue.sh` already uses.\n- `$LIB` resolves correctly (`<skill-dir>/../../lib`), matching every other call site; `${URL##*/}` builtin, the `in:title` tokenized re-match via `jq env.TITLE`/`env.MARKER`, and the integer arithmetic (`ELAPSED_S*100000 > 85*CEILING_MS`; `THRESHOLD_S=85*CEILING_MS/100000` → 1020s for a 1200000ms ceiling) are all correct.\n- `BASH_MAX_TIMEOUT_MS` regex matches the live workflow (`\"BASH_MAX_TIMEOUT_MS\": \"1200000\"`) and reads the ceiling by name rather than copying the number.\n- Numeric `case` guards genuinely fail closed; both steps only read figures and file/annotate issues — neither gates a run on suite duration, satisfying the AC's central non-goal.\n- `pruned-path-ok` markers are the correct HTML form in prose and shell form inside bash fences for all `lib/test/` references.\n- Added inline comments live inside fenced bash blocks in a skill PROSE body — outside the four populations the prevention-only comment standard binds — and every comment's factual claim checks out against HEAD.\n\n## Verdict Criteria\n- Threshold-independent self-contradicting-diff carve-out fires on finding Important-1 (a diff-added doc line false against HEAD) → REJECT at every verdict_severity_threshold, non-demotable, corroboration-independent.\n- truthfulness sweep: one finding promoted/confirmed (Important-1, verified false against HEAD via profile-suite.py:449-458).\n- intra-diff contradiction scan: no additional contradicting pair found.\n- over-grade annotation: no finding flagged (Important-1 is a genuine documented_falsehood on shipped/executed skill prose, not behavior-inert; the two silent-failure Important findings carry real fail-open/false-success directions).\n- At the default `critical` threshold the four Important findings do not themselves drive REJECT (rule 3 fires on Critical only), but the carve-out already drives REJECT; the fix loop should still address findings 1-3 (Important).",
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "Step 8.5 calls `lib/test/profile-suite.py run` a \"diagnostic full-suite launch\", but that invocation profiles the monolith shard only (DEVFLOW_SKIP_SUITE_MODULES=1 + DEVFLOW_SKIP_PYTHON_POOL=1 at profile-suite.py:449-458); the tool banner says 'profile the monolith shard' and --with-modules is the full run. False against HEAD (documented_falsehood) and omits the module tier from the offender ranking the AC requires.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": [41, 47], "kind": "documented_falsehood"},
+      "corroboration_count": 1,
+      "fix_decision": "fix"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Step 8.5 unguarded `gh issue create`: empty URL on API failure feeds an empty issue number to apply-labels.sh and prints a false 'filed' success.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": [1030, 1033], "kind": "unhandled_exception"},
+      "corroboration_count": 1,
+      "fix_decision": "fix"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Step 8.6 unguarded `gh issue create` (same shape as Step 8.5): false success + empty issue number to apply-labels.sh on API failure.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": [1125, 1127], "kind": "unhandled_exception"},
+      "corroboration_count": 1,
+      "fix_decision": "fix"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Step 8.5 dedup read cannot distinguish a failed `gh issue list` query from 'nothing open'; a transient query failure fails OPEN into a duplicate filing. Should fail closed.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": [1028, 1030], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "fix_decision": "fix"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Step 8.6 dedup read (same shape) fails OPEN on a failed `gh issue list`, filing a duplicate maintenance issue instead of annotating the open one.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": [1116, 1125], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "fix_decision": "fix"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Step 8.6 assumes `run-parallel: elapsed <N>s` surfaces in `gh run view --log`; if bash-tool stdout is not forwarded to the Actions job log the tripwire silently never fires (fail-open as 'no breach'). Confirm against a real run log.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": [98, 106], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "fix_decision": "defer"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Elapsed-reading loop cannot distinguish a gh outage from 'no run logged the line'; both yield empty (fails safe: OVER=unknown, no filing). A breadcrumb on loop exhaustion would make the outage observable.",
+      "defect_signature": {"file": "skills/retrospective-weekly/SKILL.md", "line_range": [1067, 1071], "kind": "other"},
+      "corroboration_count": 1,
+      "fix_decision": "defer"
+    }
+  ],
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {"count": 0, "by_category": {}}
+}

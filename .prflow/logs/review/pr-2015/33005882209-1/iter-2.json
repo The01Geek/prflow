@@ -1,0 +1,167 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-26T20:16:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Step 8.6 annotate arm echoes 'recorded new reading' unconditionally after post-issue-comment.sh (always exits 0); the helper's own stderr breadcrumb still surfaces a POST failure",
+      "defect_signature": {
+        "file": "skills/retrospective-weekly/SKILL.md",
+        "line_range": [
+          1129,
+          1130
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Step 8.5 bare `profile-suite.py run --with-modules` propagates the child suite's exit status on a real FAIL; benign for a diagnostic run",
+      "defect_signature": {
+        "file": "skills/retrospective-weekly/SKILL.md",
+        "line_range": [
+          1013,
+          1013
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-26T20:22:00Z",
+    "reviewed_sha": "a986f7b107490f5273e1ccb779914559ae3e9a3c",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Minor",
+        "description": "Step 8.6 annotate arm echoes success unconditionally after post-issue-comment.sh",
+        "defect_signature": {
+          "file": "skills/retrospective-weekly/SKILL.md",
+          "line_range": [
+            1129,
+            1130
+          ],
+          "kind": "other"
+        }
+      },
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Suggestion",
+        "description": "Step 8.6 lacks a cheap 'not the PRFlow suite' early-skip; a consumer install fetches up to 15 gh run logs before concluding inert",
+        "defect_signature": {
+          "file": "skills/retrospective-weekly/SKILL.md",
+          "line_range": [
+            1073,
+            1080
+          ],
+          "kind": "other"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 8,
+      "overlap_with_iter_N": 2,
+      "new": 6,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
