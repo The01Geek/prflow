@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.51] — 2026-08-26
+
+### Fixed
+- **Close the two review-coverage self-excuse holes at the workpad `Complete` gate (#1990).** `scripts/workpad.py` now refuses a `--record-review-coverage` write whose `dispatch` is `attempted` and whose roster is a measured value unless per-member `--record-roster-member` rows corroborate that the always-on reviewers were dispatched (`[review-coverage-dispatch-uncorroborated]`), and `--review-coverage-disposition` takes a middle `<cause-class>` operand drawn from a closed vocabulary — `environment-denial` (corroborated by a recorded `missing` roster row) or `dispatched-but-lost`. A budget or elective cause is not in that vocabulary, so a run that dropped a review component to save budget, or judged its partial pass adequate, can no longer record a disposition and stops at `Blocked` (`[review-coverage-cause-inadmissible]`).
+
 ## [2.34.50] — 2026-08-26
 
 ### Fixed
