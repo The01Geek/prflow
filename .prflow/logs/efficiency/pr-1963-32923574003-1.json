@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1963",
+  "generated_at": "2026-08-26T02:51:27Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.37",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.362190399999998,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 36650,
+      "cache_read_input_tokens": 2783622,
+      "cache_creation_input_tokens": 189524,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 53,
+        "outputTokens": 70911,
+        "cacheReadInputTokens": 3017300,
+        "cacheCreationInputTokens": 390852,
+        "webSearchRequests": 0,
+        "costUSD": 6.435229999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 102,
+        "outputTokens": 12290,
+        "cacheReadInputTokens": 2053332,
+        "cacheCreationInputTokens": 557276,
+        "webSearchRequests": 0,
+        "costUSD": 1.926960400000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 56,
+    "duration_ms": 587463
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "D=.prflow/tmp/review/pr-1963/32923574003-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-1.patch\" | grep -c '^diff --git'\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-2.patch\" | grep -c '^diff --git'\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-3.patch\" | grep -c '^diff --git'",
+      "mkdir -p .prflow/tmp/review/pr-1963/32923574003-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1963/32923574003-1/verdicts/iter-1/b1-VC-1-n7a2.json <<'EOF'\n{\"id\":\"b1-VC-1\",\"verdict\":\"PASS\",\"evidence\":\"provision-lint-tools.sh:87-88 calls install_state.py verify --state --manifest and strips ${ready#NOT-READY }, matching install_state.py's verify subcommand (scripts/install_state.py:348-350,388-389) which prints 'NOT-READY <reason>' and returns exit code 2 on failure.\",\"file_checked\":\"scripts/insta …[per-command-truncated]",
+      "\nfor p in \".prflow/lint-manifest.json\" \"scripts/lint_manifest.py\" \"scripts/lint_provision.py\" \"scripts/install_state.py\" \".github/actions/setup-project-env/action.yml\" \".github/actions/setup-project-env/provision-lint-tools.sh\" \".github/workflows/devflow-implement.yml\"; do\n  echo \"$p: $(git show 64c4be4d16043e3e9b15f99035b8e6f17ab56edd:\"$p\" | sha256sum | cut -d' ' -f1)\"\ndone"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
