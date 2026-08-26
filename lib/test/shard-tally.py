@@ -538,7 +538,7 @@ def _established_fingerprint(text: str) -> dict | None:
     """Parse `text` as an established five-field fingerprint, else None."""
     try:
         obj = json.loads(text)
-    except (ValueError, json.JSONDecodeError):
+    except ValueError:
         return None
     return obj if _fingerprint_reason(obj) is None else None
 
@@ -556,7 +556,7 @@ def _load_fingerprint(path: Path) -> tuple[dict | None, str]:
         return None, f"unreadable ({error})"
     try:
         obj = json.loads(text)
-    except (ValueError, json.JSONDecodeError):
+    except ValueError:
         return None, "is not valid JSON"
     reason = _fingerprint_reason(obj)
     return (None, reason) if reason is not None else (obj, "")
@@ -571,15 +571,12 @@ def cmd_record_fingerprint(args: argparse.Namespace) -> int:
     `{"unestablished": true, "reason": ...}` — never omitted, never a partial or
     invented fingerprint (issue #2008).
     """
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    dest = out_dir / "fingerprint.json"
+    dest = Path(args.out) / "fingerprint.json"
     reason = ""
+    established_text: str | None = None
     try:
-        # Bound the fingerprint helper: it shells out to several git commands, and under
-        # this repo's worktree concurrency a held index.lock could hang one indefinitely —
-        # which `|| :` at the call site cannot rescue, since it swallows the exit code, not
-        # wall-clock. A timeout writes the unestablished record and never stalls the launch.
+        # Bound the helper: git under this repo's worktree concurrency can hang on a held
+        # index.lock, which `|| :` cannot rescue (it swallows the exit code, not wall-clock).
         proc = subprocess.run(
             _fingerprint_helper_cmd(),
             capture_output=True,
@@ -591,26 +588,30 @@ def cmd_record_fingerprint(args: argparse.Namespace) -> int:
         reason = f"could not run the checkout-fingerprint helper ({error})"
     else:
         if proc.returncode == 0 and _established_fingerprint(proc.stdout.strip()):
-            dest.write_text(proc.stdout.strip() + "\n", encoding="utf-8")
-            print(
-                f"shard-tally record-fingerprint: recorded established checkout "
-                f"fingerprint at {dest}",
-                file=sys.stderr,
+            established_text = proc.stdout.strip() + "\n"
+        else:
+            reason = (
+                f"checkout-fingerprint helper exited {proc.returncode} without an "
+                f"established five-field fingerprint: {proc.stderr.strip()}"
             )
-            return 0
-        reason = (
-            f"checkout-fingerprint helper exited {proc.returncode} without an "
-            f"established five-field fingerprint: {proc.stderr.strip()}"
+    if established_text is not None:
+        record_text, note = established_text, f"recorded established checkout fingerprint at {dest}"
+    else:
+        record_text = json.dumps({"unestablished": True, "reason": reason or "unknown"}, sort_keys=True) + "\n"
+        note = f"recorded UNESTABLISHED checkout fingerprint at {dest} ({reason})"
+    try:
+        # A write failure (read-only mount, ENOSPC) must not raise and block the launch:
+        # breadcrumb and still exit 0, so same-tree-eligible fails closed on the absent record.
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(record_text, encoding="utf-8")
+    except OSError as error:
+        print(
+            f"shard-tally record-fingerprint: could NOT write the fingerprint record at "
+            f"{dest} ({error}); the launch continues and same-tree-eligible fails closed",
+            file=sys.stderr,
         )
-    dest.write_text(
-        json.dumps({"unestablished": True, "reason": reason or "unknown"}, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    print(
-        f"shard-tally record-fingerprint: recorded UNESTABLISHED checkout fingerprint "
-        f"at {dest} ({reason})",
-        file=sys.stderr,
-    )
+        return 0
+    print(f"shard-tally record-fingerprint: {note}", file=sys.stderr)
     return 0
 
 

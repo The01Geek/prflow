@@ -1405,9 +1405,8 @@ assert_eq "cheap-lint gate real: the real brand finding is attributed, not incon
   "$(case "$PSR_RH_OUT" in *"was inconclusive"*) echo no ;; *"reported findings"*) echo yes ;; *) echo no ;; esac)"
 
 # ── issue #2008: launch-time checkout fingerprint + fingerprint-gated same-tree relaunch ──
-# A launch records the tree's checkout fingerprint so an environment-only fix after a RED gate
-# pass can relaunch only the failed shards against a proven-identical tree and recombine with
-# the RED run's retained clean tallies instead of re-paying the whole coordinator (issue #2008).
+# A launch records the tree's checkout fingerprint so an environment-only fix can relaunch only
+# the failed shards against a proven-identical tree (issue #2008).
 PSR_FP="$PSR_ROOT/fingerprint"
 mkdir -p "$PSR_FP"
 # A stub fingerprint helper emitting a fixed, established five-field record. Equality is the
@@ -1443,6 +1442,21 @@ assert_eq "psr fp: a failed producer still writes a fingerprint record (never om
 assert_eq "psr fp: the record marks the fingerprint unestablished rather than inventing one" "yes" \
   "$(case "$(cat "$PSR_FP_UN/fingerprint.json" 2>/dev/null)" in *'"unestablished": true'*) echo yes ;; *) echo no ;; esac)"
 
+# AC3 (rc-0-but-junk): a producer that exits 0 but prints non-established stdout (partial or
+# garbage) still records UNESTABLISHED, exit 0 — never a partial/invented fingerprint (issue #2008).
+PSR_FP_JUNK="$PSR_FP/fp-junk.sh"
+cat > "$PSR_FP_JUNK" <<'PSR_EOF'
+#!/usr/bin/env bash
+printf 'not json at all\n'
+exit 0
+PSR_EOF
+chmod +x "$PSR_FP_JUNK"
+PSR_FP_JU="$PSR_FP/rec-junk"
+assert_eq "psr fp: a producer exiting 0 with non-established stdout records unestablished (rc 0)" "0" \
+  "$(DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_JUNK" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_JU" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: the rc-0-but-junk producer's record is unestablished, not the junk verbatim" "yes" \
+  "$(case "$(cat "$PSR_FP_JU/fingerprint.json" 2>/dev/null)" in *'"unestablished": true'*) echo yes ;; *) echo no ;; esac)"
+
 # AC1 wiring: the coordinator records the fingerprint in its retained run root at launch.
 PSR_FPC="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_FPC"
 ( cd "$PSR_FPC" && SYN_SHARDS=alpha SYN_SLEEP=0.05 DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" \
@@ -1472,11 +1486,9 @@ assert_eq "psr fp: run-shard.sh records a fingerprint in its retained tally dir"
 assert_eq "psr fp: run-shard.sh's recorded fingerprint is the established launch tree's" "yes" \
   "$(case "$(cat "$PSR_SH_TALLY/fingerprint.json" 2>/dev/null)" in *'"head":"aaaaaaaa'*) echo yes ;; *) echo no ;; esac)"
 
-# Default-helper + producer coupling (issue #2008): with NO override, record-fingerprint must run
-# the real scripts/checkout-fingerprint.py over this actual git checkout and write an established
-# record, and that producer must emit EXACTLY the five fields _FINGERPRINT_FIELDS compares — a
-# sixth producer field silently ignored by same-tree-eligible would judge two different trees
-# ELIGIBLE (a false green at the completion gate).
+# Default-helper + producer coupling (issue #2008): a sixth producer field silently ignored by
+# same-tree-eligible would judge two different trees ELIGIBLE (a false green at the gate), so pin
+# that checkout-fingerprint.py emits EXACTLY the five fields _FINGERPRINT_FIELDS compares.
 PSR_FP_DEFAULT="$PSR_FP/rec-default"
 python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_DEFAULT" >/dev/null 2>&1
 assert_eq "psr fp: record-fingerprint with the DEFAULT helper writes an established record from the real producer" "yes" \
@@ -1518,6 +1530,13 @@ assert_eq "psr fp: an absent fresh fingerprint refuses the same-tree relaunch (r
   "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/does-not-exist.json" >/dev/null 2>&1; echo $?)"
 assert_eq "psr fp: the fresh-side refusal names the fresh fingerprint" "yes" \
   "$(case "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_FP_UN/fingerprint.json" 2>&1)" in *"fresh fingerprint"*) echo yes ;; *) echo no ;; esac)"
+# A syntactically malformed (non-JSON) fingerprint on either side fails closed (rc 1): the
+# best-effort writer can leave a truncated file, which must never be read as a match.
+printf 'this is not json' > "$PSR_EL/malformed.json"
+assert_eq "psr fp: a non-JSON recorded fingerprint refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/malformed.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: a non-JSON fresh fingerprint refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/malformed.json" >/dev/null 2>&1; echo $?)"
 
 # AC6: the same-tree recombination combines tallies from TWO different run roots and fails
 # closed, NAMING the shard, on a missing or a duplicated shard of the required partition.
