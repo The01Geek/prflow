@@ -54225,7 +54225,7 @@ assert_eq "public site: content shadows use the olive palette color" "yes" \
 assert_eq "public site: every navigation route resolves to a page" "yes" "$(public_route_files_resolve)"
 assert_eq "public site: every page under docs/ is navigated exactly once" "yes" "$(public_docs_pages_are_navigated_once)"
 assert_eq "public site: every root-relative internal link resolves to a page" "yes" "$(public_internal_links_resolve)"
-assert_eq "public site: root homepage is navigated exactly once" "1" "$(public_nav_routes | awk '$0 == "index" { n++ } END { print n + 0 }')"
+assert_eq "public site: root homepage stays out of navigation because the logo is its entry point" "0" "$(public_nav_routes | awk '$0 == "index" { n++ } END { print n + 0 }')"
 assert_eq "public site: custom homepage matches the documentation page shell spacing" "yes" \
   "$(public_file_contains "$PUBLIC_SITE_ROOT/index.mdx" '<div className="px-4 pt-40 lg:pt-10 lg:pl-16 lg:pr-10">')"
 assert_eq "public site: custom homepage matches the documentation reading-column width" "yes" \

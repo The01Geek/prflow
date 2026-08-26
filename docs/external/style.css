@@ -2,6 +2,40 @@
   color: #F2E6D8;
 }
 
+#sidebar {
+  background-color: #211108;
+  color: #F9E1D3;
+}
+
+#sidebar > ul {
+  background-color: transparent !important;
+}
+
+#sidebar :where(a, button) {
+  color: #F9E1D3 !important;
+}
+
+#sidebar .nav-logo {
+  color: #FFFFFF !important;
+}
+
+#sidebar :where(.sidebar-title, [aria-current="page"]),
+#sidebar :where(a, button):hover {
+  color: #FFF8F2 !important;
+}
+
+#sidebar [aria-current="page"] {
+  background-color: rgba(255, 248, 242, 0.1);
+}
+
+#sidebar .group\/search {
+  background-color: rgba(255, 248, 242, 0.1) !important;
+}
+
+#sidebar .group\/search svg {
+  color: #FFFFFF !important;
+}
+
 .dark #content-container :where(h1, h2, h3, h4, h5, h6, p, li, dt, dd, blockquote, figcaption, strong, em, a) {
   color: #F2E6D8 !important;
 }

@@ -9,24 +9,18 @@
   },
   "background": {
     "color": {
-      "light": "#F2E6D8",
-      "dark": "#593E2E"
+      "light": "#FFFFFF",
+      "dark": "#0A0D0D"
     }
   },
   "seo": {
+    "indexing": "all",
     "metatags": {
       "canonical": "https://prflow.ai"
     }
   },
   "navigation": {
     "pages": [
-      {
-        "group": "PRFlow",
-        "pages": [
-          "index",
-          "release-notes"
-        ]
-      },
       {
         "group": "Documentation",
         "pages": [
@@ -141,8 +135,8 @@
           "icon": "github"
         },
         {
-          "anchor": "Releases",
-          "href": "https://github.com/The01Geek/prflow/releases",
+          "anchor": "Release Notes",
+          "href": "/release-notes",
           "icon": "tag"
         }
       ]
@@ -154,12 +148,7 @@
         "label": "Documentation",
         "href": "/docs/index"
       }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "View on GitHub",
-      "href": "https://github.com/The01Geek/prflow"
-    }
+    ]
   },
   "footer": {
     "socials": {
