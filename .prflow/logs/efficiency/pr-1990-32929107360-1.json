@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1990",
+  "generated_at": "2026-08-26T06:42:32Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.45",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 92.83565009999995,
+    "tokens": {
+      "input_tokens": 466,
+      "output_tokens": 289123,
+      "cache_read_input_tokens": 109485648,
+      "cache_creation_input_tokens": 726617,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 916,
+        "outputTokens": 437819,
+        "cacheReadInputTokens": 123834535,
+        "cacheCreationInputTokens": 2209071,
+        "webSearchRequests": 0,
+        "costUSD": 89.39883,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 228,
+        "outputTokens": 45127,
+        "cacheReadInputTokens": 8968058,
+        "cacheCreationInputTokens": 476593,
+        "webSearchRequests": 0,
+        "costUSD": 3.4368201000000007,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 308,
+    "duration_ms": 9123010
+  },
+  "permission_denials": {
+    "count": 19,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/workpad.py status 1984; echo \"STATUS_EXIT=$?\"; echo \"---ENV---\"; echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT ACTIONS=$GITHUB_ACTIONS\"",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\necho \"BASE=$BASE\"\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1984 --branch \"$(git branch --show-current)\"",
+      "\"/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/check-verified-premises.py\" --body-file /home/runner/work/prflow/prflow/.prflow/tmp/issue-body/issue-1984.md --repo-root /home/runner/work/prflow/prflow; echo \"EXIT:$?\"",
+      "cd /home/runner/work/prflow/prflow\nWP=\".prflow/vendor/prflow/scripts/workpad.py\"\n\"$WP\" update 1984 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\"\n\"$WP\" update 1984 --note \"issue-claim audit (count): claimed 'four always-on reviewers (code-reviewer, silent-failure-hunter, comment-analyzer, requesting-code-review)' and 'exactly 2 measured roster values (complete, short)', verified both at HEAD in scripts …[per-command-truncated]",
+      "lib/test/test_python_scripts.py 2>&1 | grep -iE \"1984|FAIL|Traceback|passed|error\" | head -40; echo \"RC=${PIPESTATUS[0]}\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh implement >/tmp/ext_check 2>&1; tail -1 /tmp/ext_check",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1984-review-coverage-cause-class.md 2>/dev/null | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | tail -10",
+      "TMP=$(mktemp -d)\ncp scripts/workpad.py \"$TMP/workpad.py\"\n# Neuter ONLY the read-time environment-denial corroboration: force has_missing_roster_row True\npython3 - \"$TMP/workpad.py\" <<'EOF'\nimport sys\np=sys.argv[1]\ns=open(p).read()\ns=s.replace(\n\"    has_missing_roster_row = any(s == 'missing' for s in roster_members.values())\\n    for gap in gaps:\",\n\"    has_missing_roster_row = any(s == 'missing' for s in roster_members.values())\\n    has_missing_roster_row = True  # MUTATION: neuter read-time e …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p .prflow/tmp\ngit rev-parse HEAD\ncat > .prflow/tmp/flight-input-1984.json <<'EOF'\n{\n  \"command\": \"lib/test/test_python_scripts.py\",\n  \"surface\": \"scripts/workpad.py\",\n  \"tier\": \"cloud-implement-verifier\",\n  \"candidate_identity\": \"issue-1984-ac-evidence-verifier\"\n}\nEOF\npython3 .prflow/vendor/prflow/scripts/verification-flight.py descriptor --input-file .prflow/tmp/flight-input-1984.json 2>&1",
+      "cd /home/runner/work/prflow/prflow\nFLIGHT=4d9240bebab9b26a13a9def35064e067f4ff5c5f5d0bd4174e8cde6ccbabd0b0\nTOKEN=47d643bf3dacb43c47ec2ec133abdf97c781fdf5670c6e387e362099c4f335cb\npython3 .prflow/vendor/prflow/scripts/verification-flight.py mark-running --flight \"$FLIGHT\" --token \"$TOKEN\"",
+      "(scripts/load-prompt-extension.sh docs 2>&1 || echo \"RC=$?\"); echo \"---INTERNAL---\"; scripts/config-get.sh .docs.internal_enabled true; echo \"---EXTERNAL---\"; scripts/config-get.sh .docs.external_enabled true",
+      "cd /home/runner/work/prflow/prflow\nscripts/workpad.py body 5420450668 2>/dev/null | grep -iE \"post-merge|## Acceptance\" | head; echo \"---prompt-surface-growth---\"\nscripts/prompt-surface-growth.py 2>&1 | head -40",
+      "cd /home/runner/work/prflow/prflow; scripts/prompt-surface-growth.py 2>&1 | head -40",
+      "scripts/prompt-surface-growth.py",
+      "echo \"origin/main:\"; git show origin/main:skills/review-and-fix/references/shadow-review.md 2>/dev/null | wc -c; echo \"merge-base:\"; git show $(git merge-base origin/main HEAD):skills/review-and-fix/references/shadow-review.md 2>/dev/null | wc -c",
+      "lib/test/lint-brand-devflow-sweep.py --update-baseline 2>&1 | tail -5; echo \"=== DIFF ===\"; git diff --stat lib/test/brand-devflow-buckets.json",
+      "lib/test/lint-brand-devflow-sweep.py --update-baseline 2>&1 | tail -5",
+      "lib/test/lint-brand-devflow-sweep.py --update-baseline"
+    ],
+    "total": 19,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
