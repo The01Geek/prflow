@@ -54783,13 +54783,14 @@ w("CHANGELOG.md", "## old\nDevFlow did a thing\n")                  # frozen-his
 w("lib/scan.sh", "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n")  # 1 frozen value + 1 pending
 w(".changeset/issue-9.md", "a DevFlow changeset consumed on merge\n")  # transient (excluded)
 w(".changeset/README.md", "DevFlow changesets readme\n")              # transient exception -> pending 1
+w("lib/test/fake-tool.py", "BRAND = 'DevFlow'  # the tooling literal\n")  # frozen-tooling
 buckets = {"schema_version": 1,
   "frozen": {"transient_prefixes": [".changeset/"], "transient_exceptions": [".changeset/README.md"],
              "record_prefixes": [".prflow/learnings/", ".prflow/logs/"],
-             "historical_files": ["CHANGELOG.md"], "tooling_files": [],
+             "historical_files": ["CHANGELOG.md"], "tooling_files": ["lib/test/fake-tool.py"],
              "provenance": [{"file": "lib/scan.sh"}]},
-  "pending_sweep_baseline": [{"path": ".changeset/README.md", "count": 1},
-                             {"path": "docs/keep.md", "count": 2}, {"path": "lib/scan.sh", "count": 1}]}
+  "pending_sweep_baseline": [{"path": ".changeset/README.md"},
+                             {"path": "docs/keep.md"}, {"path": "lib/scan.sh"}]}
 w("lib/test/brand-devflow-buckets.json", json.dumps(buckets, indent=2) + "\n")
 subprocess.run(["git", "init", "-q"], cwd=root, check=True)
 subprocess.run(["git", "add", "-A"], cwd=root, check=True)
@@ -54803,6 +54804,12 @@ BDS_CLEAN="$(bds_run "$BDS_FX")"
 assert_eq "#1745 a fully-classified tree is clean" "rc=0" "${BDS_CLEAN%%|*}"
 assert_eq "#1745 a frozen record path needs no baseline row" "no" "$(bds_has "learnings/x.jsonl" "$BDS_CLEAN")"
 assert_eq "#1745 a frozen-provenance value is not demanded as unclassified" "no" "$(bds_has "scan.sh: 1 unclassified" "$BDS_CLEAN")"
+assert_eq "#1745 a frozen-tooling file needs no baseline entry" "no" "$(bds_has "fake-tool.py" "$BDS_CLEAN")"
+# Growth inside a frozen bucket stays green (frozen buckets are not count-bounded) — a new
+# CHANGELOG entry mentioning DevFlow must not re-red.
+printf '## old\nDevFlow one\nDevFlow two\nDevFlow three\n' > "$BDS_FX/CHANGELOG.md"; bds_stage
+assert_eq "#1745 growth inside a frozen bucket stays green" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+printf '## old\nDevFlow did a thing\n' > "$BDS_FX/CHANGELOG.md"; bds_stage
 # A transient changeset (deleted by version-consolidate on merge) is excluded, never demanded
 # as unclassified — and its README exception stays pending, proving the exception fires.
 assert_eq "#1745 a transient changeset needs no baseline row" "no" "$(bds_has "changeset/issue-9.md" "$BDS_CLEAN")"
@@ -54827,17 +54834,17 @@ assert_eq "#1745 --print-population emits a provenance file's frozen line (dual 
   "$(bds_has "$(printf 'frozen-provenance\tlib/scan.sh\t1')" "$BDS_POP")"
 
 # --update-baseline reseeds the pending baseline from the tree; on an already-reconciled
-# clean tree it is idempotent (rewrites the same counts) and --check stays green.
+# clean tree it is idempotent (rewrites the same file set) and the reconciliation stays green.
 BDS_RESEED="$(python3 "$BDS_LINT" --root "$BDS_FX" --update-baseline 2>&1)"; BDS_RESEED_RC=$?
 assert_eq "#1745 --update-baseline exits 0 and reports a reseed" "rc=0" \
   "$([ "$BDS_RESEED_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s' "$BDS_RESEED_RC")"
 assert_eq "#1745 --update-baseline names the reseeded file count" "yes" \
   "$(bds_has "reseeded pending_sweep_baseline with 3 file(s)" "$BDS_RESEED")"
-assert_eq "#1745 an idempotent reseed leaves --check green" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+assert_eq "#1745 an idempotent reseed leaves the reconciliation green" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
 
-# An unreadable tracked file fails --check CLOSED: a dangling symlink read_bytes cannot
-# follow is skipped, so its DevFlow occurrences escape classification and the run goes RED
-# (chmod 000 is unreliable under a root CI uid, so a dangling symlink is the portable probe).
+# An unreadable tracked file fails the reconciliation CLOSED: a dangling symlink read_bytes
+# cannot follow is skipped, so its DevFlow occurrences escape classification and the run goes
+# RED (chmod 000 is unreliable under a root CI uid, so a dangling symlink is the portable probe).
 ln -s nonexistent-target "$BDS_FX/docs/dangling.md"; bds_stage
 BDS_SKIP="$(bds_run "$BDS_FX")"
 assert_eq "#1745 an unreadable tracked file fails the suite closed" "rc=1" "${BDS_SKIP%%|*}"
@@ -54845,24 +54852,27 @@ assert_eq "#1745 the finding names the unreadable file" "yes" \
   "$(bds_has "docs/dangling.md: unreadable tracked file" "$BDS_SKIP")"
 rm -f "$BDS_FX/docs/dangling.md"; bds_stage
 
-# A file whose pending count lacks a baseline row fails the suite.
+# AC3: a currently-clean file (no baseline entry) that gains renameable DevFlow fails the suite.
 printf 'a new DevFlow prose line\n' > "$BDS_FX/docs/new.md"; bds_stage
 BDS_NEW="$(bds_run "$BDS_FX")"
-assert_eq "#1745 an unclassified occurrence fails the suite" "rc=1" "${BDS_NEW%%|*}"
-assert_eq "#1745 the finding names the unclassified file" "yes" "$(bds_has "docs/new.md: 1 unclassified" "$BDS_NEW")"
+assert_eq "#1745 a new file with renameable DevFlow fails the suite" "rc=1" "${BDS_NEW%%|*}"
+assert_eq "#1745 the finding names the new unclassified file" "yes" \
+  "$(bds_has "docs/new.md: brand-cased 'DevFlow' in a file with no pending_sweep_baseline entry" "$BDS_NEW")"
 rm -f "$BDS_FX/docs/new.md"; bds_stage
 
-# A count above a file's recorded baseline (a newly introduced occurrence) fails the suite.
-printf 'DevFlow one DevFlow two DevFlow three\n' > "$BDS_FX/docs/keep.md"; bds_stage
-BDS_MORE="$(bds_run "$BDS_FX")"
-assert_eq "#1745 a count above the baseline fails the suite" "rc=1" "${BDS_MORE%%|*}"
-assert_eq "#1745 the finding names the drifted count" "yes" "$(bds_has "docs/keep.md: 3 pending" "$BDS_MORE")"
+# Churn-robustness (the count-drift Critical fix): adding MORE DevFlow to an ALREADY-pending
+# file stays GREEN — reconciliation is per-file presence, not exact count, so a concurrent
+# clean-textual merge on a hot-spot file cannot red the required check on main.
+printf 'DevFlow one DevFlow two DevFlow three DevFlow four\n' > "$BDS_FX/docs/keep.md"; bds_stage
+assert_eq "#1745 adding DevFlow to an already-pending file does not re-red (presence, not count)" "rc=0" \
+  "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+printf 'DevFlow is great and DevFlow ships.\n' > "$BDS_FX/docs/keep.md"; bds_stage
 
-# A stale baseline row (its file fully swept) fails the suite.
+# A stale baseline entry (its file fully swept) fails the suite.
 printf 'all swept now to PRFlow\n' > "$BDS_FX/docs/keep.md"; bds_stage
 BDS_STALE="$(bds_run "$BDS_FX")"
-assert_eq "#1745 a stale baseline row fails the suite" "rc=1" "${BDS_STALE%%|*}"
-assert_eq "#1745 the finding names the stale row" "yes" "$(bds_has "docs/keep.md: stale pending_sweep_baseline row" "$BDS_STALE")"
+assert_eq "#1745 a stale baseline entry fails the suite" "rc=1" "${BDS_STALE%%|*}"
+assert_eq "#1745 the finding names the stale entry" "yes" "$(bds_has "docs/keep.md: stale pending_sweep_baseline entry" "$BDS_STALE")"
 printf 'DevFlow is great and DevFlow ships.\n' > "$BDS_FX/docs/keep.md"; bds_stage
 
 # A stale frozen-provenance entry (its value moved/removed) fails the suite.

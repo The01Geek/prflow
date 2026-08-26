@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "_comment": "Bucket classification for the case-sensitive brand-cased 'DevFlow' occurrences in the tracked tree (issue #1745). Read and reconciled by lib/test/lint-brand-devflow-sweep.py, which fails closed on an unclassified/new renameable occurrence and on a stale assignment. The `frozen` block records the occurrences that are NEVER swept to 'PRFlow': `transient_prefixes` (a consumed changeset that version-consolidate deletes on merge — excluded from reconciliation so its deletion cannot fire a false RED on main; `transient_exceptions` keeps a permanent member like .changeset/README.md in `pending`); append-only record contents; historical CHANGELOG; this feature's own tooling; and the superseded provenance-label value a selector still matches. `pending_sweep_baseline` records, per file, the ordinary renameable-prose occurrences not yet swept — this bucket is drained to empty by the follow-up sweep. Seed or reconcile it with `lint-brand-devflow-sweep.py --update-baseline`; do not hand-edit the counts.",
+  "_comment": "Bucket classification for the case-sensitive brand-cased 'DevFlow' occurrences in the tracked tree (issue #1745). Read and reconciled by lib/test/lint-brand-devflow-sweep.py, which fails closed on a currently-clean file gaining renameable DevFlow (AC3) and on a stale (fully-swept or deleted) entry. Reconciliation is per-file PRESENCE, deliberately NOT exact per-file count: an exact count of a churny hot-spot file (run.sh is mutated by nearly every PR) drifts on a clean-textual concurrent merge — the shared-hot-spot anti-pattern CLAUDE.md warns of — so pending_sweep_baseline lists file PATHS only, never counts. The `frozen` block records the occurrences that are NEVER swept to 'PRFlow': `transient_prefixes` (a consumed changeset that version-consolidate deletes on merge — excluded so its deletion cannot fire a false RED on main; `transient_exceptions` keeps a permanent member like .changeset/README.md in `pending`); append-only record contents; historical CHANGELOG; this feature's own tooling; and the superseded provenance-label value a selector still matches. `pending_sweep_baseline` is the grandfathered set of files still holding renameable-prose DevFlow not yet swept — drained to empty by the follow-up sweep. Seed or reconcile it with `lint-brand-devflow-sweep.py --update-baseline`; do not hand-edit it.",
   "frozen": {
     "transient_prefixes": [
       ".changeset/"
@@ -40,656 +40,493 @@
   },
   "pending_sweep_baseline": [
     {
-      "path": ".changeset/README.md",
-      "count": 2
+      "path": ".changeset/README.md"
     },
     {
-      "path": ".github/actions/read-project-config/action.yml",
-      "count": 1
+      "path": ".github/actions/read-project-config/action.yml"
     },
     {
-      "path": ".github/actions/vendor-plugin/action.yml",
-      "count": 3
+      "path": ".github/actions/vendor-plugin/action.yml"
     },
     {
-      "path": ".github/actions/vendor-plugin/vendor-slice.sh",
-      "count": 6
+      "path": ".github/actions/vendor-plugin/vendor-slice.sh"
     },
     {
-      "path": ".github/workflows/agents-seam-probe.yml",
-      "count": 1
+      "path": ".github/workflows/agents-seam-probe.yml"
     },
     {
-      "path": ".github/workflows/devflow-implement.yml",
-      "count": 12
+      "path": ".github/workflows/devflow-implement.yml"
     },
     {
-      "path": ".github/workflows/devflow-runner.yml",
-      "count": 35
+      "path": ".github/workflows/devflow-runner.yml"
     },
     {
-      "path": ".github/workflows/devflow.yml",
-      "count": 13
+      "path": ".github/workflows/devflow.yml"
     },
     {
-      "path": ".github/workflows/matcher-probe.yml",
-      "count": 2
+      "path": ".github/workflows/matcher-probe.yml"
     },
     {
-      "path": ".github/workflows/stall-observer.yml",
-      "count": 1
+      "path": ".github/workflows/stall-observer.yml"
     },
     {
-      "path": ".github/workflows/telemetry-push.yml",
-      "count": 4
+      "path": ".github/workflows/telemetry-push.yml"
     },
     {
-      "path": ".github/workflows/version-consolidate.yml",
-      "count": 7
+      "path": ".github/workflows/version-consolidate.yml"
     },
     {
-      "path": ".gitignore",
-      "count": 3
+      "path": ".gitignore"
     },
     {
-      "path": ".prflow/config.schema.json",
-      "count": 1
+      "path": ".prflow/config.schema.json"
     },
     {
-      "path": ".prflow/prompt-extensions/create-issue.md",
-      "count": 5
+      "path": ".prflow/prompt-extensions/create-issue.md"
     },
     {
-      "path": ".prflow/prompt-extensions/create-issue.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/create-issue.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/docs-bootstrap-external.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/docs-bootstrap-external.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/docs-bootstrap-internal.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/docs-bootstrap-internal.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/docs-release-notes.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/docs-release-notes.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/docs-sync-external.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/docs-sync-external.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/docs-sync-internal.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/docs-sync-internal.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/docs-verify.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/docs-verify.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/docs.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/docs.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/implement.md",
-      "count": 6
+      "path": ".prflow/prompt-extensions/implement.md"
     },
     {
-      "path": ".prflow/prompt-extensions/implement.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/implement.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/init.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/init.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/pr-description.md",
-      "count": 1
+      "path": ".prflow/prompt-extensions/pr-description.md"
     },
     {
-      "path": ".prflow/prompt-extensions/pr-description.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/pr-description.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/receiving-code-review.md",
-      "count": 3
+      "path": ".prflow/prompt-extensions/receiving-code-review.md"
     },
     {
-      "path": ".prflow/prompt-extensions/receiving-code-review.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/receiving-code-review.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/requesting-code-review.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/requesting-code-review.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/retrospective-audit.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/retrospective-audit.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/retrospective-weekly.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/retrospective-weekly.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/retrospective.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/retrospective.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/review-and-fix.md",
-      "count": 5
+      "path": ".prflow/prompt-extensions/review-and-fix.md"
     },
     {
-      "path": ".prflow/prompt-extensions/review-and-fix.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/review-and-fix.md.example"
     },
     {
-      "path": ".prflow/prompt-extensions/review.md",
-      "count": 4
+      "path": ".prflow/prompt-extensions/review.md"
     },
     {
-      "path": ".prflow/prompt-extensions/review.md.example",
-      "count": 2
+      "path": ".prflow/prompt-extensions/review.md.example"
     },
     {
-      "path": ".prflow/tool-presets.json",
-      "count": 1
+      "path": ".prflow/tool-presets.json"
     },
     {
-      "path": "CLAUDE.md",
-      "count": 16
+      "path": "CLAUDE.md"
     },
     {
-      "path": "README.md",
-      "count": 1
+      "path": "README.md"
     },
     {
-      "path": "agents/deferral-drafter.md",
-      "count": 1
+      "path": "agents/deferral-drafter.md"
     },
     {
-      "path": "docs/external/docs/getting-started/initialization.md",
-      "count": 1
+      "path": "docs/external/docs/getting-started/initialization.md"
     },
     {
-      "path": "docs/external/docs/getting-started/installation.md",
-      "count": 2
+      "path": "docs/external/docs/getting-started/installation.md"
     },
     {
-      "path": "docs/external/docs/getting-started/migrate-from-devflow.md",
-      "count": 8
+      "path": "docs/external/docs/getting-started/migrate-from-devflow.md"
     },
     {
-      "path": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
-      "count": 15
+      "path": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"
     },
     {
-      "path": "docs/internal/claude-md-extension-audit-coupled-sites.md",
-      "count": 1
+      "path": "docs/internal/claude-md-extension-audit-coupled-sites.md"
     },
     {
-      "path": "docs/internal/claude-md-relocated-rationale.md",
-      "count": 2
+      "path": "docs/internal/claude-md-relocated-rationale.md"
     },
     {
-      "path": "docs/internal/cloud-setup.md",
-      "count": 16
+      "path": "docs/internal/cloud-setup.md"
     },
     {
-      "path": "docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md",
-      "count": 1
+      "path": "docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md"
     },
     {
-      "path": "docs/internal/implement-skill.md",
-      "count": 1
+      "path": "docs/internal/implement-skill.md"
     },
     {
-      "path": "docs/internal/install.md",
-      "count": 8
+      "path": "docs/internal/install.md"
     },
     {
-      "path": "docs/internal/shadow-review.md",
-      "count": 1
+      "path": "docs/internal/shadow-review.md"
     },
     {
-      "path": "install.sh",
-      "count": 32
+      "path": "install.sh"
     },
     {
-      "path": "lib/capability-profiles.json",
-      "count": 1
+      "path": "lib/capability-profiles.json"
     },
     {
-      "path": "lib/classify-pr-kind.jq",
-      "count": 3
+      "path": "lib/classify-pr-kind.jq"
     },
     {
-      "path": "lib/dispatch-disposition.jq",
-      "count": 2
+      "path": "lib/dispatch-disposition.jq"
     },
     {
-      "path": "lib/efficiency-trace.sh",
-      "count": 2
+      "path": "lib/efficiency-trace.sh"
     },
     {
-      "path": "lib/fetch-pr-context.sh",
-      "count": 4
+      "path": "lib/fetch-pr-context.sh"
     },
     {
-      "path": "lib/generate-capability-profiles.py",
-      "count": 1
+      "path": "lib/generate-capability-profiles.py"
     },
     {
-      "path": "lib/generate-plugin-identity.py",
-      "count": 3
+      "path": "lib/generate-plugin-identity.py"
     },
     {
-      "path": "lib/implement-stop-guard.sh",
-      "count": 1
+      "path": "lib/implement-stop-guard.sh"
     },
     {
-      "path": "lib/meta-issue.sh",
-      "count": 1
+      "path": "lib/meta-issue.sh"
     },
     {
-      "path": "lib/migrate-config-values.py",
-      "count": 3
+      "path": "lib/migrate-config-values.py"
     },
     {
-      "path": "lib/plugin-identity.json",
-      "count": 1
+      "path": "lib/plugin-identity.json"
     },
     {
-      "path": "lib/plugin_identity.py",
-      "count": 3
+      "path": "lib/plugin_identity.py"
     },
     {
-      "path": "lib/preflight.sh",
-      "count": 6
+      "path": "lib/preflight.sh"
     },
     {
-      "path": "lib/rename-map.json",
-      "count": 3
+      "path": "lib/rename-map.json"
     },
     {
-      "path": "lib/render-report.sh",
-      "count": 1
+      "path": "lib/render-report.sh"
     },
     {
-      "path": "lib/resolve-bin.sh",
-      "count": 2
+      "path": "lib/resolve-bin.sh"
     },
     {
-      "path": "lib/resolve-gh.sh",
-      "count": 2
+      "path": "lib/resolve-gh.sh"
     },
     {
-      "path": "lib/resolve-jq.sh",
-      "count": 1
+      "path": "lib/resolve-jq.sh"
     },
     {
-      "path": "lib/resolve-python.sh",
-      "count": 3
+      "path": "lib/resolve-python.sh"
     },
     {
-      "path": "lib/scan.sh",
-      "count": 4
+      "path": "lib/scan.sh"
     },
     {
-      "path": "lib/telemetry-branch.sh",
-      "count": 4
+      "path": "lib/telemetry-branch.sh"
     },
     {
-      "path": "lib/test/fixtures/FAILED-prcomments.json",
-      "count": 1
+      "path": "lib/test/fixtures/FAILED-prcomments.json"
     },
     {
-      "path": "lib/test/fixtures/issue-304-body.md",
-      "count": 3
+      "path": "lib/test/fixtures/issue-304-body.md"
     },
     {
-      "path": "lib/test/fixtures/shipped-pruned-path/slices/comment-apostrophe.sh",
-      "count": 1
+      "path": "lib/test/fixtures/shipped-pruned-path/slices/comment-apostrophe.sh"
     },
     {
-      "path": "lib/test/fixtures/skill-body-load-transcript.observed.txt",
-      "count": 2
+      "path": "lib/test/fixtures/skill-body-load-transcript.observed.txt"
     },
     {
-      "path": "lib/test/lint-shipped-pruned-path.py",
-      "count": 1
+      "path": "lib/test/lint-shipped-pruned-path.py"
     },
     {
-      "path": "lib/test/lint-subagent-extension-handoff.py",
-      "count": 6
+      "path": "lib/test/lint-subagent-extension-handoff.py"
     },
     {
-      "path": "lib/test/module-harness.sh",
-      "count": 1
+      "path": "lib/test/module-harness.sh"
     },
     {
-      "path": "lib/test/modules/create-issue-contract.sh",
-      "count": 3
+      "path": "lib/test/modules/create-issue-contract.sh"
     },
     {
-      "path": "lib/test/modules/efficiency-trace-telemetry.sh",
-      "count": 5
+      "path": "lib/test/modules/efficiency-trace-telemetry.sh"
     },
     {
-      "path": "lib/test/modules/experiment-records.sh",
-      "count": 4
+      "path": "lib/test/modules/experiment-records.sh"
     },
     {
-      "path": "lib/test/modules/installer-wiring.sh",
-      "count": 21
+      "path": "lib/test/modules/installer-wiring.sh"
     },
     {
-      "path": "lib/test/modules/regenerate-artifacts.inventory.md",
-      "count": 1
+      "path": "lib/test/modules/regenerate-artifacts.inventory.md"
     },
     {
-      "path": "lib/test/modules/regenerate-artifacts.sh",
-      "count": 4
+      "path": "lib/test/modules/regenerate-artifacts.sh"
     },
     {
-      "path": "lib/test/modules/retrospective-lifecycle.sh",
-      "count": 1
+      "path": "lib/test/modules/retrospective-lifecycle.sh"
     },
     {
-      "path": "lib/test/modules/review-stall-backstop.sh",
-      "count": 3
+      "path": "lib/test/modules/review-stall-backstop.sh"
     },
     {
-      "path": "lib/test/modules/review-trigger-helpers.sh",
-      "count": 21
+      "path": "lib/test/modules/review-trigger-helpers.sh"
     },
     {
-      "path": "lib/test/modules/tier1-rename-migration.sh",
-      "count": 15
+      "path": "lib/test/modules/tier1-rename-migration.sh"
     },
     {
-      "path": "lib/test/modules/workpad-cli.sh",
-      "count": 1
+      "path": "lib/test/modules/workpad-cli.sh"
     },
     {
-      "path": "lib/test/pin-corpus-lint.py",
-      "count": 4
+      "path": "lib/test/pin-corpus-lint.py"
     },
     {
-      "path": "lib/test/run.sh",
-      "count": 270
+      "path": "lib/test/run.sh"
     },
     {
-      "path": "lib/test/summary.sh",
-      "count": 1
+      "path": "lib/test/summary.sh"
     },
     {
-      "path": "lib/test/test_pin_corpus_lint.py",
-      "count": 14
+      "path": "lib/test/test_pin_corpus_lint.py"
     },
     {
-      "path": "lib/test/test_python_scripts.py",
-      "count": 28
+      "path": "lib/test/test_python_scripts.py"
     },
     {
-      "path": "lib/test/test_verification_baseline.py",
-      "count": 2
+      "path": "lib/test/test_verification_baseline.py"
     },
     {
-      "path": "lib/test/test_workflow_flight_recorder.py",
-      "count": 1
+      "path": "lib/test/test_workflow_flight_recorder.py"
     },
     {
-      "path": "requirements.txt",
-      "count": 1
+      "path": "requirements.txt"
     },
     {
-      "path": "scripts/analyze-workflow-runs.py",
-      "count": 1
+      "path": "scripts/analyze-workflow-runs.py"
     },
     {
-      "path": "scripts/apply-labels.sh",
-      "count": 5
+      "path": "scripts/apply-labels.sh"
     },
     {
-      "path": "scripts/authorize-actor.sh",
-      "count": 2
+      "path": "scripts/authorize-actor.sh"
     },
     {
-      "path": "scripts/build-experiment-records.py",
-      "count": 1
+      "path": "scripts/build-experiment-records.py"
     },
     {
-      "path": "scripts/check-verified-premises.py",
-      "count": 2
+      "path": "scripts/check-verified-premises.py"
     },
     {
-      "path": "scripts/config-get.sh",
-      "count": 4
+      "path": "scripts/config-get.sh"
     },
     {
-      "path": "scripts/consolidate-changesets.py",
-      "count": 2
+      "path": "scripts/consolidate-changesets.py"
     },
     {
-      "path": "scripts/decide-verdict-gap-job-status.sh",
-      "count": 1
+      "path": "scripts/decide-verdict-gap-job-status.sh"
     },
     {
-      "path": "scripts/dedupe-review-command.sh",
-      "count": 2
+      "path": "scripts/dedupe-review-command.sh"
     },
     {
-      "path": "scripts/discover-deferral-manifests.py",
-      "count": 1
+      "path": "scripts/discover-deferral-manifests.py"
     },
     {
-      "path": "scripts/emit-git-env.sh",
-      "count": 2
+      "path": "scripts/emit-git-env.sh"
     },
     {
-      "path": "scripts/extract-execution-shape.sh",
-      "count": 1
+      "path": "scripts/extract-execution-shape.sh"
     },
     {
-      "path": "scripts/file-deferrals.py",
-      "count": 1
+      "path": "scripts/file-deferrals.py"
     },
     {
-      "path": "scripts/gh-fresh.sh",
-      "count": 2
+      "path": "scripts/gh-fresh.sh"
     },
     {
-      "path": "scripts/harden-stop-hooks.sh",
-      "count": 1
+      "path": "scripts/harden-stop-hooks.sh"
     },
     {
-      "path": "scripts/install-gh-wrapper.sh",
-      "count": 1
+      "path": "scripts/install-gh-wrapper.sh"
     },
     {
-      "path": "scripts/lint_manifest.py",
-      "count": 1
+      "path": "scripts/lint_manifest.py"
     },
     {
-      "path": "scripts/load-prompt-extension.sh",
-      "count": 1
+      "path": "scripts/load-prompt-extension.sh"
     },
     {
-      "path": "scripts/loop-verdict-marker.py",
-      "count": 1
+      "path": "scripts/loop-verdict-marker.py"
     },
     {
-      "path": "scripts/match-deferrals.py",
-      "count": 1
+      "path": "scripts/match-deferrals.py"
     },
     {
-      "path": "scripts/match-lint-adjudications.py",
-      "count": 1
+      "path": "scripts/match-lint-adjudications.py"
     },
     {
-      "path": "scripts/normalize-verdicts.py",
-      "count": 1
+      "path": "scripts/normalize-verdicts.py"
     },
     {
-      "path": "scripts/post-review-backstop-comment.sh",
-      "count": 2
+      "path": "scripts/post-review-backstop-comment.sh"
     },
     {
-      "path": "scripts/pretooluse-shape-guard.py",
-      "count": 1
+      "path": "scripts/pretooluse-shape-guard.py"
     },
     {
-      "path": "scripts/prompt-surface-growth.py",
-      "count": 1
+      "path": "scripts/prompt-surface-growth.py"
     },
     {
-      "path": "scripts/provision-auto-mode.sh",
-      "count": 2
+      "path": "scripts/provision-auto-mode.sh"
     },
     {
-      "path": "scripts/provision-local-settings.sh",
-      "count": 16
+      "path": "scripts/provision-local-settings.sh"
     },
     {
-      "path": "scripts/provision-python3-shim.sh",
-      "count": 10
+      "path": "scripts/provision-python3-shim.sh"
     },
     {
-      "path": "scripts/publish-release.sh",
-      "count": 1
+      "path": "scripts/publish-release.sh"
     },
     {
-      "path": "scripts/react-to-trigger.sh",
-      "count": 1
+      "path": "scripts/react-to-trigger.sh"
     },
     {
-      "path": "scripts/refresh-app-credentials.sh",
-      "count": 1
+      "path": "scripts/refresh-app-credentials.sh"
     },
     {
-      "path": "scripts/render-grounding-block.sh",
-      "count": 1
+      "path": "scripts/render-grounding-block.sh"
     },
     {
-      "path": "scripts/resolve-command-trigger.sh",
-      "count": 3
+      "path": "scripts/resolve-command-trigger.sh"
     },
     {
-      "path": "scripts/resolve-committer-identity.sh",
-      "count": 1
+      "path": "scripts/resolve-committer-identity.sh"
     },
     {
-      "path": "scripts/resolve-existing-pr.sh",
-      "count": 1
+      "path": "scripts/resolve-existing-pr.sh"
     },
     {
-      "path": "scripts/resolve-extra-plugins.sh",
-      "count": 8
+      "path": "scripts/resolve-extra-plugins.sh"
     },
     {
-      "path": "scripts/resolve-implement-trigger.sh",
-      "count": 2
+      "path": "scripts/resolve-implement-trigger.sh"
     },
     {
-      "path": "scripts/resolve-review-overrides.py",
-      "count": 1
+      "path": "scripts/resolve-review-overrides.py"
     },
     {
-      "path": "scripts/scaffold-config.sh",
-      "count": 5
+      "path": "scripts/scaffold-config.sh"
     },
     {
-      "path": "scripts/stale-prose-lint.py",
-      "count": 2
+      "path": "scripts/stale-prose-lint.py"
     },
     {
-      "path": "scripts/summarize-ci-checks.sh",
-      "count": 1
+      "path": "scripts/summarize-ci-checks.sh"
     },
     {
-      "path": "scripts/surface-execution-diagnostics.sh",
-      "count": 3
+      "path": "scripts/surface-execution-diagnostics.sh"
     },
     {
-      "path": "scripts/update-branch-checkpoint.sh",
-      "count": 1
+      "path": "scripts/update-branch-checkpoint.sh"
     },
     {
-      "path": "scripts/version_pins.py",
-      "count": 3
+      "path": "scripts/version_pins.py"
     },
     {
-      "path": "scripts/workflow-flight-recorder-registry.json",
-      "count": 2
+      "path": "scripts/workflow-flight-recorder-registry.json"
     },
     {
-      "path": "scripts/workflow_flight_recorder.py",
-      "count": 1
+      "path": "scripts/workflow_flight_recorder.py"
     },
     {
-      "path": "scripts/workpad.py",
-      "count": 5
+      "path": "scripts/workpad.py"
     },
     {
-      "path": "skills/create-issue/references/step-4-present-create.md",
-      "count": 1
+      "path": "skills/create-issue/references/step-4-present-create.md"
     },
     {
-      "path": "skills/implement/SKILL.md",
-      "count": 1
+      "path": "skills/implement/SKILL.md"
     },
     {
-      "path": "skills/implement/phases/phase-2-implement.md",
-      "count": 1
+      "path": "skills/implement/phases/phase-2-implement.md"
     },
     {
-      "path": "skills/implement/phases/phase-3-fix-loop.md",
-      "count": 2
+      "path": "skills/implement/phases/phase-3-fix-loop.md"
     },
     {
-      "path": "skills/implement/phases/phase-3-review.md",
-      "count": 3
+      "path": "skills/implement/phases/phase-3-review.md"
     },
     {
-      "path": "skills/init/SKILL.md",
-      "count": 23
+      "path": "skills/init/SKILL.md"
     },
     {
-      "path": "skills/receiving-code-review/SKILL.md",
-      "count": 3
+      "path": "skills/receiving-code-review/SKILL.md"
     },
     {
-      "path": "skills/requesting-code-review/SKILL.md",
-      "count": 2
+      "path": "skills/requesting-code-review/SKILL.md"
     },
     {
-      "path": "skills/retrospective-weekly/SKILL.md",
-      "count": 2
+      "path": "skills/retrospective-weekly/SKILL.md"
     },
     {
-      "path": "skills/retrospective/SKILL.md",
-      "count": 2
+      "path": "skills/retrospective/SKILL.md"
     },
     {
-      "path": "skills/review-and-fix/references/loop-exit.md",
-      "count": 1
+      "path": "skills/review-and-fix/references/loop-exit.md"
     },
     {
-      "path": "skills/review-and-fix/references/shadow-review.md",
-      "count": 1
+      "path": "skills/review-and-fix/references/shadow-review.md"
     },
     {
-      "path": "skills/review/SKILL.md",
-      "count": 2
+      "path": "skills/review/SKILL.md"
     },
     {
-      "path": "skills/review/phases/phase-0-setup.md",
-      "count": 5
+      "path": "skills/review/phases/phase-0-setup.md"
     },
     {
-      "path": "skills/review/phases/phase-4-verdict.md",
-      "count": 2
+      "path": "skills/review/phases/phase-4-verdict.md"
     }
   ]
 }

@@ -7,25 +7,31 @@ recorded bucket classification (issue #1745).
 Some ``DevFlow`` occurrences are FROZEN (a superseded provenance-label value a selector
 still matches, append-only record byte-contents, historical CHANGELOG entries) and some
 are ORDINARY PROSE still owed a rename to ``PRFlow``. This lint records which is which as
-data and reconciles the RENAMEABLE (``pending``) bucket against the tree in both
-directions:
+data and reconciles the RENAMEABLE (``pending``) bucket against the tree by per-file
+PRESENCE in both directions:
 
-- a pending occurrence in no baseline row (a new file, or a new occurrence in a file
-  beyond its recorded pending count) turns the suite RED — the AC3 new-occurrence guard;
-- a stale recorded assignment (a ``pending_sweep_baseline`` row whose file no longer
-  carries that many pending occurrences, or a frozen-provenance entry that matches
-  nothing) turns the suite RED.
+- a currently-clean file (no ``pending_sweep_baseline`` entry) that gains renameable
+  ``DevFlow`` turns the suite RED — the AC3 new-occurrence guard;
+- a stale entry (a ``pending_sweep_baseline`` file fully swept or deleted, or a
+  frozen-provenance entry that matches nothing) turns the suite RED.
 
-The FROZEN buckets are deliberately count-UNbounded: a frozen file or a frozen-provenance
+Reconciliation is per-file PRESENCE, deliberately NOT per-file count. An exact count of a
+high-churn file (``run.sh`` is mutated by nearly every PR) drifts on a clean-textual
+concurrent merge — two PRs each adding a ``DevFlow`` line pass individually while their
+post-merge union reddens the required check on ``main``, the shared-hot-spot anti-pattern
+CLAUDE.md warns of. So a file already in the grandfathered pending set is known sweep-debt
+the follow-up drains; only a currently-clean file introducing brand prose re-reds.
+
+The FROZEN buckets are likewise not count-bounded: a frozen file or a frozen-provenance
 value may legitimately grow (CHANGELOG entries, learnings/logs, new selectors), and AC3
 scopes the new-occurrence guard to occurrences *outside* a frozen/permanent bucket, so a
 new ``DevFlow`` in a frozen bucket is allowed by design and is not flagged.
 
 An unreadable tracked file (a genuine I/O failure on a git-tracked path) is breadcrumbed
-to stderr; in ``--check`` mode a non-empty skip set FAILS THE RUN CLOSED, because its
-occurrences could not be classified and a new renameable ``DevFlow`` there would otherwise
-escape the forward-direction guard. ``--update-baseline`` / ``--print-population``
-breadcrumb and continue (they do not gate).
+to stderr; in the default (reconcile) mode a non-empty skip set FAILS THE RUN CLOSED,
+because its occurrences could not be classified and a new renameable ``DevFlow`` there
+would otherwise escape the forward-direction guard. ``--update-baseline`` /
+``--print-population`` breadcrumb and continue (they do not gate).
 
 Buckets (first match wins), read from ``lib/test/brand-devflow-buckets.json``:
 
@@ -171,7 +177,7 @@ def scan(root: Path, buckets: dict, skipped: list[str] | None = None) -> tuple[d
 def cmd_check(root: Path, buckets: dict) -> int:
     skipped: list[str] = []
     pending, frozen_prov, audited = scan(root, buckets, skipped)
-    baseline = {row["path"]: row["count"] for row in buckets.get("pending_sweep_baseline", [])}
+    baseline = {row["path"] for row in buckets.get("pending_sweep_baseline", [])}
     findings: list[str] = []
 
     # Fail closed on an unreadable tracked file: its occurrences could not be classified, so
@@ -182,29 +188,28 @@ def cmd_check(root: Path, buckets: dict) -> int:
             f"be classified, so the reconciliation is incomplete; make the file readable and re-run"
         )
 
-    # Forward direction: a pending occurrence lacking a baseline row, or drifted from its
-    # recorded count, is unclassified.
-    for rel, count in sorted(pending.items()):
-        recorded = baseline.get(rel)
-        if recorded is None:
+    # Reconciliation is per-file PRESENCE, deliberately NOT per-file count: an exact count of a
+    # churny hot-spot file (run.sh is mutated by nearly every PR) drifts on a clean-textual
+    # concurrent merge — two PRs each adding a DevFlow line pass individually while their union
+    # reddens the required check on main, the shared-hot-spot anti-pattern CLAUDE.md warns of.
+    # Forward direction (AC3): a currently-clean file gaining renameable DevFlow is a new,
+    # unclassified pending file — RED. A file already in the grandfathered pending set is known
+    # sweep-debt the follow-up drains, so adding to it does not re-red.
+    for rel in sorted(pending):
+        if rel not in baseline:
             findings.append(
-                f"{rel}: {count} unclassified brand-cased 'DevFlow' occurrence(s) with no "
-                f"pending_sweep_baseline row — classify the file (frozen bucket) or record it "
-                f"in lib/test/brand-devflow-buckets.json (run --update-baseline)"
-            )
-        elif count != recorded:
-            findings.append(
-                f"{rel}: {count} pending brand-cased 'DevFlow' occurrence(s) but the baseline "
-                f"records {recorded} — a new occurrence or a partial sweep; reconcile the count "
-                f"(run --update-baseline after a deliberate sweep)"
+                f"{rel}: brand-cased 'DevFlow' in a file with no pending_sweep_baseline entry — "
+                f"classify the file (a frozen bucket) or record it in "
+                f"lib/test/brand-devflow-buckets.json (run --update-baseline)"
             )
 
-    # Reverse direction: a baseline row whose file is fully swept is stale.
+    # Reverse direction (AC1 stale): a baseline file fully swept (or deleted) carries no pending
+    # occurrence any more — remove the row.
     for rel in sorted(baseline):
         if rel not in pending:
             findings.append(
-                f"{rel}: stale pending_sweep_baseline row — the file carries no pending "
-                f"brand-cased 'DevFlow' occurrence any more; remove the row (run --update-baseline)"
+                f"{rel}: stale pending_sweep_baseline entry — the file carries no pending "
+                f"brand-cased 'DevFlow' occurrence any more; remove the entry (run --update-baseline)"
             )
 
     # Reverse direction: a frozen-provenance entry matching zero quoted values is stale.
@@ -224,9 +229,9 @@ def cmd_check(root: Path, buckets: dict) -> int:
 
 def cmd_update_baseline(root: Path, buckets: dict, buckets_path: Path) -> int:
     pending, _frozen_prov, _audited = scan(root, buckets)
-    buckets["pending_sweep_baseline"] = [
-        {"path": rel, "count": count} for rel, count in sorted(pending.items())
-    ]
+    # Presence set (paths only, no counts): the reconciliation gates on file presence, so a
+    # count here would be un-checked churn that rots.
+    buckets["pending_sweep_baseline"] = [{"path": rel} for rel in sorted(pending)]
     buckets_path.write_text(json.dumps(buckets, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"lint-brand-devflow-sweep: reseeded pending_sweep_baseline with {len(pending)} file(s)")
     return 0
