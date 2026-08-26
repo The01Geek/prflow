@@ -1,21 +1,29 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Reconcile every brand-cased ``DevFlow`` occurrence in the tracked tree against a
-recorded bucket classification, failing closed in both directions (issue #1745).
+"""Reconcile the brand-cased ``DevFlow`` occurrences in the tracked tree against a
+recorded bucket classification (issue #1745).
 
-The consumer-facing ``devflow`` -> ``prflow`` rename (issue #1002) left a large residue
-of the brand spelling ``DevFlow`` across prose, comments and fixtures. Some occurrences
-are FROZEN (a superseded provenance-label value a selector still matches, append-only
-record byte-contents, historical CHANGELOG entries) and some are ORDINARY PROSE still
-owed a rename to ``PRFlow``. This lint records which is which as data and enforces it:
+Some ``DevFlow`` occurrences are FROZEN (a superseded provenance-label value a selector
+still matches, append-only record byte-contents, historical CHANGELOG entries) and some
+are ORDINARY PROSE still owed a rename to ``PRFlow``. This lint records which is which as
+data and reconciles the RENAMEABLE (``pending``) bucket against the tree in both
+directions:
 
-- every case-sensitive ``DevFlow`` occurrence is classified into exactly one bucket;
-- an occurrence in no bucket (a new file, or a new occurrence in a file beyond its
-  recorded pending count) turns the suite RED;
+- a pending occurrence in no baseline row (a new file, or a new occurrence in a file
+  beyond its recorded pending count) turns the suite RED — the AC3 new-occurrence guard;
 - a stale recorded assignment (a ``pending_sweep_baseline`` row whose file no longer
   carries that many pending occurrences, or a frozen-provenance entry that matches
   nothing) turns the suite RED.
+
+The FROZEN buckets are deliberately count-UNbounded: a frozen file or a frozen-provenance
+value may legitimately grow (CHANGELOG entries, learnings/logs, new selectors), and AC3
+scopes the new-occurrence guard to occurrences *outside* a frozen/permanent bucket, so a
+new ``DevFlow`` in a frozen bucket is allowed by design and is not flagged.
+
+An unreadable tracked file is skipped with a stderr breadcrumb (a genuine I/O failure on
+a git-tracked path), so its occurrences are not classified this run — a disclosed
+best-effort limit, not a silent swallow.
 
 Buckets (first match wins), read from ``lib/test/brand-devflow-buckets.json``:
 
@@ -36,8 +44,10 @@ counted.
 Modes: ``--check`` (default) reconciles and exits non-zero on any finding;
 ``--update-baseline`` reseeds ``pending_sweep_baseline`` from the tree (used to seed the
 record and by the deferred sweep follow-up as it drains the bucket);
-``--print-population`` prints one ``bucket<TAB>path<TAB>count`` line per file for an
-independent reconciliation.
+``--print-population`` prints one or more ``bucket<TAB>path<TAB>count`` lines per file
+with a brand occurrence (a provenance file with both a value and a pending remainder
+emits a ``pending`` line and a ``frozen-provenance`` line) for an independent
+reconciliation.
 """
 from __future__ import annotations
 
@@ -215,7 +225,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--update-baseline", action="store_true",
                     help="reseed pending_sweep_baseline from the tree and rewrite the record")
     ap.add_argument("--print-population", action="store_true",
-                    help="print one 'bucket<TAB>path<TAB>count' line per file with a brand occurrence")
+                    help="print one or more 'bucket<TAB>path<TAB>count' lines per file with a brand "
+                         "occurrence (a provenance file emits both a pending and a frozen line)")
     args = ap.parse_args(argv)
 
     root = repo_root(args.root)

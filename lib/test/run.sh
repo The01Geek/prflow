@@ -54800,6 +54800,25 @@ assert_eq "#1745 a fully-classified tree is clean" "rc=0" "${BDS_CLEAN%%|*}"
 assert_eq "#1745 a frozen record path needs no baseline row" "no" "$(bds_has "learnings/x.jsonl" "$BDS_CLEAN")"
 assert_eq "#1745 a frozen-provenance value is not demanded as unclassified" "no" "$(bds_has "scan.sh: 1 unclassified" "$BDS_CLEAN")"
 
+# --print-population emits one line per bucket per file; a provenance file with both a
+# frozen value and a pending remainder emits the dual line pair (the documented contract).
+BDS_POP="$(python3 "$BDS_LINT" --root "$BDS_FX" --print-population 2>&1)"
+assert_eq "#1745 --print-population reports a pending file at its count" "yes" \
+  "$(bds_has "$(printf 'pending\tdocs/keep.md\t2')" "$BDS_POP")"
+assert_eq "#1745 --print-population emits a provenance file's pending line" "yes" \
+  "$(bds_has "$(printf 'pending\tlib/scan.sh\t1')" "$BDS_POP")"
+assert_eq "#1745 --print-population emits a provenance file's frozen line (dual emit)" "yes" \
+  "$(bds_has "$(printf 'frozen-provenance\tlib/scan.sh\t1')" "$BDS_POP")"
+
+# --update-baseline reseeds the pending baseline from the tree; on an already-reconciled
+# clean tree it is idempotent (rewrites the same counts) and --check stays green.
+BDS_RESEED="$(python3 "$BDS_LINT" --root "$BDS_FX" --update-baseline 2>&1)"; BDS_RESEED_RC=$?
+assert_eq "#1745 --update-baseline exits 0 and reports a reseed" "rc=0" \
+  "$([ "$BDS_RESEED_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s' "$BDS_RESEED_RC")"
+assert_eq "#1745 --update-baseline names the reseeded file count" "yes" \
+  "$(bds_has "reseeded pending_sweep_baseline with 2 file(s)" "$BDS_RESEED")"
+assert_eq "#1745 an idempotent reseed leaves --check green" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+
 # A file whose pending count lacks a baseline row fails the suite.
 printf 'a new DevFlow prose line\n' > "$BDS_FX/docs/new.md"; bds_stage
 BDS_NEW="$(bds_run "$BDS_FX")"
