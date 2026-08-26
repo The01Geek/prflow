@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.45] — 2026-08-26
+
+### Changed
+Harden the /prflow:docs router for the tiers it actually runs on: the two config-gate reads become direct leading-token invocations (the former `VAR=$(…)` capture is silently refused by the cloud matcher and worktree-isolated sessions), the prompt-extension load gains the vendored-literal-first three-tier ladder with the unestablished arm, each step now ends in a declared outcome (completed / skipped / failed / unestablished) that the Final Summary reports alongside the carried-forward public-doc impact list, and Step 3's ungated status is stated with its rationale.
+
+## [2.34.44] — 2026-08-26
+
+### Changed
+Fix three Phase 4.1 documentation-pass integration bugs: honor `docs.external_enabled: false` instead of blocking on the unused `.docs.external` key, align the release-notes/changelog config defaults with the `prflow:docs-release-notes` child skill so an unconfigured repo's release note is staged rather than dropped, and give the docs-sync-internal prompt extension's public-doc-impact handoff a concrete named shape the external step can consume.
+
 ## [2.34.43] — 2026-08-26
 
 ### Changed
