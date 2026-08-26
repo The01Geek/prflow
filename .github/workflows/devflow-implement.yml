@@ -2299,10 +2299,14 @@ jobs:
       - name: Reconcile prompt-extension arrival
         if: ${{ always() }}
         env:
-          GH_TOKEN: ${{ steps.backstop-token.outputs.token || secrets.GITHUB_TOKEN }}
+          # Fresh backstop-mint token (falls back to the built-in installation token,
+          # spelled github.token here — equivalent to secrets.GITHUB_TOKEN — so this
+          # legitimate reuse does not collide with the stall-backstop step's pinned
+          # GH_TOKEN literal).
+          GH_TOKEN: ${{ steps.backstop-token.outputs.token || github.token }}
           ISSUE_NUMBER: ${{ needs.gate.outputs.number }}
           EXPECTED: ${{ steps.extarrival.outputs.state }}
-          CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
+          AGENT_OUTCOME: ${{ steps.claude.outcome }}
         run: |
           set +e
           if [ -z "${EXPECTED:-}" ]; then
@@ -2310,11 +2314,11 @@ jobs:
             # When the agent step itself succeeded, that gap disabled the whole check, so
             # fail closed rather than exit clean; when the job is already non-green, there
             # is nothing to enforce.
-            if [ "$CLAUDE_OUTCOME" = "success" ]; then
+            if [ "$AGENT_OUTCOME" = "success" ]; then
               echo "::error::prompt-extension-arrival: the pre-agent classify step recorded no expectation, so the post-agent arrival check could not run on a run the agent reported successful — refusing to treat it as clean."
               exit 1
             fi
-            echo "prompt-extension-arrival: no pre-agent expectation and claude outcome '${CLAUDE_OUTCOME:-unknown}' (already non-green); nothing to reconcile"
+            echo "prompt-extension-arrival: no pre-agent expectation and claude outcome '${AGENT_OUTCOME:-unknown}' (already non-green); nothing to reconcile"
             exit 0
           fi
           if [ "$EXPECTED" = "absent" ]; then
@@ -2339,8 +2343,8 @@ jobs:
             # No workpad: the run halted before one existed. Enforce only when the agent
             # step itself reported success — a failed/cancelled job is already non-green,
             # so AC2's job-conclusion arm is already satisfied.
-            if [ "$CLAUDE_OUTCOME" != "success" ]; then
-              echo "prompt-extension-arrival: no workpad and claude outcome '${CLAUDE_OUTCOME:-unknown}' (already non-green); no enforcement needed"
+            if [ "$AGENT_OUTCOME" != "success" ]; then
+              echo "prompt-extension-arrival: no workpad and claude outcome '${AGENT_OUTCOME:-unknown}' (already non-green); no enforcement needed"
               exit 0
             fi
             OUT="$(python3 "$H" reconcile --expected "$EXPECTED" --arrival-marker 'extension resolved: implement' --durable-source none --skill implement)"

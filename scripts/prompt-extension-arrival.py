@@ -67,6 +67,17 @@ EXIT_BADARGS = 2
 EXIT_FAULT = 3
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import), so a
+    non-UTF-8 ambient codec cannot make a non-ASCII byte in a record/path raise
+    UnicodeEncodeError. Tolerates a non-TextIOWrapper stream (a test's io.StringIO)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def _validate_skill(name: str) -> None:
     """Reject the same skill names ``load-prompt-extension.sh`` rejects, before any
     filesystem access, so the composed path can never escape the selected root."""
@@ -238,6 +249,7 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_streams()
     parser = argparse.ArgumentParser(
         prog="prompt-extension-arrival.py",
         description="Independent-channel prompt-extension / skill-body arrival detector.",
