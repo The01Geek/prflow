@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1970",
+  "generated_at": "2026-08-26T02:02:22Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.35",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 63.47738834999999,
+    "tokens": {
+      "input_tokens": 404,
+      "output_tokens": 190259,
+      "cache_read_input_tokens": 81432726,
+      "cache_creation_input_tokens": 573173,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 604,
+        "outputTokens": 261729,
+        "cacheReadInputTokens": 87853014,
+        "cacheCreationInputTokens": 1370136,
+        "webSearchRequests": 0,
+        "costUSD": 61.18550074999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 110,
+        "outputTokens": 31456,
+        "cacheReadInputTokens": 3618163,
+        "cacheCreationInputTokens": 501390,
+        "webSearchRequests": 0,
+        "costUSD": 2.2918875999999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 254,
+    "duration_ms": 6753015
+  },
+  "permission_denials": {
+    "count": 18,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"; ls .prflow/vendor/prflow/scripts/load-prompt-extension.sh 2>&1; echo \"---\"; ls scripts/load-prompt-extension.sh 2>&1",
+      ".prflow/vendor/prflow/scripts/workpad.py handoff-state /home/runner/work/prflow/prflow/.prflow/tmp/implement-handoff-1446-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json --issue 1446 --run-id $GITHUB_RUN_ID --run-attempt $GITHUB_RUN_ATTEMPT",
+      "chmod +x /home/runner/work/prflow/prflow/scripts/prompt-extension-arrival.py\ncd /home/runner/work/prflow/prflow\nD=$(mktemp -d); mkdir -p \"$D/ext\"\nprintf 'hello content\\n' > \"$D/ext/implement.md\"\necho \"== arrived ==\"; python3 scripts/prompt-extension-arrival.py classify --skill implement --root \"$D/ext\"; echo \"rc=$?\"\necho \"== absent (missing) ==\"; python3 scripts/prompt-extension-arrival.py classify --skill review --root \"$D/ext\"; echo \"rc=$?\"\n: > \"$D/ext/empty.md\"; echo \"== absent (empty) ==\"; p …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh \"feat: implement issue #1446 — prompt-extension/skill-body arrival detector helper + tests (checkpoint)\" scripts/prompt-extension-arrival.py lib/test/modules/prompt-extension-reader.sh lib/test/run.sh scripts/workflow-flight-recorder-registry.json lib/test/modules/coverage-map.json 2>&1 | tail -8; echo \"rc=${PIPESTATUS[0]}\"",
+      "ls /home/runner/work/prflow/prflow/.changeset/ 2>/dev/null | head; echo \"---sample---\"; f=$(ls /home/runner/work/prflow/prflow/.changeset/*.md 2>/dev/null | grep -v README | head -1); echo \"FILE: $f\"; cat \"$f\" 2>/dev/null",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1446-prompt-extension-arrival.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"EXIT=$?\"",
+      "python3 -c \"import yaml,sys; yaml.safe_load(open('/home/runner/work/prflow/prflow/.github/workflows/devflow-implement.yml')); print('devflow-implement.yml: valid YAML')\"; which actionlint 2>/dev/null && actionlint /home/runner/work/prflow/prflow/.github/workflows/devflow-implement.yml 2>&1 | head -20 || echo \"actionlint not on PATH (CI runs it)\"",
+      "for n in 6660 6677 6704 6718 6738 6754 6766 6796 6816 7167 7183; do sed -n \"${n}p\" scripts/workpad.py; done",
+      "cd /home/runner/work/prflow/prflow\nFP=$(python3 scripts/checkout-fingerprint.py)\necho \"$FP\"\ncat > .prflow/tmp/pea-declaration.json <<EOF\n{\"profile\": {\"command\": \"lib/test/run-module.sh prompt-extension-reader\", \"module\": \"prompt-extension-reader\"}, \"checkout\": $FP, \"candidate_identity\": \"ac-evidence-verifier-1446\"}\nEOF\ncat .prflow/tmp/pea-declaration.json\npython3 scripts/verification-flight.py claim --input-file .prflow/tmp/pea-declaration.json 2>&1",
+      "python3 scripts/checkout-fingerprint.py > .prflow/tmp/pea-fp.json && cat .prflow/tmp/pea-fp.json",
+      "python3 - <<'PYEOF'\nimport subprocess, json\nfp = json.loads(subprocess.check_output([\"python3\",\"scripts/checkout-fingerprint.py\"]))\ndecl = {\"profile\": {\"command\": \"lib/test/run-module.sh prompt-extension-reader\", \"module\": \"prompt-extension-reader\"}, \"checkout\": fp, \"candidate_identity\": \"ac-evidence-verifier-1446\"}\nwith open(\".prflow/tmp/pea-declaration.json\",\"w\") as f:\n    json.dump(decl, f)\nprint(open(\".prflow/tmp/pea-declaration.json\").read())\nPYEOF",
+      "CREATE_STATE=\"\"\ngh issue create \\\n  --title \"Extend extension-arrival enforcement to the local/interactive tier and the cloud review tier\" \\\n  --body-file /home/runner/work/prflow/prflow/.prflow/tmp/deferral-draft-1446-1.md \\\n  && CREATE_STATE=ok || CREATE_STATE=failed\necho \"phase 4.0 create fence ran; create=[${CREATE_STATE}]\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs; echo \"EXIT=$?\"",
+      "ls -la /home/runner/work/prflow/prflow/.prflow/prompt-extensions/ 2>&1; echo \"---\"; INTERNAL=$(/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.internal_enabled true); EXTERNAL=$(/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.external_enabled true); echo \"INTERNAL=$INTERNAL EXTERNAL=$EXTERNAL\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs",
+      "python3 /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/../scripts/config-get.sh 2>/dev/null .docs.internal_enabled true || echo \"fallback-fail\"",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"---RC:$?---\"",
+      "scripts/prompt-surface-growth.py"
+    ],
+    "total": 18,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
