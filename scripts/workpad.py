@@ -4273,17 +4273,14 @@ _REVIEW_COVERAGE_AXIS_GAP = {s['name']: s['gap'] for s in _REVIEW_COVERAGE_AXIS_
 _REVIEW_COVERAGE_GAPS = tuple(
     dict.fromkeys(s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS))
 # The CLOSED cause-class vocabulary a `--review-coverage-disposition` must name
-# (issue #1984). There is deliberately NO elective member: a run that dropped a
-# review component on a budget belief, or judged its partial pass adequate, has no
-# admissible class and stops at Blocked. Both values are colon-free and lowercase so
-# the cause class round-trips as the third segment of the disposition marker key
+# (issue #1984). There is deliberately NO elective member, so a budget or elective
+# cause has no admissible class. Both values are colon-free and lowercase so the
+# cause class round-trips as the third segment of the disposition marker key
 # `review-coverage-disposition:<gap>:<cause-class>`.
-#   `environment-denial`   — a capability the runner did not expose (a tool, an agent
-#     type, a permission). Admissible only with evidence: a recorded `missing` roster
-#     row (the denied member), which is why the lost-write shape below cannot use it.
-#   `dispatched-but-lost`  — a reviewer that WAS dispatched, whose result was lost
-#     after the shadow contract's single bounded re-dispatch (the roster=unestablished
-#     lost-write arm).
+#   `environment-denial`   — a capability the runner did not expose. Admissible only
+#     with a recorded `missing` roster row (the denied member), so the lost-write
+#     shape below cannot use it.
+#   `dispatched-but-lost`  — a reviewer that WAS dispatched, whose result was lost.
 _REVIEW_COVERAGE_CAUSE_CLASSES = ('environment-denial', 'dispatched-but-lost')
 # Shadow-review roster membership (issue #1512): the per-member dispatch enumeration
 # `_review_roster_incoherence` cross-checks the summary `roster` axis against, so a
