@@ -15,11 +15,11 @@ implement tier to the local/interactive tier and the cloud review/command tier.
   job-level pair the implement workflow already carries, reading the extension root from
   the trusted base-ref closure (`DEVFLOW_PROMPT_EXTENSION_ROOT`) rather than the PR-head
   checkout. Because the read-only review/command tier has no implement-style positive-tick
-  arrival row, the post-agent step reconciles by the signals it can read at job level — it
-  fails closed when the expectation could not be established on a successful run, and blocks
-  a clean terminal when the run recorded a non-arrival on the PR. A lost skill body writes
-  no such record; that residual stays covered by the pre-agent classify and the agent-side
-  forced record.
+  arrival row, the post-agent step enforces only what it can establish at job level — it
+  fails closed on a successful run whose expectation is unestablished (no pre-agent token,
+  detector absent, or an undeliverable extension file). On an arrived-expected (deliverable)
+  run it records that consumption cannot be independently confirmed on this read-only tier
+  and passes; the agent-side classify and forced durable record are the consumption catch.
 - The three workpad-less skill bodies (`skills/review`, `skills/review-and-fix`,
   `skills/pr-description`) now force the non-arrival record to a durable surface in a fixed,
   terminating order — workpad, then the pull request, then the run's own output naming the

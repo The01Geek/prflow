@@ -2599,11 +2599,9 @@ jobs:
             bash "$HELPER" --persist
           exit 0
 
-      # Reconcile prompt-extension arrival (issue #1971) against the run's own durable
-      # artifacts. The read-only review/command tier has no implement-style issue workpad
       # Reconcile prompt-extension arrival (issue #1971). The read-only review/command tier
-      # has no positive-tick arrival row, so this backstop fails closed on an unestablished
-      # expectation and blocks a clean terminal on a non-arrival recorded for this head.
+      # has no positive-tick arrival row, so this backstop enforces only what it can establish
+      # at job level: fail closed on an unestablished expectation on a successful agent run.
       - name: Reconcile prompt-extension arrival
         if: ${{ always() }}
         env:
@@ -2615,9 +2613,6 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set +e
-          # The forced durable-record sentinel AC3's workpad-less bodies write on the
-          # unestablished arm; the backstop scans the PR for it, scoped to this reviewed head.
-          SENTINEL="prompt-extension arrival unestablished"
           # Every ::error:: restates that permission_denials_count is blind to a lost
           # skill-body load, or a reader treats a low count as evidence it loaded.
           fail_closed() {
@@ -2628,19 +2623,12 @@ jobs:
           # and must not decide which PR this step reads or writes.
           PR_NUM="${CMD##* }"
           case "$PR_NUM" in ''|*[!0-9]*) PR_NUM="" ;; esac
-          # Reviewed head, resolved once when a PR is known: it scopes the written record and
-          # the scan, so a stale non-arrival record from an EARLIER head cannot block a later,
-          # genuinely-arrived run on the same PR.
-          HEAD_SHA=""
-          if [ -n "$PR_NUM" ]; then
-            HEAD_SHA="$(gh pr view "$PR_NUM" --repo "$REPO" --json headRefOid -q .headRefOid 2>/dev/null)"
-          fi
           # Fixed AC3 durable-surface order for this tier: no issue workpad exists, so the
           # PR is the durable surface; when even that is unresolvable the ::error:: and the
           # non-zero job conclusion are the only record (record unrecordable).
           record_non_arrival() {
             if [ -n "$PR_NUM" ]; then
-              gh pr comment "$PR_NUM" --repo "$REPO" --body "⛔ ${1:-prompt-extension arrival unestablished — the skill body / consumer extension did not reach the agent on this run.} (reviewed head ${HEAD_SHA:-unresolved})" \
+              gh pr comment "$PR_NUM" --repo "$REPO" --body "⛔ ${1:-prompt-extension arrival unestablished — the skill body / consumer extension did not reach the agent on this run.}" \
                 || echo "::warning::prompt-extension-arrival: could not write the durable non-arrival record to PR #$PR_NUM (record unrecordable)"
             else
               echo "::warning::prompt-extension-arrival: no PR number resolvable from command '$CMD' to record non-arrival (record unrecordable); the ::error:: and non-zero job conclusion are the only record"
@@ -2679,39 +2667,10 @@ jobs:
               exit 1
               ;;
           esac
-          # arrived-expected + success. Reconcile against the PR: block a clean terminal
-          # when the run's own ladder-classifier recorded a non-arrival for this reviewed head.
-          if [ -z "$PR_NUM" ]; then
-            echo "prompt-extension-arrival: no PR number resolvable from command '$CMD'; cannot scan a durable artifact — leaving the run's own record authoritative"
-            exit 0
-          fi
-          BODY="$(gh pr view "$PR_NUM" --repo "$REPO" --json body,comments -q '.body + "\n" + ([.comments[].body] | join("\n"))' 2>/dev/null)"; BODY_RC=$?
-          if [ "$BODY_RC" != 0 ]; then
-            # An unread durable artifact cannot establish arrival, and treating it as arrived
-            # is the fail-open path this surface closes.
-            fail_closed "could not read PR #$PR_NUM to confirm the extension arrived (gh exit $BODY_RC)"
-            record_non_arrival "prompt-extension arrival unestablished — the PR body/comments could not be read (gh exit $BODY_RC)"
-            exit 1
-          fi
-          # A non-arrival record blocks only when it is scoped to THIS reviewed head; a
-          # head-less HEAD_SHA (resolution failed) conservatively falls back to any-sentinel.
-          BLOCK=0
-          case "$BODY" in
-            *"$SENTINEL"*)
-              if [ -z "$HEAD_SHA" ]; then
-                BLOCK=1
-              else
-                case "$BODY" in *"$HEAD_SHA"*) BLOCK=1 ;; esac
-              fi
-              ;;
-          esac
-          if [ "$BLOCK" = 1 ]; then
-            # The agent both claimed success AND recorded that its policy extension did not
-            # arrive for this head — a contradiction. The record already exists; do not re-post.
-            fail_closed "the run recorded a non-arrival for this reviewed head on PR #$PR_NUM yet reported success"
-            exit 1
-          fi
-          echo "prompt-extension-arrival: $SKILL extension arrival reconciled (deliverable at the trusted closure; no non-arrival record for this head on PR #$PR_NUM)"
+          # arrived-expected + success: deliverable at the trusted closure. This read-only tier
+          # has no positive-tick artifact and a PR deny-scan cannot reliably attribute a record
+          # to this run, so consumption is confirmed only by the agent-side forced record.
+          echo "prompt-extension-arrival: $SKILL extension deliverable at the trusted closure; job-level cannot independently confirm consumption on this read-only tier — the agent-side forced record is the catch (documented residual)"
           exit 0
 
   # ── Out-of-job review finalizer (issue #1174). ──────────────────────────────
