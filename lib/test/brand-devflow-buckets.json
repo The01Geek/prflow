@@ -1,0 +1,689 @@
+{
+  "schema_version": 1,
+  "_comment": "Bucket classification for every case-sensitive brand-cased 'DevFlow' occurrence in the tracked tree (issue #1745). Read and reconciled by lib/test/lint-brand-devflow-sweep.py, which fails closed in both directions. The `frozen` block records the occurrences that are NEVER swept to 'PRFlow' (append-only record contents, historical CHANGELOG, this feature's own tooling, and the superseded provenance-label value a selector still matches); `pending_sweep_baseline` records, per file, the ordinary renameable-prose occurrences not yet swept — this bucket is drained to empty by the follow-up sweep. Seed or reconcile it with `lint-brand-devflow-sweep.py --update-baseline`; do not hand-edit the counts.",
+  "frozen": {
+    "record_prefixes": [
+      ".prflow/learnings/",
+      ".prflow/logs/"
+    ],
+    "historical_files": [
+      "CHANGELOG.md"
+    ],
+    "tooling_files": [
+      "lib/test/brand-devflow-buckets.json",
+      "lib/test/lint-brand-devflow-sweep.py"
+    ],
+    "provenance": [
+      {
+        "file": "lib/scan.sh",
+        "detail": "PROVENANCE_LABEL_SUPERSEDED='DevFlow'"
+      },
+      {
+        "file": "lib/classify-pr-kind.jq",
+        "detail": "any(. == \"PRFlow\" or . == \"DevFlow\")"
+      },
+      {
+        "file": "lib/fetch-pr-context.sh",
+        "detail": "any(. == \"PRFlow\" or . == \"DevFlow\")"
+      },
+      {
+        "file": "lib/rename-map.json",
+        "detail": "identifiers[].superseded == \"DevFlow\""
+      }
+    ]
+  },
+  "pending_sweep_baseline": [
+    {
+      "path": ".changeset/README.md",
+      "count": 2
+    },
+    {
+      "path": ".github/actions/read-project-config/action.yml",
+      "count": 1
+    },
+    {
+      "path": ".github/actions/vendor-plugin/action.yml",
+      "count": 3
+    },
+    {
+      "path": ".github/actions/vendor-plugin/vendor-slice.sh",
+      "count": 6
+    },
+    {
+      "path": ".github/workflows/agents-seam-probe.yml",
+      "count": 1
+    },
+    {
+      "path": ".github/workflows/devflow-implement.yml",
+      "count": 12
+    },
+    {
+      "path": ".github/workflows/devflow-runner.yml",
+      "count": 35
+    },
+    {
+      "path": ".github/workflows/devflow.yml",
+      "count": 13
+    },
+    {
+      "path": ".github/workflows/matcher-probe.yml",
+      "count": 2
+    },
+    {
+      "path": ".github/workflows/stall-observer.yml",
+      "count": 1
+    },
+    {
+      "path": ".github/workflows/telemetry-push.yml",
+      "count": 4
+    },
+    {
+      "path": ".github/workflows/version-consolidate.yml",
+      "count": 7
+    },
+    {
+      "path": ".gitignore",
+      "count": 3
+    },
+    {
+      "path": ".prflow/config.schema.json",
+      "count": 1
+    },
+    {
+      "path": ".prflow/prompt-extensions/create-issue.md",
+      "count": 5
+    },
+    {
+      "path": ".prflow/prompt-extensions/create-issue.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-bootstrap-external.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-bootstrap-internal.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-release-notes.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-sync-external.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-sync-internal.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs-verify.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/docs.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/implement.md",
+      "count": 6
+    },
+    {
+      "path": ".prflow/prompt-extensions/implement.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/init.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/pr-description.md",
+      "count": 1
+    },
+    {
+      "path": ".prflow/prompt-extensions/pr-description.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/receiving-code-review.md",
+      "count": 3
+    },
+    {
+      "path": ".prflow/prompt-extensions/receiving-code-review.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/requesting-code-review.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/retrospective-audit.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/retrospective-weekly.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/retrospective.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/review-and-fix.md",
+      "count": 5
+    },
+    {
+      "path": ".prflow/prompt-extensions/review-and-fix.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/prompt-extensions/review.md",
+      "count": 4
+    },
+    {
+      "path": ".prflow/prompt-extensions/review.md.example",
+      "count": 2
+    },
+    {
+      "path": ".prflow/tool-presets.json",
+      "count": 1
+    },
+    {
+      "path": "CLAUDE.md",
+      "count": 16
+    },
+    {
+      "path": "README.md",
+      "count": 1
+    },
+    {
+      "path": "agents/deferral-drafter.md",
+      "count": 1
+    },
+    {
+      "path": "docs/external/docs/getting-started/initialization.md",
+      "count": 1
+    },
+    {
+      "path": "docs/external/docs/getting-started/installation.md",
+      "count": 2
+    },
+    {
+      "path": "docs/external/docs/getting-started/migrate-from-devflow.md",
+      "count": 8
+    },
+    {
+      "path": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+      "count": 15
+    },
+    {
+      "path": "docs/internal/claude-md-extension-audit-coupled-sites.md",
+      "count": 1
+    },
+    {
+      "path": "docs/internal/claude-md-relocated-rationale.md",
+      "count": 2
+    },
+    {
+      "path": "docs/internal/cloud-setup.md",
+      "count": 16
+    },
+    {
+      "path": "docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md",
+      "count": 1
+    },
+    {
+      "path": "docs/internal/implement-skill.md",
+      "count": 1
+    },
+    {
+      "path": "docs/internal/install.md",
+      "count": 8
+    },
+    {
+      "path": "docs/internal/shadow-review.md",
+      "count": 1
+    },
+    {
+      "path": "install.sh",
+      "count": 32
+    },
+    {
+      "path": "lib/capability-profiles.json",
+      "count": 1
+    },
+    {
+      "path": "lib/classify-pr-kind.jq",
+      "count": 3
+    },
+    {
+      "path": "lib/dispatch-disposition.jq",
+      "count": 2
+    },
+    {
+      "path": "lib/efficiency-trace.sh",
+      "count": 2
+    },
+    {
+      "path": "lib/fetch-pr-context.sh",
+      "count": 4
+    },
+    {
+      "path": "lib/generate-capability-profiles.py",
+      "count": 1
+    },
+    {
+      "path": "lib/generate-plugin-identity.py",
+      "count": 3
+    },
+    {
+      "path": "lib/implement-stop-guard.sh",
+      "count": 1
+    },
+    {
+      "path": "lib/meta-issue.sh",
+      "count": 1
+    },
+    {
+      "path": "lib/migrate-config-values.py",
+      "count": 3
+    },
+    {
+      "path": "lib/plugin-identity.json",
+      "count": 1
+    },
+    {
+      "path": "lib/plugin_identity.py",
+      "count": 3
+    },
+    {
+      "path": "lib/preflight.sh",
+      "count": 6
+    },
+    {
+      "path": "lib/rename-map.json",
+      "count": 3
+    },
+    {
+      "path": "lib/render-report.sh",
+      "count": 1
+    },
+    {
+      "path": "lib/resolve-bin.sh",
+      "count": 2
+    },
+    {
+      "path": "lib/resolve-gh.sh",
+      "count": 2
+    },
+    {
+      "path": "lib/resolve-jq.sh",
+      "count": 1
+    },
+    {
+      "path": "lib/resolve-python.sh",
+      "count": 3
+    },
+    {
+      "path": "lib/scan.sh",
+      "count": 4
+    },
+    {
+      "path": "lib/telemetry-branch.sh",
+      "count": 4
+    },
+    {
+      "path": "lib/test/fixtures/FAILED-prcomments.json",
+      "count": 1
+    },
+    {
+      "path": "lib/test/fixtures/issue-304-body.md",
+      "count": 3
+    },
+    {
+      "path": "lib/test/fixtures/shipped-pruned-path/slices/comment-apostrophe.sh",
+      "count": 1
+    },
+    {
+      "path": "lib/test/fixtures/skill-body-load-transcript.observed.txt",
+      "count": 2
+    },
+    {
+      "path": "lib/test/lint-shipped-pruned-path.py",
+      "count": 1
+    },
+    {
+      "path": "lib/test/lint-subagent-extension-handoff.py",
+      "count": 6
+    },
+    {
+      "path": "lib/test/module-harness.sh",
+      "count": 1
+    },
+    {
+      "path": "lib/test/modules/create-issue-contract.sh",
+      "count": 3
+    },
+    {
+      "path": "lib/test/modules/efficiency-trace-telemetry.sh",
+      "count": 5
+    },
+    {
+      "path": "lib/test/modules/experiment-records.sh",
+      "count": 4
+    },
+    {
+      "path": "lib/test/modules/installer-wiring.sh",
+      "count": 21
+    },
+    {
+      "path": "lib/test/modules/regenerate-artifacts.inventory.md",
+      "count": 1
+    },
+    {
+      "path": "lib/test/modules/regenerate-artifacts.sh",
+      "count": 4
+    },
+    {
+      "path": "lib/test/modules/retrospective-lifecycle.sh",
+      "count": 1
+    },
+    {
+      "path": "lib/test/modules/review-stall-backstop.sh",
+      "count": 3
+    },
+    {
+      "path": "lib/test/modules/review-trigger-helpers.sh",
+      "count": 21
+    },
+    {
+      "path": "lib/test/modules/tier1-rename-migration.sh",
+      "count": 15
+    },
+    {
+      "path": "lib/test/modules/workpad-cli.sh",
+      "count": 1
+    },
+    {
+      "path": "lib/test/pin-corpus-lint.py",
+      "count": 4
+    },
+    {
+      "path": "lib/test/run.sh",
+      "count": 267
+    },
+    {
+      "path": "lib/test/summary.sh",
+      "count": 1
+    },
+    {
+      "path": "lib/test/test_pin_corpus_lint.py",
+      "count": 14
+    },
+    {
+      "path": "lib/test/test_python_scripts.py",
+      "count": 28
+    },
+    {
+      "path": "lib/test/test_verification_baseline.py",
+      "count": 2
+    },
+    {
+      "path": "lib/test/test_workflow_flight_recorder.py",
+      "count": 1
+    },
+    {
+      "path": "requirements.txt",
+      "count": 1
+    },
+    {
+      "path": "scripts/analyze-workflow-runs.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/apply-labels.sh",
+      "count": 5
+    },
+    {
+      "path": "scripts/authorize-actor.sh",
+      "count": 2
+    },
+    {
+      "path": "scripts/build-experiment-records.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/check-verified-premises.py",
+      "count": 2
+    },
+    {
+      "path": "scripts/config-get.sh",
+      "count": 4
+    },
+    {
+      "path": "scripts/consolidate-changesets.py",
+      "count": 2
+    },
+    {
+      "path": "scripts/decide-verdict-gap-job-status.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/dedupe-review-command.sh",
+      "count": 2
+    },
+    {
+      "path": "scripts/discover-deferral-manifests.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/emit-git-env.sh",
+      "count": 2
+    },
+    {
+      "path": "scripts/extract-execution-shape.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/file-deferrals.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/gh-fresh.sh",
+      "count": 2
+    },
+    {
+      "path": "scripts/harden-stop-hooks.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/install-gh-wrapper.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/lint_manifest.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/load-prompt-extension.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/loop-verdict-marker.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/match-deferrals.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/match-lint-adjudications.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/normalize-verdicts.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/post-review-backstop-comment.sh",
+      "count": 2
+    },
+    {
+      "path": "scripts/pretooluse-shape-guard.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/prompt-surface-growth.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/provision-auto-mode.sh",
+      "count": 2
+    },
+    {
+      "path": "scripts/provision-local-settings.sh",
+      "count": 16
+    },
+    {
+      "path": "scripts/provision-python3-shim.sh",
+      "count": 10
+    },
+    {
+      "path": "scripts/publish-release.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/react-to-trigger.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/refresh-app-credentials.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/render-grounding-block.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/resolve-command-trigger.sh",
+      "count": 3
+    },
+    {
+      "path": "scripts/resolve-committer-identity.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/resolve-existing-pr.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/resolve-extra-plugins.sh",
+      "count": 8
+    },
+    {
+      "path": "scripts/resolve-implement-trigger.sh",
+      "count": 2
+    },
+    {
+      "path": "scripts/resolve-review-overrides.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/scaffold-config.sh",
+      "count": 5
+    },
+    {
+      "path": "scripts/stale-prose-lint.py",
+      "count": 2
+    },
+    {
+      "path": "scripts/summarize-ci-checks.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/surface-execution-diagnostics.sh",
+      "count": 3
+    },
+    {
+      "path": "scripts/update-branch-checkpoint.sh",
+      "count": 1
+    },
+    {
+      "path": "scripts/version_pins.py",
+      "count": 3
+    },
+    {
+      "path": "scripts/workflow-flight-recorder-registry.json",
+      "count": 2
+    },
+    {
+      "path": "scripts/workflow_flight_recorder.py",
+      "count": 1
+    },
+    {
+      "path": "scripts/workpad.py",
+      "count": 5
+    },
+    {
+      "path": "skills/create-issue/references/step-4-present-create.md",
+      "count": 1
+    },
+    {
+      "path": "skills/implement/SKILL.md",
+      "count": 1
+    },
+    {
+      "path": "skills/implement/phases/phase-2-implement.md",
+      "count": 1
+    },
+    {
+      "path": "skills/implement/phases/phase-3-fix-loop.md",
+      "count": 2
+    },
+    {
+      "path": "skills/implement/phases/phase-3-review.md",
+      "count": 3
+    },
+    {
+      "path": "skills/init/SKILL.md",
+      "count": 23
+    },
+    {
+      "path": "skills/receiving-code-review/SKILL.md",
+      "count": 3
+    },
+    {
+      "path": "skills/requesting-code-review/SKILL.md",
+      "count": 2
+    },
+    {
+      "path": "skills/retrospective-weekly/SKILL.md",
+      "count": 2
+    },
+    {
+      "path": "skills/retrospective/SKILL.md",
+      "count": 2
+    },
+    {
+      "path": "skills/review-and-fix/references/loop-exit.md",
+      "count": 1
+    },
+    {
+      "path": "skills/review-and-fix/references/shadow-review.md",
+      "count": 1
+    },
+    {
+      "path": "skills/review/SKILL.md",
+      "count": 2
+    },
+    {
+      "path": "skills/review/phases/phase-0-setup.md",
+      "count": 5
+    },
+    {
+      "path": "skills/review/phases/phase-4-verdict.md",
+      "count": 2
+    }
+  ]
+}

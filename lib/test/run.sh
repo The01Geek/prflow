@@ -54761,6 +54761,77 @@ elif [ -n "$RSZ_NF_REAL" ]; then
   printf '%s\n' "$RSZ_NF_REAL" | rsz_nf_render
 fi
 
+# ── #1745 brand-cased DevFlow bucket reconciliation (lib/test/lint-brand-devflow-sweep.py) ──
+# Every brand-cased 'DevFlow' occurrence in the tracked tree is classified into a recorded
+# bucket; the lint fails closed BOTH ways — an unclassified/new occurrence and a stale
+# assignment each turn RED. Drive the exit code and finding lines, not the prose.
+echo "#1745 brand-devflow sweep: every brand-cased DevFlow occurrence stays classified, fail-closed both ways"
+BDS_LINT="$LIB/test/lint-brand-devflow-sweep.py"
+BDS_FX="$(git_sandbox '#1745 fixture repo')"
+python3 - "$BDS_FX" <<'BDS_BUILD'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+def w(rel, body):
+    p = root / rel; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(body, encoding="utf-8")
+w("docs/keep.md", "DevFlow is great and DevFlow ships.\n")          # 2 pending prose
+w(".prflow/learnings/x.jsonl", '{"note":"DevFlow ran"}\n')          # frozen-record
+w("CHANGELOG.md", "## old\nDevFlow did a thing\n")                  # frozen-historical
+w("lib/scan.sh", "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n")  # 1 frozen value + 1 pending
+buckets = {"schema_version": 1,
+  "frozen": {"record_prefixes": [".prflow/learnings/", ".prflow/logs/"],
+             "historical_files": ["CHANGELOG.md"], "tooling_files": [],
+             "provenance": [{"file": "lib/scan.sh"}]},
+  "pending_sweep_baseline": [{"path": "docs/keep.md", "count": 2}, {"path": "lib/scan.sh", "count": 1}]}
+w("lib/test/brand-devflow-buckets.json", json.dumps(buckets, indent=2) + "\n")
+subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_BUILD
+bds_run() { local out rc; out="$(python3 "$BDS_LINT" --root "$1" 2>&1)"; rc=$?; printf 'rc=%s|%s' "$rc" "$out"; }
+bds_has() { case "$2" in *"$1"*) echo yes ;; *) echo no ;; esac; }
+bds_stage() { git -C "$BDS_FX" add -A; }
+
+# A fully-classified tree is clean; frozen buckets are covered without a baseline row.
+BDS_CLEAN="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a fully-classified tree is clean" "rc=0" "${BDS_CLEAN%%|*}"
+assert_eq "#1745 a frozen record path needs no baseline row" "no" "$(bds_has "learnings/x.jsonl" "$BDS_CLEAN")"
+assert_eq "#1745 a frozen-provenance value is not demanded as unclassified" "no" "$(bds_has "scan.sh: 1 unclassified" "$BDS_CLEAN")"
+
+# An unclassified occurrence (a file with no baseline row) fails the suite.
+printf 'a new DevFlow prose line\n' > "$BDS_FX/docs/new.md"; bds_stage
+BDS_NEW="$(bds_run "$BDS_FX")"
+assert_eq "#1745 an unclassified occurrence fails the suite" "rc=1" "${BDS_NEW%%|*}"
+assert_eq "#1745 the finding names the unclassified file" "yes" "$(bds_has "docs/new.md: 1 unclassified" "$BDS_NEW")"
+rm -f "$BDS_FX/docs/new.md"; bds_stage
+
+# A count above a file's recorded baseline (a newly introduced occurrence) fails the suite.
+printf 'DevFlow one DevFlow two DevFlow three\n' > "$BDS_FX/docs/keep.md"; bds_stage
+BDS_MORE="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a count above the baseline fails the suite" "rc=1" "${BDS_MORE%%|*}"
+assert_eq "#1745 the finding names the drifted count" "yes" "$(bds_has "docs/keep.md: 3 pending" "$BDS_MORE")"
+
+# A stale baseline row (its file fully swept) fails the suite.
+printf 'all swept now to PRFlow\n' > "$BDS_FX/docs/keep.md"; bds_stage
+BDS_STALE="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a stale baseline row fails the suite" "rc=1" "${BDS_STALE%%|*}"
+assert_eq "#1745 the finding names the stale row" "yes" "$(bds_has "docs/keep.md: stale pending_sweep_baseline row" "$BDS_STALE")"
+printf 'DevFlow is great and DevFlow ships.\n' > "$BDS_FX/docs/keep.md"; bds_stage
+
+# A stale frozen-provenance entry (its value moved/removed) fails the suite.
+printf '# all PRFlow prose now, no value\n' > "$BDS_FX/lib/scan.sh"; bds_stage
+BDS_PROV="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a stale frozen-provenance entry fails the suite" "rc=1" "${BDS_PROV%%|*}"
+assert_eq "#1745 the finding names the stale provenance entry" "yes" "$(bds_has "lib/scan.sh: stale frozen-provenance entry" "$BDS_PROV")"
+
+# Real-tree gate: the tree stays fully classified as it stands.
+BDS_REAL="$(python3 "$BDS_LINT" 2>&1)"; BDS_REAL_RC=$?
+assert_eq "#1745 the real-tree bucket reconciliation is clean as the tree stands" "rc=0" \
+  "$([ "$BDS_REAL_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$BDS_REAL_RC" "$BDS_REAL")"
+assert_eq "#1745 the real-tree audit covered a positive number of files" "yes" \
+  "$(printf '%s' "$BDS_REAL" | python3 -c 'import re,sys
+m = re.search(r"audited (\d+) of", sys.stdin.read())
+print("yes" if m and int(m.group(1)) > 0 else "no")')"
+
 # ── issue #1621: ruff Python-lint gate (monolith-shard-resident) ─────────────
 # Rationale and scope: docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, the #1621 paragraph.
 # Do not swap this execution probe for `command -v`: a present-but-unrunnable ruff
