@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.38] — 2026-08-26
+
+### Changed
+Close the internal-docs consumption loop: code-explorer and code-architect read a dispatch-named documentation index first (code stays authoritative), Phase 2.1 names `index.md` as the exploration entry point, `PRIMARY_PATHS` supplements the doc map instead of replacing it, and the `.docs.internal` root is resolved orchestrator-side rather than inside the Bash-less explorer's prompt.
+
 ## [2.34.37] — 2026-08-26
 
 ### Changed
