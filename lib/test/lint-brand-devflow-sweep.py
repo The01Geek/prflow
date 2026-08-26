@@ -33,8 +33,12 @@ because its occurrences could not be classified and a new renameable ``DevFlow``
 would otherwise escape the forward-direction guard. ``--update-baseline`` /
 ``--print-population`` breadcrumb and continue (they do not gate).
 
-Buckets (first match wins), read from ``lib/test/brand-devflow-buckets.json``:
+Buckets, in the ``classify()`` first-match order:
 
+- ``transient``         — a file under a recorded transient prefix (a consumed changeset
+  ``version-consolidate`` deletes on merge), excluded from reconciliation so a baseline
+  entry cannot fire a false RED on main after the file is deleted; a recorded exception
+  (``.changeset/README.md``) is permanent and stays ``pending``.
 - ``frozen-record``     — a path under a recorded record prefix (append-only history /
   frozen census snapshots whose bytes are never rewritten).
 - ``frozen-historical`` — a recorded historical file (CHANGELOG.md); past-time entries.
@@ -42,10 +46,6 @@ Buckets (first match wins), read from ``lib/test/brand-devflow-buckets.json``:
   are the machinery that matches the brand, not prose to sweep.
 - ``frozen-provenance`` — a quoted ``"DevFlow"`` / ``'DevFlow'`` VALUE inside a recorded
   provenance-selector file (the superseded label the scan/classify/fetch path matches).
-- ``transient``         — a file under a recorded transient prefix (a consumed changeset
-  ``version-consolidate`` deletes on merge), excluded from reconciliation so a baseline
-  row cannot fire a false RED on main after the file is deleted; a recorded exception
-  (``.changeset/README.md``) is permanent and stays ``pending``.
 - ``pending``           — everything else: ordinary renameable prose not yet swept,
   recorded per file in ``pending_sweep_baseline`` and drained by the follow-up sweep.
 
@@ -137,10 +137,9 @@ def classify(rel: str, blob: bytes, frozen: dict, prov_files: set[str]) -> tuple
     total = blob.count(BRAND)
     if total == 0:
         return ("", 0, 0)
-    # Transient files (a consumed changeset that `version-consolidate` DELETES on merge to
-    # main) are excluded from reconciliation: a baseline row for one would fire the reverse
-    # stale-row check on main's push CI the moment the file is deleted, a false RED that
-    # blocks every later PR. Not pending (never baselined), not a frozen stale comparand.
+    # Transient (a consumed changeset version-consolidate deletes on merge): excluded, never
+    # baselined — a baseline entry would fire the reverse stale check on main once the file is
+    # deleted, a false RED (see the docstring's presence-not-count rationale).
     if (any(rel.startswith(pfx) for pfx in frozen.get("transient_prefixes", []))
             and rel not in frozen.get("transient_exceptions", [])):
         return ("transient", total, 0)
@@ -188,13 +187,9 @@ def cmd_check(root: Path, buckets: dict) -> int:
             f"be classified, so the reconciliation is incomplete; make the file readable and re-run"
         )
 
-    # Reconciliation is per-file PRESENCE, deliberately NOT per-file count: an exact count of a
-    # churny hot-spot file (run.sh is mutated by nearly every PR) drifts on a clean-textual
-    # concurrent merge — two PRs each adding a DevFlow line pass individually while their union
-    # reddens the required check on main, the shared-hot-spot anti-pattern CLAUDE.md warns of.
-    # Forward direction (AC3): a currently-clean file gaining renameable DevFlow is a new,
-    # unclassified pending file — RED. A file already in the grandfathered pending set is known
-    # sweep-debt the follow-up drains, so adding to it does not re-red.
+    # Forward (AC3): reconcile by per-file PRESENCE, not count (the docstring's rationale) —
+    # a currently-clean file gaining renameable DevFlow is a new, unbaselined pending file and
+    # REDs; a file already in the grandfathered set is known sweep-debt and does not re-red.
     for rel in sorted(pending):
         if rel not in baseline:
             findings.append(
@@ -203,8 +198,8 @@ def cmd_check(root: Path, buckets: dict) -> int:
                 f"lib/test/brand-devflow-buckets.json (run --update-baseline)"
             )
 
-    # Reverse direction (AC1 stale): a baseline file fully swept (or deleted) carries no pending
-    # occurrence any more — remove the row.
+    # Reverse (AC1 stale): a baseline file fully swept (or deleted) carries no pending
+    # occurrence any more — remove the entry.
     for rel in sorted(baseline):
         if rel not in pending:
             findings.append(
@@ -267,6 +262,12 @@ def main(argv: list[str]) -> int:
         buckets = load_buckets(buckets_path)
     except (OSError, json.JSONDecodeError) as exc:
         print(f"lint-brand-devflow-sweep: cannot read bucket record {buckets_path}: {exc}", file=sys.stderr)
+        return 2
+    # Fail closed with a specific breadcrumb on a structurally-valid-JSON record that is not a
+    # dict or lacks the `frozen` object, rather than an uncaught KeyError downstream.
+    if not isinstance(buckets, dict) or not isinstance(buckets.get("frozen"), dict):
+        print(f"lint-brand-devflow-sweep: bucket record {buckets_path} is missing the 'frozen' object",
+              file=sys.stderr)
         return 2
 
     if args.update_baseline:

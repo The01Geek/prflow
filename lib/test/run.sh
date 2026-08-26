@@ -54822,6 +54822,12 @@ printf 'not json {' > "$BDS_FX/bad-buckets.json"
 BDS_BAD_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/bad-buckets.json" >/dev/null 2>&1; echo $?)"
 assert_eq "#1745 a malformed bucket record fails closed with exit 2" "2" "$BDS_BAD_RC"
 rm -f "$BDS_FX/bad-buckets.json"
+# A structurally-valid record MISSING the 'frozen' object also fails closed with exit 2
+# (a specific breadcrumb), never an uncaught KeyError traceback (adversarial-parser convention).
+printf '{"schema_version": 1, "pending_sweep_baseline": []}' > "$BDS_FX/nofrozen.json"
+BDS_NF_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/nofrozen.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a record missing the 'frozen' object fails closed with exit 2" "2" "$BDS_NF_RC"
+rm -f "$BDS_FX/nofrozen.json"
 
 # --print-population emits one line per bucket per file; a provenance file with both a
 # frozen value and a pending remainder emits the dual line pair (the documented contract).
