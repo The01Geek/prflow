@@ -121,7 +121,7 @@ def occ_file_map(frozen: dict) -> dict[str, list[str]]:
 
 
 def occurrence_frozen_count(blob: bytes, contexts: list[str],
-                            exclude: "re.Pattern[bytes] | None" = None) -> int:
+                            exclude: re.Pattern[bytes] | None = None) -> int:
     """Count brand occurrences on lines that contain any listed `context` substring — the
     per-occurrence freeze (issue #2003), subtracted from the file's renameable remainder.
 
