@@ -29902,7 +29902,7 @@ assert_eq "#222 AC6: workpad.py _run gh wrapper pins encoding=utf-8 (gh decode/e
 assert_eq "#222 AC7: workpad.py NamedTemporaryFile body write pins encoding=utf-8" "yes" \
   "$(grep -qF "'w', suffix='.md', delete=False, encoding=\"utf-8\"," "$U8_SCRIPTS/workpad.py" && echo yes || echo no)"
 assert_eq "#222 AC6: file-deferrals.py _run gh wrapper pins encoding=utf-8" "yes" \
-  "$(grep -qF 'stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",' "$U8_SCRIPTS/file-deferrals.py" && echo yes || echo no)"
+  "$(grep -qF 'capture_output=True, encoding="utf-8",' "$U8_SCRIPTS/file-deferrals.py" && echo yes || echo no)"
 assert_eq "#222 AC7: file-deferrals.py gh issue create pins input encoding=utf-8" "yes" \
   "$(grep -qF 'input=body, check=False, encoding="utf-8",' "$U8_SCRIPTS/file-deferrals.py" && echo yes || echo no)"
 assert_eq "#222 AC6: parse-acs.py _fetch_body pins gh decode encoding=utf-8" "yes" \
@@ -29910,7 +29910,7 @@ assert_eq "#222 AC6: parse-acs.py _fetch_body pins gh decode encoding=utf-8" "ye
 # match-deferrals.py's _run also reads gh PR/issue *bodies* (routinely non-ASCII),
 # so its decode is pinned too — closing the same Windows decode-crash path.
 assert_eq "#222 AC6: match-deferrals.py _run pins gh body-decode encoding=utf-8" "yes" \
-  "$(grep -qF 'stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",' "$U8_SCRIPTS/match-deferrals.py" && echo yes || echo no)"
+  "$(grep -qF 'capture_output=True, encoding="utf-8",' "$U8_SCRIPTS/match-deferrals.py" && echo yes || echo no)"
 
 # Smoke (not RED->GREEN): a gh stub returns a comment body containing a rocket;
 # workpad.py id must still decode it and print the matched id. On the Linux runner
@@ -55105,20 +55105,22 @@ if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
     assert_eq "#1621 ruff Python-lint gate: tracked *.py pass ruff check" 0 "$RUFF_RC"
     if [ "$RUFF_RC" -ne 0 ]; then printf '%s\n' "$RUFF_OUT"; fi
   fi
-  # Non-vacuity proof. Do not relax the E731/rc-1 pair to "any nonzero rc": an inert or
+  # Non-vacuity proof. Do not relax the F401/rc-1 pair to "any nonzero rc": an inert or
   # errored ruff would then satisfy the proof. Keep the fixture under the gitignored
   # .prflow/tmp, or git ls-files adds it to the scanned set above and reddens the tree.
+  # F401 (unused-import), not E731: E731 left ruff's DEFAULT select in 0.16, so a
+  # default-config fixture keyed on it stops firing once the pin advances (issue #742).
   mkdir -p .prflow/tmp
   RUFF_FIX_DIR="$(mktemp -d .prflow/tmp/ruff-nonvacuity.XXXXXX)"
   [ -n "$RUFF_FIX_DIR" ] && [ -d "$RUFF_FIX_DIR" ] || { printf 'FATAL: mktemp -d failed for the #1621 ruff non-vacuity fixture\n' >&2; exit 1; }
-  printf '%s\n' '_mk = lambda: 0' > "$RUFF_FIX_DIR/violation.py"
+  printf '%s\n' 'import os' > "$RUFF_FIX_DIR/violation.py"
   RUFF_FIX_OUT="$("${RUFF_CMD[@]}" check --no-force-exclude "$RUFF_FIX_DIR/violation.py" 2>&1)"; RUFF_FIX_RC=$?
   rm -rf "$RUFF_FIX_DIR"
   # A missing grep short-circuits to FIRES=no → the assertion reddens (fail-closed).
-  if [ "$RUFF_FIX_RC" -eq 1 ] && printf '%s\n' "$RUFF_FIX_OUT" | grep -q 'E731'; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
-  assert_eq "#1621 ruff Python-lint gate fires on a known E731 violation (non-vacuity)" yes "$RUFF_FIX_FIRES"
+  if [ "$RUFF_FIX_RC" -eq 1 ] && printf '%s\n' "$RUFF_FIX_OUT" | grep -q 'F401'; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
+  assert_eq "#1621 ruff Python-lint gate fires on a known F401 violation (non-vacuity)" yes "$RUFF_FIX_FIRES"
 else
-  skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.15.*' arms it at the desk"
+  skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.16.*' arms it at the desk"
 fi
 
 # ── #1621: ci.yml's two ruff pins are a coupled pair; reconcile them mechanically ──

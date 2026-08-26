@@ -21,6 +21,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from signal_launcher import run_detached  # noqa: E402
+from signal_launcher import run_detached
 
 raise SystemExit(run_detached(sys.argv[1:]))

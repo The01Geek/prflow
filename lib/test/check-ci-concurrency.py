@@ -84,8 +84,8 @@ def _check(doc: dict) -> tuple[int, str]:
     if "github.event_name == 'pull_request'" not in cip_s:
         return (
             1,
-            "cancel-in-progress is not gated on the pull_request event, so it would "
-            f"resolve true for a main push (got {cip_s!r})",
+            ("cancel-in-progress is not gated on the pull_request event, so it would "
+            f"resolve true for a main push (got {cip_s!r})"),
         )
     return 0, ""
 

@@ -6,19 +6,18 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
 import tempfile
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Literal
-
 
 # The closed set of values each field may hold. analyze-workflow-runs.py re-validates
 # OccurrenceMode when reading a bundle back, since a bundle on disk is untrusted input.
@@ -782,9 +781,12 @@ def _repository_association(
                 "--path-format=absolute",
                 "--git-common-dir",
             )
-            if cwd_common and repository_common:
-                if Path(cwd_common).resolve() == Path(repository_common).resolve():
-                    return "exact"
+            if (
+                cwd_common
+                and repository_common
+                and Path(cwd_common).resolve() == Path(repository_common).resolve()
+            ):
+                return "exact"
             return None
 
     encoded_repository = str(repository_root).replace(os.sep, "-")

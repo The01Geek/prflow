@@ -15,6 +15,7 @@ import re as _re
 import subprocess
 import sys
 import tempfile
+
 os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 H = "scripts/normalize-verdicts.py"
 D = "lib/test/fixtures/normalize-verdicts"

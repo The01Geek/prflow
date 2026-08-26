@@ -68,7 +68,7 @@ from typing import NamedTuple
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
-import version_pins  # noqa: E402
+import version_pins
 
 # Single source of the ordered bump domain: _BUMP_RANK is DERIVED from VALID_BUMPS (mirroring
 # the CANONICAL_TYPES → _TYPE_BY_LOWER pattern below), so adding a bump value cannot desync the
@@ -103,7 +103,7 @@ class Changeset(NamedTuple):
     prose: str
 
 
-def _fatal(msg: str) -> "int":
+def _fatal(msg: str) -> int:
     sys.stderr.write(f"consolidate-changesets.py: {msg}\n")
     return 2
 
@@ -319,7 +319,7 @@ def _render_marketplace_version(marketplace_path: str, new_version: str) -> str:
     return new_text
 
 
-def _assemble_entry(version: str, date: str, sections: "dict[str, list[str]]") -> str:
+def _assemble_entry(version: str, date: str, sections: dict[str, list[str]]) -> str:
     """Build the ``## [version] — date`` Keep-a-Changelog block from grouped prose."""
     lines = [f"## [{version}] — {date}", ""]
     for section in CANONICAL_TYPES:
@@ -327,8 +327,7 @@ def _assemble_entry(version: str, date: str, sections: "dict[str, list[str]]") -
         if not proses:
             continue
         lines.append(f"### {section}")
-        for prose in proses:
-            lines.append(prose)
+        lines.extend(proses)
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -355,9 +354,9 @@ def _render_changelog(changelog_path: str, entry: str) -> str:
 def consolidate(
     root: str,
     date: str,
-    entry_out: "str | None" = None,
-    write_set_out: "str | None" = None,
-    bump_out: "str | None" = None,
+    entry_out: str | None = None,
+    write_set_out: str | None = None,
+    bump_out: str | None = None,
 ) -> int:
     changeset_dir = os.path.join(root, ".changeset")
     manifest_path = os.path.join(root, ".claude-plugin", "plugin.json")
@@ -387,7 +386,7 @@ def consolidate(
     current = _read_manifest_version(manifest_path)
     new_version = _bump_version(current, highest)
 
-    sections: "dict[str, list[str]]" = {}
+    sections: dict[str, list[str]] = {}
     for cs in parsed:
         sections.setdefault(cs.section, []).append(cs.prose)
     entry = _assemble_entry(new_version, date, sections)
@@ -478,7 +477,7 @@ def _force_utf8_streams():
             pass
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(

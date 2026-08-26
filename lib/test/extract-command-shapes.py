@@ -316,12 +316,10 @@ def _is_command_token(token: str) -> bool:
     heredoc opener, separator remnant, or shell syntax word)."""
     if not token or _ASSIGNMENT.match(token):
         return False
-    if _REDIR.match(token) or token.startswith("<<") or token.startswith("<"):
+    if _REDIR.match(token) or token.startswith(("<<", "<")):
         return False
     norm = _heads._normalize(token)
-    if not norm or norm in _heads.RESERVED:
-        return False
-    return True
+    return not (not norm or norm in _heads.RESERVED)
 
 
 # Control words that may legally precede a command (or an assignment-capture) in a
@@ -392,7 +390,7 @@ def _assignment_violation(statement: str) -> bool:
     raw = statement.strip()
     # Strip leading control words so `elif WP=$(cmd)` reads as its `WP=$(cmd)` capture.
     raw = _strip_control(raw)
-    lead = re.match(r"^([A-Za-z_][A-Za-z0-9_]*=)(.*)$", raw, re.S)
+    lead = re.match(r"^([A-Za-z_][A-Za-z0-9_]*=)(.*)$", raw, re.DOTALL)
     if not lead:
         return False
     value_rest = lead.group(2)

@@ -74,6 +74,7 @@ import json
 import re
 import sys
 
+
 def _force_utf8_streams():
     """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
     streams of any process that imports this module for tests. Tolerates a stream that
@@ -280,7 +281,7 @@ def reconcile_one(evidence_status, claim_status, evidence_ptr, claim_ptr):
     status = e if e == c else "unestablished"
 
     if e_ptr and c_ptr:
-        evidence, source = "; ".join((e_ptr, c_ptr)), "both"
+        evidence, source = f"{e_ptr}; {c_ptr}", "both"
     elif e_ptr:
         evidence, source = e_ptr, "evidence"
     elif c_ptr:

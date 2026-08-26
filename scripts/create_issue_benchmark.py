@@ -16,13 +16,12 @@ import importlib.util
 import json
 import math
 import os
-from pathlib import Path
 import shutil
 import statistics
 import subprocess
 import sys
 import time
-
+from pathlib import Path
 
 SCHEMA_VERSION = 1
 UNESTABLISHED = "unestablished"
@@ -48,19 +47,19 @@ _EVAL_SPEC.loader.exec_module(_EVAL)
 
 
 def _error(diagnostic, detail):
-    raise ValueError("{}: {}".format(diagnostic, detail))
+    raise ValueError(f"{diagnostic}: {detail}")
 
 
 def _required_string(mapping, key, diagnostic="missing_field"):
     value = mapping.get(key) if isinstance(mapping, dict) else None
     if not isinstance(value, str) or not value:
-        _error(diagnostic, "{} must be a non-empty string".format(key))
+        _error(diagnostic, f"{key} must be a non-empty string")
     return value
 
 
 def _contained(root, value, label, directory=False):
     if not isinstance(value, str) or not value:
-        _error("missing_artifact", "{} has no path".format(label))
+        _error("missing_artifact", f"{label} has no path")
     candidate = Path(value) if os.path.isabs(value) else Path(root) / value
     resolved = Path(os.path.realpath(candidate))
     try:
@@ -68,10 +67,10 @@ def _contained(root, value, label, directory=False):
     except ValueError:
         contained = False
     if not contained:
-        _error("path_escape", "{} escapes declared root".format(label))
+        _error("path_escape", f"{label} escapes declared root")
     exists = resolved.is_dir() if directory else resolved.is_file()
     if not exists:
-        _error("missing_artifact", "{} not found".format(label))
+        _error("missing_artifact", f"{label} not found")
     return resolved
 
 
@@ -79,8 +78,8 @@ def _read_json(path, diagnostic):
     try:
         with open(path, encoding="utf-8") as handle:
             return json.load(handle)
-    except Exception as exc:  # noqa: BLE001 - malformed input has one stable boundary
-        _error(diagnostic, "{}: {}".format(path, exc))
+    except Exception as exc:
+        _error(diagnostic, f"{path}: {exc}")
 
 
 def load_benchmark_spec(path):
@@ -127,7 +126,7 @@ def load_benchmark_spec(path):
             _error("invalid_timeout_seconds", name)
         normalized_configurations[name] = {
             "skill_root": str(_contained(
-                root, item.get("skill_root"), "{}.skill_root".format(name), directory=True
+                root, item.get("skill_root"), f"{name}.skill_root", directory=True
             )),
             "argv": list(argv),
             "timeout_seconds": timeout_seconds,
@@ -178,7 +177,7 @@ def _provider_run(provider_manifest, assigned, output, expected, rubric_path):
     run = loaded["runs"][0]
     for key, value in expected.items():
         if run.get(key) != value:
-            _error("provider_identity_mismatch", "{} differs".format(key))
+            _error("provider_identity_mismatch", f"{key} differs")
     normalized = dict(run)
     normalized["transcript"] = _relative(output, run["transcript"])
     normalized["state_file"] = _relative(output, run["state_file"])
@@ -210,9 +209,7 @@ def run_benchmark(spec_path, output_dir, monotonic_ns=time.monotonic_ns):
         for repetition in range(1, spec["repetitions"] + 1):
             for configuration in CONFIGURATIONS:
                 config = spec["configurations"][configuration]
-                relative_dir = Path("runs") / scenario["scenario_id"] / "{:03d}".format(
-                    repetition
-                ) / configuration
+                relative_dir = Path("runs") / scenario["scenario_id"] / f"{repetition:03d}" / configuration
                 assigned = output / relative_dir
                 assigned.mkdir(parents=True, exist_ok=True)
                 # Re-running into a populated --output would otherwise let a provider
@@ -273,17 +270,17 @@ def run_benchmark(spec_path, output_dir, monotonic_ns=time.monotonic_ns):
                     completed = None
                     _record_error(
                         output, execution,
-                        "provider_timeout: {}s".format(exc.timeout),
+                        f"provider_timeout: {exc.timeout}s",
                     )
                 except OSError as exc:
                     completed = None
-                    _record_error(output, execution, "provider_launch_error: {}".format(exc))
+                    _record_error(output, execution, f"provider_launch_error: {exc}")
                 finished = monotonic_ns()
                 execution["duration_ms"] = max(0, (finished - started) // 1_000_000)
                 if completed is not None and completed.returncode != 0:
                     _record_error(
                         output, execution,
-                        "provider_exit_nonzero: {}".format(completed.returncode),
+                        f"provider_exit_nonzero: {completed.returncode}",
                     )
                 elif completed is not None:
                     try:
@@ -370,7 +367,7 @@ def _metric(run, execution, extractor, name=None, unextractable=None):
         # broke; without this record the report reads as an honest "measured
         # nothing" rather than a schema break.
         if unextractable is not None and name is not None:
-            unextractable.setdefault(name, "{}: {}".format(type(exc).__name__, exc))
+            unextractable.setdefault(name, f"{type(exc).__name__}: {exc}")
         return UNESTABLISHED
     if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
         return UNESTABLISHED
@@ -499,18 +496,16 @@ def aggregate_benchmark(evaluation, executions):
     for configuration, metrics in configuration_statistics.items():
         for metric, summary in metrics.items():
             if isinstance(summary, dict) and summary["high_variance"]:
-                disclosures.append("high_variance:{}:{}".format(configuration, metric))
+                disclosures.append(f"high_variance:{configuration}:{metric}")
     if isinstance(paired_deltas, dict):
         for metric, summary in paired_deltas.items():
             if isinstance(summary, dict) and summary["high_variance"]:
-                disclosures.append("high_variance:paired_delta:{}".format(metric))
+                disclosures.append(f"high_variance:paired_delta:{metric}")
     for metric in sorted(unextractable):
         sys.stderr.write(
-            "create-issue-benchmark: metric {} unextractable ({})\n".format(
-                metric, unextractable[metric]
-            )
+            f"create-issue-benchmark: metric {metric} unextractable ({unextractable[metric]})\n"
         )
-        disclosures.append("metric_unextractable:{}".format(metric))
+        disclosures.append(f"metric_unextractable:{metric}")
     return {
         "schema_version": SCHEMA_VERSION,
         "benchmark_id": evaluation.get("benchmark_id"),
@@ -581,7 +576,7 @@ def render_text(report):
     ]
     if report["disclosures"]:
         lines.extend(["", "Disclosures"])
-        lines.extend("- {}".format(item) for item in report["disclosures"])
+        lines.extend(f"- {item}" for item in report["disclosures"])
     return "\n".join(lines)
 
 
@@ -598,15 +593,15 @@ def _review_workspace(manifest_path, evaluation):
         if set(grouped[key]) != set(CONFIGURATIONS):
             continue
         digest = hashlib.sha256(
-            "{}\0{}\0{}".format(benchmark_id, key[0], key[1]).encode("utf-8")
+            f"{benchmark_id}\0{key[0]}\0{key[1]}".encode()
         ).hexdigest()
         order = CONFIGURATIONS if int(digest[-1], 16) % 2 == 0 else tuple(reversed(CONFIGURATIONS))
         pair_root = Path("review") / digest[:16]
         sides = {}
         for label, configuration in zip(("A", "B"), order):
             run = grouped[key][configuration]
-            issue_path = pair_root / "{}-issue.md".format(label)
-            grade_path = pair_root / "{}-grade.json".format(label)
+            issue_path = pair_root / f"{label}-issue.md"
+            grade_path = pair_root / f"{label}-grade.json"
             (output / pair_root).mkdir(parents=True, exist_ok=True)
             shutil.copyfile(run["checkpoints"]["final"], output / issue_path)
             _write_json(output / grade_path, run["grade"])
@@ -665,7 +660,7 @@ def main(argv=None):
             return 0 if all(item["status"] == "succeeded" for item in manifest["executions"]) else 1
         report = build_benchmark_report(args.manifest)
     except (OSError, ValueError) as exc:
-        sys.stderr.write("error: {}\n".format(exc))
+        sys.stderr.write(f"error: {exc}\n")
         return 2
     if args.format == "json":
         sys.stdout.write(json.dumps(report, indent=2) + "\n")

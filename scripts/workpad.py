@@ -74,10 +74,9 @@ from pathlib import Path
 
 if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation is evaluated below
     sys.stderr.write(
-        "devflow: Python 3.11+ required (found %s.%s.%s). This helper requires"
+        "devflow: Python 3.11+ required (found {}.{}.{}). This helper requires"
         " features of Python 3.11+. Install Python 3.11+; on Windows/Git-Bash"
-        " run scripts/provision-python3-shim.sh --apply.\n"
-        % sys.version_info[:3]
+        " run scripts/provision-python3-shim.sh --apply.\n".format(*sys.version_info[:3])
     )
     sys.exit(1)
 
@@ -320,7 +319,7 @@ def _git_root_error_suffix():
         err = (r.stderr or '').strip() if r.returncode != 0 else ''
     except OSError as e:
         err = str(e)
-    except Exception:  # noqa: BLE001 — breadcrumb path must never raise
+    except Exception:
         err = ''
     return f" (git: {err})" if err else ""
 
@@ -479,8 +478,8 @@ def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1):
         try:
             r = _run([
                 GH, 'api',
-                f'/repos/{repo}/issues/{issue}/comments'
-                f'?page={page}&per_page=100',
+                (f'/repos/{repo}/issues/{issue}/comments'
+                f'?page={page}&per_page=100'),
             ])
         except (subprocess.CalledProcessError, OSError) as e:
             _fail(cmd, e, code=api_fail_code)
@@ -3460,8 +3459,8 @@ def _cmd_update_inner(args):
         try:
             r = _run([
                 GH, 'api',
-                f'/repos/{repo}/issues/{args.issue}/comments'
-                f'?page={page}&per_page=100',
+                (f'/repos/{repo}/issues/{args.issue}/comments'
+                f'?page={page}&per_page=100'),
             ])
         except (subprocess.CalledProcessError, OSError) as e:
             _fail('update id-lookup', e)
@@ -3954,7 +3953,7 @@ def _load_completion_validator():
             '_devflow_completion_evidence', path)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-    except Exception:  # noqa: BLE001 - an unimportable sibling fails closed to absent
+    except Exception:
         return None
     _COMPLETION_VALIDATOR_CACHE = mod
     return mod
@@ -4027,7 +4026,7 @@ def _decode_ci_payload(payload: str) -> object:
         pad = '=' * (-len(payload) % 4)
         raw = base64.urlsafe_b64decode(payload + pad)
         return json.loads(raw.decode('utf-8'))
-    except Exception:  # noqa: BLE001 - a corrupt payload fails closed to a non-object
+    except Exception:
         return None
 
 
@@ -4080,7 +4079,7 @@ def _decode_resume_point(payload: str) -> str | None:
     try:
         pad = '=' * (-len(payload) % 4)
         return base64.urlsafe_b64decode(payload + pad).decode('utf-8')
-    except Exception:  # noqa: BLE001 - a corrupt payload fails closed to absent
+    except Exception:
         return None
 
 
@@ -4119,7 +4118,7 @@ def _validate_ci_evidence(args, payload: str) -> None:
     root = _devflow_repo_root(args)
     try:
         token, detail = validator.validate_implement_completion_ci(record, root)
-    except Exception as e:  # noqa: BLE001 - internal validator failure fails closed
+    except Exception as e:
         raise _UpdateError(
             f"completion evidence: the CI validator raised an internal error "
             f"({e.__class__.__name__}); treating as unestablished. No PATCH was made."
@@ -4652,7 +4651,7 @@ def _recompute_diff_facts(anchor_head, base_ref, repo_root):
     def _git(argv):
         return subprocess.run(
             ['git', *argv], cwd=repo_root, check=True,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8').stdout
+            capture_output=True, encoding='utf-8').stdout
 
     try:
         # `_git` runs check=True, so an unreadable base (origin/HEAD unset) or an
@@ -4964,7 +4963,7 @@ def _validate_flight_key(args, flight_key: str) -> None:
     try:
         token, detail = validator.validate_implement_completion(
             record_path, root, claim_identity)
-    except Exception as e:  # noqa: BLE001 - internal validator failure fails closed
+    except Exception as e:
         raise _UpdateError(
             f"completion evidence: the validator raised an internal error "
             f"({e.__class__.__name__}); treating as unestablished. No PATCH was made."

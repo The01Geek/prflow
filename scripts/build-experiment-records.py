@@ -71,7 +71,7 @@ from pathlib import Path
 # so a record-sourced and a git-show-sourced fingerprint are byte-identical.
 # Insert this script's own dir so the sibling module resolves regardless of cwd.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from config_fingerprint import fingerprint_from_config  # noqa: E402
+from config_fingerprint import fingerprint_from_config
 
 # The gh binary — DEVFLOW_GH (the documented override the shell helpers resolve via
 # lib/resolve-gh.sh) wins when set and non-empty, else `gh`. No probe (the test-stub
@@ -264,8 +264,7 @@ def _run(cmd):
     degrades uniformly to its null/absent arm."""
     try:
         r = subprocess.run(
-            cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            encoding="utf-8",
+            cmd, check=False, capture_output=True, encoding="utf-8",
         )
         return r.returncode, r.stdout, r.stderr
     except OSError as e:
@@ -1353,8 +1352,8 @@ def _gh_pr_meta(repo, pr):
     Fetches headRefOid too so the gh-fallback path has a real head sha for the
     denial-count check-run lookup (which runs on the PR head)."""
     rc, out, err = _run([GH, "pr", "view", str(pr), "--repo", repo, "--json",
-                         "mergedAt,mergeCommit,headRefName,headRefOid,"
-                         "closingIssuesReferences,state"])
+                         ("mergedAt,mergeCommit,headRefName,headRefOid,"
+                         "closingIssuesReferences,state")])
     if rc != 0:
         _warn(f"gh pr view {pr} failed (rc={rc}): {(err or '').strip()[:160]}")
         return None, False
@@ -1647,7 +1646,7 @@ def main(argv=None):
             # retrospective-listed PRs are ever re-selected as candidates.
             unestablished += 1
             _warn(f"PR #{pr}: {e}; skipping, but the run will NOT report success")
-        except Exception as e:  # noqa: BLE001 — one bad PR must never abort the batch
+        except Exception as e:
             failed += 1
             _warn(f"PR #{pr}: assembly failed ({type(e).__name__}: {e}); leaving prior "
                   "store line untouched")

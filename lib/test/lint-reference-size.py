@@ -612,8 +612,7 @@ def main(argv: list[str] | None = None) -> int:
         # ascending, then path, so the file with the least room to spare is reported first
         # and equal-headroom files keep a deterministic order.
         near_full = []
-        for relative in covered:
-            _kind, _detail, size = covered[relative]
+        for relative, (_kind, _detail, size) in covered.items():
             headroom = MAX_BYTES - size
             if 0 <= headroom <= NEAR_FULL_HEADROOM:
                 near_full.append((headroom, relative))

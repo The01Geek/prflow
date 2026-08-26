@@ -30,7 +30,7 @@ import re
 import subprocess
 import sys
 from collections import Counter
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 _GUARD_PATH = Path(__file__).resolve().parent / "coverage_map_guard.py"
@@ -40,7 +40,7 @@ try:
         raise ImportError(f"no loadable spec for {_GUARD_PATH}")
     _guard = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_guard)
-except Exception as _exc:  # noqa: BLE001 — fail closed naming the reader that could not load
+except Exception as _exc:
     raise SystemExit(
         f"group_labels_by_subject: the label-location machinery {_GUARD_PATH} could not be "
         f"loaded ({_exc.__class__.__name__}: {_exc}); refusing to group"
@@ -75,12 +75,12 @@ DEFAULT_TOP_DIRS = frozenset(
 )
 
 
-def _label_re() -> "re.Pattern[str]":
+def _label_re() -> re.Pattern[str]:
     return _guard._LABEL_RE
 
 
-@lru_cache(maxsize=None)
-def _path_re(top_dirs: "frozenset[str]") -> "re.Pattern[str]":
+@cache
+def _path_re(top_dirs: frozenset[str]) -> re.Pattern[str]:
     """A ``<top-dir>/<rest>`` repository-path matcher for the given top-dir set.
 
     The trailing character class stops at the first byte that cannot be part of a path
@@ -104,8 +104,8 @@ def _subject(path: str) -> str:
     return "/".join(path.split("/")[:2])
 
 
-@lru_cache(maxsize=None)
-def _basename_re(basenames: "frozenset[str]") -> "re.Pattern[str]":
+@cache
+def _basename_re(basenames: frozenset[str]) -> re.Pattern[str]:
     """A matcher for the given distinctive filename basenames used as bare mentions.
 
     An assertion routinely names its subject by the bare command/file basename
@@ -121,7 +121,7 @@ def _basename_re(basenames: "frozenset[str]") -> "re.Pattern[str]":
     return re.compile(rf"(?<![\w./-])(?:{alternation})(?![\w-])")
 
 
-def build_basename_index(paths: "list[str]") -> "dict[str, str]":
+def build_basename_index(paths: list[str]) -> dict[str, str]:
     """Map each *distinctive* tracked-file basename to its path's subject.
 
     A basename shared by more than one preferred path is ambiguous and is dropped rather
@@ -130,11 +130,11 @@ def build_basename_index(paths: "list[str]") -> "dict[str, str]":
     unit, not its vendored duplicate or a test fixture of the same name. When exactly one
     preferred path carries a basename, that basename maps to that path's subject.
     """
-    by_basename: "dict[str, set[str]]" = {}
+    by_basename: dict[str, set[str]] = {}
     for path in paths:
         base = path.rsplit("/", 1)[-1]
         by_basename.setdefault(base, set()).add(path)
-    index: "dict[str, str]" = {}
+    index: dict[str, str] = {}
     for base, candidates in by_basename.items():
         preferred = {
             p
@@ -148,7 +148,7 @@ def build_basename_index(paths: "list[str]") -> "dict[str, str]":
     return index
 
 
-def attribute_lines(text: str) -> "list[tuple[str, frozenset[str]]]":
+def attribute_lines(text: str) -> list[tuple[str, frozenset[str]]]:
     """Attribute each line of TEXT to the labels of its nearest preceding assertion call.
 
     Walk the lines in order holding the label set introduced by the most recent assertion
@@ -162,13 +162,13 @@ def attribute_lines(text: str) -> "list[tuple[str, frozenset[str]]]":
     heads = frozenset(_guard._assertion_heads(lines))
     call_re = _guard._call_pattern(heads)
     label_re = _label_re()
-    attributed: "list[tuple[str, frozenset[str]]]" = []
-    current: "frozenset[str]" = frozenset()
+    attributed: list[tuple[str, frozenset[str]]] = []
+    current: frozenset[str] = frozenset()
     for line in lines:
         if not line.lstrip().startswith("#"):
             calls = list(call_re.finditer(line))
             if calls:
-                found: "set[str]" = set()
+                found: set[str] = set()
                 for call in calls:
                     found.update(label_re.findall(call.group(1)))
                 current = frozenset(found)
@@ -177,9 +177,9 @@ def attribute_lines(text: str) -> "list[tuple[str, frozenset[str]]]":
 
 
 def dominant_subject(
-    label_lines: "list[str]",
-    top_dirs: "frozenset[str]" = DEFAULT_TOP_DIRS,
-    basename_index: "dict[str, str] | None" = None,
+    label_lines: list[str],
+    top_dirs: frozenset[str] = DEFAULT_TOP_DIRS,
+    basename_index: dict[str, str] | None = None,
 ) -> str:
     """The subject the label's lines most name, or NO_PATH_KEY when they name no path.
 
@@ -190,7 +190,7 @@ def dominant_subject(
     repository path and no indexed basename returns NO_PATH_KEY.
     """
     path_re = _path_re(top_dirs)
-    subjects: "Counter[str]" = Counter()
+    subjects: Counter[str] = Counter()
     base_re = _basename_re(frozenset(basename_index)) if basename_index else None
     for line in label_lines:
         for match in path_re.finditer(line):
@@ -206,10 +206,10 @@ def dominant_subject(
 
 def group_labels(
     text: str,
-    restrict: "set[str] | None" = None,
-    top_dirs: "frozenset[str]" = DEFAULT_TOP_DIRS,
-    basename_index: "dict[str, str] | None" = None,
-) -> "dict[str, list[str]]":
+    restrict: set[str] | None = None,
+    top_dirs: frozenset[str] = DEFAULT_TOP_DIRS,
+    basename_index: dict[str, str] | None = None,
+) -> dict[str, list[str]]:
     """Group the labels of TEXT by their dominant subject.
 
     RESTRICT, when given, limits the grouping to that set of labels (the unmodularized
@@ -217,13 +217,13 @@ def group_labels(
     given, resolves bare filename mentions to their subject. Returns ``subject -> sorted
     label list``.
     """
-    per_label_lines: "dict[str, list[str]]" = {}
+    per_label_lines: dict[str, list[str]] = {}
     for line, labels in attribute_lines(text):
         for label in labels:
             if restrict is not None and label not in restrict:
                 continue
             per_label_lines.setdefault(label, []).append(line)
-    groups: "dict[str, list[str]]" = {}
+    groups: dict[str, list[str]] = {}
     for label, lines in per_label_lines.items():
         subject = dominant_subject(lines, top_dirs, basename_index)
         groups.setdefault(subject, []).append(label)
@@ -232,12 +232,12 @@ def group_labels(
     return groups
 
 
-def _sorted_groups(groups: "dict[str, list[str]]") -> "list[tuple[str, list[str]]]":
+def _sorted_groups(groups: dict[str, list[str]]) -> list[tuple[str, list[str]]]:
     """Groups ordered by descending label count, then subject ascending — deterministic."""
     return sorted(groups.items(), key=lambda item: (-len(item[1]), item[0]))
 
 
-def unmodularized_labels(coverage_map: dict) -> "set[str]":
+def unmodularized_labels(coverage_map: dict) -> set[str]:
     """The set of ``run_sh_blocks`` labels the coverage map marks ``unmodularized``."""
     blocks = coverage_map.get("run_sh_blocks", {})
     return {
@@ -247,7 +247,7 @@ def unmodularized_labels(coverage_map: dict) -> "set[str]":
     }
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("repo_root", nargs="?", default=".", help="repository root (default: cwd)")
     parser.add_argument("--json", action="store_true", help="emit the grouping as JSON")

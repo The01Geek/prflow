@@ -10,21 +10,19 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
-
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import workflow_flight_recorder as recorder  # noqa: E402
-
-from workflow_flight_recorder import (  # noqa: E402
+import workflow_flight_recorder as recorder
+from workflow_flight_recorder import (
     build_event_summary,
     capture_stop_payload,
     detect_occurrences,
@@ -32,7 +30,6 @@ from workflow_flight_recorder import (  # noqa: E402
     parse_events,
     resolve_boundaries,
 )
-
 
 REGISTRY = ROOT / "scripts/workflow-flight-recorder-registry.json"
 
@@ -893,8 +890,8 @@ class ManifestObserverTests(unittest.TestCase):
                 "exact_user_command",
             ),
             (
-                "<command-message>devflow:review-and-fix</command-message>"
-                "<command-args>#77</command-args>",
+                ("<command-message>devflow:review-and-fix</command-message>"
+                "<command-args>#77</command-args>"),
                 "review-and-fix",
                 {"kind": "pull_request", "number": 77},
                 "command_markup",
@@ -1091,8 +1088,7 @@ class ManifestObserverTests(unittest.TestCase):
             [sys.executable, str(entry)],
             input=raw,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
         )
 
@@ -1385,8 +1381,7 @@ class ImportTests(unittest.TestCase):
             ],
             check=False,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
 
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -1452,8 +1447,7 @@ class CaptureTests(unittest.TestCase):
                     ["git", *args],
                     cwd=cwd,
                     check=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    capture_output=True,
                     text=True,
                 )
                 return result.stdout.strip()
@@ -1508,8 +1502,7 @@ class CaptureTests(unittest.TestCase):
                 shell=True,
                 executable="/bin/bash",
                 input=payload,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 text=True,
                 env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
             )
@@ -1571,13 +1564,13 @@ class CaptureTests(unittest.TestCase):
             self.assertIn("implement", manifests["fingerprints"])
             physical_bytes = sum(
                 len((root / relative).read_bytes())
-                for relative in {
+                for relative in (
                     "skills/implement/SKILL.md",
                     "skills/implement/phases/setup.md",
                     "skills/review/SKILL.md",
                     "skills/review-and-fix/SKILL.md",
                     "skills/docs/SKILL.md",
-                }
+                )
             )
             self.assertEqual(manifests["session_unique_totals"]["bytes"], physical_bytes)
             self.assertEqual((bundle / "transcript.jsonl").read_bytes(), transcript_path.read_bytes())

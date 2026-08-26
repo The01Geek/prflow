@@ -105,7 +105,7 @@ from typing import NamedTuple
 # which fails on Windows ([WinError 193]) and breaks this module's
 # no-subprocess boundary. The path insert is what makes that import resolve.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from section_parse import HEADING_RE, extract_section  # noqa: E402
+from section_parse import HEADING_RE, extract_section
 
 # The exit codes, named rather than spelled as bare integers at the seven
 # terminating sites. The 2-vs-3 distinction is this module's central discipline
@@ -347,7 +347,7 @@ def _path_strength(span: str) -> str:
     """
     if not span or any(c.isspace() for c in span):
         return 'no'
-    if span.startswith('-') or span.startswith('/') or span.startswith('~'):
+    if span.startswith(('-', '/', '~')):
         return 'no'
     if _GLOBBY.search(span) or '://' in span:
         return 'no'
@@ -836,8 +836,7 @@ def find_ungraded_claims(body: str) -> list:
         detections.append((start, 'blockquote', 'Verified:',
                            content_lines[index].strip()))
     detections.sort(key=lambda detection: detection[0])
-    return ['ungraded_claim={} region={} phrase={} detail={}'.format(
-        number, label, phrase, sentence)
+    return [f'ungraded_claim={number} region={label} phrase={phrase} detail={sentence}'
         for number, (_start, label, phrase, sentence)
         in enumerate(detections, start=1)]
 
@@ -896,7 +895,7 @@ def main(argv=None) -> int:
 
     try:
         return _run(args)
-    except Exception as exc:  # noqa: BLE001 — see the comment below.
+    except Exception as exc:
         # Any unexpected failure is an unestablished measurement, not a
         # refutation. Without this the traceback would exit 1 — a code neither
         # consumer routes — after an arbitrary number of per-bullet lines had
@@ -967,8 +966,8 @@ def _run(args) -> int:
         ungraded = find_ungraded_claims(body)
         for line in ungraded:
             print(line)
-        print('UNGRADED_CLAIMS total={}'.format(len(ungraded)))
-    except Exception as exc:  # noqa: BLE001 — the pass is advisory; never let it move the verdict.
+        print(f'UNGRADED_CLAIMS total={len(ungraded)}')
+    except Exception as exc:
         # Never print `total=0` here: that is byte-identical to "ran, found
         # none", which is the fail-open this pass exists to close.
         traceback.print_exc(file=sys.stderr)

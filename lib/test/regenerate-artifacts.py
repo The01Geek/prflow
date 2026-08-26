@@ -1120,7 +1120,7 @@ def run_preflight(root):
         # and any already-detected drift survives the drift-precedence check below.
         try:
             row_drift, row_uncheckable = run_preflight_row(row, root, report)
-        except Exception as error:  # noqa: BLE001 — defensive per-row net, mirrors main()'s
+        except Exception as error:
             report.append(
                 f"[{row['name']}] UNCHECKABLE the preflight row raised "
                 f"{type(error).__name__}: {error} — nothing was established for it"
@@ -1617,7 +1617,7 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except SystemExit:
         raise
-    except Exception as _error:  # noqa: BLE001 — deliberate top-level net
+    except Exception as _error:
         traceback.print_exc()
         print(
             "regenerate-artifacts: INFRASTRUCTURE failure — unhandled "

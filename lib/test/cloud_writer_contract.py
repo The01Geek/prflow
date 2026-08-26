@@ -712,9 +712,9 @@ def _scope_grant_region(profile, text):
     # down with it — loud, but it defeats this module's per-profile
     # continue-and-report contract. Route it to the same unavailable arm, naming
     # the exception type so a scoper bug is never mistaken for a refusal.
-    except Exception as exc:  # noqa: BLE001 — deliberate: see the contract above
-        return (None, f"{extractor.__name__} raised {type(exc).__name__} on this workflow "
-                      f"(not its declared SystemExit refusal channel): {exc}")
+    except Exception as exc:
+        return (None, (f"{extractor.__name__} raised {type(exc).__name__} on this workflow "
+                      f"(not its declared SystemExit refusal channel): {exc}"))
 
 
 # A grant REGION is one `TOOLS='…'` line or one `--allowed-tools` quoted value;
@@ -780,9 +780,9 @@ def _grant_source(profile, profile_grants):
         # one-sided (see _looks_like_whole_workflow), so this narrows the fail-open
         # rather than eliminating it — an undetected whole workflow still pools.
         if text is not None and _looks_like_whole_workflow(text):
-            return (None, "injected grant source looks like a whole workflow file, not an "
+            return (None, ("injected grant source looks like a whole workflow file, not an "
                           "already-scoped grant region; pass the region, or omit "
-                          "profile_grants to read from disk")
+                          "profile_grants to read from disk"))
         return (text, None if text is not None else "no injected grant source for this profile")
     workflow = ROOTS[profile]["workflow"]
     try:
@@ -877,7 +877,7 @@ def _classify_widening(spec):
         return "absolute"
     if spec.startswith("*/"):
         return "basename-wildcard"
-    if spec.startswith("scripts/") or spec.startswith("lib/"):
+    if spec.startswith(("scripts/", "lib/")):
         return "repo-root"
     if "*" in spec or "?" in spec:
         return "wildcard"

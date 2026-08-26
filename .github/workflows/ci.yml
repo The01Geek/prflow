@@ -162,7 +162,7 @@ jobs:
       # self-skips and `lib + python tests` stays green with no Python lint running.
       # Coupled pin: bump together with the `lint` job's ruff spec.
       - name: Install ruff (arms the #1621 Python-lint gate)
-        run: python3 -m pip install --quiet 'ruff==0.15.*'
+        run: python3 -m pip install --quiet 'ruff==0.16.*'
 
       - name: Preflight (dependency check)
         run: bash lib/preflight.sh
@@ -460,7 +460,7 @@ jobs:
           # flagged ~645 pre-existing findings repo-wide and turned this job red on
           # every branch at once. Pin to a known-green minor so a ruff release is an
           # explicit, reviewable bump rather than a silent tree-wide breakage.
-          python3 -m pip install --quiet 'ruff==0.15.*'
+          python3 -m pip install --quiet 'ruff==0.16.*'
           git ls-files '*.py' | xargs -r ruff check
 
   # Ask for a standalone review the moment CI is green on a pull request, so the

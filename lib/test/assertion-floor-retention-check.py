@@ -87,7 +87,7 @@ from pathlib import Path
 # Import the shared merge-base plumbing whether this file is run as a script from the repo
 # root or loaded by path (spec_from_file_location) in the focused test.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import retention_check_common as common  # noqa: E402
+import retention_check_common as common
 
 REGISTRY_REL = "scripts/workflow-flight-recorder-registry.json"
 ALLOW_REL = "lib/test/assertion-floor-retention-allow.json"
@@ -102,13 +102,13 @@ EXIT_UNESTABLISHED = 3
 ACK_FLAG = "--allow-degraded-base"
 
 
-def _allow_index(allow_value: object) -> "tuple[set[str], list[str]]":
+def _allow_index(allow_value: object) -> tuple[set[str], list[str]]:
     """Return ({module id with a non-empty reason}, [breadcrumbs]).
 
     A malformed allowlist is fail-closed: it contributes NO permitted decreases and a
     breadcrumb, so a broken escape hatch can never launder a decrease into a pass."""
-    permitted: "set[str]" = set()
-    errors: "list[str]" = []
+    permitted: set[str] = set()
+    errors: list[str] = []
     if allow_value is None:
         return permitted, errors
     if not isinstance(allow_value, list):
@@ -134,7 +134,7 @@ def _allow_index(allow_value: object) -> "tuple[set[str], list[str]]":
     return permitted, errors
 
 
-def _floors(registry: object) -> "tuple[dict[str, int] | None, set[str] | None, str | None]":
+def _floors(registry: object) -> tuple[dict[str, int] | None, set[str] | None, str | None]:
     """Parse a registry object into (floors, unreadable, error).
 
     `floors` maps each module id with a readable integer `minimum_assertions` to its value.
@@ -154,8 +154,8 @@ def _floors(registry: object) -> "tuple[dict[str, int] | None, set[str] | None, 
     modules = registry.get("test_modules", {})
     if not isinstance(modules, dict):
         return None, None, f"{REGISTRY_REL} 'test_modules' is not an object — comparand unestablished"
-    floors: "dict[str, int]" = {}
-    unreadable: "set[str]" = set()
+    floors: dict[str, int] = {}
+    unreadable: set[str] = set()
     for module_id, mapping in modules.items():
         if not isinstance(mapping, dict):
             continue
@@ -170,7 +170,7 @@ def _floors(registry: object) -> "tuple[dict[str, int] | None, set[str] | None, 
 
 def detect_decreases(
     base_registry: object, head_registry: object, allow_value: object
-) -> "list[str]":
+) -> list[str]:
     """Return floor-decrease violations (empty ⇒ clean). Pure — never raises, never reads a file.
 
     A base or head registry that is not a well-shaped object contributes a fail-closed
@@ -180,7 +180,7 @@ def detect_decreases(
     `minimum_assertions` became unreadable (non-int, bool, or removed while the entry lives on)
     is the floor's protection being stripped from a live module — the maximal shrink — and IS
     flagged as a loss."""
-    violations: "list[str]" = []
+    violations: list[str] = []
     permitted, allow_errors = _allow_index(allow_value)
     violations.extend(f"[floor] {e}" for e in allow_errors)
 
@@ -223,12 +223,12 @@ def detect_decreases(
 
 
 def classify_outcome(
-    violations: "list[str]",
-    unestablished: "list[str]",
+    violations: list[str],
+    unestablished: list[str],
     allow_degraded: bool,
     base_ref: str,
     comparand_substituted: bool,
-) -> "tuple[int, list[str]]":
+) -> tuple[int, list[str]]:
     """Select the outcome. Pure — the focused test drives every arm and the arm ORDER.
 
     COMPARAND_SUBSTITUTED says the comparison ran against BASE_REF's own tip rather than a
@@ -263,8 +263,8 @@ def classify_outcome(
         return EXIT_DECREASE, lines
     if violations or unestablished:
         lines = [
-            "[floor] the base comparand could not be established, so this run proves nothing "
-            "about assertion-floor retention — it is NOT a clean pass:"
+            ("[floor] the base comparand could not be established, so this run proves nothing "
+            "about assertion-floor retention — it is NOT a clean pass:")
         ]
         lines.extend(f"[floor]   - {reason}" for reason in unestablished)
         if violations:
@@ -294,7 +294,7 @@ def classify_outcome(
     ]
 
 
-def main(argv: "list[str]") -> int:
+def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("repo_root", nargs="?", default=".", help="repository root (default: cwd)")
     parser.add_argument(
@@ -321,7 +321,7 @@ def main(argv: "list[str]") -> int:
 
     # Every reason the base comparand cannot be trusted. Non-empty ⇒ a green result would be a
     # claim the run never established, so it routes to EXIT_UNESTABLISHED.
-    unestablished: "list[str]" = []
+    unestablished: list[str] = []
 
     merge_base, mb_error, mb_degraded = common.merge_base(repo_root, base_ref)
     if merge_base is None:

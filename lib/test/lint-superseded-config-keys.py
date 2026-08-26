@@ -107,8 +107,7 @@ _LEAF_RE = re.compile(
 # collides with a listed extension word today; a `devflow.tokens`-style leaf would be masked as
 # a filename — an accepted, documented assumption that config keys never share an extension name.)
 _EXTENSIONS = frozenset(
-    "yml yaml sh py json jq md tsv jsonl txt toml lock cfg ini example "
-    "tokens gitignore mjs js ts png svg html".split()
+    ["yml", "yaml", "sh", "py", "json", "jq", "md", "tsv", "jsonl", "txt", "toml", "lock", "cfg", "ini", "example", "tokens", "gitignore", "mjs", "js", "ts", "png", "svg", "html"]
 )
 
 # Binary path suffixes excluded from the population before reading. A binary file cannot carry a
@@ -117,7 +116,7 @@ _EXTENSIONS = frozenset(
 # sibling #711 lints' pattern) keeps the skip arm meaningful: a remaining skip is a genuine
 # permission/race failure, never an expected image/fixture.
 _BINARY_SUFFIXES = frozenset(
-    ".png .jpg .jpeg .gif .ico .bin .woff .woff2 .ttf .otf .pdf .zip .gz .tar .webp".split()
+    [".png", ".jpg", ".jpeg", ".gif", ".ico", ".bin", ".woff", ".woff2", ".ttf", ".otf", ".pdf", ".zip", ".gz", ".tar", ".webp"]
 )
 
 # Line-scoped exemption marker (issue #1096): a live migration file that legitimately names a

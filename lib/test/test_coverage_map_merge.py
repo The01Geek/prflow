@@ -31,6 +31,7 @@ import tempfile
 import unittest
 import unittest.mock
 from pathlib import Path
+from typing import ClassVar
 
 HERE = Path(__file__).resolve().parent
 DRIVER_SOURCE = HERE / "coverage-map-merge-driver.py"
@@ -416,10 +417,10 @@ class RetentionOutcomeSelectionTest(unittest.TestCase):
     unconfirmed difference against BASE_REF's substituted tip. Every call below states it
     explicitly, because which arm a violation reaches is the whole point of these tests."""
 
-    KEY_LOSS = ["[retain] files key 'lib/x.sh' ... absent"]
-    WHY = ["the base map at abc123 carried no files/run_sh_blocks keys"]
-    SUBSTITUTED = ["could not compute a merge base against origin/main; compared "
-                   "against origin/main's tip instead"]
+    KEY_LOSS: ClassVar[list[str]] = ["[retain] files key 'lib/x.sh' ... absent"]
+    WHY: ClassVar[list[str]] = ["the base map at abc123 carried no files/run_sh_blocks keys"]
+    SUBSTITUTED: ClassVar[list[str]] = [("could not compute a merge base against origin/main; compared "
+                   "against origin/main's tip instead")]
 
     def test_clean_requires_an_established_comparand(self):
         status, lines = retain.classify_outcome([], [], False, "origin/main", False)

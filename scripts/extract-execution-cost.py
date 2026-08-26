@@ -161,16 +161,16 @@ def _parse(path):
         with open(path, "r", encoding="utf-8") as fh:
             text = fh.read()
     except OSError as exc:
-        return None, ["execution file could not be read ('%s': %s)" % (path, exc)], False
+        return None, [f"execution file could not be read ('{path}': {exc})"], False
     if text.strip() == "":
-        return None, ["execution file is empty ('%s')" % path], False
+        return None, [f"execution file is empty ('{path}')"], False
     # Whole-file JSON first (object OR array — the two non-JSONL observed shapes).
     try:
         root = json.loads(text)
         if not isinstance(root, (dict, list)):
             breadcrumbs.append(
-                "execution file top-level JSON is a %s scalar, not an object/array; "
-                "no figures to extract" % type(root).__name__
+                f"execution file top-level JSON is a {type(root).__name__} scalar, not an object/array; "
+                "no figures to extract"
             )
         return root, breadcrumbs, True
     except json.JSONDecodeError:
@@ -189,7 +189,7 @@ def _parse(path):
             continue
     if any_ok:
         return rows, breadcrumbs, True
-    return None, ["execution file could not be parsed as JSON or JSONL ('%s')" % path], False
+    return None, [f"execution file could not be parsed as JSON or JSONL ('{path}')"], False
 
 
 def _force_utf8_streams():
@@ -208,13 +208,13 @@ def main(argv):
     if len(argv) != 2:
         sys.stderr.write(
             "devflow: extract-execution-cost.py: expected exactly one argument "
-            "(the execution-file path); got %d\n" % (len(argv) - 1)
+            f"(the execution-file path); got {len(argv) - 1}\n"
         )
         return 0  # best-effort exit-0
     path = argv[1]
     root, breadcrumbs, parsed_ok = _parse(path)
     for b in breadcrumbs:
-        sys.stderr.write("devflow: extract-execution-cost.py: %s\n" % b)
+        sys.stderr.write(f"devflow: extract-execution-cost.py: {b}\n")
     if not parsed_ok:
         # Cannot be parsed at all (missing/empty/garbage) → print NOTHING (AC2).
         return 0
@@ -236,8 +236,8 @@ def main(argv):
 
     for key, val in wrong_type.items():
         sys.stderr.write(
-            "devflow: extract-execution-cost.py: field '%s' is present but not a "
-            "numeric figure (%r); treated as absent (null)\n" % (key, val)
+            f"devflow: extract-execution-cost.py: field '{key}' is present but not a "
+            f"numeric figure ({val!r}); treated as absent (null)\n"
         )
 
     # A parsed file can carry useful non-cost figures (turns, duration, or tokens) while

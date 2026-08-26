@@ -7,38 +7,26 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
-import importlib.util
 import hashlib
+import importlib.util
 import io
 import json
 import os
 import re
-from pathlib import Path
 import stat
 import sys
 import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import verification_baseline as vb  # noqa: E402
-import workflow_flight_recorder as wfr  # noqa: E402
-from verification_baseline import (  # noqa: E402
-    BindingIdentity,
-    VerificationProcessLaunch,
-    build_cloud_census,
-    build_local_census,
-    group_launches,
-    join_confidence,
-    load_cloud_mappings,
-    manual_review_sample,
-    main,
-    read_cloud_census,
-)
-from verification_baseline import (  # noqa: E402
+import verification_baseline as vb
+import workflow_flight_recorder as wfr
+from verification_baseline import (
     CONFIDENCE_AMBIGUOUS,
     CONFIDENCE_CLASSES,
     CONFIDENCE_EXACT,
@@ -70,6 +58,16 @@ from verification_baseline import (  # noqa: E402
     START_CONFIRMED_TERMINAL,
     START_DENIED_PRE,
     START_UNKNOWN,
+    BindingIdentity,
+    VerificationProcessLaunch,
+    build_cloud_census,
+    build_local_census,
+    group_launches,
+    join_confidence,
+    load_cloud_mappings,
+    main,
+    manual_review_sample,
+    read_cloud_census,
 )
 
 REGISTRY = ROOT / "scripts/workflow-flight-recorder-registry.json"
@@ -562,7 +560,7 @@ class SamplingReportOutputTests(_TmpDirTestCase):
         write_bundle(self.bundles, "s1", transcript(user("/devflow:implement 527"), bash_call("lib/test/run.sh", "tu"), tool_result("tu", "exit code 0")))
         rc = main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles), "--registry", str(REGISTRY), "--out-dir", str(self.out)])
         self.assertEqual(rc, 0)
-        run = sorted(self.out.iterdir())[-1]
+        run = max(self.out.iterdir())
         report = (run / "report.md").read_text(encoding="utf-8")
         # The report states evidence limitations and disclaims overclaims (AC):
         # it never positively claims launches avoided / authorization safe /
@@ -581,7 +579,7 @@ class SamplingReportOutputTests(_TmpDirTestCase):
         write_manifest(self.manifests, "s1")
         write_bundle(self.bundles, "s1", transcript(user("/devflow:implement 527")))
         main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles), "--registry", str(REGISTRY), "--out-dir", str(self.out)])
-        run = sorted(self.out.iterdir())[-1]
+        run = max(self.out.iterdir())
         # BOTH halves of the claimed hardening: the parent baseline dir AND the
         # per-run subdir are 0700 (PR #531 iter-1: the parent-half of the chmod
         # loop was unasserted, so dropping out_dir from it stayed green).
@@ -595,7 +593,7 @@ class SamplingReportOutputTests(_TmpDirTestCase):
         write_manifest(self.manifests, "s1")
         write_bundle(self.bundles, "s1", transcript(user("/devflow:implement 527")))
         main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles), "--registry", str(REGISTRY), "--out-dir", str(self.out)])
-        baseline = json.loads((sorted(self.out.iterdir())[-1] / "verification_baseline.json").read_text(encoding="utf-8"))
+        baseline = json.loads((max(self.out.iterdir()) / "verification_baseline.json").read_text(encoding="utf-8"))
         self.assertIsNone(baseline["metrics"]["estimated_repeated_suite_wall_time_ms"])
         # A real zero (no candidates) is honored as 0, not null.
         self.assertEqual(baseline["metrics"]["candidate_retries"], 0)
@@ -629,7 +627,7 @@ class SamplingReportOutputTests(_TmpDirTestCase):
         big = transcript(user("/devflow:implement 527")) + (b"x" * 200)
         write_bundle(self.bundles, "s1", big)
         main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles), "--registry", str(REGISTRY), "--out-dir", str(self.out), "--max-source-bytes", "10"])
-        baseline = json.loads((sorted(self.out.iterdir())[-1] / "verification_baseline.json").read_text(encoding="utf-8"))
+        baseline = json.loads((max(self.out.iterdir()) / "verification_baseline.json").read_text(encoding="utf-8"))
         self.assertEqual(baseline["census"]["local"][0]["source_status"], SOURCE_UNSUPPORTED)
         self.assertGreaterEqual(baseline["performance"]["skipped_unsupported_source_count"], 1)
 
@@ -665,7 +663,7 @@ class ExportSnapshotTests(unittest.TestCase):
             self.assertIsNotNone(read)
             assert read is not None
             self.assertEqual(read["snapshot_hash"], snap["snapshot_hash"])
-            rows, cov = build_cloud_census(read, load_cloud_mappings(REGISTRY))
+            rows, _cov = build_cloud_census(read, load_cloud_mappings(REGISTRY))
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0].identity["job"], "claude")
             self.assertEqual(rows[0].eligibility_state, ELIGIBILITY_CONFIRMED)
@@ -1243,7 +1241,7 @@ class Issue527ReviewFixTests(_TmpDirTestCase):
             return {"workflow_runs": [{"id": 7, "path": ".github/workflows/x.yml", "name": "X"}]}
 
         export._gh_json = fake_gh_json
-        runs, jobs_by_run, complete = export.fetch_runs_and_jobs("gh", "o/r", [], "2026-07-01", "2026-08-01")
+        _runs, jobs_by_run, complete = export.fetch_runs_and_jobs("gh", "o/r", [], "2026-07-01", "2026-08-01")
         self.assertEqual(len(jobs_by_run[7]), 150)
         self.assertTrue(complete)
 
@@ -1367,7 +1365,7 @@ class Pr531ReceivingReviewFixTests(_TmpDirTestCase):
         buf = io.StringIO()
         with mock.patch.object(vb.wfr, "detect_occurrences", side_effect=boom_first):
             with contextlib.redirect_stderr(buf):
-                requests, launches, rows = vb.extract_verification_lifecycles(
+                _requests, launches, rows = vb.extract_verification_lifecycles(
                     rows, self.bundles, wfr.load_registry(REGISTRY), 64 * 1024 * 1024
                 )
         by = {r.identity.get("session_id"): r.source_status for r in rows}
@@ -1392,7 +1390,7 @@ class Pr531ReceivingReviewFixTests(_TmpDirTestCase):
         rc = main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles),
                    "--registry", str(REGISTRY), "--out-dir", str(self.out)])
         self.assertEqual(rc, 0)
-        baseline = json.loads((sorted(self.out.iterdir())[-1] / "verification_baseline.json").read_text(encoding="utf-8"))
+        baseline = json.loads((max(self.out.iterdir()) / "verification_baseline.json").read_text(encoding="utf-8"))
         # The transcript alone is > its own size; evidence strings are ~40 bytes.
         self.assertGreaterEqual(baseline["performance"]["input_bytes"], len(b))
 
@@ -1473,7 +1471,7 @@ class Pr531ReceivingReviewFixTests(_TmpDirTestCase):
                    "--registry", str(REGISTRY), "--out-dir", str(self.out),
                    "--cloud-census", str(bad)])
         self.assertEqual(rc, 0)
-        baseline = json.loads((sorted(self.out.iterdir())[-1] / "verification_baseline.json").read_text(encoding="utf-8"))
+        baseline = json.loads((max(self.out.iterdir()) / "verification_baseline.json").read_text(encoding="utf-8"))
         self.assertTrue(baseline["cloud_coverage"]["unavailable"])
         self.assertEqual(baseline["metrics"]["source_availability_and_missingness"]["unavailable"], 1)
 
@@ -1484,7 +1482,7 @@ class Pr531ReceivingReviewFixTests(_TmpDirTestCase):
         rc = main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles),
                    "--registry", str(REGISTRY), "--out-dir", str(self.out)])
         self.assertEqual(rc, 0)
-        baseline = json.loads((sorted(self.out.iterdir())[-1] / "verification_baseline.json").read_text(encoding="utf-8"))
+        baseline = json.loads((max(self.out.iterdir()) / "verification_baseline.json").read_text(encoding="utf-8"))
         self.assertEqual(baseline["metrics"]["source_availability_and_missingness"]["unavailable"], 0)
 
     # --- Suggestion 3: queued/not-evidenced-started agent jobs are provisional,
@@ -1633,7 +1631,7 @@ class Pr531Iter1FixLoopTests(_TmpDirTestCase):
 
     # --- F4: a cancelled/action_required completed job with no job-level
     #         started_at must never read confirmed_eligible. -----------------
-    def _census_row_state(self, conclusion: str, started_at: "str | None") -> str:
+    def _census_row_state(self, conclusion: str, started_at: str | None) -> str:
         snapshot = {
             "schema_version": 1, "snapshot_hash": "h", "query_time": "t",
             "pagination_complete": True, "repository": "o/r",
@@ -2117,7 +2115,7 @@ class Pr531Iter2ShadowFixTests(_TmpDirTestCase):
         import io as _io
         buf = _io.StringIO()
         with contextlib.redirect_stderr(buf):
-            rows, cov = vb.build_cloud_census(snapshot, {})
+            _rows, cov = vb.build_cloud_census(snapshot, {})
         self.assertTrue(cov["unavailable"])
         self.assertEqual(cov.get("malformed_row_count"), 3)
         self.assertIn("malformed", buf.getvalue().lower())
@@ -2155,7 +2153,7 @@ class Pr531Iter2ShadowFixTests(_TmpDirTestCase):
         write_bundle(self.bundles, "s1", transcript(user("/devflow:implement 527")))
         main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles),
               "--registry", str(REGISTRY), "--out-dir", str(self.out)])
-        run = sorted(self.out.iterdir())[-1]
+        run = max(self.out.iterdir())
         mr = json.loads((run / "manual_review.json").read_text(encoding="utf-8"))
         for field in ("created_at", "source_snapshot_hash", "expires_at"):
             self.assertIn(field, mr, f"manual_review.json missing {field}")
@@ -2429,7 +2427,7 @@ class Pr531ReviewAndFixIter1Tests(_TmpDirTestCase):
         # renamed key) silently degrades the test to a near-no-op that still
         # reports a clean "no spawn" — the exact vacuity a negative assertion
         # over an unexercised path produces.
-        run_dir = sorted(out.iterdir())[-1]
+        run_dir = max(out.iterdir())
         baseline = json.loads((run_dir / "verification_baseline.json").read_text(encoding="utf-8"))
         self.assertEqual(baseline["metrics"]["local_actual_launches"], 1,
                          "fixture did not reach launch extraction — the no-spawn assertion would be vacuous")
@@ -2537,7 +2535,7 @@ class Pr531ReviewAndFixIter1Tests(_TmpDirTestCase):
                 exp = _load_export_census()
                 calls = {"n": 0}
 
-                def fake_gh_json(gh, args, _b=bad_id):
+                def fake_gh_json(gh, args, _b=bad_id, calls=calls):
                     calls["n"] += 1
                     if "jobs" in " ".join(args):
                         # A real job, so the GOOD run actually yields a census row
@@ -2576,7 +2574,7 @@ class Pr531ReviewAndFixIter1Tests(_TmpDirTestCase):
             with self.subTest(bad=bad):
                 exp = _load_export_census()
                 exp._gh_json = lambda gh, args, _b=bad: _b
-                runs, jobs, complete = exp.fetch_runs_and_jobs("gh", "o/r", ["wf.yml"], "a", "b")
+                runs, _jobs, complete = exp.fetch_runs_and_jobs("gh", "o/r", ["wf.yml"], "a", "b")
                 self.assertFalse(complete, "a first-page transport failure must mark the census incomplete")
                 self.assertEqual(runs, [])
 
@@ -2598,7 +2596,7 @@ class Pr531ReviewAndFixIter1Tests(_TmpDirTestCase):
             return {"workflow_runs": full_page}
 
         exp._gh_json = fake_gh_json
-        runs, jobs, complete = exp.fetch_runs_and_jobs("gh", "o/r", ["wf.yml"], "a", "b")
+        _runs, _jobs, complete = exp.fetch_runs_and_jobs("gh", "o/r", ["wf.yml"], "a", "b")
         self.assertFalse(complete, "the page>200 hard cap must mark the census incomplete")
         self.assertLessEqual(calls["n"], 201, "the hard cap must bound the runs loop")
 
@@ -2739,7 +2737,7 @@ class Pr531ReviewAndFixIter1Tests(_TmpDirTestCase):
     #     lifecycle classified as candidate_transport_retry. ---------------------
     def test_distinct_consumer_roles_are_never_a_transport_retry_candidate(self) -> None:
         a, b = _candidate_pair_with_consumers("implement", "review")
-        rel, conf = vb._classify_relationship([a, b])
+        rel, _conf = vb._classify_relationship([a, b])
         self.assertNotEqual(rel, vb.REL_CANDIDATE_TRANSPORT_RETRY,
                             "distinct consumer roles classified as a transport-retry candidate")
 
@@ -2777,7 +2775,7 @@ class Pr531StandaloneReviewFindingsTests(_TmpDirTestCase):
         rc = main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles),
                    "--registry", str(REGISTRY), "--out-dir", str(self.out)])
         self.assertEqual(rc, 0)
-        run = sorted(self.out.iterdir())[-1]
+        run = max(self.out.iterdir())
         baseline = json.loads((run / "verification_baseline.json").read_text(encoding="utf-8"))
         by_elig = baseline["metrics"]["local_actual_launches_by_lifecycle_eligibility"]
         self.assertEqual(by_elig[vb.ELIGIBILITY_INELIGIBLE], 1,
@@ -2803,7 +2801,7 @@ class Pr531StandaloneReviewFindingsTests(_TmpDirTestCase):
         rc = main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles),
                    "--registry", str(REGISTRY), "--out-dir", str(self.out)])
         self.assertEqual(rc, 0)
-        run = sorted(self.out.iterdir())[-1]
+        run = max(self.out.iterdir())
         baseline = json.loads((run / "verification_baseline.json").read_text(encoding="utf-8"))
         by_elig = baseline["metrics"]["local_actual_launches_by_lifecycle_eligibility"]
         self.assertEqual(by_elig[vb.ELIGIBILITY_CONFIRMED], 1)
@@ -2814,7 +2812,7 @@ class Pr531StandaloneReviewFindingsTests(_TmpDirTestCase):
     # --- Important 2: manual_review_sample composition (top-duration decile
     #     with inclusive ties, the min(50, max(20, ceil(0.1*remainder))) clamp,
     #     high-cost/remainder disjointness) was unasserted beyond determinism. -
-    def _duration_groups(self, durations: "tuple[int, ...]") -> list:
+    def _duration_groups(self, durations: tuple[int, ...]) -> list:
         launches = []
         for i, dur in enumerate(durations):
             for j, auth in enumerate((START_CONFIRMED_RESULT_MISSING, START_CONFIRMED_TERMINAL)):
@@ -2883,7 +2881,7 @@ class Pr531StandaloneReviewFindingsTests(_TmpDirTestCase):
                    "--registry", str(REGISTRY), "--out-dir", str(self.out)])
         self.assertEqual(rc, 0)
         # The serialized artifact is unchanged in shape (dicts all the way down).
-        run = sorted(self.out.iterdir())[-1]
+        run = max(self.out.iterdir())
         baseline = json.loads((run / "verification_baseline.json").read_text(encoding="utf-8"))
         self.assertIsInstance(baseline["verification_process_launches"][0], dict)
         # And the envelope's own contract: to_dict() converts typed records.
@@ -3002,7 +3000,7 @@ class Pr531RafLocalIter1Tests(_TmpDirTestCase):
         payload = json.dumps({"schema_version": 1, "rows": rows, "snapshot_hash": h})
         p.write_text(payload, encoding="utf-8")
         stats = {"input_bytes": 0}
-        doc, reason = vb.read_cloud_census(p, stats)
+        _doc, reason = vb.read_cloud_census(p, stats)
         self.assertEqual(reason, "ok")
         self.assertEqual(stats["input_bytes"], len(payload.encode("utf-8")))
         d = Path(self.tmp) / "snapdir"
@@ -3263,7 +3261,7 @@ class Pr531RafLocalIter1Tests(_TmpDirTestCase):
         ))
         rc = main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles), "--registry", str(REGISTRY), "--out-dir", str(self.out)])
         self.assertEqual(rc, 0)
-        doc = json.loads((sorted(self.out.iterdir())[-1] / "verification_baseline.json").read_text(encoding="utf-8"))
+        doc = json.loads((max(self.out.iterdir()) / "verification_baseline.json").read_text(encoding="utf-8"))
         self.assertEqual(len(doc["verification_process_launches"]), 1)
         # Prove the surviving launch is attributed to THIS session (PR #573 review).
         self.assertEqual(doc["verification_process_launches"][0]["provenance"]["session_id"], sid)
@@ -3279,7 +3277,7 @@ class Pr531RafLocalIter1Tests(_TmpDirTestCase):
         )
         rc = main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles), "--registry", str(REGISTRY), "--out-dir", str(self.out)])
         self.assertEqual(rc, 0)
-        doc = json.loads((sorted(self.out.iterdir())[-1] / "verification_baseline.json").read_text(encoding="utf-8"))
+        doc = json.loads((max(self.out.iterdir()) / "verification_baseline.json").read_text(encoding="utf-8"))
         self.assertTrue(doc["cloud_coverage"]["unavailable"])
         self.assertNotIn("fictitious-cloud-launch", json.dumps(doc))
 
@@ -3304,7 +3302,7 @@ class Pr531RafLocalIter1Tests(_TmpDirTestCase):
             write_bundle(self.bundles, sid, transcript(user("/devflow:implement 527")))
         rc = main(["--manifests-dir", str(self.manifests), "--bundles-dir", str(self.bundles), "--registry", str(REGISTRY), "--out-dir", str(self.out)])
         self.assertEqual(rc, 0)
-        doc = json.loads((sorted(self.out.iterdir())[-1] / "verification_baseline.json").read_text(encoding="utf-8"))
+        doc = json.loads((max(self.out.iterdir()) / "verification_baseline.json").read_text(encoding="utf-8"))
         self.assertEqual(doc["metrics"]["eligible_lifecycles"], len(shapes))
         self.assertEqual({row["identity"]["session_id"] for row in doc["census"]["local"]}, {f"s-{name}" for name in shapes})
 
@@ -3486,7 +3484,7 @@ class Pr531RafLocalIter1Tests(_TmpDirTestCase):
         s.symlink_to(Path(self.tmp) / "gone.jsonl")
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
-            state, claims = vb._stop_attempts_state(self.bundles / sid, None)
+            state, _claims = vb._stop_attempts_state(self.bundles / sid, None)
         self.assertEqual(state, "unreadable")
         self.assertIn("symlink", err.getvalue())
 
@@ -3571,7 +3569,7 @@ class Pr531RafLocalIter2Tests(_TmpDirTestCase):
         (run_dir / "real.json").write_text("{}", encoding="utf-8")
         (run_dir / "link-dir").symlink_to(outside, target_is_directory=True)
         (out_dir / "link-file").symlink_to(victim)
-        removed, failed = vb._cleanup(out_dir)
+        _removed, failed = vb._cleanup(out_dir)
         self.assertTrue(victim.exists(), "cleanup followed a symlink and deleted the target")
         self.assertFalse((out_dir / "link-file").exists())
         self.assertEqual(failed, 0)

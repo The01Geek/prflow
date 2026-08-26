@@ -145,7 +145,7 @@ def _is_excluded(relpath: str) -> bool:
     return any(posix.startswith(prefix) for prefix in EXCLUDED_PREFIXES)
 
 
-def iter_scanned_files(root: str) -> "list[str]":
+def iter_scanned_files(root: str) -> list[str]:
     """Return the repo-relative paths of the WALK population, sorted.
 
     The library default (see the module docstring): git-free, so the consolidator that
@@ -160,7 +160,7 @@ def iter_scanned_files(root: str) -> "list[str]":
         # Mirror _read_text_or_none's file-level fail-closed handling instead.
         raise VersionPinError(f"{getattr(exc, 'filename', root)}: cannot list: {exc}")
 
-    found: "list[str]" = []
+    found: list[str] = []
     for dirpath, dirnames, filenames in os.walk(root, onerror=_boom):
         rel_dir = os.path.relpath(dirpath, root)
         if rel_dir == ".":
@@ -187,7 +187,7 @@ def _is_pruned_path(relpath: str) -> bool:
     return any(part in PRUNED_DIR_NAMES for part in relpath.replace(os.sep, "/").split("/"))
 
 
-def resolve_index_population(root: str) -> "list[str]":
+def resolve_index_population(root: str) -> list[str]:
     """Return the repo-relative INDEX population — ``git ls-files``, no ``--others``.
 
     This is the issue-#711 contract and the CLI's only population. It fails **closed**:
@@ -229,7 +229,7 @@ def resolve_index_population(root: str) -> "list[str]":
     ]
 
 
-def _read_text_or_none(path: str) -> "str | None":
+def _read_text_or_none(path: str) -> str | None:
     """Read ``path`` as UTF-8 text; return ``None`` when it is not decodable text.
 
     A binary asset is not a pin site, so it is skipped rather than failing the scan.
@@ -244,13 +244,13 @@ def _read_text_or_none(path: str) -> "str | None":
         raise VersionPinError(f"{path}: cannot read: {exc}") from exc
 
 
-def find_pin_sites(root: str, files: "list[str] | None" = None) -> "list[PinSite]":
+def find_pin_sites(root: str, files: list[str] | None = None) -> list[PinSite]:
     """Derive every release-pin occurrence under ``root``, in stable scan order.
 
     ``files`` is the repo-relative population to scan; ``None`` selects the git-free
     walk (see the module docstring's entry-point split).
     """
-    sites: "list[PinSite]" = []
+    sites: list[PinSite] = []
     for rel in iter_scanned_files(root) if files is None else files:
         text = _read_text_or_none(os.path.join(root, rel))
         if text is None:
@@ -285,7 +285,7 @@ def read_manifest_version(root: str) -> str:
 def _rewrite_text(text: str, new_version: str) -> str:
     """Return ``text`` with every release-pin occurrence's version set to ``new_version``."""
 
-    def _sub(mo: "re.Match[str]") -> str:
+    def _sub(mo: re.Match[str]) -> str:
         whole = mo.group(0)
         head = whole[: mo.start("version") - mo.start()]
         tail = whole[mo.end("version") - mo.start() :]
@@ -297,8 +297,8 @@ def _rewrite_text(text: str, new_version: str) -> str:
 
 
 def render_rewrites(
-    root: str, new_version: str, files: "list[str] | None" = None
-) -> "dict[str, str]":
+    root: str, new_version: str, files: list[str] | None = None
+) -> dict[str, str]:
     """Return ``{absolute path: new text}`` for every file whose pins need moving.
 
     Pure read + assemble — **no writes**. This mirrors ``consolidate-changesets.py``'s
@@ -311,7 +311,7 @@ def render_rewrites(
     """
     if not VERSION_RE.match(new_version):
         raise VersionPinError(f"{new_version!r} is not an N.N.N version string")
-    rewrites: "dict[str, str]" = {}
+    rewrites: dict[str, str] = {}
     for rel in iter_scanned_files(root) if files is None else files:
         abspath = os.path.join(root, rel)
         text = _read_text_or_none(abspath)
@@ -325,7 +325,7 @@ def render_rewrites(
     return rewrites
 
 
-def _write_rewrites(rewrites: "dict[str, str]") -> None:
+def _write_rewrites(rewrites: dict[str, str]) -> None:
     for path, text in sorted(rewrites.items()):
         try:
             with open(path, "w", encoding="utf-8") as fh:
@@ -335,7 +335,7 @@ def _write_rewrites(rewrites: "dict[str, str]") -> None:
 
 
 def check(
-    root: str, files: "list[str] | None" = None, out=sys.stdout, err=sys.stderr
+    root: str, files: list[str] | None = None, out=sys.stdout, err=sys.stderr
 ) -> int:
     """Assert every derived pin site agrees with the manifest. 0 clean, 1 on drift.
 
@@ -391,7 +391,7 @@ def _force_utf8_streams():
             pass
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     parser = argparse.ArgumentParser(description="Derive/enforce/rewrite release-tag pins.")
     parser.add_argument(

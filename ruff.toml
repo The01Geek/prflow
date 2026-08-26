@@ -12,4 +12,17 @@ ignore = [
   "EXE001",
   # `try`/`except`/`pass` is deliberate best-effort suppression in this repo.
   "S110",
+  # Best-effort parsers raise `ValueError` with a typed `invalid_*:` message that callers catch; `TypeError` would break those catch sites.
+  "TRY004",
+  # Flagged handles are deliberate: opened under `try/except OSError` and handed off, `NamedTemporaryFile(delete=False)`, or a lock held across a critical section — not leaks.
+  "SIM115",
+]
+
+[lint.per-file-ignores]
+# Test-harness idioms; scoped per-file to lib/test/** rather than globally ignored.
+"lib/test/**" = [
+  # Direct lambda call — the test harness's fixture idiom.
+  "PLC3002",
+  # Nested `with` in fixture setup.
+  "SIM117",
 ]

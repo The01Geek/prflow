@@ -15,14 +15,16 @@ Driven serially from lib/test/run.sh.
 """
 
 import datetime
-import io
 import importlib.util
+import io
+import itertools
 import json
 import os
 import re
 import sys
 import tempfile
 import unittest
+from typing import ClassVar
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
@@ -122,7 +124,7 @@ def _expected_from_fixture(session_paths, corpus_root):
         if attributed:
             ordered = sorted(times)
             gaps = [round(b - a, ICE.GAP_DECIMALS)
-                    for a, b in zip(ordered, ordered[1:])]
+                    for a, b in itertools.pairwise(ordered)]
             runs.append({
                 "source": os.path.relpath(path, corpus_root).replace(os.sep, "/"),
                 "peak_context": max(peaks) if peaks else ICE.UNESTABLISHED,
@@ -206,9 +208,9 @@ class FixtureDerivedTest(unittest.TestCase):
         self.assertEqual(summary["max_peak_context"], max(peaks))
         for label in ICE.PHASE_READ_LABELS:
             counts = sorted(r["phase_reads"][label] for r in expected)
-            self.assertEqual(summary["median_{}_reads".format(label)], ICE._median(counts))
-            self.assertEqual(summary["max_{}_reads".format(label)], max(counts))
-            self.assertEqual(summary["total_{}_reads".format(label)], sum(counts))
+            self.assertEqual(summary[f"median_{label}_reads"], ICE._median(counts))
+            self.assertEqual(summary[f"max_{label}_reads"], max(counts))
+            self.assertEqual(summary[f"total_{label}_reads"], sum(counts))
 
     def test_tool_call_and_gap_axes_are_aggregated_too(self):
         # AC12: both new axes are aggregated across the corpus on the peak's footing.
@@ -217,9 +219,9 @@ class FixtureDerivedTest(unittest.TestCase):
         expected = self._expected("corpus")
         for label in ICE.TOOL_CATEGORY_LABELS:
             counts = sorted(r["tool_calls"][label] for r in expected)
-            self.assertEqual(summary["median_{}_calls".format(label)], ICE._median(counts))
-            self.assertEqual(summary["max_{}_calls".format(label)], max(counts))
-            self.assertEqual(summary["total_{}_calls".format(label)], sum(counts))
+            self.assertEqual(summary[f"median_{label}_calls"], ICE._median(counts))
+            self.assertEqual(summary[f"max_{label}_calls"], max(counts))
+            self.assertEqual(summary[f"total_{label}_calls"], sum(counts))
         totals = [r["total_tool_calls"] for r in expected]
         self.assertEqual(summary["median_total_tool_calls"], ICE._median(totals))
         self.assertEqual(summary["max_total_tool_calls"], max(totals))
@@ -276,9 +278,9 @@ class BoundaryTest(_SingleSessionMixin, unittest.TestCase):
 
     def test_one_turn_run_context_sum(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
             '"message":{"usage":{"input_tokens":10,"cache_read_input_tokens":20,'
-            '"cache_creation_input_tokens":5,"output_tokens":3}}}',
+            '"cache_creation_input_tokens":5,"output_tokens":3}}}'),
         ])
         self.assertEqual(len(runs), 1)
         self.assertEqual(runs[0]["turn_count"], 1)
@@ -287,8 +289,8 @@ class BoundaryTest(_SingleSessionMixin, unittest.TestCase):
 
     def test_null_usage_subfield_treated_as_zero(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
-            '"message":{"usage":{"input_tokens":null,"cache_read_input_tokens":7}}}',
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":null,"cache_read_input_tokens":7}}}'),
         ])
         self.assertEqual(runs[0]["peak_context"], 7)
 
@@ -296,47 +298,47 @@ class BoundaryTest(_SingleSessionMixin, unittest.TestCase):
         # A sidechain (subagent) record reading a phase file must not count on either
         # axis: the phase files are read by the orchestrator main thread.
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
-            '"message":{"usage":{"input_tokens":1}}}',
-            '{"type":"assistant","isSidechain":true,"attributionSkill":"prflow:implement",'
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":1}}}'),
+            ('{"type":"assistant","isSidechain":true,"attributionSkill":"prflow:implement",'
             '"message":{"usage":{"input_tokens":999},"content":['
             '{"type":"tool_use","id":"s1","name":"Read",'
-            '"input":{"file_path":"skills/implement/phases/phase-3-review.md"}}]}}',
+            '"input":{"file_path":"skills/implement/phases/phase-3-review.md"}}]}}'),
         ])
         self.assertEqual(runs[0]["peak_context"], 1)
         self.assertEqual(runs[0]["phase_reads"]["phase3"], 0)
 
     def test_devflow_namespace_also_attributed(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"devflow:implement",'
-            '"message":{"usage":{"input_tokens":8}}}',
+            ('{"type":"assistant","attributionSkill":"devflow:implement",'
+            '"message":{"usage":{"input_tokens":8}}}'),
         ])
         self.assertEqual(len(runs), 1)
         self.assertEqual(runs[0]["peak_context"], 8)
 
     def test_vendored_path_basename_matches(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","id":"v1","name":"Read","input":{"file_path":'
-            '".prflow/vendor/prflow/skills/implement/phases/phase-1-setup.md"}}]}}',
+            '".prflow/vendor/prflow/skills/implement/phases/phase-1-setup.md"}}]}}'),
         ])
         self.assertEqual(runs[0]["phase_reads"]["phase1"], 1)
 
     def test_non_phase_read_not_counted(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","id":"n1","name":"Read",'
-            '"input":{"file_path":"skills/implement/SKILL.md"}}]}}',
+            '"input":{"file_path":"skills/implement/SKILL.md"}}]}}'),
         ])
         self.assertEqual(runs[0]["total_phase_reads"], 0)
 
     def test_compaction_counted(self):
         runs, _ = self._run_one([
             '{"type":"system","subtype":"compact_boundary"}',
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
-            '"message":{"usage":{"input_tokens":1}}}',
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":1}}}'),
         ])
         self.assertEqual(runs[0]["compact_boundary_count"], 1)
 
@@ -359,8 +361,8 @@ class BoundaryTest(_SingleSessionMixin, unittest.TestCase):
         # as a 0 that would drag the peak down.
         runs, _ = self._run_one([
             '{"type":"assistant","attributionSkill":"prflow:implement","message":{}}',
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
-            '"message":{"usage":{"input_tokens":50}}}',
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":50}}}'),
         ])
         self.assertEqual(runs[0]["peak_context"], 50)
         self.assertEqual(runs[0]["usage_missing_turns"], 1)
@@ -370,8 +372,8 @@ class BoundaryTest(_SingleSessionMixin, unittest.TestCase):
         # object that establishes NO residency sub-field measured nothing, so it is an
         # unmeasured turn (peak UNESTABLISHED, tallied) — never a real-looking 0.
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
-            '"message":{"usage":{"input_tokens":null}}}',
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":null}}}'),
         ])
         self.assertEqual(runs[0]["peak_context"], ICE.UNESTABLISHED)
         self.assertEqual(runs[0]["usage_missing_turns"], 1)
@@ -379,8 +381,8 @@ class BoundaryTest(_SingleSessionMixin, unittest.TestCase):
     def test_usage_present_but_empty_dict_is_an_unmeasured_turn(self):
         # A present-but-empty usage object established no residency either.
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
-            '"message":{"usage":{}}}',
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{}}}'),
         ])
         self.assertEqual(runs[0]["peak_context"], ICE.UNESTABLISHED)
         self.assertEqual(runs[0]["usage_missing_turns"], 1)
@@ -394,18 +396,18 @@ class ToolCallAndGapBoundaryTest(_SingleSessionMixin, unittest.TestCase):
         # unparseable leaves the gap population ACCOUNTED in the skip tally. Folding it
         # in as a 0 would silently shorten every total it appears in.
         runs, skipped = self._run_one([
-            '{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
+            ('{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
-            '"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{}}]}}',
-            '{"type":"assistant","timestamp":"not-a-timestamp",'
+            '"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{}}]}}'),
+            ('{"type":"assistant","timestamp":"not-a-timestamp",'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
-            '"content":[{"type":"tool_use","id":"t2","name":"Bash","input":{}}]}}',
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"content":[{"type":"tool_use","id":"t2","name":"Bash","input":{}}]}}'),
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
             '"message":{"usage":{"input_tokens":1},'
-            '"content":[{"type":"tool_use","id":"t3","name":"Bash","input":{}}]}}',
-            '{"type":"assistant","timestamp":"2026-01-01T00:00:20Z",'
+            '"content":[{"type":"tool_use","id":"t3","name":"Bash","input":{}}]}}'),
+            ('{"type":"assistant","timestamp":"2026-01-01T00:00:20Z",'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
-            '"content":[{"type":"tool_use","id":"t4","name":"Bash","input":{}}]}}',
+            '"content":[{"type":"tool_use","id":"t4","name":"Bash","input":{}}]}}'),
         ])
         self.assertEqual(skipped["unusable_timestamp"], 2)
         # The corpus-wide tally cannot say WHICH run is affected, so the per-run counter
@@ -424,10 +426,10 @@ class ToolCallAndGapBoundaryTest(_SingleSessionMixin, unittest.TestCase):
 
     def test_single_tool_call_run_has_unestablished_gaps_not_zero(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
+            ('{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
             '"content":[{"type":"tool_use","id":"s1","name":"Read",'
-            '"input":{"file_path":"x.md"}}]}}',
+            '"input":{"file_path":"x.md"}}]}}'),
         ])
         gaps = runs[0]["tool_call_gaps"]
         self.assertEqual(gaps["count"], 0)
@@ -436,11 +438,11 @@ class ToolCallAndGapBoundaryTest(_SingleSessionMixin, unittest.TestCase):
 
     def test_unmapped_tool_name_lands_in_other_not_dropped(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
+            ('{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
             '"content":[{"type":"tool_use","id":"u1","name":"SomeFutureTool","input":{}},'
             '{"type":"tool_use","id":"u2","name":"Write","input":{}},'
-            '{"type":"tool_use","id":"u3","name":"Bash","input":{}}]}}',
+            '{"type":"tool_use","id":"u3","name":"Bash","input":{}}]}}'),
         ])
         self.assertEqual(runs[0]["tool_calls"][ICE.OTHER_TOOL_CATEGORY], 1)
         self.assertEqual(runs[0]["tool_calls"]["file_edits_writes"], 1)
@@ -455,14 +457,14 @@ class ToolCallAndGapBoundaryTest(_SingleSessionMixin, unittest.TestCase):
         # yields ONE gap, not three. If this ever becomes per-call the pin goes RED
         # rather than the documented granularity drifting silently.
         runs, _ = self._run_one([
-            '{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
+            ('{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
             '"content":[{"type":"tool_use","id":"g1","name":"Bash","input":{}},'
             '{"type":"tool_use","id":"g2","name":"Bash","input":{}},'
-            '{"type":"tool_use","id":"g3","name":"Bash","input":{}}]}}',
-            '{"type":"assistant","timestamp":"2026-01-01T00:00:12Z",'
+            '{"type":"tool_use","id":"g3","name":"Bash","input":{}}]}}'),
+            ('{"type":"assistant","timestamp":"2026-01-01T00:00:12Z",'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
-            '"content":[{"type":"tool_use","id":"g4","name":"Bash","input":{}}]}}',
+            '"content":[{"type":"tool_use","id":"g4","name":"Bash","input":{}}]}}'),
         ])
         self.assertEqual(runs[0]["total_tool_calls"], 4)
         self.assertEqual(runs[0]["tool_call_gaps"]["count"], 1)
@@ -472,12 +474,12 @@ class ToolCallAndGapBoundaryTest(_SingleSessionMixin, unittest.TestCase):
         # `_gap_stats` sorts rather than trusting file order; without the sort this
         # session would report a -30s gap.
         runs, _ = self._run_one([
-            '{"type":"assistant","timestamp":"2026-01-01T00:00:30Z",'
+            ('{"type":"assistant","timestamp":"2026-01-01T00:00:30Z",'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
-            '"content":[{"type":"tool_use","id":"o1","name":"Bash","input":{}}]}}',
-            '{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
+            '"content":[{"type":"tool_use","id":"o1","name":"Bash","input":{}}]}}'),
+            ('{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
-            '"content":[{"type":"tool_use","id":"o2","name":"Bash","input":{}}]}}',
+            '"content":[{"type":"tool_use","id":"o2","name":"Bash","input":{}}]}}'),
         ])
         self.assertEqual(runs[0]["tool_call_gaps"]["total_seconds"], 30.0)
         self.assertEqual(runs[0]["tool_call_gaps"]["max_seconds"], 30.0)
@@ -486,15 +488,15 @@ class ToolCallAndGapBoundaryTest(_SingleSessionMixin, unittest.TestCase):
         # The AC10/AC11 axes are main-thread axes: a subagent's calls must not inflate
         # either one.
         runs, _ = self._run_one([
-            '{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
+            ('{"type":"assistant","timestamp":"2026-01-01T00:00:00Z",'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
-            '"content":[{"type":"tool_use","id":"m1","name":"Bash","input":{}}]}}',
-            '{"type":"assistant","timestamp":"2026-01-01T09:00:00Z","isSidechain":true,'
+            '"content":[{"type":"tool_use","id":"m1","name":"Bash","input":{}}]}}'),
+            ('{"type":"assistant","timestamp":"2026-01-01T09:00:00Z","isSidechain":true,'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
-            '"content":[{"type":"tool_use","id":"sx","name":"Bash","input":{}}]}}',
-            '{"type":"assistant","timestamp":"2026-01-01T00:00:10Z",'
+            '"content":[{"type":"tool_use","id":"sx","name":"Bash","input":{}}]}}'),
+            ('{"type":"assistant","timestamp":"2026-01-01T00:00:10Z",'
             '"attributionSkill":"prflow:implement","message":{"usage":{"input_tokens":1},'
-            '"content":[{"type":"tool_use","id":"m2","name":"Bash","input":{}}]}}',
+            '"content":[{"type":"tool_use","id":"m2","name":"Bash","input":{}}]}}'),
         ])
         self.assertEqual(runs[0]["tool_calls"]["shell_commands"], 2)
         self.assertEqual(runs[0]["tool_call_gaps"]["max_seconds"], 10.0)
@@ -509,10 +511,10 @@ class GatedSweepReferenceTest(_SingleSessionMixin, unittest.TestCase):
 
     def test_gated_sweep_reference_read_counts_toward_phase2(self):
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","id":"s1","name":"Read","input":{"file_path":'
-            '"skills/implement/references/sweep-2-3-0-changed-contract.md"}}]}}',
+            '"skills/implement/references/sweep-2-3-0-changed-contract.md"}}]}}'),
         ])
         self.assertEqual(runs[0]["phase_reads"]["phase2"], 1)
         self.assertEqual(runs[0]["total_phase_reads"], 1)
@@ -521,11 +523,11 @@ class GatedSweepReferenceTest(_SingleSessionMixin, unittest.TestCase):
         # The same file resolves at a vendored path on the cloud tier; the basename match
         # is what makes both spellings count (the instrument's deliberate design).
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","id":"v1","name":"Read","input":{"file_path":'
             '".prflow/vendor/prflow/skills/implement/references/'
-            'sweep-2-3-7-collection-cardinality.md"}}]}}',
+            'sweep-2-3-7-collection-cardinality.md"}}]}}'),
         ])
         self.assertEqual(runs[0]["phase_reads"]["phase2"], 1)
 
@@ -533,10 +535,10 @@ class GatedSweepReferenceTest(_SingleSessionMixin, unittest.TestCase):
         # AC3: the population is derived by basename shape, not a transcribed list, so a
         # sweep-reference name that exists nowhere on disk today still counts.
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","id":"n9","name":"Read","input":{"file_path":'
-            '"skills/implement/references/sweep-9-9-9-hypothetical-ninth.md"}}]}}',
+            '"skills/implement/references/sweep-9-9-9-hypothetical-ninth.md"}}]}}'),
         ])
         self.assertEqual(runs[0]["phase_reads"]["phase2"], 1)
 
@@ -544,10 +546,10 @@ class GatedSweepReferenceTest(_SingleSessionMixin, unittest.TestCase):
         # A non-sweep reference under references/ is not a gated Phase 2.3 sweep and must
         # not count toward the phase2 axis.
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","id":"r1","name":"Read","input":{"file_path":'
-            '"skills/implement/references/deferred-ac-followups.md"}}]}}',
+            '"skills/implement/references/deferred-ac-followups.md"}}]}}'),
         ])
         self.assertEqual(runs[0]["total_phase_reads"], 0)
 
@@ -556,10 +558,10 @@ class GatedSweepReferenceTest(_SingleSessionMixin, unittest.TestCase):
         # (an editor backup, say) must not count — the negative control above only covers
         # a non-sweep prefix, so a loosened suffix check would otherwise pass unnoticed.
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
             '"message":{"usage":{"input_tokens":1},"content":['
             '{"type":"tool_use","id":"b1","name":"Read","input":{"file_path":'
-            '"skills/implement/references/sweep-2-3-0-changed-contract.md.bak"}}]}}',
+            '"skills/implement/references/sweep-2-3-0-changed-contract.md.bak"}}]}}'),
         ])
         self.assertEqual(runs[0]["total_phase_reads"], 0)
 
@@ -572,7 +574,7 @@ class ToolCategoryTableTest(unittest.TestCase):
     Pin the association as literals: the table IS the contract.
     """
 
-    _EXPECTED = {
+    _EXPECTED: ClassVar[dict[str, set[str]]] = {
         "file_reads": {"Read", "NotebookRead"},
         "file_edits_writes": {"Edit", "MultiEdit", "Write", "NotebookEdit"},
         "shell_commands": {"Bash", "BashOutput", "KillShell"},
@@ -695,8 +697,8 @@ class AdversarialTest(_SingleSessionMixin, unittest.TestCase):
             'not json at all',
             '["a","list","not","an","object"]',
             '{"no":"type field"}',
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
-            '"message":{"usage":{"input_tokens":4}}}',
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":4}}}'),
             '{"type":"assistant","attributionSkill":"prflow:implement"',  # truncated
         ])
         self.assertEqual(len(runs), 1)
@@ -710,10 +712,10 @@ class AdversarialTest(_SingleSessionMixin, unittest.TestCase):
         sys.stderr = io.StringIO()
         try:
             runs, skipped = self._run_one([
-                '{"type":"assistant","attributionSkill":"prflow:implement",'
-                '"message":["not","a","dict"]}',
-                '{"type":"assistant","attributionSkill":"prflow:implement",'
-                '"message":{"usage":{"input_tokens":9}}}',
+                ('{"type":"assistant","attributionSkill":"prflow:implement",'
+                '"message":["not","a","dict"]}'),
+                ('{"type":"assistant","attributionSkill":"prflow:implement",'
+                '"message":{"usage":{"input_tokens":9}}}'),
             ])
         finally:
             sys.stderr = saved
@@ -727,11 +729,11 @@ class AdversarialTest(_SingleSessionMixin, unittest.TestCase):
         sys.stderr = io.StringIO()
         try:
             runs, skipped = self._run_one([
-                '{"type":"assistant","attributionSkill":"prflow:implement",'
+                ('{"type":"assistant","attributionSkill":"prflow:implement",'
                 '"message":{"usage":{"input_tokens":3},"content":['
-                '{"type":"tool_use","id":"u1","name":"Read","input":["not","a","dict"]}]}}',
-                '{"type":"assistant","attributionSkill":"prflow:implement",'
-                '"message":{"usage":{"input_tokens":5}}}',
+                '{"type":"tool_use","id":"u1","name":"Read","input":["not","a","dict"]}]}}'),
+                ('{"type":"assistant","attributionSkill":"prflow:implement",'
+                '"message":{"usage":{"input_tokens":5}}}'),
             ])
         finally:
             sys.stderr = saved
@@ -761,11 +763,11 @@ class AdversarialTest(_SingleSessionMixin, unittest.TestCase):
         ICE.RunAccumulator.observe_system = _boom
         try:
             runs, skipped = self._run_one([
-                '{"type":"assistant","attributionSkill":"prflow:implement",'
-                '"message":{"usage":{"input_tokens":4}}}',
+                ('{"type":"assistant","attributionSkill":"prflow:implement",'
+                '"message":{"usage":{"input_tokens":4}}}'),
                 '{"type":"system","boom":true}',
-                '{"type":"assistant","attributionSkill":"prflow:implement",'
-                '"message":{"usage":{"input_tokens":6}}}',
+                ('{"type":"assistant","attributionSkill":"prflow:implement",'
+                '"message":{"usage":{"input_tokens":6}}}'),
             ])
         finally:
             ICE.RunAccumulator.observe_system = original
@@ -872,15 +874,15 @@ class AggregateEmptyPopulationTest(unittest.TestCase):
             if key == "run_count":
                 continue
             self.assertEqual(value, ICE.UNESTABLISHED,
-                             "{} must be unestablished on an empty population".format(key))
+                             f"{key} must be unestablished on an empty population")
 
     def test_usage_less_run_excluded_from_peak_population(self):
         # A run whose peak is UNESTABLISHED (no usage on any turn) is counted in
         # run_count but must not enter the peak median/max as a 0.
         with tempfile.TemporaryDirectory() as d:
             _write(d, "measured.jsonl", [
-                '{"type":"assistant","attributionSkill":"prflow:implement",'
-                '"message":{"usage":{"input_tokens":300000}}}'])
+                ('{"type":"assistant","attributionSkill":"prflow:implement",'
+                '"message":{"usage":{"input_tokens":300000}}}')])
             _write(d, "usageless.jsonl", [
                 '{"type":"assistant","attributionSkill":"prflow:implement","message":{}}'])
             runs, _ = ICE.eval_corpus(d)
@@ -913,7 +915,7 @@ class RenderAndCliTest(unittest.TestCase):
             # Assert the rendered PAIR, not just the key: the key half is true by
             # construction (render_text iterates summary.items()), while the value half
             # catches a unit suffix pasted onto the sentinel ("unestablisheds").
-            self.assertIn("- {}: {}".format(key, value), text)
+            self.assertIn(f"- {key}: {value}", text)
 
     def test_unestablished_renders_as_the_bare_sentinel(self):
         summary = ICE.aggregate([])
@@ -1005,7 +1007,7 @@ class SecretDetectorTest(unittest.TestCase):
         for path in named:
             self.assertTrue(os.path.exists(path),
                             "secret-scan target is missing (renamed or moved?): "
-                            "{}".format(path))
+                            f"{path}")
         targets = list(named)
         for dirpath, _dirs, files in os.walk(_FIX):  # tree-walk-ok: rooted at the fixed committed implement-eval fixtures subdir, not the repo root
             for f in sorted(files):
@@ -1015,7 +1017,7 @@ class SecretDetectorTest(unittest.TestCase):
         for path in targets:
             with open(path, encoding="utf-8") as fh:
                 hits = _scan_for_secrets(fh.read())
-            self.assertFalse(hits, "owner-id/transcript shape {} found in {}".format(hits, path))
+            self.assertFalse(hits, f"owner-id/transcript shape {hits} found in {path}")
 
 
 class PhaseFileSetCouplingTest(unittest.TestCase):
@@ -1050,9 +1052,9 @@ class PhaseFileSetCouplingTest(unittest.TestCase):
         for basename, label in sorted(ICE.PHASE_FILES.items()):
             m = re.match(r"phase-(\d+)-", basename)
             self.assertIsNotNone(
-                m, "phase file {} does not carry a phase number".format(basename))
-            self.assertEqual(label, "phase{}".format(m.group(1)),
-                             "{} is reported under the wrong phase label".format(basename))
+                m, f"phase file {basename} does not carry a phase number")
+            self.assertEqual(label, f"phase{m.group(1)}",
+                             f"{basename} is reported under the wrong phase label")
 
 
 class NoAutoInvocationTest(unittest.TestCase):
@@ -1095,13 +1097,13 @@ class NoAutoInvocationTest(unittest.TestCase):
             # asserts its named targets exist.
             self.assertTrue(os.path.isdir(root),
                             "no-auto-invocation scan root is missing (renamed or "
-                            "moved?): {}".format(sub))
+                            f"moved?): {sub}")
 
             def _walk_error(exc, _sub=sub):
                 # os.walk's default onerror=None DISCARDS a scandir failure, so an
                 # undescendable directory would yield zero entries and read as clean.
-                self.fail("could not walk {} while checking the no-auto-invocation "
-                          "invariant: {}".format(_sub, exc))
+                self.fail(f"could not walk {_sub} while checking the no-auto-invocation "
+                          f"invariant: {exc}")
 
             for dirpath, dirs, files in os.walk(root, onerror=_walk_error):  # tree-walk-ok: rooted at fixed subtrees (skills/.github/scripts/lib/.prflow/prompt-extensions), not the repo root
                 dirs[:] = [d for d in dirs if d != "__pycache__"]
@@ -1118,11 +1120,11 @@ class NoAutoInvocationTest(unittest.TestCase):
                         # A file the scan could not open is UNKNOWN, not clean: skipping
                         # it would report the invariant as holding over a file never
                         # checked.
-                        self.fail("could not read {} while checking the "
-                                  "no-auto-invocation invariant: {}".format(rel, exc))
+                        self.fail(f"could not read {rel} while checking the "
+                                  f"no-auto-invocation invariant: {exc}")
         self.assertEqual(sorted(offenders), [],
                          "unexpected reference(s) to the maintainer-only script: "
-                         "{}".format(sorted(offenders)))
+                         f"{sorted(offenders)}")
 
 
 class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
@@ -1148,10 +1150,10 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
         # measured turn keeps the peak. Bare Infinity reaches the instrument from real
         # JSON, so this must not raise OverflowError.
         runs, _ = self._run_one([
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
-            '"message":{"usage":{"input_tokens":Infinity}}}',
-            '{"type":"assistant","attributionSkill":"prflow:implement",'
-            '"message":{"usage":{"input_tokens":50}}}',
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":Infinity}}}'),
+            ('{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":50}}}'),
         ])
         self.assertEqual(runs[0]["peak_context"], 50)
         self.assertEqual(runs[0]["usage_missing_turns"], 1)
@@ -1163,8 +1165,8 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as d:
                 _write(d, "s.jsonl", [
-                    '{"type":"assistant","attributionSkill":"prflow:implement",'
-                    '"message":{"usage":{"input_tokens":Infinity}}}'])
+                    ('{"type":"assistant","attributionSkill":"prflow:implement",'
+                    '"message":{"usage":{"input_tokens":Infinity}}}')])
                 rc = ICE.main([d])
         finally:
             sys.stdout, sys.stderr = saved_out, saved_err

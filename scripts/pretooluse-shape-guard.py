@@ -191,6 +191,7 @@ import subprocess
 import sys
 import time
 
+
 def _force_utf8_streams():
     """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
     streams of any process that imports this module for tests. Tolerates a stream that
@@ -458,7 +459,7 @@ def _note_disarm(tmp: str | None, exc: BaseException) -> None:
                     "the heartbeat so a disarmed run is distinguishable from one that fired "
                     "and matched nothing.\n"
                 )
-        except Exception:  # noqa: BLE001 - telemetry must never decide
+        except Exception:
             pass
 
 
@@ -470,7 +471,7 @@ def _clear_disarm(tmp: str | None) -> None:
         return
     try:
         os.remove(os.path.join(tmp, _DISARMED))
-    except Exception:  # noqa: BLE001 - telemetry on the decision path must never decide
+    except Exception:
         # `os.remove(str)` realistically raises only OSError (FileNotFoundError included — the
         # benign "no stale marker" case), but this call sits on the SUCCESS/decision path, so
         # a broad catch keeps it aligned with the file's "BOOKKEEPING NEVER DECIDES" contract:
@@ -665,7 +666,7 @@ def _run() -> None:
         tmp = _tmp_dir(root)
         # Every invocation, including a fall-through — this is the never-fired signal.
         _write_heartbeat(tmp)
-    except Exception as exc:  # noqa: BLE001 - telemetry must never decide
+    except Exception as exc:
         sys.stderr.write(
             "devflow: pretooluse-shape-guard: heartbeat/store unavailable "
             f"({type(exc).__name__}: {exc}); classifying anyway, denials go uncounted\n"
@@ -714,7 +715,7 @@ def _run() -> None:
         # in ephemeral stderr.
         shapes = _load_shapes_module()
         matched = _matched_arms(command, shapes)
-    except BaseException as exc:  # noqa: BLE001 - telemetry write then re-raise; never decides
+    except BaseException as exc:
         _note_disarm(tmp, exc)
         raise
     if not matched:
@@ -722,7 +723,7 @@ def _run() -> None:
         return
 
     # Deterministic tie-break: the first-sorting matched deny-set arm.
-    arm = sorted(matched)[0]
+    arm = min(matched)
     # The deny is already decided; counting it is telemetry. A store write that raises
     # must cost the ESCALATION, never the decision — an obstructed counts file used to
     # revoke an established deny and fall through with no signal at all.
@@ -732,7 +733,7 @@ def _run() -> None:
             escalated, _incremented = _bump_counts(
                 tmp, arm, _seen_key(tool_use_id, arm, command)
             )
-        except Exception as exc:  # noqa: BLE001 - telemetry must never decide
+        except Exception as exc:
             sys.stderr.write(
                 "devflow: pretooluse-shape-guard: denial counter write failed "
                 f"({type(exc).__name__}: {exc}); emitting the base remediation for "

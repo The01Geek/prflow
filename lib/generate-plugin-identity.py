@@ -58,7 +58,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import plugin_identity  # noqa: E402
+import plugin_identity
 
 ROOT = Path(__file__).resolve().parent.parent
 GENERATOR = "lib/generate-plugin-identity.py"
@@ -221,7 +221,7 @@ def run(check: bool) -> int:
     for region in REGIONS:
         path = ROOT / region["file"]
         text = path.read_text(encoding="utf-8")
-        bi, ei, indent, found_sha, found_ver = locate(text, region["file"])
+        bi, ei, indent, _found_sha, _found_ver = locate(text, region["file"])
         lines = text.split("\n")
         fresh = render(ident, region, indent)
         current = lines[bi : ei + 1]

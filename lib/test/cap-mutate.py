@@ -194,7 +194,7 @@ def main(argv):
         )
     elif mut == "anchor-duplicated":
         def dup(text):
-            m = re.search(r"^[ \t]*TOOLS='[^']*'\n", text, re.M)
+            m = re.search(r"^[ \t]*TOOLS='[^']*'\n", text, re.MULTILINE)
             if not m:
                 return text
             return text[: m.end()] + m.group(0) + text[m.end() :]
@@ -206,7 +206,7 @@ def main(argv):
         # assignment: at action runtime a later duplicate wins, so --check must refuse
         # the ambiguity rather than verify only the first (still-canonical) copy.
         def dup_impl(text):
-            m = re.search(r"^[ \t]*TOOLS='[^']*'\n", text, re.M)
+            m = re.search(r"^[ \t]*TOOLS='[^']*'\n", text, re.MULTILINE)
             if not m:
                 return text
             return text[: m.end()] + m.group(0) + text[m.end() :]
@@ -258,7 +258,7 @@ def main(argv):
                 root,
                 name,
                 lambda s: re.sub(
-                    r"^[ \t]*# devflow-capability-manifest:[^\n]*\n", "", s, flags=re.M
+                    r"^[ \t]*# devflow-capability-manifest:[^\n]*\n", "", s, flags=re.MULTILINE
                 ),
                 expect_change=False,
             )

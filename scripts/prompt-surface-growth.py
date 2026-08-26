@@ -42,6 +42,7 @@ import os
 import subprocess
 import sys
 
+
 def _force_utf8_streams():
     """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
     streams of any process that imports this module for tests. Tolerates a stream that
@@ -284,9 +285,9 @@ def render(head_sha, base_sha, ref, rows, surface_delta, surface_total):
     lines = [
         "### Prompt-surface size",
         "",
-        f"Derived at `{head_sha}` against merge-base `{base_sha}` (`{ref}`). "
+        (f"Derived at `{head_sha}` against merge-base `{base_sha}` (`{ref}`). "
         "Covered: tracked `*.md` under `skills/`, `agents/`, "
-        "`.prflow/prompt-extensions/`.",
+        "`.prflow/prompt-extensions/`."),
         "",
         "| Path | Before | After | Δ bytes | Δ % |",
         "| --- | ---: | ---: | ---: | ---: |",
@@ -331,9 +332,9 @@ def main():
     # so every row would read zero. Say so instead of printing that table.
     if base_sha == head_sha:
         return _emit([
-            f"prompt-surface growth: `HEAD` (`{head_sha}`) is the merge-base with "
+            (f"prompt-surface growth: `HEAD` (`{head_sha}`) is the merge-base with "
             f"`{ref}`, so this checkout carries no branch commits to measure — "
-            "no table rendered."
+            "no table rendered.")
         ])
 
     # Name the endpoint that failed, and quote git's own message: "could not be read
@@ -380,9 +381,9 @@ def main():
     # of any making it unqualified.
     if not rows:
         return _emit([
-            "prompt-surface growth: no tracked `*.md` under `skills/`, `agents/`, "
+            ("prompt-surface growth: no tracked `*.md` under `skills/`, `agents/`, "
             f"or `.prflow/prompt-extensions/` changed between `{base_sha}` and "
-            f"`{head_sha}` — no table rendered."
+            f"`{head_sha}` — no table rendered.")
         ])
 
     # The aggregate delta is the sum of the rows above it — an unchanged file

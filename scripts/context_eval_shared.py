@@ -126,9 +126,7 @@ def _iter_session_files(corpus_root, skipped):
                 # read, but tally + breadcrumb so the drop is visible, not silent.
                 skipped["escaped_path"] += 1
                 sys.stderr.write(
-                    "warning: skipping session file escaping corpus root {}\n".format(
-                        full
-                    )
+                    f"warning: skipping session file escaping corpus root {full}\n"
                 )
                 continue
             collected.append(full)

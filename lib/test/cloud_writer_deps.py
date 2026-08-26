@@ -67,7 +67,7 @@ from posixpath import normpath
 # point the reachability contract does not.
 _LIBTEST = Path(__file__).resolve().parent
 sys.path.insert(0, str(_LIBTEST))
-import cloud_writer_contract as cwc  # noqa: E402
+import cloud_writer_contract as cwc
 
 REPO_ROOT = cwc.REPO_ROOT
 VENDOR_PREFIX = cwc.VENDOR_PREFIX  # ".prflow/vendor/prflow/"
@@ -296,7 +296,7 @@ class Edge:
             "auth": self.auth,
         }
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _read(rel):
     # Sources are read-only within a run and each entry point is read by both the
     # scanner and exec-edge forward-verification, so memoize to one read per file.
@@ -1627,7 +1627,7 @@ def _python_command_evidence(source, filename):
         names = set()
 
         class LocalNames(ast.NodeVisitor):
-            def visit_FunctionDef(self, child):  # noqa: N802
+            def visit_FunctionDef(self, child):
                 return
 
             visit_AsyncFunctionDef = visit_FunctionDef
@@ -1638,7 +1638,7 @@ def _python_command_evidence(source, filename):
             visit_DictComp = visit_FunctionDef
             visit_GeneratorExp = visit_FunctionDef
 
-            def visit_Name(self, child):  # noqa: N802
+            def visit_Name(self, child):
                 if isinstance(child.ctx, ast.Store):
                     names.add(child.id)
 
@@ -1650,7 +1650,7 @@ def _python_command_evidence(source, filename):
 
     def add_scope(node, parent):
         parameters = set()
-        body = node.body if isinstance(node, ast.Module) else node.body
+        body = node.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             parameters = {
                 argument.arg
@@ -1676,7 +1676,7 @@ def _python_command_evidence(source, filename):
             parent["children"].append(scope)
 
         class Discover(ast.NodeVisitor):
-            def visit_FunctionDef(self, child):  # noqa: N802
+            def visit_FunctionDef(self, child):
                 if child is node:
                     self.generic_visit(child)
                 else:
@@ -1687,13 +1687,13 @@ def _python_command_evidence(source, filename):
 
             visit_AsyncFunctionDef = visit_FunctionDef
 
-            def visit_Lambda(self, child):  # noqa: N802
+            def visit_Lambda(self, child):
                 if child is node:
                     self.generic_visit(child)
                 else:
                     add_scope(child, scope)
 
-            def visit_ClassDef(self, child):  # noqa: N802
+            def visit_ClassDef(self, child):
                 if child is node:
                     self.generic_visit(child)
                 else:
@@ -1781,16 +1781,16 @@ def _python_command_evidence(source, filename):
             return names
 
         class Calls(ast.NodeVisitor):
-            def visit_FunctionDef(self, child):  # noqa: N802
+            def visit_FunctionDef(self, child):
                 return
 
             visit_AsyncFunctionDef = visit_FunctionDef
             visit_Lambda = visit_FunctionDef
 
-            def visit_ClassDef(self, child):  # noqa: N802
+            def visit_ClassDef(self, child):
                 return
 
-            def visit_Call(self, call):  # noqa: N802
+            def visit_Call(self, call):
                 scope["call_events"].append((call, snapshot(state)))
                 if isinstance(call.func, ast.Name):
                     possible_names = callable_names(call.func.id, state)
@@ -2007,9 +2007,7 @@ def _python_command_evidence(source, filename):
                 for case in statement.cases:
                     case_state = snapshot(state)
                     for pattern_node in ast.walk(case.pattern):
-                        if isinstance(pattern_node, ast.MatchAs) and pattern_node.name:
-                            case_state[pattern_node.name] = []
-                        elif isinstance(pattern_node, ast.MatchStar) and pattern_node.name:
+                        if isinstance(pattern_node, (ast.MatchAs, ast.MatchStar)) and pattern_node.name:
                             case_state[pattern_node.name] = []
                     if case.guard is not None:
                         record_calls(case.guard, case_state, scope)
@@ -2417,22 +2415,22 @@ def _python_repo_exec_present(source, target, evidence):
             self.calls = []
             self.binding_position = None
 
-        def visit_FunctionDef(self, node):  # noqa: N802
+        def visit_FunctionDef(self, node):
             if node is self.root:
                 for statement in node.body:
                     self.visit(statement)
 
         visit_AsyncFunctionDef = visit_FunctionDef
 
-        def visit_Module(self, node):  # noqa: N802
+        def visit_Module(self, node):
             if node is self.root:
                 for statement in node.body:
                     self.visit(statement)
 
-        def visit_Lambda(self, node):  # noqa: N802
+        def visit_Lambda(self, node):
             return
 
-        def visit_ClassDef(self, node):  # noqa: N802
+        def visit_ClassDef(self, node):
             return
 
         def _bind_symbol(self, name, value, node):
@@ -2443,14 +2441,14 @@ def _python_repo_exec_present(source, target, evidence):
                 )
             )
 
-        def visit_Import(self, node):  # noqa: N802
+        def visit_Import(self, node):
             for alias in node.names:
                 if alias.name == "subprocess":
                     self._bind_symbol(
                         alias.asname or "subprocess", "subprocess:module", node
                     )
 
-        def visit_ImportFrom(self, node):  # noqa: N802
+        def visit_ImportFrom(self, node):
             if node.module != "subprocess":
                 return
             for alias in node.names:
@@ -2461,7 +2459,7 @@ def _python_repo_exec_present(source, target, evidence):
                         node,
                     )
 
-        def visit_Assign(self, node):  # noqa: N802
+        def visit_Assign(self, node):
             for target_node in node.targets:
                 if isinstance(target_node, ast.Name):
                     self.assignments.setdefault(target_node.id, []).append(
@@ -2472,7 +2470,7 @@ def _python_repo_exec_present(source, target, evidence):
                     )
             self.visit(node.value)
 
-        def visit_AnnAssign(self, node):  # noqa: N802
+        def visit_AnnAssign(self, node):
             if isinstance(node.target, ast.Name) and node.value is not None:
                 self.assignments.setdefault(node.target.id, []).append(
                     (
@@ -2482,11 +2480,11 @@ def _python_repo_exec_present(source, target, evidence):
                 )
                 self.visit(node.value)
 
-        def visit_Call(self, node):  # noqa: N802
+        def visit_Call(self, node):
             self.calls.append(node)
             self.generic_visit(node)
 
-        def visit_If(self, node):  # noqa: N802
+        def visit_If(self, node):
             try:
                 truth = bool(ast.literal_eval(node.test))
             except (ValueError, TypeError, SyntaxError):
@@ -3103,15 +3101,14 @@ def check_dependencies(edges=None):
                         f"{e.helper}: repo-owned {e.kind} edge target missing on disk: "
                         f"{e.target}"
                     )
-        elif e.klass == "external":
-            # getattr for duck-typed symmetry with the repo-owned arm: a
-            # synthetic edge without the attribute draws the designed
-            # violation, never an AttributeError.
-            if not getattr(e, "auth", None):
-                errors.append(
-                    f"{e.helper}: external {e.kind} edge {e.target!r} names no "
-                    f"preflight guarantee or explicit profile grant"
-                )
+        # getattr for duck-typed symmetry with the repo-owned arm: a
+        # synthetic edge without the attribute draws the designed
+        # violation, never an AttributeError.
+        elif e.klass == "external" and not getattr(e, "auth", None):
+            errors.append(
+                f"{e.helper}: external {e.kind} edge {e.target!r} names no "
+                f"preflight guarantee or explicit profile grant"
+            )
         # Forward-verify a declared exec edge is real (skip synthetic-injection
         # runs, which reference helpers/targets that need not co-exist on disk).
         if live and e.kind == "exec" and not _exec_target_present(e.helper, e.target, e.klass):

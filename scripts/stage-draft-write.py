@@ -90,8 +90,7 @@ def _hash_bytes(data, mode):
     """
     try:
         r = subprocess.run(['git', 'hash-object', '--stdin', '--no-filters'],
-                           input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                           check=True)
+                           input=data, capture_output=True, check=True)
     except subprocess.CalledProcessError as exc:
         err = exc.stderr.decode('utf-8', 'replace').strip()
         _fail(mode, f'git hash-object failed: {err}')

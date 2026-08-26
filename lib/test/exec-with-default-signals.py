@@ -18,6 +18,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from signal_launcher import exec_with_default_signals  # noqa: E402
+from signal_launcher import exec_with_default_signals
 
 exec_with_default_signals(sys.argv[1:])

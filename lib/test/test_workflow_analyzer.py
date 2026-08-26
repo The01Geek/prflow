@@ -11,13 +11,12 @@ import importlib.util
 import io
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
-
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts/analyze-workflow-runs.py"
@@ -297,7 +296,7 @@ class WorkflowAnalyzerTests(unittest.TestCase):
         env.update({"DEVFLOW_CLAUDE_BIN": str(fake), "ARGV_LOG": str(argv_log), "FAKE_EXIT": "7"})
         result = subprocess.run(
             [sys.executable, str(SCRIPT), "--acknowledge-provider-access", "--repository-root", str(self.root), "a"],
-            env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            env=env, text=True, capture_output=True,
         )
         self.assertEqual(result.returncode, 1)
         argv = argv_log.read_text().splitlines()
@@ -314,8 +313,7 @@ class WorkflowAnalyzerTests(unittest.TestCase):
         result = subprocess.run(
             [sys.executable, str(SCRIPT), "--repository-root", str(self.root), "a"],
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn("--acknowledge-provider-access", result.stderr)
@@ -333,7 +331,7 @@ printf '%s\n' '<!-- DEVFLOW_REPORT_BEGIN -->' ok '<!-- DEVFLOW_REPORT_END -->' '
         result = subprocess.run(
             [sys.executable, str(SCRIPT), "--acknowledge-provider-access", "--repository-root", str(self.root),
              "--workflow", "review-and-fix", "--mode", "nested", "a", "b"],
-            env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            env=env, text=True, capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         output = Path(result.stdout.strip())

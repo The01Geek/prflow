@@ -87,7 +87,7 @@ def _run(cmd, *, stdin=None, check=True):
     # text mode, so `text=True` is dropped (passing both is redundant).
     return subprocess.run(
         cmd, check=check, stdin=stdin,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",
+        capture_output=True, encoding="utf-8",
     )
 
 
@@ -205,14 +205,14 @@ def _render_issue_body(group_findings, source_issue: int, pr_number: int) -> str
     the matcher.
     """
     lines = [
-        f"Carried forward from the /implement run on #{source_issue} "
-        f"(PR #{pr_number}).",
+        (f"Carried forward from the /implement run on #{source_issue} "
+        f"(PR #{pr_number})."),
         "",
-        "The following review-agent findings were surfaced during PR review "
+        ("The following review-agent findings were surfaced during PR review "
         "but deferred under the Scope-Acknowledged Findings contract. They are "
         "tracked here for follow-up resolution. Closing this issue invalidates "
         "the related deferral and forces re-verification on the next "
-        "/devflow:review run.",
+        "/devflow:review run."),
         "",
         "## Findings",
         "",
@@ -272,7 +272,7 @@ def _create_issue(title: str, body: str, dry_run: bool) -> tuple[int, str]:
         r = subprocess.run(
             [GH, "issue", "create", "--title", title, "--body-file", "-"],
             input=body, check=False, encoding="utf-8",
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            capture_output=True,
         )
     except OSError as e:
         raise RuntimeError(
@@ -340,7 +340,7 @@ def main(argv=None):
     # foreclosure files no issue but still survives into the rewritten manifest
     # unchanged (with an `id` assigned for the dfr- match), so /pr-description
     # and /devflow:review can carry and honor it.
-    groups: "OrderedDict[str, list[dict]]" = OrderedDict()
+    groups: OrderedDict[str, list[dict]] = OrderedDict()
     foreclosures: list[dict] = []
     for d in deferrals:
         if _is_foreclosure(d):

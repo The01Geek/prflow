@@ -20,7 +20,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-
 HELPERS = (
     "assert_pin_red_under",
     "devflow_module_pin_red_under",
@@ -326,10 +325,9 @@ def _shell_segments(text: str) -> tuple[str, ...]:
             quote = char
             index += 1
             continue
-        if char == "#":
-            if index == 0 or text[index - 1].isspace():
-                text = text[:index]
-                break
+        if char == "#" and (index == 0 or text[index - 1].isspace()):
+            text = text[:index]
+            break
         separator_length = 0
         if char == ";":
             separator_length = 1

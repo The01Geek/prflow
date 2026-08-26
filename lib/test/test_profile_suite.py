@@ -344,7 +344,7 @@ class ReportMetaDegradeTests(unittest.TestCase):
         for value in ("not-a-number", None, [], {}, "", "12.5s"):
             with self.subTest(total_s=value), tempfile.TemporaryDirectory() as out:
                 _write_profile_dir(out, meta={"total_s": value})
-                rc, stdout, stderr = _render(out)
+                rc, _stdout, stderr = _render(out)
                 self.assertEqual(rc, 2)
                 self.assertIn("unreadable or malformed", stderr)
                 self.assertNotIn("Traceback", stderr)

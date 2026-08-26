@@ -35,12 +35,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parents[1].parent / "scripts"
 sys.path.insert(0, str(SCRIPTS))
-import reception_identity as ri  # noqa: E402
+import reception_identity as ri
 
 
 def _load_hyphenated(name: str, filename: str):
@@ -76,7 +76,7 @@ def git(cwd, *args, check=True, env=None):
     if env:
         e.update(env)
     p = subprocess.run(["git", *args], cwd=cwd, env=e,
-                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                       capture_output=True, text=True)
     if check and p.returncode != 0:
         raise AssertionError(f"git {args} failed: {p.stderr}")
     return p
@@ -627,11 +627,11 @@ class AdversarialArtifactMatrixTests(unittest.TestCase):
         repo, token = self._repo_token()
         fdp = self._findings_path(repo, token)
         fdp.write_text('{"findings": [')  # truncated JSON
-        code, out, err = self._append(repo, token)
+        code, _out, err = self._append(repo, token)
         self.assertNotEqual(code, 0)
         self.assertIn("findings_malformed", err)
         fdp.write_bytes(b"\xff\xfe not utf8")
-        code, out, err = self._append(repo, token)
+        code, _out, err = self._append(repo, token)
         self.assertNotEqual(code, 0)
 
 
@@ -854,7 +854,7 @@ class ReviewFixTests(unittest.TestCase):
         rec = json.loads(fdp.read_text())
         rec["kind"] = "reception-identity"
         fdp.write_text(json.dumps(rec))
-        code, out, err = self._run(
+        code, _out, err = self._run(
             ["append-disposition", "--repo-root", str(r.path), "--token", token,
              "--summary", "s", "--disposition", "fixed"])
         self.assertNotEqual(code, 0)
@@ -1069,7 +1069,7 @@ class ReviewFixTests(unittest.TestCase):
         orig = os.replace
         os.replace = lambda *a, **k: (_ for _ in ()).throw(OSError("no space"))
         try:
-            code, out, err = self._run(
+            code, _out, err = self._run(
                 ["append-disposition", "--repo-root", str(r.path),
                  "--token", p["claim_context_token"],
                  "--summary", "s", "--disposition", "fixed"])

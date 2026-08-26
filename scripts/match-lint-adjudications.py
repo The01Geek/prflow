@@ -130,10 +130,9 @@ from pathlib import Path
 
 if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation is evaluated below
     sys.stderr.write(
-        "devflow: Python 3.11+ required (found %s.%s.%s). This helper requires"
+        "devflow: Python 3.11+ required (found {}.{}.{}). This helper requires"
         " features of Python 3.11+. Install Python 3.11+; on Windows/Git-Bash"
-        " run scripts/provision-python3-shim.sh --apply.\n"
-        % sys.version_info[:3]
+        " run scripts/provision-python3-shim.sh --apply.\n".format(*sys.version_info[:3])
     )
     sys.exit(1)
 
@@ -257,7 +256,7 @@ def _run(cmd, *, check=True):
     try:
         return subprocess.run(
             cmd, check=check,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",
+            capture_output=True, encoding="utf-8",
         )
     except OSError as e:
         if check:

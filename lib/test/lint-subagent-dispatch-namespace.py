@@ -127,9 +127,9 @@ def agent_leaves(plugin_root: Path) -> frozenset[str]:
     paths = _pop.enumerate_population(
         plugin_root, None, ls_files_argv=(*_pop.LS_FILES_INDEX, "--", "agents/*.md")
     )
-    leaves = set(
+    leaves = {
         Path(p).stem for p in paths if p.replace("\\", "/").startswith("agents/")
-    )
+    }
 
     overrides = _load(
         "resolve_review_overrides",

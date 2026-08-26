@@ -9,11 +9,10 @@ import copy
 import importlib.util
 import json
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = ROOT / "lib/test/reconcile-module-floors.py"
@@ -173,21 +172,15 @@ PY
             encoding="utf-8",
         )
         self.run_path.write_text(
-            """if ! devflow_run_full_suite_module "$LIB/test/modules/%s.sh" \\
-  "%s" %s; then
+            f"""if ! devflow_run_full_suite_module "$LIB/test/modules/{alpha_id}.sh" \\
+  "{alpha_id}" {alpha_floor if run_alpha_floor is None else run_alpha_floor}; then
   exit 1
 fi
 if ! devflow_run_full_suite_module "$LIB/test/modules/beta.sh" \\
-  "beta" %s; then
+  "beta" {beta_floor if run_beta_floor is None else run_beta_floor}; then
   exit 1
 fi
-"""
-            % (
-                alpha_id,
-                alpha_id,
-                alpha_floor if run_alpha_floor is None else run_alpha_floor,
-                beta_floor if run_beta_floor is None else run_beta_floor,
-            ),
+""",
             encoding="utf-8",
         )
 
@@ -616,7 +609,7 @@ fi
             str(log_dir),
         ]
 
-        member = sorted(RMF.HEAVY_UNIT_SMOKE_MODULES)[0]
+        member = min(RMF.HEAVY_UNIT_SMOKE_MODULES)
         member_argv = RMF._measurement_argv(runner, registry, log_dir, member)
         # The flag pair is present, adjacent, and sits immediately before the module id,
         # which stays last (the fixture runner and reconcile() both read args[-1]).
@@ -667,7 +660,7 @@ fi
         # — asserted with the bound in effect (the measured module is a real constant
         # member, and the fixture records that reconcile passed --heavy-units smoke), so
         # the bound cannot silently lower a floor.
-        smoke_module = sorted(RMF.HEAVY_UNIT_SMOKE_MODULES)[0]
+        smoke_module = min(RMF.HEAVY_UNIT_SMOKE_MODULES)
         self.write_contract(alpha_floor=4, beta_floor=5, alpha_id=smoke_module)
         self.settings_path.write_text(
             json.dumps({smoke_module: {"passed": 3}}), encoding="utf-8"

@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from typing import ClassVar
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
@@ -138,11 +139,11 @@ class CoverageMapGuardTest(unittest.TestCase):
     # present-but-untracked, present-but-wrong-basename, present-but-not-executable. Each
     # non-clean case must record arm10 ALONE, so the arm cannot be credited by another arm's
     # noise. `_focused` builds the entry; `EXEC` is the injected index-mode set.
-    _EXEC = {"lib/test/test_thing.py"}
+    _EXEC: ClassVar[set[str]] = {"lib/test/test_thing.py"}
     # The grant set arm 10 checks alongside the exec bit: an executable-but-ungranted
     # target is refused by the cloud matcher SILENTLY, so the map would promise a
     # focused run that never happens. Injected exactly like _EXEC.
-    _TOKENS = {"Bash(lib/test/test_thing.py:*)"}
+    _TOKENS: ClassVar[set[str]] = {"Bash(lib/test/test_thing.py:*)"}
 
     @staticmethod
     def _focused(target, owner="unmodularized"):
