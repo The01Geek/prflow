@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.36] — 2026-08-26
+
+### Changed
+Suite scans #141/#142 now exclude `.prflow/learnings/` — the backfilled experiment-record store carries migrated pre-internalization telemetry whose `per_iteration` names old namespaced agent ids verbatim, an append-only historical record the scans must not force a rewrite of.
+
 ## [2.34.35] — 2026-08-25
 
 ### Fixed
