@@ -71,58 +71,68 @@ def repo_root(explicit: str | None) -> Path:
             return Path(top)
     except (subprocess.CalledProcessError, OSError):
         pass
+    # Not a silent default (the #295 repo-root contract): a wrong root feeds the read
+    # loop straight, so the cwd fallback is announced rather than assumed.
+    print("lint-brand-devflow-sweep: git toplevel unresolved; auditing the cwd", file=sys.stderr)
     return Path.cwd()
 
 
-def tracked_files(root: Path) -> list[str]:
+def prov_file_set(frozen: dict) -> set[str]:
+    return {e["file"] for e in frozen.get("provenance", [])}
+
+
+def iter_blobs(root: Path):
+    """Yield (rel, blob) for each tracked file, skipping (with a breadcrumb) any unreadable one."""
     out = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "-z"],
+        ["git", "-C", str(root), "ls-files", "-z"],  # -z: NUL-delimited, core.quotePath-immune
         capture_output=True, check=True,
     ).stdout
-    return [p.decode("utf-8", "surrogateescape") for p in out.split(b"\x00") if p]
+    for raw in out.split(b"\x00"):
+        if not raw:
+            continue
+        rel = raw.decode("utf-8", "surrogateescape")
+        try:
+            yield rel, (root / rel).read_bytes()  # raw bytes: exact b"DevFlow" count
+        except OSError as exc:
+            print(f"lint-brand-devflow-sweep: skipping unreadable tracked file {rel}: {exc}", file=sys.stderr)
 
 
 def load_buckets(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def classify_file(rel: str, data_blob: bytes, frozen: dict) -> tuple[int, int]:
-    """Return (frozen_count, pending_count) of brand occurrences in one file.
+def classify(rel: str, blob: bytes, frozen: dict, prov_files: set[str]) -> tuple[str, int, int]:
+    """Return (bucket, frozen_count, pending_count) of brand occurrences in one file.
 
-    frozen_count aggregates the frozen buckets; pending_count is the renameable
-    remainder recorded in the baseline.
+    bucket is the frozen bucket name ("" when there are no frozen occurrences);
+    frozen_count aggregates the frozen buckets and pending_count is the renameable
+    remainder recorded in the baseline. First frozen match wins.
     """
-    total = data_blob.count(BRAND)
+    total = blob.count(BRAND)
     if total == 0:
-        return (0, 0)
+        return ("", 0, 0)
     if any(rel.startswith(pfx) for pfx in frozen.get("record_prefixes", [])):
-        return (total, 0)
+        return ("frozen-record", total, 0)
     if rel in frozen.get("historical_files", []):
-        return (total, 0)
+        return ("frozen-historical", total, 0)
     if rel in frozen.get("tooling_files", []):
-        return (total, 0)
-    if rel in {e["file"] for e in frozen.get("provenance", [])}:
-        value = len(PROVENANCE_VALUE.findall(data_blob))
-        return (value, total - value)
-    return (0, total)
+        return ("frozen-tooling", total, 0)
+    if rel in prov_files:
+        value = len(PROVENANCE_VALUE.findall(blob))
+        return ("frozen-provenance", value, total - value)
+    return ("", 0, total)
 
 
 def scan(root: Path, buckets: dict) -> tuple[dict[str, int], dict[str, int], int]:
     """Return (pending_by_file, frozen_provenance_by_file, files_audited)."""
     frozen = buckets["frozen"]
-    prov_files = {e["file"] for e in frozen.get("provenance", [])}
+    prov_files = prov_file_set(frozen)
     pending: dict[str, int] = {}
     frozen_prov: dict[str, int] = {}
     audited = 0
-    for rel in tracked_files(root):
-        p = root / rel
-        try:
-            blob = p.read_bytes()
-        except OSError as exc:
-            print(f"lint-brand-devflow-sweep: skipping unreadable tracked file {rel}: {exc}", file=sys.stderr)
-            continue
+    for rel, blob in iter_blobs(root):
         audited += 1
-        fcount, pcount = classify_file(rel, blob, frozen)
+        _bucket, fcount, pcount = classify(rel, blob, frozen, prov_files)
         if pcount:
             pending[rel] = pcount
         if rel in prov_files:
@@ -187,31 +197,12 @@ def cmd_update_baseline(root: Path, buckets: dict, buckets_path: Path) -> int:
 
 def cmd_print_population(root: Path, buckets: dict) -> int:
     frozen = buckets["frozen"]
-    prov_files = {e["file"] for e in frozen.get("provenance", [])}
-    for rel in tracked_files(root):
-        p = root / rel
-        try:
-            blob = p.read_bytes()
-        except OSError as exc:
-            print(f"lint-brand-devflow-sweep: skipping unreadable tracked file {rel}: {exc}", file=sys.stderr)
-            continue
-        total = blob.count(BRAND)
-        if total == 0:
-            continue
-        fcount, pcount = classify_file(rel, blob, frozen)
+    prov_files = prov_file_set(frozen)
+    for rel, blob in iter_blobs(root):
+        bucket, fcount, pcount = classify(rel, blob, frozen, prov_files)
         if pcount:
             print(f"pending\t{rel}\t{pcount}")
         if fcount:
-            if any(rel.startswith(pfx) for pfx in frozen.get("record_prefixes", [])):
-                bucket = "frozen-record"
-            elif rel in frozen.get("historical_files", []):
-                bucket = "frozen-historical"
-            elif rel in frozen.get("tooling_files", []):
-                bucket = "frozen-tooling"
-            elif rel in prov_files:
-                bucket = "frozen-provenance"
-            else:
-                bucket = "frozen-other"
             print(f"{bucket}\t{rel}\t{fcount}")
     return 0
 
