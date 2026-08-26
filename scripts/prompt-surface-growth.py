@@ -29,9 +29,12 @@ and a checkout with nothing to measure — exits 0 with a stated breadcrumb
 instead of a table. A table of zeros is deliberately never printed: a reader would
 misread it as "this PR added nothing", which is worse than no table at all.
 
-Invoke it as a direct leading token (`scripts/prompt-surface-growth.py`, or the
-vendored `.prflow/vendor/prflow/scripts/…` literal on the cloud tier) — the
-`python3 <path>` interpreter-head shape is denied by the cloud permission matcher.
+Invoke it as a direct leading token, the vendored literal
+(`.prflow/vendor/prflow/scripts/prompt-surface-growth.py`) FIRST, falling back to the
+repo-relative `scripts/prompt-surface-growth.py` only where that path does not resolve:
+the repo-relative spelling is granted in no cloud profile, so leading with it spends a
+denial before the working form is reached. The `python3 <path>` interpreter-head shape
+is denied by the cloud permission matcher.
 
 stdlib-only; shells out to `git` alone, honoring a non-probing `DEVFLOW_GIT` override
 in the same shape `scripts/checkout-fingerprint.py` uses (`git` is a hard preflight
