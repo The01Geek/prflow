@@ -55071,6 +55071,118 @@ assert_eq "#1745 a drained provenance file's frozen value stays green (no stale-
   "$(bds_has "lib/scan.sh: stale frozen-provenance entry" "$BDS_DRAIN")"
 printf "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n" > "$BDS_FX/lib/scan.sh"; bds_stage
 
+# ── issue #2003: occurrence-level frozen bucket (freeze ONE DevFlow in a MIXED file) ──
+# A mixed file's listed occurrence is subtracted from its renameable remainder, so the file
+# is swept of ordinary DevFlow while the explainer line stays frozen without a whole-file bucket.
+python3 - "$BDS_FX" <<'BDS_OCC_BUILD'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+(root / "docs" / "mixed.md").write_text(
+    "A two-spelling explainer line: DevFlow is the superseded name.\n"
+    "Ordinary prose that still says DevFlow here.\n", encoding="utf-8")
+bpath = root / "lib" / "test" / "brand-devflow-buckets.json"
+b = json.loads(bpath.read_text())
+b["frozen"]["occurrences"] = [
+    {"file": "docs/mixed.md", "context": "two-spelling explainer", "reason": "explainer line kept"}]
+b["pending_sweep_baseline"].append({"path": "docs/mixed.md"})
+b["pending_sweep_baseline"].sort(key=lambda r: r["path"])
+bpath.write_text(json.dumps(b, indent=2) + "\n", encoding="utf-8")
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_OCC_BUILD
+# The frozen explainer occurrence is subtracted: the renameable remainder is 1 (not 2) and the
+# reconciliation stays green (the file carries a baseline row for that one remaining occurrence).
+BDS_OCC="$(bds_run "$BDS_FX")"
+assert_eq "#2003 an occurrence-frozen mixed file reconciles green" "rc=0" "${BDS_OCC%%|*}"
+BDS_OCC_POP="$(python3 "$BDS_LINT" --root "$BDS_FX" --print-population 2>&1)"
+assert_eq "#2003 the mixed file's renameable remainder is 1 (one occurrence frozen, one pending)" "yes" \
+  "$(bds_has "$(printf 'pending\tdocs/mixed.md\t1')" "$BDS_OCC_POP")"
+assert_eq "#2003 the mixed file emits a frozen-occurrence line for the frozen occurrence" "yes" \
+  "$(bds_has "$(printf 'frozen-occurrence\tdocs/mixed.md\t1')" "$BDS_OCC_POP")"
+# Sweeping the ordinary occurrence (leaving only the frozen explainer) drains the remainder to
+# zero; while the baseline row still lists it that is a stale-baseline RED, and removing the row
+# leaves the file fully classified (its remaining DevFlow is frozen) with no baseline entry.
+python3 - "$BDS_FX" <<'BDS_OCC_SWEEP'
+import subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+(root / "docs" / "mixed.md").write_text(
+    "A two-spelling explainer line: DevFlow is the superseded name.\n"
+    "Ordinary prose that now says PRFlow here.\n", encoding="utf-8")
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_OCC_SWEEP
+BDS_OCC_DRAIN="$(bds_run "$BDS_FX")"
+assert_eq "#2003 a swept mixed file with a still-listed baseline row fires stale-baseline" "yes" \
+  "$(bds_has "docs/mixed.md: stale pending_sweep_baseline entry" "$BDS_OCC_DRAIN")"
+python3 - "$BDS_FX" <<'BDS_OCC_DEBASE'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+bpath = root / "lib" / "test" / "brand-devflow-buckets.json"
+b = json.loads(bpath.read_text())
+b["pending_sweep_baseline"] = [r for r in b["pending_sweep_baseline"] if r["path"] != "docs/mixed.md"]
+bpath.write_text(json.dumps(b, indent=2) + "\n", encoding="utf-8")
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_OCC_DEBASE
+assert_eq "#2003 a fully-frozen mixed file (occurrence frozen, remainder swept) needs no baseline row" "rc=0" \
+  "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+# A stale frozen-occurrence entry (its context matches no brand line) fails the suite closed.
+python3 - "$BDS_FX" <<'BDS_OCC_STALE'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+bpath = root / "lib" / "test" / "brand-devflow-buckets.json"
+b = json.loads(bpath.read_text())
+b["frozen"]["occurrences"] = [
+    {"file": "docs/mixed.md", "context": "NO SUCH LINE HERE", "reason": "stale on purpose"}]
+bpath.write_text(json.dumps(b, indent=2) + "\n", encoding="utf-8")
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_OCC_STALE
+BDS_OCC_STALE_OUT="$(bds_run "$BDS_FX")"
+assert_eq "#2003 a stale frozen-occurrence entry fails the suite closed" "rc=1" "${BDS_OCC_STALE_OUT%%|*}"
+assert_eq "#2003 the finding names the stale frozen-occurrence entry" "yes" \
+  "$(bds_has "docs/mixed.md: stale frozen-occurrence entry" "$BDS_OCC_STALE_OUT")"
+
+# A context that also matches a provenance file's quoted-value line must NOT be double-subtracted
+# (value + occ) and mask a renameable occurrence — the disjoint-count invariant. Without the
+# per-line value exclusion this pending remainder would clamp to 0 and the rename debt vanish.
+python3 - "$BDS_FX" <<'BDS_OCC_PROV'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+# lib/scan.sh is a provenance file; give it a value line that ALSO carries an occurrence
+# context, plus a separate renameable DevFlow on line 2 that must surface as pending 1.
+(root / "lib" / "scan.sh").write_text(
+    "PROVENANCE_LABEL_SUPERSEDED='DevFlow'  # reserved DevFlow label\n"
+    "# ordinary prose that still says DevFlow here\n", encoding="utf-8")
+bpath = root / "lib" / "test" / "brand-devflow-buckets.json"
+b = json.loads(bpath.read_text())
+b["frozen"]["occurrences"] = [
+    {"file": "lib/scan.sh", "context": "reserved DevFlow label", "reason": "value-line context"}]
+if not any(r["path"] == "lib/scan.sh" for r in b["pending_sweep_baseline"]):
+    b["pending_sweep_baseline"].append({"path": "lib/scan.sh"})
+    b["pending_sweep_baseline"].sort(key=lambda r: r["path"])
+bpath.write_text(json.dumps(b, indent=2) + "\n", encoding="utf-8")
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_OCC_PROV
+BDS_OCC_PROV_POP="$(python3 "$BDS_LINT" --root "$BDS_FX" --print-population 2>&1)"
+assert_eq "#2003 a provenance-value line that also matches an occurrence context does not mask the renameable remainder" "yes" \
+  "$(bds_has "$(printf 'pending\tlib/scan.sh\t1')" "$BDS_OCC_PROV_POP")"
+
+# Fail-closed shape validation of frozen.occurrences (mirrors the #1745 shape guards): a
+# scalar container, a row without a string 'file', and a row with a non-string 'context' each
+# exit 2 before the counter iterates them, never an uncaught KeyError/TypeError.
+printf '{"schema_version": 1, "frozen": {"provenance": [], "occurrences": 7}, "pending_sweep_baseline": []}' > "$BDS_FX/occ-scalar.json"
+BDS_OCC_SCALAR_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/occ-scalar.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#2003 a scalar frozen.occurrences fails closed with exit 2" "2" "$BDS_OCC_SCALAR_RC"
+printf '{"schema_version": 1, "frozen": {"provenance": [], "occurrences": [{"context": "x"}]}, "pending_sweep_baseline": []}' > "$BDS_FX/occ-nofile.json"
+BDS_OCC_NOFILE_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/occ-nofile.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#2003 a frozen.occurrences row missing 'file' fails closed with exit 2" "2" "$BDS_OCC_NOFILE_RC"
+printf '{"schema_version": 1, "frozen": {"provenance": [], "occurrences": [{"file": "docs/x.md", "context": 7}]}, "pending_sweep_baseline": []}' > "$BDS_FX/occ-badctx.json"
+BDS_OCC_BADCTX_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/occ-badctx.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#2003 a frozen.occurrences row with a non-string 'context' fails closed with exit 2" "2" "$BDS_OCC_BADCTX_RC"
+rm -f "$BDS_FX/occ-scalar.json" "$BDS_FX/occ-nofile.json" "$BDS_FX/occ-badctx.json"
+
 # Real-tree gate: the tree stays fully classified as it stands.
 BDS_REAL="$(python3 "$BDS_LINT" 2>&1)"; BDS_REAL_RC=$?
 assert_eq "#1745 the real-tree bucket reconciliation is clean as the tree stands" "rc=0" \
