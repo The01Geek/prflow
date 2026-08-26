@@ -1569,6 +1569,15 @@ assert_eq "psr fp: a record-write failure still exits 0 (launch never blocked)" 
   "$(DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_RO" >/dev/null 2>&1; echo $?)"
 assert_eq "psr fp: a same-tree comparison against an unwritten record fails closed (rc 1)" "1" \
   "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_FP_RO/fingerprint.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+# Best-effort-parser matrix (issue #2008): a valid-JSON non-object, and a valid object missing
+# fields, each fail closed (rc 1) — a partial or wrong-shaped record the writer could leave must
+# never read as a match.
+printf '[]' > "$PSR_EL/not-object.json"
+assert_eq "psr fp: a valid-JSON non-object recorded fingerprint refuses the relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/not-object.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+printf '{"checkout_id":"x","head":"y"}' > "$PSR_EL/partial.json"
+assert_eq "psr fp: a fingerprint object missing fields refuses the relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/partial.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
 
 # AC6: the same-tree recombination combines tallies from TWO different run roots and fails
 # closed, NAMING the shard, on a missing or a duplicated shard of the required partition.
