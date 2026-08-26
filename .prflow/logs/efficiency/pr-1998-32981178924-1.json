@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1998",
+  "generated_at": "2026-08-26T14:45:07Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.54",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.390652699999999,
+    "tokens": {
+      "input_tokens": 74,
+      "output_tokens": 31318,
+      "cache_read_input_tokens": 5811186,
+      "cache_creation_input_tokens": 212881,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 106,
+        "outputTokens": 41546,
+        "cacheReadInputTokens": 6351516,
+        "cacheCreationInputTokens": 512159,
+        "webSearchRequests": 0,
+        "costUSD": 8.2142355,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 8,
+        "outputTokens": 1173,
+        "cacheReadInputTokens": 155131,
+        "cacheCreationInputTokens": 53458,
+        "webSearchRequests": 0,
+        "costUSD": 0.17641720000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 61,
+    "duration_ms": 515000
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"run_id=${GITHUB_RUN_ID:-EMPTY} attempt=${GITHUB_RUN_ATTEMPT:-EMPTY} actions=${GITHUB_ACTIONS:-EMPTY}\"",
+      "H=8a00f0484903db3efc3d4b53b61c16a36bc50b48\necho \"== VC-1 style.css 866e60 ==\"; git show $H:docs/external/style.css | grep -nF 'border-color: #866e60;'\necho \"== VC-2 index.mdx 593e2e/15 ==\"; git show $H:docs/external/index.mdx | grep -nF 'bg-[#593e2e]/15'\necho \"== VC-3 index.mdx dark 452929/15 ==\"; git show $H:docs/external/index.mdx | grep -nF 'dark:bg-[#452929]/15'",
+      "mkdir -p .prflow/tmp\nif rm -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" &&\n   [ -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   [ ! -L \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   git hash-object \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\"; then\n  echo \"SNAPSHOT_OK\"\nelse\n  echo …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before && echo \"SNAPSHOT_OK\""
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
