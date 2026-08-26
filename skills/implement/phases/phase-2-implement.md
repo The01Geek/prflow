@@ -246,7 +246,7 @@ If the rewrite would relax the AC (drop a guarantee, weaken a check, remove a ve
 
 When the plan touches a value, contract, or literal that lives in more than one place — the class the §2.3 "Sweep selection" preamble defines by *what the change replicates across sites, not whether it is code* — list those other places before you start editing, not after. The §2.3 relocation and contract-completeness sweeps make this same check *after* the edits are written.
 
-Enumerate the sites with searches you actually run, in the granted forms and preference order the §2.3 preamble already lists, and record both the commands you ran and what they found through a workpad `--note` before the first edit. Do not attest a search you did not run.
+Enumerate the sites with searches you actually run, in the granted forms and preference order the §2.3 preamble already lists, and record both the commands you ran and what they found before the first edit as **one workpad `--note` per search (or per coupled site)** — never a single large note, so each note stays within the workpad's 2,048-byte per-note budget. Do not attest a search you did not run.
 
 A search that errors, is refused, or otherwise cannot be confirmed to have run is a gap, not evidence of no other places: record it as a gap naming that command, and build the map only from searches that observably ran — a refused search never counts as "there were no other places." Apply the §2.3 preamble's "confirm the search actually ran" rule here to tell an honest zero-match from a search that never ran.
 

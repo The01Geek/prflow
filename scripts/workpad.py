@@ -3577,13 +3577,9 @@ def _cmd_update_inner(args):
         except _UpdateError as e:
             sys.stderr.write(f"workpad.py update: {e}\n")
             sys.exit(1)
-    # Per-note budget (issue #2024) — measured HERE, against this call's own
-    # caller-supplied notes, BEFORE the buffer replay fold below folds any
-    # previously-buffered note into `args.note`. Checking here (not at the shared
-    # `_append_progress_note` renderer) is what keeps a tool-composed Progress row
-    # and a buffer-replayed note — neither of which the caller can shorten —
-    # exempt: measuring a replayed oversize note would abort every later update and
-    # leave the workpad permanently unwritable, the very failure this guards.
+    # Per-note budget (issue #2024): measured before the replay fold below, so a
+    # buffer-replayed note is never re-measured (see _check_note_within_budget) —
+    # re-measuring one would wedge the workpad permanently.
     for _n in _own_notes:
         try:
             _check_note_within_budget(_n)
@@ -3857,11 +3853,8 @@ def _is_single_line(text: str) -> bool:
     return ''.join(text.splitlines()) == text
 
 
-# Workpad size limits (issue #2024). GitHub rejects a comment body over 65,536
-# CHARACTERS; enforcing that same number over UTF-8 BYTES is a conservative
-# pre-check, since the byte length is never smaller than the character count. The
-# per-note budget shortens the single dominant growth channel (`--note` /
-# `--note-file`) so a workpad cannot silently grow into the comment cap.
+# Workpad size limits (issue #2024). GitHub's comment cap is 65,536 CHARACTERS;
+# enforcing it over UTF-8 BYTES is conservative (byte length >= character count).
 _NOTE_BYTE_BUDGET = 2048
 _COMMENT_BYTE_LIMIT = 65536
 
