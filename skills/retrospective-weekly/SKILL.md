@@ -1003,12 +1003,14 @@ Step 8.6:
 [ -f lib/test/profile-suite.py ] || echo "Step 8.5: profiler absent — not the PRFlow suite; skipping the profiling pass"  # pruned-path-ok: PRFlow-internal suite profiler; the vendor slice prunes lib/test/ from consumer installs
 ```
 
-When it is present, run the profiler as a **diagnostic** full-suite launch. It is a
-local-tier measurement, never a completion gate — its result ranks work to do and
-turns no run red:
+When it is present, run the profiler as a **diagnostic** full-suite launch. Pass
+`--with-modules` so it profiles the WHOLE run (sections, the module tier, and the Python
+pool) — the bare `run` defaults to the `monolith` shard, which skips the module suite and
+so cannot rank the modules this step needs. It is a local-tier measurement, never a
+completion gate — its result ranks work to do and turns no run red:
 
 ```bash
-lib/test/profile-suite.py run  # pruned-path-ok: PRFlow-internal suite profiler; the vendor slice prunes lib/test/ from consumer installs
+lib/test/profile-suite.py run --with-modules  # pruned-path-ok: PRFlow-internal suite profiler; the vendor slice prunes lib/test/ from consumer installs
 ```
 
 Read the ranked "top sections / top issue-labels / top individual assertions" tables
@@ -1022,16 +1024,22 @@ open queue so a weekly re-run does not re-file the same offender:
 ```bash
 # TITLE is the per-offender issue title you composed and exported (stable across weeks).
 # The in:title search is TOKENIZED, so re-match the title EXACTLY via jq env.TITLE — a token
-# overlap must not suppress a genuine filing (or annotate the wrong issue). File only when none is open.
+# overlap must not suppress a genuine filing (or annotate the wrong issue).
 export TITLE
-EXISTING="$(gh issue list --state open --search "in:title \"$TITLE\"" --json number,title --jq 'map(select(.title == env.TITLE)) | .[0].number // empty')"
-if [ -z "$EXISTING" ]; then
-  URL="$(gh issue create --title "$TITLE" --body-file .prflow/tmp/suite-profile-body.md)"
-  # ${URL##*/} is the trailing issue number via a bash builtin — no sed, which the preflight does not guarantee.
-  bash "$LIB/../scripts/apply-labels.sh" "${URL##*/}" PRFlow
-  echo "Step 8.5 filed: $URL"
+# Fail CLOSED on a query failure: an errored `gh issue list` must NOT be read as "none open"
+# and re-file a duplicate — `if gh …; then` routes on the query's OWN exit status.
+if EXISTING="$(gh issue list --state open --search "in:title \"$TITLE\"" --json number,title --jq 'map(select(.title == env.TITLE)) | .[0].number // empty')"; then
+  if [ -n "$EXISTING" ]; then
+    echo "Step 8.5: an open issue already tracks \"$TITLE\" (#$EXISTING) — not re-filed"
+  # Guard the create too: an empty URL (create failed) must not reach apply-labels.sh as an empty number.
+  elif URL="$(gh issue create --title "$TITLE" --body-file .prflow/tmp/suite-profile-body.md)" && [ -n "$URL" ]; then
+    bash "$LIB/../scripts/apply-labels.sh" "${URL##*/}" PRFlow  # ${URL##*/} = trailing issue number (bash builtin, no sed)
+    echo "Step 8.5 filed: $URL"
+  else
+    echo "Step 8.5: gh issue create failed for \"$TITLE\" — not filed"
+  fi
 else
-  echo "Step 8.5: an open issue already tracks \"$TITLE\" (#$EXISTING) — not re-filed"
+  echo "Step 8.5: open-issue query failed — skipping \"$TITLE\" this run to avoid a duplicate filing"
 fi
 ```
 
@@ -1110,20 +1118,28 @@ if [ "$OVER" = "yes" ]; then
   # 85*ceiling_ms/100000 = 0.85*ceiling_ms/1000 seconds, integer floor via a bash builtin — no awk.
   THRESHOLD_S=$(( 85 * CEILING_MS / 100000 ))
   READING="latest coordinator elapsed reading ${ELAPSED_S}s vs 85% threshold ${THRESHOLD_S}s (85% of BASH_MAX_TIMEOUT_MS=${CEILING_MS}ms)"
-  # in:title is TOKENIZED; re-match the fixed marker EXACTLY via jq env.MARKER.
+  # in:title is TOKENIZED; re-match the fixed marker EXACTLY via jq env.MARKER. Fail CLOSED on a
+  # query failure — an errored `gh issue list` must not be read as "none open" and file a duplicate.
   export MARKER
-  OPEN="$(gh issue list --state open --search "in:title \"$MARKER\"" --json number,title --jq 'map(select(.title == env.MARKER)) | .[0].number // empty')"
-  if [ -n "$OPEN" ]; then
-    # Post via the repo-scoped REST helper, not `gh issue comment` porcelain, which resolves the
-    # repo via org-scoped GraphQL and silently no-ops under a repo-scoped token.
-    printf '%s\n' "New reading: $READING." > .prflow/tmp/suite-runtime-tripwire-comment.md
-    bash "$LIB/../scripts/post-issue-comment.sh" "$OPEN" .prflow/tmp/suite-runtime-tripwire-comment.md
-    echo "Step 8.6: recorded new reading on the open maintenance issue #$OPEN — nothing new filed"
+  if OPEN="$(gh issue list --state open --search "in:title \"$MARKER\"" --json number,title --jq 'map(select(.title == env.MARKER)) | .[0].number // empty')"; then
+    if [ -n "$OPEN" ]; then
+      # Post via the repo-scoped REST helper, not `gh issue comment` porcelain, which resolves the
+      # repo via org-scoped GraphQL and silently no-ops under a repo-scoped token.
+      printf '%s\n' "New reading: $READING." > .prflow/tmp/suite-runtime-tripwire-comment.md
+      bash "$LIB/../scripts/post-issue-comment.sh" "$OPEN" .prflow/tmp/suite-runtime-tripwire-comment.md
+      echo "Step 8.6: recorded new reading on the open maintenance issue #$OPEN — nothing new filed"
+    else
+      printf '%s\n' "The whole-suite coordinator's cloud runtime has crossed 85% of the cloud execution ceiling." "" "$READING." "" "This issue is a heads-up, not a gate: nothing fails on suite duration. Retire, speed up, or extract the slowest checks (see the profiling pass) to recover headroom." > .prflow/tmp/suite-runtime-tripwire-body.md
+      # Guard the create: an empty URL must not reach apply-labels.sh as an empty number.
+      if URL="$(gh issue create --title "$MARKER" --body-file .prflow/tmp/suite-runtime-tripwire-body.md)" && [ -n "$URL" ]; then
+        bash "$LIB/../scripts/apply-labels.sh" "${URL##*/}" PRFlow
+        echo "Step 8.6 filed: $URL"
+      else
+        echo "Step 8.6: gh issue create failed — the ceiling breach was not filed this run"
+      fi
+    fi
   else
-    printf '%s\n' "The whole-suite coordinator's cloud runtime has crossed 85% of the cloud execution ceiling." "" "$READING." "" "This issue is a heads-up, not a gate: nothing fails on suite duration. Retire, speed up, or extract the slowest checks (see the profiling pass) to recover headroom." > .prflow/tmp/suite-runtime-tripwire-body.md
-    URL="$(gh issue create --title "$MARKER" --body-file .prflow/tmp/suite-runtime-tripwire-body.md)"
-    bash "$LIB/../scripts/apply-labels.sh" "${URL##*/}" PRFlow
-    echo "Step 8.6 filed: $URL"
+    echo "Step 8.6: open-issue query failed — not filing/annotating this run to avoid a duplicate"
   fi
 fi
 ```
