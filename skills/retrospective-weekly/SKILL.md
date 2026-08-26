@@ -989,6 +989,140 @@ follow-up commit if you want it in this run's PR.)
 
 ---
 
+### Step 8.5 — Suite-runtime profiling pass
+
+The loop's supply-side counterpart to the repository's fewer-tests-by-default
+stance: profile the test suite that already exists, rank its slowest parts, and
+file targeted follow-up issues to retire, speed up, or extract the top offenders.
+This step targets **this** repository's own suite under `lib/test/`, which the vendored plugin prunes from a consumer install <!-- pruned-path-ok: PRFlow-internal suite tree; the vendor slice prunes lib/test/ from consumer installs -->
+— so when the profiler is absent the
+loop is not running against the PRFlow suite; skip this step and continue to
+Step 8.6:
+
+```bash
+[ -f lib/test/profile-suite.py ] || { echo "Step 8.5: profiler absent — not the PRFlow suite; skipping the profiling pass"; }  # pruned-path-ok: PRFlow-internal suite profiler; the vendor slice prunes lib/test/ from consumer installs
+```
+
+When it is present, run the profiler as a **diagnostic** full-suite launch. It is a
+local-tier measurement, never a completion gate — its result ranks work to do and
+turns no run red:
+
+```bash
+lib/test/profile-suite.py run  # pruned-path-ok: PRFlow-internal suite profiler; the vendor slice prunes lib/test/ from consumer installs
+```
+
+Read the ranked "top sections / top issue-labels / top individual assertions" tables
+it prints (an issue-label ties back to its owning suite module, so the label ranking
+is the module ranking the issue asks for). Take the top offenders across those three
+axes and, for each, file one targeted follow-up issue whose title names the offender
+and whose body states the measured cost and the intervention — retire the check,
+speed it up, or extract it into a focused module. Before filing, dedup against the
+open queue so a weekly re-run does not re-file the same offender:
+
+```bash
+# TITLE is the per-offender issue title you composed (stable across weeks for the same offender).
+# Search open issues for that exact title; file only when none is open.
+EXISTING="$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')"
+if [ -z "$EXISTING" ]; then
+  URL="$(gh issue create --title "$TITLE" --body-file .prflow/tmp/suite-profile-body.md)"
+  # ${URL##*/} is the trailing issue number via a bash builtin — no sed, which the preflight does not guarantee.
+  bash "$LIB/../scripts/apply-labels.sh" "${URL##*/}" PRFlow
+  echo "Step 8.5 filed: $URL"
+else
+  echo "Step 8.5: an open issue already tracks \"$TITLE\" (#$EXISTING) — not re-filed"
+fi
+```
+
+Cap the filings to the few genuine top offenders (mirror Step 8's back-pressure
+intent — a handful per run, not one per row). Compose each body with the Write tool
+under `.prflow/tmp/` before filing. This step files issues and changes no run
+verdict.
+
+---
+
+### Step 8.6 — Suite-runtime ceiling tripwire
+
+The whole-suite coordinator's cloud runtime is trending toward the cloud tier's
+per-command execution ceiling; when it crosses, every cloud implement run pays the
+shard-decomposition fallback instead of one coordinator run. This step reads the
+latest coordinator elapsed figure from CI job logs and files a maintenance issue
+while there is still headroom.
+
+**Non-goal (read first):** this step never gates a run on suite duration. No suite
+run, CI job, or completion gate is failed on duration — a duration gate flakes under
+host contention, and this repository treats every FAIL as a real failure to diagnose.
+The tripwire only reads a figure and files (or annotates) an issue; it never turns a
+run red.
+
+Read the latest coordinator elapsed reading. The coordinator prints one
+`run-parallel: elapsed <N>s` line per cloud run; find the most recent run whose logs
+carry it and take that `<N>` (seconds):
+
+```bash
+# Walk recent implement-tier runs newest-first; the first log carrying the coordinator
+# line yields the reading. ELAPSED_S is empty when no recent run logged one.
+ELAPSED_S=""
+for RID in $(gh run list --workflow devflow-implement.yml --limit 15 --json databaseId --jq '.[].databaseId'); do
+  LINE="$(gh run view "$RID" --log 2>/dev/null | grep -oE 'run-parallel: elapsed [0-9]+s' | tail -1)"
+  if [ -n "$LINE" ]; then ELAPSED_S="$(printf '%s' "$LINE" | grep -oE '[0-9]+')"; break; fi
+done
+```
+
+Read the ceiling by name — never copy its number. `BASH_MAX_TIMEOUT_MS` (milliseconds)
+is owned by `.github/workflows/devflow-implement.yml`; read the live value from that
+file so the threshold tracks the setting when it moves:
+
+```bash
+CEILING_MS="$(grep -oE '"BASH_MAX_TIMEOUT_MS": *"[0-9]+"' .github/workflows/devflow-implement.yml | grep -oE '[0-9]+' | tail -1)"
+```
+
+Compare against the named threshold. `CEILING_TRIPWIRE_FRACTION = 85%`: 85% leaves
+enough headroom to notice and act — retire or extract slow checks — before a run
+actually reaches the ceiling and drops to the shard-decomposition fallback. Compute
+the threshold in seconds (the reading's unit) and compare only when both operands are
+established:
+
+```bash
+# Validate both operands as digit strings before they decide anything — a non-numeric
+# extraction (an absent grep, a changed log/YAML shape) must fail CLOSED with a breadcrumb,
+# never file on a garbage reading.
+case "$ELAPSED_S" in ''|*[!0-9]*) ELAPSED_S="" ;; esac
+case "$CEILING_MS" in ''|*[!0-9]*) CEILING_MS="" ;; esac
+if [ -n "$ELAPSED_S" ] && [ -n "$CEILING_MS" ]; then
+  # elapsed_s*100000 > 85*ceiling_ms is elapsed_ms > 0.85*ceiling_ms — bash integer
+  # arithmetic, no awk (the preflight does not guarantee awk).
+  if [ $(( ELAPSED_S * 100000 )) -gt $(( 85 * CEILING_MS )) ]; then OVER="yes"; else OVER="no"; fi
+else
+  OVER="unknown"
+  echo "Step 8.6: elapsed reading or ceiling not established as a number (elapsed='$ELAPSED_S' ceiling_ms='$CEILING_MS') — no issue filed this run"
+fi
+```
+
+On breach (`OVER=yes`), file or annotate one suite-runtime maintenance issue naming
+the reading and the threshold. If such an issue is already open, record the new
+reading on it and file nothing new — dedup on a stable title marker:
+
+```bash
+if [ "$OVER" = "yes" ]; then
+  MARKER="Suite runtime approaching the cloud execution ceiling"
+  # 85*ceiling_ms/100000 = 0.85*ceiling_ms/1000 seconds, integer floor via a bash builtin — no awk.
+  THRESHOLD_S=$(( 85 * CEILING_MS / 100000 ))
+  READING="latest coordinator elapsed reading ${ELAPSED_S}s vs 85% threshold ${THRESHOLD_S}s (85% of BASH_MAX_TIMEOUT_MS=${CEILING_MS}ms)"
+  OPEN="$(gh issue list --state open --search "in:title \"$MARKER\"" --json number --jq '.[0].number // empty')"
+  if [ -n "$OPEN" ]; then
+    gh issue comment "$OPEN" --body "New reading: $READING."
+    echo "Step 8.6: recorded new reading on the open maintenance issue #$OPEN — nothing new filed"
+  else
+    printf '%s\n' "The whole-suite coordinator's cloud runtime has crossed 85% of the cloud execution ceiling." "" "$READING." "" "This issue is a heads-up, not a gate: nothing fails on suite duration. Retire, speed up, or extract the slowest checks (see the profiling pass) to recover headroom." > .prflow/tmp/suite-runtime-tripwire-body.md
+    URL="$(gh issue create --title "$MARKER" --body-file .prflow/tmp/suite-runtime-tripwire-body.md)"
+    bash "$LIB/../scripts/apply-labels.sh" "${URL##*/}" PRFlow
+    echo "Step 8.6 filed: $URL"
+  fi
+fi
+```
+
+---
+
 ### Step 9 — Status report
 
 Collect the per-analyzed-PR digest lines (verdict + a one-line summary) and the
@@ -1144,6 +1278,7 @@ Then list each item that needs human action:
 - State PR (contains the updated retrospectives): `https://github.com/<repo>/pull/<state_pr>`
 - Filed issues (one per actionable pattern, awaiting human triage): list
   each as `<tag>: <url>`
+- Suite-maintenance issues (from Step 8.5 profiling and Step 8.6 tripwire, if any): each step printed the issue it filed or annotated — list those URLs here.
 
 If there are any blockers, list them explicitly.
 
