@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1992",
+  "generated_at": "2026-08-26T08:06:52Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.50",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 16.596647150000006,
+    "tokens": {
+      "input_tokens": 78,
+      "output_tokens": 58284,
+      "cache_read_input_tokens": 7634205,
+      "cache_creation_input_tokens": 278080,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 164,
+        "outputTokens": 94413,
+        "cacheReadInputTokens": 10063218,
+        "cacheCreationInputTokens": 767323,
+        "webSearchRequests": 0,
+        "costUSD": 13.23132275,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 230,
+        "outputTokens": 36361,
+        "cacheReadInputTokens": 5522097,
+        "cacheCreationInputTokens": 758734,
+        "webSearchRequests": 0,
+        "costUSD": 3.3653243999999987,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 71,
+    "duration_ms": 1003583
+  },
+  "permission_denials": {
+    "count": 26,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} ACTIONS=${GITHUB_ACTIONS:-none}\"",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null; echo \"---\"; git -C /home/runner/work/prflow/prflow show ab62a5724ca0556832110be9064cbe76a27daa0d:lib/generate-plugin-identity.py 2>&1 | head -80",
+      "git show 01ccf3fb3d6f1310d895083e839a4c076bbf7665:lib/test/brand-devflow-buckets.json > /tmp/base.json && git show ab62a5724ca0556832110be9064cbe76a27daa0d:lib/test/brand-devflow-buckets.json > /tmp/head.json && python3 -c \"\nimport json\nb=json.load(open('/tmp/base.json'))\nh=json.load(open('/tmp/head.json'))\nprint('base keys', list(b.keys()))\nprint('head keys', list(h.keys()))\nfor k in b:\n    if k=='pending_sweep_baseline': continue\n    if b[k]!=h.get(k):\n        print('DIFF in frozen key', k)\nbs …[per-command-truncated]",
+      "git show 01ccf3fb3d6f1310d895083e839a4c076bbf7665:lib/test/brand-devflow-buckets.json > /tmp/base.json\ngit show ab62a5724ca0556832110be9064cbe76a27daa0d:lib/test/brand-devflow-buckets.json > /tmp/head.json",
+      "git show 01ccf3fb3d6f1310d895083e839a4c076bbf7665:lib/test/brand-devflow-buckets.json > /tmp/base.json",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/vc8\ngit show 01ccf3fb3d6f1310d895083e839a4c076bbf7665:lib/test/brand-devflow-buckets.json > /home/runner/work/prflow/prflow/.prflow/tmp/vc8/base.json\ngit show ab62a5724ca0556832110be9064cbe76a27daa0d:lib/test/brand-devflow-buckets.json > /home/runner/work/prflow/prflow/.prflow/tmp/vc8/head.json\npython3 -c \"\nimport json\nb=json.load(open('/home/runner/work/prflow/prflow/.prflow/tmp/vc8/base.json'))\nh=json.load(open('/home/runner/work/prflow/prfl …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/vc8 && git show 01ccf3fb3d6f1310d895083e839a4c076bbf7665:lib/test/brand-devflow-buckets.json > /home/runner/work/prflow/prflow/.prflow/tmp/vc8/base.json",
+      "git show 01ccf3fb3d6f1310d895083e839a4c076bbf7665:lib/test/brand-devflow-buckets.json > /home/runner/work/prflow/prflow/base_vc8.json",
+      "git rev-parse HEAD && git cat-file -e ab62a5724ca0556832110be9064cbe76a27daa0 2>&1; echo \"---\"; for f in scripts/workpad.py scripts/version_pins.py lib/generate-plugin-identity.py scripts/config-get.sh; do echo \"== $f ==\"; git show HEAD:\"$f\" 2>/dev/null | grep -nE \"DevFlow\" | grep -viE \"devflow_|devflow:|devflow-|\\.devflow|Devflow Reflection|DEVFLOW_\"; done",
+      "for f in .changeset/README.md docs/internal/shadow-review.md lib/generate-capability-profiles.py lib/generate-plugin-identity.py lib/plugin_identity.py lib/resolve-bin.sh lib/resolve-gh.sh lib/resolve-jq.sh lib/resolve-python.sh scripts/authorize-actor.sh scripts/config-get.sh scripts/consolidate-changesets.py scripts/gh-fresh.sh scripts/harden-stop-hooks.sh scripts/install-gh-wrapper.sh scripts/loop-verdict-marker.py scripts/normalize-verdicts.py scripts/provision-auto-mode.sh scripts/refresh-a …[per-command-truncated]",
+      "cat > /tmp/checkbrand.sh << 'EOF'\n#!/bin/bash\nHEAD=ab62a5724ca0556832110be9064cbe76a27daa0d\nFILES=(\n\".changeset/README.md\"\n\"docs/internal/shadow-review.md\"\n\"lib/generate-capability-profiles.py\"\n\"lib/generate-plugin-identity.py\"\n\"lib/plugin_identity.py\"\n\"lib/resolve-bin.sh\"\n\"lib/resolve-gh.sh\"\n\"lib/resolve-jq.sh\"\n\"lib/resolve-python.sh\"\n\"scripts/authorize-actor.sh\"\n\"scripts/config-get.sh\"\n\"scripts/consolidate-changesets.py\"\n\"scripts/gh-fresh.sh\"\n\"scripts/harden-stop-hooks.sh\"\n\"scripts/install-gh- …[per-command-truncated]",
+      "git cat-file -e ab62a5724ca0556832110be9064cbe76a27daa0d 2>&1; echo rc=$?\ngit show bcb2acdab -- scripts/harden-stop-hooks.sh | head -100",
+      "bash /tmp/checkbrand.sh",
+      "sh /tmp/checkbrand.sh",
+      "mkdir -p .prflow/tmp\nif rm -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" &&\n   [ -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   [ ! -L \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   git hash-object \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\"; then\n  :\nelse\n  echo \"::warning::devf …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\nif git status --porcelain -z > .prflow/tmp/review-dirty-tree-before &&\n   [ -f .prflow/tmp/review-dirty-tree-before ] &&\n   [ ! -L .prflow/tmp/review-dirty-tree-before ] &&\n   git hash-object .prflow/tmp/review-dirty-tree-before; then\n  :\nelse\n  echo \"::warning::devflow review: snapshot failed; backstop DISABLED\" >&2\n  rm -f .prflow/tmp/review-dirty-tree-before 2>/dev/null\n  printf  …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before",
+      "for f in scripts/authorize-actor.sh scripts/config-get.sh scripts/consolidate-changesets.py scripts/gh-fresh.sh scripts/harden-stop-hooks.sh scripts/install-gh-wrapper.sh scripts/loop-verdict-marker.py scripts/normalize-verdicts.py scripts/provision-auto-mode.sh scripts/refresh-app-credentials.sh scripts/resolve-committer-identity.sh scripts/summarize-ci-checks.sh scripts/version_pins.py scripts/workpad.py lib/generate-capability-profiles.py lib/generate-plugin-identity.py lib/plugin_identity.py …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfor f in .changeset/README.md docs/internal/shadow-review.md lib/generate-capability-profiles.py lib/generate-plugin-identity.py lib/plugin_identity.py lib/resolve-bin.sh lib/resolve-gh.sh lib/resolve-jq.sh lib/resolve-python.sh scripts/authorize-actor.sh scripts/config-get.sh scripts/consolidate-changesets.py scripts/gh-fresh.sh scripts/harden-stop-hooks.sh scripts/install-gh-wrapper.sh scripts/loop-verdict-marker.py scripts/normalize-verdicts.py scripts/provi …[per-command-truncated]",
+      "for f in .changeset/README.md docs/internal/shadow-review.md lib/generate-capability-profiles.py lib/generate-plugin-identity.py lib/plugin_identity.py lib/resolve-bin.sh lib/resolve-gh.sh lib/resolve-jq.sh lib/resolve-python.sh scripts/authorize-actor.sh scripts/config-get.sh scripts/consolidate-changesets.py scripts/gh-fresh.sh scripts/harden-stop-hooks.sh scripts/install-gh-wrapper.sh scripts/loop-verdict-marker.py scripts/normalize-verdicts.py scripts/provision-auto-mode.sh scripts/refresh-a …[per-command-truncated]",
+      "git show 01ccf3fb3d6f1310d895083e839a4c076bbf7665:lib/test/brand-devflow-buckets.json | python3 -c \"import json,sys; print(json.dumps(json.load(sys.stdin)['frozen'],sort_keys=True))\" > /tmp/fb.txt; git show ab62a5724ca0556832110be9064cbe76a27daa0d:lib/test/brand-devflow-buckets.json | python3 -c \"import json,sys; print(json.dumps(json.load(sys.stdin)['frozen'],sort_keys=True))\" > /tmp/fh.txt; diff /tmp/fb.txt /tmp/fh.txt && echo \"FROZEN UNCHANGED\"",
+      "git show 01ccf3fb3d6f1310d895083e839a4c076bbf7665:lib/test/brand-devflow-buckets.json | python3 -c \"import json,sys; print(json.dumps(json.load(sys.stdin)['frozen'],sort_keys=True))\" > /tmp/fb.txt",
+      "git show 01ccf3fb3d6f1310d895083e839a4c076bbf7665:lib/test/brand-devflow-buckets.json | python3 -c \"import json,sys; print(json.dumps(json.load(sys.stdin)['frozen'],sort_keys=True))\" > .prflow/tmp/fb.txt",
+      "bash /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1992/check.sh",
+      "chmod +x /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1992/check.sh && /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1992/check.sh",
+      "chmod +x /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1992/check.sh"
+    ],
+    "total": 26,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
