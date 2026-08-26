@@ -7375,9 +7375,13 @@ assert_pin_unique "#484 final-pass reviewer does not emit unavailable worktree/m
 assert_pin_unique "#484 final-pass reviewer reports a mutation-evidence limitation instead of silently retrying" \
   'report the verification limitation to the orchestrator instead' "$E484_FINAL_PASS"
 E484_PHASE4="$LIB/../skills/implement/phases/phase-4-documentation.md"
-for docs_key in .docs.internal .docs.external .docs.release_notes_file .docs.changelog_file; do
-  assert_pin_unique "#484 docs staging reads configured key $docs_key" \
-    "config-get.sh $docs_key" "$E484_PHASE4"
+# Each pin carries the key AND its default: the bare-key literal `.docs.external`
+# is a substring of `.docs.external_enabled`, so a key-only pin double-counts.
+for docs_pin in '.docs.internal docs/internal/' '.docs.external docs/external/' \
+  '.docs.external_enabled true' '.docs.release_notes_file docs/external/release-notes.md' \
+  '.docs.changelog_file CHANGELOG.md'; do
+  assert_pin_unique "#484 docs staging reads configured key ${docs_pin%% *}" \
+    "config-get.sh $docs_pin" "$E484_PHASE4"
 done
 
 # Disposable-mutant regression: drop the grant TOKEN (not the whole TOOLS line) from a
