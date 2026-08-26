@@ -1000,7 +1000,7 @@ loop is not running against the PRFlow suite; skip this step and continue to
 Step 8.6:
 
 ```bash
-[ -f lib/test/profile-suite.py ] || { echo "Step 8.5: profiler absent — not the PRFlow suite; skipping the profiling pass"; }  # pruned-path-ok: PRFlow-internal suite profiler; the vendor slice prunes lib/test/ from consumer installs
+[ -f lib/test/profile-suite.py ] || echo "Step 8.5: profiler absent — not the PRFlow suite; skipping the profiling pass"  # pruned-path-ok: PRFlow-internal suite profiler; the vendor slice prunes lib/test/ from consumer installs
 ```
 
 When it is present, run the profiler as a **diagnostic** full-suite launch. It is a
@@ -1020,9 +1020,11 @@ speed it up, or extract it into a focused module. Before filing, dedup against t
 open queue so a weekly re-run does not re-file the same offender:
 
 ```bash
-# TITLE is the per-offender issue title you composed (stable across weeks for the same offender).
-# Search open issues for that exact title; file only when none is open.
-EXISTING="$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')"
+# TITLE is the per-offender issue title you composed and exported (stable across weeks).
+# The in:title search is TOKENIZED, so re-match the title EXACTLY via jq env.TITLE — a token
+# overlap must not suppress a genuine filing (or annotate the wrong issue). File only when none is open.
+export TITLE
+EXISTING="$(gh issue list --state open --search "in:title \"$TITLE\"" --json number,title --jq 'map(select(.title == env.TITLE)) | .[0].number // empty')"
 if [ -z "$EXISTING" ]; then
   URL="$(gh issue create --title "$TITLE" --body-file .prflow/tmp/suite-profile-body.md)"
   # ${URL##*/} is the trailing issue number via a bash builtin — no sed, which the preflight does not guarantee.
@@ -1063,8 +1065,8 @@ carry it and take that `<N>` (seconds):
 # line yields the reading. ELAPSED_S is empty when no recent run logged one.
 ELAPSED_S=""
 for RID in $(gh run list --workflow devflow-implement.yml --limit 15 --json databaseId --jq '.[].databaseId'); do
-  LINE="$(gh run view "$RID" --log 2>/dev/null | grep -oE 'run-parallel: elapsed [0-9]+s' | tail -1)"
-  if [ -n "$LINE" ]; then ELAPSED_S="$(printf '%s' "$LINE" | grep -oE '[0-9]+')"; break; fi
+  ELAPSED_S="$(gh run view "$RID" --log 2>/dev/null | grep -oE 'run-parallel: elapsed [0-9]+s' | tail -1 | grep -oE '[0-9]+')"
+  [ -n "$ELAPSED_S" ] && break
 done
 ```
 
@@ -1108,9 +1110,14 @@ if [ "$OVER" = "yes" ]; then
   # 85*ceiling_ms/100000 = 0.85*ceiling_ms/1000 seconds, integer floor via a bash builtin — no awk.
   THRESHOLD_S=$(( 85 * CEILING_MS / 100000 ))
   READING="latest coordinator elapsed reading ${ELAPSED_S}s vs 85% threshold ${THRESHOLD_S}s (85% of BASH_MAX_TIMEOUT_MS=${CEILING_MS}ms)"
-  OPEN="$(gh issue list --state open --search "in:title \"$MARKER\"" --json number --jq '.[0].number // empty')"
+  # in:title is TOKENIZED; re-match the fixed marker EXACTLY via jq env.MARKER.
+  export MARKER
+  OPEN="$(gh issue list --state open --search "in:title \"$MARKER\"" --json number,title --jq 'map(select(.title == env.MARKER)) | .[0].number // empty')"
   if [ -n "$OPEN" ]; then
-    gh issue comment "$OPEN" --body "New reading: $READING."
+    # Post via the repo-scoped REST helper, not `gh issue comment` porcelain, which resolves the
+    # repo via org-scoped GraphQL and silently no-ops under a repo-scoped token.
+    printf '%s\n' "New reading: $READING." > .prflow/tmp/suite-runtime-tripwire-comment.md
+    bash "$LIB/../scripts/post-issue-comment.sh" "$OPEN" .prflow/tmp/suite-runtime-tripwire-comment.md
     echo "Step 8.6: recorded new reading on the open maintenance issue #$OPEN — nothing new filed"
   else
     printf '%s\n' "The whole-suite coordinator's cloud runtime has crossed 85% of the cloud execution ceiling." "" "$READING." "" "This issue is a heads-up, not a gate: nothing fails on suite duration. Retire, speed up, or extract the slowest checks (see the profiling pass) to recover headroom." > .prflow/tmp/suite-runtime-tripwire-body.md
