@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1974",
+  "generated_at": "2026-08-26T02:43:30Z",
+  "config_fingerprint": {
+    "sha256": "c2dd346fdf78eacf9e402b333f46db8770aa0afa8742a7dc4ac5d1139ba96283",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "recurring_defect_kinds": "unestablished",
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "code-reviewer",
+        "silent-failure-hunter",
+        "comment-analyzer",
+        "requesting-code-review"
+      ],
+      "phase3_dispatched_count": 4,
+      "phase3_dispatched_present": true,
+      "phase3_failed_agents_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": true,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "detect_all_audit": false
+      },
+      "verification_posture": "agent-only",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 9,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": [
+        {
+          "agent": "code-reviewer",
+          "verdict": null,
+          "disposition": "unestablished",
+          "fix_decisions": []
+        },
+        {
+          "agent": "comment-analyzer",
+          "verdict": "unique-effective",
+          "disposition": "returned",
+          "fix_decisions": []
+        },
+        {
+          "agent": "requesting-code-review",
+          "verdict": null,
+          "disposition": "unestablished",
+          "fix_decisions": []
+        },
+        {
+          "agent": "silent-failure-hunter",
+          "verdict": "unique-effective",
+          "disposition": "returned",
+          "fix_decisions": []
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    }
+  ]
+}
