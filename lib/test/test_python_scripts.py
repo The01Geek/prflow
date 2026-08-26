@@ -12971,6 +12971,47 @@ assert_eq("#1984 AC9: the evidenced-denial record reaches Complete",
                   ["shadow-coverage", "environment-denial", _1984_ENV],
                   ["roster", "environment-denial", _1984_ENV]]))
 
+# AC6/strip: re-stating a gap under a DIFFERENT cause class replaces the prior row (the
+# strip matches on the gap part of `<gap>:<cause>` only), leaving exactly one row that
+# carries the new cause — over a body whose roster names a missing member so the new
+# environment-denial cause is admissible.
+_1984_recause = apply_mut(
+    apply_mut(_rc_row("not-verified:attempted:short:complete"), make_args(
+        review_coverage_disposition=[["roster", "dispatched-but-lost", _1984_R]])),
+    make_args(review_coverage_disposition=[["roster", "environment-denial", _1984_ENV]]))
+assert_eq("#1984: re-stating a gap under a new cause class leaves one row carrying the new cause",
+          {"roster": ("environment-denial", _1984_ENV)},
+          workpad._review_coverage_dispositions(_1984_recause))
+
+# AC4 (read time): a persisted 3-segment disposition marker whose cause class is OUT of
+# the closed set is refused at the Complete gate too, not only at write time.
+_1984_badcause = _rc_row("full:attempted:short:complete").replace(
+    "- [ ] **Implement**",
+    "  - 04:00:00 — "
+    + workpad._render_review_coverage_disposition("roster", _RC_REASONS["roster"]) + " "
+    + workpad._review_coverage_disposition_marker("roster", "budget")
+    + "\n- [ ] **Implement**")
+assert_eq("#1984 AC4: an out-of-vocabulary cause marker is refused at the Complete gate",
+          True, "[review-coverage-cause-inadmissible]" in (_rc_complete(_1984_badcause) or ""))
+
+# AC1/AC2 (read time): a persisted record (from a pre-#1984 writer) that reads
+# dispatch=attempted with a measured `short` roster whose rows name NO dispatched member
+# is refused at the Complete gate — the read-time defense-in-depth re-check.
+assert_eq("#1984: an uncorroborated short-roster record is refused at the Complete gate",
+          True, "[review-coverage-dispatch-uncorroborated]" in (_rc_complete(_rc_row(
+              "not-verified:attempted:short:complete",
+              members=[(m, "missing") for m in _1984_ALWAYS])) or ""))
+# ...while the evidenced short roster (>=1 dispatched) still passes the read-time re-check.
+assert_eq("#1984: a corroborated short-roster record passes the read-time re-check (control)",
+          None, _rc_complete(
+              _rc_row("not-verified:attempted:short:complete"),
+              review_coverage_disposition=[
+                  ["shadow-coverage", "environment-denial", _1984_ENV],
+                  ["roster", "environment-denial", _1984_ENV]]))
+# The corroboration helper is colon-free-pinned so cause classes round-trip the marker key.
+assert_eq("#1984: every cause class is colon-free (marker round-trip invariant, asserted)",
+          True, all(":" not in c for c in workpad._REVIEW_COVERAGE_CAUSE_CLASSES))
+
 # The strip reads BOTH the current and the superseded reflection-bullet wording, so a bullet a
 # pre-#1510 code version wrote ("carried forward") is cleaned when a fresh record supersedes it —
 # otherwise a stale friction bullet would survive an upgrade and keep tripping the retrospective gate.

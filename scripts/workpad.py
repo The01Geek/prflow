@@ -4278,10 +4278,12 @@ _REVIEW_COVERAGE_GAPS = tuple(
 # cause class round-trips as the third segment of the disposition marker key
 # `review-coverage-disposition:<gap>:<cause-class>`.
 #   `environment-denial`   — a capability the runner did not expose. Admissible only
-#     with a recorded `missing` roster row (the denied member), so the lost-write
-#     shape below cannot use it.
+#     with a recorded `missing` roster row (the denied member), so a record with no
+#     missing roster row cannot use it.
 #   `dispatched-but-lost`  — a reviewer that WAS dispatched, whose result was lost.
 _REVIEW_COVERAGE_CAUSE_CLASSES = ('environment-denial', 'dispatched-but-lost')
+assert all(':' not in c for c in _REVIEW_COVERAGE_CAUSE_CLASSES), (
+    'a cause class must be colon-free to round-trip through the disposition marker key')
 # Shadow-review roster membership (issue #1512): the per-member dispatch enumeration
 # `_review_roster_incoherence` cross-checks the summary `roster` axis against, so a
 # `complete` claim omitting an always-on member is refused rather than self-reported.
@@ -4778,6 +4780,23 @@ def _review_coverage_reason_rejection(reason):
     return None
 
 
+def _review_coverage_dispatch_uncorroborated(record: dict, roster_members: dict) -> bool:
+    """True when a `dispatch=attempted` record with a measured roster is not
+    corroborated by per-member rows covering all four always-on reviewers with at least
+    one reading `dispatched` (issue #1984). Shared by the write-time
+    `--record-review-coverage` validator and the read-time Complete-gate verdict so the
+    corroboration cannot hold at write time yet lapse at finalize over a legacy record.
+    A non-measured roster (the lost-write `unestablished` shape) is never uncorroborated
+    here — it is exempt and carries no rows."""
+    if (record.get('dispatch') != 'attempted'
+            or record.get('roster') not in ('complete', 'short')):
+        return False
+    all_present = all(m in roster_members for m in _SHADOW_ALWAYS_ON_MEMBERS)
+    any_dispatched = any(roster_members.get(m) == 'dispatched'
+                         for m in _SHADOW_ALWAYS_ON_MEMBERS)
+    return not all_present or not any_dispatched
+
+
 def _review_coverage_disposition_cause_rejection(cause_class, has_missing_roster_row):
     """Why a disposition's cause class is inadmissible, or None (issue #1984).
 
@@ -4802,8 +4821,8 @@ def _review_coverage_marker(payload: str) -> str:
 
 def _review_coverage_disposition_marker(gap: str, cause_class: str) -> str:
     """The hidden marker a review-coverage disposition row carries (issue #1984 added
-    the trailing `:<cause-class>` segment). Both `gap` and `cause_class` are colon-free,
-    so the reader's one `split(':', 2)` on the captured payload is unambiguous."""
+    the trailing `:<cause-class>` segment). `gap` is colon-free, so the reader's one
+    `split(':', 1)` on the captured payload cleanly separates gap from cause class."""
     return _checkpoint_marker(
         _REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX + gap + ':' + cause_class)
 
@@ -5074,6 +5093,20 @@ def _review_coverage_verdict(progress_content: str) -> None:
             "UNESTABLISHED [review-coverage-unestablished]. Enumerate the shadow's "
             "per-member dispatch outcomes with `--record-roster-member <member> "
             "<status>` at the Phase 3.3 review exit. No PATCH was made."
+        )
+    # #1984: re-run the write-time dispatch-corroboration here, as defense-in-depth for a
+    # record persisted by a pre-#1984 writer — only when a roster enumeration is present
+    # (a legacy rosterless record stays grandfathered, exactly like the roster
+    # cross-check above), and after that cross-check so a `complete` shortfall keeps its
+    # existing `[review-coverage-unestablished]` message. This closes the read-time gap
+    # where a `short` roster whose rows name no dispatched member could reach Complete.
+    if roster_members and _review_coverage_dispatch_uncorroborated(record, roster_members):
+        raise _UpdateError(
+            "refusing to finalize Status: Complete — the review-coverage record "
+            f"({_render_review_coverage_state(record)}) reads dispatch=attempted with a "
+            "measured roster, but its per-member enumeration does not cover every "
+            "always-on reviewer with at least one dispatched "
+            "[review-coverage-dispatch-uncorroborated]. No PATCH was made."
         )
     gaps = _review_coverage_gaps(record)
     if not gaps:
@@ -6076,32 +6109,21 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             )
         roster_members[member] = status
     if review_coverage_payload:
-        # #1984: corroborate a claimed shadow fan-out. When the record claims the
-        # fan-out was attempted AND the roster axis is a measured value, the run must
-        # back it with per-member rows covering all four always-on reviewers, at least
-        # one reading `dispatched` — otherwise dispatch=attempted with a measured
-        # roster is an uncorroborated summary claim. The lost-write shape
-        # (dispatch=attempted, roster=unestablished) is not measured, so it is exempt
-        # and stays legal with no rows. This runs BEFORE the incoherence cross-check so
-        # a `short` roster whose rows name no dispatched member (which the incoherence
-        # check, needing only one `missing`, would admit) is refused here.
-        _dispatch = review_coverage[_REVIEW_COVERAGE_AXES.index('dispatch')]
-        _roster = review_coverage[_REVIEW_COVERAGE_AXES.index('roster')]
-        if _dispatch == 'attempted' and _roster in ('complete', 'short'):
-            _all_ao_present = all(
-                m in roster_members for m in _SHADOW_ALWAYS_ON_MEMBERS)
-            _any_ao_dispatched = any(
-                roster_members.get(m) == 'dispatched'
-                for m in _SHADOW_ALWAYS_ON_MEMBERS)
-            if not _all_ao_present or not _any_ao_dispatched:
-                raise _UpdateError(
-                    "--record-review-coverage: dispatch=attempted with a measured "
-                    f"roster ({_roster}) must be corroborated by --record-roster-member "
-                    "rows covering every always-on reviewer ("
-                    + ', '.join(_SHADOW_ALWAYS_ON_MEMBERS)
-                    + ") with at least one dispatched, but the enumeration does not "
-                    "[review-coverage-dispatch-uncorroborated]. No PATCH was made."
-                )
+        # #1984: corroborate a claimed shadow fan-out — a dispatch=attempted record
+        # with a measured roster needs per-member rows proving members were dispatched.
+        # Runs BEFORE the incoherence cross-check so a `short` roster whose rows name no
+        # dispatched member (which incoherence, needing only one `missing`, would admit)
+        # is refused here. The same predicate re-runs at the Complete gate.
+        if _review_coverage_dispatch_uncorroborated(
+                dict(zip(_REVIEW_COVERAGE_AXES, review_coverage)), roster_members):
+            raise _UpdateError(
+                "--record-review-coverage: dispatch=attempted with a measured roster "
+                "must be corroborated by --record-roster-member rows covering every "
+                "always-on reviewer ("
+                + ', '.join(_SHADOW_ALWAYS_ON_MEMBERS)
+                + ") with at least one dispatched, but the enumeration does not "
+                "[review-coverage-dispatch-uncorroborated]. No PATCH was made."
+            )
         _roster_incoherent = _review_roster_incoherence(
             dict(zip(_REVIEW_COVERAGE_AXES, review_coverage)), roster_members)
         if _roster_incoherent:
