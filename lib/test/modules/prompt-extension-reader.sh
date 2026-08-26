@@ -1031,20 +1031,20 @@ assert_eq "pea reconcile: undeliverable-broken-symlink → unestablished/block" 
 PEA_OUT="$(printf '' | python3 "$PEA" reconcile --expected undeliverable-nonregular --arrival-marker 'x' --durable-source workpad --skill implement 2>/dev/null)"
 assert_eq "pea reconcile: undeliverable-nonregular → unestablished/block" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
 
-# issue #1971: classify-ladder-output — the local/interactive & cloud-review prose-side
-# positive-signal classifier. It reads the delivery ladder's OWN emitted status output
-# (load-prompt-extension.sh's `PROMPT-EXTENSION-STATUS:` line) from stdin, and classifies
-# `arrived` ONLY on a produced content-present status, `absent` ONLY on a produced
-# present-empty status, and `unestablished` whenever NO recognized status line was
-# produced at all — which is what a permission denial of a helper invoked by path looks
-# like (no output). A rule declaring delivery `arrived` by absence-of-evidence is exactly
-# what this mode must NOT do (AC1/AC2).
+# issue #1971: classify-ladder-output — the positive-signal classifier the prose-side
+# tiers run on the ladder's own PROMPT-EXTENSION-STATUS: line. These assertions pin the
+# positive-signal rule (arrived⇐content-present, absent⇐present-empty, else unestablished).
 
-# arrived — a real ladder status line (with the load-bearing `load-prompt-extension.sh: `
-# prefix) reporting content-present → arrived / complete-ok, exit 0 (AC1).
+# arrived — a real ladder status line (the helper prefix is present but not required by the
+# classifier, which matches the PROMPT-EXTENSION-STATUS: substring anywhere) → arrived/exit 0.
 PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
 assert_eq "pea classify-ladder: content-present status → arrived/complete-ok" "final=arrived terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"
 assert_eq "pea classify-ladder: arrived → exit 0" "0" "$PEA_RC"
+
+# arrived — a BARE status line (no load-prompt-extension.sh: prefix) still classifies arrived:
+# the classifier keys on the PROMPT-EXTENSION-STATUS: substring, not the emitter prefix.
+PEA_OUT="$(printf '%s\n' 'PROMPT-EXTENSION-STATUS: content-present' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"
+assert_eq "pea classify-ladder: bare (prefix-less) content-present → arrived" "final=arrived terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"
 
 # absent — a produced present-empty status (the ladder's no-op arm for an absent or empty
 # extension file) → absent / complete-ok, exit 0 (AC2 absent arm). Prior stdout bytes from
@@ -1067,6 +1067,12 @@ assert_eq "pea classify-ladder: unestablished emits a forced record line" "yes" 
 PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: banana' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
 assert_eq "pea classify-ladder: unknown status token → unestablished/block (fail-closed)" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
 assert_eq "pea classify-ladder: unknown token → exit 3" "3" "$PEA_RC"
+
+# unestablished — the real multi-token `unestablished (<reason>)` status a ladder can emit
+# is not content-present/present-empty, so it folds to unestablished (exercises rest[0]).
+PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: unestablished (the loader ladder did not resolve it)' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: real unestablished(reason) token → unestablished/block" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: unestablished(reason) → exit 3" "3" "$PEA_RC"
 
 # content-present wins over present-empty when both lines are present in the capture.
 PEA_OUT="$(printf '%s\n%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: present-empty' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"

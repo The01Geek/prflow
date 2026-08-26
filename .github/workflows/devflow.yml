@@ -1732,17 +1732,15 @@ jobs:
           bash "$HELPER" --login "$SENDER_LOGIN" --config-file "$CFG" >> "$GITHUB_ENV" \
             || echo "::warning::devflow commit attribution: the identity helper exited non-zero; continuing with current authorship (attribution never gates the run)."
 
-      # Classify prompt-extension arrival (issue #1971 — the review/command-tier mirror of
-      # the devflow-implement.yml #1446 pair). Read the extension root DIRECTLY from the
-      # trusted base-ref closure the promptext step exported (DEVFLOW_PROMPT_EXTENSION_ROOT),
-      # never the PR-head checkout — that closure exists so the reviewing agent's own prompt
-      # is not read from attacker-controlled content.
+      # Classify prompt-extension arrival (issue #1971). Read the extension root from the
+      # trusted base-ref closure (DEVFLOW_PROMPT_EXTENSION_ROOT), never the PR-head checkout —
+      # the closure exists so the reviewing agent's prompt is not read from attacker content.
       - name: Classify prompt-extension arrival
         id: extarrival
         env:
           CMD: ${{ needs.gate.outputs.command }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           # Select the workpad-less skill this command runs, so classify reads the right
           # <skill>.md from the closure. review-and-fix outranks review (substring), same
           # most-specific-first ordering the rest of this file uses.
@@ -2603,14 +2601,9 @@ jobs:
 
       # Reconcile prompt-extension arrival (issue #1971) against the run's own durable
       # artifacts. The read-only review/command tier has no implement-style issue workpad
-      # with a positive `extension resolved:` tick row, so this backstop reconciles by the
-      # signals it CAN read at job level: it fails closed when the expectation could not be
-      # established (no pre-agent token, detector absent, undeliverable file, or an
-      # unreadable PR) on a run the agent reported successful, and blocks a would-be-clean
-      # terminal when the run's own AC1 ladder-classifier already recorded a non-arrival on
-      # the PR. A lost skill body writes no such record; that residual is covered by the
-      # pre-agent classify above and the agent-side forced record, and stated in the
-      # changeset.
+      # Reconcile prompt-extension arrival (issue #1971). The read-only review/command tier
+      # has no positive-tick arrival row, so this backstop fails closed on an unestablished
+      # expectation and blocks a clean terminal on a non-arrival recorded for this head.
       - name: Reconcile prompt-extension arrival
         if: ${{ always() }}
         env:
@@ -2623,20 +2616,31 @@ jobs:
         run: |
           set +e
           # The forced durable-record sentinel AC3's workpad-less bodies write on the
-          # unestablished arm; the backstop scans the PR for it.
+          # unestablished arm; the backstop scans the PR for it, scoped to this reviewed head.
           SENTINEL="prompt-extension arrival unestablished"
           # Every ::error:: restates that permission_denials_count is blind to a lost
           # skill-body load, or a reader treats a low count as evidence it loaded.
           fail_closed() {
             echo "::error::prompt-extension-arrival: $1 — cannot establish that the '${SKILL:-unknown}' skill body / consumer extension arrived on this review/command-tier run, so a clean terminal is unverified. NOTE: permission_denials_count does NOT cover a lost skill-body load (the refused Skill-tool load surfaces as a Skill tool result, not a permission_denied event), so a low denial count is not evidence the body loaded."
           }
-          PR_NUM=$(printf '%s' "$CMD" | grep -oE '[0-9]+' | head -1)
+          # Pure-bash PR number from the resolved '/prflow:<class> <n>' command (the gate
+          # appends the number as the trailing token); grep/head are not preflight-guaranteed
+          # and must not decide which PR this step reads or writes.
+          PR_NUM="${CMD##* }"
+          case "$PR_NUM" in ''|*[!0-9]*) PR_NUM="" ;; esac
+          # Reviewed head, resolved once when a PR is known: it scopes the written record and
+          # the scan, so a stale non-arrival record from an EARLIER head cannot block a later,
+          # genuinely-arrived run on the same PR.
+          HEAD_SHA=""
+          if [ -n "$PR_NUM" ]; then
+            HEAD_SHA="$(gh pr view "$PR_NUM" --repo "$REPO" --json headRefOid -q .headRefOid 2>/dev/null)"
+          fi
           # Fixed AC3 durable-surface order for this tier: no issue workpad exists, so the
           # PR is the durable surface; when even that is unresolvable the ::error:: and the
           # non-zero job conclusion are the only record (record unrecordable).
           record_non_arrival() {
             if [ -n "$PR_NUM" ]; then
-              gh pr comment "$PR_NUM" --repo "$REPO" --body "⛔ ${1:-prompt-extension arrival unestablished — the skill body / consumer extension did not reach the agent on this run.}" \
+              gh pr comment "$PR_NUM" --repo "$REPO" --body "⛔ ${1:-prompt-extension arrival unestablished — the skill body / consumer extension did not reach the agent on this run.} (reviewed head ${HEAD_SHA:-unresolved})" \
                 || echo "::warning::prompt-extension-arrival: could not write the durable non-arrival record to PR #$PR_NUM (record unrecordable)"
             else
               echo "::warning::prompt-extension-arrival: no PR number resolvable from command '$CMD' to record non-arrival (record unrecordable); the ::error:: and non-zero job conclusion are the only record"
@@ -2676,7 +2680,7 @@ jobs:
               ;;
           esac
           # arrived-expected + success. Reconcile against the PR: block a clean terminal
-          # when the run's own ladder-classifier recorded a non-arrival there.
+          # when the run's own ladder-classifier recorded a non-arrival for this reviewed head.
           if [ -z "$PR_NUM" ]; then
             echo "prompt-extension-arrival: no PR number resolvable from command '$CMD'; cannot scan a durable artifact — leaving the run's own record authoritative"
             exit 0
@@ -2689,15 +2693,25 @@ jobs:
             record_non_arrival "prompt-extension arrival unestablished — the PR body/comments could not be read (gh exit $BODY_RC)"
             exit 1
           fi
+          # A non-arrival record blocks only when it is scoped to THIS reviewed head; a
+          # head-less HEAD_SHA (resolution failed) conservatively falls back to any-sentinel.
+          BLOCK=0
           case "$BODY" in
             *"$SENTINEL"*)
-              # The agent both claimed success AND recorded that its policy extension did not
-              # arrive — a contradiction. The record already exists on the PR; do not re-post.
-              fail_closed "the run recorded a non-arrival on PR #$PR_NUM yet reported success"
-              exit 1
+              if [ -z "$HEAD_SHA" ]; then
+                BLOCK=1
+              else
+                case "$BODY" in *"$HEAD_SHA"*) BLOCK=1 ;; esac
+              fi
               ;;
           esac
-          echo "prompt-extension-arrival: $SKILL extension arrival reconciled (deliverable at the trusted closure; no non-arrival record on PR #$PR_NUM)"
+          if [ "$BLOCK" = 1 ]; then
+            # The agent both claimed success AND recorded that its policy extension did not
+            # arrive for this head — a contradiction. The record already exists; do not re-post.
+            fail_closed "the run recorded a non-arrival for this reviewed head on PR #$PR_NUM yet reported success"
+            exit 1
+          fi
+          echo "prompt-extension-arrival: $SKILL extension arrival reconciled (deliverable at the trusted closure; no non-arrival record for this head on PR #$PR_NUM)"
           exit 0
 
   # ── Out-of-job review finalizer (issue #1174). ──────────────────────────────
