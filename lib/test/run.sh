@@ -176,6 +176,8 @@ _suite_tmp_file "$SKIPS_FILE"
 . "$LIB/test/summary.sh"
 # shellcheck source=lib/test/module-harness.sh disable=SC1091
 . "$LIB/test/module-harness.sh"
+# shellcheck source=lib/test/slice-source-fixture.sh disable=SC1091
+. "$LIB/test/slice-source-fixture.sh"
 
 # SKIP_HELPER_REGION_BEGIN — the SOLE `printf '  NOTE ` skip-emit lives inside skip();
 # the #456 meta-assertion below asserts no other NOTE emit appears in this file outside
@@ -24653,17 +24655,14 @@ rm -rf "$VS_EMPTY"
 # commit to the real repo (it is out of #161's git-mutation scope). Converting a clone dest
 # to git_sandbox would also break `git clone`, which requires its target to NOT pre-exist.
 VS_REMOTE="$(git_sandbox "vendor fetch fixture remote")"
-mkdir -p "$VS_REMOTE"/.claude-plugin "$VS_REMOTE"/agents "$VS_REMOTE"/docs \
-        "$VS_REMOTE"/lib "$VS_REMOTE"/scripts "$VS_REMOTE"/skills "$VS_REMOTE"/LICENSES "$VS_REMOTE"/.prflow
+# Members derived from vendor-slice.sh's own cp list (issue #1388), each carrying
+# a placeholder file so the clone below carries the whole slice — git won't track
+# empty dirs, and the real repo has no empty slice member either.
+assert_eq "#1388 the vendor fetch fixture remote builds from the slice’s own derived member list" "0" \
+  "$(devflow_build_slice_source_fixture "$VS_REMOTE" >/dev/null 2>&1; echo $?)"
 printf '{}' > "$VS_REMOTE/.claude-plugin/plugin.json"
 printf '{}' > "$VS_REMOTE/.claude-plugin/marketplace.json"
 : > "$VS_REMOTE/scripts/resolve-implement-trigger.sh"
-# git won't track empty dirs — give each slice dir a file so the clone carries
-# the whole slice (mirrors the real repo, where none of these dirs are empty).
-: > "$VS_REMOTE/agents/placeholder.md"
-: > "$VS_REMOTE/lib/placeholder.sh"
-: > "$VS_REMOTE/skills/placeholder.md"
-: > "$VS_REMOTE/LICENSES/placeholder-LICENSE"   # #671: LICENSES/ is now a copy-list member, so the fetch fixture must carry it
 # The fixture must CARRY every excluded subtree, otherwise the fetch-branch
 # exclusion assertions below would pass vacuously — absent from the source, never
 # pruned. With these present the assertions observe the prune actually running.
@@ -24710,7 +24709,7 @@ assert_eq "#677 vendor: fetch slice excludes docs/site (published-page HTML)" "n
 assert_eq "vendor: fetch slice excludes docs/external (published Mintlify source)" "no" "$(vexists "$VS_FETCH/docs/external")"
 assert_eq "#1188 vendor: fetch slice excludes docs/internal (DevFlow's maintainer documentation)" "no" "$(vexists "$VS_FETCH/docs/internal")"
 assert_eq "#677 vendor: fetch slice excludes lib/test (DevFlow's own test suite)" "no" "$(vexists "$VS_FETCH/lib/test")"
-assert_eq "#677 vendor: fetch slice keeps non-test lib/ contents" "yes" "$(vexists "$VS_FETCH/lib/placeholder.sh")"
+assert_eq "#677 vendor: fetch slice keeps non-test lib/ contents" "yes" "$(vexists "$VS_FETCH/lib/.placeholder")"
 
 # fetch branch pinned to a NON-TIP commit SHA. `--branch` rejects any raw SHA,
 # so this always takes the full-clone + checkout fallback (the path install.sh's
@@ -24907,19 +24906,12 @@ assert_eq "vendor: missing scripts/ leaves dest non-existent (no partial copy la
 # (b) source whose dirs all copy cleanly but with NO plugin.json — cp succeeds,
 #     so this genuinely reaches and trips the explicit sanity-floor check.
 VS_FLOORSRC="$(mktemp -d)"
-mkdir -p "$VS_FLOORSRC"/.claude-plugin "$VS_FLOORSRC"/agents "$VS_FLOORSRC"/docs \
-        "$VS_FLOORSRC"/lib "$VS_FLOORSRC"/scripts "$VS_FLOORSRC"/skills "$VS_FLOORSRC"/LICENSES "$VS_FLOORSRC"/.prflow
+# Members derived from vendor-slice.sh's own cp list (issue #1388) — a member
+# added there must not have to be transcribed here, or the cp aborts under set -e
+# and this case silently degrades into a duplicate of case (a).
+assert_eq "#1388 the vendor-slice floor fixture (b) builds from the slice’s own derived member list" "0" \
+  "$(devflow_build_slice_source_fixture "$VS_FLOORSRC" >/dev/null 2>&1; echo $?)"
 # NOTE: no .claude-plugin/plugin.json — the floor's plugin.json check must fire.
-# (LICENSES/ present so the cp succeeds and the run reaches the floor rather than
-# aborting early at the LICENSES copy.)
-printf '{}' > "$VS_FLOORSRC/.prflow/config.example.json"
-printf '{}' > "$VS_FLOORSRC/.prflow/config.schema.json"
-printf '{}' > "$VS_FLOORSRC/.prflow/tool-presets.json"
-# #1388: lint-manifest.json + install-state.json are now copy-list members too, so
-# this fixture must carry them or the .prflow cp aborts BEFORE the floor and case (b)
-# silently degrades into case (a) — the exact hazard the comment below guards against.
-printf '{}' > "$VS_FLOORSRC/.prflow/lint-manifest.json"
-printf '{}' > "$VS_FLOORSRC/.prflow/install-state.json"
 VS_FLOORSRC_DEST="$(mktemp -d)/dest"
 VS_FLOORSRC_RC=0
 # Capture stderr (the die stream) so we can assert the abort came from the FLOOR,
@@ -48385,7 +48377,7 @@ rm -rf "$D487"
 # hand-edited workflow — driven end to end and joined to the shipped workflow's own
 # trigger-time guard.
 if ! devflow_run_full_suite_module "$LIB/test/modules/installer-wiring.sh" \
-  "installer-wiring" 304; then
+  "installer-wiring" 305; then
   printf 'ERROR: installer-wiring boundary could not record its result\n'
   exit 1
 fi
@@ -54205,6 +54197,19 @@ public_file_contains() {
   esac
 }
 
+public_site_legacy_accent_absent() {
+  local site_root file
+  site_root="${1:-$PUBLIC_SITE_ROOT}"
+  [ -d "$site_root" ] || { printf 'no\n'; return; }
+  while IFS= read -r file; do
+    if grep -Eiq '#555934|rgba?\([[:space:]]*85[[:space:]]*,[[:space:]]*89[[:space:]]*,[[:space:]]*52' "$file"; then
+      printf 'no\n'
+      return
+    fi
+  done < <(find "$site_root" -type f \( -name '*.css' -o -name '*.json' -o -name '*.md' -o -name '*.mdx' -o -name '*.svg' \) -print) # tree-walk-ok: include every authored public-site source file, including unstaged palette edits
+  printf 'yes\n'
+}
+
 assert_eq "public site: docs.json exists" "yes" "$([ -f "$PUBLIC_SITE_CONFIG" ] && echo yes || echo no)"
 assert_eq "public site: docs.json parses" "yes" \
   "$([ -r "$PUBLIC_SITE_CONFIG" ] && "$PUBLIC_RUN_JQ" -e . "$PUBLIC_SITE_CONFIG" >/dev/null 2>&1 && echo yes || echo no)"
@@ -54214,8 +54219,10 @@ assert_eq "public site: product name is PRFlow" "PRFlow" \
   "$([ -r "$PUBLIC_SITE_CONFIG" ] && "$PUBLIC_RUN_JQ" -r '.name // ""' "$PUBLIC_SITE_CONFIG" 2>/dev/null || true)"
 assert_eq "public site: theme is maple" "maple" \
   "$([ -r "$PUBLIC_SITE_CONFIG" ] && "$PUBLIC_RUN_JQ" -r '.theme // ""' "$PUBLIC_SITE_CONFIG" 2>/dev/null || true)"
-assert_eq "public site: primary, light and dark accents use the olive palette color" "#555934 #555934 #555934" \
+assert_eq "public site: primary, light and dark accents use the brown palette color" "#593e2e #593e2e #593e2e" \
   "$([ -r "$PUBLIC_SITE_CONFIG" ] && "$PUBLIC_RUN_JQ" -r '[.colors.primary, .colors.light, .colors.dark] | join(" ")' "$PUBLIC_SITE_CONFIG" 2>/dev/null || true)"
+assert_eq "public site: no authored source retains the legacy olive accent or its RGB shadow value" "yes" \
+  "$(public_site_legacy_accent_absent)"
 assert_eq "public site: custom dark-mode text stylesheet exists" "yes" \
   "$([ -f "$PUBLIC_SITE_ROOT/style.css" ] && echo yes || echo no)"
 assert_eq "public site: dark-mode text override is scoped to page content" "yes" \
@@ -54230,14 +54237,14 @@ assert_eq "public site: dark-mode ordered-list markers use the cream palette col
   "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" '.dark #content-container ol > li::marker')"
 assert_eq "public site: dark-mode pagination text uses the cream palette color" "yes" \
   "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" '.dark #pagination :where(a, a *)')"
-assert_eq "public site: content borders use the olive palette color" "yes" \
-  "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" 'border-color: #555934;')"
-assert_eq "public site: content shadows use the olive palette color" "yes" \
-  "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" 'rgba(85, 89, 52, 0.24)')"
+assert_eq "public site: content borders use the brown palette color" "yes" \
+  "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" 'border-color: #593e2e;')"
+assert_eq "public site: content shadows use the brown palette color" "yes" \
+  "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" 'rgba(89, 62, 46, 0.24)')"
 assert_eq "public site: every navigation route resolves to a page" "yes" "$(public_route_files_resolve)"
 assert_eq "public site: every page under docs/ is navigated exactly once" "yes" "$(public_docs_pages_are_navigated_once)"
 assert_eq "public site: every root-relative internal link resolves to a page" "yes" "$(public_internal_links_resolve)"
-assert_eq "public site: root homepage is navigated exactly once" "1" "$(public_nav_routes | awk '$0 == "index" { n++ } END { print n + 0 }')"
+assert_eq "public site: root homepage stays out of navigation because the logo is its entry point" "0" "$(public_nav_routes | awk '$0 == "index" { n++ } END { print n + 0 }')"
 assert_eq "public site: custom homepage matches the documentation page shell spacing" "yes" \
   "$(public_file_contains "$PUBLIC_SITE_ROOT/index.mdx" '<div className="px-4 pt-40 lg:pt-10 lg:pl-16 lg:pr-10">')"
 assert_eq "public site: custom homepage matches the documentation reading-column width" "yes" \

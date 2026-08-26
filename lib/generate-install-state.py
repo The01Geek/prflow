@@ -9,7 +9,7 @@ binds the lint manifest, its reader/validator, the provisioning helpers, the
 sha256 digest, plus the installer version. The provisioning phase refuses to run
 when any bound component's on-disk digest disagrees.
 
-This repository dogfoods DevFlow, so it TRACKS its own marker (force-added past
+This repository dogfoods PRFlow, so it TRACKS its own marker (force-added past
 `.gitignore`, like `.prflow/config.json`). The marker is therefore a **generated
 artifact**: whenever a bound component changes, re-run this generator and commit
 the refreshed marker. `--check` (used by the suite) fails RED on drift, naming

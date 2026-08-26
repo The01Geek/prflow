@@ -4,8 +4,8 @@
       [fill="#FAF7EE"] { fill: #4A3221; }
       [stroke="#D9CFB6"] { stroke: #6C7440; }
       rect[fill="#FFFFFF"] { fill: #5D4230; }
-      [fill="#555934"] { fill: #6C7440; }
-      [stroke="#555934"] { stroke: #A9B06B; }
+      [fill="#593e2e"] { fill: #6C7440; }
+      [stroke="#593e2e"] { stroke: #A9B06B; }
       [fill="#565A35"] { fill: #A9B06B; }
       [fill="#4F5430"] { fill: #DCE0B8; }
       [fill="#E7DFC6"] { fill: #3E4425; }
@@ -34,12 +34,12 @@
     <text x="46" y="52" fill="#3B2A1E" font-size="26" font-weight="600">How PRFlow reviews and corrects a change</text>
     <text x="46" y="83" fill="#6E5D4C" font-size="16">The correction loop reuses the same four-phase review engine.</text>
 
-    <rect x="46" y="112" width="142" height="32" rx="16" fill="#555934"/>
+    <rect x="46" y="112" width="142" height="32" rx="16" fill="#593e2e"/>
     <text x="117" y="134" fill="#F7F3E6" font-size="14" font-weight="700" text-anchor="middle">prflow:review</text>
 
-    <line x1="408" y1="224" x2="492" y2="224" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
-    <line x1="676" y1="296" x2="676" y2="368" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
-    <line x1="492" y1="440" x2="408" y2="440" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="408" y1="224" x2="492" y2="224" stroke="#593e2e" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="676" y1="296" x2="676" y2="368" stroke="#593e2e" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="492" y1="440" x2="408" y2="440" stroke="#593e2e" stroke-width="3" marker-end="url(#arrow)"/>
 
     <g>
       <rect x="48" y="158" width="360" height="138" rx="18" fill="#FFFFFF" stroke="#DDD3BC" stroke-width="2"/>
@@ -77,9 +77,9 @@
       <text x="76" y="485" fill="#6E5D4C" font-size="16">and configured severity thresholds.</text>
     </g>
 
-    <line x1="228" y1="506" x2="228" y2="558" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
-    <rect x="48" y="558" width="804" height="116" rx="20" fill="#EEE7D3" stroke="#555934" stroke-width="2"/>
-    <rect x="72" y="578" width="214" height="32" rx="16" fill="#555934"/>
+    <line x1="228" y1="506" x2="228" y2="558" stroke="#593e2e" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="48" y="558" width="804" height="116" rx="20" fill="#EEE7D3" stroke="#593e2e" stroke-width="2"/>
+    <rect x="72" y="578" width="214" height="32" rx="16" fill="#593e2e"/>
     <text x="179" y="600" fill="#F7F3E6" font-size="14" font-weight="700" text-anchor="middle">prflow:review-and-fix</text>
     <text x="72" y="638" fill="#3B2A1E" font-size="18" font-weight="600">Apply justified corrections → verify them → run the review engine again</text>
     <text x="72" y="664" fill="#6E5D4C" font-size="15">A shadow pass checks an approval-side result before the loop exits.</text>

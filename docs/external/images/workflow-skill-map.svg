@@ -4,8 +4,8 @@
       [fill="#FAF7EE"] { fill: #4A3221; }
       [stroke="#D9CFB6"] { stroke: #6C7440; }
       rect[fill="#FFFFFF"] { fill: #5D4230; }
-      [fill="#555934"] { fill: #6C7440; }
-      [stroke="#555934"] { stroke: #A9B06B; }
+      [fill="#593e2e"] { fill: #6C7440; }
+      [stroke="#593e2e"] { stroke: #A9B06B; }
       [fill="#4F5430"] { fill: #DCE0B8; }
       [fill="#E7DFC6"] { fill: #3E4425; }
       [stroke="#DDD3BC"] { stroke: #6C7440; }
@@ -37,8 +37,8 @@
     </g>
 
     <g>
-      <rect x="467" y="150" width="385" height="142" rx="18" fill="#FFFFFF" stroke="#555934" stroke-width="2"/>
-      <rect x="491" y="174" width="166" height="31" rx="15" fill="#555934"/>
+      <rect x="467" y="150" width="385" height="142" rx="18" fill="#FFFFFF" stroke="#593e2e" stroke-width="2"/>
+      <rect x="491" y="174" width="166" height="31" rx="15" fill="#593e2e"/>
       <text x="574" y="195" fill="#F7F3E6" font-size="15" font-weight="700" text-anchor="middle">prflow:implement</text>
       <text x="491" y="239" fill="#3B2A1E" font-size="20" font-weight="600">Complete an existing issue</text>
       <text x="491" y="268" fill="#6E5D4C" font-size="16">Prepares a review-ready or draft pull request.</text>
@@ -53,7 +53,7 @@
     </g>
 
     <g>
-      <rect x="467" y="322" width="385" height="142" rx="18" fill="#FFFFFF" stroke="#555934" stroke-width="2"/>
+      <rect x="467" y="322" width="385" height="142" rx="18" fill="#FFFFFF" stroke="#593e2e" stroke-width="2"/>
       <rect x="491" y="346" width="214" height="31" rx="15" fill="#E7DFC6"/>
       <text x="598" y="367" fill="#4F5430" font-size="15" font-weight="700" text-anchor="middle">prflow:review-and-fix</text>
       <text x="491" y="411" fill="#3B2A1E" font-size="20" font-weight="600">Assess and correct</text>
