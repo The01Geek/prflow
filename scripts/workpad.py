@@ -3580,12 +3580,12 @@ def _cmd_update_inner(args):
     # Per-note budget (issue #2024): measured before the replay fold below, so a
     # buffer-replayed note is never re-measured (see _check_note_within_budget) —
     # re-measuring one would wedge the workpad permanently.
-    for _n in _own_notes:
-        try:
+    try:
+        for _n in _own_notes:
             _check_note_within_budget(_n)
-        except _UpdateError as e:
-            sys.stderr.write(f"workpad.py update: {e}\n")
-            sys.exit(1)
+    except _UpdateError as e:
+        sys.stderr.write(f"workpad.py update: {e}\n")
+        sys.exit(1)
     _buffer_safe_to_clear = _plan_buffer_replay(
         comment_id, body, args, _own_notes, _own_reflections)
 
