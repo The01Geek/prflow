@@ -24,6 +24,8 @@ Primary goal: Create a domain-based categorization through subdirectories — no
 
 ## Core Principles
 
+<!-- Coupled pair: the taxonomy rules in this section are stated identically in the docs-sync-internal skill's Structure Contract, which maintains the structure this skill creates. Edit both skills together. -->
+
 ### Domain-First, Not Code-Layer-First
 
 Organize by business domain and feature area, not by technical layer.
@@ -170,6 +172,10 @@ Seed document quality standards:
 - Follow existing documentation style and formatting in `[[INTERNAL_DOC_LOCATION]]` if any docs already exist
 - Read the shared writing standard `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it when composing the seed documentation. A failed load emits a breadcrumb naming the file and the failure kind, and you compose without it.
 
+### Step 5.5: Write the Routing Index
+
+Create `[[INTERNAL_DOC_LOCATION]]/index.md`, the routing map future readers and `/prflow:docs-sync-internal` runs read FIRST: one line per document — relative path, what the page covers, who should read it — grouped by category. Without this file, a future maintenance run cannot route a write to the owning page and the map falls behind the corpus from the first change. List every seed document you wrote; `/prflow:docs-sync-internal` maintains the index from then on, so it must start complete.
+
 ### Step 6: Do Not Commit
 
 Do not commit the changes. Leave committing to the caller.
@@ -201,5 +207,6 @@ Before completing, verify:
 - [ ] Seed documents reference actual file paths and class names (bare paths only — no line numbers)
 - [ ] No placeholder/stub files with "TODO" content
 - [ ] Existing documentation preserved (moved, not deleted)
+- [ ] Created `[[INTERNAL_DOC_LOCATION]]/index.md` listing every seed document (path — what it covers — who reads it)
 - [ ] Category names use lowercase-with-hyphens
 - [ ] Stayed within `[[INTERNAL_DOC_LOCATION]]` boundaries
