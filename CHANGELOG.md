@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.47] — 2026-08-26
+
+### Changed
+Complete the docs-audit follow-up ledger: docs-sync-internal's analysis output now records the required Public-doc impact list the external step and the /prflow:docs router consume; docs-bootstrap-external's prompt-extension loader gains the vendored-literal-first three-tier ladder (enrolled in the anchor-fallback lint); the internal system overview's release-note format quote matches the current docs-release-notes spec; lib/test/lint-worktree-fence-shapes.py regains its executable bit.
+
 ## [2.34.46] — 2026-08-26
 
 ### Fixed
