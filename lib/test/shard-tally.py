@@ -587,12 +587,14 @@ def cmd_record_fingerprint(args: argparse.Namespace) -> int:
     except (OSError, subprocess.TimeoutExpired) as error:
         reason = f"could not run the checkout-fingerprint helper ({error})"
     else:
-        if proc.returncode == 0 and _established_fingerprint(proc.stdout.strip()):
-            established_text = proc.stdout.strip() + "\n"
+        stdout = proc.stdout.strip()
+        if proc.returncode == 0 and _established_fingerprint(stdout):
+            established_text = stdout + "\n"
         else:
             reason = (
                 f"checkout-fingerprint helper exited {proc.returncode} without an "
-                f"established five-field fingerprint: {proc.stderr.strip()}"
+                f"established five-field fingerprint: {proc.stderr.strip()} "
+                f"(stdout head: {stdout[:200]!r})"
             )
     if established_text is not None:
         record_text, note = established_text, f"recorded established checkout fingerprint at {dest}"

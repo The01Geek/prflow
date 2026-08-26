@@ -1457,6 +1457,14 @@ assert_eq "psr fp: a producer exiting 0 with non-established stdout records unes
 assert_eq "psr fp: the rc-0-but-junk producer's record is unestablished, not the junk verbatim" "yes" \
   "$(case "$(cat "$PSR_FP_JU/fingerprint.json" 2>/dev/null)" in *'"unestablished": true'*) echo yes ;; *) echo no ;; esac)"
 
+# The subprocess-spawn-failure arm: a non-existent helper is caught (OSError), recorded
+# unestablished, exit 0 — never propagated so the launch is never blocked (issue #2008).
+PSR_FP_NX="$PSR_FP/rec-nx"
+assert_eq "psr fp: a non-existent fingerprint helper is caught and recorded unestablished (rc 0)" "0" \
+  "$(DEVFLOW_FINGERPRINT_HELPER="$PSR_FP/does-not-exist.sh" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_NX" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: the non-existent-helper record is unestablished" "yes" \
+  "$(case "$(cat "$PSR_FP_NX/fingerprint.json" 2>/dev/null)" in *'"unestablished": true'*) echo yes ;; *) echo no ;; esac)"
+
 # AC1 wiring: the coordinator records the fingerprint in its retained run root at launch.
 PSR_FPC="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_FPC"
 ( cd "$PSR_FPC" && SYN_SHARDS=alpha SYN_SLEEP=0.05 DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" \
@@ -1537,6 +1545,14 @@ assert_eq "psr fp: a non-JSON recorded fingerprint refuses the same-tree relaunc
   "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/malformed.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
 assert_eq "psr fp: a non-JSON fresh fingerprint refuses the same-tree relaunch (rc 1)" "1" \
   "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/malformed.json" >/dev/null 2>&1; echo $?)"
+# The guarded write path: when the record file cannot be written (here fingerprint.json is a
+# pre-existing directory), record-fingerprint breadcrumbs and still exits 0 — never blocks a launch.
+PSR_FP_RO="$PSR_FP/rec-ro"
+mkdir -p "$PSR_FP_RO/fingerprint.json"
+assert_eq "psr fp: a record-write failure still exits 0 (launch never blocked)" "0" \
+  "$(DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_RO" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: a same-tree comparison against an unwritten record fails closed (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_FP_RO/fingerprint.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
 
 # AC6: the same-tree recombination combines tallies from TWO different run roots and fails
 # closed, NAMING the shard, on a missing or a duplicated shard of the required partition.
