@@ -1,0 +1,524 @@
+{
+ "root_completeness": "established",
+ "root_completeness_detail": "skills/review/SKILL.md read whole (341 lines); confirming bounded read at offset 342 returned the reader's shorter-than-offset report. First candidate <repo-root>/skills/review resolved; no candidate advanced past.",
+ "verdict": "REJECT",
+ "report": ".prflow/tmp/review/pr-2017/local-20260826T202250Z-1/report.md",
+ "phase3_findings": [
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Critical",
+   "description": "AC6 unmet: the PR touches no docs/ file, so none of the five added instruments is documented in runtime-evaluations.md. lint-internal-docs.py passing does not discharge the documentation clause.",
+   "defect_signature": {
+    "file": "docs/internal/improvement-loops/runtime-evaluations.md",
+    "line_range": null,
+    "kind": "test_gap"
+   },
+   "corroboration_count": 1,
+   "step25_classification": "acceptance-criterion-unmet"
+  },
+  {
+   "agent": "prflow:comment-analyzer",
+   "severity": "Critical",
+   "description": "The diff-added _floor_merge_key_staged header names lib/test/run.sh as the site pinning the two existing copies' breadcrumbs; the pins are in lib/test/modules/efficiency-trace-telemetry.sh and run.sh carries none.",
+   "defect_signature": {
+    "file": "lib/efficiency-trace.sh",
+    "line_range": [
+     1548,
+     1550
+    ],
+    "kind": "documented_falsehood"
+   },
+   "corroboration_count": 1,
+   "step25_classification": "self-contradicting-diff"
+  },
+  {
+   "agent": "prflow:comment-analyzer",
+   "severity": "Critical",
+   "description": "A diff-added test comment says 'four sub-fields' while the assertion two lines below pins five and the shipped jq object builds five.",
+   "defect_signature": {
+    "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+    "line_range": [
+     6803,
+     6804
+    ],
+    "kind": "comment_drift"
+   },
+   "corroboration_count": 1,
+   "step25_classification": "self-contradicting-diff"
+  },
+  {
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Important",
+   "description": "prepare-harness-floor.sh passes $CANDIDATE to _emit unsanitized on the issue-number-unusable branch; the emitted line is eval'd by both workflows. A single quote in the value breaks out of the quoting. Reproduced against HEAD.",
+   "defect_signature": {
+    "file": "scripts/prepare-harness-floor.sh",
+    "line_range": [
+     232,
+     243
+    ],
+    "kind": "security"
+   },
+   "corroboration_count": 2
+  },
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Important",
+   "description": "The diff-modified _emit header asserts 'all four are sanitized to a fixed shape before this is called'; operand 3 is not sanitized, so the comment asserts the exact invariant that is missing.",
+   "defect_signature": {
+    "file": "scripts/prepare-harness-floor.sh",
+    "line_range": [
+     54,
+     63
+    ],
+    "kind": "documented_falsehood"
+   },
+   "corroboration_count": 2,
+   "step25_classification": "self-contradicting-diff"
+  },
+  {
+   "agent": "prflow:code-reviewer",
+   "severity": "Important",
+   "description": "The new mixed-store assertion is vacuous: actionable-patterns.sh overwrites the inherited EXPERIMENTS_FILE and dies on an unbound $2 when --full is passed as $1, so both invocations yield 0 warnings by construction. It counts toward the 165->167 floor bump.",
+   "defect_signature": {
+    "file": "lib/test/modules/experiment-records.sh",
+    "line_range": [
+     1983,
+     1999
+    ],
+    "kind": "test_gap"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Important",
+   "description": "The timeline fixture is labelled a 'production-realistic captured transcript' but is synthesized inline from the file's own constructors; AC5 asks specifically for a captured fixture.",
+   "defect_signature": {
+    "file": "lib/test/test_implement_timeline.py",
+    "line_range": [
+     56,
+     59
+    ],
+    "kind": "documented_falsehood"
+   },
+   "corroboration_count": 1,
+   "step25_classification": "self-contradicting-diff"
+  },
+  {
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Important",
+   "description": "load_runs() swallows every OSError, so an unreadable or absent store is reported as 'no runs yet'; DEFAULT_STORE is also cwd-relative, diverging from the repo-root config contract. The retrospective's || guard cannot fire because the script exits 0.",
+   "defect_signature": {
+    "file": "scripts/implement_records.py",
+    "line_range": [
+     79,
+     82
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Important",
+   "description": "The union-merge reduce list omits issue_number and no_pr_reason, which apply_pr_less_issue_floor writes, while the diff-added comment beside it claims every floor key is re-applied. The new test pins the literal instead of reconciling the set against the floors.",
+   "defect_signature": {
+    "file": "lib/telemetry-branch.sh",
+    "line_range": [
+     612,
+     620
+    ],
+    "kind": "api_misuse"
+   },
+   "corroboration_count": 1,
+   "step25_classification": "self-contradicting-diff"
+  },
+  {
+   "agent": "prflow:type-design-analyzer",
+   "severity": "Important",
+   "description": "withholding_reasons() gates on the raw cohort size while every statistic is computed over numeric(durations); a five-run cohort with four unmeasured durations passes and prints a verdict from a one-sample mean.",
+   "defect_signature": {
+    "file": "scripts/implement-benchmark.py",
+    "line_range": [
+     79,
+     82
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:type-design-analyzer",
+   "severity": "Important",
+   "description": "phase_shares() divides by the sum of established durations only, so an unestablished phase is given zero share and the rest inflate to 100% with nothing marking the run as partial.",
+   "defect_signature": {
+    "file": "scripts/implement_records.py",
+    "line_range": [
+     128,
+     137
+    ],
+    "kind": "type_design"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:pr-test-analyzer",
+   "severity": "Important",
+   "description": "prepare-run-profile.sh's success path and four of its failure arms have no coverage; a break there silently produces an empty DEVFLOW_RUN_PROFILE while every asserted arm stays green.",
+   "defect_signature": {
+    "file": "scripts/prepare-run-profile.sh",
+    "line_range": [
+     76,
+     100
+    ],
+    "kind": "test_gap"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:pr-test-analyzer",
+   "severity": "Important",
+   "description": "The three-arm workflow selection wiring the glue to its consumer is untested inline YAML shell; both ends of the seam are covered but the wiring is not.",
+   "defect_signature": {
+    "file": ".github/workflows/devflow-implement.yml",
+    "line_range": [
+     1913,
+     1923
+    ],
+    "kind": "test_gap"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:pr-test-analyzer",
+   "severity": "Important",
+   "description": "The ENABLED!=true arm of both new floors is uncovered while both pre-existing floors' identical arms are asserted \u2014 the off-switch-that-never-worked bug class.",
+   "defect_signature": {
+    "file": "lib/efficiency-trace.sh",
+    "line_range": [
+     1629,
+     1632
+    ],
+    "kind": "test_gap"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:code-reviewer",
+   "severity": "Important",
+   "description": "The changeset claims 'four new maintainer instruments read it' but names three, and implement-timeline.py reads the transcript artifact rather than the per-run record. This text ships to consumers via CHANGELOG.md.",
+   "defect_signature": {
+    "file": ".changeset/issue-2006-implement-run-evaluation.md",
+    "line_range": [
+     12,
+     21
+    ],
+    "kind": "documented_falsehood"
+   },
+   "corroboration_count": 1,
+   "step25_classification": "self-contradicting-diff"
+  },
+  {
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Important",
+   "description": "prepare-run-profile.sh discards the deriver's stderr and reports 'could not parse the workpad' for every cause, contradicting its own header contract that each branch names which condition fired.",
+   "defect_signature": {
+    "file": "scripts/prepare-run-profile.sh",
+    "line_range": [
+     82,
+     98
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Important",
+   "description": "Corrupt store lines are dropped with no count, so every aggregate shrinks invisibly; the sibling parser added in the same PR reports its skips.",
+   "defect_signature": {
+    "file": "scripts/implement_records.py",
+    "line_range": [
+     89,
+     94
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Important",
+   "description": "The retrospective appends with >> and sends the failure diagnostic to the agent's stderr, so a truncated section reaches the posted report with no indication of failure.",
+   "defect_signature": {
+    "file": "skills/retrospective-weekly/SKILL.md",
+    "line_range": [
+     1133,
+     1135
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:type-design-analyzer",
+   "severity": "Suggestion",
+   "description": "UNESTABLISHED is an untyped str unioned into numeric fields; every guard is conventional rather than type-level.",
+   "defect_signature": {
+    "file": "scripts/implement_records.py",
+    "line_range": [
+     46,
+     60
+    ],
+    "kind": "type_design"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:type-design-analyzer",
+   "severity": "Suggestion",
+   "description": "An empty --cohort-a/--cohort-b prefix-matches every run, so an empty operand can select the whole store as both cohorts.",
+   "defect_signature": {
+    "file": "scripts/implement-benchmark.py",
+    "line_range": [
+     45,
+     56
+    ],
+    "kind": "api_misuse"
+   },
+   "corroboration_count": 2
+  },
+  {
+   "agent": "prflow:type-design-analyzer",
+   "severity": "Suggestion",
+   "description": "_iter_records' tuple conflates a per-record payload with a stream-level aggregate, and its docstring omits the terminating (None, skipped) sentinel build_timeline depends on.",
+   "defect_signature": {
+    "file": "scripts/implement-timeline.py",
+    "line_range": [
+     126,
+     147
+    ],
+    "kind": "type_design"
+   },
+   "corroboration_count": 2
+  },
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Suggestion",
+   "description": "_top_phases runs Path(p).name over workpad phase headings, which are never paths.",
+   "defect_signature": {
+    "file": "scripts/implement-run-report.py",
+    "line_range": [
+     63,
+     69
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Suggestion",
+   "description": "regressions() compares against the four preceding populated weeks, not the four preceding calendar weeks.",
+   "defect_signature": {
+    "file": "scripts/implement-run-report.py",
+    "line_range": [
+     117,
+     138
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:type-design-analyzer",
+   "severity": "Suggestion",
+   "description": "engine_outcome and prior_record_count are loaded on every record and read by nothing, and are the two fields whose union type is never guarded.",
+   "defect_signature": {
+    "file": "scripts/implement_records.py",
+    "line_range": [
+     119,
+     124
+    ],
+    "kind": "type_design"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:type-design-analyzer",
+   "severity": "Suggestion",
+   "description": "derive() returns an established empty map when the Progress block parses but holds no recognized phase, conflating that with durations having been established.",
+   "defect_signature": {
+    "file": "scripts/derive-run-profile.py",
+    "line_range": [
+     143,
+     157
+    ],
+    "kind": "type_design"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:comment-analyzer",
+   "severity": "Suggestion",
+   "description": "Three added comment blocks run 11-18 lines and are largely derivation and provenance rather than the wrong change they prevent; the checked-in 2390-records figure will rot.",
+   "defect_signature": {
+    "file": "lib/efficiency-trace.sh",
+    "line_range": [
+     1532,
+     1589
+    ],
+    "kind": "style"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Suggestion",
+   "description": "The new module arms are guarded by if [ -x ... ], which fails open under an exact assertion floor \u2014 a lost executable bit reports a count mismatch rather than a named skip.",
+   "defect_signature": {
+    "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+    "line_range": [
+     6870,
+     6900
+    ],
+    "kind": "test_gap"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Suggestion",
+   "description": "render_runs' status column is 12 wide but the sentinel it most often holds, unestablished, is 13 characters.",
+   "defect_signature": {
+    "file": "scripts/implement-run-report.py",
+    "line_range": [
+     71,
+     82
+    ],
+    "kind": "style"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Suggestion",
+   "description": "download_transcript classifies stderr before checking the exit status, so a successful download whose output mentions a marker phrase is raised as a failure.",
+   "defect_signature": {
+    "file": "scripts/implement-timeline.py",
+    "line_range": [
+     109,
+     117
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Suggestion",
+   "description": "errors='replace' silently substitutes undecodable bytes, which then surface as a generic unparseable-record count naming two causes, neither the actual one.",
+   "defect_signature": {
+    "file": "scripts/implement-timeline.py",
+    "line_range": [
+     285,
+     301
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Suggestion",
+   "description": "The run-profile floor's merge arm drops an unreadable telemetry blob with a bare || continue and no breadcrumb, unlike every other arm in both new floors.",
+   "defect_signature": {
+    "file": "lib/efficiency-trace.sh",
+    "line_range": [
+     1697,
+     1701
+    ],
+    "kind": "logic_error"
+   },
+   "corroboration_count": 1
+  },
+  {
+   "agent": "prflow:comment-analyzer",
+   "severity": "Suggestion",
+   "description": "_load_workpad's stated justification does not hold: the module already inserts its own directory on sys.path, so a plain import would resolve.",
+   "defect_signature": {
+    "file": "scripts/derive-run-profile.py",
+    "line_range": [
+     44,
+     46
+    ],
+    "kind": "comment_drift"
+   },
+   "corroboration_count": 1
+  }
+ ],
+ "phase3_dispatched": [
+  "prflow:code-reviewer",
+  "prflow:silent-failure-hunter",
+  "prflow:comment-analyzer",
+  "prflow:pr-test-analyzer",
+  "prflow:type-design-analyzer",
+  "prflow:requesting-code-review"
+ ],
+ "expected_reviewers": [
+  "prflow:code-reviewer",
+  "prflow:silent-failure-hunter",
+  "prflow:comment-analyzer",
+  "prflow:pr-test-analyzer",
+  "prflow:type-design-analyzer",
+  "prflow:requesting-code-review"
+ ],
+ "phase3_failed_agents": [],
+ "diff_profile": {
+  "small_diff": false,
+  "config_only": false,
+  "has_new_types": true,
+  "engine_self_modifying": true,
+  "checklist_skipped": null
+ },
+ "cap_drops": {
+  "count": 0,
+  "by_category": {}
+ },
+ "checklist_summary": {
+  "total": 69,
+  "passed": 59,
+  "failed": 10,
+  "inconclusive": 0,
+  "normalized": 2,
+  "lite": 0,
+  "agent": 69,
+  "failed_ids": [
+   "VC-6",
+   "VC-15",
+   "VC-18",
+   "VC-25",
+   "VC-27",
+   "VC-47",
+   "VC-57",
+   "VC-62",
+   "VC-66",
+   "VC-69"
+  ]
+ },
+ "acceptance_criteria_source": "workpad",
+ "acceptance_criteria_divergence": "none",
+ "extension_status": {
+  "review": "content-present",
+  "requesting-code-review": "loaded-empty resolved-root=unset"
+ },
+ "deferrals": {
+  "block_present": false
+ },
+ "deviations": [
+  "Phase 2 verification dispatched 11 group verifiers (grouped by source file) rather than one dispatch per item. All 69 agent items were verified and each has its own nonce-bound verdict file; no item was dropped or budget-narrowed.",
+  "Phase 1 batches were recovered from the generator agents' transcripts after their results did not arrive as notifications; the 81-item merge captured at Phase 1 close is the authoritative input the deduper consumed.",
+  "normalize-verdicts.py returned its bad-input report twice on the grouped-array shape; the verdicts were re-emitted as per-item nonce files and the third invocation took the results arm cleanly (needs_retry empty)."
+ ],
+ "phase4_4": "skipped (fix-loop path; no GitHub review or verdict comment posted)"
+}

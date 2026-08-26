@@ -1,0 +1,1003 @@
+[
+ {
+  "id": "VC-1",
+  "category": "issue_acceptance",
+  "claim": "Acceptance criterion: `scripts/build-experiment-records.py` carries the added per-run fields into each experiment-record line whose source records hold them; a line built from a pre-change record carries them as JSON null; and `lib/actionable-patterns.sh` run over a store mixing pre- and post-change lines emits no warning it does not emit on today's store.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/build-experiment-records.py",
+  "verify_against": "the `_efficiency_entry` additions in this diff and lib/actionable-patterns.sh's field handling",
+  "verify_hint": "Confirm `record.get(\"run_profile\")` yields JSON null for a pre-change record, then run lib/actionable-patterns.sh over a store mixing a pre-change line and a post-change line and diff its warnings against a run over today's store.",
+  "verification_mode": "agent",
+  "claim_signature": "issue_acceptance:build-experiment-records.py:run-profile-passthrough-and-no-new-warnings",
+  "merged_from": [
+   "batch1:VC-1",
+   "batch2:VC-23",
+   "batch3:VC-18"
+  ]
+ },
+ {
+  "id": "VC-2",
+  "category": "issue_acceptance",
+  "claim": "Acceptance criterion: `scripts/implement-run-report.py` prints, for the most recent N implement experiment records with N a required argument, one row per run holding at minimum total duration, per-phase share, dollar cost, terminal status and review verdict, plus an aggregate block holding at minimum mean and median duration and cost.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement-run-report.py",
+  "verify_against": "render_runs() output and the argparse required-N handling",
+  "verify_hint": "Run `scripts/implement-run-report.py` with no args (must error), and with a small N over a fixture store; confirm each of the five row fields and the four aggregate figures appear.",
+  "verification_mode": "agent",
+  "claim_signature": "issue_acceptance:implement-run-report.py:per-run-rows-and-aggregate",
+  "merged_from": [
+   "batch1:VC-2",
+   "batch2:VC-24",
+   "batch3:VC-19"
+  ]
+ },
+ {
+  "id": "VC-3",
+  "category": "issue_acceptance",
+  "claim": "Acceptance criterion: the weekly retrospective report includes an implement-runtime section produced by `scripts/implement-run-report.py --retro`, showing the trailing four-week mean duration and cost and one regression line per week whose mean duration exceeds the preceding four-week mean by more than 25 percent, the threshold a named constant in that script.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement-run-report.py",
+  "verify_against": "REGRESSION_THRESHOLD_PCT/TRAILING_WEEKS, render_retro(), and the retrospective skill's report assembly (skills/retrospective-weekly/SKILL.md \u2014 sibling batch)",
+  "verify_hint": "Confirm REGRESSION_THRESHOLD_PCT == 25 and TRAILING_WEEKS == 4 in this script, and that skills/retrospective-weekly/SKILL.md invokes `implement-run-report.py --retro` and includes its output in the report.",
+  "verification_mode": "agent",
+  "claim_signature": "issue_acceptance:implement-run-report.py:retro-section-and-threshold-constant",
+  "merged_from": [
+   "batch1:VC-3",
+   "batch2:VC-25",
+   "batch3:VC-20"
+  ]
+ },
+ {
+  "id": "VC-4",
+  "category": "issue_acceptance",
+  "claim": "Acceptance criterion: `scripts/implement-benchmark.py` compares two cohorts selected by `config_fingerprint` value, reports per cohort at minimum run count, mean, median and standard deviation of duration and cost, and withholds its efficiency verdict with a printed reason whenever a cohort holds fewer than five runs and whenever a cohort contains a run whose final review verdict was REJECT.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement-benchmark.py",
+  "verify_against": "select_cohort/describe/withholding_reasons/render and MIN_COHORT_RUNS",
+  "verify_hint": "Run the script over fixture stores exercising: both cohorts clean (verdict printed), one cohort of 4 (withheld), one cohort containing a REJECT run (withheld), and both conditions (two reasons). Confirm all six named statistics appear per cohort.",
+  "verification_mode": "agent",
+  "claim_signature": "issue_acceptance:implement-benchmark.py:cohort-stats-and-withholding",
+  "merged_from": [
+   "batch1:VC-4",
+   "batch2:VC-26",
+   "batch3:VC-21"
+  ]
+ },
+ {
+  "id": "VC-5",
+  "category": "issue_acceptance",
+  "claim": "AC5: each added Python tool has a test file invocable as a direct leading token, and the timeline parser's tests cover a realistic transcript fixture, an empty artifact, a truncated final JSONL record, a transcript with no workpad status transitions, and a denied tool call with no tool_result.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": ".prflow/config.json",
+  "source_line": 166,
+  "verify_against": "The four lib/test/test_*.py files' executable bit and shebang, and the five named cases in lib/test/test_implement_timeline.py",
+  "verify_hint": "Check the executable bit on lib/test/test_derive_run_profile.py, test_implement_timeline.py, test_implement_run_report.py, test_implement_benchmark.py and enumerate the five named edge cases in test_implement_timeline.py",
+  "verification_mode": "agent",
+  "claim_signature": "issue_acceptance:config.json:test-files-direct-leading-token",
+  "merged_from": [
+   "batch1:VC-5",
+   "batch2:VC-27",
+   "batch3:VC-22"
+  ]
+ },
+ {
+  "id": "VC-6",
+  "category": "issue_acceptance",
+  "claim": "Acceptance criterion: `docs/internal/improvement-loops/runtime-evaluations.md` documents each added instrument \u2014 name, input, output channel \u2014 and `lib/test/lint-internal-docs.py` passes over the updated tree.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement-timeline.py",
+  "verify_against": "docs/internal/improvement-loops/runtime-evaluations.md and lib/test/lint-internal-docs.py",
+  "verify_hint": "Confirm the doc file exists in this PR (it is in no batch's changed-file list \u2014 check whether it was added at all), that it names derive-run-profile.py, implement-timeline.py, implement-run-report.py and implement-benchmark.py with input and output channel, and run lib/test/lint-internal-docs.py.",
+  "verification_mode": "agent",
+  "claim_signature": "issue_acceptance:runtime-evaluations.md:instruments-documented-and-lint-passes",
+  "merged_from": [
+   "batch1:VC-6",
+   "batch2:VC-28",
+   "batch3:VC-23"
+  ]
+ },
+ {
+  "id": "VC-7",
+  "category": "dependency_interaction",
+  "claim": "apply_run_profile_floor calls devflow_telemetry_ref, devflow_telemetry_show_blob, devflow_telemetry_list_blobs and devflow_telemetry_blob_exists with the argument order (root, ref, path) those helpers actually declare.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/efficiency-trace.sh",
+  "verify_against": "The four devflow_telemetry_* function definitions in lib/telemetry-branch.sh",
+  "verify_hint": "Compare each call site's argument order against the definitions of devflow_telemetry_show_blob / _list_blobs / _blob_exists in lib/telemetry-branch.sh",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:efficiency-trace.sh:telemetry-helper-arg-order",
+  "merged_from": [
+   "batch1:VC-7"
+  ]
+ },
+ {
+  "id": "VC-8",
+  "category": "dependency_interaction",
+  "claim": "_prior_implement_record_count reads _DEVFLOW_TELEMETRY_FETCH_STATUS and assumes the producer sets it to the literal `ok` on a successful pre-synthesis fetch, and sets it on every path before this floor runs.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/efficiency-trace.sh",
+  "verify_against": "The writer of _DEVFLOW_TELEMETRY_FETCH_STATUS in lib/telemetry-branch.sh or lib/efficiency-trace.sh",
+  "verify_hint": "Grep for _DEVFLOW_TELEMETRY_FETCH_STATUS assignments; confirm the exact literal value on success and that it is exported/visible in apply_run_profile_floor's scope and set before it runs",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:efficiency-trace.sh:fetch-status-sentinel-value",
+  "merged_from": [
+   "batch1:VC-8"
+  ]
+ },
+ {
+  "id": "VC-9",
+  "category": "data_format_assumption",
+  "claim": "The run_profile jq assembly assumes DEVFLOW_RUN_PROFILE (from scripts/prepare-run-profile.sh) is a single-line JSON object with keys `phase_durations_ms` and `final_status`; any other key it emits is silently dropped.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/efficiency-trace.sh",
+  "verify_against": "scripts/prepare-run-profile.sh and scripts/derive-run-profile.py output shape (batch 2/3)",
+  "verify_hint": "Check the JSON object derive-run-profile.py emits and confirm its key names match phase_durations_ms/final_status exactly",
+  "verification_mode": "agent",
+  "claim_signature": "data_format_assumption:efficiency-trace.sh:run-profile-key-names",
+  "merged_from": [
+   "batch1:VC-9"
+  ]
+ },
+ {
+  "id": "VC-10",
+  "category": "dependency_interaction",
+  "claim": "The workflow glue relies on prepare-harness-floor.sh emitting eval-able assignments for DEVFLOW_ISSUE_NUMBER and DEVFLOW_NO_PR_REASON (in addition to PR and class); if the vendored floor is older, both stay empty and the profile silently no-ops via the notice arm.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": ".github/workflows/devflow-implement.yml",
+  "source_line": 53,
+  "verify_against": "scripts/prepare-harness-floor.sh's stdout assignment emissions (batch 3)",
+  "verify_hint": "Check scripts/prepare-harness-floor.sh emits DEVFLOW_ISSUE_NUMBER= and DEVFLOW_NO_PR_REASON= on every path, including the non-implement class",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:devflow-implement.yml:harness-floor-emits-issue-and-reason",
+  "merged_from": [
+   "batch1:VC-10"
+  ]
+ },
+ {
+  "id": "VC-11",
+  "category": "api_contract",
+  "claim": "The two workflows' added run-profile glue blocks (devflow-implement.yml and devflow.yml) are byte-identical coupled mirrors.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": ".github/workflows/devflow.yml",
+  "verify_against": "The corresponding block in .github/workflows/devflow-implement.yml",
+  "verify_hint": "Diff the PROFILE_GLUE block and the env-assignment prefix lines between the two workflows",
+  "verification_mode": "agent",
+  "claim_signature": "api_contract:devflow.yml:profile-glue-coupled-mirror",
+  "merged_from": [
+   "batch1:VC-11"
+  ]
+ },
+ {
+  "id": "VC-12",
+  "category": "dependency_interaction",
+  "claim": "`${{ steps.claude.outcome }}` resolves in the backstop step's env \u2014 i.e. the engine step's id really is `claude` in both workflows and the backstop step is in the same job.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": ".github/workflows/devflow-implement.yml",
+  "source_line": 41,
+  "verify_against": "The engine step's `id:` in each workflow's job",
+  "verify_hint": "Grep both workflows for `id: claude` and confirm it is in the same job as the backstop step",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:devflow-implement.yml:steps-claude-outcome-id",
+  "merged_from": [
+   "batch1:VC-12"
+  ]
+ },
+ {
+  "id": "VC-13",
+  "category": "dependency_interaction",
+  "claim": "The workflow invokes the profile glue as `bash \"$PROFILE_GLUE\"` \u2014 a wrapper shape; verify that shape and the vendored literal path are granted/permitted on this tier the same way $FLOOR is.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": ".github/workflows/devflow.yml",
+  "source_line": 143,
+  "verify_against": "The existing $FLOOR invocation in the same step and lib/capability-profiles.json",
+  "verify_hint": "Compare with how the existing prepare-harness-floor.sh is invoked in the same run: block",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:devflow.yml:profile-glue-invocation-shape",
+  "merged_from": [
+   "batch1:VC-13"
+  ]
+ },
+ {
+  "id": "VC-14",
+  "category": "dependency_interaction",
+  "claim": "install.sh / vendor-slice.sh actually ship scripts/prepare-run-profile.sh and scripts/derive-run-profile.py to the vendored path the workflows reference (.prflow/vendor/prflow/scripts/).",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": ".github/workflows/devflow.yml",
+  "source_line": 136,
+  "verify_against": "vendor-slice.sh's copied scripts set and install.sh",
+  "verify_hint": "Check vendor-slice.sh / devflow_copy_slice() includes scripts/*.sh and scripts/*.py wholesale or names these files",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:devflow.yml:profile-glue-is-vendored",
+  "merged_from": [
+   "batch1:VC-14"
+  ]
+ },
+ {
+  "id": "VC-15",
+  "category": "dependency_interaction",
+  "claim": "The union-merge jq program in lib/telemetry-branch.sh re-applies exactly the floor keys efficiency-trace.sh writes \u2014 harness_cost, permission_denials, run_profile \u2014 and no floor key is omitted.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/telemetry-branch.sh",
+  "verify_against": "The set of top-level keys the floors in lib/efficiency-trace.sh add",
+  "verify_hint": "Enumerate every top-level key added by apply_harness_floor, apply_denial_floor and apply_run_profile_floor and compare against the reduce list",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:telemetry-branch.sh:floor-key-reapply-list-complete",
+  "merged_from": [
+   "batch1:VC-15"
+  ]
+ },
+ {
+  "id": "VC-16",
+  "category": "test_mock_alignment",
+  "claim": "The selective jq wrapper stub in efficiency-trace-telemetry.sh matches the new merge program via the pattern `*\"elif (\\$local[\\$k]\"*`, which must appear literally in lib/telemetry-branch.sh's jq argument.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+  "source_line": 613,
+  "verify_against": "The jq program string in lib/telemetry-branch.sh's devflow_telemetry_persist_tree",
+  "verify_hint": "Compare the stub's case pattern against the actual `elif ($local[$k] != null)` text including whitespace",
+  "verification_mode": "agent",
+  "claim_signature": "test_mock_alignment:efficiency-trace-telemetry.sh:jqsel-pattern-matches-merge-program",
+  "merged_from": [
+   "batch1:VC-16"
+  ]
+ },
+ {
+  "id": "VC-17",
+  "category": "test_mock_alignment",
+  "claim": "The experiment-records test calls m._efficiency_entry(record, run_id) and m._collect_efficiency(index, target_slugs) with the signatures and return shapes those functions actually have in build-experiment-records.py.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/test/modules/experiment-records.sh",
+  "verify_against": "_efficiency_entry and _collect_efficiency in scripts/build-experiment-records.py",
+  "verify_hint": "Compare parameter counts/order and the returned dict keys",
+  "verification_mode": "agent",
+  "claim_signature": "test_mock_alignment:experiment-records.sh:efficiency-entry-signature",
+  "merged_from": [
+   "batch1:VC-17"
+  ]
+ },
+ {
+  "id": "VC-18",
+  "category": "test_mock_alignment",
+  "claim": "The mixed-store test drives lib/actionable-patterns.sh via EXPERIMENTS_FILE and `--full`, and greps for `::warning::actionable-patterns` \u2014 the env var name, the flag, and the warning prefix must match the real script.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/test/modules/experiment-records.sh",
+  "verify_against": "lib/actionable-patterns.sh's input-file env var, flag parsing, and warning literal",
+  "verify_hint": "Grep lib/actionable-patterns.sh for EXPERIMENTS_FILE, --full and the ::warning:: prefix",
+  "verification_mode": "agent",
+  "claim_signature": "test_mock_alignment:experiment-records.sh:actionable-patterns-env-and-flag",
+  "merged_from": [
+   "batch1:VC-18"
+  ]
+ },
+ {
+  "id": "VC-19",
+  "category": "test_mock_alignment",
+  "claim": "The new efficiency-trace-telemetry assertions use helpers `_hc_repo`, `_et_on_branch`, `_et_show`, `git_sandbox`, `$HC_GLUE`, `$HC_COST`, `$HC_ITER` and `$LIB` that exist and behave as assumed at that point in the module.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+  "verify_against": "The helper definitions earlier in the same module and in lib/test/ shared harness",
+  "verify_hint": "Grep the module for the definitions of _hc_repo, _et_on_branch, _et_show and the HC_GLUE/HC_COST assignments",
+  "verification_mode": "agent",
+  "claim_signature": "test_mock_alignment:efficiency-trace-telemetry.sh:harness-helpers-exist",
+  "merged_from": [
+   "batch1:VC-19"
+  ]
+ },
+ {
+  "id": "VC-20",
+  "category": "api_contract",
+  "claim": "The module assertion floors bumped in lib/test/run.sh (efficiency-trace-telemetry 994\u21921029, experiment-records 165\u2192167) match the actual added assertion counts and the registry literals in scripts/workflow-flight-recorder-registry.json.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/test/run.sh",
+  "source_line": 930,
+  "verify_against": "scripts/workflow-flight-recorder-registry.json (batch 3) and the assert_eq count in each module",
+  "verify_hint": "Count assert_eq calls added in each module and compare both the run.sh operand and the registry floor for equality",
+  "verification_mode": "agent",
+  "claim_signature": "api_contract:run.sh:module-floor-literals-match-registry",
+  "merged_from": [
+   "batch1:VC-20"
+  ]
+ },
+ {
+  "id": "VC-21",
+  "category": "data_format_assumption",
+  "claim": "coverage-map.json's new entries name focused_test files that exist and owner values that are valid (`unmodularized`, `efficiency-trace-telemetry`), and the added issue key \"2006\" follows the map's issue-section schema.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/test/modules/coverage-map.json",
+  "verify_against": "The coverage-map schema validator in lib/test/ and the referenced test files on disk",
+  "verify_hint": "Check the coverage-map validation assertions in lib/test/run.sh or its module, and confirm each focused_test path exists",
+  "verification_mode": "agent",
+  "claim_signature": "data_format_assumption:coverage-map.json:new-entries-schema-and-paths",
+  "merged_from": [
+   "batch1:VC-21"
+  ]
+ },
+ {
+  "id": "VC-22",
+  "category": "api_contract",
+  "claim": "The four new Bash(lib/test/test_*.py:*) grants added to .prflow/config.json sit in the correct allowed_tools block for the tier that runs them and match the exact file names shipped.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": ".prflow/config.json",
+  "source_line": 166,
+  "verify_against": ".prflow/config.schema.json and the actual test file names in lib/test/",
+  "verify_hint": "Confirm the enclosing key is prflow_implement.allowed_tools (or prflow.allowed_tools) and each named file exists",
+  "verification_mode": "agent",
+  "claim_signature": "api_contract:config.json:new-test-grants-block-and-names",
+  "merged_from": [
+   "batch1:VC-22"
+  ]
+ },
+ {
+  "id": "VC-23",
+  "category": "dependency_interaction",
+  "claim": "apply_run_profile_floor's `done < <(...)` process substitution and the `_prior_implement_record_count` heredoc loop run in a shell that supports them and preserve the `return 0` semantics (a `return` inside a subshell-fed while would not return from the function).",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/efficiency-trace.sh",
+  "verify_against": "Bash while-read-with-process-substitution scoping and the surrounding function",
+  "verify_hint": "Construct a case where the telemetry branch holds a matching *-<ident>.json record and confirm the merge-arm (b) `return 0` actually exits apply_run_profile_floor rather than falling through to the skeleton arm",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:efficiency-trace.sh:process-substitution-return-scope",
+  "merged_from": [
+   "batch1:VC-23"
+  ]
+ },
+ {
+  "id": "VC-24",
+  "category": "absolute_claim",
+  "claim": "The comment asserts the issue-slug `issue-<N>` can NEVER collide with any PR-keyed name.",
+  "claim_provenance": "source_authored",
+  "source_excerpt": "the distinct slug `issue-<N>`, which no PR-keyed name can collide with",
+  "source_file": "lib/efficiency-trace.sh",
+  "verify_against": "Every slug-producing path in lib/efficiency-trace.sh and lib/telemetry-branch.sh",
+  "verify_hint": "Construct a falsifying case: find whether any code path can produce a slug literally beginning `issue-` for a PR-keyed record (e.g. a branch-name-derived slug, or target_slugs branch variants), and check the resulting filename against issue-<N>-<ident>.json",
+  "verification_mode": "agent",
+  "claim_signature": "absolute_claim:efficiency-trace.sh:issue-slug-cannot-collide",
+  "merged_from": [
+   "batch1:VC-24"
+  ]
+ },
+ {
+  "id": "VC-25",
+  "category": "absolute_claim",
+  "claim": "The comment asserts every sub-field whose source could not be established holds the string `unestablished` and never 0.",
+  "claim_provenance": "source_authored",
+  "source_excerpt": "Every sub-field whose source could not be established holds the STRING `unestablished` and never `0`.",
+  "source_file": "lib/efficiency-trace.sh",
+  "verify_against": "The jq assembly in apply_run_profile_floor and derive-run-profile.py's emitted values",
+  "verify_hint": "Construct an input where DEVFLOW_RUN_PROFILE carries phase_durations_ms with a null or 0 value, and where prior count is unknown, and confirm no sub-field lands as 0 or null",
+  "verification_mode": "agent",
+  "claim_signature": "absolute_claim:efficiency-trace.sh:unestablished-never-zero",
+  "merged_from": [
+   "batch1:VC-25"
+  ]
+ },
+ {
+  "id": "VC-26",
+  "category": "absolute_claim",
+  "claim": "The comment asserts the PR-less floor runs BEFORE the other three floors so their any-slug merge arms attach with no change to any of them.",
+  "claim_provenance": "source_authored",
+  "source_excerpt": "It runs BEFORE the other three floors so their `*-<ident>.json` any-slug merge arms then attach harness_cost, permission_denials and run_profile onto this same file with no change to any of them.",
+  "source_file": "lib/efficiency-trace.sh",
+  "verify_against": "apply_harness_floor and apply_denial_floor's staged-record merge arms",
+  "verify_hint": "Construct a PR-less implement run and confirm both apply_harness_floor and apply_denial_floor's staged arms glob `*-<ident>.json` rather than `pr-*`; a pr-prefixed glob would falsify the claim",
+  "verification_mode": "agent",
+  "claim_signature": "absolute_claim:efficiency-trace.sh:prless-floor-ordering-any-slug",
+  "merged_from": [
+   "batch1:VC-26"
+  ]
+ },
+ {
+  "id": "VC-27",
+  "category": "absolute_claim",
+  "claim": "The comment asserts unsetting DEVFLOW_RUN_PROFILE leaves the agent-side persist call sites byte-identical to before this floor existed.",
+  "claim_provenance": "source_authored",
+  "source_excerpt": "Unset/empty profile \u2192 INERT and SILENT, so the agent-side persist call sites (Loop-Exit, Stop-hook) stay byte-identical to before this floor existed.",
+  "source_file": "lib/efficiency-trace.sh",
+  "verify_against": "apply_pr_less_issue_floor, which is NOT gated on DEVFLOW_RUN_PROFILE",
+  "verify_hint": "Construct an agent-side persist with DEVFLOW_RUN_PROFILE unset but DEVFLOW_COMMAND_CLASS=implement and DEVFLOW_EXECUTION_PR empty \u2014 apply_pr_less_issue_floor may still write a record or breadcrumb, falsifying byte-identical behavior",
+  "verification_mode": "agent",
+  "claim_signature": "absolute_claim:efficiency-trace.sh:unset-profile-byte-identical",
+  "merged_from": [
+   "batch1:VC-27"
+  ]
+ },
+ {
+  "id": "VC-28",
+  "category": "dependency_interaction",
+  "claim": "_floor_merge_key_staged duplicates _floor_merge_staged deliberately; verify the two existing copies' breadcrumb literals pinned in lib/test/run.sh are unchanged and the new function's breadcrumbs do not collide with those pins.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/efficiency-trace.sh",
+  "verify_against": "The breadcrumb-literal pins in lib/test/run.sh for the harness-cost and denial floors",
+  "verify_hint": "Grep lib/test/run.sh for 'already carries' and 'attached' breadcrumb pins and confirm the new run-profile floor's strings do not satisfy or break them",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:efficiency-trace.sh:new-breadcrumbs-vs-pinned-literals",
+  "merged_from": [
+   "batch1:VC-28"
+  ]
+ },
+ {
+  "id": "VC-29",
+  "category": "data_format_assumption",
+  "claim": "The run-profile skeleton and PR-less record are written with schema_version 1 and the field set (source, synthesized, iterations, per_iteration, telemetry) that downstream readers \u2014 build-experiment-records.py and the report tools \u2014 accept without error.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/efficiency-trace.sh",
+  "verify_against": "The record schema consumed by scripts/build-experiment-records.py and scripts/implement_records.py",
+  "verify_hint": "Compare the skeleton's key set against an existing real efficiency record and against the fields build-experiment-records.py dereferences",
+  "verification_mode": "agent",
+  "claim_signature": "data_format_assumption:efficiency-trace.sh:skeleton-record-schema",
+  "merged_from": [
+   "batch1:VC-29"
+  ]
+ },
+ {
+  "id": "VC-30",
+  "category": "dependency_interaction",
+  "claim": "`--argjson prior \"$prior_json\"` and `--argjson issue \"$issue_json\"` are always fed syntactically valid JSON \u2014 including when prior is the quoted string \"unestablished\" and when issue is the bare literal null.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/efficiency-trace.sh",
+  "verify_against": "The case-statement sanitization above the jq call",
+  "verify_hint": "Construct a run with DEVFLOW_ISSUE_NUMBER set to a value with leading zeros or a very large number and confirm jq does not fail; also confirm the argjson-ok declaration marker requirement per repo convention",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:efficiency-trace.sh:argjson-operands-valid",
+  "merged_from": [
+   "batch1:VC-30"
+  ]
+ },
+ {
+  "id": "VC-31",
+  "category": "dependency_interaction",
+  "claim": "scripts/derive-run-profile.py imports `_PROGRESS_PHASES` and `_strip_status_glyph` from scripts/workpad.py by loading it as a module; both private names must exist there with the assumed shapes (a container of phase-heading strings, and a callable taking the raw status text and returning the glyph-stripped word).",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/derive-run-profile.py",
+  "verify_against": "scripts/workpad.py definitions of `_PROGRESS_PHASES` and `_strip_status_glyph`",
+  "verify_hint": "grep for `_PROGRESS_PHASES` and `def _strip_status_glyph` in scripts/workpad.py; confirm membership test `phase in PROGRESS_PHASES` works against its type (list/tuple/dict/set) and that the stripper accepts a full status string like `\ud83c\udf89 Complete`.",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:derive-run-profile.py:workpad-private-symbols-exist",
+  "merged_from": [
+   "batch2:VC-1"
+  ]
+ },
+ {
+  "id": "VC-32",
+  "category": "data_format_assumption",
+  "claim": "The phase names the tests assert (`Setup`, `Implement`, `Documentation`) are actual members of workpad.py's `_PROGRESS_PHASES`, and `Invented` is not \u2014 otherwise the unknown-heading and duration tests pass vacuously.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/test/test_derive_run_profile.py",
+  "verify_against": "the phase vocabulary declared in scripts/workpad.py",
+  "verify_hint": "Compare the literal phase-row names in `_PROGRESS_PHASES` (scripts/workpad.py) against the headings used in test_derive_run_profile.py's `_body` fixtures.",
+  "verification_mode": "agent",
+  "claim_signature": "data_format_assumption:test_derive_run_profile.py:phase-vocabulary-matches-workpad",
+  "merged_from": [
+   "batch2:VC-2"
+  ]
+ },
+ {
+  "id": "VC-33",
+  "category": "data_format_assumption",
+  "claim": "The `_NOTE_TS_RE` / `_TOP_LEVEL_RE` / `_LAST_UPDATED_RE` / `_STATUS_RE` patterns match the markdown scripts/workpad.py actually renders (em-dash separated `  - HH:MM:SS \u2014 note` bullets, `- [x] **Phase** \u2014 \u2026` rows, `**Last updated:** YYYY-MM-DD \u2026`, `**Status:** <glyph> <word>`).",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/derive-run-profile.py",
+  "verify_against": "the rendering code in scripts/workpad.py that emits progress notes, phase rows, the status line and the last-updated line",
+  "verify_hint": "Find the f-strings/templates in scripts/workpad.py that render the Progress bullets and header lines; check the separator character (em dash vs hyphen) and the indentation width against the regexes.",
+  "verification_mode": "agent",
+  "claim_signature": "data_format_assumption:derive-run-profile.py:workpad-render-shape-matches-regexes",
+  "merged_from": [
+   "batch2:VC-3"
+  ]
+ },
+ {
+  "id": "VC-34",
+  "category": "dependency_interaction",
+  "claim": "scripts/implement_records.py imports `UNESTABLISHED` and the private `_median` from scripts/context_eval_shared.py; both must exist, and `_median` must average the two middle values for an even population (the test asserts median([1,3,5,7]) == 4) and be order-independent.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement_records.py",
+  "verify_against": "scripts/context_eval_shared.py",
+  "verify_hint": "Read `_median` and `UNESTABLISHED` in scripts/context_eval_shared.py; confirm it sorts internally and averages the middle pair.",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:implement_records.py:context-eval-shared-median-contract",
+  "merged_from": [
+   "batch2:VC-4"
+  ]
+ },
+ {
+  "id": "VC-35",
+  "category": "dependency_interaction",
+  "claim": "scripts/implement-timeline.py imports `_timestamp_ms` from `workflow_flight_recorder`; that module must be importable as that name from scripts/ and `_timestamp_ms` must accept an ISO-8601 `...Z` string and return integer milliseconds (or None) without raising on a malformed value.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement-timeline.py",
+  "verify_against": "scripts/workflow_flight_recorder.py `_timestamp_ms`",
+  "verify_hint": "Confirm the file scripts/workflow_flight_recorder.py exists (underscored, importable) and read `_timestamp_ms`'s parsing and failure behavior.",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:implement-timeline.py:timestamp-ms-import-contract",
+  "merged_from": [
+   "batch2:VC-5"
+  ]
+ },
+ {
+  "id": "VC-36",
+  "category": "dependency_interaction",
+  "claim": "In scripts/build-experiment-records.py, `_collect_efficiency` filters `eff_index` entries by `r.get(\"no_pr_reason\")`, which assumes the objects stored in `eff_index` are the `_efficiency_entry` outputs (or raw records) that actually carry that key \u2014 a mismatch would make the filter a silent no-op admitting PR-less records.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/build-experiment-records.py",
+  "verify_against": "the code that populates `eff_index` in scripts/build-experiment-records.py",
+  "verify_hint": "Trace where `eff_index` is built and whether its values pass through `_efficiency_entry` before `_collect_efficiency` reads them; confirm `no_pr_reason` is present on those dicts.",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:build-experiment-records.py:eff-index-carries-no-pr-reason",
+  "merged_from": [
+   "batch2:VC-6"
+  ]
+ },
+ {
+  "id": "VC-37",
+  "category": "dependency_interaction",
+  "claim": "`no_pr_reason` and `run_profile` are keys the upstream efficiency-record producer actually writes at the record top level (`record.get(...)`), matching the producer's spelling and nesting.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/build-experiment-records.py",
+  "verify_against": "the producer of efficiency records \u2014 lib/efficiency-trace.sh (--persist / DEVFLOW_RUN_PROFILE) and scripts/prepare-run-profile.sh",
+  "verify_hint": "grep for `run_profile` and `no_pr_reason` in lib/efficiency-trace.sh and scripts/prepare-run-profile.sh; confirm they are top-level keys of each persisted record, not nested under harness_cost.",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:build-experiment-records.py:run-profile-key-names-match-producer",
+  "merged_from": [
+   "batch2:VC-7"
+  ]
+ },
+ {
+  "id": "VC-38",
+  "category": "data_format_assumption",
+  "claim": "scripts/implement_records.py reads `run_profile` from each *efficiency run entry* (`entry.get(\"run_profile\")`), while build-experiment-records.py places it in the entry via `_efficiency_entry`; the two must agree on nesting level for `terminal_status`/`phase_durations_ms` to resolve on real store lines.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement_records.py",
+  "verify_against": "`_efficiency_entry` in scripts/build-experiment-records.py and a real line of .prflow/learnings/experiment-records.jsonl",
+  "verify_hint": "Compare `_ingest`'s `entry.get(\"run_profile\")` against where `_efficiency_entry` writes the key, and against `efficiency_runs[].run_profile` in an actual store line.",
+  "verification_mode": "agent",
+  "claim_signature": "data_format_assumption:implement_records.py:run-profile-nesting-agrees",
+  "merged_from": [
+   "batch2:VC-8"
+  ]
+ },
+ {
+  "id": "VC-39",
+  "category": "data_format_assumption",
+  "claim": "`load_runs` assumes each store line has top-level `merged_at`, `verdict`, `pr`, `issue`, `config_fingerprint.sha256` and `efficiency_runs[].harness_cost.{command,duration_ms,cost_usd,num_turns}` \u2014 the shapes the test fixtures synthesize must match real experiment-records.jsonl lines.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement_records.py",
+  "verify_against": "a real line of .prflow/learnings/experiment-records.jsonl and the record builder in scripts/build-experiment-records.py",
+  "verify_hint": "Read one line of the tracked store and compare its key set/nesting to `_ingest` and to `_record()` in lib/test/test_implement_run_report.py.",
+  "verification_mode": "agent",
+  "claim_signature": "data_format_assumption:implement_records.py:store-line-shape-matches-fixture",
+  "merged_from": [
+   "batch2:VC-9"
+  ]
+ },
+ {
+  "id": "VC-40",
+  "category": "data_format_assumption",
+  "claim": "The `harness_cost.command` value for an implement run is exactly the literal `implement` (the selection predicate `hc.get(\"command\") != \"implement\"`), matching what the trace writer stores.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement_records.py",
+  "verify_against": "lib/efficiency-trace.sh's command field values",
+  "verify_hint": "grep the command literal written into harness_cost in lib/efficiency-trace.sh (and any caller passing it) to confirm it is `implement` and not e.g. `devflow-implement`.",
+  "verification_mode": "agent",
+  "claim_signature": "data_format_assumption:implement_records.py:command-literal-implement",
+  "merged_from": [
+   "batch2:VC-10"
+  ]
+ },
+ {
+  "id": "VC-41",
+  "category": "test_mock_alignment",
+  "claim": "The timeline tests' transcript fixture shape (`{\"timestamp\": ..., \"message\": {\"role\": ..., \"content\": [tool_use/tool_result blocks]}}`) matches the real scrubbed `claude-execution-transcript-*` artifact JSONL the cloud workflows upload.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/test/test_implement_timeline.py",
+  "verify_against": "the transcript artifact producer (execution_transcript_artifact upload step / scrubber) and scripts/workflow_flight_recorder.py's record parsing",
+  "verify_hint": "Check the record schema `workflow_flight_recorder.parse_events`/`_content` expects and the artifact-upload/scrub step behind `prflow.execution_transcript_artifact_enabled`.",
+  "verification_mode": "agent",
+  "claim_signature": "test_mock_alignment:test_implement_timeline.py:transcript-fixture-matches-real-artifact",
+  "merged_from": [
+   "batch2:VC-11"
+  ]
+ },
+ {
+  "id": "VC-42",
+  "category": "test_mock_alignment",
+  "claim": "The tests' `_classify_download_failure` inputs are the literal stderr bytes `gh run download` emits (the docstring claims they were reproduced against this repository), so the expired-vs-run-missing discrimination is grounded in real output.",
+  "claim_provenance": "source_authored",
+  "source_excerpt": "Both strings are the bytes `gh run download` actually\n    printed, reproduced against this repository.",
+  "source_file": "lib/test/test_implement_timeline.py",
+  "verify_against": "actual `gh run download` behavior / gh CLI source strings",
+  "verify_hint": "Check whether `gh run download <real-run> -n <missing-name>` exits non-zero with `no valid artifacts found to download` on stderr, and whether the empty-download-at-exit-0 path asserted in download_transcript is real; note download_transcript classifies stderr BEFORE checking returncode, so a success run whose stderr happens to contain a marker would raise.",
+  "verification_mode": "agent",
+  "claim_signature": "test_mock_alignment:implement-timeline.py:gh-download-stderr-strings",
+  "merged_from": [
+   "batch2:VC-12"
+  ]
+ },
+ {
+  "id": "VC-43",
+  "category": "api_contract",
+  "claim": "`download_transcript` passes `-n <prefix>` to `gh run download`, but `-n` matches an artifact NAME exactly, not a prefix \u2014 the artifact name uploaded by the workflow must equal `claude-execution-transcript-<run_id>` for the download to ever succeed.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement-timeline.py",
+  "verify_against": "the artifact `name:` in the workflow upload step for the execution transcript",
+  "verify_hint": "grep `claude-execution-transcript` in .github/workflows/ and compare the uploaded artifact name to `_artifact_name_prefix`.",
+  "verification_mode": "agent",
+  "claim_signature": "api_contract:implement-timeline.py:artifact-name-exact-match",
+  "merged_from": [
+   "batch2:VC-13"
+  ]
+ },
+ {
+  "id": "VC-44",
+  "category": "dependency_interaction",
+  "claim": "`load_runs`'s DEFAULT_STORE is the relative path `.prflow/learnings/experiment-records.jsonl`, resolved against the caller's cwd rather than the git repo root \u2014 diverging from the SHARED REPO-ROOT CONFIG CONTRACT other .prflow readers follow.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement_records.py",
+  "verify_against": "the repo-root anchoring convention used by scripts/config-get.sh, scripts/workpad.py, lib/state_dir.py",
+  "verify_hint": "Compare DEFAULT_STORE resolution with how other .prflow readers resolve their root (git rev-parse --show-toplevel); decide whether a run from a subdirectory silently reads no records.",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:implement_records.py:default-store-cwd-relative",
+  "merged_from": [
+   "batch2:VC-14"
+  ]
+ },
+ {
+  "id": "VC-45",
+  "category": "absolute_claim",
+  "claim": "derive-run-profile.py's docstring asserts every listed malformed workpad shape is answered and that `derive` never raises on a malformed body.",
+  "claim_provenance": "source_authored",
+  "source_excerpt": "The workpad is human- and agent-mutable markdown, so every shape below is answered\nrather than assumed",
+  "source_file": "scripts/derive-run-profile.py",
+  "verify_against": "the derive() implementation against constructed adversarial bodies",
+  "verify_hint": "Construct falsifying inputs and run `derive` on each: a body whose `**Last updated:**` date is 2026-02-30 (invalid date), a Progress section containing `##Progress` without a space, a body where `_strip_status_glyph` receives an empty match, a bytes body, and a note line with 24:00:00. Observe whether any raises or returns a wrong-typed value.",
+  "verification_mode": "agent",
+  "claim_signature": "absolute_claim:derive-run-profile.py:every-shape-answered-never-raises",
+  "merged_from": [
+   "batch2:VC-15"
+  ]
+ },
+ {
+  "id": "VC-46",
+  "category": "absolute_claim",
+  "claim": "implement-timeline.py's docstring asserts `build_timeline` never raises on a malformed transcript and that every listed malformed shape is answered.",
+  "claim_provenance": "source_authored",
+  "source_excerpt": "The three views over one transcript. Never raises on a malformed transcript.",
+  "source_file": "scripts/implement-timeline.py",
+  "verify_against": "build_timeline run against constructed adversarial transcripts",
+  "verify_hint": "Build falsifying inputs and run build_timeline: a record whose `message` is a list, a `content` list holding a tool_use with a non-dict `input`, a record whose `timestamp` is a non-ISO string (does `_timestamp_ms` raise?), duplicate tool_use ids, and a tool_result whose `tool_use_id` is an int. Confirm no exception escapes.",
+  "verification_mode": "agent",
+  "claim_signature": "absolute_claim:implement-timeline.py:build-timeline-never-raises",
+  "merged_from": [
+   "batch2:VC-16"
+  ]
+ },
+ {
+  "id": "VC-47",
+  "category": "absolute_claim",
+  "claim": "implement-timeline.py claims the trailing slash in PHASE_PREFIX plus full-path matching means a review-engine phase file can never be attributed to an implement phase.",
+  "claim_provenance": "source_authored",
+  "source_excerpt": "The trailing slash is\n# load-bearing: without it `skills/implement/phases` would also prefix-match a sibling\n# directory added later, and with a bare `phase-` match the review engine's own phase\n# files would be attributed to implement phases they never belonged to.",
+  "source_file": "scripts/implement-timeline.py",
+  "verify_against": "the `_phase_from_read` substring search against crafted paths",
+  "verify_hint": "Construct falsifying paths and run `_phase_from_read`: `docs/notes-about-skills/implement/phases/x.md`, `.prflow/vendor/prflow/skills/implement/phases/phase-1-setup.md`, and a path where the prefix appears mid-string in a review file. `path.find` is an unanchored substring search \u2014 check whether any non-implement path yields a phase.",
+  "verification_mode": "agent",
+  "claim_signature": "absolute_claim:implement-timeline.py:phase-prefix-cannot-match-review",
+  "merged_from": [
+   "batch2:VC-17"
+  ]
+ },
+ {
+  "id": "VC-48",
+  "category": "absolute_claim",
+  "claim": "implement_records.py claims an unmeasured run can never enter a mean, median or standard deviation as a real value.",
+  "claim_provenance": "source_authored",
+  "source_excerpt": "both are dropped by `numeric()` before any arithmetic, so an unmeasured run can never\nenter a mean, a median or a standard deviation as a real value.",
+  "source_file": "scripts/implement_records.py",
+  "verify_against": "every aggregate call site in implement-run-report.py and implement-benchmark.py",
+  "verify_hint": "Construct a falsifying case: a run whose duration_ms is a numeric string ('1000'), a Decimal, or where phase_shares/weekly_means sums pass an unfiltered list. Also check `render_runs`'s `duration / 1000` path and `phase_shares`'s `sum(established.values())` for an unfiltered operand.",
+  "verification_mode": "agent",
+  "claim_signature": "absolute_claim:implement_records.py:unestablished-never-enters-aggregate",
+  "merged_from": [
+   "batch2:VC-18"
+  ]
+ },
+ {
+  "id": "VC-49",
+  "category": "dependency_interaction",
+  "claim": "`render_runs` computes `duration / 1000` guarded only by `is not None`, while `duration_ms` can also be the `unestablished` sentinel string coming from a record \u2014 the guard must cover every value `_figure`/the store can produce.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/implement-run-report.py",
+  "verify_against": "`_figure` in scripts/implement_records.py and the values it can return",
+  "verify_hint": "Confirm `_ingest` always routes duration_ms through `_figure` (so it is a number or None) and that no other path can set a string there; then decide whether the `is not None` guard is complete.",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:implement-run-report.py:duration-guard-covers-sentinel",
+  "merged_from": [
+   "batch2:VC-19"
+  ]
+ },
+ {
+  "id": "VC-50",
+  "category": "test_mock_alignment",
+  "claim": "test_implement_run_report.py asserts the rendered row contains `Implement=75%`, which depends on `_top_phases` rendering `Path(p).name` \u2014 for the fixture's bare phase keys (`Setup`, `Implement`) the basename equals the key, but for real records the keys are full phase paths or workpad phase names; the two must agree.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/test/test_implement_run_report.py",
+  "verify_against": "the actual key space of `phase_durations_ms` produced by scripts/derive-run-profile.py",
+  "verify_hint": "derive-run-profile.py keys phase_durations_ms by workpad phase heading (e.g. `Setup`), not by file path \u2014 confirm `_top_phases`'s `Path(p).name` is a no-op on those keys and that the test fixture is production-realistic.",
+  "verification_mode": "agent",
+  "claim_signature": "test_mock_alignment:test_implement_run_report.py:phase-key-space-matches-producer",
+  "merged_from": [
+   "batch2:VC-20"
+  ]
+ },
+ {
+  "id": "VC-51",
+  "category": "dependency_interaction",
+  "claim": "The two test files load scripts/implement_records.py under two different module names (`implement_records_bm`, `implement_records_mod`) while the scripts themselves `from implement_records import ...` \u2014 running both test files in one process could yield duplicate module instances with divergent UNESTABLISHED identity.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "lib/test/test_implement_benchmark.py",
+  "verify_against": "how lib/test/run.sh or the python pool invokes these test files (separate processes vs one)",
+  "verify_hint": "Check whether the suite runs each test file as its own process; if pooled, verify sentinel comparisons (`== UNESTABLISHED`, string equality) still hold across the duplicate modules.",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:test_implement_benchmark.py:duplicate-module-loading",
+  "merged_from": [
+   "batch2:VC-21"
+  ]
+ },
+ {
+  "id": "VC-52",
+  "category": "dependency_interaction",
+  "claim": "`_load_workpad()` in derive-run-profile.py executes scripts/workpad.py at import time without registering it in sys.modules; workpad.py must have no import-time side effects (config reads, argparse, network, git subprocess) that would fire on every derive invocation.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/derive-run-profile.py",
+  "verify_against": "module-level statements in scripts/workpad.py",
+  "verify_hint": "Read the module-level (non-def, non-class) statements in scripts/workpad.py for side effects such as reading .prflow/config.json or invoking git.",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:derive-run-profile.py:workpad-import-side-effects",
+  "merged_from": [
+   "batch2:VC-22"
+  ]
+ },
+ {
+  "id": "VC-53",
+  "category": "dependency_interaction",
+  "claim": "prepare-run-profile.sh assumes scripts/workpad.py exposes an `id` subcommand taking an issue number, printing the workpad comment id on stdout, with a three-way exit contract (0 found, 2 no workpad, 1 gh/parse/transport failure).",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/prepare-run-profile.sh",
+  "verify_against": "The argparse subcommand table and exit codes in scripts/workpad.py",
+  "verify_hint": "Check that `id` is a registered subparser in scripts/workpad.py and that it exits 2 for 'no workpad found' and 1 for API/parse failure",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:prepare-run-profile.sh:workpad-id-exit-contract",
+  "merged_from": [
+   "batch3:VC-1"
+  ]
+ },
+ {
+  "id": "VC-54",
+  "category": "dependency_interaction",
+  "claim": "prepare-run-profile.sh assumes scripts/workpad.py exposes a `body <comment_id>` subcommand that prints the workpad comment body to stdout and exits non-zero on failure.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/prepare-run-profile.sh",
+  "verify_against": "scripts/workpad.py subcommand definitions",
+  "verify_hint": "Check `body` subcommand in scripts/workpad.py: argument name/positional order and stdout output",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:prepare-run-profile.sh:workpad-body-subcommand",
+  "merged_from": [
+   "batch3:VC-2"
+  ]
+ },
+ {
+  "id": "VC-55",
+  "category": "api_contract",
+  "claim": "prepare-run-profile.sh assumes scripts/derive-run-profile.py accepts a `--body-file <path>` flag and writes the derived profile JSON to stdout.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/prepare-run-profile.sh",
+  "verify_against": "The argparse definition in scripts/derive-run-profile.py (owned by sibling batch 2)",
+  "verify_hint": "Check that scripts/derive-run-profile.py defines `--body-file` (not e.g. `--workpad` or a positional) and prints JSON to stdout",
+  "verification_mode": "agent",
+  "claim_signature": "api_contract:prepare-run-profile.sh:derive-body-file-flag",
+  "merged_from": [
+   "batch3:VC-3"
+  ]
+ },
+ {
+  "id": "VC-56",
+  "category": "data_format_assumption",
+  "claim": "prepare-run-profile.sh distinguishes an argparse usage error from a genuine 'no workpad' by grepping workpad.py's stderr for a line beginning `usage:`; this assumes argparse's usage line is emitted unprefixed at line start and that workpad.py's own rc-2 path never emits such a line.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/prepare-run-profile.sh",
+  "verify_against": "argparse error output format and workpad.py's rc-2 stderr text",
+  "verify_hint": "Check what scripts/workpad.py writes to stderr on its 'no workpad' exit-2 path, and confirm argparse emits `usage:` at column 0",
+  "verification_mode": "agent",
+  "claim_signature": "data_format_assumption:prepare-run-profile.sh:usage-grep-disambiguation",
+  "merged_from": [
+   "batch3:VC-4"
+  ]
+ },
+ {
+  "id": "VC-57",
+  "category": "dependency_interaction",
+  "claim": "prepare-run-profile.sh invokes helpers as `python3 <path>`, an interpreter-head shape the cloud matcher denies; and it must be reachable/granted from the workflow step that calls it.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/prepare-run-profile.sh",
+  "verify_against": "lib/capability-profiles.json grants and the CLAUDE.md interpreter-head rule; the workflow step invoking this script",
+  "verify_hint": "Check whether this script runs inside a workflow `run:` block (unmatched by the agent matcher) or from an agent fence; if the latter, `python3 <path>` is denied",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:prepare-run-profile.sh:python3-interpreter-head",
+  "merged_from": [
+   "batch3:VC-5"
+  ]
+ },
+ {
+  "id": "VC-58",
+  "category": "data_format_assumption",
+  "claim": "prepare-run-profile.sh writes scratch files derived from the caller-supplied OUT path (`${OUT}.id`, `${OUT}.iderr`, `${OUT}.workpad`), assuming that directory is writable in the workflow step and that no other process collides on those names.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/prepare-run-profile.sh",
+  "verify_against": "The devflow-implement.yml backstop step that supplies <profile_out_file>",
+  "verify_hint": "Check the workflow step in .github/workflows/devflow-implement.yml passing the profile out path; confirm the directory exists and is writable",
+  "verification_mode": "agent",
+  "claim_signature": "data_format_assumption:prepare-run-profile.sh:out-sibling-scratch-paths",
+  "merged_from": [
+   "batch3:VC-6"
+  ]
+ },
+ {
+  "id": "VC-59",
+  "category": "api_contract",
+  "claim": "prepare-harness-floor.sh now emits four eval-able assignments including DEVFLOW_ISSUE_NUMBER and DEVFLOW_NO_PR_REASON; every consumer of its stdout must eval and use the new variables (and no consumer may break on the two extra lines).",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/prepare-harness-floor.sh",
+  "verify_against": "The workflow steps that `eval` prepare-harness-floor.sh output and the efficiency-trace `--persist` consumer",
+  "verify_hint": "Grep for DEVFLOW_EXECUTION_PR / prepare-harness-floor in .github/workflows/*.yml and lib/efficiency-trace.sh; confirm DEVFLOW_ISSUE_NUMBER and DEVFLOW_NO_PR_REASON are consumed",
+  "verification_mode": "agent",
+  "claim_signature": "api_contract:prepare-harness-floor.sh:four-env-assignments-consumed",
+  "merged_from": [
+   "batch3:VC-7"
+  ]
+ },
+ {
+  "id": "VC-60",
+  "category": "dependency_interaction",
+  "claim": "The `_no_pr_reason_for_rc` token vocabulary (issue-number-unusable, gh-lookup-failed, no-closing-pr-found, unestablished) must match the vocabulary the downstream record writer/validator accepts.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/prepare-harness-floor.sh",
+  "verify_against": "The consumer of DEVFLOW_NO_PR_REASON (lib/efficiency-trace.sh and/or scripts/build-experiment-records.py)",
+  "verify_hint": "Grep DEVFLOW_NO_PR_REASON / no_pr_reason across lib/ and scripts/ and compare the accepted token set",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:prepare-harness-floor.sh:no-pr-reason-vocabulary",
+  "merged_from": [
+   "batch3:VC-8"
+  ]
+ },
+ {
+  "id": "VC-61",
+  "category": "dependency_interaction",
+  "claim": "In the `implement` arm, `PR=\"$(_resolve_pr_for_issue \u2026)\"` followed by `PR_RC=$?` captures the function's exit code rather than the assignment's; under `set -e`-free best-effort semantics this must still propagate 2/3/4 correctly.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/prepare-harness-floor.sh",
+  "verify_against": "Shell semantics of command-substitution assignment exit status, plus the script's `set` line",
+  "verify_hint": "Read the `set -` line at the top of scripts/prepare-harness-floor.sh and confirm $? after a bare assignment with command substitution yields the substituted command's status",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:prepare-harness-floor.sh:pr-rc-capture-semantics",
+  "merged_from": [
+   "batch3:VC-9"
+  ]
+ },
+ {
+  "id": "VC-62",
+  "category": "dependency_interaction",
+  "claim": "`rc=$?` inside `_resolve_pr_for_issue` is taken after a command substitution assignment under `set -o pipefail`; the gh `--jq` failure mode (gh exits 0 with empty output on a jq error) may be conflated with rc 4.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/prepare-harness-floor.sh",
+  "verify_against": "gh CLI `--jq` exit-status behaviour and the surrounding shell options",
+  "verify_hint": "Check whether `gh pr list --jq` returns non-zero on a jq evaluation error; if not, rc 4 mislabels a transport/filter failure as 'no-closing-pr-found'",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:prepare-harness-floor.sh:gh-jq-rc-conflation",
+  "merged_from": [
+   "batch3:VC-10"
+  ]
+ },
+ {
+  "id": "VC-63",
+  "category": "absolute_claim",
+  "claim": "The added comment asserts a universal: '$3 is non-empty ONLY on the `implement` arm. Every other class's <candidate_number> is a PR number' and that devflow.yml's trigger negating /prflow:implement makes class `implement` reachable only from devflow-implement.yml.",
+  "claim_provenance": "source_authored",
+  "source_excerpt": "# $3 is non-empty ONLY on the `implement` arm. Every other class's <candidate_number> is\n# a PR number, so emitting it here would key the PR-less record to a PR as if it were an\n# issue. devflow.yml's trigger negates /prflow:implement, so class `implement` reaches\n# this glue only from devflow-implement.yml, whose candidate is the issue number.",
+  "source_file": "scripts/prepare-harness-floor.sh",
+  "verify_against": ".github/workflows/devflow.yml trigger `if:` conditions and its command-class resolver",
+  "verify_hint": "Attempt to falsify: construct a devflow.yml-dispatched comment/command that normalizes to class `implement` (e.g. an alias spelling such as /devflow:implement, or a resolver path devflow.yml allows) and check whether it reaches prepare-harness-floor.sh with a PR number as <candidate_number>",
+  "verification_mode": "agent",
+  "claim_signature": "absolute_claim:prepare-harness-floor.sh:implement-only-from-implement-workflow",
+  "merged_from": [
+   "batch3:VC-11"
+  ]
+ },
+ {
+  "id": "VC-64",
+  "category": "absolute_claim",
+  "claim": "The added comment in _resolve_pr_for_issue asserts that an assignment made inside the function would 'always read empty' in the parent because the sole caller uses command substitution \u2014 a universal about the caller set.",
+  "claim_provenance": "source_authored",
+  "source_excerpt": "Reports WHICH failure fired through its EXIT CODE, never a variable: the sole caller\n# invokes this in a command substitution, so an assignment made here happens in a\n# subshell the parent never sees, and the reason would always read empty.",
+  "source_file": "scripts/prepare-harness-floor.sh",
+  "verify_against": "All call sites of _resolve_pr_for_issue in scripts/prepare-harness-floor.sh and any test driver",
+  "verify_hint": "Grep `_resolve_pr_for_issue` across the repo (including lib/test/modules/) and confirm there is exactly one caller and it is a command substitution",
+  "verification_mode": "agent",
+  "claim_signature": "absolute_claim:prepare-harness-floor.sh:sole-caller-command-substitution",
+  "merged_from": [
+   "batch3:VC-12"
+  ]
+ },
+ {
+  "id": "VC-65",
+  "category": "api_contract",
+  "claim": "The retrospective SKILL.md fence invokes `$LIB/../scripts/implement-run-report.py --retro` as a direct leading token, assuming the file is executable, has a shebang, and accepts `--retro` with no other required argument.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "skills/retrospective-weekly/SKILL.md",
+  "source_line": 240,
+  "verify_against": "scripts/implement-run-report.py argparse (sibling batch 2) and its file mode/shebang",
+  "verify_hint": "Check that scripts/implement-run-report.py is chmod +x with `#!/usr/bin/env python3` and that `--retro` does not require the mandatory N argument the AC specifies for the default mode",
+  "verification_mode": "agent",
+  "claim_signature": "api_contract:SKILL.md:implement-run-report-retro-invocation",
+  "merged_from": [
+   "batch3:VC-13"
+  ]
+ },
+ {
+  "id": "VC-66",
+  "category": "dependency_interaction",
+  "claim": "The retrospective fence adds a new command head (`implement-run-report.py`) to a shipped skill body; the head must be granted in the profile under which retrospective-weekly runs, and the `$LIB` textual-notation convention must be honoured (no shell variable persistence).",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "skills/retrospective-weekly/SKILL.md",
+  "source_line": 240,
+  "verify_against": "lib/capability-profiles.json and lib/test/extract-command-heads.py expectations",
+  "verify_hint": "Check whether the retrospective skill's heads are audited by lib/test/extract-command-heads.py and whether the new script path is granted in lib/capability-profiles.json",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:SKILL.md:retro-report-head-granted",
+  "merged_from": [
+   "batch3:VC-14"
+  ]
+ },
+ {
+  "id": "VC-67",
+  "category": "data_format_assumption",
+  "claim": "The retrospective fence appends implement-run-report.py's stdout to the already-rendered report markdown, assuming --retro emits well-formed markdown (with a leading heading and no ANSI/table formatting that breaks a GitHub comment).",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "skills/retrospective-weekly/SKILL.md",
+  "source_line": 240,
+  "verify_against": "The --retro output writer in scripts/implement-run-report.py",
+  "verify_hint": "Check the --retro branch of scripts/implement-run-report.py for markdown section output vs. a plain-text/tabular report",
+  "verification_mode": "agent",
+  "claim_signature": "data_format_assumption:SKILL.md:retro-output-is-markdown",
+  "merged_from": [
+   "batch3:VC-15"
+  ]
+ },
+ {
+  "id": "VC-68",
+  "category": "dependency_interaction",
+  "claim": "The registry raises experiment-records minimum_assertions 165\u2192167 and efficiency-trace-telemetry 994\u21921029 under `assertion_floor_policy: exact`, so the actual assertion counts in those modules must equal the new literals exactly.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/workflow-flight-recorder-registry.json",
+  "source_line": 218,
+  "verify_against": "The assertion counts emitted by lib/test/modules/experiment-records.sh and lib/test/modules/efficiency-trace-telemetry.sh, and the coupled floor literals in lib/test/run.sh",
+  "verify_hint": "Check the coupled floor literals in lib/test/run.sh for these two modules match 167 and 1029 (the --with-floors coupled-literal pair)",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:workflow-flight-recorder-registry.json:assertion-floor-exact-match",
+  "merged_from": [
+   "batch3:VC-16"
+  ]
+ },
+ {
+  "id": "VC-69",
+  "category": "dependency_interaction",
+  "claim": "scripts/prepare-run-profile.sh is a new shell helper: it must carry the SPDX header (it does), pass shellcheck --severity=warning, and \u2014 if it is a bundled helper a workflow invokes \u2014 be listed at the vendored path and granted in lib/capability-profiles.json.",
+  "claim_provenance": "generated_paraphrase",
+  "source_file": "scripts/prepare-run-profile.sh",
+  "verify_against": "The workflow step invoking it and lib/capability-profiles.json",
+  "verify_hint": "Grep prepare-run-profile.sh across .github/workflows/ and confirm it is invoked at .prflow/vendor/prflow/scripts/prepare-run-profile.sh",
+  "verification_mode": "agent",
+  "claim_signature": "dependency_interaction:prepare-run-profile.sh:vendored-path-invocation",
+  "merged_from": [
+   "batch3:VC-17"
+  ]
+ }
+]

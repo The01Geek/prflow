@@ -1,0 +1,225 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-26T21:40:00Z",
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "fix_commit_sha": "87f0c0db5021cc14605da3d41a84fabc9ce42c21",
+  "fix_files": [
+    "lib/efficiency-trace.sh",
+    "lib/telemetry-branch.sh",
+    "lib/test/modules/efficiency-trace-telemetry.sh",
+    "lib/test/run.sh",
+    "lib/test/test_implement_timeline.py",
+    "scripts/derive-run-profile.py",
+    "scripts/implement-benchmark.py",
+    "scripts/implement-timeline.py",
+    "scripts/prepare-run-profile.sh",
+    "scripts/workflow-flight-recorder-registry.json"
+  ],
+  "current_step": "3.5",
+  "current_substep": "fix_delta_gate_complete",
+  "base_checkpoint": {
+    "token": "UP_TO_DATE",
+    "behind_by": null
+  },
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "dispatch_mode": "fanned-out",
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.2.4",
+        "2.2.5",
+        "2.2.6",
+        "2.2.7"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b",
+        "2.3.0c",
+        "2.3.0d"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.1",
+        "2.3.2",
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a",
+        "2.3.4b",
+        "2.3.5",
+        "2.3.6",
+        "2.3.7"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0-changed-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0a-peer-checkpoint.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0a"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0b-enum-enumeration.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0b"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0c-operand-trace.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0c"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-7-collection-cardinality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.7"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null,
+      "inner_attempts": 1,
+      "findings": 7,
+      "all_corrected": true
+    }
+  },
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "87f0c0db5021cc14605da3d41a84fabc9ce42c21"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "87f0c0db5021cc14605da3d41a84fabc9ce42c21"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "87f0c0db5021cc14605da3d41a84fabc9ce42c21"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "87f0c0db5021cc14605da3d41a84fabc9ce42c21"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "87f0c0db5021cc14605da3d41a84fabc9ce42c21"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "87f0c0db5021cc14605da3d41a84fabc9ce42c21"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "87f0c0db5021cc14605da3d41a84fabc9ce42c21"
+    }
+  ],
+  "phase3_findings": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "telemetry": "unavailable",
+  "test_first_gate": [
+    {
+      "decision": "test-first",
+      "command": "lib/test/run-module.sh efficiency-trace-telemetry",
+      "result": "RED then GREEN",
+      "evidence": "the three injection assertions failed against the unsanitized _emit before the fix and pass after"
+    },
+    {
+      "decision": "test-first",
+      "command": "lib/test/test_implement_run_report.py",
+      "result": "RED then GREEN",
+      "evidence": "5 errors + 1 failure for the not-yet-existing load_runs_with_status/default_store/phase_shares_with_completeness APIs and the share inflation"
+    },
+    {
+      "decision": "test-first",
+      "command": "lib/test/test_implement_benchmark.py",
+      "result": "RED then GREEN",
+      "evidence": "2 failures for the empty-prefix cohort and the raw-count withholding gate"
+    },
+    {
+      "decision": "test-first",
+      "command": "lib/test/test_implement_timeline.py",
+      "result": "RED then GREEN",
+      "evidence": "1 failure + 1 error for classify-before-status and the undecodable-bytes cause"
+    }
+  ],
+  "verification_evidence": {
+    "result": "pass",
+    "scope": "focused",
+    "commands": [
+      "lib/test/run-module.sh efficiency-trace-telemetry",
+      "lib/test/test_implement_timeline.py",
+      "lib/test/test_derive_run_profile.py",
+      "lib/test/test_implement_run_report.py",
+      "lib/test/test_implement_benchmark.py"
+    ],
+    "skipped_checks": [],
+    "note": "focused only; the whole-suite completion gate is the CI reading for the pushed head"
+  },
+  "convergence_inputs": {
+    "fixes_applied": 38,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false
+}

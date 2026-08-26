@@ -1,0 +1,660 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-26T20:22:50Z",
+  "loop_role": "fix",
+  "current_step": "2.5",
+  "current_substep": "promoted_iteration_2_entry",
+  "pending_dispatch": null,
+  "dispatch_mode": "fanned-out",
+  "fix_commit_sha": "c29b134b9798647e66d0605b2e7a45857cb09357",
+  "fix_files": [
+    ".changeset/issue-2006-implement-run-evaluation.md",
+    "lib/efficiency-trace.sh",
+    "lib/telemetry-branch.sh",
+    "lib/test/modules/efficiency-trace-telemetry.sh",
+    "lib/test/modules/experiment-records.sh",
+    "lib/test/run.sh",
+    "lib/test/test_implement_benchmark.py",
+    "lib/test/test_implement_run_report.py",
+    "lib/test/test_implement_timeline.py",
+    "scripts/derive-run-profile.py",
+    "scripts/implement-benchmark.py",
+    "scripts/implement-run-report.py",
+    "scripts/implement-timeline.py",
+    "scripts/implement_records.py",
+    "scripts/prepare-harness-floor.sh",
+    "scripts/prepare-run-profile.sh",
+    "scripts/workflow-flight-recorder-registry.json",
+    "skills/retrospective-weekly/SKILL.md"
+  ],
+  "base_checkpoint": {
+    "token": "UP_TO_DATE",
+    "behind_by": null
+  },
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.2.4",
+        "2.2.5",
+        "2.2.6",
+        "2.2.7"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b",
+        "2.3.0c",
+        "2.3.0d"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.1",
+        "2.3.2",
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a",
+        "2.3.4b",
+        "2.3.5",
+        "2.3.6",
+        "2.3.7"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0-changed-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0a-peer-checkpoint.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0a"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0b-enum-enumeration.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0b"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0c-operand-trace.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0c"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-7-collection-cardinality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.7"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "delta_shape": "modifies contracts (_emit sanitization, load_runs status channel, phase_shares completeness), adds guards, adds no enumerated-set member, deletes nothing",
+    "sweeps_run": [
+      "2.3.0",
+      "2.3.0a",
+      "2.3.0b",
+      "2.3.0c",
+      "2.3.3",
+      "2.3.4",
+      "2.3.4a",
+      "2.3.4b",
+      "2.3.5",
+      "2.3.6",
+      "2.3.7"
+    ],
+    "2.3.4b": "clean pass — zero rows, helper exit 0, producing diff emitted hunks (three coverage universals grounded by scoping first)",
+    "2.3.4a": "three false self-authored claims fixed rather than reworded away; one comment describing the retrospective's `||` guard reconciled after the mechanism became an `if`",
+    "3a_mechanism_resweep": "ran on the retrospective-append mechanism change; the implement-run-report.py comment naming the old `||` guard was the one stale describing comment and was corrected"
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh efficiency-trace-telemetry; lib/test/run-module.sh experiment-records; the four standalone lib/test/test_*.py files",
+    "result": "pass",
+    "skipped_checks": [],
+    "note": "focused, not whole-suite: this loop runs inside /prflow:implement, whose Phase 4.3 owns the whole-suite obligation exactly once — a pass paid at this loop's terminal would be made stale by every Phase 4 commit."
+  },
+  "test_first_gate": [
+    {
+      "decision": "test-first",
+      "command": "lib/test/run-module.sh efficiency-trace-telemetry",
+      "result": "RED then GREEN",
+      "evidence": "the three injection assertions failed against the unsanitized _emit before the fix and pass after"
+    },
+    {
+      "decision": "test-first",
+      "command": "lib/test/test_implement_run_report.py",
+      "result": "RED then GREEN",
+      "evidence": "5 errors + 1 failure for the not-yet-existing load_runs_with_status/default_store/phase_shares_with_completeness APIs and the share inflation"
+    },
+    {
+      "decision": "test-first",
+      "command": "lib/test/test_implement_benchmark.py",
+      "result": "RED then GREEN",
+      "evidence": "2 failures for the empty-prefix cohort and the raw-count withholding gate"
+    },
+    {
+      "decision": "test-first",
+      "command": "lib/test/test_implement_timeline.py",
+      "result": "RED then GREEN",
+      "evidence": "1 failure + 1 error for classify-before-status and the undecodable-bytes cause"
+    }
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "convergence_inputs": {
+    "fixes_applied": 38,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "telemetry": "unavailable",
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-26T21:35:00Z",
+    "reviewed_sha": "c29b134b9798647e66d0605b2e7a45857cb09357",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:type-design-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Critical",
+        "description": "scripts/implement-timeline.py composes the artifact name without the run-attempt suffix and passes it to `gh run download -n`, which matches exactly; every --run-id invocation misses, is classified expired, and exits 0 — AC4's retrievable-artifact clause is unreachable and the failure is success-shaped. The unit stub carries the same wrong name.",
+        "defect_signature": {
+          "file": "scripts/implement-timeline.py",
+          "line_range": [
+            90,
+            126
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 2
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Important",
+        "description": "_artifact_name_prefix's name and the module docstring's 'downloads the run's execution-transcript artifact' claim are false against the uploaders' actual artifact name; the _EXPIRED_MARKERS comment reinforces the misreading by treating 'no artifact matching' as evidence of expiry.",
+        "defect_signature": {
+          "file": "scripts/implement-timeline.py",
+          "line_range": [
+            88,
+            95
+          ],
+          "kind": "documented_falsehood"
+        },
+        "corroboration_count": 2
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Important",
+        "description": "AC10 unmet: docs/internal/improvement-loops/runtime-evaluations.md is not in the diff and documents none of the four added instruments (verified independently: zero occurrences of implement-timeline / implement-run-report / implement-benchmark / derive-run-profile).",
+        "defect_signature": {
+          "file": "docs/internal/improvement-loops/runtime-evaluations.md",
+          "line_range": null,
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Important",
+        "description": "AC1 fails whole-key: apply_run_profile_floor returns early on an empty DEVFLOW_RUN_PROFILE, so any of prepare-run-profile.sh's six warned no-profile branches leaves the record with no run_profile object at all — engine_outcome and prior_record_count, neither of which needs a workpad, are absent rather than recorded, and the workpad-sourced pair is absent rather than 'unestablished'.",
+        "defect_signature": {
+          "file": "lib/efficiency-trace.sh",
+          "line_range": [
+            1608,
+            1616
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Important",
+        "description": "AC4's per-step view is not rendered in the text channel: _render prints only 'Per-step records: N' plus an unestablished count, while the module docstring claims per-step output carries each call's duration. The data reaches --json only.",
+        "defect_signature": {
+          "file": "scripts/implement-timeline.py",
+          "line_range": [
+            268,
+            288
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Important",
+        "description": "prior_record_count is documented (floor header and the changeset) as counting prior IMPLEMENT records for the same issue, but the pr-<N>-*/issue-<N>-* basename match counts every record-deriving command class's records under the same key, so review runs on the same PR inflate it.",
+        "defect_signature": {
+          "file": "lib/efficiency-trace.sh",
+          "line_range": [
+            1531,
+            1534
+          ],
+          "kind": "documented_falsehood"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Important",
+        "description": "implement-benchmark.py's module docstring states the verdict is withheld when a cohort holds fewer than MIN_COHORT_RUNS runs, while withholding_reasons gates on established_durations — an eight-run cohort with three established durations withholds, which the documented rule does not predict.",
+        "defect_signature": {
+          "file": "scripts/implement-benchmark.py",
+          "line_range": [
+            13,
+            16
+          ],
+          "kind": "documented_falsehood"
+        },
+        "corroboration_count": 2
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "implement-timeline.py calls subprocess.run on the DEVFLOW_GH-resolved binary with no OSError guard; an absent or non-executable gh escapes as a raw traceback instead of the project's named remedy. Reproduced against HEAD. scripts/file-deferrals.py wraps the identical call for exactly this reason.",
+        "defect_signature": {
+          "file": "scripts/implement-timeline.py",
+          "line_range": [
+            109,
+            109
+          ],
+          "kind": "unhandled_exception"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "The --run-id arm reads the downloaded artifact bare while the --transcript arm wraps the same read in try/except OSError, so the same failure class is a one-line diagnostic on one path and a traceback on the other, with the temp path already gone.",
+        "defect_signature": {
+          "file": "scripts/implement-timeline.py",
+          "line_range": [
+            327,
+            327
+          ],
+          "kind": "unhandled_exception"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "prepare-run-profile.sh's `workpad.py body` arm sends stderr to /dev/null, collapsing auth failure, rate limit, 404 and JSON parse failure into one causeless warning — while every other arm in the same file preserves rc and stderr.",
+        "defect_signature": {
+          "file": "scripts/prepare-run-profile.sh",
+          "line_range": [
+            82,
+            86
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:type-design-analyzer",
+        "severity": "Important",
+        "description": "phase_durations_ms cannot represent a phase the parser never matched, so `complete` (len(established) == len(durations)) is True for a run measured on one phase — defeating the completeness flag exactly where it matters. Seed the map from PROGRESS_PHASES instead.",
+        "defect_signature": {
+          "file": "scripts/derive-run-profile.py",
+          "line_range": [
+            146,
+            205
+          ],
+          "kind": "type_design"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:type-design-analyzer",
+        "severity": "Important",
+        "description": "_TOP_LEVEL_RE transcribes the workpad row shape more narrowly than workpad.py's own _TOP_LEVEL_CHECKBOX_RE (no capital X tick, no `*` bullet), so those rows silently discard every timestamped note under them rather than reporting unestablished — in a module that deliberately imports the phase names to avoid this drift.",
+        "defect_signature": {
+          "file": "scripts/derive-run-profile.py",
+          "line_range": [
+            110,
+            110
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Suggestion",
+        "description": "The retrospective's 'trailing 4-week' window is four POPULATED buckets, not four calendar weeks, so a sparse store renders a mean over months and draws regression baselines from arbitrarily old windows — in a human-facing weekly report.",
+        "defect_signature": {
+          "file": "scripts/implement-run-report.py",
+          "line_range": [
+            128,
+            176
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 2
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "telemetry-branch.sh's local-wins fallback warning names harness_cost/permission_denials/run_profile but _DEVFLOW_TELEMETRY_FLOOR_KEYS_JSON also holds issue_number and no_pr_reason — the two keys that make a PR-less run identifiable — so the operator-facing text understates what may be reverted.",
+        "defect_signature": {
+          "file": "lib/telemetry-branch.sh",
+          "line_range": [
+            637,
+            637
+          ],
+          "kind": "documented_falsehood"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "prepare-run-profile.sh's header cites a CLAUDE.md inline-workflow-shell convention that CLAUDE.md does not carry; a maintainer sent there will not find the rule the file claims to obey.",
+        "defect_signature": {
+          "file": "scripts/prepare-run-profile.sh",
+          "line_range": [
+            5,
+            8
+          ],
+          "kind": "documented_falsehood"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "Both workflows' 'Emitted by prepare-harness-floor.sh' comment heads a three-variable block whose third member, DEVFLOW_RUN_PROFILE, comes from the separate prepare-run-profile.sh glue — sending a reader tracing an empty profile to the wrong producer. Mirror defect in devflow.yml.",
+        "defect_signature": {
+          "file": ".github/workflows/devflow-implement.yml",
+          "line_range": [
+            1856,
+            1858
+          ],
+          "kind": "comment_drift"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "implement-timeline.py's PHASE_PREFIX comment says the trailing slash prevents a PREFIX match, but _phase_from_read uses path.find() — a substring search anywhere in the path. The guarantee is real; the wording names the wrong operation, and the substring reach is itself unguarded.",
+        "defect_signature": {
+          "file": "scripts/implement-timeline.py",
+          "line_range": [
+            52,
+            57
+          ],
+          "kind": "comment_drift"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "Several added comment blocks in the library/script population exceed the three-line prevention-only cap and carry derivation or provenance rather than the wrong change they prevent (the run-profile section banner, _prior_implement_record_count's docstring cost derivation, the apply_pr_less_issue_floor banner).",
+        "defect_signature": {
+          "file": "lib/efficiency-trace.sh",
+          "line_range": [
+            1502,
+            1541
+          ],
+          "kind": "style"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "apply_run_profile_floor's merge arm (b) — attaching run_profile to a record already persisted on the telemetry branch for this run-id, the common cloud path — has no assertion at all, including its has(\"run_profile\") no-op and its unreadable-blob continue.",
+        "defect_signature": {
+          "file": "lib/efficiency-trace.sh",
+          "line_range": [
+            334,
+            356
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "_prior_implement_record_count is exercised only at its two sentinels (established 0, unestablished); the counting loop, the prefix match and the self-exclusion are untested, so an off-by-one that counts this run's own record would ship green.",
+        "defect_signature": {
+          "file": "lib/efficiency-trace.sh",
+          "line_range": [
+            242,
+            271
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "The PROFILE_GLUE guard block, the DEVFLOW_ENGINE_OUTCOME env line and the four env passthroughs are a new byte-identical coupled mirror across devflow-implement.yml and devflow.yml with no assertion reconciling them; drift would leave devflow.yml's implement path silently profile-less.",
+        "defect_signature": {
+          "file": ".github/workflows/devflow.yml",
+          "line_range": [
+            2560,
+            2589
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "_floor_merge_key_staged's already-carries-key and failed-merge arms, and the run-profile skeleton arm's pr-description / unknown-class gates, are unexercised — each produces the only breadcrumb evidence that a record lost a key.",
+        "defect_signature": {
+          "file": "lib/efficiency-trace.sh",
+          "line_range": [
+            204,
+            221
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "implement-benchmark.py's three store-status arms and render()'s unestablished-mean withholding branch have no test, and download_transcript's run-missing / generic-failure paths stop at the classifier rather than being driven end to end.",
+        "defect_signature": {
+          "file": "scripts/implement-benchmark.py",
+          "line_range": [
+            2582,
+            2612
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:type-design-analyzer",
+        "severity": "Suggestion",
+        "description": "is_reject is substring containment over free verdict text, so 'APPROVE (supersedes an earlier REJECT)' withholds a whole cohort; the repo's verdict identity is a producer-emitted APPROVE|REJECT token.",
+        "defect_signature": {
+          "file": "scripts/implement_records.py",
+          "line_range": [
+            1188,
+            1194
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:type-design-analyzer",
+        "severity": "Suggestion",
+        "description": "load_runs_with_status returns a stringly-typed union with an embedded payload re-parsed at four call sites, and both render functions default status=\"read\", letting a caller assert a clean read it never performed.",
+        "defect_signature": {
+          "file": "scripts/implement_records.py",
+          "line_range": [
+            1085,
+            1129
+          ],
+          "kind": "type_design"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:type-design-analyzer",
+        "severity": "Suggestion",
+        "description": "run_profile has two independent producers (two fields from the deriver, five from the jq assembler), no schema_version and no shared key declaration; the nested issue_number is written and read by nobody.",
+        "defect_signature": {
+          "file": "lib/efficiency-trace.sh",
+          "line_range": [
+            1655,
+            1675
+          ],
+          "kind": "type_design"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:type-design-analyzer",
+        "severity": "Suggestion",
+        "description": "The PR-less record is write-only in this diff: _collect_efficiency excludes any record carrying no_pr_reason from every PR's join, and load_runs reads only efficiency_runs, so no reporting surface can ever see a PR-less run's run_profile.",
+        "defect_signature": {
+          "file": "scripts/build-experiment-records.py",
+          "line_range": [
+            820,
+            831
+          ],
+          "kind": "type_design"
+        },
+        "corroboration_count": 1
+      }
+    ],
+    "phase2_fails": [
+      {
+        "id": "SH-1",
+        "verdict": "FAIL",
+        "evidence": "grep over docs/internal/improvement-loops/runtime-evaluations.md for implement-timeline / implement-run-report / implement-benchmark / derive-run-profile returns 0 occurrences; the file is not in the diff. AC10's documentation half is unmet.",
+        "file_checked": "docs/internal/improvement-loops/runtime-evaluations.md"
+      },
+      {
+        "id": "SH-2",
+        "verdict": "FAIL",
+        "evidence": "scripts/implement-timeline.py line 285 emits only `Per-step records: {len(timeline['steps'])}`; no per-step wall-clock total is rendered in the text channel, while the module docstring line 17 claims each step carries its duration. AC4's per-step clause is satisfied only in --json mode.",
+        "file_checked": "scripts/implement-timeline.py"
+      },
+      {
+        "id": "SH-3",
+        "verdict": "FAIL",
+        "evidence": "Both workflows upload `claude-execution-transcript-${{ github.run_id }}-${{ github.run_attempt }}` (devflow-implement.yml:1821, devflow.yml:2470) while scripts/implement-timeline.py:90/108 composes `claude-execution-transcript-{run_id}` and passes it to `gh run download -n`, an exact-name filter. AC4's retrievable-artifact clause cannot hold.",
+        "file_checked": "scripts/implement-timeline.py"
+      }
+    ],
+    "comparison": {
+      "shadow_total": 27,
+      "overlap_with_iter_N": 0,
+      "new": 27,
+      "new_critical": 1,
+      "new_important": 11
+    },
+    "promoted_to_iter_next": true,
+    "note": "the shadow disclosed that its Phase 2 ran in REDUCED form — it verified the decision-relevant claims directly rather than dispatching ~89 verifier agents, recorded 3 FAILs, and reported no unverified item as a pass. Recorded as a disclosed deviation, not laundered as a clean checklist axis."
+  },
+  "synthesized": false
+}
