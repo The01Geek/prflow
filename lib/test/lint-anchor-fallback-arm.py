@@ -112,6 +112,11 @@ ENROLLED: tuple[tuple[str, str], ...] = (
     # as the four #1432 rows above, so the vendored-literal-first arm must stay present.
     ("skills/docs-bootstrap-internal/SKILL.md",
      "load-prompt-extension.sh docs-bootstrap-internal"),
+    # Enrolled with the docs-router hardening pass: the router runs inside implement
+    # Phase 4.1's docs subagent, which receives no $CLAUDE_SKILL_DIR — the same
+    # unresolvable-anchor case as the #1432 rows — so its extension load carries the
+    # vendored-literal-first arm with the anchor as fallback.
+    ("skills/docs/SKILL.md", "load-prompt-extension.sh docs"),
 )
 
 #: The portable source anchor prefix (issue #275), byte-identical to the ``lpe-coverage``
