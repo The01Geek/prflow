@@ -576,10 +576,18 @@ def cmd_record_fingerprint(args: argparse.Namespace) -> int:
     dest = out_dir / "fingerprint.json"
     reason = ""
     try:
+        # Bound the fingerprint helper: it shells out to several git commands, and under
+        # this repo's worktree concurrency a held index.lock could hang one indefinitely —
+        # which `|| :` at the call site cannot rescue, since it swallows the exit code, not
+        # wall-clock. A timeout writes the unestablished record and never stalls the launch.
         proc = subprocess.run(
-            _fingerprint_helper_cmd(), capture_output=True, text=True, check=False
+            _fingerprint_helper_cmd(),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
         )
-    except OSError as error:
+    except (OSError, subprocess.TimeoutExpired) as error:
         reason = f"could not run the checkout-fingerprint helper ({error})"
     else:
         if proc.returncode == 0 and _established_fingerprint(proc.stdout.strip()):

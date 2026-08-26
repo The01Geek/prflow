@@ -1469,6 +1469,21 @@ PSR_SH_TALLY="$PSR_FP/shard-tally-out"
     bash lib/test/run-shard.sh monolith >/dev/null 2>&1 )
 assert_eq "psr fp: run-shard.sh records a fingerprint in its retained tally dir" "yes" \
   "$([ -f "$PSR_SH_TALLY/fingerprint.json" ] && echo yes || echo no)"
+assert_eq "psr fp: run-shard.sh's recorded fingerprint is the established launch tree's" "yes" \
+  "$(case "$(cat "$PSR_SH_TALLY/fingerprint.json" 2>/dev/null)" in *'"head":"aaaaaaaa'*) echo yes ;; *) echo no ;; esac)"
+
+# Default-helper + producer coupling (issue #2008): with NO override, record-fingerprint must run
+# the real scripts/checkout-fingerprint.py over this actual git checkout and write an established
+# record, and that producer must emit EXACTLY the five fields _FINGERPRINT_FIELDS compares — a
+# sixth producer field silently ignored by same-tree-eligible would judge two different trees
+# ELIGIBLE (a false green at the completion gate).
+PSR_FP_DEFAULT="$PSR_FP/rec-default"
+python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_DEFAULT" >/dev/null 2>&1
+assert_eq "psr fp: record-fingerprint with the DEFAULT helper writes an established record from the real producer" "yes" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_FP_DEFAULT/fingerprint.json" --fresh "$PSR_FP_DEFAULT/fingerprint.json" >/dev/null 2>&1 && echo yes || echo no)"
+assert_eq "psr fp: checkout-fingerprint.py emits exactly the five coupled fields" \
+  "checkout_id head index_digest tracked_digest untracked_digest" \
+  "$(python3 "$LIB/../scripts/checkout-fingerprint.py" 2>/dev/null | python3 -c 'import json,sys; print(" ".join(sorted(json.load(sys.stdin))))' 2>/dev/null)"
 
 # AC7: same-tree-eligible — identical fingerprints are ELIGIBLE; a single differing field or an
 # absent/unestablished recorded fingerprint is refused (fail-closed).
@@ -1489,6 +1504,11 @@ assert_eq "psr fp: an absent recorded fingerprint refuses the same-tree relaunch
   "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/does-not-exist.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
 assert_eq "psr fp: an unestablished recorded fingerprint is refused too (rc 1)" "1" \
   "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_FP_UN/fingerprint.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+# The fresh side fails closed identically — an absent or unestablished FRESH fingerprint refuses.
+assert_eq "psr fp: an absent fresh fingerprint refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/does-not-exist.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: the fresh-side refusal names the fresh fingerprint" "yes" \
+  "$(case "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_FP_UN/fingerprint.json" 2>&1)" in *"fresh fingerprint"*) echo yes ;; *) echo no ;; esac)"
 
 # AC6: the same-tree recombination combines tallies from TWO different run roots and fails
 # closed, NAMING the shard, on a missing or a duplicated shard of the required partition.
