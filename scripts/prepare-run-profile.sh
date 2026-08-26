@@ -72,8 +72,22 @@ ID_OUT="${OUT}.id"
 ID_ERR="${OUT}.iderr"
 ID_RC=0
 python3 "$WORKPAD" id "$ISSUE" > "$ID_OUT" 2> "$ID_ERR" || ID_RC=$?
-COMMENT_ID="$(cat "$ID_OUT" 2>/dev/null)"
-if [ "$ID_RC" -eq 2 ] && grep -q '^usage:' "$ID_ERR" 2>/dev/null; then
+COMMENT_ID=""
+while IFS= read -r _line || [ -n "$_line" ]; do
+  COMMENT_ID="$_line"
+done < "$ID_OUT" 2>/dev/null
+
+# Builtins only: `grep` is not preflight-guaranteed, and an absent one makes this test
+# false, which routes an older-vendored-helper usage error to the "no workpad comment"
+# arm and sends the reader looking for a comment that exists.
+ID_ERR_IS_USAGE=no
+while IFS= read -r _line || [ -n "$_line" ]; do
+  case "$_line" in
+    usage:*) ID_ERR_IS_USAGE=yes ;;
+  esac
+done < "$ID_ERR" 2>/dev/null
+
+if [ "$ID_RC" -eq 2 ] && [ "$ID_ERR_IS_USAGE" = yes ]; then
   echo "::warning::prepare-run-profile: $WORKPAD rejected the 'id' subcommand (a vendored tree pinned to an older prflow_version); no run profile derived this run" >&2
   rm -f "$ID_OUT" "$ID_ERR" 2>/dev/null
   exit 0
