@@ -33,12 +33,7 @@ Invoke it as a direct leading token, the vendored literal
 (`.prflow/vendor/prflow/scripts/prompt-surface-growth.py`) FIRST, falling back to the
 repo-relative `scripts/prompt-surface-growth.py` only where that path does not resolve:
 the repo-relative spelling is granted in no cloud profile, so leading with it spends a
-denial before the working form is reached. Do not re-add a claim that the interpreter-head
-`python3 <path>` form is denied for this helper: cloud implement runs 32957163134 and
-32936014504 each ran `python3 scripts/prompt-surface-growth.py` to a result under the
-granted `Bash(python3:*)` head, so steering away from it costs a denial for nothing. That
-measurement scopes this helper alone and settles nothing about the interpreter head in
-general, which only `.github/workflows/matcher-probe.yml` can.
+denial before the working form is reached.
 
 stdlib-only; shells out to `git` alone, honoring a non-probing `DEVFLOW_GIT` override
 in the same shape `scripts/checkout-fingerprint.py` uses (`git` is a hard preflight
