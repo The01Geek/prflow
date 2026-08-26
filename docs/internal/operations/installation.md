@@ -25,7 +25,7 @@ Installation has two distinct responsibilities: making the local command availab
 - `skills/init/SKILL.md` and `scripts/scaffold-config.sh` — local initialization and configuration scaffolding.
 - `.prflow/config.example.json` and `.prflow/config.schema.json` — configuration defaults and schema.
 - `.github/actions/vendor-plugin/` — cloud materialization.
-- `docs/internal/install.md` — detailed installer and migration evidence.
+- [`docs/internal/install.md`](../install.md) — detailed installer and migration evidence.
 
 ## Related topics
 

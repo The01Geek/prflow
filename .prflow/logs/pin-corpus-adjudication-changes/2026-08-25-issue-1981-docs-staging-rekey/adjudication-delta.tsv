@@ -1,0 +1,3 @@
+adjudication_key	base_state	current_state
+site:4051916a01d99a4851a314985e4c76346a18a7388bbb515b1d7896485747720d	null	"[""boundary"",""maintainer adjudication: configured documentation key is a Phase 4 staging boundary""]"
+site:7e37a4f8abce03f059b35edd5b60b227353bcf429b7aea801da9fd41b192fbe9	"[""boundary"",""maintainer adjudication: configured documentation key is a Phase 4 staging boundary""]"	null

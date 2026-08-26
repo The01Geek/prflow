@@ -7375,9 +7375,13 @@ assert_pin_unique "#484 final-pass reviewer does not emit unavailable worktree/m
 assert_pin_unique "#484 final-pass reviewer reports a mutation-evidence limitation instead of silently retrying" \
   'report the verification limitation to the orchestrator instead' "$E484_FINAL_PASS"
 E484_PHASE4="$LIB/../skills/implement/phases/phase-4-documentation.md"
-for docs_key in .docs.internal .docs.external .docs.release_notes_file .docs.changelog_file; do
-  assert_pin_unique "#484 docs staging reads configured key $docs_key" \
-    "config-get.sh $docs_key" "$E484_PHASE4"
+# Each pin carries the key AND its default: the bare-key literal `.docs.external`
+# is a substring of `.docs.external_enabled`, so a key-only pin double-counts.
+for docs_pin in '.docs.internal docs/internal/' '.docs.external docs/external/' \
+  '.docs.external_enabled true' '.docs.release_notes_file docs/external/release-notes.md' \
+  '.docs.changelog_file CHANGELOG.md'; do
+  assert_pin_unique "#484 docs staging reads configured key ${docs_pin%% *}" \
+    "config-get.sh $docs_pin" "$E484_PHASE4"
 done
 
 # Disposable-mutant regression: drop the grant TOKEN (not the whole TOOLS line) from a
@@ -55073,6 +55077,20 @@ assert_eq "#1621 ruff-pin matrix: a directory operand fails closed to a sentinel
 
 rm -rf "$RUFF_MTX_DIR"
 unset -f devflow_ruff_pin
+
+# ── internal-docs structure lint (lib/test/lint-internal-docs.py) ──
+# Baseline-tolerant by design: it fails only on a violation absent from
+# lib/test/internal-docs-baseline.json, and a stale baseline entry is an advisory —
+# so a docs-corpus repair and this gate can land in either order without one
+# turning the other red. Do not tighten stale entries to failures here; regenerate
+# the baseline with --write-baseline after a repair instead.
+ID_LINT="$LIB/test/lint-internal-docs.py"
+ID_ST_OUT="$(python3 "$ID_LINT" --self-test 2>&1)"; ID_ST_RC=$?
+assert_eq "internal-docs lint: self-test passes" "rc=0" \
+  "$([ "$ID_ST_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$ID_ST_RC" "$ID_ST_OUT")"
+ID_OUT="$(cd "$LIB/.." && python3 "$ID_LINT" 2>&1)"; ID_RC=$?
+assert_eq "internal-docs lint: no NEW structure violation on the tree as it stands" "rc=0" \
+  "$([ "$ID_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$ID_RC" "$ID_OUT")"
 
 # ────────────────────────────────────────────────────────────────────────────
 PASS=$(grep -c '^PASS$' "$RESULTS_FILE" || true)

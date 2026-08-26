@@ -24,8 +24,8 @@ Agents need enough write access to record their authorized artifacts, but broad 
 - `.github/workflows/devflow.yml`, `.github/workflows/devflow-implement.yml`, and `.github/workflows/devflow-runner.yml` — tier-specific workflow permissions.
 - `lib/capability-profiles.json` and `lib/generate-capability-profiles.py` — generated command grants.
 - `lib/test/extract-command-heads.py` and `lib/test/extract-command-shapes.py` — desk-time grant and shape guards.
-- `docs/internal/subagent-write-probe.observed.md` — write-probe evidence.
-- `docs/internal/operations/command-permissions.md` — shared command boundary.
+- [`docs/internal/subagent-write-probe.observed.md`](../subagent-write-probe.observed.md) — write-probe evidence.
+- [`docs/internal/operations/command-permissions.md`](../operations/command-permissions.md) — shared command boundary.
 
 ## Related topics
 

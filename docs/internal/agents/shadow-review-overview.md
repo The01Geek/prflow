@@ -24,7 +24,7 @@ The primary loop can share assumptions with the agent that made or fixed the cha
 - `skills/review-and-fix/SKILL.md` and `skills/review-and-fix/references/` — loop and shadow dispatch contracts.
 - `.prflow/prompt-extensions/review-and-fix.md` — repository-specific shadow constraints.
 - `agents/` — reviewer definitions used by the primary and shadow surfaces.
-- `docs/internal/shadow-review.md` — detailed mechanism, calibration, and cost evidence.
+- [`docs/internal/shadow-review.md`](../shadow-review.md) — detailed mechanism, calibration, and cost evidence.
 
 ## Related topics
 

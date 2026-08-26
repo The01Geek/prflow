@@ -30,7 +30,7 @@ Separating setup, implementation, review, and documentation keeps each phase's g
 - `skills/implement/phases/` — phase procedures and handoffs.
 - `scripts/workpad.py` — durable workpad operations.
 - `scripts/phase2-durability-checkpoint.sh` and `scripts/update-branch-checkpoint.sh` — state and branch checkpoints.
-- `docs/internal/implement-skill.md` — detailed sweep, verification, and finalization evidence.
+- [`docs/internal/implement-skill.md`](../implement-skill.md) — detailed sweep, verification, and finalization evidence.
 
 ## Related topics
 

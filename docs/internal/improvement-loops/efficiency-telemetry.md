@@ -25,7 +25,7 @@ The improvement loop needs evidence about which review steps found unique defect
 - `skills/review-and-fix/SKILL.md` — per-iteration recording obligations.
 - `.prflow/config.schema.json` — telemetry configuration.
 - `scripts/build-experiment-records.py` — unified experiment records.
-- `docs/internal/efficiency-trace.md` — detailed schema and evidence.
+- [`docs/internal/efficiency-trace.md`](../efficiency-trace.md) — detailed schema and evidence.
 
 ## Related topics
 

@@ -2,6 +2,10 @@
 schema: 1
 kind: growth
 ---
+# Issue #749 — step1 right sizing growth (historical record)
+
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 
 ## Files
 

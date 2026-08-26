@@ -18,6 +18,10 @@ Provide a complete understanding of how a specific feature works by tracing its 
 
 ## Analysis Approach
 
+**0. Documentation-First Orientation**
+- If the dispatching prompt names a documentation root, index, or specific documentation pages, read that index (or the named pages) first and use it to route the rest of this analysis — a map read up front replaces exploration you would otherwise spend rediscovering the system's layout
+- Documentation is a map, not evidence: verify any documentation claim you rely on against the source — the code is authoritative where they disagree
+
 **1. Feature Discovery**
 - Find entry points (APIs, UI components, CLI commands)
 - Locate core implementation files

@@ -2,6 +2,10 @@
 schema: 1
 kind: growth
 ---
+# Issue #576 — branch state preflight growth (historical record)
+
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 
 ## Files
 

@@ -24,7 +24,7 @@ Internal pages contain implementation evidence and rationale for coding agents. 
 - `docs/external/docs.json` — public navigation and site configuration.
 - `docs/external/index.mdx` and `docs/external/docs/` — public pages.
 - `.github/workflows/ci.yml` and `lib/test/run.sh` — the CI entrypoint and executable documentation/site validation guards.
-- `docs/internal/mintlify-publishing.md` — internal publishing contract.
+- [`docs/internal/mintlify-publishing.md`](../mintlify-publishing.md) — internal publishing contract.
 - [Documentation workflows](../skills/documentation.md) — internal/external ownership boundary.
 
 ## Related topics

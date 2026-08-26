@@ -5,6 +5,8 @@ kind: growth
 
 # Issue #693 — issue-body cache: mandatory-prose growth
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 This records the audited mandatory-surface growth the issue-body cache ships, per the
 "Prose cutover" procedure in `.prflow/prompt-extensions/implement.md`. The change adds
 operative decision logic (a new cache producer, an ignore precondition, a content check,
