@@ -1,5 +1,7 @@
 # PRFlow execution model
 
+<!-- verified-against: 26c9ad96d 2026-08-25 -->
+
 This page explains the boundaries that shape how PRFlow runs. Read it before changing tier selection, workpad state, branch transitions, cloud trust, or completion evidence.
 
 ## Current behavior
@@ -25,14 +27,14 @@ The cloud boundary keeps untrusted pull-request content from silently choosing p
 
 ## Source of truth
 
-- `skills/implement/phases/phase-1-setup.md`, `skills/implement/phases/phase-2-implement.md`, and `skills/implement/phases/phase-4-documentation.md` — implement-phase orchestration.
+- `skills/implement/phases/` — implement-phase orchestration, one file per phase surface: `phase-1-setup.md`, `phase-2-implement.md` with the `phase-2-sweeps-contract.md` and `phase-2-sweeps-quality.md` sweep contracts, `phase-3-review.md`, `phase-3-fix-loop.md`, `phase-3-ac-gate.md`, and `phase-4-documentation.md`; `skills/implement/references/` holds the predicate-gated references those phases load.
 - `skills/review/SKILL.md` and `skills/review-and-fix/SKILL.md` — review execution and loop behavior.
 - `scripts/workpad.py` — workpad state and durable record operations.
 - `scripts/update-branch-checkpoint.sh` — branch checkpoint behavior.
 - `scripts/verification-flight.py` — verification-flight state and evidence.
 - `.github/workflows/devflow.yml` and `.github/workflows/devflow-implement.yml` — cloud execution paths.
-- `docs/internal/operations/working-directory.md` — working-directory contract.
-- `docs/internal/operations/command-permissions.md` — command grant and shape contract.
+- [`docs/internal/operations/working-directory.md`](../operations/working-directory.md) — working-directory contract.
+- [`docs/internal/operations/command-permissions.md`](../operations/command-permissions.md) — command grant and shape contract.
 
 ## Related topics
 

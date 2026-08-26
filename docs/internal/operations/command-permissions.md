@@ -26,7 +26,7 @@ The permission boundary is both a security control and a runtime contract. Testi
 - `lib/test/extract-command-heads.py` and `lib/test/extract-command-shapes.py` — command guards.
 - `lib/test/run.sh` — profile and prompt-surface checks.
 - `.github/workflows/devflow.yml`, `.github/workflows/devflow-implement.yml`, and `.github/workflows/devflow-runner.yml` — tier grants.
-- `docs/internal/cloud-allowlist.md` — probe tables and detailed rationale.
+- [`docs/internal/cloud-allowlist.md`](../cloud-allowlist.md) — probe tables and detailed rationale.
 
 ## Related topics
 

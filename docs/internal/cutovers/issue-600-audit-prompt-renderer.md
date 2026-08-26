@@ -2,6 +2,10 @@
 schema: 1
 kind: cutover
 ---
+# Issue #600 — audit prompt renderer (historical record)
+
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 
 ## Files
 

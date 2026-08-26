@@ -1,5 +1,7 @@
 # Internal documentation architecture
 
+<!-- verified-against: 26c9ad96d 2026-08-25 -->
+
 > Status: approved design, 2026-08-12.
 
 ## Purpose
@@ -35,6 +37,13 @@ The internal documentation uses one level of domain directories under `docs/inte
 | `cutovers/` | Historical implementation records and migration evidence | Current normative behavior; canonical pages must summarize the current result and link here for history |
 
 There is deliberately no `decisions/` category. A design decision belongs with the behavior it governs so that an agent can read the current mechanism and its rationale together.
+
+## File-naming conventions
+
+- Filenames are lowercase-with-hyphens; `DEVFLOW_SYSTEM_OVERVIEW.md` is the single legacy exception, kept because machine readers pin its exact path.
+- A `.private.md` suffix means the file is untracked and never published: `.gitignore` excludes `*.private.md`, so such a file exists only in the checkout that created it.
+- A `.observed.md` suffix means the file is a raw observed artifact — machine output from a probe run copied verbatim and kept as durable evidence (the sibling convention `*.observed.txt` is used under `lib/test/fixtures/`). Do not edit its content; supersede it with a new capture.
+- One basename must not exist in two directories: an agent retrieving by filename gets two hits and no signal about which is current.
 
 ## Canonical page contract
 
@@ -87,9 +96,11 @@ Validation covers:
 - Historical pages remain clearly labeled as historical and do not present stale behavior as current.
 - The internal documentation root remains separate from `docs/external/`, which is customer-facing output.
 
-## Initial migration map
+## Initial migration map (historical snapshot, 2026-08-12)
 
-The existing corpus supplies the first migration set:
+This map records the migration set as planned when the restructure landed on 2026-08-12. It is a historical snapshot, not a current inventory: flat-root records added since that date (among them `skill-body-load-delivery.md`, `universal-criteria-grading-spike.md`, `advisory-adjudication-calibration.md`, `review-context.md`, `implement-context.md` follow-ups, and the `claude-md-extension-audit-*.md` records) entered the corpus outside it. The root `index.md` is the current inventory.
+
+The existing corpus supplied the first migration set:
 
 - `create-issue-context.md`, `implement-skill.md`, and `implement-context.md` remain as deep or machine-read records while focused pages under `skills/` and `improvement-loops/` become the agent-facing entry points.
 - `shadow-review.md`, `review-agent-overrides.md`, `agents-seam-probe.md`, `execution-file-shape.md`, and `subagent-write-probe.observed.md` remain available as evidence records while focused pages under `agents/` become the agent-facing entry points.

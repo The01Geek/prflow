@@ -27,11 +27,11 @@ Independent checklist generation, specialized review, mechanical corroboration, 
 - `skills/review/phases/` — phase and verdict procedures.
 - `agents/` — review-agent definitions.
 - `scripts/derive-review-verdict.sh`, `scripts/seed-review-progress.sh`, and `scripts/post-review-verdict.sh` — verdict and progress artifacts.
-- `docs/internal/agents/review-agents.md` and `docs/internal/agents/shadow-review.md` — agent behavior and independent shadow coverage.
+- [`docs/internal/agents/review-agents.md`](../agents/review-agents.md) and [`docs/internal/agents/shadow-review-overview.md`](../agents/shadow-review-overview.md) — agent behavior and independent shadow coverage.
 
 ## Related topics
 
 - [Review-and-fix](review-and-fix.md)
 - [Review agents](../agents/review-agents.md)
-- [Shadow review](../agents/shadow-review.md)
+- [Shadow review](../agents/shadow-review-overview.md)
 - [Command permissions](../operations/command-permissions.md)

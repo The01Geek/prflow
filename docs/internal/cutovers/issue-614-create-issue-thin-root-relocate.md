@@ -2,6 +2,10 @@
 schema: 1
 kind: relocate
 ---
+# Issue #614 — create issue thin root relocate (historical record)
+
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 
 ## Source rows
 

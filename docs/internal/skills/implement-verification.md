@@ -25,8 +25,8 @@ Focused checks make iteration practical, but they cover only the selected surfac
 - `scripts/verification-flight.py` — single-flight state and records.
 - `scripts/check-completion-evidence.py` — completion-evidence validation.
 - `lib/test/run.sh`, `lib/test/run-parallel.sh`, and `lib/test/run-module.sh` — suite and focused-check entry points.
-- `docs/internal/implement-skill.md` — detailed gate and sweep evidence.
-- `docs/internal/operations/verification-policy.md` and `docs/internal/claude-md-tiered-suite-rationale.md` — tiered suite-running policy and rationale.
+- [`docs/internal/implement-skill.md`](../implement-skill.md) — detailed gate and sweep evidence.
+- [`docs/internal/operations/verification-policy.md`](../operations/verification-policy.md) and [`docs/internal/claude-md-tiered-suite-rationale.md`](../claude-md-tiered-suite-rationale.md) — tiered suite-running policy and rationale.
 
 ## Related topics
 
