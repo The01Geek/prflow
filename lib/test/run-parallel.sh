@@ -16,8 +16,10 @@
 # prints a compact aggregate. It is the single agent-facing command shape:
 #
 #   lib/test/run-parallel.sh            run the suite in parallel, print the aggregate
-#   lib/test/run-parallel.sh --preflight  run ONLY the read-only generated-artifact drift
-#                                         preflight, launch no shard, exit with its verdict
+#   lib/test/run-parallel.sh --preflight  run ONLY the read-only pre-launch checks (the
+#                                         generated-artifact drift preflight, then the
+#                                         cheap-lint gates), launch no shard, exit with
+#                                         their verdict
 #   lib/test/run-parallel.sh --help     this header
 #
 # `--preflight` exists for the #1132 shard-decomposition route: when the tier terminates the
@@ -211,6 +213,51 @@ _artifact_preflight() {
   return 0
 }
 
+# ── Cheap-lint gate — definition (read-only; fail-fast before any shard) ─────
+# Verdict contract, as `_artifact_preflight`: refuse ONLY on a positively-attributed
+# finding, fail OPEN on anything leaving the check unusable. A clean gate is SILENT.
+#
+# Never key the refusal on the exit code: a Python traceback exits 1 exactly as a finding
+# does, so the comparand is each lint's own completion sentinel, matched at the START of a
+# line so the same text quoted inside an indented diagnostic row stays data.
+#
+# COUPLED CONTRACT — edit with the two lints: the sentinel literals below are their
+# `audited N of M files` completion lines, and are the ONLY thing read here.
+_cheap_lint_run() { # <label> <sentinel-prefix> <command string>
+  local label="$1" sentinel="$2"; shift 2
+  local cmd="$*" out rc line attributed
+  [ -n "$cmd" ] || return 0
+  # shellcheck disable=SC2086  # deliberate word-split: a command plus its argument(s)
+  out="$($cmd 2>&1)"
+  rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  attributed=0
+  while IFS= read -r line; do
+    case "$line" in
+      "$sentinel"*) attributed=1; break ;;
+    esac
+  done <<< "$out"
+  if [ "$attributed" -eq 1 ]; then
+    printf '%s\n' "$out" >&2
+    printf 'run-parallel: the %s cheap-lint gate reported findings (see above); launching no shard — fix them and re-run\n' "$label" >&2
+    return 1
+  fi
+  printf 'run-parallel: WARNING: the %s cheap-lint gate was inconclusive (exit %s, no completion sentinel); proceeding\n' "$label" "$rc" >&2
+  [ -z "$out" ] || printf '%s\n' "$out" >&2
+  return 0
+}
+
+# Returns 0 to PROCEED, 1 on the first positively-attributed finding; a refusal
+# short-circuits so a second gate's output cannot bury the one that fired.
+# Keep `-` (never `:-`) below, or an explicitly-empty override stops disabling its gate.
+_cheap_lint_preflight() {
+  _cheap_lint_run 'reference-size' 'lint-reference-size: audited ' \
+    "${DEVFLOW_REFERENCE_SIZE_PREFLIGHT-python3 $SCRIPT_DIR/lint-reference-size.py}" || return 1
+  _cheap_lint_run 'brand-sweep' 'lint-brand-devflow-sweep: audited ' \
+    "${DEVFLOW_BRAND_SWEEP_PREFLIGHT-python3 $SCRIPT_DIR/lint-brand-devflow-sweep.py}" || return 1
+  return 0
+}
+
 # The refusal message is identical on both routes, so it is spelled once. `die` exits 2.
 _refuse_on_drift() {
   die "generated-artifact preflight reported drift (see above); launching no shard — regenerate the artifact(s) under their governing policy and re-run"
@@ -225,6 +272,10 @@ case "${1-}" in
     # coordinator applies — 0 to proceed (clean or fail-open inconclusive), non-zero (via
     # die) on a positively-attributed drift. The route names this before its shard loop.
     _artifact_preflight || _refuse_on_drift
+    # The same cheap-lint gates the coordinator applies, so a decomposed whole-suite result
+    # carries the identical pre-launch verdict rather than rediscovering a sub-second
+    # finding across the full shard partition.
+    _cheap_lint_preflight || exit 2
     exit 0
     ;;
   --help|-h)
@@ -290,6 +341,9 @@ done
 # names) runs the sub-second read-only drift check before a single shard launches, and
 # the coordinator refuses to launch on a positively-attributed drift.
 _artifact_preflight || _refuse_on_drift
+# The cheap-lint gates run next, still before a single shard launches: both are read-only
+# and sub-second, and either firing means the coordinator would have gone RED anyway.
+_cheap_lint_preflight || exit 2
 
 # ── Run root ─────────────────────────────────────────────────────────────────
 # Fresh per invocation, so a stale sibling's tally directory can never be mistaken

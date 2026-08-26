@@ -1165,4 +1165,243 @@ assert_eq "#1288 --preflight: an empty override emits no preflight output" "yes"
 assert_eq "#1288 --preflight: a second argument is refused by the arity guard" "yes" \
   "$(cd "$PSR_PT" && case "$(bash lib/test/run-parallel.sh --preflight extra 2>&1)" in *"at most one argument"*) echo yes ;; *) echo no ;; esac)"
 
+
+# ── Cheap-lint gate preflight (fail-fast before the coordinator) ─────────────
+# Contract under test: fail closed on an attributed finding, fail OPEN on anything that
+# leaves a lint unusable, with the completion sentinel — not the exit code — as the
+# comparand, matched at the start of a line. Keep the crash and quoted-sentinel controls:
+# without them a comparand keyed on the exit code alone would still pass.
+PSR_CL_CLEAN_RSZ="$(psr_plant_preflight cl-clean-rsz 0 \
+  "lint-reference-size: audited 41 of 41 files [whole-tree]")"
+PSR_CL_FIND_RSZ="$(psr_plant_preflight cl-find-rsz 1 \
+  "skills/review-and-fix/references/shadow-review.md: 62810 bytes exceeds the 61750-byte ceiling — trim the file to at most 61750 bytes" \
+  "lint-reference-size: audited 41 of 41 files [whole-tree]")"
+PSR_CL_CRASH_RSZ="$(psr_plant_preflight cl-crash-rsz 1 \
+  "Traceback (most recent call last):" \
+  "RuntimeError: boom")"
+PSR_CL_QUOTED_RSZ="$(psr_plant_preflight cl-quoted-rsz 1 \
+  "    output: lint-reference-size: audited 41 of 41 files [whole-tree]" \
+  "Traceback (most recent call last):")"
+PSR_CL_EXIT2_RSZ="$(psr_plant_preflight cl-exit2-rsz 2 \
+  "lint-reference-size: cannot read exemption record: boom")"
+PSR_CL_CLEAN_BDS="$(psr_plant_preflight cl-clean-bds 0 \
+  "lint-brand-devflow-sweep: audited 900 of 900 files")"
+PSR_CL_FIND_BDS="$(psr_plant_preflight cl-find-bds 1 \
+  "lint-brand-devflow-sweep: audited 900 of 900 files" \
+  "  docs/new.md: brand-cased prose in a file with no pending_sweep_baseline entry")"
+
+# A clean pair proceeds, launches the shards, and stays SILENT — the established contract.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a clean pair exits 0" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: a clean pair launches the shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a clean pair emits no gate output" "yes" \
+  "$(case "$PSR_CL_OUT" in *"cheap-lint gate"*) echo no ;; *) echo yes ;; esac)"
+
+# A reference-size finding refuses BEFORE any shard launches, names the gate, and echoes
+# the finding.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_FIND_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a reference-size finding exits non-zero" "yes" \
+  "$([ "$PSR_CL_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate: a reference-size finding launches NO shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+assert_eq "cheap-lint gate: a reference-size finding names the failing gate" "yes" \
+  "$(case "$PSR_CL_OUT" in *"reference-size"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a reference-size finding names the remedy" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launching no shard"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a reference-size finding echoes the finding line" "yes" \
+  "$(case "$PSR_CL_OUT" in *"exceeds the 61750-byte ceiling"*) echo yes ;; *) echo no ;; esac)"
+
+# The same contract on the second lint: the gate is a SET, not one hardcoded lint.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_FIND_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a brand-sweep finding exits non-zero" "yes" \
+  "$([ "$PSR_CL_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate: a brand-sweep finding launches NO shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+assert_eq "cheap-lint gate: a brand-sweep finding names its own gate" "yes" \
+  "$(case "$PSR_CL_OUT" in *"brand-sweep"*) echo yes ;; *) echo no ;; esac)"
+
+# A crashing lint (traceback, exit 1, NO completion sentinel) must NOT block the suite: an
+# unusable check fails OPEN, exactly as the artifact preflight does.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CRASH_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a crashing lint still exits 0 (decided by the shards)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: a crashing lint still launches the shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a crashing lint is reported inconclusive, never a refusal" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launching no shard"*) echo no ;; *"was inconclusive (exit 1"*) echo yes ;; *) echo no ;; esac)"
+
+# The sentinel is matched at the START of a line: the same text quoted inside an indented
+# diagnostic is data, so a crash that happens to echo it must still fail OPEN.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_QUOTED_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a sentinel quoted inside a diagnostic does NOT refuse (exit 0)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: a sentinel quoted inside a diagnostic refuses nothing by name" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launching no shard"*) echo no ;; *) echo yes ;; esac)"
+
+# An exit-2 record error carries no completion sentinel either — warn and proceed.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_EXIT2_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: an exit-2 record error proceeds (exit 0)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: an exit-2 record error warns rather than blocks" "yes" \
+  "$(case "$PSR_CL_OUT" in *"was inconclusive (exit 2"*) echo yes ;; *) echo no ;; esac)"
+
+# An empty override disables that gate entirely, the documented escape hatch the artifact
+# preflight also offers.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="" DEVFLOW_BRAND_SWEEP_PREFLIGHT="" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: an empty override disables the gate (exit 0)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: an empty override emits no gate output" "yes" \
+  "$(case "$PSR_CL_OUT" in *"cheap-lint gate"*) echo no ;; *) echo yes ;; esac)"
+
+# The artifact preflight still decides FIRST: a drift refusal is reported even when a cheap
+# lint would also have fired, so the cheaper gate cannot mask the existing one.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_DRIFT" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_FIND_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: artifact drift still refuses first" "yes" \
+  "$(case "$PSR_CL_OUT" in *"generated-artifact preflight reported drift"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: artifact drift refusal launches no shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+
+# ── Cheap-lint gate on the standalone --preflight route ──────────────────────
+# The #1132 decomposition route must carry the SAME cheap gates, or a run that decomposes
+# into shards keeps paying the whole partition to discover a sub-second finding.
+PSR_CLO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_CLO_RC=$?
+assert_eq "cheap-lint gate --preflight: a clean pair exits 0" "0" "$PSR_CLO_RC"
+assert_eq "cheap-lint gate --preflight: a clean pair launches no shard" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+
+PSR_CLO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_FIND_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_CLO_RC=$?
+assert_eq "cheap-lint gate --preflight: a finding exits non-zero" "yes" \
+  "$([ "$PSR_CLO_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate --preflight: a finding refuses by name" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"launching no shard"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate --preflight: a finding echoes the finding line" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"exceeds the 61750-byte ceiling"*) echo yes ;; *) echo no ;; esac)"
+
+PSR_CLO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CRASH_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_CLO_RC=$?
+assert_eq "cheap-lint gate --preflight: a crashing lint proceeds (exit 0)" "0" "$PSR_CLO_RC"
+assert_eq "cheap-lint gate --preflight: a crashing lint is inconclusive, not a refusal" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"launching no shard"*) echo no ;; *"was inconclusive (exit 1"*) echo yes ;; *) echo no ;; esac)"
+
+# ── Real-helper coupling pin + default resolution ───────────────────────────
+# The stub arms restate each sentinel themselves, so keep both real-helper arms: (a) pins
+# the bundled-default resolution branch every override-injecting arm bypasses, and (b) pins
+# the brand sentinel literal, which only a NON-ZERO exit reaches. Neither covers the other.
+PSR_RH="$PSR_ROOT/real-helper"; mkdir -p "$PSR_RH"
+
+# (a) Run this against the REAL checkout, never a synthetic tree: each lint loads sibling
+# modules by path, so a copied fixture's hand-maintained dependency closure drifts into an
+# inconclusive warning — a fail-OPEN result that would pass this arm for the wrong reason.
+PSR_RH_TREE="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_RH_TREE"
+PSR_RH_OUT="$(cd "$LIB/.." && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RH_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RH_RC=$?
+# Assert nothing that a real finding in the developer's own tree would flip: with the
+# overrides unset the real lints audit that tree, so an exit-0 or launched-shard assertion
+# would go RED for whoever is mid-fix on a reference-size or brand finding.
+# A default that did not resolve exits non-zero with NO sentinel, so it warns INCONCLUSIVE
+# and still exits 0; pinning that warning's absence is what discriminates resolution.
+assert_eq "cheap-lint gate real: the bundled default is not silently inconclusive" "yes" \
+  "$(case "$PSR_RH_OUT" in *"cheap-lint gate was inconclusive"*) echo no ;; *) echo yes ;; esac)"
+# Either outcome proves the default resolved and the gate reached a verdict.
+assert_eq "cheap-lint gate real: the bundled default launched the shard or refused by name" "yes" \
+  "$(case "$PSR_RH_OUT" in *"launched shard alpha"*|*"launching no shard"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate real: the bundled default exits 0 or the gate's refusal 2" "yes" \
+  "$(case "$PSR_RH_RC" in 0|2) echo yes ;; *) echo no ;; esac)"
+
+# The real coordinator allocates a real run root in this checkout; without this removal the
+# tree accumulates one PID-keyed directory per module invocation, which the by-PID
+# suite-process triage procedure then has to reason about.
+PSR_RH_ROOT=""
+while IFS= read -r PSR_RH_LINE; do
+  case "$PSR_RH_LINE" in
+    "run-parallel: retained logs: "*) PSR_RH_ROOT="${PSR_RH_LINE#run-parallel: retained logs: }" ;;
+  esac
+done <<< "$PSR_RH_OUT"
+# Never widen this pattern: it is the only thing keeping the rm inside the run-root parent.
+case "$PSR_RH_ROOT" in
+  */.prflow/tmp/parallel-suite/run-*/logs) rm -rf "${PSR_RH_ROOT%/logs}" ;;
+esac
+
+# (b) Keep the fixture a git repo — the lint enumerates via `git ls-files` — and keep the
+# brand literal assembled at run time: a verbatim occurrence here would itself become an
+# unclassified finding in the real tree.
+PSR_RH_BFX="$PSR_RH/brand-fixture"
+python3 - "$PSR_RH_BFX" <<'PSR_BRAND_BUILD'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+(root / "docs").mkdir(parents=True, exist_ok=True)
+(root / "lib" / "test").mkdir(parents=True, exist_ok=True)
+brand = "Dev" + "Flow"          # assembled: a literal here would red the real tree
+(root / "docs" / "unclassified.md").write_text(f"{brand} prose nobody classified\n", encoding="utf-8")
+buckets = {"schema_version": 1,
+           "frozen": {"transient_prefixes": [], "transient_exceptions": [],
+                      "record_prefixes": [], "historical_files": [],
+                      "tooling_files": [], "provenance": []},
+           "pending_sweep_baseline": []}
+(root / "lib" / "test" / "brand-devflow-buckets.json").write_text(
+    json.dumps(buckets, indent=2) + "\n", encoding="utf-8")
+subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+PSR_BRAND_BUILD
+
+# Control: the real lint really does find and really does emit its completion line here.
+# Without this, a fixture that silently stopped producing a finding would leave the arm
+# below passing for the wrong reason.
+PSR_RH_BRAW="$(python3 "$LIB/test/lint-brand-devflow-sweep.py" --root "$PSR_RH_BFX" 2>&1)"; PSR_RH_BRC=$?
+assert_eq "cheap-lint gate real: the brand fixture really produces a finding" "1" "$PSR_RH_BRC"
+assert_eq "cheap-lint gate real: the real brand lint emits its completion line" "yes" \
+  "$(case "$PSR_RH_BRAW" in "lint-brand-devflow-sweep: audited "*) echo yes ;; *) echo no ;; esac)"
+
+# The pin: driven through the coordinator, the real lint's real output must be read as an
+# attributed FINDING (refuse, launch nothing), never as inconclusive.
+PSR_RH_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="python3 $LIB/test/lint-brand-devflow-sweep.py --root $PSR_RH_BFX" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RH_RC=$?
+assert_eq "cheap-lint gate real: the real brand sentinel is matched, so the gate refuses" "yes" \
+  "$([ "$PSR_RH_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate real: the real brand finding launches NO shard" "yes" \
+  "$(case "$PSR_RH_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+assert_eq "cheap-lint gate real: the real brand finding is attributed, not inconclusive" "yes" \
+  "$(case "$PSR_RH_OUT" in *"was inconclusive"*) echo no ;; *"reported findings"*) echo yes ;; *) echo no ;; esac)"
+
 rm -rf "$PSR_ROOT"
