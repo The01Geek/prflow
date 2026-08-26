@@ -1,0 +1,196 @@
+{
+  "iter": 4,
+  "started_at": "2026-08-26T03:30:00Z",
+  "fix_commit_sha": "0046378ad",
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "one 5-line inline comment slightly over CLAUDE.md 2.3 three-line cap (behavior-inert)",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          54849,
+          54853
+        ],
+        "kind": "comment_length"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "optional coverage-completeness gaps (unbaselined-provenance-gains-prose; print-population frozen-only line; breadcrumb-and-continue on unreadable)",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          54767,
+          54913
+        ],
+        "kind": "test_completeness"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-11",
+      "decision": "below-threshold",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "5-line comment over 3-line cap",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-12",
+      "decision": "below-threshold",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "optional coverage-completeness gaps",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-26T03:32:00Z",
+    "reviewed_sha": "0046378ad",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:pr-test-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:pr-test-analyzer"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Minor",
+        "description": "latent: a provenance file also matching an earlier frozen bucket drops its pending remainder (non-exploitable in current tree, no overlap)",
+        "defect_signature": {
+          "file": "lib/test/lint-brand-devflow-sweep.py",
+          "line_range": [
+            155,
+            172
+          ],
+          "kind": "latent_precedence"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Minor",
+        "description": "untested scan() frozen-provenance independence recount and --update-baseline mutation",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            54767,
+            54913
+          ],
+          "kind": "test_completeness"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 7,
+      "overlap_with_iter_N": 5,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 4,
+          "index": 0
+        },
+        "parked_finding_id": "F-11",
+        "shadow_finding_index": null,
+        "relation": "equivalent",
+        "rationale": "cosmetic/comment-length advisories re-surfaced at equal (Suggestion/Minor) severity on equivalent evidence; below both fix and verdict thresholds",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

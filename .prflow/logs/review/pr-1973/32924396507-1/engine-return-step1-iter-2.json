@@ -1,0 +1,66 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "complete",
+  "verdict": "APPROVE",
+  "phase3_dispatched": true,
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "engine_self_modifying": false,
+    "surface": "lib/test/** + .changeset/** (add-only enforcement mechanism; no engine/skill/agent body touched)",
+    "files": [
+      ".changeset/issue-1745-brand-devflow-buckets.md",
+      "lib/test/brand-devflow-buckets.json",
+      "lib/test/lint-brand-devflow-sweep.py",
+      "lib/test/modules/coverage-map.json",
+      "lib/test/run.sh"
+    ]
+  },
+  "cap_drops": ["prflow:type-design-analyzer (gated out per Phase 3.1 — no new types introduced)"],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Minor",
+      "description": "record_shape_error validates the five list-valued frozen keys with isinstance(...,list) but enumerates frozen.provenance and pending_sweep_baseline directly; a JSON scalar there (e.g. \"provenance\": 5) makes enumerate(5) raise an uncaught TypeError inside record_shape_error rather than returning the promised specific exit-2 breadcrumb. Net exit stays non-zero (RED), so it is fail-CLOSED, not fail-open; only the clean-breadcrumb contract clause is violated. The scalar-for-list shape on these two keys is also uncovered by the run.sh matrix.",
+      "defect_signature": "enumerate_over_unchecked_scalar_provenance_pending_raises_TypeError"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "record_shape_error accepts an empty-string element in a prefix list; an accidental \"\" in transient_prefixes/record_prefixes makes rel.startswith(\"\") true for every file, classifying all occurrences frozen and disabling the forward AC3 guard (a genuine but semantic/edit-only fail-open). Cheap defense: reject empty/whitespace prefix strings.",
+      "defect_signature": "empty_string_prefix_element_disables_forward_guard"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The provenance-file-also-matches-an-earlier-frozen-bucket case — the exact fail-open the scan() independent recount defends against — has no covering fixture; every fixture/real provenance file matches no other bucket, so deleting the independent recount (the natural refactor) would keep the suite green. --print-population (classify-based) would also mislabel such a file.",
+      "defect_signature": "independent_provenance_recount_untested_overlap_case"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "--update-baseline is tested only for the idempotent no-op; its primary use (absorbing a newly-introduced renameable file into the baseline so a subsequent reconcile goes green) and the paths-only-no-counts contents of the rewritten baseline are unasserted. Also top-level-not-a-dict shape ([] / scalar) is untested — the 'six shapes' is really five.",
+      "defect_signature": "update_baseline_absorb_and_toplevel_nondict_shape_uncovered"
+    },
+    {
+      "agent": "prflow:code-reviewer / prflow:comment-analyzer / prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Diagnostic line prints 'audited {audited} of {audited} files' (always X of X) and excludes skipped files from the count, hiding the skip population. Cosmetic only (skips are still surfaced as fail-closed findings). Previously left advisory in iteration 1 because the 'audited (N) of' idiom is depended on by a run.sh regex.",
+      "defect_signature": "cosmetic_audited_N_of_N_self_referential_count"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "cmd_print_population uses classify() (first-match short-circuit) while cmd_check uses scan()'s independent provenance count; for a hypothetical provenance file also matching an earlier frozen bucket the two surfaces would diverge. Latent only — no such file exists in the tree. Benign by design (frozen either way).",
+      "defect_signature": "print_population_diverges_from_scan_count"
+    }
+  ],
+  "checklist_summary": "Fix delta verified sound. (1) scan() frozen_prov is independently computed via len(PROVENANCE_VALUE.findall(blob)) keyed on rel in prov_files, fully decoupled from classify()'s first-match short-circuit — the reverse stale-provenance guard cannot fail open. (2) record_shape_error now rejects non-list-of-strings for the five list-valued frozen keys (fixture badlist.json). (3) run.sh fixtures are non-vacuous: every negative bds_has assertion is backed by a real mechanism and paired with a positive control emitting the identical finding string (forward AC3 docs/new.md, stale-baseline, stale-provenance, unreadable dangling-symlink), gated by rc assertions; exit-2 shape errors (malformed JSON, missing frozen, missing provenance file key, missing pending path key, list-key-as-string) each tested; churn presence-not-count, transient deletion, --print-population dual-emit, --update-baseline idempotence, provenance-drain steady-state, and a real-tree gate all covered. Real-tree lint exit 0 (audited 1120 of 1120), ruff clean. Issue compliance: the 5 in-scope ACs (the enforcement mechanism) are satisfied; AC2 mass prose sweep is legitimately scope-deferred to a follow-up per the changeset and per the reviewing instructions.",
+  "report": "APPROVE. PR #1973 iteration 2 ships an add-only, fail-closed enforcement mechanism for the devflow->PRFlow brand-rename residue (issue #1745): a reconciling lint plus recorded bucket classification, its run.sh test block, a coverage-map entry (unmodularized, correct for a run.sh/monolith-resident surface), and a patch changeset. All five prior-iteration fixes are correctly applied and verified: the scan() independent provenance recount, the untested missing-'path' guard now has an exit-2 fixture, the vacuous negative assertion is now backed by the real classify-pr-kind.jq provenance fixture, the _comment is trimmed to a pointer to the module docstring (source-of-truth), and record_shape_error type-checks the list-valued frozen keys. The mechanism fails closed in both reconciliation directions and on read/shape/IO error, is worktree-safe via git ls-files (#711), carries the SPDX header, and passes ruff and the real-tree gate. No Critical or Major findings from any of the five dispatched reviewers; the remaining items are one Minor contract-cleanliness gap (scalar-valued provenance/pending shape raises TypeError instead of a clean exit-2 breadcrumb — still fail-closed) and several Suggestion-level test-completeness/diagnostic-polish notes, none merge-blocking. Merge-ready."
+}

@@ -1,0 +1,175 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-26T03:00:00Z",
+  "fix_commit_sha": "0276fb45f",
+  "fix_files": [
+    "lib/test/lint-brand-devflow-sweep.py",
+    "lib/test/run.sh",
+    "lib/test/brand-devflow-buckets.json"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "latent fail-open in reverse stale-provenance guard (frozen_prov stored classify short-circuit total)",
+      "defect_signature": {
+        "file": "lib/test/lint-brand-devflow-sweep.py",
+        "line_range": [
+          188,
+          189
+        ],
+        "kind": "fail_open_guard"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "pending_sweep_baseline missing-path shape guard untested",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          54831,
+          54833
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "vacuous negative assertion on a never-emitted substring",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          54806,
+          54806
+        ],
+        "kind": "vacuous_test"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "restated design-narrative in buckets.json _comment",
+      "defect_signature": {
+        "file": "lib/test/brand-devflow-buckets.json",
+        "line_range": [
+          2,
+          2
+        ],
+        "kind": "comment_narrative"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "untyped list-valued frozen keys in record_shape_error",
+      "defect_signature": {
+        "file": "lib/test/lint-brand-devflow-sweep.py",
+        "line_range": [
+          130,
+          144
+        ],
+        "kind": "unchecked_type"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "cosmetic audited N of N summary",
+      "defect_signature": {
+        "file": "lib/test/lint-brand-devflow-sweep.py",
+        "line_range": [
+          236,
+          236
+        ],
+        "kind": "cosmetic"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "0276fb45f"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "0276fb45f"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "0276fb45f"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "0276fb45f"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "0276fb45f"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "advisory",
+      "source_file": "lib/test/lint-brand-devflow-sweep.py",
+      "claim_text": "cosmetic audited N of N",
+      "skip_category": "uncategorized",
+      "evidence": "cosmetic only; the 'audited (N) of' idiom is depended on by the run.sh real-tree assertion regex, so rewording risks that pin for no correctness gain"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 5,
+    "fix_diff_lines": 40,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

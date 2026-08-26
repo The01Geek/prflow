@@ -1,0 +1,68 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE with notes",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "cap_drops": {"count": 0, "by_category": {}},
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Latent fail-open in the reverse stale-provenance guard: classify() short-circuits on first frozen match, so a provenance file that ALSO matches an earlier bucket (record/historical/tooling/transient) never reaches the PROVENANCE_VALUE.findall branch; scan() then stores fcount=total in frozen_prov, and the guard frozen_prov.get(rel,0)==0 reads total>0 and stays green even if the quoted value disappeared. Not live (no current overlap between provenance files and the other buckets); becomes exploitable only if a future edit adds an overlapping prefix. Fix: compute frozen_prov[rel]=len(PROVENANCE_VALUE.findall(blob)) independently in scan().",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [147, 234], "kind": "overlapping-bucket-shadows-provenance-value-count"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The pending_sweep_baseline[i] missing-'path' shape guard (record_shape_error) is untested; only the twin provenance[i] missing-'file' guard has a fixture. A refactor could regress the pending-row guard (uncaught KeyError at cmd_check line 196 instead of exit-2) with the suite staying green. Add a fixture record with a pending row lacking 'path' asserting rc=2.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [54833, 54840], "kind": "untested-shape-guard-pending-row"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Vacuous negative assertion: '#1745 a frozen-provenance value is not demanded as unclassified' checks absence of the substring 'scan.sh: 1 unclassified', but the lint emits that word in no finding (real wording is '... in a file with no pending_sweep_baseline entry'), so the assertion passes regardless of behavior and its label overstates coverage. Assert absence of the actual forward-finding string for lib/scan.sh instead.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [54806, 54806], "kind": "vacuous-negative-test"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Contract-header docstring carries a worked-example / design-narrative (the two-PR concurrent-merge scenario) that CLAUDE.md 2.3 says should move to internal docs while the spec statement ('reconciliation is per-file PRESENCE, not count') stays. The same rationale is also restated in full across the buckets.json _comment field (which no consumer reads), the run.sh header, and the changeset; consider trimming _comment to a one-line pointer.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [18, 28], "kind": "design-narrative-in-contract-header"}
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "record_shape_error does not type-check the list-valued frozen keys (transient_prefixes, record_prefixes, historical_files, tooling_files). A JSON string there would make any(rel.startswith(pfx) for pfx in \"...\") iterate characters and silently misclassify rather than fail closed. Tooling-owned/low-risk hardening nit against the adversarial-parser six-shape discipline.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [130, 144], "kind": "frozen-list-keys-untyped"}
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "Cosmetic: the 'audited N of N files' summary always prints identical numbers because 'audited' only counts successfully-yielded files; skipped/unreadable files never increment it, so the 'of N' denominator implies a total-tracked count it does not compute.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [236, 236], "kind": "audited-N-of-N-cosmetic"}
+    }
+  ],
+  "checklist_summary": {"total": 0, "pass": 0, "fail": 0, "inconclusive": 0},
+  "report": "# Review — PR #1973 (issue #1745 brand-DevFlow bucket enforcement mechanism)\n\n## Verdict: APPROVE with notes\n\nAdd-only change (5 files, 996 insertions) shipping ONLY the enforcement mechanism for the `devflow`→`PRFlow` brand rename: a fail-closed reconciling lint `lib/test/lint-brand-devflow-sweep.py`, its bucket data `lib/test/brand-devflow-buckets.json`, a `#1745` test block in `lib/test/run.sh`, coverage-map registration, and a changeset. The mass prose sweep (issue AC2) is correctly deferred to a follow-up.\n\n## Issue Compliance (5 in-scope ACs)\n\n- **AC1 — every occurrence bucketed, reconciled fail-closed both directions:** MET. Real-tree run is green (`audited 1120 of 1120 files`, rc=0); `--print-population` accounts for every `b\"DevFlow\"` occurrence; forward (new unbaselined pending → RED) and reverse (stale baseline / stale provenance → RED) guards are present in `cmd_check` and each is exercised by a run.sh assertion. Unreadable tracked file fails closed in reconcile mode.\n- **AC2 — new brand-cased DevFlow outside frozen/permanent → RED:** MET (`docs/new.md` fixture asserts rc=1). Note: an occurrence added to an already-baselined pending file does not re-red — this is the deliberate presence-not-count churn-robustness tradeoff (documented), and such files are already known sweep-debt.\n- **AC3 — no frozen identifier respelled:** MET. Pure additive diff; the lint matches only case-sensitive `b\"DevFlow\"`, so `DEVFLOW_*` env vars, `/devflow:` aliases, and `devflow-*` filenames are out of match-scope by design; frozen-provenance values are recognized and not demanded as unclassified.\n- **AC4 — run.sh pinned literals unchanged:** MET. Single additive hunk after line 54764; no existing line modified.\n- **AC5 — shipped skills/agents bodies still pass:** MET. Their pending prose is grandfathered in the 163-file baseline; real-tree run green; ruff clean; SPDX header present; population via `git ls-files` (#711-compliant).\n\n## Findings\n\nNo Critical or Important findings across all five reviewers (code-reviewer, silent-failure-hunter, comment-analyzer, pr-test-analyzer, final-pass requesting-code-review). Six Suggestion-level advisory notes:\n\n1. (silent-failure) Latent fail-open in the reverse stale-provenance guard when a provenance file also matches an earlier frozen bucket — not live today (no overlap); harden by computing the provenance value-count independently in `scan()`.\n2. (pr-test) The `pending_sweep_baseline` missing-`path` shape guard is implemented but untested; add a fixture asserting rc=2.\n3. (comment) Vacuous negative assertion at run.sh:54806 checks a substring the lint never emits; assert the real forward-finding string instead.\n4. (comment) Contract-header docstring carries a worked-example/design-narrative and the presence-not-count rationale is restated across four surfaces (notably the unread `_comment` field).\n5. (code-reviewer) `record_shape_error` doesn't type-check the list-valued frozen keys — a JSON string would misclassify rather than fail closed.\n6. (code-reviewer) Cosmetic `audited N of N` summary always prints identical numbers.\n\n## Assessment\n\nMerge-ready. The mechanism is a genuine fail-closed adversarial-parser (JSON shape validated before use, exit-2 breadcrumbs, no uncaught KeyError/TypeError), presence-not-count reconciliation correctly dodges the concurrent-merge hot-spot hazard, transient-changeset exclusion prevents a false stale-RED on main, and the test block asserts behavior (exit codes + finding substrings) against a real git sandbox. The advisory notes are quality/hardening improvements the deferred follow-up (which will actively drive this lint as it drains the baseline) can absorb; none blocks merge."
+}

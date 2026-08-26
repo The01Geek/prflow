@@ -1,0 +1,62 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "complete",
+  "verdict": "REJECT",
+  "phase3_dispatched": true,
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "engine_self_modifying": false,
+    "surface": "add-only test infrastructure (lint + fixtures + coverage-map row + changeset)",
+    "changed_files": [
+      ".changeset/issue-1745-brand-devflow-buckets.md",
+      "lib/test/brand-devflow-buckets.json",
+      "lib/test/lint-brand-devflow-sweep.py",
+      "lib/test/modules/coverage-map.json",
+      "lib/test/run.sh"
+    ],
+    "type_design_gated_out": true
+  },
+  "cap_drops": [],
+  "phase3_findings": [
+    {
+      "severity": "Important",
+      "category": "test-coverage",
+      "file": "lib/test/run.sh",
+      "line": 54852,
+      "short_summary": "scalar-provenance fixture is vacuous (string is iterable)",
+      "summary": "The newly-added scalar-'provenance' guard fixture uses the string \"not-a-list\", which is iterable, so it does not kill the guard it was added to protect: with the record_shape_error provenance-list guard removed, enumerate() still iterates the string's characters and the downstream isinstance(entry, dict) check returns a different exit-2 error, so the rc==2 assertion (BDS_SP_RC) passes with or without the guard. Its inline comment ('never an uncaught TypeError from enumerate()') describes a failure mode a string provably cannot produce. Verified by mutation: guard-removed + string fixture -> rc=2 (test still green); guard-removed + non-iterable int 7 -> uncaught TypeError, rc=1 (test would go red). Fix: change the provenance fixture value from \"not-a-list\" to a non-iterable scalar (e.g. 7), mirroring the genuinely non-vacuous pending_sweep_baseline fixture (BDS_SPB_RC) at run.sh:54855-54857.",
+      "failure_scenario": "A future refactor deletes the `if not isinstance(prov, list): return \"frozen.provenance must be a list\"` guard (lint.py:147-148). The suite stays GREEN because the scalar-provenance fixture (string) still exits 2 via the row-shape check, so the regression the fixture was added to catch escapes.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "severity": "Suggestion",
+      "category": "cosmetic",
+      "file": "lib/test/lint-brand-devflow-sweep.py",
+      "line": 254,
+      "short_summary": "audited {audited} of {audited} prints same var twice",
+      "summary": "cmd_check prints 'audited N of N files' interpolating the same variable on both sides of 'of', so the framing is tautological and never surfaces skipped-vs-total drift. Advisory; already noted as staying advisory. Behavior unaffected (real-tree assertion parses only the first number).",
+      "failure_scenario": "None (cosmetic). A reader may misread the 'of N' as an audited-vs-total comparison that it is not.",
+      "verdict": "CONFIRMED"
+    },
+    {
+      "severity": "Suggestion",
+      "category": "comment-discipline",
+      "file": "lib/test/lint-brand-devflow-sweep.py",
+      "line": 24,
+      "short_summary": "docstring/inline comments carry design narrative beyond 3-line cap",
+      "summary": "Several accurate comments (docstring concurrent-merge worked example lines 24-29; the 6-line independent-count rationale in scan() lines 202-207) exceed CLAUDE.md §2.3's three-line / no-derivation cap. Trim to the specification statement plus a pointer. Low severity, non-blocking.",
+      "failure_scenario": "None (style). Comment verbosity only; all claims are factually accurate against the code.",
+      "verdict": "PLAUSIBLE"
+    }
+  ],
+  "checklist_summary": {
+    "note": "Diff is add-only test infrastructure; checklist verification focused on the lint's fail-closed shape guards and the fixture non-vacuousness the task charged. Real-tree reconciliation runs clean (audited 1120 of 1120, rc=0). Both scalar guards in the .py are correct (exit 2, specific breadcrumb, no TypeError). One of the two new run.sh fixtures asserting them is vacuous (see Important finding)."
+  },
+  "report": "Iteration 3 convergence re-review of PR #1973 did NOT converge. The just-applied Minor scalar-guard fix is half-correct: the guard code in record_shape_error() correctly fails closed with exit 2 (verified live) for both a scalar frozen.provenance and a scalar pending_sweep_baseline, with no TypeError. However, one of the two new run.sh regression fixtures added to prove it is VACUOUS: the frozen.provenance fixture uses the iterable string \"not-a-list\" (run.sh:54852), so removing the guard leaves the suite green (mutation-verified). The pending_sweep_baseline fixture (int 7) is genuinely non-vacuous. Remedy is a one-line change: use a non-iterable scalar (e.g. 7) for the provenance fixture. All four Phase 3 agents returned; no other new Critical/Important findings. The 'audited N of N' cosmetic stays advisory as scoped. AC2 remains scope-deferred; the 5 in-scope ACs are otherwise satisfied by add-only mechanism (index-only tree enumeration #711, adversarial six-shape discipline, fail-closed I/O, presence-not-count reconciliation)."
+}
