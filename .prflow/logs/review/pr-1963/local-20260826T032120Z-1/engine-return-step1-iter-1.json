@@ -1,0 +1,396 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "report": "## Verdict: REJECT (7 verification-checklist FAILs; 2 Critical and 8 Important review findings; the acceptance criteria themselves all verify PASS)\n\n## Issue Compliance\nReviewed against issue #1388: Provision the bounded lint set before the Claude action starts (follow-up to #1276) — criteria from workpad; scope narrowed: 1 rewritten (AC8 was narrowed during this PR's review, per the Addendum at the end of the issue body), 0 deferred, 0 dropped without a record. Requirement-based checklist items are included in the verification results below.\n\nCriteria came from the `/prflow:implement` workpad comment — this run's authoritative set, possibly narrowed from the issue.\n\nNo divergence between the workpad's criteria and the issue body's (`divergence: none`).\n\nAll twelve acceptance criteria verify PASS (VC-1 … VC-12). The REJECT is driven by defects in paths the criteria do not name, not by unmet criteria.\n\n### Repo-policy gates\n- **Prompt-surface edit routing (`Writing-skills evidence:`)** — NOT TRIGGERED. The diff touches no trigger glob (`skills/*/SKILL.md`, `skills/implement/phases/*.md`, `skills/implement/references/*.md`, `skills/review/phases/*.md`, `skills/review-and-fix/references/*.md`, `.prflow/prompt-extensions/*.md`). `CLAUDE.md` is not a trigger glob. No finding.\n- **`Verification evidence:` advisory (non-blocking)** — DISCHARGED. Tier classification: **cloud** (the issue #1388 workpad carries `<!-- prflow:checkpoint gha:… -->` rows). The workpad carries two `Verification evidence:` records (local-tier CI readings for heads `a81c47d5…` and `dbf1330a…`). Clause silent. Observation, not a finding: the most recent recorded head (`dbf1330a…`) is not this review's head (`743cdef0…`), so no captured verification run covers the reviewed commit.\n\n## Verification Checklist Results\n70 passed, 7 failed, 0 inconclusive — 1 via orchestrator-executed probe, 76 via agent.\n\n- VC-24: FAIL — the `action.yml` comment's absolute claim that `The hashFiles(manifest, marker) key covers the whole AC5 tuple transitively` is falsified: the digest/URL mapping for a given (tool, version, os, arch) lives in `scripts/lint_provision.py`, whose bytes are in neither hashed file, and the cache-hit reuse branch re-verifies only the reported `--version` string, never the digest [.github/actions/setup-project-env/action.yml]\n- VC-25: FAIL — the `provision-lint-tools.sh` header's absolute claim that `Every INTEGRITY failure fails CLOSED naming the tool` is falsified: the readiness-gate arm calls `_die - \"install-state readiness refused: …\"`, printing `-` literally where a tool name belongs [.github/actions/setup-project-env/provision-lint-tools.sh]\n- VC-36: FAIL — §4b digests SOURCE bytes for `setup-action`, `provision-helper`, `implement-workflow` and `manifest` while recording their consumer runtime paths, but `install_managed`'s `modified|unverified|unreadable` arms PRESERVE the consumer's bytes (sidecar `.prflow-new`), and the `tier1_rc != 0` arm skips the workflow copy loop entirely — both ordinary supported paths leave divergent bytes at the recorded path [install.sh]\n- VC-37: FAIL — the marker records vendor runtime paths for the three Python readers while digesting source bytes at `$pin`; `devflow_pin_version`'s \"kept existing prflow_version … not overwriting\" arm and the curl-piped `PIN=\"$REF\"` fallback let the runtime fetch resolve a different ref than the digests came from [install.sh]\n- VC-50: FAIL — the §4b comment's `must stay byte-identical (plain cp)` premise is false: the copy path is `install_managed`, not a plain `cp`; ordinary control flow (preserve arms, skipped copy loop) diverges the bytes with no templating transform involved [install.sh]\n- VC-55: FAIL — `installation.md` lists `.prflow/install-state.json` unconditionally among what a first install applies, while `install.sh` gates the whole block on source-file presence and the marker's publication additionally on manifest validation plus a successful `install_state.py build`; the sibling `install-manifest.json` bullet IS correctly hedged [docs/external/docs/runs/cloud/installation.md]\n- VC-66: FAIL — every pinned literal and count matches byte-for-byte, but the pin on `no lint-tool provisioning and no manifest validation` targets the body of an `echo` in `action.yml` consumed by no tool; its `# structural-pin-ok: routing-dispatch-contract` declaration is not warranted for a log-prose pin [lib/test/test_python_scripts.py]\n\n<details><summary>✅ Passed items (68 of 77) — click to expand</summary>\n\n- VC-1: AC1 digest-bound tuple published only after the staged manifest validates [install.sh]\n- VC-2: AC2 all six named fail-closed fixture classes exist [lib/test/test_python_scripts.py, lib/test/modules/installer-wiring.sh]\n- VC-3: AC3 `.gitignore` re-includes the marker; both files tracked [.gitignore:65]\n- VC-4: AC4 closed `lint_mode` input; unknown value refused with `::error::` + exit 1 [.github/actions/setup-project-env/action.yml]\n- VC-5: AC5 no `sudo`; digest and version verified before readiness; provisioning ordered before the Claude action [provision-lint-tools.sh]\n- VC-6: AC6 `none` arm exits 0 before any manifest read; cache step gated on `provision` [action.yml]\n- VC-7: AC7 devflow.yml `none` / devflow-implement.yml `provision` / devflow-runner.yml `none` [three workflows]\n- VC-8: AC8 hardensetup and the `uses:` step share the identical `if:` gate; fixture drives both the edit-overwrite and added-file-prune arms [devflow-runner.yml]\n- VC-9: AC9 CI exercises all 12 tuples; absent artifact yields `unsupported-lint-platform` [ci.yml, lint_provision.py]\n- VC-10: AC10 six failure classes each `_die` with the tool name [provision-lint-tools.sh]\n- VC-11: AC11 workflow-level `permissions: contents: read`, no App token minted [ci.yml:24]\n- VC-12: AC12 uniquely-named changeset with `bump: patch` frontmatter [.changeset/issue-1388-lint-provisioning.md]\n- VC-13: plan TSV field order matches [lint_provision.py]\n- VC-14: plan exit codes 3/4 match [lint_provision.py]\n- VC-15: `NOT-READY ` prefix contract holds [install_state.py]\n- VC-16: manifest key paths correct [install-state.json, lint-manifest.json]\n- VC-17: CI exercises linux/x86_64 only, so the `.exe` member is never reached [ci.yml]\n- VC-18: `generate-install-state.py --check` exits 0; recorded digests match HEAD [.prflow/install-state.json]\n- VC-19: both `.prflow` files are required copy-list members; a missing one aborts under `set -e` [vendor-slice.sh]\n- VC-20: no step writes an untracked file into the action directory before hardensetup [devflow-runner.yml]\n- VC-21: hardensetup does its own fetch immediately before using FETCH_HEAD [devflow-runner.yml]\n- VC-22: `hashFiles` returns empty on no match, collapsing marker-less consumers onto one key — but provisioning fails closed there anyway [action.yml]\n- VC-23: SCRIPTS_DIR probe tests only `lint_provision.py`, with no third arm (claim confirmed as stated) [action.yml]\n- VC-26: prune loop is recursive and git's quoting makes the membership test glob- and newline-safe [devflow-runner.yml]\n- VC-27: the version ERE rejects pinned `1.2` against reported `1.24.1` (executed) [provision-lint-tools.sh]\n- VC-28: the reuse branch does re-verify (by version), so the narrow claim holds [action.yml]\n- VC-29: a RETURN trap set inside its own function fires without `functrace`; a missing `mktemp` fails closed under `set -e` [provision-lint-tools.sh]\n- VC-30: `KNOWN_TOOLS`/`KNOWN_OS`/`KNOWN_ARCH` and `build_plan`'s signature match CI's use [lint_provision.py, ci.yml]\n- VC-31: vendor-plugin → setup-project-env → Run Claude Code ordering holds [devflow-implement.yml]\n- VC-32: **the eight replaced sha256 digests are correct.** Orchestrator-executed probe: downloaded `shellcheck-v0.10.0.linux.x86_64.tar.xz` and `ruff-0.6.9-x86_64-unknown-linux-gnu.tar.gz` from upstream and computed sha256 — both match the NEW manifest values exactly. The linux/x86_64 shellcheck value on `main` (`…cbea39c`) was WRONG and this PR corrects it to `…cbedf87` [.prflow/lint-manifest.json]\n- VC-33: `$pin` in scope and non-empty on every path reaching 4b [install.sh:1403]\n- VC-34: the seven component names agree across install.sh, generate-install-state.py and the marker-driven lookup [install.sh, lib/generate-install-state.py]\n- VC-35: `build` writes diagnostics to stderr; `--out` resolves against the consumer cwd, not `--repo-root` [install_state.py]\n- VC-38: copy-list membership aborts under `set -e` as the fixture comment states [vendor-slice.sh]\n- VC-39: `_iu_run` honors `IU_SRC_OVERRIDE`; the fail-closed arms are not vacuous [installer-wiring.sh:733]\n- VC-40: `StateResult.status` success literal is `established` [install_state.py]\n- VC-41: `cannot digest component` is the raised text and install.sh surfaces it [install_state.py:276]\n- VC-42: NORMALIZED — see below\n- VC-43: `build_state` signature and `repo_root` keyword match [install_state.py:257]\n- VC-44: `--check` and the `build --out` writer serialize byte-identically [generate-install-state.py, install_state.py]\n- VC-45: SPDX header pair present [lib/generate-install-state.py:1-3]\n- VC-46: `owner: unmodularized` + `focused_test` is an accepted combination; all three paths exist [coverage-map.json]\n- VC-47: NORMALIZED — see below\n- VC-48: hardensetup and the `uses:` step share one gate, so the doc's universal holds [devflow-runner.yml:1406,1460]\n- VC-49: the enumeration is recursive and glob-safe [devflow-runner.yml:1417-1444]\n- VC-51: no later installer step writes a bound component [install.sh]\n- VC-52: install.sh ships only devflow.yml and devflow-implement.yml; every `runs-on` in both resolves via `vars.DEVFLOW_RUNNER` [install.sh, two workflows]\n- VC-53: the new CLAUDE.md bullet is an authoring rule for this repository, correctly placed under the placement rule's runtime test [CLAUDE.md]\n- VC-54: the release note's three claims hold; sentence (c) scopes itself to `a setup action` [release-notes.md]\n- VC-56: `lint_manifest` is bound at line 34384, well before the #1388 block [test_python_scripts.py]\n- VC-57: every helper/import the block uses is defined earlier [test_python_scripts.py]\n- VC-58: shellcheck URL matches the manifest [test_python_scripts.py, lint-manifest.json]\n- VC-59: ruff URL matches the manifest [test_python_scripts.py, lint-manifest.json]\n- VC-60: `build_plan` short-circuits on the absent artifact before `artifact_url` [lint_provision.py:170-190]\n- VC-61: `MISSING_FILE_REASON` equality is sound; no other arm emits that literal [install_state.py, lint_manifest.py:41]\n- VC-62: `ManifestResult` is frozen and its XOR enforced in both directions; no post-construction assignment anywhere [lint_manifest.py]\n- VC-63: all env var names match what the helper reads [provision-lint-tools.sh]\n- VC-64: the helper passes the output path via `-o` [provision-lint-tools.sh]\n- VC-65: all twelve message literals appear verbatim [provision-lint-tools.sh]\n- VC-67: the three grep counts (2/5/5) match [devflow-runner.yml, run.sh]\n- VC-68: both `.prflow` files are copy-list members and the fixtures create them [vendor-slice.sh, run.sh]\n- VC-69: both coupled literals read 301 and a live `run-module.sh installer-wiring` reports exactly `301 passed, 0 failed` under the `exact` floor policy [run.sh:48384, workflow-flight-recorder-registry.json:56]\n- VC-70: `#1388` assertions exist in installer-wiring.sh and no other module claims the label [test_coverage_map_guard.py]\n- VC-71: `--check` exists and exits 0 on this tree [lib/generate-install-state.py]\n- VC-72: all seven recorded component paths resolve repo-relative in this checkout [.prflow/install-state.json]\n- VC-73: vendor-slice copies `scripts/` as one unit, so the sibling resolution holds [install_state.py, vendor-slice.sh:74]\n- VC-74: `id: hardensetup` exists and its run block carries no `${{ }}` expression [devflow-runner.yml:1405-1444]\n- VC-75: the PyYAML dependency is consistent with the documented advisory-at-preflight / required-by-suite split [test_python_scripts.py:37179, preflight.sh]\n- VC-76: the extraction `find` has no depth restriction, matching the nested fixtures [provision-lint-tools.sh:224]\n- VC-77: the unwritable-target fixture carries no `os.geteuid() != 0` guard (claim confirmed as stated) [test_python_scripts.py:36921-36930]\n\n</details>\n\n- VC-42: NORMALIZED (wording-only) — the generated claim asserted `--check` drift would fire on every `chore: bump version` commit; `prflow_version` in this repo is the stable literal `main` and `version-consolidate.yml` never writes `.prflow/config.json`, so the CODE is correct and only the claim's wording was wrong [lib/generate-install-state.py]\n- VC-47: NORMALIZED (wording-only) — the generated claim called the `\"1388\"` `run_sh_blocks` entry's `owner: unmodularized` contradictory; `#1388` assertions genuinely live in `run.sh` itself and the guard's `_fully_extracted()` deliberately exempts a label present in both run.sh and a module, so the CODE is correct [lib/test/modules/coverage-map.json]\n\nNormalized (wording-only): 2; ineligible-on-field-defect FAILs: 0\n\n## Code Review Findings\n\n### 🔴 Critical\n\n1. **`install.sh` §4b digests SOURCE bytes for components the installer's own preservation policy is designed NOT to overwrite, permanently bricking lint provisioning and hard-failing the whole cloud implement job.** §4b (`install.sh:1531-1563`) passes `--repo-root \"$SRC\"` and digests source-tree bytes for `setup-action`, `provision-helper`, `implement-workflow` and `manifest`, recording their consumer runtime paths. But `install_managed` (`install.sh:687`) PRESERVES a `modified` / `unverified` / `unreadable` artifact and writes the new version to a `.prflow-new` sidecar; and the workflow copy loop is skipped entirely when `tier1_rc != 0` while §4b still records the source digest of `devflow-implement.yml`. `check_readiness` then returns `digest-mismatch:<name>` and `provision-lint-tools.sh` `_die`s — a hard `exit 1` inside a step of `uses: ./.github/actions/setup-project-env` with no `continue-on-error`, so the **entire `/prflow:implement` job fails**, not merely lint provisioning. Three routine non-adversarial paths reach it: a consumer who hand-edited `devflow-implement.yml` or the setup action (which `CLAUDE.md` calls \"ordinary work, not maintainer-only\" and which install.sh itself advertises a sidecar-merge workflow for); any pre-manifest installation upgrading (every differing artifact classifies `unverified` → preserved); and a Tier-1 migration refusal. The emitted remedy — `re-run the PRFlow installer (install.sh) so the marker matches the installed components` — cannot resolve it: re-running preserves the same bytes and re-records the same source digest, so the loop never converges. The fix is to digest the INSTALLED (consumer, `--repo-root .`) bytes, or to refuse to publish a marker naming a component this run preserved or skipped. This is also the repository's own named `unverified-assumption` class inverted: the guard's comparand comes from a producer that does not emit it on every path the guard now selects. (raised by 4/6 agents) [self-contradicting-diff carve-out: install.sh]\n\n2. **`hardensetup` is a fourth displaced-path producer that publishes no disclosure, so the reviewing agent reads base-ref bytes as if they were head — on exactly the file a PR editing that action would be under review for.** `devflow-runner.yml`'s `displaced_join` (line 2078) joins THREE declared producers — `harden_hooks.outputs.displaced_paths`, `promptext.outputs.truncated_paths`, `harden_guard.outputs.guard_paths` — into `HARDENED_PATHS`, which the grounding block renders and Phase 0.1.5 writes to `.prflow/tmp/displaced-paths.txt`; Phases 2, 3 and 4.1.6 then route those paths through `git show <head>:<path>` instead of a working-tree read. The new `hardensetup` step (line 1405) overwrites every base-ref file of `.github/actions/setup-project-env/` over the workspace copy and `rm -f`s any PR-added file there, sets NO step output, and is absent from `displaced_join`'s env — while running at line 1405, well before `displaced_join`, so it could publish. That same workflow states the governing contract inline: *\"the disclosure is what stops a reviewing agent reading this step's rewritten bytes as untouched PR-head content — that is the case this producer exists for.\"* The added `#1388 hardensetup` tests pin the displacement behavior and assert nothing about the disclosure. (raised by 1/6 agents — single-source, flagged for extra scrutiny; the orchestrator independently confirmed the three-producer join and hardensetup's absence from it) [.github/workflows/devflow-runner.yml:1404-1443]\n\n### 🟠 Important / Major\n\n1. The `provision-lint-tools.sh` readiness-refusal remedy string — `remedy: re-run the PRFlow installer (install.sh) so the marker matches the installed components` — is a diff-added command-form that is false against HEAD for the dominant `digest-mismatch` cause (a preserved local edit): re-running reproduces the identical marker and preserves the edit again, yielding the identical refusal. The true remedy is to merge the `.prflow-new` sidecar or restore the shipped bytes first. (raised by 2/6 agents) [self-contradicting-diff carve-out: .github/actions/setup-project-env/provision-lint-tools.sh]\n\n2. The `TOOLS` comment states a property the code does not implement: `TOOLS must stay a function of the manifest's tool set: the cross-run cache key does not include it, so an out-of-manifest tool would ride a partial cache restore.` `TOOLS=\"${TOOLS:-shellcheck ruff}\"` is a hardcoded literal with no manifest read anywhere in its derivation — a third independent copy of the tool set beside `lint_manifest.KNOWN_TOOLS` and `lint_provision.KNOWN_TOOLS`. And an out-of-manifest tool does not ride a cache restore: an unknown tool takes the rc-4 `_die` arm and a manifest-declared tool with no artifact takes rc 3 and degrades. A maintainer reading this believes a fail-open hazard exists that the code fails closed on, and could \"fix\" it by loosening the real refusal. (raised by 2/6 agents) [self-contradicting-diff carve-out: .github/actions/setup-project-env/provision-lint-tools.sh]\n\n3. The vendored readers are bound by an install-time digest at `$pin` but resolved at RUN time from a ref `install.sh` may not control. `devflow_pin_version` KEEPS an existing deliberate pin (`kept existing prflow_version in $cfg … not overwriting.`) and `install.sh:1686-1688` falls back to `PIN=\"$REF\"` (possibly a mutable branch) in the curl-piped case. In either case the vendor fetch materializes helper bytes at a different commit than the marker digested, producing `digest-mismatch:manifest-reader` — the same hard, non-converging refusal as Critical 1, on a repo where nothing is wrong. The `install_state.py` docstring's \"identical bytes at the pinned ref\" premise does not hold. (raised by 2/6 agents) [install.sh:1533-1553]\n\n4. `install_state.build_state` does not close the round trip its own docstring promises. The docstring says it raises `ValueError` for anything `validate_state` would later reject \"so the installer fails BEFORE publishing a marker that binds a file it cannot read or that provisioning will refuse\" — but that holds for `installer_version` only. Component NAMES and recorded PATHS are copied through unchecked: `build_state('v1.0', {'My_Comp': 'scripts/lint_manifest.py'})` builds fine while `validate_state` rejects it with `invalid-value: component name 'My_Comp'` (confirmed by execution). `main`'s `build` takes NAME from `--component NAME=PATH` verbatim, so an installer passing an underscored or capitalised name writes a marker, exits 0, and every later `verify` fails closed on the consumer — at provisioning time, not publication time. One line of reuse fixes it: run the assembled dict through `validate_state` before returning. (raised by 1/6 agents) [scripts/install_state.py:257-282]\n\n5. `Plan.__init__(status, **kw)` silently absorbs unknown keywords, and `tool`/`os`/`arch` are required on NO status. Nothing rejects a key outside the two fixed name lists, so a misspelled field is a silently `None` attribute (`Plan(\"unsupported\", reason=\"x\", tooll=\"typo\", os=\"linux\").tool -> None`, confirmed by execution). `main`'s `cache-key` path feeds `plan.os, plan.arch, plan.tool` straight into `cache_key`, so an under-populated plan yields a well-formed-looking key containing the literal `None` — exactly the \"stale binary satisfies a changed tuple\" failure `cache_key`'s own docstring says the key exists to prevent. Latent today (every `build_plan` return site passes all three), but enforced by caller convention precisely where the sibling types enforce it in the constructor; `__slots__` already declares the closed field set, so the check is cheap. (raised by 1/6 agents) [scripts/lint_provision.py:131-156]\n\n6. The `SCRIPTS_DIR` fallback in `action.yml` has no third arm verifying the chosen directory actually contains the helpers: it probes only `lint_provision.py` while `provision-lint-tools.sh` also invokes `$SCRIPTS_DIR/install_state.py`. If neither directory exists, python exits non-zero with `can't open file …` and the script reports `install-state readiness refused: <traceback> — remedy: re-run the PRFlow installer`, a wrong-cause diagnosis of a missing helper whose real remedy is repairing the vendor materialization. This is the error class `install_managed`'s own `unreadable` arm goes to lengths to avoid. (raised by 2/6 agents) [.github/actions/setup-project-env/action.yml:264-285]\n\n7. The base-ref hardening step drives a DESTRUCTIVE selection through `grep`, a non-preflight PATH tool, and discards the fetch failure's cause. `printf '%s\\n' \"${base_files[@]}\" | grep -qxF \"$head_f\" || rm -f \"$head_f\"` puts the `grep` result on the left of `||`, so `set -e`/`pipefail` cannot fire: a missing or failing `grep` makes EVERY head file take the `rm -f` arm. The job does still abort — but only incidentally, via the next line's `[ -f \"$dir/action.yml\" ]` check, and with a message (`base ref carries no action.yml`) that misattributes the cause. Separately, line 1415 sends the fetch's stderr to `/dev/null` and reports only \"could not fetch base ref\", discarding the whole diagnostic (auth, shallow clone, unknown ref) on a security-critical fail-closed arm. `CLAUDE.md` names this class explicitly: a value determining a selection or an emitted result must not be derived through a non-preflight PATH tool. (raised by 1/6 agents) [.github/workflows/devflow-runner.yml:1415-1441]\n\n8. The compatibility tuple is transcribed TWICE with nothing reconciling the copies, so the completeness the whole feature rests on is unenforced. `lib/generate-install-state.py`'s `COMPONENTS` (7 entries) and `install.sh` §4b's `--component` operand list are independent literal copies, plus a `--record-path` mapping that exists only in `install.sh`. Add a component to `COMPONENTS` and forget `install.sh` and every CONSUMER's marker silently binds a weaker tuple, while both the drift gate (`--check`, repo-local) and the 4b end-to-end tests stay green; the reciprocal error is equally invisible. A test parsing the `--component`/`--record-path` operands out of `install.sh` and asserting key-set equality with `COMPONENTS` catches both directions. **This is also the Phase 3.1.5 completeness critic's own finding — see the critic note below.** (raised by 2/6 agents) [lib/generate-install-state.py:36-44]\n\n9. `#1388`'s `structural-pin-ok` declaration on a log-prose literal. `\"no lint-tool provisioning and no manifest validation\" in _ACTION_1388` is declared `# structural-pin-ok: routing-dispatch-contract`, but the protected literal is the body of an `echo` at `action.yml:255` — human log prose no tool consumes; the actual routing decision is the `case` structure, already covered by the separate `lint_mode:` input and `unknown lint_mode` refusal pins. Rewording that echo turns the suite RED with no behavior change. Per this repository's review extension, a newly added wording-only / documentation-presence pin is at least Important unless it carries a VALID declaration, and `a # structural-pin-ok: comment does not make prose executable`. Replace with the executable step-body assertion recommended below. (raised by 2/6 agents) [lib/test/test_python_scripts.py:37270]\n\n10. The composite action's lint-provisioning step body has ZERO executable coverage. `action.yml`'s ~250-285 block holds real decision logic — the closed `lint_mode` case, the `RUNNER_OS`→`TARGET_OS` and `RUNNER_ARCH`→`TARGET_ARCH` mapping tables, and the `SCRIPTS_DIR` fallback — all covered only by substring pins on file text. Those mapping tables are an unreconciled mirror of `lint_provision.KNOWN_OS`/`KNOWN_ARCH`: a typo makes every arm64 runner exit 1, or maps to a tuple that degrades instead of provisioning, and no test moves. This PR already demonstrates the right technique on `hardensetup` (extract the `run` block from the YAML, execute it against a fixture); apply it here. (raised by 1/6 agents) [.github/actions/setup-project-env/action.yml:250-285]\n\n11. The `GITHUB_PATH` export — the step that makes provisioning observable to the model — is never exercised. `_run_helper_1388` does `env.pop(\"GITHUB_PATH\", None)`, so the `if [ -n \"${GITHUB_PATH:-}\" ]` append at `provision-lint-tools.sh:246-248` runs in NO test. Delete that block or write the wrong value and every fail-closed arm still passes while the implement tier's model never sees `shellcheck`/`ruff` on PATH — the exact silent degradation this feature exists to prevent. One assertion on an existing happy-path fixture closes it. (raised by 1/6 agents) [.github/actions/setup-project-env/provision-lint-tools.sh:246-248]\n\n### 🟡 Suggestion / Minor\n\n1. `tar.xz` — the archive type EVERY real shellcheck artifact uses — is never extracted in a test. `_mk_archive_1388` builds only `tar.gz`, and the one non-gz case is `zip`, so the production extraction path (`tar -xf` on xz, needing xz support in whatever `tar` the runner ships) is exercised nowhere. [lib/test/test_python_scripts.py]\n2. The drift gate has no RED-direction test: the suite asserts `--check` exits 0 on the current tree, so an inverted comparison or an unset `check` would leave the gate inert and nothing would say so. [lib/generate-install-state.py:82-100]\n3. The multi-tool loop is never run — every `_run_helper_1388` call passes `tools=\"shellcheck\"` while production `TOOLS` defaults to `\"shellcheck ruff\"`, leaving `PROVISIONED`/`UNPROVISIONED` accumulation and the tool-1-succeeds/tool-2-fails ordering untested. [provision-lint-tools.sh:241-256]\n4. The §4b positive control asserts structural validity (`load_state(...).status == \"established\"`), never readiness (`check_readiness(...).ready`) against the consumer tree — which is precisely what would have caught Critical 1. [lib/test/modules/installer-wiring.sh]\n5. The unwritable-target fixture chmods a parent to `0o555` with no `os.geteuid() != 0` guard, inconsistent with two sibling permission fixtures in the same file that DO guard on root; under uid 0 the `mkdir` succeeds and the assertion fails loudly rather than silently — an environment-dependent RED with no attribution. [lib/test/test_python_scripts.py:36921-36930]\n6. Nothing verifies the pinned digests against upstream reality. This PR is the proof: the linux/x86_64 shellcheck digest on `main` was WRONG and would have hard-failed provisioning on every real runner while the whole suite stayed green, because every test computes its own fixture digest. A periodic network-permitted re-derivation job is the only thing that catches this class. [.prflow/lint-manifest.json]\n7. `generate-install-state.py` raises untyped tracebacks where every sibling reader returns a typed reason: `json.loads(cfg.read_text(...))` is unguarded, so an absent or malformed `.prflow/config.json` surfaces as a traceback from a suite gate whose job is to report drift legibly; and `main` silently ignores unrecognized argv, so `--chek` WRITES the marker instead of checking it. [lib/generate-install-state.py:57-96]\n8. §4b's outer guard `if [ -f \"$SRC/.prflow/lint-manifest.json\" ] && [ -f \"$SRC/scripts/install_state.py\" ]` has no `else`. A truncated vendor slice or partial clone installs no manifest and no marker, prints nothing, and exits 0 — the only silent arm in a block where every other refusal logs a `warning:` naming its cause. [install.sh:1538]\n9. All four new types leave `__delattr__` unguarded and hand out their payload by reference: `del r.state` on an `established` `StateResult` is accepted, leaving `established == True` with `state` unreachable — the exact shape the constructor works hardest to make unrepresentable — and `r.state['injected'] = 1` mutates a payload the type has already certified. [scripts/install_state.py:62-98]\n10. `StateResult(\"established\", …)` checks only `state is not None`, so it accepts a payload `validate_state` would refuse (e.g. an empty `components` object). Holds today by call-site discipline; a classmethod with the raw constructor kept private would make it a guarantee. [scripts/install_state.py:73-77]\n11. `docs/internal/cloud-setup.md`'s fail-closed list groups readiness reasons (`install-state-missing`, `digest-mismatch`, `component-missing`, `manifest-missing`) with per-tool ones and closes \"each naming the tool\" — but the readiness gate fires before any tool is selected and emits through `_die -`. Split the clause. **Behavior-inert prose cap applied — see Phase 4.1.5 below.** [docs/internal/cloud-setup.md]\n12. `docs/internal/install.md` tells consumers their marker \"is regenerated by `lib/generate-install-state.py`\"; that helper's own docstring says the opposite (\"only for the primary repo's committed copy\") and it hardcodes `_REPO_ROOT = Path(__file__).resolve().parents[1]`, so from a vendored copy it would resolve to the vendor tree. **Behavior-inert prose cap applied — see Phase 4.1.5 below.** [docs/internal/install.md]\n13. The release note's \"can never execute a setup action edited in the pull request under review\" is narrowly true of `setup-project-env` only; `read-project-config` (line 224) and `vendor-plugin` (line 424) remain PR-head-resolved in the same runner. VC-54 graded the sentence's scoped wording accurate, so this is a clarity Suggestion, not a promoted falsehood. [docs/external/release-notes.md]\n14. Three added comment blocks exceed the prevention-only three-line cap and carry derivation rather than the wrong change they prevent: `devflow-runner.yml:1393-1403` (11 lines), `ci.yml:73-79` (7 lines), and `provision-lint-tools.sh`'s cache/re-verification and pre-provisioned-reuse comments (6 and 4 lines). The load-bearing prohibition in each is short and identifiable; the derivation is already stated canonically in `docs/internal/cloud-setup.md`. (raised by 2/6 agents) [.github/workflows/devflow-runner.yml, .github/workflows/ci.yml, provision-lint-tools.sh]\n15. The new `lint-manifest` job was inserted between the `jobs:`-level comment block describing the shard partition and the `shard:` job it documents, so that comment now heads the wrong job and `shard:` is left undocumented. Move the new job below `shard:`, or move the comment down. [.github/workflows/ci.yml:56-99]\n16. `install_state.py`'s docstring names `COMPONENTS` in `lib/generate-install-state.py` as the authoritative set, but the consumer publication path (`install.sh` §4b) never consults it and that generator's own docstring scopes itself to the primary repo. Name both, or name the coupling. **Behavior-inert prose cap applied.** [scripts/install_state.py:10]\n17. A missing `unzip`/`tar` on a Windows Git Bash or minimal self-hosted runner hard-fails the whole implement job, in tension with the CLAUDE.md convention this same PR adds (\"reserve fail-closed for integrity checks (digest/version mismatches)\"). A missing extractor is a platform-coverage gap, not an integrity failure. Acknowledged tension: AC10 lists \"missing installer primitive\" among the fail-closed arms, so the two statements now disagree in-tree — reconcile one way or the other. [provision-lint-tools.sh:178-184]\n18. `_die` calls `exit 1`, which does not run a `RETURN` trap, so `mktemp -d`'s work directory leaks on every fail-closed arm. Cosmetic on an ephemeral runner; the suite does drive the helper repeatedly in one process. [provision-lint-tools.sh:196-199]\n\n## Phase 3.1.5 — completeness-critic pass (forced: `detect_all_audit` is set)\n\n1. **Target population and property.** The audit under introduction is `lib/generate-install-state.py`'s `COMPONENTS` map plus its `--check` drift gate. It claims to cover *every component whose bytes must agree for lint provisioning to be safe*, and asserts a completeness property over that whole set (the marker binds each one by sha256; provisioning refuses on any skew).\n2. **Independent re-enumeration.** I derived the population by a signal other than the audit's own list: the module import graph (`install_state.py` and `lint_provision.py` each `spec_from_file_location(\"lint_manifest\", …)`) plus the invocation graph read out of `action.yml` and `provision-lint-tools.sh` (`$SCRIPTS_DIR/install_state.py`, `$SCRIPTS_DIR/lint_provision.py`, `$GITHUB_ACTION_PATH/provision-lint-tools.sh`, `.prflow/lint-manifest.json`, `.prflow/install-state.json`), plus every workflow passing `lint_mode` (`grep -rn 'lint_mode' .github/workflows/`).\n3. **Superset assertion.** The audit's set IS a superset of that independent enumeration. The only members outside it are `devflow.yml` and `devflow-runner.yml`, which pass `lint_mode: none` and therefore run no provisioning and validate no manifest — a defensible exclusion, not a gap.\n4. **BUT the critic surfaces one finding the superset test does not.** The population is enumerated TWICE — once as `COMPONENTS` in `lib/generate-install-state.py` and once as `install.sh` §4b's `--component`/`--record-path` operands — and nothing reconciles the two. The `--check` drift gate therefore certifies completeness only with respect to the REPO-LOCAL copy and is structurally blind to the CONSUMER copy, which is the one the whole feature ships. That is the classic self-certifying-audit shape, and it is filed as Important 8 above (corroborated by `pr-test-analyzer` independently).\n\n## Phase 4.1.5 — over-grade advisory annotations and the behavior-inert prose cap\n\n**Cap applied (deterministic, changes the severity)** to Suggestions 11, 12 and 16 — findings whose subject is a sentence in `docs/internal/**` or a module docstring. Limb one (no tool reads it for behavior): enumerated the readers — no lint, parser, codegen sentinel or declaration marker under `lib/test/` parses these surfaces to decide behavior; a suite pin that merely asserts the prose does not make it non-inert. Limb two (no consumer reads it): `docs/internal/**` is pruned by the vendor slice and ships to no consumer, and the `install_state.py` docstring is not rendered to any user. Both limbs hold, so each is capped at 🟡 Suggestion and drives no REJECT at the `critical` threshold.\n\n**Cap NOT applied** to Important 1 and Important 2, and to Critical 1's `plain cp` premise. Limb two fails for each: `provision-lint-tools.sh`'s remedy string is rendered to a consumer operator in their own Actions log, and `install.sh` is downloaded and read by consumers. Each is therefore a self-contradicting-diff carve-out finding and REJECTs non-demotably. Their carve-out markers appear on the finding lines above.\n\n**Advisory-only annotations (never change the verdict):**\n- Critical 2 — `[suspected over-grade: shape 3 — uncorroborated single-source finding]`. It is single-source from the final-pass reviewer. The annotation is advisory ONLY; the orchestrator independently confirmed both operands (the three-producer `displaced_join` at line 2078 and `hardensetup`'s absence from it), so the finding stands at Critical.\n- Important 7 — `[suspected over-grade: shape 1 — the observable fail-direction is fail-closed (the next line's action.yml existence check aborts the job), milder than the Important label]`. Advisory only; the finding stands, because the repository names non-preflight-tool-driven selection as its own defect class and the misattributed diagnostic is the real harm.\n\n**Refuted findings (recorded, not filed):**\n- `code-reviewer` filed as Critical that the changed shellcheck `linux/x86_64` digest was hand-edited, inferring tampering from the 60-of-64 shared hex prefix between the old and new values. **REFUTED by orchestrator-executed probe:** I downloaded the upstream artifact and computed sha256 — the NEW value is correct and the value on `main` was wrong. `pr-test-analyzer` and the final-pass reviewer each independently downloaded and reached the same conclusion. This PR FIXES a bad pin.\n- A checklist item proposed falsifying `cloud-setup.md`'s \"no PR-head bytes ever enter the review job\" via a repo with `provision_env` off. **REFUTED:** `hardensetup` and the `uses:` step carry the identical `if:` gate (VC-48 PASS).\n\n## Phase 4.1.6 — pre-verdict truthfulness sweep\n\nPromoted into the self-contradicting-diff carve-out: Important 1 (the false remedy string) and Important 2 (the `TOOLS` comment). Both are diff-added artifacts whose claims were demonstrated false against HEAD by reading the code path each describes, and neither is covered by the 4.1.5 cap. Critical 1 carries the same routing for its `plain cp` premise.\n\nintra-diff contradiction scan: one contradicting pair found — the `provision-lint-tools.sh` header's absolute `Every INTEGRITY failure fails CLOSED naming the tool` against the same file's `_die -` readiness arm (the same symbol, the same file, the same diff). Filed as checklist FAIL VC-25 and reflected in Important 1's neighbourhood; it routes into the carve-out rather than being capped, because `provision-lint-tools.sh` ships to consumers and its diagnostics are read by a consumer operator.\n\n## Verdict Criteria\n- Any FAIL in verification checklist → REJECT — **7 FAILs (VC-24, VC-25, VC-36, VC-37, VC-50, VC-55, VC-66); rule 1 fires.**\n- Any INCONCLUSIVE → REJECT — none.\n- Self-contradicting-diff carve-out (non-demotable, threshold-independent) → REJECT — **fires on Critical 1, Important 1 and Important 2.**\n- Any review-agent finding at or above `critical` (the resolved `prflow_review.verdict_severity_threshold`) → REJECT — **fires on Critical 1 and Critical 2.**\n- 2+ review agents failed → not applicable; 6 of 6 dispatched agents returned results.\n- Checklist generation failed → no; `checklist_skipped` is `null` (`engine_self_modifying` forced the full checklist).\n\n**Verdict: REJECT.** The acceptance criteria are all met and the Python core is unusually well built — typed XOR-at-construction verdicts, frozen instances, a genuinely adversarial six-shape input matrix, real end-to-end drives of the shell helper and of the shipped `hardensetup` step, and a supply-chain pin correction that this review independently confirmed against upstream. The blocking defects are all outside the happy path: a compatibility marker that binds source-tree digests to files the installer's own preservation policy guarantees will sometimes differ (hard-failing the whole cloud implement job on three ordinary upgrade paths, with a remedy message that cannot resolve it), and a new base-ref displacer that does not disclose itself on a workflow whose established contract is that every displacer does.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Critical",
+      "description": "install.sh section 4b digests SOURCE bytes for setup-action, provision-helper, implement-workflow and manifest while recording consumer runtime paths, but install_managed PRESERVES a modified/unverified/unreadable artifact (sidecar .prflow-new) and the tier1_rc != 0 arm skips the workflow copy loop entirely. check_readiness then returns digest-mismatch and provision-lint-tools.sh _die's, hard-failing the whole cloud implement job permanently, with a printed remedy (re-run the installer) that cannot converge.",
+      "defect_signature": {"file": "install.sh", "line_range": [1528, 1564], "kind": "logic_error"},
+      "corroboration_count": 4
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Critical",
+      "description": "Same defect: the marker binds SOURCE digests for components install.sh may deliberately preserve or skip, so a supported install outcome hard-fails every later implement run with a non-remedy. The guard's comparand comes from a producer that does not emit it on every path the guard now selects.",
+      "defect_signature": {"file": "install.sh", "line_range": [1531, 1563], "kind": "logic_error"},
+      "corroboration_count": 4
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Critical",
+      "description": "Same defect, with the availability consequence traced: the _die is a hard exit 1 inside a step of `uses: ./.github/actions/setup-project-env` with no continue-on-error, so the entire /prflow:implement job fails. Three routine non-adversarial paths reach it (hand-edited workflow or action; pre-manifest installation upgrading, where every differing artifact classifies unverified; plugin auto-update replacing the vendored readers).",
+      "defect_signature": {"file": "install.sh", "line_range": [1531, 1564], "kind": "logic_error"},
+      "corroboration_count": 4
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Critical",
+      "description": "The new hardensetup step displaces PR-head bytes for .github/actions/setup-project-env/ but publishes no displaced_paths output and is absent from displaced_join's three-producer env, so HARDENED_PATHS omits it and the reviewing agent reads base-ref bytes from the working tree as if they were head — on exactly the file a PR editing that action would be under review for. That workflow states the governing contract inline for its other producers.",
+      "defect_signature": {"file": ".github/workflows/devflow-runner.yml", "line_range": [1404, 1443], "kind": "security"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "The readiness-refusal remedy string 'remedy: re-run the PRFlow installer (install.sh) so the marker matches the installed components' is false against HEAD for the dominant digest-mismatch cause (a preserved local edit): re-running reproduces the identical marker and preserves the edit again. Self-contradicting-diff carve-out.",
+      "defect_signature": {"file": ".github/actions/setup-project-env/provision-lint-tools.sh", "line_range": [83, 89], "kind": "documented_falsehood"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Critical",
+      "description": "The TOOLS comment states a consequence the code does not produce: TOOLS is a hardcoded literal, not a function of the manifest, and an out-of-manifest tool cannot ride a partial cache restore (rc-4 hard refusal / rc-3 degrade). A maintainer could 'fix' a hazard that does not exist by loosening the real refusal. Self-contradicting-diff carve-out.",
+      "defect_signature": {"file": ".github/actions/setup-project-env/provision-lint-tools.sh", "line_range": [45, 46], "kind": "documented_falsehood"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "TOOLS is a third independent copy of the tool set beside lint_manifest.KNOWN_TOOLS and lint_provision.KNOWN_TOOLS, with no mechanical link; a manifest declaring a tool this list omits would have that tool silently never provisioned while the readiness gate still said READY.",
+      "defect_signature": {"file": ".github/actions/setup-project-env/provision-lint-tools.sh", "line_range": [45, 47], "kind": "logic_error"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Vendored helper components are bound by install-time digest at $pin but resolved at run time from a ref install.sh may not control: devflow_pin_version keeps an existing deliberate pin, and install.sh falls back to PIN=$REF (possibly a mutable branch) in the curl-piped case. The 'identical bytes at the pinned ref' comment is false against HEAD.",
+      "defect_signature": {"file": "install.sh", "line_range": [1533, 1553], "kind": "documented_falsehood"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Important",
+      "description": "build_state does not close the round trip its docstring promises: component names and recorded paths are copied through unchecked, so a marker that validate_state later rejects is published successfully and the failure surfaces at provisioning time on the consumer rather than at publication time. Confirmed by execution.",
+      "defect_signature": {"file": "scripts/install_state.py", "line_range": [257, 282], "kind": "api_misuse"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Important",
+      "description": "Plan.__init__(status, **kw) silently absorbs unknown keywords and requires tool/os/arch on no status, so a misspelled field is a silently None attribute and an under-populated established plan yields a cache_key containing the literal None — the exact stale-binary failure cache_key exists to prevent. Confirmed by execution.",
+      "defect_signature": {"file": "scripts/lint_provision.py", "line_range": [131, 156], "kind": "type_design"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The SCRIPTS_DIR fallback has no third arm verifying the chosen directory contains the helpers (it probes only lint_provision.py while the helper also invokes install_state.py), so a failed vendor materialization is misreported as a marker-readiness failure and sends the operator to the wrong remedy.",
+      "defect_signature": {".file": null, "file": ".github/actions/setup-project-env/action.yml", "line_range": [264, 285], "kind": "logic_error"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The hardening step drives a destructive rm -f selection through grep, a non-preflight PATH tool, on the left of ||, so set -e/pipefail cannot fire and a missing grep deletes every trusted file just materialized; the job aborts only incidentally via the next existence check, with a misattributed message. The fetch's stderr is also discarded on a security-critical fail-closed arm.",
+      "defect_signature": {"file": ".github/workflows/devflow-runner.yml", "line_range": [1415, 1441], "kind": "api_misuse"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The compatibility tuple is transcribed twice — COMPONENTS in lib/generate-install-state.py and install.sh section 4b's --component operands — with nothing reconciling the copies, so a component added to one side silently narrows every consumer's marker while both the drift gate and the 4b end-to-end tests stay green. Corroborated by the Phase 3.1.5 completeness critic.",
+      "defect_signature": {"file": "lib/generate-install-state.py", "line_range": [36, 44], "kind": "test_gap"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "phase-3.1.5-completeness-critic",
+      "severity": "Important",
+      "description": "Completeness critic: the audit's COMPONENTS set is a superset of an independently derived enumeration (import graph + action/helper invocation graph + lint_mode-passing workflows), so it is complete with respect to that signal. But the population is enumerated twice with no reconciliation, so the --check drift gate certifies completeness only for the repo-local copy and is structurally blind to the consumer copy the feature ships.",
+      "defect_signature": {"file": "lib/generate-install-state.py", "line_range": [36, 44], "kind": "test_gap"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "A structural-pin-ok declaration covers a log message, not a contract: the pinned literal 'no lint-tool provisioning and no manifest validation' is the body of an echo in action.yml consumed by no tool, declared routing-dispatch-contract. Rewording it turns the suite RED with no behavior change. Per the repo review extension this is a wording-only pin and at least Important.",
+      "defect_signature": {"file": "lib/test/test_python_scripts.py", "line_range": [37270, 37271], "kind": "test_gap"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The composite action's lint-provisioning step body has zero executable coverage: the closed lint_mode case, the RUNNER_OS/RUNNER_ARCH mapping tables (an unreconciled mirror of lint_provision.KNOWN_OS/KNOWN_ARCH), and the SCRIPTS_DIR fallback are covered only by substring pins on file text.",
+      "defect_signature": {"file": ".github/actions/setup-project-env/action.yml", "line_range": [250, 285], "kind": "test_gap"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The GITHUB_PATH export is never exercised — _run_helper_1388 pops GITHUB_PATH from the environment, so the append that makes the provisioned tools visible to the model runs in no test; deleting it leaves every fail-closed arm green while the model never sees shellcheck/ruff on PATH.",
+      "defect_signature": {"file": ".github/actions/setup-project-env/provision-lint-tools.sh", "line_range": [246, 248], "kind": "test_gap"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "tar.xz — the archive type every real shellcheck artifact uses — is never extracted in a test; _mk_archive_1388 builds only tar.gz and the one non-gz case is zip.",
+      "defect_signature": {"file": "lib/test/test_python_scripts.py", "line_range": null, "kind": "test_gap"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The drift gate has no RED-direction test: the suite only asserts --check exits 0 on the current tree, so an inverted comparison would leave the gate inert and nothing would say so.",
+      "defect_signature": {"file": "lib/generate-install-state.py", "line_range": [82, 100], "kind": "test_gap"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The multi-tool loop is never run: every fixture passes tools=shellcheck while production TOOLS defaults to 'shellcheck ruff', leaving PROVISIONED/UNPROVISIONED accumulation and the partial-failure ordering untested.",
+      "defect_signature": {"file": ".github/actions/setup-project-env/provision-lint-tools.sh", "line_range": [241, 256], "kind": "test_gap"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The section 4b positive control asserts structural validity (load_state status established), never readiness (check_readiness ready) against the consumer tree — which is exactly what would have caught the Critical marker-skew defect.",
+      "defect_signature": {"file": "lib/test/modules/installer-wiring.sh", "line_range": null, "kind": "test_gap"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The unwritable-target fixture chmods a parent to 0o555 with no os.geteuid() != 0 guard, inconsistent with two sibling permission fixtures in the same file that do guard on root; under uid 0 it is an environment-dependent RED with no attribution.",
+      "defect_signature": {"file": "lib/test/test_python_scripts.py", "line_range": [36921, 36930], "kind": "test_gap"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Nothing verifies the pinned digests against upstream reality — every test computes its own fixture digest, so the wrong pin on main would have hard-failed provisioning on every real runner while the suite stayed green. A periodic network-permitted re-derivation job is the only check for this class.",
+      "defect_signature": {"file": ".prflow/lint-manifest.json", "line_range": null, "kind": "test_gap"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "generate-install-state.py raises untyped tracebacks where every sibling reader returns a typed reason (unguarded json.loads of .prflow/config.json), and main silently ignores unrecognized argv, so a typo like --chek writes the marker instead of checking it.",
+      "defect_signature": {"file": "lib/generate-install-state.py", "line_range": [57, 96], "kind": "unhandled_exception"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Section 4b's outer guard has no else arm, so a source tree missing the manifest or install_state.py installs no manifest and no marker, prints nothing, and exits 0 — the only silent arm in a block where every other refusal logs a warning naming its cause.",
+      "defect_signature": {"file": "install.sh", "line_range": [1538, 1563], "kind": "logic_error"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "All four new types leave __delattr__ unguarded and expose their payload by reference, so `del r.state` yields established==True with state unreachable — the shape the constructor works hardest to make unrepresentable — and a certified payload can be mutated in place after certification.",
+      "defect_signature": {"file": "scripts/install_state.py", "line_range": [62, 98], "kind": "type_design"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "StateResult('established', ...) checks only that state is not None, so it accepts a payload validate_state would refuse (e.g. an empty components object). Holds today by call-site discipline only.",
+      "defect_signature": {"file": "scripts/install_state.py", "line_range": [73, 77], "kind": "type_design"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "cloud-setup.md's fail-closed list groups readiness reasons with per-tool ones and closes 'each naming the tool', but the readiness gate fires before any tool is selected and emits through _die - . Behavior-inert prose cap applied (both limbs hold: docs/internal is unread by tools and pruned from the vendor slice).",
+      "defect_signature": {"file": "docs/internal/cloud-setup.md", "line_range": null, "kind": "comment_drift"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "install.md tells consumers their marker is regenerated by lib/generate-install-state.py; that helper's own docstring scopes itself to the primary repo's committed copy and hardcodes _REPO_ROOT, so from a vendored copy it would resolve to the vendor tree. Behavior-inert prose cap applied.",
+      "defect_signature": {"file": "docs/internal/install.md", "line_range": [340, 340], "kind": "documented_falsehood"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "install_state.py's docstring names COMPONENTS in lib/generate-install-state.py as the authoritative set, but the consumer publication path (install.sh section 4b) never consults it. The two agree today; the parenthetical presents one as authoritative for a path it does not govern. Behavior-inert prose cap applied.",
+      "defect_signature": {"file": "scripts/install_state.py", "line_range": [10, 10], "kind": "comment_drift"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The release note's 'can never execute a setup action edited in the pull request under review' is narrowly true of setup-project-env only; read-project-config and vendor-plugin remain PR-head-resolved in the same runner. VC-54 graded the scoped wording accurate, so this stays a clarity Suggestion rather than a promoted falsehood.",
+      "defect_signature": {"file": "docs/external/release-notes.md", "line_range": null, "kind": "comment_drift"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Added comment blocks exceed the prevention-only three-line cap and carry derivation rather than the wrong change they prevent: devflow-runner.yml:1393-1403 (11 lines), ci.yml:73-79 (7 lines), and provision-lint-tools.sh's cache/re-verification (6) and pre-provisioned-reuse (4) comments.",
+      "defect_signature": {"file": ".github/workflows/devflow-runner.yml", "line_range": [1393, 1403], "kind": "style"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "The new lint-manifest job was inserted between the jobs-level comment block describing the shard partition and the shard job it documents, so that comment now heads the wrong job and shard: is left undocumented. Capped at Suggestion in the report (organizational, behavior-inert workflow comment).",
+      "defect_signature": {"file": ".github/workflows/ci.yml", "line_range": [56, 99], "kind": "comment_drift"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "A missing unzip/tar on a Windows Git Bash or minimal self-hosted runner hard-fails the whole implement job, in tension with the CLAUDE.md convention this same PR adds (reserve fail-closed for integrity checks). AC10 lists 'missing installer primitive' among the fail-closed arms, so the two statements now disagree in-tree.",
+      "defect_signature": {"file": ".github/actions/setup-project-env/provision-lint-tools.sh", "line_range": [178, 184], "kind": "other"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "_die bypasses the RETURN trap (exit 1 does not run a RETURN trap), leaking the mktemp -d work directory on every fail-closed arm. Cosmetic on an ephemeral runner; the suite does drive the helper repeatedly in one process.",
+      "defect_signature": {"file": ".github/actions/setup-project-env/provision-lint-tools.sh", "line_range": [196, 199], "kind": "leak"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "REFUTED",
+      "description": "REFUTED — filed as Critical that the changed shellcheck linux/x86_64 digest was hand-edited (inferred from the 60-of-64 shared hex prefix between old and new). The orchestrator downloaded shellcheck-v0.10.0.linux.x86_64.tar.xz and ruff-0.6.9-x86_64-unknown-linux-gnu.tar.gz from upstream and computed sha256: the NEW values are correct and the value on main was wrong. pr-test-analyzer and the final-pass reviewer independently downloaded and reached the same conclusion. This PR FIXES a bad supply-chain pin. Not filed as a finding.",
+      "defect_signature": {"file": ".prflow/lint-manifest.json", "line_range": [11, 11], "kind": "security"},
+      "corroboration_count": 0
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "changed_files": 27,
+    "added_lines": 2265,
+    "deleted_lines": 37,
+    "checklist_skipped": null,
+    "announcement": "Diff classification: detect_all_audit (+ engine_self_modifying) → full checklist, AND forcing the Phase 3.1.5 completeness-critic pass. Phase 3 roster gated by Phase 3.1 applicability: has_new_types true → type-design-analyzer dispatched; test-relevance predicate matched → pr-test-analyzer dispatched."
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "checklist": [
+    {"id": "VC-1", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-2", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-3", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-4", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-5", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-6", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-7", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-8", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-9", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-10", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-11", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-12", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-13", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-14", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-15", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-16", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-17", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-18", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-19", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-20", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-21", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-22", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-23", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-24", "verification_mode": "agent", "verdict": "FAIL"},
+    {"id": "VC-25", "verification_mode": "agent", "verdict": "FAIL"},
+    {"id": "VC-26", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-27", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-28", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-29", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-30", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-31", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-32", "verification_mode": "orchestrator-probe", "verdict": "PASS"},
+    {"id": "VC-33", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-34", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-35", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-36", "verification_mode": "agent", "verdict": "FAIL"},
+    {"id": "VC-37", "verification_mode": "agent", "verdict": "FAIL"},
+    {"id": "VC-38", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-39", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-40", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-41", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-42", "verification_mode": "agent", "verdict": "PASS", "raw_verdict": "FAIL", "normalized": true},
+    {"id": "VC-43", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-44", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-45", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-46", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-47", "verification_mode": "agent", "verdict": "PASS", "raw_verdict": "FAIL", "normalized": true},
+    {"id": "VC-48", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-49", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-50", "verification_mode": "agent", "verdict": "FAIL"},
+    {"id": "VC-51", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-52", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-53", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-54", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-55", "verification_mode": "agent", "verdict": "FAIL"},
+    {"id": "VC-56", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-57", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-58", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-59", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-60", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-61", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-62", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-63", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-64", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-65", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-66", "verification_mode": "agent", "verdict": "FAIL"},
+    {"id": "VC-67", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-68", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-69", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-70", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-71", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-72", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-73", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-74", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-75", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-76", "verification_mode": "agent", "verdict": "PASS"},
+    {"id": "VC-77", "verification_mode": "agent", "verdict": "PASS"}
+  ],
+  "checklist_counts": {
+    "total": 77,
+    "passed": 70,
+    "failed": 7,
+    "inconclusive": 0,
+    "lite_count": 0,
+    "agent_count": 76,
+    "orchestrator_probe_count": 1,
+    "normalized_count": 2,
+    "field_defect_fail_count": 0,
+    "raw_generated": 101,
+    "deduped_to": 77,
+    "batches": 3
+  },
+  "engine_execution_notes": {
+    "engine_dir": "skills/review",
+    "root_identity_manifest": ".prflow/tmp/review/pr-1963/local-20260826T032120Z-1/root-identity.json",
+    "root_hash": "70741358d30c3a36c7f4f2f3cbed39caea923507",
+    "prompt_extension_status": "content-present (scripts/load-prompt-extension.sh review)",
+    "acceptance_criteria_source": "workpad",
+    "acceptance_criteria_divergence": "none",
+    "verdict_severity_threshold": "critical",
+    "phase_0_6_stale_prose": "skipped — prflow_review.stale_prose.enabled resolves false",
+    "phase_0_3_6_blocker_recheck": "not loaded — gate unmet (no prior carve-out-only REJECT)",
+    "phase_4_0_deferrals": "block_present false — the PR body carries no Scope-Acknowledged Findings block; no demotions",
+    "phase_4_1_7": "not loaded — no Phase 0.6 STALE rows to adjudicate",
+    "phase_4_4": "SKIPPED per caller instruction — no GitHub review, no verdict comment posted",
+    "progress_surface": "none — no progress comment seeded (standalone fix-loop entry; caller permitted but did not require seeding, and nothing was posted to GitHub)",
+    "dirty_tree_backstop": "before-snapshot OID e69de29bb2d1d6434b8b29ae775ad8c2e48c5391; after-dispatch cmp rc=0 — the Phase 3.1 batch left the working tree unchanged; nothing restored",
+    "displaced_paths": "none — .prflow/tmp/displaced-paths.txt written empty (no engine-ground-truth displaced section on this tier)",
+    "documented_deviation": "Phase 2 dispatched 76 agent items across 8 checklist-verifier agents grouped by source-file affinity (~7-12 items each) rather than one agent per item. Item coverage is complete and unnarrowed — every deduped item received an independent PASS/FAIL/INCONCLUSIVE verdict with file:line evidence, written to a nonce-bound verdict file and normalized through scripts/normalize-verdicts.py. VC-32 (upstream digest verification) required network access the verifier agents lack and was verified by the orchestrator directly (both artifacts downloaded, sha256 computed).",
+    "normalizer": "scripts/normalize-verdicts.py ran on .prflow/tmp/review/pr-1963/local-20260826T032120Z-1/pairs.json, rc 0, results arm — 2 normalized, 0 needs_retry, 0 field-defect FAILs"
+  }
+}

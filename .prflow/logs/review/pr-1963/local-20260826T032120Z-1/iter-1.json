@@ -2,16 +2,9 @@
   "iter": 1,
   "started_at": "2026-08-26T03:21:20Z",
   "loop_role": "fix",
-  "current_step": "loop-control",
-  "current_substep": "step1_engine_dispatch",
-  "pending_dispatch": {
-    "kind": "review_engine_entry",
-    "roster": [
-      "general-purpose"
-    ],
-    "dispatched_at": "2026-08-26T03:25:00Z",
-    "issued_by": "loop-control"
-  },
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
   "config": {
     "max_iterations": 5,
     "fix_severity_threshold": "suggestion",
@@ -26,10 +19,1221 @@
     "branch_actual": "worktree-pr-1963",
     "assertion": "head-commit comparand satisfied; branch-name comparand differs by the shepherd-worktree convention this repo's receiving-code-review extension documents. Upstream wired to origin/<head ref>; every push uses the explicit refspec HEAD:refs/heads/<head ref>. Recorded as a deviation, not a pass."
   },
-  "dispatch_mode": null,
-  "checklist": [],
-  "phase3_findings": [],
-  "fix_decisions": [],
+  "dispatch_mode": "fanned-out",
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-12",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-13",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-14",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-15",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-16",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-17",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-18",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-19",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-20",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-21",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-22",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-23",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-24",
+      "verification_mode": "agent",
+      "verdict": "FAIL"
+    },
+    {
+      "id": "VC-25",
+      "verification_mode": "agent",
+      "verdict": "FAIL"
+    },
+    {
+      "id": "VC-26",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-27",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-28",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-29",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-30",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-31",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-32",
+      "verification_mode": "orchestrator-probe",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-33",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-34",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-35",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-36",
+      "verification_mode": "agent",
+      "verdict": "FAIL"
+    },
+    {
+      "id": "VC-37",
+      "verification_mode": "agent",
+      "verdict": "FAIL"
+    },
+    {
+      "id": "VC-38",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-39",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-40",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-41",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-42",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "raw_verdict": "FAIL",
+      "normalized": true
+    },
+    {
+      "id": "VC-43",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-44",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-45",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-46",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-47",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "raw_verdict": "FAIL",
+      "normalized": true
+    },
+    {
+      "id": "VC-48",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-49",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-50",
+      "verification_mode": "agent",
+      "verdict": "FAIL"
+    },
+    {
+      "id": "VC-51",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-52",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-53",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-54",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-55",
+      "verification_mode": "agent",
+      "verdict": "FAIL"
+    },
+    {
+      "id": "VC-56",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-57",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-58",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-59",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-60",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-61",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-62",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-63",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-64",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-65",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-66",
+      "verification_mode": "agent",
+      "verdict": "FAIL"
+    },
+    {
+      "id": "VC-67",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-68",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-69",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-70",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-71",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-72",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-73",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-74",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-75",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-76",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-77",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Critical",
+      "description": "install.sh section 4b digests SOURCE bytes for setup-action, provision-helper, implement-workflow and manifest while recording consumer runtime paths, but install_managed PRESERVES a modified/unverified/unreadable artifact (sidecar .prflow-new) and the tier1_rc != 0 arm skips the workflow copy loop entirely. check_readiness then returns digest-mismatch and provision-lint-tools.sh _die's, hard-failing the whole cloud implement job permanently, with a printed remedy (re-run the installer) that cannot converge.",
+      "defect_signature": {
+        "file": "install.sh",
+        "line_range": [
+          1528,
+          1564
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 4
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Critical",
+      "description": "Same defect: the marker binds SOURCE digests for components install.sh may deliberately preserve or skip, so a supported install outcome hard-fails every later implement run with a non-remedy. The guard's comparand comes from a producer that does not emit it on every path the guard now selects.",
+      "defect_signature": {
+        "file": "install.sh",
+        "line_range": [
+          1531,
+          1563
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 4
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Critical",
+      "description": "Same defect, with the availability consequence traced: the _die is a hard exit 1 inside a step of `uses: ./.github/actions/setup-project-env` with no continue-on-error, so the entire /prflow:implement job fails. Three routine non-adversarial paths reach it (hand-edited workflow or action; pre-manifest installation upgrading, where every differing artifact classifies unverified; plugin auto-update replacing the vendored readers).",
+      "defect_signature": {
+        "file": "install.sh",
+        "line_range": [
+          1531,
+          1564
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 4
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Critical",
+      "description": "The new hardensetup step displaces PR-head bytes for .github/actions/setup-project-env/ but publishes no displaced_paths output and is absent from displaced_join's three-producer env, so HARDENED_PATHS omits it and the reviewing agent reads base-ref bytes from the working tree as if they were head — on exactly the file a PR editing that action would be under review for. That workflow states the governing contract inline for its other producers.",
+      "defect_signature": {
+        "file": ".github/workflows/devflow-runner.yml",
+        "line_range": [
+          1404,
+          1443
+        ],
+        "kind": "security"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "The readiness-refusal remedy string 'remedy: re-run the PRFlow installer (install.sh) so the marker matches the installed components' is false against HEAD for the dominant digest-mismatch cause (a preserved local edit): re-running reproduces the identical marker and preserves the edit again. Self-contradicting-diff carve-out.",
+      "defect_signature": {
+        "file": ".github/actions/setup-project-env/provision-lint-tools.sh",
+        "line_range": [
+          83,
+          89
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Critical",
+      "description": "The TOOLS comment states a consequence the code does not produce: TOOLS is a hardcoded literal, not a function of the manifest, and an out-of-manifest tool cannot ride a partial cache restore (rc-4 hard refusal / rc-3 degrade). A maintainer could 'fix' a hazard that does not exist by loosening the real refusal. Self-contradicting-diff carve-out.",
+      "defect_signature": {
+        "file": ".github/actions/setup-project-env/provision-lint-tools.sh",
+        "line_range": [
+          45,
+          46
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "TOOLS is a third independent copy of the tool set beside lint_manifest.KNOWN_TOOLS and lint_provision.KNOWN_TOOLS, with no mechanical link; a manifest declaring a tool this list omits would have that tool silently never provisioned while the readiness gate still said READY.",
+      "defect_signature": {
+        "file": ".github/actions/setup-project-env/provision-lint-tools.sh",
+        "line_range": [
+          45,
+          47
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Vendored helper components are bound by install-time digest at $pin but resolved at run time from a ref install.sh may not control: devflow_pin_version keeps an existing deliberate pin, and install.sh falls back to PIN=$REF (possibly a mutable branch) in the curl-piped case. The 'identical bytes at the pinned ref' comment is false against HEAD.",
+      "defect_signature": {
+        "file": "install.sh",
+        "line_range": [
+          1533,
+          1553
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Important",
+      "description": "build_state does not close the round trip its docstring promises: component names and recorded paths are copied through unchecked, so a marker that validate_state later rejects is published successfully and the failure surfaces at provisioning time on the consumer rather than at publication time. Confirmed by execution.",
+      "defect_signature": {
+        "file": "scripts/install_state.py",
+        "line_range": [
+          257,
+          282
+        ],
+        "kind": "api_misuse"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Important",
+      "description": "Plan.__init__(status, **kw) silently absorbs unknown keywords and requires tool/os/arch on no status, so a misspelled field is a silently None attribute and an under-populated established plan yields a cache_key containing the literal None — the exact stale-binary failure cache_key exists to prevent. Confirmed by execution.",
+      "defect_signature": {
+        "file": "scripts/lint_provision.py",
+        "line_range": [
+          131,
+          156
+        ],
+        "kind": "type_design"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The SCRIPTS_DIR fallback has no third arm verifying the chosen directory contains the helpers (it probes only lint_provision.py while the helper also invokes install_state.py), so a failed vendor materialization is misreported as a marker-readiness failure and sends the operator to the wrong remedy.",
+      "defect_signature": {
+        ".file": null,
+        "file": ".github/actions/setup-project-env/action.yml",
+        "line_range": [
+          264,
+          285
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The hardening step drives a destructive rm -f selection through grep, a non-preflight PATH tool, on the left of ||, so set -e/pipefail cannot fire and a missing grep deletes every trusted file just materialized; the job aborts only incidentally via the next existence check, with a misattributed message. The fetch's stderr is also discarded on a security-critical fail-closed arm.",
+      "defect_signature": {
+        "file": ".github/workflows/devflow-runner.yml",
+        "line_range": [
+          1415,
+          1441
+        ],
+        "kind": "api_misuse"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The compatibility tuple is transcribed twice — COMPONENTS in lib/generate-install-state.py and install.sh section 4b's --component operands — with nothing reconciling the copies, so a component added to one side silently narrows every consumer's marker while both the drift gate and the 4b end-to-end tests stay green. Corroborated by the Phase 3.1.5 completeness critic.",
+      "defect_signature": {
+        "file": "lib/generate-install-state.py",
+        "line_range": [
+          36,
+          44
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2
+    },
+    {
+      "agent": "phase-3.1.5-completeness-critic",
+      "severity": "Important",
+      "description": "Completeness critic: the audit's COMPONENTS set is a superset of an independently derived enumeration (import graph + action/helper invocation graph + lint_mode-passing workflows), so it is complete with respect to that signal. But the population is enumerated twice with no reconciliation, so the --check drift gate certifies completeness only for the repo-local copy and is structurally blind to the consumer copy the feature ships.",
+      "defect_signature": {
+        "file": "lib/generate-install-state.py",
+        "line_range": [
+          36,
+          44
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "A structural-pin-ok declaration covers a log message, not a contract: the pinned literal 'no lint-tool provisioning and no manifest validation' is the body of an echo in action.yml consumed by no tool, declared routing-dispatch-contract. Rewording it turns the suite RED with no behavior change. Per the repo review extension this is a wording-only pin and at least Important.",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          37270,
+          37271
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The composite action's lint-provisioning step body has zero executable coverage: the closed lint_mode case, the RUNNER_OS/RUNNER_ARCH mapping tables (an unreconciled mirror of lint_provision.KNOWN_OS/KNOWN_ARCH), and the SCRIPTS_DIR fallback are covered only by substring pins on file text.",
+      "defect_signature": {
+        "file": ".github/actions/setup-project-env/action.yml",
+        "line_range": [
+          250,
+          285
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The GITHUB_PATH export is never exercised — _run_helper_1388 pops GITHUB_PATH from the environment, so the append that makes the provisioned tools visible to the model runs in no test; deleting it leaves every fail-closed arm green while the model never sees shellcheck/ruff on PATH.",
+      "defect_signature": {
+        "file": ".github/actions/setup-project-env/provision-lint-tools.sh",
+        "line_range": [
+          246,
+          248
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "tar.xz — the archive type every real shellcheck artifact uses — is never extracted in a test; _mk_archive_1388 builds only tar.gz and the one non-gz case is zip.",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": null,
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The drift gate has no RED-direction test: the suite only asserts --check exits 0 on the current tree, so an inverted comparison would leave the gate inert and nothing would say so.",
+      "defect_signature": {
+        "file": "lib/generate-install-state.py",
+        "line_range": [
+          82,
+          100
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The multi-tool loop is never run: every fixture passes tools=shellcheck while production TOOLS defaults to 'shellcheck ruff', leaving PROVISIONED/UNPROVISIONED accumulation and the partial-failure ordering untested.",
+      "defect_signature": {
+        "file": ".github/actions/setup-project-env/provision-lint-tools.sh",
+        "line_range": [
+          241,
+          256
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The section 4b positive control asserts structural validity (load_state status established), never readiness (check_readiness ready) against the consumer tree — which is exactly what would have caught the Critical marker-skew defect.",
+      "defect_signature": {
+        "file": "lib/test/modules/installer-wiring.sh",
+        "line_range": null,
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The unwritable-target fixture chmods a parent to 0o555 with no os.geteuid() != 0 guard, inconsistent with two sibling permission fixtures in the same file that do guard on root; under uid 0 it is an environment-dependent RED with no attribution.",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          36921,
+          36930
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Nothing verifies the pinned digests against upstream reality — every test computes its own fixture digest, so the wrong pin on main would have hard-failed provisioning on every real runner while the suite stayed green. A periodic network-permitted re-derivation job is the only check for this class.",
+      "defect_signature": {
+        "file": ".prflow/lint-manifest.json",
+        "line_range": null,
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "generate-install-state.py raises untyped tracebacks where every sibling reader returns a typed reason (unguarded json.loads of .prflow/config.json), and main silently ignores unrecognized argv, so a typo like --chek writes the marker instead of checking it.",
+      "defect_signature": {
+        "file": "lib/generate-install-state.py",
+        "line_range": [
+          57,
+          96
+        ],
+        "kind": "unhandled_exception"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Section 4b's outer guard has no else arm, so a source tree missing the manifest or install_state.py installs no manifest and no marker, prints nothing, and exits 0 — the only silent arm in a block where every other refusal logs a warning naming its cause.",
+      "defect_signature": {
+        "file": "install.sh",
+        "line_range": [
+          1538,
+          1563
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "All four new types leave __delattr__ unguarded and expose their payload by reference, so `del r.state` yields established==True with state unreachable — the shape the constructor works hardest to make unrepresentable — and a certified payload can be mutated in place after certification.",
+      "defect_signature": {
+        "file": "scripts/install_state.py",
+        "line_range": [
+          62,
+          98
+        ],
+        "kind": "type_design"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "StateResult('established', ...) checks only that state is not None, so it accepts a payload validate_state would refuse (e.g. an empty components object). Holds today by call-site discipline only.",
+      "defect_signature": {
+        "file": "scripts/install_state.py",
+        "line_range": [
+          73,
+          77
+        ],
+        "kind": "type_design"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "cloud-setup.md's fail-closed list groups readiness reasons with per-tool ones and closes 'each naming the tool', but the readiness gate fires before any tool is selected and emits through _die - . Behavior-inert prose cap applied (both limbs hold: docs/internal is unread by tools and pruned from the vendor slice).",
+      "defect_signature": {
+        "file": "docs/internal/cloud-setup.md",
+        "line_range": null,
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "install.md tells consumers their marker is regenerated by lib/generate-install-state.py; that helper's own docstring scopes itself to the primary repo's committed copy and hardcodes _REPO_ROOT, so from a vendored copy it would resolve to the vendor tree. Behavior-inert prose cap applied.",
+      "defect_signature": {
+        "file": "docs/internal/install.md",
+        "line_range": [
+          340,
+          340
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "install_state.py's docstring names COMPONENTS in lib/generate-install-state.py as the authoritative set, but the consumer publication path (install.sh section 4b) never consults it. The two agree today; the parenthetical presents one as authoritative for a path it does not govern. Behavior-inert prose cap applied.",
+      "defect_signature": {
+        "file": "scripts/install_state.py",
+        "line_range": [
+          10,
+          10
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The release note's 'can never execute a setup action edited in the pull request under review' is narrowly true of setup-project-env only; read-project-config and vendor-plugin remain PR-head-resolved in the same runner. VC-54 graded the scoped wording accurate, so this stays a clarity Suggestion rather than a promoted falsehood.",
+      "defect_signature": {
+        "file": "docs/external/release-notes.md",
+        "line_range": null,
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Added comment blocks exceed the prevention-only three-line cap and carry derivation rather than the wrong change they prevent: devflow-runner.yml:1393-1403 (11 lines), ci.yml:73-79 (7 lines), and provision-lint-tools.sh's cache/re-verification (6) and pre-provisioned-reuse (4) comments.",
+      "defect_signature": {
+        "file": ".github/workflows/devflow-runner.yml",
+        "line_range": [
+          1393,
+          1403
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "The new lint-manifest job was inserted between the jobs-level comment block describing the shard partition and the shard job it documents, so that comment now heads the wrong job and shard: is left undocumented. Capped at Suggestion in the report (organizational, behavior-inert workflow comment).",
+      "defect_signature": {
+        "file": ".github/workflows/ci.yml",
+        "line_range": [
+          56,
+          99
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "A missing unzip/tar on a Windows Git Bash or minimal self-hosted runner hard-fails the whole implement job, in tension with the CLAUDE.md convention this same PR adds (reserve fail-closed for integrity checks). AC10 lists 'missing installer primitive' among the fail-closed arms, so the two statements now disagree in-tree.",
+      "defect_signature": {
+        "file": ".github/actions/setup-project-env/provision-lint-tools.sh",
+        "line_range": [
+          178,
+          184
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "_die bypasses the RETURN trap (exit 1 does not run a RETURN trap), leaking the mktemp -d work directory on every fail-closed arm. Cosmetic on an ephemeral runner; the suite does drive the helper repeatedly in one process.",
+      "defect_signature": {
+        "file": ".github/actions/setup-project-env/provision-lint-tools.sh",
+        "line_range": [
+          196,
+          199
+        ],
+        "kind": "leak"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "REFUTED",
+      "description": "REFUTED — filed as Critical that the changed shellcheck linux/x86_64 digest was hand-edited (inferred from the 60-of-64 shared hex prefix between old and new). The orchestrator downloaded shellcheck-v0.10.0.linux.x86_64.tar.xz and ruff-0.6.9-x86_64-unknown-linux-gnu.tar.gz from upstream and computed sha256: the NEW values are correct and the value on main was wrong. pr-test-analyzer and the final-pass reviewer independently downloaded and reached the same conclusion. This PR FIXES a bad supply-chain pin. Not filed as a finding.",
+      "defect_signature": {
+        "file": ".prflow/lint-manifest.json",
+        "line_range": [
+          11,
+          11
+        ],
+        "kind": "security"
+      },
+      "corroboration_count": 0
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-0",
+      "decision": "applied",
+      "commit": "a50e50be",
+      "note": "install.sh 4b now digests the target tree; --digest-root for the vendor-fetched readers"
+    },
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "a50e50be",
+      "note": "install.sh 4b now digests the target tree; --digest-root for the vendor-fetched readers"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "a50e50be",
+      "note": "install.sh 4b now digests the target tree; --digest-root for the vendor-fetched readers"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "a50e50be",
+      "note": "hardensetup publishes displaced_paths; displaced_join consumes it"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-10",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-11",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-12",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-13",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-14",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-16",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-21",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-23",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-24",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-25",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-29",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-31",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-32",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-34",
+      "decision": "applied",
+      "commit": "a50e50be"
+    },
+    {
+      "finding_id": "F-17",
+      "decision": "applied",
+      "commit": "a50e50be",
+      "note": "tar.xz fixture added and extracted end-to-end"
+    },
+    {
+      "finding_id": "F-18",
+      "decision": "applied",
+      "commit": "a50e50be",
+      "note": "drift gate RED-direction test over a repo copy"
+    },
+    {
+      "finding_id": "F-20",
+      "decision": "applied",
+      "commit": "a50e50be",
+      "note": "readiness (not merely structural) positive control against the consumer tree"
+    },
+    {
+      "finding_id": "F-15",
+      "decision": "deferred",
+      "source_file": ".github/actions/setup-project-env/action.yml",
+      "claim_text": "the composite action's lint-provisioning step body has zero executable coverage",
+      "skip_category": "uncategorized",
+      "evidence": "Partially reduced: the SCRIPTS_DIR arm now refuses explicitly and the none-mode pin is structural rather than prose. Full executable coverage of a composite-action step body needs an act-style harness this repo does not have; the shipped-run-block extraction pattern used for hardensetup is the model, but porting it to a step with a cache dependency is its own change."
+    },
+    {
+      "finding_id": "F-19",
+      "decision": "deferred",
+      "source_file": ".github/actions/setup-project-env/provision-lint-tools.sh",
+      "claim_text": "the multi-tool loop is never run",
+      "skip_category": "uncategorized",
+      "evidence": "Narrowed rather than closed: TOOLS is now DERIVED from the manifest, so production runs the manifest's full set and the hardcoded-list drift is gone. A two-tool fixture still needs a second pinned artifact per platform; left for a follow-up."
+    },
+    {
+      "finding_id": "F-22",
+      "decision": "deferred",
+      "source_file": ".prflow/lint-manifest.json",
+      "claim_text": "nothing verifies the pinned digests against upstream reality",
+      "skip_category": "uncategorized",
+      "evidence": "Correct and unfixable in an offline suite by construction - it needs a network-permitted periodic re-derivation job. Note the finding is evidenced by this very PR, which corrects a wrong shellcheck pin on main."
+    },
+    {
+      "finding_id": "F-26",
+      "decision": "deferred",
+      "source_file": "scripts/install_state.py",
+      "claim_text": "StateResult('established') accepts a payload validate_state would refuse",
+      "skip_category": "uncategorized",
+      "evidence": "Reduced at the boundary that mattered: build_state now runs validate_state before publishing, so the installer can no longer emit such a payload. The constructor stays permissive; making StateResult itself call validate_state would recurse through the reader."
+    },
+    {
+      "finding_id": "F-27",
+      "decision": "applied",
+      "commit": "a50e50be",
+      "note": "readiness reasons named as component-scoped, per-tool failures as tool-scoped"
+    },
+    {
+      "finding_id": "F-28",
+      "decision": "applied",
+      "commit": "a50e50be",
+      "note": "scoped to this repo's committed copy; consumers re-run install.sh"
+    },
+    {
+      "finding_id": "F-30",
+      "decision": "applied",
+      "commit": "a50e50be",
+      "note": "scoped to the environment-setup action"
+    },
+    {
+      "finding_id": "F-33",
+      "decision": "pushed_back",
+      "source_file": ".github/actions/setup-project-env/provision-lint-tools.sh",
+      "claim_text": "a missing unzip/tar hard-fails the whole implement job, in tension with the CLAUDE.md fail-closed convention",
+      "skip_category": "claim-quality",
+      "evidence": "AC10 of the issue explicitly lists 'missing installer primitive' among the fail-closed arms, so the shipped behavior is the specified behavior rather than a defect. Degrading it would silently skip provisioning and let the model run without the tools the marker just certified.",
+      "parking_evidence": {
+        "basis": "the issue's own AC10 specifies this arm as fail-closed",
+        "failing_input": "a runner with no unzip/tar",
+        "source": "issue #1388 AC10 (fail-closed arms include 'missing installer primitive')",
+        "finding_ref": {
+          "iter": 1,
+          "index": 33
+        }
+      }
+    },
+    {
+      "finding_id": "F-35",
+      "decision": "pushed_back",
+      "source_file": ".prflow/lint-manifest.json",
+      "claim_text": "the changed shellcheck linux/x86_64 digest was hand-edited",
+      "skip_category": "claim-quality",
+      "evidence": "Refuted upstream by three independent downloads: the NEW pins are correct and main's shellcheck pin was wrong. This PR FIXES a bad supply-chain pin.",
+      "parking_evidence": {
+        "basis": "upstream artifacts downloaded and hashed; the new values match",
+        "failing_input": "shellcheck-v0.10.0.linux.x86_64.tar.xz from the upstream release",
+        "source": "github.com/koalaman/shellcheck releases (sha256 recomputed)",
+        "finding_ref": {
+          "iter": 1,
+          "index": 35
+        }
+      }
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "changed_files": 27,
+    "added_lines": 2265,
+    "deleted_lines": 37,
+    "checklist_skipped": null,
+    "announcement": "Diff classification: detect_all_audit (+ engine_self_modifying) → full checklist, AND forcing the Phase 3.1.5 completeness-critic pass. Phase 3 roster gated by Phase 3.1 applicability: has_new_types true → type-design-analyzer dispatched; test-relevance predicate matched → pr-test-analyzer dispatched."
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "fix_commit_sha": "a50e50be67f1324729c5620c3fb9a4bac9d764ed",
+  "base_checkpoint": {
+    "token": "UPDATED",
+    "behind_by": 10
+  },
+  "pushed_head": "36c4f834ecadf000d0adb165dd3abe4274d5e868",
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "stale_prose_check": {
+    "stale_rows": 0,
+    "unresolvable_rows": 19,
+    "verified_rows": 1,
+    "note": "no STALE rows; UNRESOLVABLE rows are informational and never gate"
+  },
+  "verification_evidence": {
+    "command": "lib/test/test_python_scripts.py (focused) + lib/test/run-module.sh installer-wiring + repo-wide shellcheck/ruff",
+    "result": "pass",
+    "detail": "python focused: 6057 passed, 29 failed - all 29 the documented environment-only #1655 set (CI green on the same commits); installer-wiring module: 304 passed, 0 failed; shellcheck and ruff clean repo-wide",
+    "skipped_checks": [],
+    "note": "the whole-suite completion gate on this tier is the CI reading for the pushed head 36c4f834e, not this in-env run",
+    "ci_reading": {
+      "tier": "local",
+      "head_sha": "f8a3e84f6773648201f05acb8750d21b74b5f94c",
+      "run_url": "https://github.com/The01Geek/prflow/actions/runs/32932420084",
+      "checks": [
+        {
+          "name": "lib + python tests",
+          "conclusion": "success"
+        },
+        {
+          "name": "lint (shellcheck + actionlint + ruff)",
+          "conclusion": "success"
+        }
+      ],
+      "head_confirmed_before_and_after": true,
+      "note": "Discharges the local/interactive tier's whole-suite completion gate (CLAUDE.md rung 1)."
+    }
+  },
+  "convergence_inputs": {
+    "fixes_applied": 30,
+    "new_corroborated_critical_count": 0
+  },
+  "ci_rounds": [
+    {
+      "head": "36c4f834ecadf000d0adb165dd3abe4274d5e868",
+      "result": "fail",
+      "failures": [
+        "#504 AC1 harden publishes displaced_paths heredoc",
+        "#591 coverage-map guard",
+        "#1055 measured floor reconciliation"
+      ]
+    },
+    {
+      "head": "133134133000f7e869af9c83ff53e15095d776cc",
+      "result": "fail",
+      "failures": [
+        "python-pool: installer-wiring exact assertion floor 301 vs 304"
+      ]
+    },
+    {
+      "head": "bb40477102ceaf2a1d6f48ccf07bbf045048363a",
+      "result": "no run",
+      "cause": "PR mergeStateStatus was DIRTY (conflict with main), so GitHub dropped both the synchronize and ready_for_review events"
+    },
+    {
+      "head": "f8a3e84f6773648201f05acb8750d21b74b5f94c",
+      "result": "pass",
+      "note": "after merging origin/main and resolving the release-notes conflict as a union"
+    }
+  ],
+  "loop_termination": {
+    "converged": false,
+    "reason": "Findings were fixed and CI is green for the pushed head, but the loop did not run its own iteration-2 review engine pass or the Step 2.6 shadow. The independent re-review is the cloud PRFlow review the ready toggle requests.",
+    "shadow": {
+      "coverage": "not_verified",
+      "reason": "shadow pass not run in this session"
+    }
+  },
   "synthesized": false,
   "telemetry": "unavailable"
 }
