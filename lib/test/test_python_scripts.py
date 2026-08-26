@@ -37144,6 +37144,59 @@ with tempfile.TemporaryDirectory() as _dnb:
     assert_eq("#1389 unrelated histories (no merge base) is unestablished, not empty",
               ("unestablished", "no-merge-base"), (_pop_nb.status, _pop_nb.reason))
 
+# Population invariant enforced at construction (issue #1389 shadow review — the last
+# unenforced headline invariant): status must be consistent with records/reason, so
+# run_paths() can never emit from an unestablished enumeration.
+assert_raises("#1389 an unestablished population may not carry records", ValueError,
+              lambda: _lint_changed.Population("unestablished", reason="x",
+                                               records=[_lint_changed.ChangedRecord("add", dst=b"a", run_path=b"a")]))
+assert_raises("#1389 a nonempty population must carry records", ValueError,
+              lambda: _lint_changed.Population("nonempty"))
+assert_raises("#1389 an empty population carries no reason", ValueError,
+              lambda: _lint_changed.Population("empty", reason="x"))
+assert_raises("#1389 Invocation refuses an empty path set", ValueError,
+              lambda: _lint_changed.Invocation("op", "ruff", ["check"], [], 600))
+
+# select_full_invocations fails closed on a git ls-files failure rather than certifying a
+# clean zero-profile pass (issue #1389 shadow review — the lint-full fail-open).
+with tempfile.TemporaryDirectory() as _dng:
+    # A non-git directory makes `git ls-files` exit non-zero.
+    assert_raises("#1389 lint-full fails closed (LintUnestablished) on a git enumeration failure",
+                  _lint_changed.LintUnestablished,
+                  lambda: _lint_changed.select_full_invocations(_dng, _lint_manifest_1389))
+
+# End-to-end cmd_lint_changed: exit-code contract + a written receipt's payload shape
+# (issue #1389 shadow review — the untested entrypoint/receipt seam).
+with tempfile.TemporaryDirectory() as _de2e:
+    _git1389(_de2e, "init", "-q", "-b", "main")
+    _git1389(_de2e, "config", "user.email", "a@b.c")
+    _git1389(_de2e, "config", "user.name", "t")
+    (Path(_de2e) / ".prflow").mkdir()
+    (Path(_de2e) / ".prflow" / "lint-manifest.json").write_text(
+        (cwc.REPO_ROOT / ".prflow" / "lint-manifest.json").read_text(encoding="utf-8"), encoding="utf-8")
+    (Path(_de2e) / "seed.py").write_text("x = 1\n")
+    _git1389(_de2e, "add", "-A")
+    _git1389(_de2e, "commit", "-qm", "base")
+    _git1389(_de2e, "update-ref", "refs/remotes/origin/main", "HEAD")
+    (Path(_de2e) / "changed.py").write_text("y = 2\n")  # unstaged change → nonempty population
+    _cwd_e2e = os.getcwd()
+    try:
+        os.chdir(_de2e)
+        _ns = argparse.Namespace(manifest=None, base="main", run_id="t1389", run_attempt="1")
+        _rc = _lint_changed.cmd_lint_changed(_ns)
+    finally:
+        os.chdir(_cwd_e2e)
+    assert_eq("#1389 cmd_lint_changed returns LINT_OK (0) on an established nonempty run", 0, _rc)
+    _receipts = sorted((Path(_de2e) / ".prflow" / "tmp" / "lint" / "t1389" / "1").glob("*.json"))
+    assert_eq("#1389 cmd_lint_changed wrote at least one receipt", True, len(_receipts) >= 1)
+    _rjson = _json1389.loads(_receipts[0].read_text(encoding="utf-8"))
+    assert_eq("#1389 the written receipt carries the schema id and lint-changed subcommand",
+              ("prflow-lint-receipt/1", "lint-changed"), (_rjson["schema"], _rjson["subcommand"]))
+    assert_eq("#1389 the receipt records the manifest provenance digest",
+              True, str(_rjson["manifest_provenance"]["digest"]).startswith("sha256:"))
+    assert_eq("#1389 the receipt carries its locked sequence and examined population",
+              (0, True), (_rjson["sequence"], isinstance(_rjson["examined"], list)))
+
 # Atomic receipts: monotonic sequence, and a duplicate path is a named non-success.
 with tempfile.TemporaryDirectory() as _d1389c:
     _w = _lint_changed.ReceiptWriter(_d1389c, "run", "1")

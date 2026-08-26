@@ -137,6 +137,16 @@ class ChangedRecord:
         return list(dict.fromkeys(p for p in (self.src, self.dst) if p is not None))
 
 
+class LintUnestablished(Exception):
+    """A repository enumeration a subcommand could not establish (a git failure). Raised
+    so a fail-open empty set can never be reported as a clean lint — the caller maps it to
+    the LINT_UNESTABLISHED exit code, mirroring enumerate_population's fail-closed contract."""
+
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(reason)
+
+
 class Population:
     """Typed outcome of a changed-file enumeration: established (nonempty|empty) or
     unestablished with a specific reason. Never a plausible-but-unobserved empty."""
@@ -146,8 +156,22 @@ class Population:
     def __init__(self, status, *, records=None, reason=None):
         if status not in ("nonempty", "empty", "unestablished"):
             raise ValueError(f"invalid population status {status!r}")
+        records = records or []
+        # Couple the record set and reason to the status in the type, so the module's
+        # "never a plausible-but-unobserved empty" guarantee is unrepresentable to violate
+        # rather than resting on producer discipline: run_paths() must never emit from an
+        # unestablished enumeration, and a nonempty status must carry records.
+        if status == "unestablished":
+            if reason is None or records:
+                raise ValueError("unestablished population needs a reason and no records")
+        elif status == "nonempty":
+            if not records or reason is not None:
+                raise ValueError("nonempty population needs records and no reason")
+        else:  # empty
+            if records or reason is not None:
+                raise ValueError("empty population carries no records and no reason")
         self.status = status
-        self.records = records or []
+        self.records = records
         self.reason = reason
 
     @property
@@ -380,6 +404,8 @@ class Invocation:
             raise ValueError("Invocation requires a non-empty tool")
         if not isinstance(timeout, int) or timeout <= 0:
             raise ValueError(f"Invocation timeout must be a positive int, got {timeout!r}")
+        if not paths:
+            raise ValueError("Invocation requires at least one selected path")
         self.op_id = op_id
         self.tool = tool
         self.flags = flags
@@ -464,7 +490,12 @@ def select_full_invocations(top: str, manifest: dict) -> list[Invocation]:
     selector's manifest-matched tracked files, plus each special invocation over its
     own path when that file is tracked."""
     tracked = _git_bytes(top, ["ls-files", "-z"])
-    tracked_raw = [p for p in tracked.stdout.split(b"\x00") if p] if tracked.returncode == 0 else []
+    if tracked.returncode != 0:
+        # Fail closed exactly as enumerate_population does: a git enumeration failure is
+        # unestablished, never an empty tracked set that would certify a repository-wide
+        # lint as a clean zero-profile pass.
+        raise LintUnestablished("tracked-enumeration-failed")
+    tracked_raw = [p for p in tracked.stdout.split(b"\x00") if p]
     # Decode the (repo-sized) tracked set once and reuse across every special and profile,
     # rather than re-decoding each path once per manifest rule.
     tracked_paths = [(raw, os.fsdecode(raw)) for raw in tracked_raw]
@@ -797,7 +828,11 @@ def cmd_lint_full(args) -> int:
         return LINT_UNESTABLISHED
 
     run_id, attempt = _run_id_attempt(args)
-    invocations = select_full_invocations(top, result.manifest)
+    try:
+        invocations = select_full_invocations(top, result.manifest)
+    except LintUnestablished as exc:
+        print(f"LINT-FULL unestablished {exc.reason}")
+        return LINT_UNESTABLISHED
     base_fields = _base_receipt_fields("lint-full", run_id, attempt, provenance)
     writer = ReceiptWriter(top, run_id, attempt)
     try:
