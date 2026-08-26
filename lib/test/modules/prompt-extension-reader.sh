@@ -1046,8 +1046,8 @@ PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: con
 assert_eq "pea classify-ladder: content-present status → arrived/complete-ok" "final=arrived terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"
 assert_eq "pea classify-ladder: arrived → exit 0" "0" "$PEA_RC"
 
-# absent — a produced present-empty status (the ladder's no-op arm: no extension file, or
-# an empty one) → absent / complete-ok, exit 0 (AC2 absent arm). Prior stdout bytes from
+# absent — a produced present-empty status (the ladder's no-op arm for an absent or empty
+# extension file) → absent / complete-ok, exit 0 (AC2 absent arm). Prior stdout bytes from
 # the extension itself precede the status line in a real capture; they are ignored.
 PEA_OUT="$(printf '%s\n%s\n' 'some earlier stdout bytes' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: present-empty' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
 assert_eq "pea classify-ladder: present-empty status → absent/complete-ok" "final=absent terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"

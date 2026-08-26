@@ -1761,8 +1761,8 @@ jobs:
           H=.prflow/vendor/prflow/scripts/prompt-extension-arrival.py
           [ -f "$H" ] || H=scripts/prompt-extension-arrival.py
           if [ ! -f "$H" ]; then
-            # Record detector-absent rather than exiting clean: skipping the check on an
-            # older vendored prflow_version silently disables the whole surface.
+            # Record detector-absent rather than exiting clean: an exit-clean here would
+            # silently drop this arrival check on an older vendored prflow_version.
             echo "::warning::prompt-extension-arrival.py absent from both .prflow/vendor/prflow/scripts/ and scripts/ (older prflow_version); recording detector-absent"
             echo "state=detector-absent" >> "$GITHUB_OUTPUT"
             echo "skill=$SKILL" >> "$GITHUB_OUTPUT"

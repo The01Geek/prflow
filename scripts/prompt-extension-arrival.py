@@ -15,7 +15,7 @@ It is deliberately pure (no network, no ``gh``): the workflow fetches the durabl
 and pipes it in, so every input shape is unit-drivable at this boundary — the only
 boundary an in-repo test can reach, since the suite has no cloud runner.
 
-Two subcommands:
+Three subcommands:
 
 * ``classify`` — the independent read. It resolves the SAME extension root the
   ``load-prompt-extension.sh`` ladder resolves (``DEVFLOW_PROMPT_EXTENSION_ROOT`` when
@@ -37,6 +37,15 @@ Two subcommands:
   ``unestablished`` it emits the forced durable-record text the caller writes to the
   workpad / PR description. It is idempotent: reading a body that already carries the
   non-arrival note still yields ``unestablished`` and the same record.
+
+* ``classify-ladder-output`` — the local/interactive & cloud-review prose-side classifier
+  (issue #1971). Those tiers have no job-level step to run ``classify`` in, so they read
+  ``load-prompt-extension.sh``'s OWN emitted ``PROMPT-EXTENSION-STATUS:`` line (on stdin)
+  instead of statting the root. It is positive-signal only: ``arrived`` ONLY on a produced
+  ``content-present`` status, ``absent`` ONLY on a produced ``present-empty`` status, and
+  ``unestablished`` whenever no recognized status line was produced at all — which is what
+  a permission denial of a helper invoked by path looks like (no output). It emits the same
+  ``final=/terminal=/record=`` shape ``reconcile`` does, so a caller routes on one contract.
 """
 from __future__ import annotations
 
