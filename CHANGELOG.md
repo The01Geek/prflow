@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.42] — 2026-08-26
+
+### Changed
+docs-release-notes: user-outcome entry format with sentence-cap enforcement, current-behavior (anti-diff-prose) recipe, archive rule for the release-notes file, behavior-level duplicate detection, changeset-model awareness in Step 4b, an ownership statement for the release-notes file, and a closing verification checklist. docs router: Step 1 now records an explicit public-doc impact list that Step 2 must treat as its comparison scope.
+
 ## [2.34.41] — 2026-08-26
 
 ### Changed
