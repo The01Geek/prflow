@@ -517,21 +517,30 @@ def _fingerprint_helper_cmd() -> list[str]:
     return [sys.executable, str(default)]
 
 
-def _established_fingerprint(text: str) -> dict | None:
-    """Parse `text` as an established five-field fingerprint, else None.
+def _fingerprint_reason(obj: object) -> str | None:
+    """None when `obj` is an established five-field fingerprint, else why it is not.
 
-    Every content field must be a non-empty string; equality across the five is the
+    The single definition of "established" for both the record path and the eligibility
+    read. Every content field must be a non-empty string; equality across the five is the
     whole eligibility contract, so no object-id shape is imposed here.
     """
+    if not isinstance(obj, dict):
+        return "is not a JSON object"
+    if obj.get("unestablished"):
+        return "is unestablished"
+    missing = [k for k in _FINGERPRINT_FIELDS if not (isinstance(obj.get(k), str) and obj.get(k))]
+    if missing:
+        return f"missing field(s): {', '.join(missing)}"
+    return None
+
+
+def _established_fingerprint(text: str) -> dict | None:
+    """Parse `text` as an established five-field fingerprint, else None."""
     try:
         obj = json.loads(text)
     except (ValueError, json.JSONDecodeError):
         return None
-    if not isinstance(obj, dict) or obj.get("unestablished"):
-        return None
-    if all(isinstance(obj.get(k), str) and obj.get(k) for k in _FINGERPRINT_FIELDS):
-        return obj
-    return None
+    return obj if _fingerprint_reason(obj) is None else None
 
 
 def _load_fingerprint(path: Path) -> tuple[dict | None, str]:
@@ -549,14 +558,8 @@ def _load_fingerprint(path: Path) -> tuple[dict | None, str]:
         obj = json.loads(text)
     except (ValueError, json.JSONDecodeError):
         return None, "is not valid JSON"
-    if not isinstance(obj, dict):
-        return None, "is not a JSON object"
-    if obj.get("unestablished"):
-        return None, "is unestablished"
-    missing = [k for k in _FINGERPRINT_FIELDS if not (isinstance(obj.get(k), str) and obj.get(k))]
-    if missing:
-        return None, f"missing field(s): {', '.join(missing)}"
-    return obj, ""
+    reason = _fingerprint_reason(obj)
+    return (None, reason) if reason is not None else (obj, "")
 
 
 def cmd_record_fingerprint(args: argparse.Namespace) -> int:
