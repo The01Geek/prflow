@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# resolve-bin.sh — the SINGLE source of truth for DevFlow's generic
+# resolve-bin.sh — the SINGLE source of truth for PRFlow's generic
 # execution-verified external-binary selection contract, extracted from
 # lib/resolve-gh.sh (issue #247) so any tool can share it. lib/resolve-gh.sh
 # now delegates to `devflow_resolve_bin gh` (DEVFLOW_GH is exactly the override
@@ -33,7 +33,7 @@
 if [ -n "${_DEVFLOW_RESOLVE_BIN_SOURCED:-}" ]; then return 0; fi
 _DEVFLOW_RESOLVE_BIN_SOURCED=1
 
-# devflow_resolve_bin <tool> — echo the invocation DevFlow should use for <tool>.
+# devflow_resolve_bin <tool> — echo the invocation PRFlow should use for <tool>.
 #
 #   * An explicit, non-empty DEVFLOW_<TOOL-UPPER> (e.g. DEVFLOW_JQ for "jq")
 #     wins outright and is echoed WITHOUT any probe — this preserves the test

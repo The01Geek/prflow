@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# Shared actor-authorization gate for AGENT-mode DevFlow workflows
+# Shared actor-authorization gate for AGENT-mode PRFlow workflows
 # (resolve-implement-trigger.sh, resolve-command-trigger.sh). AGENT mode runs
 # claude-code-action for ANY actor, so callers MUST gate on this before the
 # billable run. Source it, then call `authorize_actor`; it sets two variables
@@ -11,7 +11,7 @@
 #
 # Inputs (env, same contract as the resolvers):
 #   ACTOR, ALLOWED_BOTS, REPO, GH_TOKEN  (+ optional RESOLVE_RETRY_DELAY)
-#   ALLOWED_USERS  comma-separated human logins allowed to trigger DevFlow
+#   ALLOWED_USERS  comma-separated human logins allowed to trigger PRFlow
 #                  workflows (in addition to the write/admin/maintain check).
 #                  '*' (default when empty/unset) allows any collaborator.
 #                  Bots in ALLOWED_BOTS bypass this filter entirely.

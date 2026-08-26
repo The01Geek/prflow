@@ -4,19 +4,19 @@
 """generate-plugin-identity.py -- compile the accepted-identifier set into the
 surfaces that CANNOT read it at runtime.
 
-Most DevFlow consumers of the accepted plugin-identifier set read
+Most PRFlow consumers of the accepted plugin-identifier set read
 `lib/plugin_identity.py` live (see that module's header). The `REGIONS` table
 below is the authoritative list of the ones that cannot; the notes here say why
 each of them cannot -- each for a structural reason, not for convenience:
 
   .github/actions/vendor-plugin/vendor-slice.sh
-      Its `self` branch asks "is the CHECKOUT ROOT the DevFlow plugin?". The only
+      Its `self` branch asks "is the CHECKOUT ROOT the PRFlow plugin?". The only
       identity file reachable there belongs to the tree under examination, so
       reading it would make every tree self-certify. The accepted set must arrive
       with the checker.
 
   .github/workflows/devflow-runner.yml
-      Five FETCH_HEAD-gated arms ask "is the BASE REF the DevFlow plugin repo?"
+      Five FETCH_HEAD-gated arms ask "is the BASE REF the PRFlow plugin repo?"
       before materializing trusted helper code (the deny-list floor, the git-env
       helpers, the compose helpers, the trusted prompt-extension materializer,
       the Stop-hook hardener). Same circularity, with a security boundary

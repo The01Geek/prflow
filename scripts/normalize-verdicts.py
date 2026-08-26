@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""DevFlow checklist-verdict parse + wording-only normalization helper (Phase 2.2).
+"""PRFlow checklist-verdict parse + wording-only normalization helper (Phase 2.2).
 
 The checklist-verifier is a strict measuring instrument: it grades
 partially-correct claims FAIL and reports structured operands

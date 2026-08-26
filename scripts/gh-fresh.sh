@@ -11,7 +11,7 @@
 #
 # It is wired by the install step (scripts/install-gh-wrapper.sh, issue #533)
 # ahead of the real `gh` on PATH via GITHUB_PATH: direct skill-fence `gh` calls,
-# DevFlow's own gh-callers (whose lib/resolve-gh.sh PATH probe finds the wrapper
+# PRFlow's own gh-callers (whose lib/resolve-gh.sh PATH probe finds the wrapper
 # when DEVFLOW_GH is unset), and every post-claude step all resolve to it. The
 # install step deliberately publishes NO process-global DEVFLOW_GH — that env
 # value would persist into later job steps and outrank fixture PATH stubs in
@@ -43,7 +43,7 @@
 # Output handling: the real gh's stdout streams through LIVE (via fd 3, teed to a temp
 # copy only so the bad-credential signature can be scanned in it too); its stderr is
 # CAPTURED for the run and re-emitted verbatim after the call returns (scanned for the
-# same signature). For DevFlow's short, non-interactive REST `gh api`/`gh pr` calls this
+# same signature). For PRFlow's short, non-interactive REST `gh api`/`gh pr` calls this
 # is invisible, but note two consequences: a long-running gh call's stderr is not shown
 # live until it completes, and a caller that merges streams with `2>&1` sees all stderr
 # after all stdout rather than interleaved. Exit code and normal-exit stdout/stderr

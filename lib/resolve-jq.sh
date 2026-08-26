@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# resolve-jq.sh — DevFlow's jq selection contract, sourced by every jq-calling
+# resolve-jq.sh — PRFlow's jq selection contract, sourced by every jq-calling
 # shell helper (the direct sibling of lib/resolve-gh.sh, issue #247). Sourcing
 # this file resolves jq ONCE through the shared execution-verified resolver
 # (lib/resolve-bin.sh) and leaves the invocation in DEVFLOW_JQ: an explicit

@@ -15,7 +15,7 @@
 # wrapper directory to later steps' PATH via GITHUB_PATH.
 #
 # It deliberately publishes NO process-global DEVFLOW_GH (issue #533):
-# GITHUB_ENV values persist into every later job step, and DevFlow's resolvers
+# GITHUB_ENV values persist into every later job step, and PRFlow's resolvers
 # treat a non-empty DEVFLOW_GH as the strongest explicit override — so a
 # workflow-level export leaks into the repository test process, where it
 # outranks the PATH stubs the suite's fixtures install. Wrapper selection is

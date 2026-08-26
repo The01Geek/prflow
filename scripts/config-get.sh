@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# Read a value from .prflow/config.json — DevFlow's single config resolver.
+# Read a value from .prflow/config.json — PRFlow's single config resolver.
 #
 # Usage: config-get.sh KEY [DEFAULT] [CONFIG_FILE]
 #   KEY          dot-path like .docs.internal or .prflow.workpad_marker
@@ -34,11 +34,11 @@
 # `.prflow/` is deliberately not at the git root is not covered — consistent with
 # config-source.sh; a walk-up-to-nearest-`.prflow/` resolver was declined for this fix.
 #
-# Parses with python3, which is a hard DevFlow prerequisite (lib/preflight.sh
+# Parses with python3, which is a hard PRFlow prerequisite (lib/preflight.sh
 # requires python3 >= 3.11; the whole scripts/*.py surface depends on it) and so
-# is guaranteed on every host where DevFlow runs — including non-Node hosts where
+# is guaranteed on every host where PRFlow runs — including non-Node hosts where
 # `node` is absent. Uses only the stdlib `json` module; no PyYAML or yq required
-# (config is JSON). This is the ONE config-reading implementation in DevFlow;
+# (config is JSON). This is the ONE config-reading implementation in PRFlow;
 # lib/config-source.sh delegates here.
 #
 # Exit codes:

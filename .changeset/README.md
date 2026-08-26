@@ -1,6 +1,6 @@
 # Changesets
 
-DevFlow versions itself with **changesets** instead of editing `.claude-plugin/plugin.json`
+PRFlow versions itself with **changesets** instead of editing `.claude-plugin/plugin.json`
 and `CHANGELOG.md` directly in every PR. Because each changeset is a uniquely-named file,
 two concurrent PRs never touch a shared line, so the version/CHANGELOG merge conflicts that
 used to tax every concurrent PR are gone.
@@ -29,7 +29,7 @@ type: Fixed
 
 - `bump` (**required**) — one of `patch`, `minor`, `major`. Use the smallest step; choose
   `minor`/`major` only when the issue explicitly authorizes the larger increment. There is no
-  package name — DevFlow ships one plugin, so the npm `"pkg": patch` form is not used.
+  package name — PRFlow ships one plugin, so the npm `"pkg": patch` form is not used.
 - `type` (optional, default `Changed`) — the Keep-a-Changelog section the prose lands under:
   `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or `Security`.
 

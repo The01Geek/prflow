@@ -40,9 +40,6 @@
   },
   "pending_sweep_baseline": [
     {
-      "path": ".changeset/README.md"
-    },
-    {
       "path": ".github/actions/read-project-config/action.yml"
     },
     {
@@ -205,9 +202,6 @@
       "path": "docs/internal/naming.md"
     },
     {
-      "path": "docs/internal/shadow-review.md"
-    },
-    {
       "path": "install.sh"
     },
     {
@@ -226,12 +220,6 @@
       "path": "lib/fetch-pr-context.sh"
     },
     {
-      "path": "lib/generate-capability-profiles.py"
-    },
-    {
-      "path": "lib/generate-plugin-identity.py"
-    },
-    {
       "path": "lib/implement-stop-guard.sh"
     },
     {
@@ -244,9 +232,6 @@
       "path": "lib/plugin-identity.json"
     },
     {
-      "path": "lib/plugin_identity.py"
-    },
-    {
       "path": "lib/preflight.sh"
     },
     {
@@ -254,18 +239,6 @@
     },
     {
       "path": "lib/render-report.sh"
-    },
-    {
-      "path": "lib/resolve-bin.sh"
-    },
-    {
-      "path": "lib/resolve-gh.sh"
-    },
-    {
-      "path": "lib/resolve-jq.sh"
-    },
-    {
-      "path": "lib/resolve-python.sh"
     },
     {
       "path": "lib/scan.sh"
@@ -358,19 +331,10 @@
       "path": "scripts/apply-labels.sh"
     },
     {
-      "path": "scripts/authorize-actor.sh"
-    },
-    {
       "path": "scripts/build-experiment-records.py"
     },
     {
       "path": "scripts/check-verified-premises.py"
-    },
-    {
-      "path": "scripts/config-get.sh"
-    },
-    {
-      "path": "scripts/consolidate-changesets.py"
     },
     {
       "path": "scripts/decide-verdict-gap-job-status.sh"
@@ -391,31 +355,16 @@
       "path": "scripts/file-deferrals.py"
     },
     {
-      "path": "scripts/gh-fresh.sh"
-    },
-    {
-      "path": "scripts/harden-stop-hooks.sh"
-    },
-    {
-      "path": "scripts/install-gh-wrapper.sh"
-    },
-    {
       "path": "scripts/lint_manifest.py"
     },
     {
       "path": "scripts/load-prompt-extension.sh"
     },
     {
-      "path": "scripts/loop-verdict-marker.py"
-    },
-    {
       "path": "scripts/match-deferrals.py"
     },
     {
       "path": "scripts/match-lint-adjudications.py"
-    },
-    {
-      "path": "scripts/normalize-verdicts.py"
     },
     {
       "path": "scripts/post-review-backstop-comment.sh"
@@ -425,9 +374,6 @@
     },
     {
       "path": "scripts/prompt-surface-growth.py"
-    },
-    {
-      "path": "scripts/provision-auto-mode.sh"
     },
     {
       "path": "scripts/provision-local-settings.sh"
@@ -442,16 +388,10 @@
       "path": "scripts/react-to-trigger.sh"
     },
     {
-      "path": "scripts/refresh-app-credentials.sh"
-    },
-    {
       "path": "scripts/render-grounding-block.sh"
     },
     {
       "path": "scripts/resolve-command-trigger.sh"
-    },
-    {
-      "path": "scripts/resolve-committer-identity.sh"
     },
     {
       "path": "scripts/resolve-existing-pr.sh"
@@ -472,25 +412,16 @@
       "path": "scripts/stale-prose-lint.py"
     },
     {
-      "path": "scripts/summarize-ci-checks.sh"
-    },
-    {
       "path": "scripts/surface-execution-diagnostics.sh"
     },
     {
       "path": "scripts/update-branch-checkpoint.sh"
     },
     {
-      "path": "scripts/version_pins.py"
-    },
-    {
       "path": "scripts/workflow-flight-recorder-registry.json"
     },
     {
       "path": "scripts/workflow_flight_recorder.py"
-    },
-    {
-      "path": "scripts/workpad.py"
     },
     {
       "path": "skills/create-issue/references/step-4-present-create.md"
