@@ -382,6 +382,11 @@ fi
 mkdir -p "$RUN_ROOT/logs" "$RUN_ROOT/tally" 2>/dev/null || \
   die "could not create the run-root layout under $RUN_ROOT"
 
+# Record this launch's checkout fingerprint for the same-tree failed-shard-only relaunch gate
+# (issue #2008). Best-effort: the helper always writes the record and exits 0, so never let a
+# fingerprint failure block the launch (the `|| :` guards a missing/failed python3 too).
+python3 "$TALLY_HELPER" record-fingerprint --out "$RUN_ROOT" || :
+
 # The per-shard TMPDIRs live OUTSIDE the checkout, deliberately, even when the run root
 # is inside it. A shard's own assertions build fixture trees with `mktemp -d`, and this
 # suite has a whole class of them — the non-git-tree / bare-tree / pwd-fallback cases —

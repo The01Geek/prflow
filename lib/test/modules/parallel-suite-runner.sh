@@ -1404,4 +1404,108 @@ assert_eq "cheap-lint gate real: the real brand finding launches NO shard" "yes"
 assert_eq "cheap-lint gate real: the real brand finding is attributed, not inconclusive" "yes" \
   "$(case "$PSR_RH_OUT" in *"was inconclusive"*) echo no ;; *"reported findings"*) echo yes ;; *) echo no ;; esac)"
 
+# ── issue #2008: launch-time checkout fingerprint + fingerprint-gated same-tree relaunch ──
+# A launch records the tree's checkout fingerprint so an environment-only fix after a RED gate
+# pass can relaunch only the failed shards against a proven-identical tree and recombine with
+# the RED run's retained clean tallies instead of re-paying the whole coordinator (issue #2008).
+PSR_FP="$PSR_ROOT/fingerprint"
+mkdir -p "$PSR_FP"
+# A stub fingerprint helper emitting a fixed, established five-field record. Equality is the
+# whole contract, so opaque non-empty strings suffice and the fixture needs no git checkout.
+PSR_FP_STUB="$PSR_FP/fp-ok.sh"
+cat > "$PSR_FP_STUB" <<'PSR_EOF'
+#!/usr/bin/env bash
+printf '{"checkout_id":"/fix/.git","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","index_digest":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","tracked_digest":"cccccccccccccccccccccccccccccccccccccccc","untracked_digest":"dddddddddddddddddddddddddddddddddddddddd"}\n'
+PSR_EOF
+chmod +x "$PSR_FP_STUB"
+# A stub whose fingerprint cannot be produced (the producer's fail-closed path).
+PSR_FP_FAIL="$PSR_FP/fp-fail.sh"
+cat > "$PSR_FP_FAIL" <<'PSR_EOF'
+#!/usr/bin/env bash
+printf 'checkout-fingerprint: simulated failure\n' >&2
+exit 1
+PSR_EOF
+chmod +x "$PSR_FP_FAIL"
+
+# AC1/AC2: record-fingerprint persists the established five-field record into a launch dir.
+PSR_FP_OK="$PSR_FP/rec-ok"
+DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_OK" >/dev/null 2>&1
+assert_eq "psr fp: record-fingerprint writes fingerprint.json into the launch dir" "yes" \
+  "$([ -f "$PSR_FP_OK/fingerprint.json" ] && echo yes || echo no)"
+assert_eq "psr fp: the established record carries the producer's fingerprint verbatim" "yes" \
+  "$(case "$(cat "$PSR_FP_OK/fingerprint.json" 2>/dev/null)" in *'"head":"aaaaaaaa'*'"untracked_digest":"dddddddd'*) echo yes ;; *) echo no ;; esac)"
+
+# AC3: a launch whose fingerprint cannot be produced records it UNESTABLISHED, never omits it.
+PSR_FP_UN="$PSR_FP/rec-un"
+DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_FAIL" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_UN" >/dev/null 2>&1
+assert_eq "psr fp: a failed producer still writes a fingerprint record (never omitted)" "yes" \
+  "$([ -f "$PSR_FP_UN/fingerprint.json" ] && echo yes || echo no)"
+assert_eq "psr fp: the record marks the fingerprint unestablished rather than inventing one" "yes" \
+  "$(case "$(cat "$PSR_FP_UN/fingerprint.json" 2>/dev/null)" in *'"unestablished": true'*) echo yes ;; *) echo no ;; esac)"
+
+# AC1 wiring: the coordinator records the fingerprint in its retained run root at launch.
+PSR_FPC="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_FPC"
+( cd "$PSR_FPC" && SYN_SHARDS=alpha SYN_SLEEP=0.05 DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" \
+    DEVFLOW_SHARD_DISPATCHER="$PSR_FPC/dispatch.sh" bash lib/test/run-parallel.sh >/dev/null 2>&1 )
+PSR_FPC_FILE="$(find "$PSR_FPC/.prflow/tmp/parallel-suite" -name fingerprint.json 2>/dev/null | head -n 1)"
+assert_eq "psr fp: the coordinator records a fingerprint in its retained run root" "yes" \
+  "$([ -n "$PSR_FPC_FILE" ] && [ -f "$PSR_FPC_FILE" ] && echo yes || echo no)"
+assert_eq "psr fp: the coordinator's recorded fingerprint is the launch tree's" "yes" \
+  "$(case "$(cat "$PSR_FPC_FILE" 2>/dev/null)" in *'"head":"aaaaaaaa'*) echo yes ;; *) echo no ;; esac)"
+
+# AC2 wiring: run-shard.sh records the fingerprint in its retained tally dir at launch. Drive
+# the real run-shard.sh over a stub run.sh so the monolith shard is instant.
+PSR_SH="$PSR_FP/shard-tree"
+mkdir -p "$PSR_SH/lib/test"
+cp "$LIB/test/run-shard.sh" "$PSR_SH/lib/test/run-shard.sh"
+cp "$PSR_TALLY" "$PSR_SH/lib/test/shard-tally.py"
+cat > "$PSR_SH/lib/test/run.sh" <<'PSR_EOF'
+#!/usr/bin/env bash
+printf '1 passed, 0 failed\n'
+PSR_EOF
+chmod +x "$PSR_SH/lib/test/run.sh"
+PSR_SH_TALLY="$PSR_FP/shard-tally-out"
+( cd "$PSR_SH" && DEVFLOW_SHARD_TALLY_DIR="$PSR_SH_TALLY" DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" \
+    bash lib/test/run-shard.sh monolith >/dev/null 2>&1 )
+assert_eq "psr fp: run-shard.sh records a fingerprint in its retained tally dir" "yes" \
+  "$([ -f "$PSR_SH_TALLY/fingerprint.json" ] && echo yes || echo no)"
+
+# AC7: same-tree-eligible — identical fingerprints are ELIGIBLE; a single differing field or an
+# absent/unestablished recorded fingerprint is refused (fail-closed).
+PSR_EL="$PSR_FP/elig"
+mkdir -p "$PSR_EL"
+cp "$PSR_FP_OK/fingerprint.json" "$PSR_EL/recorded.json"
+cp "$PSR_FP_OK/fingerprint.json" "$PSR_EL/fresh.json"
+assert_eq "psr fp: identical fingerprints are eligible for the same-tree relaunch (rc 0)" "0" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: an eligible comparison prints ELIGIBLE" "yes" \
+  "$(case "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh.json" 2>&1)" in *ELIGIBLE*) echo yes ;; *) echo no ;; esac)"
+sed 's/"head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"/"head":"9999999999999999999999999999999999999999"/' "$PSR_EL/fresh.json" > "$PSR_EL/fresh-drift.json"
+assert_eq "psr fp: one differing fingerprint field refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh-drift.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: the refusal names the differing field" "yes" \
+  "$(case "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh-drift.json" 2>&1)" in *"field 'head' differs"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "psr fp: an absent recorded fingerprint refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/does-not-exist.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: an unestablished recorded fingerprint is refused too (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_FP_UN/fingerprint.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+
+# AC6: the same-tree recombination combines tallies from TWO different run roots and fails
+# closed, NAMING the shard, on a missing or a duplicated shard of the required partition.
+PSR_RRA="$PSR_FP/rootA/tally"; PSR_RRB="$PSR_FP/rootB/tally"
+psr_plant_named "$PSR_RRA/alpha" alpha
+psr_plant_named "$PSR_RRA/beta" beta
+psr_plant_named "$PSR_RRB/gamma" gamma
+assert_eq "psr fp: a same-tree recombination across two run roots is clean (rc 0)" "0" \
+  "$(python3 "$PSR_TALLY" combine "$PSR_RRA/alpha" "$PSR_RRA/beta" "$PSR_RRB/gamma" --expect 3 --require-shards "alpha beta gamma" >/dev/null 2>&1; echo $?)"
+PSR_RR_MISS="$(python3 "$PSR_TALLY" combine "$PSR_RRA/alpha" "$PSR_RRB/gamma" --expect 2 --require-shards "alpha beta gamma" 2>&1)"; PSR_RR_MISS_RC=$?
+assert_eq "psr fp: a missing shard across run roots fails closed (rc 1)" "1" "$PSR_RR_MISS_RC"
+assert_eq "psr fp: the missing shard is named across run roots" "yes" \
+  "$(case "$PSR_RR_MISS" in *"required shard(s) absent from the recombined tallies: beta"*) echo yes ;; *) echo no ;; esac)"
+psr_plant_named "$PSR_RRB/alpha" alpha
+PSR_RR_DUP="$(python3 "$PSR_TALLY" combine "$PSR_RRA/alpha" "$PSR_RRB/alpha" "$PSR_RRA/beta" --expect 3 --require-shards "alpha beta" 2>&1)"; PSR_RR_DUP_RC=$?
+assert_eq "psr fp: a shard appearing in two run roots fails closed (rc 1)" "1" "$PSR_RR_DUP_RC"
+assert_eq "psr fp: the duplicated shard is named across run roots" "yes" \
+  "$(case "$PSR_RR_DUP" in *"recombined more than once: alpha"*) echo yes ;; *) echo no ;; esac)"
+
 rm -rf "$PSR_ROOT"
