@@ -464,5 +464,100 @@
       "iter": 4,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.39",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 60.88293335000001,
+    "tokens": {
+      "input_tokens": 284,
+      "output_tokens": 143595,
+      "cache_read_input_tokens": 49735088,
+      "cache_creation_input_tokens": 479175,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 756,
+        "outputTokens": 357861,
+        "cacheReadInputTokens": 63911222,
+        "cacheCreationInputTokens": 2671102,
+        "webSearchRequests": 0,
+        "costUSD": 59.39720975,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 92,
+        "outputTokens": 19233,
+        "cacheReadInputTokens": 2835748,
+        "cacheCreationInputTokens": 290424,
+        "webSearchRequests": 0,
+        "costUSD": 1.4857236,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 159,
+    "duration_ms": 7576229
+  },
+  "permission_denials": {
+    "count": 33,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"; echo \"RUN_ID=$GITHUB_RUN_ID\"; echo \"REPO=$GITHUB_REPOSITORY\"; git branch --show-current; git status --porcelain | head",
+      ".prflow/vendor/prflow/scripts/classify-head-reviews.sh 1973 2>&1 | head -20 || echo \"classify failed\"; echo \"=== latest reviews ===\"; gh pr view 1973 --json reviews --jq '.reviews | map({state,commit: .commit_id[0:9], body: .body[0:120]}) | .[-6:]' 2>&1",
+      "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)\nmkdir -p \"$ROOT/.prflow/tmp\"\n[ -n \"${ZSH_VERSION:-}\" ] && setopt nonomatch || :\nset -- \"$ROOT\"/.prflow/tmp/review/*/*/iter-*.json\nif [ -e \"$1\" ]; then printf '%s\\n' \"$@\" | sort; else echo \"(no pre-existing iter files)\"; fi",
+      "python3 lib/test/lint-brand-devflow-sweep.py 2>&1 | head -20; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "python3 lib/test/lint-brand-devflow-sweep.py > /tmp/bds.out 2>&1; echo \"EXIT=$?\"; head -5 /tmp/bds.out; wc -l /tmp/bds.out",
+      "python3 lib/test/lint-brand-devflow-sweep.py --print-population | awk -F'\\t' '{s+=$3} END{print \"classified sum:\", s}'\ngit ls-files -z | while IFS= read -r -d '' f; do grep -oa \"DevFlow\" \"$f\" 2>/dev/null; done | wc -l",
+      "python3 lib/test/lint-brand-devflow-sweep.py 2>&1 | head -20; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "ruff check lib/test/lint-brand-devflow-sweep.py 2>&1 | tail -2\npython3 - <<'PY'\nimport subprocess, json, tempfile, os\nlint = \"lib/test/lint-brand-devflow-sweep.py\"\nfor name, rec in [\n  (\"scalar-prov\", {\"schema_version\":1,\"frozen\":{\"provenance\":\"x\"},\"pending_sweep_baseline\":[]}),\n  (\"scalar-pending\", {\"schema_version\":1,\"frozen\":{\"provenance\":[]},\"pending_sweep_baseline\":7}),\n]:\n    f = tempfile.NamedTemporaryFile(\"w\", suffix=\".json\", delete=False)\n    json.dump(rec, f); f.close()\n    r = subproc …[per-command-truncated]",
+      "python3 lib/test/lint-brand-devflow-sweep.py 2>&1 | tail -3; echo \"rc=$?\"; echo \"---scalar guard smoke---\"; printf '{\"frozen\":{\"provenance\":\"x\"},\"pending_sweep_baseline\":[]}' > /tmp/sp.json; python3 lib/test/lint-brand-devflow-sweep.py --buckets /tmp/sp.json >/dev/null 2>/tmp/e1; echo \"prov-scalar rc=$?\"; cat /tmp/e1; printf '{\"frozen\":{\"provenance\":[]},\"pending_sweep_baseline\":9}' > /tmp/spb.json; python3 lib/test/lint-brand-devflow-sweep.py --buckets /tmp/spb.json >/dev/null 2>/tmp/e2; echo \"p …[per-command-truncated]",
+      "python3 lib/test/lint-brand-devflow-sweep.py > /tmp/real.out 2>/tmp/real.err; echo \"real-tree rc=$?\"; tail -2 /tmp/real.out",
+      "cd /tmp && rm -rf bdsv && mkdir bdsv && cp /home/runner/work/prflow/prflow/lib/test/lint-brand-devflow-sweep.py bdsv/lint.py\n# Simulate removing the 'frozen.provenance must be a list' guard (line 147-148)\npython3 - <<'PY'\nimport re,pathlib\nsrc=pathlib.Path('/tmp/bdsv/lint.py').read_text()\n# remove the prov isinstance guard\nmut=src.replace('    prov = frozen.get(\"provenance\", [])\\n    if not isinstance(prov, list):\\n        return \"frozen.provenance must be a list\"\\n','    prov = frozen.get(\"prov …[per-command-truncated]",
+      "rm -rf /tmp/bdsv && mkdir -p /tmp/bdsv/repo\ncp /home/runner/work/prflow/prflow/lib/test/lint-brand-devflow-sweep.py /tmp/bdsv/lint.py\npython3 - <<'PY'\nimport pathlib\nsrc=pathlib.Path('/tmp/bdsv/lint.py').read_text()\nmut=src.replace('    prov = frozen.get(\"provenance\", [])\\n    if not isinstance(prov, list):\\n        return \"frozen.provenance must be a list\"\\n','    prov = frozen.get(\"provenance\", [])\\n')\nassert mut!=src, \"prov guard not found\"\npathlib.Path('/tmp/bdsv/lint_noprov.py').write_text( …[per-command-truncated]",
+      "D=/tmp/tmp.CmgacC92Nh; printf '{\"schema_version\": 1, \"frozen\": {\"provenance\": 7}, \"pending_sweep_baseline\": []}' > \"$D/scalarprov_int.json\"\necho \"=== provenance:7 (int) with prov-guard REMOVED ===\"; python3 \"$D/lint_noprov.py\" --root \"$D/repo\" --buckets \"$D/scalarprov_int.json\"; echo \"rc=$?\"\necho \"=== provenance:'not-a-list' (string) with guard PRESENT ===\"; python3 /home/runner/work/prflow/prflow/lib/test/lint-brand-devflow-sweep.py --root \"$D/repo\" --buckets \"$D/scalarprov.json\"; echo \"rc=$?\"",
+      "cd /tmp && python3 /home/runner/work/prflow/prflow/lib/test/lint-brand-devflow-sweep.py --root /home/runner/work/prflow/prflow >/dev/null 2>&1; echo \"real-tree rc=$?\"\n# scalar provenance guard present -> exit 2\nd=$(mktemp -d); printf '{\"schema_version\":1,\"frozen\":{\"provenance\":7},\"pending_sweep_baseline\":[]}' > \"$d/b.json\"\npython3 /home/runner/work/prflow/prflow/lib/test/lint-brand-devflow-sweep.py --root \"$d\" --buckets \"$d/b.json\" >/dev/null 2>&1; echo \"scalar-prov guarded rc=$?\"",
+      "D=$(mktemp -d)\nprintf '{\"schema_version\":1,\"frozen\":{\"provenance\":7},\"pending_sweep_baseline\":[]}' > \"$D/b.json\"\npython3 /home/runner/work/prflow/prflow/lib/test/lint-brand-devflow-sweep.py --root \"$D\" --buckets \"$D/b.json\"; echo \"guarded rc=$?\"",
+      "mkdir -p /tmp/bds && printf '{\"schema_version\":1,\"frozen\":{\"provenance\":7},\"pending_sweep_baseline\":[]}' > /tmp/bds/b.json\npython3 /home/runner/work/prflow/prflow/lib/test/lint-brand-devflow-sweep.py --root /tmp/bds --buckets /tmp/bds/b.json; echo \"guarded rc=$?\"\n# Now simulate guard removed: monkeypatch by temporarily editing not feasible; instead confirm TypeError path via python\npython3 - <<'PY'\nfrozen={\"provenance\":7}\ntry:\n    s={e[\"file\"] for e in frozen.get(\"provenance\",[])}\n    print(\"no  …[per-command-truncated]",
+      "git show HEAD:lib/test/modules/coverage-map.json | python3 -c 'import json,sys; d=json.load(sys.stdin); \nimport collections\n# find how owner values distribute\ndef walk(o):\n    for k,v in o.items():\n        if isinstance(v,dict) and \"owner\" in v:\n            yield v[\"owner\"]\n        elif isinstance(v,dict):\n            yield from walk(v)\nc=collections.Counter(walk(d))\nprint(c)'",
+      "git show HEAD:lib/test/modules/coverage-map.json | python3 -c $'import json,sys,collections\\nd=json.load(sys.stdin)\\ndef walk(o):\\n  for k,v in (o.items() if isinstance(o,dict) else []):\\n    if isinstance(v,dict) and \"owner\" in v: yield v[\"owner\"]\\n    elif isinstance(v,dict): yield from walk(v)\\nprint(collections.Counter(walk(d)).most_common(10))'",
+      "git show HEAD:lib/test/modules/coverage-map.json > /tmp/cm.json; python3 -c \"import json,collections\nd=json.load(open('/tmp/cm.json'))\ndef walk(o):\n    for k,v in (o.items() if isinstance(o,dict) else []):\n        if isinstance(v,dict) and 'owner' in v: yield v['owner']\n        elif isinstance(v,dict): yield from walk(v)\nprint(collections.Counter(walk(d)).most_common(12))\"",
+      "mkdir -p .prflow/tmp\nFP=$(python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py)\npython3 - \"$FP\" <<'EOF'\nimport json,sys\nfp=json.loads(sys.argv[1])\ndecl={\n  \"schema_version\":1,\n  \"candidate_identity\":\"pr1973-issue1745-verifier\",\n  \"profile\":{\n    \"profile_version\":1,\n    \"argv\":[\"lib/test/run-shard.sh\",\"monolith\"],\n    \"cwd\":\"/home/runner/work/prflow/prflow\",\n    \"environment\":{},\n    \"toolchain\":{},\n    \"dependencies\":{},\n    \"output_roots\":[],\n    \"external_services\":\"none\"\n  },\n  \"che …[per-command-truncated]",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > .prflow/tmp/fp.json\ncat .prflow/tmp/fp.json",
+      "cat > .prflow/tmp/build_decl.py <<'PYEOF'\nimport json\nfp = json.load(open(\".prflow/tmp/fp.json\"))\ndecl = {\n  \"schema_version\": 1,\n  \"candidate_identity\": \"pr1973-issue1745-verifier\",\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-shard.sh\", \"monolith\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_services\": \"none\"\n  },\n  \"checkout\": fp\n}\njson.dump(decl, open(\".prflow/t …[per-command-truncated]",
+      "python3 lib/test/pin-corpus-lint.py lint --pin-source lib/test/run.sh 2>&1 | tail -30; echo RC=$?",
+      "cat > .prflow/tmp/finish.json <<'PYEOF'\n{\"result\": \"passed\", \"summary\": \"lib/test/run-shard.sh monolith: 9961 passed, 0 failed, 0 skipped (rc=0); python3 lib/test/pin-corpus-lint.py (via monolith) clean; python3 lib/test/lint-shipped-pruned-path.py: audited 98 of 98 files, rc=0\"}\nPYEOF\ncat .prflow/tmp/finish.json",
+      "python3 -c \"\nimport json\nd=dict(result='passed', exit_status=0, summary='lib/test/run-shard.sh monolith: 9961 passed, 0 failed, 0 skipped (rc=0) on HEAD 0046378ad5781fd4e9882e9bb7fe8798652137b8; python3 lib/test/lint-shipped-pruned-path.py: audited 98 of 98 files rc=0')\njson.dump(d, open('.prflow/tmp/finish.json','w'))\n\"\nTOKEN=d95688a21e25d075194b18031939ba556eea60bd923f120d2994f44a5a417a47\nFLIGHT=6d39b767d8ae0e06ab7124c22cdf4fef1fa49d9045c7512f724b785af27dddb5\npython3 .prflow/vendor/prflow/scri …[per-command-truncated]",
+      "CREATE_STATE=\"\"\ngh issue create \\\n  --title \"Sweep remaining brand-cased DevFlow prose to PRFlow (batches, drains pending_sweep_baseline)\" \\\n  --body-file .prflow/tmp/deferral-draft-1745-1.md \\\n  && CREATE_STATE=ok || CREATE_STATE=failed\necho \"phase 4.0 create fence ran; create=[${CREATE_STATE}]\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs; echo \"EXIT:$?\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.internal_enabled true; echo \"---\"; /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.external_enabled true",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"===ISSUE1985===\"; gh issue view 1985 --json number,title,state 2>&1 | head -5",
+      "scripts/prompt-surface-growth.py",
+      "mkdir -p .prflow/tmp && cat > .prflow/tmp/pr-1973-body.md <<'EOF'\n[View run](https://github.com/The01Geek/prflow/actions/runs/32915083572)\n\n<!-- PR_BODY_START -->\n## Summary\n- Adds a machine-checkable bucket classification for every brand-cased `DevFlow` occurrence in the tracked tree, so a reader no longer has to reverse-engineer whether a given spelling is a finished rename, load-bearing, or still owed.\n- Enforces it with a fail-closed reconciling lint that reds the suite both ways — an unclas …[per-command-truncated]",
+      "PR_NUMBER=$(gh pr view --json number --jq '.number' 2>/dev/null); if [ -z \"$PR_NUMBER\" ]; then echo \"ERROR: empty PR number\"; exit 1; fi; gh api --method PATCH \"repos/{owner}/{repo}/pulls/$PR_NUMBER\" -F body=@.prflow/tmp/pr-1973-body.md --jq '.number'"
+    ],
+    "total": 33,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
