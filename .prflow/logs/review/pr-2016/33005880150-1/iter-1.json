@@ -1,0 +1,158 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "921c0477c7ffb63b1fd3e678fb05a3ce0c05d2e4",
+  "fix_files": [
+    "lib/test/shard-tally.py",
+    "lib/test/run-parallel.sh",
+    "lib/test/modules/parallel-suite-runner.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "dispatch_mode": "unavailable",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "record-fingerprint subprocess had no timeout",
+      "defect_signature": {
+        "file": "lib/test/shard-tally.py",
+        "line_range": [
+          583,
+          590
+        ],
+        "kind": "unbounded-subprocess-no-timeout"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "producer<->_FINGERPRINT_FIELDS coupling untested (silent 6th field -> false green)",
+      "defect_signature": {
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "line_range": [
+          1465,
+          1470
+        ],
+        "kind": "coverage-gap-producer-coupling"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC2 run-shard assertion existence-only",
+      "defect_signature": {
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "line_range": [
+          1465,
+          1467
+        ],
+        "kind": "coverage-gap-existence-only"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "fresh-side fail-closed branch unexercised; reverse per-field coupling only covered head",
+      "defect_signature": {
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "line_range": [
+          1487,
+          1488
+        ],
+        "kind": "coverage-gap-fresh-side-and-reverse-coupling"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "run-parallel.sh comment parenthetical restated the || : operator",
+      "defect_signature": {
+        "file": "lib/test/run-parallel.sh",
+        "line_range": [
+          387,
+          389
+        ],
+        "kind": "comment_restates_code"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "except (ValueError, json.JSONDecodeError) redundant; harmless defensive idiom",
+      "defect_signature": {
+        "file": "lib/test/shard-tally.py",
+        "line_range": [
+          539,
+          551
+        ],
+        "kind": "redundant_exception_tuple"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 6,
+    "fix_diff_lines": 55,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "dispatch_mode": "unavailable",
+    "reviewed_sha": "921c0477c7ffb63b1fd3e678fb05a3ce0c05d2e4",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
