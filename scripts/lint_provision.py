@@ -130,19 +130,32 @@ class Plan:
         if status not in ("established", "unsupported", "unestablished"):
             raise ValueError(f"invalid plan status: {status!r}")
         # Enforce the established<->fields / no-answer<->reason invariant at
-        # construction (like StateResult), not merely by build_plan convention: a
-        # partially-populated "established" plan must be unrepresentable.
+        # construction in BOTH directions (like StateResult/Readiness), not merely by
+        # build_plan convention: a partially-populated "established" plan and a
+        # no-answer plan smuggling resolved fields or losing its reason are both
+        # unrepresentable.
         if status == "established":
             missing = [k for k in self._RESOLVED_FIELDS if kw.get(k) is None]
             if missing:
                 raise ValueError(f"established Plan missing resolved fields: {missing}")
-        elif not kw.get("reason"):
-            raise ValueError(f"a {status!r} Plan requires a reason")
-        self.status = status
-        self.reason = kw.get("reason")
+            if kw.get("reason") is not None:
+                raise ValueError("established Plan must not carry a reason")
+        else:
+            if not kw.get("reason"):
+                raise ValueError(f"a {status!r} Plan requires a reason")
+            populated = [k for k in self._RESOLVED_FIELDS if kw.get(k) is not None]
+            if populated:
+                raise ValueError(
+                    f"a {status!r} Plan must not carry resolved fields: {populated}")
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "reason", kw.get("reason"))
         for k in ("tool", "os", "arch", "version", "digest", "archive_type",
                   "member", "strategy", "url"):
-            setattr(self, k, kw.get(k))
+            object.__setattr__(self, k, kw.get(k))
+
+    def __setattr__(self, name, value):
+        # Frozen after construction: a post-init write would defeat the XOR above.
+        raise AttributeError(f"Plan is immutable (attempted to set {name!r})")
 
 
 def build_plan(manifest_path, tool: str, os_name: str, arch: str) -> Plan:

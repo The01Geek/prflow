@@ -241,17 +241,9 @@ runs:
         path: ${{ runner.temp }}/prflow-lint-bin
         key: lintprov-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.prflow/lint-manifest.json', '.prflow/install-state.json') }}
 
-    # Provision the bounded lint toolchain BEFORE the model runs, from the
-    # digest-bound compatibility marker (issue #1388). `lint_mode: none` does no
-    # lint-tool work and validates no manifest; `provision` installs the
-    # manifest's ShellCheck/Ruff set run-local (no sudo), digest and version
-    # verified, and fails CLOSED before the model runs on any readiness or
-    # verification failure — except an unsupported OS/arch tuple, which reuses
-    # a version-matching pre-provisioned tool on PATH or else warns and
-    # continues unprovisioned. A cache-restored toolchain is re-verified under the
-    # cache key before use. An unknown lint_mode is refused. The closed-ID mapping
-    # (os/arch → artifact, trusted download URL) lives in the trusted Python
-    # helpers, never in manifest-supplied strings.
+    # Must stay ordered BEFORE the Claude action (provisioning after model start
+    # defeats #1388), and the os/arch → artifact/URL mapping stays in the trusted
+    # Python helpers — never manifest-supplied strings (#1276 trust model).
     - name: Provision lint toolchain (before model)
       shell: bash
       env:

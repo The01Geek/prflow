@@ -37029,6 +37029,42 @@ assert_raises("#1388 Plan: a no-answer status without a reason raises",
               ValueError, lambda: _lint_provision.Plan("unsupported"))
 assert_raises("#1388 Readiness: ready with a (stale) reason raises",
               ValueError, lambda: _install_state.Readiness(True, "leftover-reason"))
+# Round 2: the XOR is enforced in BOTH directions and the verdicts are frozen.
+assert_raises("#1388 Plan: established with a (stale) reason raises",
+              ValueError, lambda: _lint_provision.Plan(
+                  "established", tool="shellcheck", os="linux", arch="x86_64",
+                  version="1", digest="sha256:" + "a" * 64, archive_type="tar.gz",
+                  member="shellcheck", strategy="extract-tar", url="https://x",
+                  reason="leftover"))
+assert_raises("#1388 Plan: a no-answer status smuggling resolved fields raises",
+              ValueError, lambda: _lint_provision.Plan(
+                  "unsupported", reason="unsupported-lint-platform", url="https://x"))
+assert_raises("#1388 StateResult: established with a (stale) reason raises",
+              ValueError, lambda: _install_state.StateResult(
+                  "established", state={"k": 1}, reason="leftover"))
+assert_raises("#1388 StateResult: unestablished smuggling a state raises",
+              ValueError, lambda: _install_state.StateResult(
+                  "unestablished", reason="r", state={"k": 1}))
+
+
+def _mutate_1388(obj, name):
+    def _do():
+        setattr(obj, name, "tampered")
+    return _do
+
+
+assert_raises("#1388 Readiness: post-construction assignment raises (frozen)",
+              AttributeError, _mutate_1388(_install_state.Readiness(True), "ready"))
+assert_raises("#1388 StateResult: post-construction assignment raises (frozen)",
+              AttributeError,
+              _mutate_1388(_install_state.StateResult("unestablished", reason="r"), "reason"))
+assert_raises("#1388 Plan: post-construction assignment raises (frozen)",
+              AttributeError,
+              _mutate_1388(_lint_provision.Plan("unsupported", reason="x"), "status"))
+# Round 2: a slash-bearing branch-ref installer_version (e.g. a consumer pinning
+# `feature/x`) is legal — build and validate stay in lockstep on the shared regex.
+assert_eq("#1388 state: slash-bearing installer_version validates (branch-ref pin)", True,
+          _install_state.validate_state(_mk_state(installer_version="feature/x")).established)
 # PR #1963 reception: readiness names an INVALID (present) manifest distinctly, and the
 # helper's final summary reports only what actually landed.
 _d1388e = Path(tempfile.mkdtemp())
@@ -37042,13 +37078,25 @@ try:
                   "v1", {"manifest": ".prflow/lint-manifest.json"}, repo_root=_repo_e), dict))
     assert_raises("#1388 build_state: an installer_version validate_state would reject raises (no marker published)",
                   ValueError, lambda: _install_state.build_state(
-                      "bad/ref", {"manifest": ".prflow/lint-manifest.json"}, repo_root=_repo_e))
+                      "bad ref;x", {"manifest": ".prflow/lint-manifest.json"}, repo_root=_repo_e))
     (_repo_e / ".prflow" / "bad-manifest.json").write_text("{not json", encoding="utf-8")
     _mu = _install_state.check_readiness(_repo_e / ".prflow" / "install-state.json",
                                          _repo_e / ".prflow" / "bad-manifest.json",
                                          repo_root=_repo_e)
     assert_eq("#1388 readiness: present-but-invalid manifest -> manifest-unestablished:<reason>", True,
               (not _mu.ready) and _mu.reason.startswith("manifest-unestablished:"))
+    # Round 2 (I-1): a PRESENT manifest with a structural `missing:` reason (a missing
+    # required key) must NOT be mislabeled `manifest-missing` — that label is reserved
+    # for the file-absent sentinel, or an operator hunts for a file that exists.
+    (_repo_e / ".prflow" / "keyless-manifest.json").write_text('{"schema_version": 1}\n',
+                                                              encoding="utf-8")
+    _mk_r2 = _install_state.check_readiness(_repo_e / ".prflow" / "install-state.json",
+                                            _repo_e / ".prflow" / "keyless-manifest.json",
+                                            repo_root=_repo_e)
+    assert_eq("#1388 readiness: present manifest with structural missing-key -> manifest-unestablished, never manifest-missing", True,
+              (not _mk_r2.ready)
+              and _mk_r2.reason.startswith("manifest-unestablished:missing:")
+              and _mk_r2.reason != "manifest-missing")
     _rc_e, _out_e = _run_helper_1388(_repo_e, archive=_e_arc, arch="arm64")
     assert_eq("#1388 helper: degraded tool listed as unprovisioned, not provisioned", True,
               "unprovisioned (degraded): shellcheck" in _out_e

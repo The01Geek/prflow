@@ -35,6 +35,10 @@ from pathlib import Path
 
 # ── Closed vocabularies. A value outside any of these is `unknown-enum`. ──────
 SUPPORTED_SCHEMA_VERSIONS = frozenset({1})
+# The FILE-ABSENT sentinel, exactly as load_manifest emits it. Consumers that must
+# tell an absent file from a present-but-invalid manifest compare EQUALITY with this
+# constant — a `missing:` prefix match also catches structural missing-key reasons.
+MISSING_FILE_REASON = "missing: manifest file does not exist"
 KNOWN_TOOLS = ("shellcheck", "ruff")
 KNOWN_OS = frozenset({"linux", "macos", "windows"})
 KNOWN_ARCH = frozenset({"x86_64", "arm64"})
@@ -145,7 +149,7 @@ def load_manifest(path) -> ManifestResult:
     try:
         raw = p.read_bytes()
     except FileNotFoundError:
-        return _unestablished("missing: manifest file does not exist")
+        return _unestablished(MISSING_FILE_REASON)
     except (IsADirectoryError, PermissionError, OSError) as exc:
         return _unestablished(f"unreadable: {exc.__class__.__name__}")
     return parse_manifest(raw)

@@ -47,6 +47,8 @@ PY="${LINTPROV_PYTHON:-python3}"
 CURL="${LINTPROV_CURL:-curl}"
 TAR="${LINTPROV_TAR:-tar}"
 UNZIP="${LINTPROV_UNZIP:-unzip}"
+# TOOLS must stay a function of the manifest's tool set: the cross-run cache key
+# does not include it, so an out-of-manifest tool would ride a partial cache restore.
 TOOLS="${TOOLS:-shellcheck ruff}"
 
 _die() {

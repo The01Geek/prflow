@@ -39,7 +39,9 @@ SUPPORTED_SCHEMA_VERSIONS = frozenset({1})
 _DIGEST_RE = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
 # An installer version is a git ref / semver-ish token: no shell metacharacters,
 # no whitespace, so it can never be a command string spliced into the cache key.
-_INSTALLER_VERSION_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]*\Z")
+# `/` is accepted (a branch ref like `feature/x` is a legal consumer pin and is not
+# a shell metacharacter); it is never used as a filesystem path component.
+_INSTALLER_VERSION_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._/-]*\Z")
 # A component name is a closed-vocabulary identifier the trusted installer sets.
 _NAME_RE = re.compile(r"\A[a-z0-9][a-z0-9-]*\Z")
 
@@ -65,15 +67,26 @@ class StateResult:
     def __init__(self, status: str, *, state=None, reason: str | None = None):
         if status not in ("established", "unestablished"):
             raise ValueError(f"invalid state-result status: {status!r}")
-        # Make the documented XOR unrepresentable, not merely conventional: an
-        # established result must carry state; an unestablished one must carry a reason.
-        if status == "established" and state is None:
-            raise ValueError("established StateResult requires a state")
-        if status == "unestablished" and not reason:
-            raise ValueError("unestablished StateResult requires a reason")
-        self.status = status
-        self.state = state
-        self.reason = reason
+        # Make the documented XOR unrepresentable in BOTH directions, not merely
+        # conventional: established carries state and no reason; unestablished
+        # carries a reason and no state.
+        if status == "established":
+            if state is None:
+                raise ValueError("established StateResult requires a state")
+            if reason is not None:
+                raise ValueError("established StateResult must not carry a reason")
+        else:
+            if not reason:
+                raise ValueError("unestablished StateResult requires a reason")
+            if state is not None:
+                raise ValueError("unestablished StateResult must not carry a state")
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "state", state)
+        object.__setattr__(self, "reason", reason)
+
+    def __setattr__(self, name, value):
+        # Frozen after construction: a post-init write would defeat the XOR above.
+        raise AttributeError(f"StateResult is immutable (attempted to set {name!r})")
 
     @property
     def established(self) -> bool:
@@ -103,8 +116,12 @@ class Readiness:
             raise ValueError("a not-ready Readiness requires a reason")
         if ready and reason is not None:
             raise ValueError("a ready Readiness must not carry a reason")
-        self.ready = ready
-        self.reason = reason
+        object.__setattr__(self, "ready", ready)
+        object.__setattr__(self, "reason", reason)
+
+    def __setattr__(self, name, value):
+        # Frozen after construction: a post-init write would defeat the XOR above.
+        raise AttributeError(f"Readiness is immutable (attempted to set {name!r})")
 
 
 def _unestablished(reason: str) -> StateResult:
@@ -278,9 +295,10 @@ def check_readiness(state_path, manifest_path, repo_root=".") -> Readiness:
 
     mr = lint_manifest.load_manifest(manifest_path)
     if not mr.established:
-        # A missing manifest is the AC's dedicated `manifest-missing`; any other
-        # unestablished shape carries the manifest reader's typed reason.
-        if mr.reason and mr.reason.startswith("missing:"):
+        # An ABSENT manifest file is the AC's dedicated `manifest-missing` — matched by
+        # equality with the reader's file-absent sentinel, never the `missing:` prefix,
+        # which also matches structural missing-key reasons for a PRESENT manifest.
+        if mr.reason == lint_manifest.MISSING_FILE_REASON:
             return Readiness(False, "manifest-missing")
         return Readiness(False, f"manifest-unestablished:{mr.reason}")
 
