@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1972",
+  "generated_at": "2026-08-26T03:05:27Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.39",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.482191749999998,
+    "tokens": {
+      "input_tokens": 36,
+      "output_tokens": 24965,
+      "cache_read_input_tokens": 2916374,
+      "cache_creation_input_tokens": 231192,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 132,
+        "outputTokens": 66024,
+        "cacheReadInputTokens": 6480736,
+        "cacheCreationInputTokens": 755775,
+        "webSearchRequests": 0,
+        "costUSD": 10.482191749999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 33,
+    "duration_ms": 520928
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"; echo \"ACTIONS=${GITHUB_ACTIONS:-}\"",
+      "mkdir -p .prflow/tmp; rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "git show af290a4afbfa07a2de2e29dc08e768adc7fea166:lib/capability-profiles.json 2>/dev/null | python3 -c \"\nimport json,sys\nd=json.load(sys.stdin)\ngroups=d['groups']\n# find which group has preflight\npf=[g for g,tools in groups.items() if any('preflight.py' in str(t) for t in tools)]\nprint('groups w/ preflight:', pf)\nfor p,pv in d['profiles'].items():\n    print(p, pv.get('groups'))\n\"",
+      "git show af290a4afbfa07a2de2e29dc08e768adc7fea166:lib/capability-profiles.json 2>/dev/null > /tmp/cp.json; python3 -c \"\nimport json\nd=json.load(open('/tmp/cp.json'))\ngroups=d['groups']\npf=[g for g,tools in groups.items() if any('preflight.py' in str(t) for t in tools)]\nprint('groups with preflight:', pf)\nfor p,pv in d['profiles'].items():\n    print(p, pv.get('groups'))\n\"",
+      "git show af290a4afbfa07a2de2e29dc08e768adc7fea166:lib/capability-profiles.json > .prflow/tmp/cp.json 2>/dev/null; python3 -c \"\nimport json\nd=json.load(open('.prflow/tmp/cp.json'))\ngroups=d['groups']\npf=[g for g,tools in groups.items() if any('preflight.py' in str(t) for t in tools)]\nprint('groups with preflight:', pf)\nfor p,pv in d['profiles'].items():\n    print(p, pv.get('groups'))\n\"",
+      "git check-ignore .prflow/tmp/lint/x/1/op-0.json && echo IGNORED || echo NOT-IGNORED",
+      "git check-ignore .prflow/tmp/lint/x/1/op-0.json; echo \"rc=$?\"",
+      "cat .prflow/.gitignore 2>/dev/null; echo \"---\"; git check-ignore -v .prflow/tmp/lint/x/1/op-0.json",
+      "git check-ignore -v .prflow/tmp/lint/x/1/op-0.json"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
