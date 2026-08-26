@@ -108,6 +108,36 @@ class Reader(unittest.TestCase):
     def test_a_single_observation_has_no_established_stdev(self):
         self.assertEqual(ir.stdev_or_unestablished([5]), UNESTABLISHED)
 
+    def test_runs_are_ordered_by_merge_time_with_the_run_id_as_tie_break(self):
+        """Cardinality-sensitive: the report takes the most recent N off the tail, so a
+        wrong or absent comparator silently reports the wrong runs. Three records fed in
+        reverse order, two sharing a merge timestamp so the tie-break is exercised too."""
+        td, p = _store(
+            _record(3, "2026-07-09T00:00:00Z", 3000, 3.0, run_id="c-1"),
+            _record(1, "2026-07-01T00:00:00Z", 1000, 1.0, run_id="b-1"),
+            _record(2, "2026-07-01T00:00:00Z", 2000, 2.0, run_id="a-1"),
+        )
+        with td:
+            runs = ir.load_runs(p)
+        self.assertEqual([r["run_id"] for r in runs], ["a-1", "b-1", "c-1"])
+
+    def test_median_over_an_even_and_an_odd_population(self):
+        """A one-element population is already its own median, so the even-count
+        averaging is exercised here instead."""
+        self.assertEqual(ir.median_or_unestablished([1, 3, 5]), 3)
+        self.assertEqual(ir.median_or_unestablished([1, 3, 5, 7]), 4)
+        self.assertEqual(ir.median_or_unestablished([5, 1, 7, 3]), 4)  # order-independent
+
+    def test_stdev_over_a_multi_element_population(self):
+        self.assertAlmostEqual(ir.stdev_or_unestablished([2, 4, 4, 4, 5, 5, 7, 9]), 2.0)
+
+    def test_top_phases_ranks_by_share_and_caps_the_list(self):
+        run = {"phase_durations_ms": {"A": 1000, "B": 4000, "C": 3000, "D": 2000}}
+        rendered = rr._top_phases(run, limit=3)
+        self.assertTrue(rendered.startswith("B="), rendered)
+        self.assertIn("C=", rendered)
+        self.assertNotIn("A=", rendered)
+
     def test_phase_shares_are_fractions_of_established_phase_time_only(self):
         run = {"phase_durations_ms": {"Setup": 1000, "Implement": 3000,
                                       "Review": UNESTABLISHED}}

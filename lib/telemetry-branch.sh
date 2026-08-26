@@ -596,9 +596,8 @@ devflow_telemetry_persist_tree() {
           # Staged this run. A staged efficiency RECORD that ALSO exists on base is a
           # floor-merge target: this run's only changes to it are the add-if-absent floor
           # keys, so re-apply THOSE onto the fetched base version rather than overwriting
-          # it with our possibly-stale full copy (AC5a). Every OTHER staged path (a fresh
-          # record, a skeleton, a durable workpad copy, or a record absent from base)
-          # applies local-wins.
+          # it with our possibly-stale full copy (AC5a). A staged path that is not such a
+          # target applies local-wins.
           #
           # Re-apply every floor key, not just harness_cost: a key missing from this list
           # is silently dropped whenever a concurrent writer forces this merge path, so a

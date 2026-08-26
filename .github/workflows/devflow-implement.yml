@@ -1909,7 +1909,7 @@ jobs:
           # Run-profile floor glue (issue #2006): resolve this run's workpad and derive its
           # per-phase durations and final status. Guarded exactly like $FLOOR — a vendored
           # tree pinned to an older prflow_version lacks it, and that must draw a NAMED
-          # ::warning:: (profile inert), never a raw `No such file` under `set +e`.
+          # ::warning:: (profile inert) rather than a bare interpreter error under `set +e`.
           PROFILE_GLUE=.prflow/vendor/prflow/scripts/prepare-run-profile.sh
           if [ ! -f "$PROFILE_GLUE" ]; then
             echo "::warning::run-profile floor inert: $PROFILE_GLUE missing (a vendored tree pinned to an older prflow_version); the run profile is skipped this run"

@@ -6885,7 +6885,7 @@ assert_eq "#2006 PR-less: no PR AND no issue number draws a named breadcrumb rat
   "$(printf '%s' "$RP_G_ERR" | grep -q 'cannot be keyed by issue either' && echo yes || echo no)"
 rm -rf "$RP_G"
 
-# ── #2006 prepare-run-profile.sh glue — every branch, under stubbed helpers ───
+# ── #2006 prepare-run-profile.sh glue — its inert branches, under stubs ──────
 RPG="$LIB/../scripts/prepare-run-profile.sh"
 if [ -x "$RPG" ]; then
   RPG_T="$(git_sandbox "rp glue")"
@@ -6980,7 +6980,7 @@ rm -rf "$RP_U"
 # ── #2006: the union merge re-applies EVERY floor key, not just harness_cost ──
 # On a concurrent-writer push the staged record is merged onto the fetched base rather
 # than overwriting it. A floor key missing from that re-apply list is silently dropped
-# on exactly that path, so the list is asserted directly against the merge program.
+# on the concurrent-push path, so the list is asserted against the merge program.
 TB_MERGE_BASE='{"schema_version":1,"slug":"pr-6"}'
 TB_MERGE_LOCAL='{"schema_version":1,"slug":"pr-6","harness_cost":{"cost_usd":5},"permission_denials":{"count":2},"run_profile":{"final_status":"Complete"}}'
 TB_MERGE_PROG='reduce ("harness_cost", "permission_denials", "run_profile") as $k (.;
@@ -6998,3 +6998,35 @@ assert_eq "#2006 union merge: a base-side key wins per key, and the absent ones 
 # structural-pin-ok: generated-artifact-identity -- the merge program is a coupled mirror between the union writer and the fixture above; a divergence silently drops a floor key on the concurrent-push path only
 assert_eq "#2006 union merge: the asserted program is the one telemetry-branch.sh runs" "1" \
   "$(grep -c 'reduce ("harness_cost", "permission_denials", "run_profile") as \$k' "$LIB/telemetry-branch.sh" || true)"
+
+# ── #2006 glue: the two causes of `workpad.py id` exit 2 stay distinguishable ──
+# argparse also exits 2, on a usage error, so an older vendored workpad.py with no `id`
+# subcommand reaches the same code the "no workpad comment" arm reads. Reporting a
+# missing comment there names a cause the glue never observed.
+if [ -x "$RPG" ]; then
+  RPG_A="$(git_sandbox "rp argparse")"
+  printf '%s\n' \
+    '#!/usr/bin/env python3' \
+    'import sys' \
+    'sys.stderr.write("usage: workpad.py [-h] {body,create} ...\n")' \
+    'sys.exit(2)' \
+    > "$RPG_A/workpad.py"
+  printf '%s\n' \
+    '#!/usr/bin/env python3' \
+    'import sys' \
+    'sys.exit(2)' \
+    > "$RPG_A/workpad-quiet.py"
+  cp "$LIB/../scripts/derive-run-profile.py" "$RPG_A/"
+  cp "$RPG" "$RPG_A/"
+  chmod +x "$RPG_A"/*.py "$RPG_A/prepare-run-profile.sh"
+  RPG_A_OUT="$(bash "$RPG_A/prepare-run-profile.sh" 2006 "$RPG_A/out.json" 2>&1)"
+  assert_eq "#2006 glue: an argparse usage error at exit 2 is reported as a rejected subcommand" "yes" \
+    "$(printf '%s' "$RPG_A_OUT" | grep -q "rejected the 'id' subcommand" && echo yes || echo no)"
+  assert_eq "#2006 glue: that arm does NOT claim the issue has no workpad comment" "yes" \
+    "$(printf '%s' "$RPG_A_OUT" | grep -q 'has no workpad comment' && echo no || echo yes)"
+  mv "$RPG_A/workpad-quiet.py" "$RPG_A/workpad.py"
+  RPG_Q_OUT="$(bash "$RPG_A/prepare-run-profile.sh" 2006 "$RPG_A/out.json" 2>&1)"
+  assert_eq "#2006 glue: a silent exit 2 IS the no-workpad arm" "yes" \
+    "$(printf '%s' "$RPG_Q_OUT" | grep -q 'has no workpad comment' && echo yes || echo no)"
+  rm -rf "$RPG_A"
+fi

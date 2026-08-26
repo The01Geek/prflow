@@ -1539,9 +1539,8 @@ apply_denial_floor() {
 # same file.
 #
 # Every sub-field whose source could not be established holds the STRING `unestablished`
-# and never `0`: a zero-millisecond phase and a zero prior-record count are both real
-# measurements here, so collapsing an unknown onto either would let an unmeasured run
-# enter a mean, a median and a maximum as a real value.
+# and never `0`. A zero here is a real measurement, so collapsing an unknown onto it
+# would let an unmeasured run enter an aggregate as a real value.
 
 # Add one top-level KEY (add-if-absent) to an in-STAGING record file $1, via temp+mv so a
 # failed jq leaves the file untouched. $2 = key name, $3 = its JSON value, $4 = a display
@@ -1610,8 +1609,7 @@ EOF
 
 # Consume DEVFLOW_RUN_PROFILE (scripts/prepare-run-profile.sh's single-line JSON) and
 # DEVFLOW_ENGINE_OUTCOME, and land them as one top-level `run_profile` key. Mirrors
-# apply_harness_floor's four arms (staged record / already-persisted branch record /
-# skeleton / decline) so the two floors behave identically. $1 root, $2 staging root.
+# apply_harness_floor's arms so the two floors behave identically. $1 root, $2 staging root.
 apply_run_profile_floor() {
   local root="$1" stage="$2"
   # Unset/empty profile → INERT and SILENT, so the agent-side persist call sites
@@ -1656,8 +1654,7 @@ apply_run_profile_floor() {
 
   local eff_dir="${stage}/.prflow/logs/efficiency" f
   # Merge arm (a): a record staged this pass under this run-id identity. `*-<ident>.json`
-  # matches ANY slug, so the issue-keyed PR-less record written earlier this pass is
-  # caught here with no arm of its own.
+  # matches ANY slug, which is what lets the issue-keyed PR-less record be caught here.
   if [ -d "$eff_dir" ]; then
     for f in "$eff_dir"/*-"$ident".json; do
       [ -e "$f" ] || continue

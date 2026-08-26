@@ -75,7 +75,7 @@ def _classify_download_failure(stderr: str) -> str:
     """`expired` | `run-missing` | `other` for one `gh run download` failure.
 
     Kept separate from the subprocess call so the discrimination is drivable by a test
-    without stubbing a process, and so each arm names only the condition it observed.
+    without stubbing a process, and so an arm names the condition it observed.
     """
     low = (stderr or "").lower()
     for marker in _EXPIRED_MARKERS:
