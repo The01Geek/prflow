@@ -55,9 +55,9 @@ NUMBER="${1:-}"
 # The number must be digits. This is a fail-CLOSED guard on the one caller mistake the skills
 # explicitly warn about: a `$PR_NUM` that did not survive into a later command. Both spellings
 # of that slip land here, and neither may be silent:
-#   * UNQUOTED (`apply-labels.sh $PR_NUM DevFlow`) — the empty expansion word-splits away, so
-#     `NUMBER` swallows the LABEL (`apply-labels.sh DevFlow`) and the label set comes out empty.
-#   * QUOTED (`apply-labels.sh "$PR_NUM" DevFlow`) — no word-splitting: `NUMBER` is set-but-null
+#   * UNQUOTED (`apply-labels.sh $PR_NUM PRFlow`) — the empty expansion word-splits away, so
+#     `NUMBER` swallows the LABEL (`apply-labels.sh PRFlow`) and the label set comes out empty.
+#   * QUOTED (`apply-labels.sh "$PR_NUM" PRFlow`) — no word-splitting: `NUMBER` is set-but-null
 #     and the label survives. (This is why the number is read with `${1:-}` above: `${1:?}` would
 #     have aborted here with rc 1 and a raw bash usage line instead of the breadcrumb below.)
 # Callers read "no output at all" as a harness refusal, so a silent exit on either shape would
@@ -117,7 +117,7 @@ else
 fi
 
 # Normalize the label source into a clean label list — split on commas, trim, drop empties.
-# Accepts `DevFlow Retrospective` (separate args), `"DevFlow,Deferred"` (one
+# Accepts `PRFlow Retrospective` (separate args), `"PRFlow,Deferred"` (one
 # comma-separated arg), or a mix.
 #
 # BASH BUILTINS ONLY — deliberately not a `tr | sed | grep` pipeline. This derivation decides

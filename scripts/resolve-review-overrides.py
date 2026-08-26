@@ -6,7 +6,7 @@
 The shared review engine (skills/review/SKILL.md) dispatches up to nine
 subagents. Operators tune each one's model/effort via the
 `prflow_review.agent_overrides` block in .prflow/config.json. This helper
-reads that block (through config-get.sh — DevFlow's single config reader) for
+reads that block (through config-get.sh — PRFlow's single config reader) for
 the subagents about to be dispatched and prints the resolved model/effort map.
 
 On the in-session dispatch path both tiers use today there is NO per-dispatch

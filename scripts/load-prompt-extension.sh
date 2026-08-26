@@ -99,7 +99,7 @@
 # 0 (the no-op path), so a skill that reads stdout behaves exactly as before unless the
 # consumer opted in.
 #
-# This is DevFlow's single upgrade-safe extension point: a consumer adds
+# This is PRFlow's single upgrade-safe extension point: a consumer adds
 # repo-specific instructions to any skill by committing one Markdown file in
 # their own repo, with no plugin edit and no fork to maintain. The file lives in
 # the consumer's repo, never in the plugin, so marketplace updates never touch

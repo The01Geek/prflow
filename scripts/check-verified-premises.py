@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 """Re-check a drafted issue's `Verified:` premises against the current tree.
 
-A `Verified:` bullet is the single most load-bearing line in a DevFlow issue: it
+A `Verified:` bullet is the single most load-bearing line in a PRFlow issue: it
 is what licenses an implementing run to skip its own investigation. Those
 bullets are true *when the issue is drafted*, and nothing re-checks them when
 the issue is later implemented — so a premise that has since become false
@@ -133,7 +133,7 @@ class CitedPath(NamedTuple):
     suffix: str
 
 
-# The `Verified` marker, in the shapes filed DevFlow issues actually carry.
+# The `Verified` marker, in the shapes filed PRFlow issues actually carry.
 # Matching only `**Verified:**` found zero bullets in bodies using any other
 # spelling and reported a vacuous clean pass. But widening it to any bolded run
 # beginning with the word `Verified` mints PHANTOM bullets out of ordinary

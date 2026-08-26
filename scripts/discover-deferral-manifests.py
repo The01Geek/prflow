@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""DevFlow deferrals-manifest discovery for /implement Phase 4.0.5.
+"""PRFlow deferrals-manifest discovery for /implement Phase 4.0.5.
 
 Phase 4.0.5 of `/devflow:implement` files follow-up GitHub issues for review
 findings deferred during the Phase 3.3 fix loop. Its first step discovers the

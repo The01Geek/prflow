@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pure parsing and capture primitives for local DevFlow workflow sessions."""
+"""Pure parsing and capture primitives for local PRFlow workflow sessions."""
 
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT

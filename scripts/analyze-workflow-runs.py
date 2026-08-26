@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Analyze captured DevFlow workflow occurrences with a fresh read-only model."""
+"""Analyze captured PRFlow workflow occurrences with a fresh read-only model."""
 
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
