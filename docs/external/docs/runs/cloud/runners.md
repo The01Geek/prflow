@@ -1,40 +1,74 @@
 ---
 title: "Cloud Runners"
-description: "Select and provision GitHub-hosted or self-hosted runners for PRFlow."
+description: "Select and provision GitHub-hosted or self-hosted runners for PRFlow cloud jobs."
 ---
 
-Move PRFlow jobs from the default GitHub-hosted Linux runner to a compatible self-hosted or custom runner.
+Keep PRFlow on the default GitHub-hosted Linux runner, or move every job to a runner you control.
 
 ## Select a Runner
 
-Every job in the two shipped workflows uses `ubuntu-latest` by default. Set the GitHub Actions variable `DEVFLOW_RUNNER` to select another runner for all of them.
+Every job in the two shipped workflows runs on `ubuntu-latest` by default. One GitHub Actions variable, `DEVFLOW_RUNNER`, changes all of them at once.
+
+Set it under **Settings → Secrets and variables → Actions → Variables**.
 
 | **Value** | **Result** |
 | --- | --- |
-| Unset or empty | `ubuntu-latest` |
-| `windows-latest` | One runner label |
-| `["self-hosted","windows","PRFlow"]` | A runner matching every label in the JSON array |
-| A value beginning with `[` that is invalid JSON | Workflow evaluation fails with a `fromJSON` error |
+| Unset or empty | `ubuntu-latest`, the standard GitHub-hosted Linux runner. |
+| `windows-latest` | The single runner label you named. |
+| `["self-hosted","windows","PRFlow"]` | A runner matching every label in the JSON array. |
+| A value starting with `[` that is not valid JSON | Workflow evaluation fails with a `fromJSON` error. |
 
-Set it under **Settings → Secrets and variables → Actions → Variables**. Keep the `DEVFLOW_` name. No `PRFLOW_RUNNER` alias exists.
+Keep the `DEVFLOW_` prefix exactly as written. There is no `PRFLOW_RUNNER` alias.
+
+<Warning>
+  A label set that no registered runner matches does not fail. GitHub leaves the job queued forever with no error message. If a run never starts and the **Actions** tab shows it as queued, compare your label array against your runner's registered labels first.
+</Warning>
+
+<Warning>
+  If the variable name is misspelled or deleted, the expression falls back to `ubuntu-latest` and every job silently moves to a GitHub-hosted runner. That job carries your GitHub App private key and your model-provider API key in its environment. If you self-host for network isolation or compliance, check the runner label on a run after any change to this variable.
+</Warning>
 
 ## Provision a Self-Hosted Runner
 
-Install these prerequisites before selecting the runner:
+Install these before you point PRFlow at the runner:
 
 - `git`.
 - GitHub CLI (`gh`).
 - `jq`.
 - Python 3.11 or newer, available as `python3`.
 - A POSIX bash on `PATH`.
-- `openssl`, `curl`, and `nohup` — the long-run credential refresher hard-requires all three.
-- Docker when `setup.services` or repository checks need it.
+- `openssl`, `curl` and `nohup`. The long-run credential refresher needs all three.
+- Docker, when `setup.services` or your own checks need it.
 
-The workflows force `bash` for `run:` steps. On Windows, install Git Bash or an equivalent POSIX bash. If Python is available only as `python` or `py -3`, run the shipped `scripts/provision-python3-shim.sh --apply` once on the runner. Use `DEVFLOW_GH`, `DEVFLOW_JQ` or `DEVFLOW_BASH` only when the working executables are in nonstandard locations.
+Confirm the set in one pass on the runner:
+
+```bash
+for t in git gh jq python3 bash openssl curl nohup; do
+  command -v "$t" >/dev/null && echo "ok   $t" || echo "MISSING $t"
+done
+python3 --version
+```
+
+Every line should read `ok`, and the version should be 3.11 or higher. Fix each `MISSING` line before you continue.
+
+<AccordionGroup>
+  <Accordion title="Windows Runners">
+    The workflows force `bash` for their `run:` steps, so install Git Bash or an equivalent POSIX bash. If Python is available only as `python` or `py -3`, run the shipped shim provisioner once on the runner, from a checkout that has the plugin tree:
+
+    ```bash
+    bash .prflow/vendor/prflow/scripts/provision-python3-shim.sh --apply
+    ```
+
+    It refuses to create a shim when no compatible interpreter is present, so a clean exit means the runner is ready.
+  </Accordion>
+  <Accordion title="Executables in Nonstandard Locations">
+    Set `DEVFLOW_GH`, `DEVFLOW_JQ` or `DEVFLOW_BASH` only when the working executable is somewhere the normal search path does not reach. A correct `PATH` is simpler and less likely to drift.
+  </Accordion>
+</AccordionGroup>
 
 ## Use Claude Code on Windows
 
-The action's bundled Claude Code installer is Unix-only. Preinstall Claude Code on a self-hosted Windows runner and set `setup.claude_code_executable` to the single-line path of `claude.exe`.
+The action's bundled Claude Code installer is Unix-only. On a self-hosted Windows runner, install Claude Code yourself and point `.prflow/config.json` at it:
 
 ```json
 {
@@ -44,12 +78,21 @@ The action's bundled Claude Code installer is Unix-only. Preinstall Claude Code 
 }
 ```
 
-An absent or empty value uses automatic installation. A rejected value warns and falls back to automatic installation. This trigger-time setting takes effect after its configuration change merges.
+Use a single-line path, with the backslashes escaped as shown. An absent or empty value uses automatic installation. A value PRFlow rejects produces a warning in the run log and falls back to automatic installation.
 
-## Avoid Runner Selection Traps
+<Note>
+  This is a trigger-time setting. It takes effect only after the configuration change is merged into your default branch, not while it sits in a pull request.
+</Note>
 
-A self-hosted label array must match a registered runner's labels. GitHub leaves an unmatched job queued rather than failing it.
+## Avoid Two Configuration Traps
 
-Leave `setup.git_dir_pin` and `setup.git_work_tree_pin` at `false` unless you have validated their documented constraints. `git_dir_pin` is not honored by implementation and can misdirect repository-root config reads. `git_work_tree_pin` breaks remote marketplace cloning and is appropriate only for a local-only marketplace list.
+Leave `setup.git_dir_pin` and `setup.git_work_tree_pin` at `false` unless you have validated their constraints:
 
-PRFlow can send jobs to the configured runner, but it is not certified for every non-Linux environment. Run one complete shipped workflow on the target runner before treating it as production-ready.
+- `git_dir_pin` is not honored by implementation runs and can misdirect repository-root configuration reads.
+- `git_work_tree_pin` breaks remote marketplace cloning. It suits a local-only marketplace list and nothing else.
+
+<Warning>
+  PRFlow can send jobs to any runner you configure, but it is not certified for every non-Linux environment. Run one complete workflow end to end on the target runner before you treat it as production-ready.
+</Warning>
+
+Continue with [Cloud Triggers](/docs/runs/cloud/triggers).

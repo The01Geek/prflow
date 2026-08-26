@@ -23,10 +23,30 @@ Balance useful cloud-run diagnostics against the sensitivity of prompts, reposit
 
 The transcript and command scrubber is an incomplete blocklist. It covers common GitHub tokens, Anthropic keys and Bearer or basic Authorization headers, whose scheme keyword is matched whatever its casing. An Authorization value shorter than four characters is left alone, so a literal command such as `sed 's/AUTHORIZATION: basic //'` is not mistaken for a credential. Other credential shapes can remain. A scrub failure prevents the affected text from being uploaded or persisted.
 
-**Warning:** A successful scrub does not prove that output is secret-free.
+<Warning>
+  A successful scrub does not prove that output is secret-free. Transcript artifacts and denied-command records go through the scrubber, but Actions diagnostics can still contain truncated tool input. Treat those logs as sensitive.
+</Warning>
 
-- Transcript artifacts and denied-command records use the scrubber.
-- Actions diagnostics can still contain truncated tool input. Treat those logs as sensitive.
+## What a Run Record Contains
+
+`prflow_review_and_fix.efficiency_telemetry_enabled` is on by default, so a review-and-fix run writes one record per run to the telemetry branch. Read this before you decide whether to keep it.
+
+One record is a single JSON file. It holds:
+
+- **Which run it was.** A record format version, the repository slug and the time the record was written. The file name carries the run identifier.
+- **How the run was configured.** A hash of your review settings, so two runs can be compared, plus three values recorded in the clear: the verdict threshold, the fix threshold and the iteration limit.
+- **One entry per fix-loop iteration.** How many review agents ran. Flags describing the shape of the change, such as whether the diff was small, config only or added new types. How the verification checklist was handled and how it split between cheap direct checks and dispatched agents. How many fixes were applied, and whether the iteration applied none at all. Each agent's verdict and whether it led to a fix. The model effort each agent asked for and got.
+- **Cost figures.** Calls, token counts and wall-clock time, per phase and per iteration. A cloud run can also carry a whole-job summary: cost in dollars, tokens, usage per model, number of turns and total duration.
+
+The record holds counts, flags, identifiers and settings. It does not hold your source code, your diff, prompt text or the wording of any finding.
+
+<Warning>
+  The record is not the only thing stored. Each run also copies its workpad to the same branch, and a workpad contains the run's own written notes about the work: what it planned, what it changed and what it deferred. Scrubbed denied-command text can be stored there too. Anyone who can read the repository can read that branch.
+</Warning>
+
+A run with no readable iterations writes no record at all rather than an empty one. Set `efficiency_telemetry_enabled` to false to stop writing records entirely.
+
+## Choose Your Settings
 
 Use repository access controls and artifact retention as part of the privacy decision. Set both text-bearing options to false when even scrubbed prompt or command content is unacceptable:
 
@@ -45,5 +65,7 @@ Use repository access controls and artifact retention as part of the privacy dec
   }
 }
 ```
+
+Expected result: runs still print diagnostics to the Actions log, no transcript artifact is uploaded, no scrubbed command text is stored durably and effectiveness records keep going to the `prflow-telemetry` branch.
 
 Disabling denied-command text does not disable ordinary log diagnostics. Disable `execution_diagnostics_enabled` separately for quieter logs.

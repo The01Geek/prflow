@@ -1,59 +1,90 @@
 ---
 title: "Cloud Installation"
-description: "Install PRFlow's GitHub Actions workflows from matching version references."
+description: "Install PRFlow's GitHub Actions workflows from a matching version reference."
 ---
 
-Add PRFlow's optional GitHub Actions tier to a repository when your team needs cloud runs. Local plugin users do not need this installer.
+Add PRFlow's optional GitHub Actions tier to a repository. Skip this page if you only run PRFlow locally.
 
-## Prerequisites
+## Before You Start
 
-Use a Git repository and run the installer from its root. Install `git` before starting. A working Python 3.11 or newer is strongly recommended because the installer uses it to compare managed files and record their provenance.
+- Work in a Git repository and run the installer from its root.
+- Install `git`.
+- Install Python 3.11 or newer. The installer uses Python to compare managed files and record their provenance. Without it, it preserves existing files rather than risk overwriting your work.
 
 ## Install From a Release Tag
 
-1. Download the installer from the current release tag.
+<Note>
+  The examples below pin `v2.34.50`. Replace it with the tag you want to install, from the [releases page](https://github.com/The01Geek/prflow/releases). Pin a tag rather than a branch, so the bytes you read are the bytes that run.
+</Note>
 
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.50/install.sh -o devflow-install.sh
-   ```
+<Steps>
+  <Step title="Download the Installer">
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.50/install.sh -o devflow-install.sh
+    ```
+  </Step>
+  <Step title="Read the File Before Running It">
+    This script writes workflow files and configuration into your repository. Open `devflow-install.sh` and read it first.
+  </Step>
+  <Step title="Run It With the Same Tag">
+    The URL selects the installer. `DEVFLOW_REF` selects the payload it installs. Use the same value in both places.
 
-2. Read `devflow-install.sh` before running it.
-3. Run the downloaded file with the same tag in `DEVFLOW_REF`.
+    ```bash
+    DEVFLOW_REF=v2.34.50 bash devflow-install.sh
+    ```
 
-   ```bash
-   DEVFLOW_REF=v2.34.50 bash devflow-install.sh
-   ```
+    A first installation applies immediately. Add `--dry-run`, or set `DEVFLOW_DRY_RUN=1`, to preview instead.
+  </Step>
+  <Step title="Review the Result">
+    ```bash
+    git status
+    git diff
+    ```
 
-4. Review the result with `git status` and `git diff`.
-5. Commit only after the generated files and permissions match your repository policy.
+    You should see new files under `.github/workflows/`, `.github/actions/` and `.prflow/`, listed in the next section. Commit only after the files and permissions match your repository policy.
+  </Step>
+</Steps>
 
-The URL and `DEVFLOW_REF` select the same release tag. A tag is not an immutable byte pin. Use the same verified commit SHA in both places when immutability is required. Leaving `DEVFLOW_REF` unset selects the moving `main` branch.
+<Warning>
+  A tag is not an immutable byte pin. Use the same verified commit SHA in both the URL and `DEVFLOW_REF` when you need immutability. Leaving `DEVFLOW_REF` unset selects the moving `main` branch.
+</Warning>
 
-## Understand First-Install Behavior
+## What a First Install Creates
 
-A first installation applies immediately unless you pass `--dry-run` or set `DEVFLOW_DRY_RUN=1`. It creates or updates these public installation surfaces:
-
-- `.github/workflows/devflow.yml` for authorized comment commands.
-- `.github/workflows/devflow-implement.yml` for issue implementation.
+- `.github/workflows/devflow.yml` for the comment commands `/prflow:review`, `/prflow:review-and-fix` and `/prflow:pr-description`.
+- `.github/workflows/devflow-implement.yml` for `/prflow:implement`.
 - `.github/actions/read-project-config`, `.github/actions/setup-project-env` and `.github/actions/vendor-plugin`.
 - `.claude-plugin/marketplace.json`.
 - `.prflow/config.json`, `.prflow/config.schema.json`, `.prflow/.gitignore` and prompt-extension examples.
 - `.prflow/install-manifest.json`, when Python can record managed-artifact digests.
-- `.prflow/lint-manifest.json` and `.prflow/install-state.json`, which let issue-implementation runs provision their lint tools from a verified, digest-bound set before the agent starts.
-- Repository ignore rules for installer sidecars.
+- `.prflow/lint-manifest.json` and `.prflow/install-state.json`, which let implementation runs provision their lint tools from a verified, digest-bound set before the agent starts.
+- Repository ignore rules for installer sidecar files.
 
-Fresh installations do not receive `devflow-review.yml`, `devflow-runner.yml` or `telemetry-push.yml`. Automatic pull-request-triggered review is withdrawn from new installs. Use a collaborator's `/prflow:review` comment instead.
+<Note>
+  A fresh installation does not receive an automatic pull-request review workflow. That tier is withdrawn from new installs. Use a collaborator's `/prflow:review` comment, or add the workflow described in [Request a Review Automatically on Green CI](/docs/runs/cloud/auto-review).
+</Note>
 
 ## Choose an Install Mode
 
-The default is a thin install. The workflows fetch the plugin at runtime into `.prflow/vendor/prflow/` using the pinned `prflow_version`. The fetched tree is ignored and is not committed.
+<Tabs>
+  <Tab title="Thin Install (Default)">
+    The workflows fetch the plugin at run time into `.prflow/vendor/prflow/`, using the `prflow_version` pin in `.prflow/config.json`. The fetched tree is ignored and is not committed.
 
-Set `DEVFLOW_VENDOR=1` to commit the plugin tree instead:
+    ```bash
+    DEVFLOW_REF=v2.34.50 bash devflow-install.sh
+    ```
 
-```bash
-DEVFLOW_VENDOR=1 DEVFLOW_REF=v2.34.50 bash devflow-install.sh
-```
+    Choose this for a small install diff and a small update diff.
+  </Tab>
+  <Tab title="Vendored Install">
+    The plugin tree is committed to your repository instead.
 
-Vendored mode avoids a runtime fetch and makes the plugin bytes auditable in the repository. It also creates a much larger install and update diff.
+    ```bash
+    DEVFLOW_VENDOR=1 DEVFLOW_REF=v2.34.50 bash devflow-install.sh
+    ```
+
+    Choose this when you want no run-time fetch and want the plugin bytes auditable in your own history. Expect a much larger install and update diff.
+  </Tab>
+</Tabs>
 
 Continue with [Cloud Setup](/docs/runs/cloud/setup).
