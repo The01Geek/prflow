@@ -29902,7 +29902,7 @@ assert_eq "#222 AC6: workpad.py _run gh wrapper pins encoding=utf-8 (gh decode/e
 assert_eq "#222 AC7: workpad.py NamedTemporaryFile body write pins encoding=utf-8" "yes" \
   "$(grep -qF "'w', suffix='.md', delete=False, encoding=\"utf-8\"," "$U8_SCRIPTS/workpad.py" && echo yes || echo no)"
 assert_eq "#222 AC6: file-deferrals.py _run gh wrapper pins encoding=utf-8" "yes" \
-  "$(grep -qF 'stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",' "$U8_SCRIPTS/file-deferrals.py" && echo yes || echo no)"
+  "$(grep -qF 'capture_output=True, encoding="utf-8",' "$U8_SCRIPTS/file-deferrals.py" && echo yes || echo no)"
 assert_eq "#222 AC7: file-deferrals.py gh issue create pins input encoding=utf-8" "yes" \
   "$(grep -qF 'input=body, check=False, encoding="utf-8",' "$U8_SCRIPTS/file-deferrals.py" && echo yes || echo no)"
 assert_eq "#222 AC6: parse-acs.py _fetch_body pins gh decode encoding=utf-8" "yes" \
@@ -29910,7 +29910,7 @@ assert_eq "#222 AC6: parse-acs.py _fetch_body pins gh decode encoding=utf-8" "ye
 # match-deferrals.py's _run also reads gh PR/issue *bodies* (routinely non-ASCII),
 # so its decode is pinned too — closing the same Windows decode-crash path.
 assert_eq "#222 AC6: match-deferrals.py _run pins gh body-decode encoding=utf-8" "yes" \
-  "$(grep -qF 'stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8",' "$U8_SCRIPTS/match-deferrals.py" && echo yes || echo no)"
+  "$(grep -qF 'capture_output=True, encoding="utf-8",' "$U8_SCRIPTS/match-deferrals.py" && echo yes || echo no)"
 
 # Smoke (not RED->GREEN): a gh stub returns a comment body containing a rocket;
 # workpad.py id must still decode it and print the matched id. On the Linux runner

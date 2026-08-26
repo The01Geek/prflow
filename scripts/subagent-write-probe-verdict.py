@@ -837,7 +837,8 @@ def render(exec_file, tier, side_effect_file, upstream_empty, params):
             f"subagent-write-probe-verdict: {tier_note}; reporting unestablished\n"
         )
         tier = "unknown"
-    side_path = f"subwrite-{tier}.txt"
+    # Kept as `"…%s…" % tier`, not an f-string: run.sh's #858 coupling check greps this exact shape.
+    side_path = "subwrite-%s.txt" % tier  # noqa: UP031
     # VERIFY THE OUTCOME, NOT THE PRECONDITION. `isfile` proves a path exists; it proves
     # nothing about whether the subagent's write LANDED — which is the corroboration the
     # PERMITTED reason rests on. A zero-byte file, a truncated write, or a file authored by
