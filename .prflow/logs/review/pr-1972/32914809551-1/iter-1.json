@@ -1,0 +1,153 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "5cd90ac6d1131b75804e5bdaef5725f2dc759c3a",
+  "fix_files": [
+    "scripts/lint_changed.py",
+    "scripts/preflight.py",
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "dispatch_mode": null,
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "select_full_invocations did not exclude special-claimed paths from broad profiles",
+      "defect_signature": {
+        "file": "scripts/lint_changed.py",
+        "line_range": [
+          678,
+          710
+        ],
+        "kind": "inconsistency"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "_config_base silent fallback to main on malformed config (no breadcrumb)",
+      "defect_signature": {
+        "file": "scripts/lint_changed.py",
+        "line_range": [
+          862,
+          872
+        ],
+        "kind": "silent-fallback"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "preflight.py comment named a non-existent lint_manifest import",
+      "defect_signature": {
+        "file": "scripts/preflight.py",
+        "line_range": [
+          55,
+          58
+        ],
+        "kind": "stale-comment"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "coverage gaps: lint-full path, _run_invocation outcomes, copy/type/modify classification, unestablished arms, receipt payload shape",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "test-coverage"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "ChangedRecord run_path/skip_reason invariant and Invocation validation not enforced at construction",
+      "defect_signature": {
+        "file": "scripts/lint_changed.py",
+        "line_range": [
+          114,
+          121
+        ],
+        "kind": "invariant-unenforced"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "5cd90ac6d1131b75804e5bdaef5725f2dc759c3a"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "5cd90ac6d1131b75804e5bdaef5725f2dc759c3a"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "5cd90ac6d1131b75804e5bdaef5725f2dc759c3a"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "5cd90ac6d1131b75804e5bdaef5725f2dc759c3a"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "5cd90ac6d1131b75804e5bdaef5725f2dc759c3a"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 5,
+    "fix_diff_lines": 120,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "shadow_synthesized": true,
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
