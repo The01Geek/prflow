@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1992",
+  "generated_at": "2026-08-26T08:25:29Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.50",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.1307535,
+    "tokens": {
+      "input_tokens": 40,
+      "output_tokens": 18894,
+      "cache_read_input_tokens": 2587714,
+      "cache_creation_input_tokens": 145226,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 48,
+        "outputTokens": 22848,
+        "cacheReadInputTokens": 2684832,
+        "cacheCreationInputTokens": 267568,
+        "webSearchRequests": 0,
+        "costUSD": 4.1307535,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 26,
+    "duration_ms": 304548
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} ACTIONS=${GITHUB_ACTIONS:-none}\"; git status --porcelain; echo \"---base---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main",
+      "echo \"=== pending_sweep_baseline count in current tree ===\"; python3 -c \"import json;d=json.load(open('lib/test/brand-devflow-buckets.json'));print('pending:',len(d['pending_sweep_baseline']));print('keys:',list(d.keys()))\"\necho \"=== any remaining brand-cased DevFlow in swept code files? (should be none) ===\"\nfor f in lib/generate-capability-profiles.py lib/plugin_identity.py lib/resolve-bin.sh scripts/config-get.sh scripts/workpad.py scripts/version_pins.py; do n=$(grep -c 'DevFlow' \"$f\"); echo …[per-command-truncated]",
+      "git fetch origin 1ddd63d8436d6dd48d749ddac57e9b29e60409f4 2>&1 | tail -2; echo \"=== residual brand-cased DevFlow at PR HEAD in swept code files (should be 0) ===\"\nfor p in lib/generate-capability-profiles.py lib/plugin_identity.py lib/resolve-bin.sh lib/resolve-gh.sh lib/resolve-jq.sh lib/resolve-python.sh scripts/config-get.sh scripts/workpad.py scripts/version_pins.py scripts/authorize-actor.sh scripts/consolidate-changesets.py scripts/normalize-verdicts.py scripts/loop-verdict-marker.py lib/g …[per-command-truncated]"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
