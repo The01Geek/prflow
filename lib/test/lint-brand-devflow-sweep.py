@@ -127,6 +127,23 @@ def load_buckets(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def record_shape_error(buckets) -> str | None:
+    """Return a specific error string when the record's shape is wrong, else None — so the
+    reader fails closed with a breadcrumb rather than raising KeyError/TypeError downstream."""
+    if not isinstance(buckets, dict):
+        return "top-level value is not a JSON object"
+    frozen = buckets.get("frozen")
+    if not isinstance(frozen, dict):
+        return "missing the 'frozen' object"
+    for i, entry in enumerate(frozen.get("provenance", [])):
+        if not isinstance(entry, dict) or not isinstance(entry.get("file"), str):
+            return f"frozen.provenance[{i}] lacks a string 'file'"
+    for i, row in enumerate(buckets.get("pending_sweep_baseline", [])):
+        if not isinstance(row, dict) or not isinstance(row.get("path"), str):
+            return f"pending_sweep_baseline[{i}] lacks a string 'path'"
+    return None
+
+
 def classify(rel: str, blob: bytes, frozen: dict, prov_files: set[str]) -> tuple[str, int, int]:
     """Return (bucket, frozen_count, pending_count) of brand occurrences in one file.
 
@@ -263,11 +280,11 @@ def main(argv: list[str]) -> int:
     except (OSError, json.JSONDecodeError) as exc:
         print(f"lint-brand-devflow-sweep: cannot read bucket record {buckets_path}: {exc}", file=sys.stderr)
         return 2
-    # Fail closed with a specific breadcrumb on a structurally-valid-JSON record that is not a
-    # dict or lacks the `frozen` object, rather than an uncaught KeyError downstream.
-    if not isinstance(buckets, dict) or not isinstance(buckets.get("frozen"), dict):
-        print(f"lint-brand-devflow-sweep: bucket record {buckets_path} is missing the 'frozen' object",
-              file=sys.stderr)
+    # Fail closed with a specific breadcrumb on a structurally-valid-JSON record whose shape is
+    # wrong, rather than an uncaught KeyError/TypeError downstream (adversarial-parser convention).
+    shape_error = record_shape_error(buckets)
+    if shape_error is not None:
+        print(f"lint-brand-devflow-sweep: bucket record {buckets_path}: {shape_error}", file=sys.stderr)
         return 2
 
     if args.update_baseline:

@@ -54822,12 +54822,16 @@ printf 'not json {' > "$BDS_FX/bad-buckets.json"
 BDS_BAD_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/bad-buckets.json" >/dev/null 2>&1; echo $?)"
 assert_eq "#1745 a malformed bucket record fails closed with exit 2" "2" "$BDS_BAD_RC"
 rm -f "$BDS_FX/bad-buckets.json"
-# A structurally-valid record MISSING the 'frozen' object also fails closed with exit 2
-# (a specific breadcrumb), never an uncaught KeyError traceback (adversarial-parser convention).
+# A structurally-valid record with a wrong SHAPE also fails closed with exit 2 (a specific
+# breadcrumb), never an uncaught KeyError/TypeError traceback (adversarial-parser convention):
+# a missing 'frozen' object, and a sub-row missing its 'file'/'path' key.
 printf '{"schema_version": 1, "pending_sweep_baseline": []}' > "$BDS_FX/nofrozen.json"
 BDS_NF_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/nofrozen.json" >/dev/null 2>&1; echo $?)"
 assert_eq "#1745 a record missing the 'frozen' object fails closed with exit 2" "2" "$BDS_NF_RC"
-rm -f "$BDS_FX/nofrozen.json"
+printf '{"schema_version": 1, "frozen": {"provenance": [{"detail": "no file key"}]}, "pending_sweep_baseline": []}' > "$BDS_FX/badrow.json"
+BDS_BR_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badrow.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a provenance row missing its 'file' key fails closed with exit 2" "2" "$BDS_BR_RC"
+rm -f "$BDS_FX/nofrozen.json" "$BDS_FX/badrow.json"
 
 # --print-population emits one line per bucket per file; a provenance file with both a
 # frozen value and a pending remainder emits the dual line pair (the documented contract).
@@ -54886,6 +54890,18 @@ printf '# all PRFlow prose now, no value\n' > "$BDS_FX/lib/scan.sh"; bds_stage
 BDS_PROV="$(bds_run "$BDS_FX")"
 assert_eq "#1745 a stale frozen-provenance entry fails the suite" "rc=1" "${BDS_PROV%%|*}"
 assert_eq "#1745 the finding names the stale provenance entry" "yes" "$(bds_has "lib/scan.sh: stale frozen-provenance entry" "$BDS_PROV")"
+printf "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n" > "$BDS_FX/lib/scan.sh"; bds_stage
+
+# Provenance-drain steady-state: a provenance file that loses only its prose remainder (keeping
+# the frozen value) fires a stale-baseline RED (its pending row is now empty) while the
+# frozen-provenance guard stays green (the value still matches).
+printf "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# all other prose swept to PRFlow\n" > "$BDS_FX/lib/scan.sh"; bds_stage
+BDS_DRAIN="$(bds_run "$BDS_FX")"
+assert_eq "#1745 a drained provenance file fires a stale-baseline entry" "yes" \
+  "$(bds_has "lib/scan.sh: stale pending_sweep_baseline entry" "$BDS_DRAIN")"
+assert_eq "#1745 a drained provenance file's frozen value stays green (no stale-provenance)" "no" \
+  "$(bds_has "lib/scan.sh: stale frozen-provenance entry" "$BDS_DRAIN")"
+printf "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n" > "$BDS_FX/lib/scan.sh"; bds_stage
 
 # Real-tree gate: the tree stays fully classified as it stands.
 BDS_REAL="$(python3 "$BDS_LINT" 2>&1)"; BDS_REAL_RC=$?
