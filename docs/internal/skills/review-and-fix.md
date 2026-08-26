@@ -27,7 +27,7 @@ A review that only reports findings leaves the developer with the cleanup work. 
 - `skills/review-and-fix/references/` — loop-step procedures and deferral handling.
 - `.prflow/prompt-extensions/review-and-fix.md` — repository-specific loop constraints.
 - `scripts/file-deferrals.py`, `scripts/match-deferrals.py`, and `scripts/workpad.py` — durable finding and state handling.
-- `docs/internal/agents/shadow-review.md` — independent post-loop coverage.
+- [`docs/internal/agents/shadow-review-overview.md`](../agents/shadow-review-overview.md) — independent post-loop coverage.
 
 ## Related topics
 

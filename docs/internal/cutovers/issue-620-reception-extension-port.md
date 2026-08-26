@@ -5,6 +5,8 @@ kind: growth
 
 # Issue #620 — reception-extension port and unconditional load
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 ## Files
 
 `.prflow/prompt-extensions/receiving-code-review.md` gains two sections. **Focused test modules

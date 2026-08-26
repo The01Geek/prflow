@@ -1,5 +1,7 @@
 # Issue #1604 — deferral-drafter pin-exposure measurement
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 This record is produced **before any prose is removed** from
 `skills/implement/references/deferred-ac-followups.md`, as issue #1604's first
 acceptance criterion requires. It names, for each assertion in `lib/test/run.sh`

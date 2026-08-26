@@ -4,6 +4,55 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.43] — 2026-08-26
+
+### Changed
+docs-sync-external and docs-bootstrap-external now determine the product's actual audience, verify every user-visible claim against the code, maintain the site's navigation manifest and landing pages, require worked examples on procedure pages, and replace the 1:1 internal-coverage quota with user-task coverage; the hub-page contradiction between the two skills is resolved and the release-notes/landing/style assets are fenced off.
+
+## [2.34.42] — 2026-08-26
+
+### Changed
+docs-release-notes: user-outcome entry format with sentence-cap enforcement, current-behavior (anti-diff-prose) recipe, archive rule for the release-notes file, behavior-level duplicate detection, changeset-model awareness in Step 4b, an ownership statement for the release-notes file, and a closing verification checklist. docs router: Step 1 now records an explicit public-doc impact list that Step 2 must treat as its comparison scope.
+
+## [2.34.41] — 2026-08-26
+
+### Changed
+docs-sync-internal: replace the per-file update quota with a behavior-change rule, add the Structure Contract (index routing, taxonomy, glossary, canonical pointers, pinned-path guard, size ceiling), currency and prose-shape rules, enumeration/universal-claim verification, and verified-against freshness markers; docs-bootstrap-internal: create the routing index at bootstrap and mark the taxonomy as a coupled pair with the sync skill.
+
+## [2.34.40] — 2026-08-26
+
+### Added
+- **Changed-file advisory lint via `preflight.py lint-changed` / `lint-full`.** A new
+  `scripts/lint_changed.py` layer computes the NUL-safe changed-file population (committed
+  merge-base→HEAD, staged, unstaged, and untracked records) with base64url-canonical path
+  identity, distinguishes established-nonempty / established-empty / unestablished outcomes,
+  and selects per-file lint invocations through the validated lint manifest — a changed
+  `lib/test/run.sh` takes its `--extended-analysis=false` special invocation rather than the
+  broad shell form. Assembled argv carries a `--` end-of-options separator before the first
+  selected path, and one atomic receipt is written per invocation under
+  `.prflow/tmp/lint/<run-id>/<attempt>/<op>-<seq>.json`. In-session results are advisory
+  feedback, never terminal completion evidence. (#1972)
+
+## [2.34.39] — 2026-08-26
+
+### Changed
+- **Internal documentation corpus repairs from the docs-audit session.** Made `docs/internal/index.md` enumerate every flat-root page with a size signal, added a standalone glossary, a DevFlow/PRFlow naming page, a marketing `positioning.md` split out of the system overview, and an `operations/development.md` page for the test-suite workflow; converted the canonical stubs' source-of-truth doc references into links, renamed three duplicate-basename stub pages, fixed the stale repository-layout tree and several soft-rot enumerations, and gave every cutover record an H1 and a historical banner. Documentation only — no executable behavior changes. (#1978)
+
+## [2.34.38] — 2026-08-26
+
+### Changed
+Close the internal-docs consumption loop: code-explorer and code-architect read a dispatch-named documentation index first (code stays authoritative), Phase 2.1 names `index.md` as the exploration entry point, `PRIMARY_PATHS` supplements the doc map instead of replacing it, and the `.docs.internal` root is resolved orchestrator-side rather than inside the Bash-less explorer's prompt.
+
+## [2.34.37] — 2026-08-26
+
+### Changed
+CLAUDE.md documentation routing: link the internal-docs entry map (`docs/internal/index.md`) beside the full system reference, and append machine-readable `<!-- canonical: docs/internal/<file>.md -->` markers to the seven bullets that explicitly name a canonical internal-docs page, so tooling can derive the canonical-page set instead of hand-maintaining it.
+
+## [2.34.36] — 2026-08-26
+
+### Changed
+Suite scans #141/#142 now exclude `.prflow/learnings/` — the backfilled experiment-record store carries migrated pre-internalization telemetry whose `per_iteration` names old namespaced agent ids verbatim, an append-only historical record the scans must not force a rewrite of.
+
 ## [2.34.35] — 2026-08-25
 
 ### Fixed

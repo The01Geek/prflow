@@ -27347,6 +27347,9 @@ PRT_AGENTS="code-reviewer silent-failure-hunter comment-analyzer type-design-ana
 # Exclusions are append-only HISTORICAL / MIGRATION surfaces where the OLD id legitimately
 # survives and rewriting it would falsify the record:
 #   - .prflow/logs/                  audit scratch (per the issue AC).
+#   - .prflow/learnings/              append-only experiment/retrospective records: migrated
+#                                     pre-internalization telemetry carries the old id in
+#                                     per_iteration verbatim; rewriting it falsifies the record.
 #   - CHANGELOG.md                    release history (past entries describing prior config
 #                                     state) PLUS the new #141 entry, which documents the
 #                                     breaking rename and so necessarily names the old id.
@@ -27355,8 +27358,8 @@ PRT_AGENTS="code-reviewer silent-failure-hunter comment-analyzer type-design-ana
 #                                     example are rewired to devflow: (asserted positively
 #                                     below), only the migration section names the old id.
 PRT_PAT="pr-review-""toolkit:"
-assert_eq "#141 no operative surface references the namespaced pr-review-toolkit agent id (logs/CHANGELOG/migration-doc excepted)" \
-  "" "$(tracked_scan "$FDROOT" "$PRT_PAT" ':!.prflow/logs' ':!CHANGELOG.md' ':!docs/internal/review-agent-overrides.md')"
+assert_eq "#141 no operative surface references the namespaced pr-review-toolkit agent id (logs/learnings/CHANGELOG/migration-doc excepted)" \
+  "" "$(tracked_scan "$FDROOT" "$PRT_PAT" ':!.prflow/logs' ':!.prflow/learnings' ':!CHANGELOG.md' ':!docs/internal/review-agent-overrides.md')"
 
 # (2/2b/2c) Per-agent vendoring + dispatch-resolves + structural validity. For each of the
 # five review agents: the file exists first-party under agents/; the shared review engine
@@ -27571,8 +27574,8 @@ SP_SKILLS="requesting-code-review receiving-code-review"
 # positively in (1c)), not forbidden.
 SP_PAT_REQ="superpowers:""requesting-code-review"
 SP_PAT_REC="superpowers:""receiving-code-review"
-assert_eq "#142 no operative surface references the old namespaced requesting-code-review id (logs/CHANGELOG/migration-doc excepted)" \
-  "" "$(tracked_scan "$FDROOT" "$SP_PAT_REQ" ':!.prflow/logs' ':!CHANGELOG.md' ':!docs/internal/review-agent-overrides.md')"
+assert_eq "#142 no operative surface references the old namespaced requesting-code-review id (logs/learnings/CHANGELOG/migration-doc excepted)" \
+  "" "$(tracked_scan "$FDROOT" "$SP_PAT_REQ" ':!.prflow/logs' ':!.prflow/learnings' ':!CHANGELOG.md' ':!docs/internal/review-agent-overrides.md')"
 assert_eq "#142 no operative surface references the old namespaced receiving-code-review id (logs/CHANGELOG excepted)" \
   "" "$(tracked_scan "$FDROOT" "$SP_PAT_REC" ':!.prflow/logs' ':!CHANGELOG.md')"
 
@@ -54908,6 +54911,20 @@ assert_eq "#1621 ruff-pin matrix: a directory operand fails closed to a sentinel
 
 rm -rf "$RUFF_MTX_DIR"
 unset -f devflow_ruff_pin
+
+# ── internal-docs structure lint (lib/test/lint-internal-docs.py) ──
+# Baseline-tolerant by design: it fails only on a violation absent from
+# lib/test/internal-docs-baseline.json, and a stale baseline entry is an advisory —
+# so a docs-corpus repair and this gate can land in either order without one
+# turning the other red. Do not tighten stale entries to failures here; regenerate
+# the baseline with --write-baseline after a repair instead.
+ID_LINT="$LIB/test/lint-internal-docs.py"
+ID_ST_OUT="$(python3 "$ID_LINT" --self-test 2>&1)"; ID_ST_RC=$?
+assert_eq "internal-docs lint: self-test passes" "rc=0" \
+  "$([ "$ID_ST_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$ID_ST_RC" "$ID_ST_OUT")"
+ID_OUT="$(cd "$LIB/.." && python3 "$ID_LINT" 2>&1)"; ID_RC=$?
+assert_eq "internal-docs lint: no NEW structure violation on the tree as it stands" "rc=0" \
+  "$([ "$ID_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$ID_RC" "$ID_OUT")"
 
 # ────────────────────────────────────────────────────────────────────────────
 PASS=$(grep -c '^PASS$' "$RESULTS_FILE" || true)

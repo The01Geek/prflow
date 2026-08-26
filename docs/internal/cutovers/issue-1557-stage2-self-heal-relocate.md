@@ -1,5 +1,7 @@
 # Cutover — issue #1557: Phase 4.1 Stage 2's self-heal repair behind a gated reference
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 `/prflow:implement` reads `skills/implement/phases/phase-4-documentation.md` in full on every Phase 4
 entry, and again after the §4.1 documentation subagent returns. Both reads are mandated, so neither is
 avoidable. Stage 2's self-heal repair — reached only for a named documentation deliverable the run's

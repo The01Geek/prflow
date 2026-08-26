@@ -1,5 +1,7 @@
 # Workflow triggers
 
+<!-- verified-against: 26c9ad96d 2026-08-25 -->
+
 This page explains which events and commands enter PRFlow workflows and how duplicate or unsafe requests are handled.
 
 ## Current behavior
@@ -22,10 +24,14 @@ Event routing is a security and cost boundary. Restricting the accepted event an
 ## Source of truth
 
 - `.github/workflows/devflow.yml` and `.github/workflows/devflow-implement.yml` — event and command routing.
+- `.github/workflows/devflow-runner.yml` — the read-only review runner the command tier dispatches.
 - `.github/workflows/ci.yml` — pull-request verification jobs.
+- `.github/workflows/stall-observer.yml` — a scheduled, report-only observer for stalled in-flight runs.
+- `.github/workflows/version-consolidate.yml` — the merge-to-main changeset consolidation job.
+- `.github/workflows/telemetry-push.yml` — the telemetry relay; part of the withheld automatic-review tier, retained in the tree for already-installed consumers.
 - `scripts/authorize-actor.sh`, `scripts/react-to-trigger.sh`, and deduplication helpers — trigger decisions.
 - `skills/*/SKILL.md` — command behavior after dispatch.
-- `docs/internal/workflow-triggers.md` — detailed trigger matrix and historical rationale.
+- [`docs/internal/workflow-triggers.md`](../workflow-triggers.md) — detailed trigger matrix and historical rationale.
 
 ## Related topics
 

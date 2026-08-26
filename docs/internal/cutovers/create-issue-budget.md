@@ -1,5 +1,7 @@
 # Retired create-issue budget record
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 This historical record preserves the measurements and decision context for the retired create-issue budget subsystem. It is not a current runtime budget or enforcement source.
 
 ## Current status
