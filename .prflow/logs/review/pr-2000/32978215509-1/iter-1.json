@@ -1,0 +1,111 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-26T14:00:00Z",
+  "fix_commit_sha": "efa88e67935a46ced6868e82367068dc61b4e046",
+  "fix_files": [
+    ".github/workflows/devflow.yml",
+    "scripts/prompt-extension-arrival.py",
+    "lib/test/modules/prompt-extension-reader.sh",
+    "skills/review/SKILL.md",
+    "skills/review-and-fix/SKILL.md",
+    "skills/pr-description/SKILL.md",
+    ".changeset/issue-1971-extend-arrival-enforcement.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "dispatch_mode": "unavailable",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "skills/review/SKILL.md falsely claimed the read-only tier does not grant the helper; shipped /prflow:review runs under the command profile which grants it",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "reconcile PR_NUM derived via non-preflight grep|head deciding a selection; stale-sentinel deny-scan false-block",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "classify |'| true' comment claimed -e would abort but step used set -uo pipefail",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "shadow:code-reviewer",
+      "severity": "Important",
+      "description": "iteration-1 head-scoped deny-scan false-blocks because the run-keyed progress comment always carries the current head SHA",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "ffe493bb0"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "73a525c38"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "69b867d2a"
+    }
+  ],
+  "shadow": {
+    "ran_at": "2026-08-26T14:30:00Z",
+    "reviewed_sha": "efa88e67935a46ced6868e82367068dc61b4e046",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 1,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
