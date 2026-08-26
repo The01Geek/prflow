@@ -54781,6 +54781,7 @@ w("docs/keep.md", "DevFlow is great and DevFlow ships.\n")          # 2 pending 
 w(".prflow/learnings/x.jsonl", '{"note":"DevFlow ran"}\n')          # frozen-record
 w("CHANGELOG.md", "## old\nDevFlow did a thing\n")                  # frozen-historical
 w("lib/scan.sh", "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n")  # 1 frozen value + 1 pending
+w("lib/classify-pr-kind.jq", 'select(.label == "DevFlow")\n')      # frozen-provenance VALUE only, NOT baselined
 w(".changeset/issue-9.md", "a DevFlow changeset consumed on merge\n")  # transient (excluded)
 w(".changeset/README.md", "DevFlow changesets readme\n")              # transient exception -> pending 1
 w("lib/test/fake-tool.py", "BRAND = 'DevFlow'  # the tooling literal\n")  # frozen-tooling
@@ -54788,7 +54789,7 @@ buckets = {"schema_version": 1,
   "frozen": {"transient_prefixes": [".changeset/"], "transient_exceptions": [".changeset/README.md"],
              "record_prefixes": [".prflow/learnings/", ".prflow/logs/"],
              "historical_files": ["CHANGELOG.md"], "tooling_files": ["lib/test/fake-tool.py"],
-             "provenance": [{"file": "lib/scan.sh"}]},
+             "provenance": [{"file": "lib/scan.sh"}, {"file": "lib/classify-pr-kind.jq"}]},
   "pending_sweep_baseline": [{"path": ".changeset/README.md"},
                              {"path": "docs/keep.md"}, {"path": "lib/scan.sh"}]}
 w("lib/test/brand-devflow-buckets.json", json.dumps(buckets, indent=2) + "\n")
@@ -54803,7 +54804,11 @@ bds_stage() { git -C "$BDS_FX" add -A; }
 BDS_CLEAN="$(bds_run "$BDS_FX")"
 assert_eq "#1745 a fully-classified tree is clean" "rc=0" "${BDS_CLEAN%%|*}"
 assert_eq "#1745 a frozen record path needs no baseline row" "no" "$(bds_has "learnings/x.jsonl" "$BDS_CLEAN")"
-assert_eq "#1745 a frozen-provenance value is not demanded as unclassified" "no" "$(bds_has "scan.sh: 1 unclassified" "$BDS_CLEAN")"
+# classify-pr-kind.jq's only DevFlow is the quoted provenance VALUE and it is NOT in the
+# baseline, so the forward guard must not demand it as unclassified — assert absence of the
+# lint's real forward-finding string (a regression that stopped recognizing the value would
+# route it to pending and emit exactly this).
+assert_eq "#1745 a frozen-provenance value is not demanded as unclassified" "no" "$(bds_has "lib/classify-pr-kind.jq: brand-cased 'DevFlow' in a file with no pending_sweep_baseline entry" "$BDS_CLEAN")"
 assert_eq "#1745 a frozen-tooling file needs no baseline entry" "no" "$(bds_has "fake-tool.py" "$BDS_CLEAN")"
 # Growth inside a frozen bucket stays green (frozen buckets are not count-bounded) — a new
 # CHANGELOG entry mentioning DevFlow must not re-red.
@@ -54831,7 +54836,18 @@ assert_eq "#1745 a record missing the 'frozen' object fails closed with exit 2" 
 printf '{"schema_version": 1, "frozen": {"provenance": [{"detail": "no file key"}]}, "pending_sweep_baseline": []}' > "$BDS_FX/badrow.json"
 BDS_BR_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badrow.json" >/dev/null 2>&1; echo $?)"
 assert_eq "#1745 a provenance row missing its 'file' key fails closed with exit 2" "2" "$BDS_BR_RC"
-rm -f "$BDS_FX/nofrozen.json" "$BDS_FX/badrow.json"
+# The twin: a pending_sweep_baseline row missing its 'path' key is the sibling shape guard;
+# it fails closed with exit 2 too (a refactor regressing it would otherwise raise an uncaught
+# KeyError with the suite staying green).
+printf '{"schema_version": 1, "frozen": {"provenance": []}, "pending_sweep_baseline": [{"note": "no path key"}]}' > "$BDS_FX/badpending.json"
+BDS_BP_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badpending.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a pending row missing its 'path' key fails closed with exit 2" "2" "$BDS_BP_RC"
+# A list-valued frozen key given a JSON string (not a list of strings) also fails closed with
+# exit 2 (else startswith would iterate characters and silently misclassify).
+printf '{"schema_version": 1, "frozen": {"provenance": [], "record_prefixes": "not-a-list"}, "pending_sweep_baseline": []}' > "$BDS_FX/badlist.json"
+BDS_BL_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badlist.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a list-valued frozen key given a JSON string fails closed with exit 2" "2" "$BDS_BL_RC"
+rm -f "$BDS_FX/nofrozen.json" "$BDS_FX/badrow.json" "$BDS_FX/badpending.json" "$BDS_FX/badlist.json"
 
 # --print-population emits one line per bucket per file; a provenance file with both a
 # frozen value and a pending remainder emits the dual line pair (the documented contract).

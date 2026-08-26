@@ -135,6 +135,14 @@ def record_shape_error(buckets) -> str | None:
     frozen = buckets.get("frozen")
     if not isinstance(frozen, dict):
         return "missing the 'frozen' object"
+    # The list-valued frozen keys are iterated by classify() (startswith / membership). A JSON
+    # string there would iterate CHARACTERS and silently misclassify rather than fail closed, so
+    # reject a non-list-of-strings here (the adversarial-parser six-shape discipline).
+    for key in ("transient_prefixes", "transient_exceptions", "record_prefixes",
+                "historical_files", "tooling_files"):
+        val = frozen.get(key, [])
+        if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
+            return f"frozen.{key} must be a list of strings"
     for i, entry in enumerate(frozen.get("provenance", [])):
         if not isinstance(entry, dict) or not isinstance(entry.get("file"), str):
             return f"frozen.provenance[{i}] lacks a string 'file'"
@@ -186,7 +194,11 @@ def scan(root: Path, buckets: dict, skipped: list[str] | None = None) -> tuple[d
         if pcount:
             pending[rel] = pcount
         if rel in prov_files:
-            frozen_prov[rel] = fcount
+            # Count the quoted value INDEPENDENTLY of classify()'s first-match short-circuit: a
+            # provenance file that also matches an earlier frozen bucket would otherwise store
+            # that bucket's total here, leaving the reverse stale-provenance guard fail-open when
+            # the quoted value itself disappears.
+            frozen_prov[rel] = len(PROVENANCE_VALUE.findall(blob))
     return pending, frozen_prov, audited
 
 
