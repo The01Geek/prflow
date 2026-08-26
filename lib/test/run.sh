@@ -54819,6 +54819,16 @@ assert_eq "#1745 --update-baseline names the reseeded file count" "yes" \
   "$(bds_has "reseeded pending_sweep_baseline with 2 file(s)" "$BDS_RESEED")"
 assert_eq "#1745 an idempotent reseed leaves --check green" "rc=0" "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
 
+# An unreadable tracked file fails --check CLOSED: a dangling symlink read_bytes cannot
+# follow is skipped, so its DevFlow occurrences escape classification and the run goes RED
+# (chmod 000 is unreliable under a root CI uid, so a dangling symlink is the portable probe).
+ln -s nonexistent-target "$BDS_FX/docs/dangling.md"; bds_stage
+BDS_SKIP="$(bds_run "$BDS_FX")"
+assert_eq "#1745 an unreadable tracked file fails the suite closed" "rc=1" "${BDS_SKIP%%|*}"
+assert_eq "#1745 the finding names the unreadable file" "yes" \
+  "$(bds_has "docs/dangling.md: unreadable tracked file" "$BDS_SKIP")"
+rm -f "$BDS_FX/docs/dangling.md"; bds_stage
+
 # A file whose pending count lacks a baseline row fails the suite.
 printf 'a new DevFlow prose line\n' > "$BDS_FX/docs/new.md"; bds_stage
 BDS_NEW="$(bds_run "$BDS_FX")"

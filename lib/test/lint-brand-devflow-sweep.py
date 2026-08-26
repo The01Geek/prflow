@@ -21,9 +21,11 @@ value may legitimately grow (CHANGELOG entries, learnings/logs, new selectors), 
 scopes the new-occurrence guard to occurrences *outside* a frozen/permanent bucket, so a
 new ``DevFlow`` in a frozen bucket is allowed by design and is not flagged.
 
-An unreadable tracked file is skipped with a stderr breadcrumb (a genuine I/O failure on
-a git-tracked path), so its occurrences are not classified this run — a disclosed
-best-effort limit, not a silent swallow.
+An unreadable tracked file (a genuine I/O failure on a git-tracked path) is breadcrumbed
+to stderr; in ``--check`` mode a non-empty skip set FAILS THE RUN CLOSED, because its
+occurrences could not be classified and a new renameable ``DevFlow`` there would otherwise
+escape the forward-direction guard. ``--update-baseline`` / ``--print-population``
+breadcrumb and continue (they do not gate).
 
 Buckets (first match wins), read from ``lib/test/brand-devflow-buckets.json``:
 
@@ -91,8 +93,10 @@ def prov_file_set(frozen: dict) -> set[str]:
     return {e["file"] for e in frozen.get("provenance", [])}
 
 
-def iter_blobs(root: Path):
-    """Yield (rel, blob) for each tracked file, skipping (with a breadcrumb) any unreadable one."""
+def iter_blobs(root: Path, skipped: list[str] | None = None):
+    """Yield (rel, blob) for each tracked file; an unreadable one is breadcrumbed and its path
+    appended to `skipped` (when given) so the caller can fail closed rather than let its
+    occurrences escape classification."""
     out = subprocess.run(
         ["git", "-C", str(root), "ls-files", "-z"],  # -z: NUL-delimited, core.quotePath-immune
         capture_output=True, check=True,
@@ -105,6 +109,8 @@ def iter_blobs(root: Path):
             yield rel, (root / rel).read_bytes()  # raw bytes: exact b"DevFlow" count
         except OSError as exc:
             print(f"lint-brand-devflow-sweep: skipping unreadable tracked file {rel}: {exc}", file=sys.stderr)
+            if skipped is not None:
+                skipped.append(rel)
 
 
 def load_buckets(path: Path) -> dict:
@@ -133,14 +139,15 @@ def classify(rel: str, blob: bytes, frozen: dict, prov_files: set[str]) -> tuple
     return ("", 0, total)
 
 
-def scan(root: Path, buckets: dict) -> tuple[dict[str, int], dict[str, int], int]:
-    """Return (pending_by_file, frozen_provenance_by_file, files_audited)."""
+def scan(root: Path, buckets: dict, skipped: list[str] | None = None) -> tuple[dict[str, int], dict[str, int], int]:
+    """Return (pending_by_file, frozen_provenance_by_file, files_audited); append any
+    unreadable file's path to `skipped` when given."""
     frozen = buckets["frozen"]
     prov_files = prov_file_set(frozen)
     pending: dict[str, int] = {}
     frozen_prov: dict[str, int] = {}
     audited = 0
-    for rel, blob in iter_blobs(root):
+    for rel, blob in iter_blobs(root, skipped):
         audited += 1
         _bucket, fcount, pcount = classify(rel, blob, frozen, prov_files)
         if pcount:
@@ -151,9 +158,18 @@ def scan(root: Path, buckets: dict) -> tuple[dict[str, int], dict[str, int], int
 
 
 def cmd_check(root: Path, buckets: dict) -> int:
-    pending, frozen_prov, audited = scan(root, buckets)
+    skipped: list[str] = []
+    pending, frozen_prov, audited = scan(root, buckets, skipped)
     baseline = {row["path"]: row["count"] for row in buckets.get("pending_sweep_baseline", [])}
     findings: list[str] = []
+
+    # Fail closed on an unreadable tracked file: its occurrences could not be classified, so
+    # a new renameable DevFlow there would escape the forward-direction guard silently.
+    for rel in skipped:
+        findings.append(
+            f"{rel}: unreadable tracked file — its brand-cased 'DevFlow' occurrences could not "
+            f"be classified, so the reconciliation is incomplete; make the file readable and re-run"
+        )
 
     # Forward direction: a pending occurrence lacking a baseline row, or drifted from its
     # recorded count, is unclassified.
