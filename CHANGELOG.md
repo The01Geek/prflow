@@ -4,6 +4,20 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.40] — 2026-08-26
+
+### Added
+- **Changed-file advisory lint via `preflight.py lint-changed` / `lint-full`.** A new
+  `scripts/lint_changed.py` layer computes the NUL-safe changed-file population (committed
+  merge-base→HEAD, staged, unstaged, and untracked records) with base64url-canonical path
+  identity, distinguishes established-nonempty / established-empty / unestablished outcomes,
+  and selects per-file lint invocations through the validated lint manifest — a changed
+  `lib/test/run.sh` takes its `--extended-analysis=false` special invocation rather than the
+  broad shell form. Assembled argv carries a `--` end-of-options separator before the first
+  selected path, and one atomic receipt is written per invocation under
+  `.prflow/tmp/lint/<run-id>/<attempt>/<op>-<seq>.json`. In-session results are advisory
+  feedback, never terminal completion evidence. (#1972)
+
 ## [2.34.39] — 2026-08-26
 
 ### Changed
