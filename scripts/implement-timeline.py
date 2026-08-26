@@ -258,6 +258,12 @@ def build_timeline(raw: str, notes=None) -> dict:
         activities[name] = activities.get(name, 0) + duration
 
     diagnostics = list(notes or [])
+    if not raw.strip():
+        # An empty or whitespace-only artifact renders identically to a run that made no
+        # tool calls, so say which it was.
+        diagnostics.append("the artifact holds no records at all — it is empty or "
+                           "whitespace-only, which is not the same as a run that made no "
+                           "tool calls")
     if skipped:
         diagnostics.append(
             f"skipped {skipped} unparseable record(s) — a truncated final line, or a "

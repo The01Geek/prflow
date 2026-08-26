@@ -146,6 +146,11 @@ def main(argv=None):
               "not be read; that is not an empty store, so no cohort below would mean "
               "anything", file=sys.stderr)
         return 1
+    if status == "absent":
+        print("No experiment-record store yet — no implement run has been persisted, so "
+              "neither cohort can be formed. (A store that exists but cannot be read is a "
+              "different, non-zero-exit case.)")
+        return 0
     if status.startswith("read:"):
         print(f"NOTE: {status.split(':', 1)[1]} store line(s) could not be parsed and are "
               f"excluded from both cohorts.")

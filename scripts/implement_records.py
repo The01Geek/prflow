@@ -181,7 +181,10 @@ def phase_shares_with_completeness(run):
     durations = run.get("phase_durations_ms")
     if not isinstance(durations, dict):
         return {}, False
-    established = {k: v for k, v in durations.items() if _figure(v) is not None}
+    # A negative span is not a measurement — workpad stamps can violate monotonicity — and
+    # admitting one inflates the remaining shares past 100% while still reading complete.
+    established = {k: v for k, v in durations.items()
+                   if _figure(v) is not None and _figure(v) >= 0}
     complete = len(established) == len(durations)
     total = sum(established.values())
     if total <= 0:

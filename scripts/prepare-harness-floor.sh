@@ -66,31 +66,55 @@ COST_OUT="${4:-}"
 # a PR number, so emitting it here would key the PR-less record to a PR as if it were an
 # issue. devflow.yml's trigger negates /prflow:implement, so class `implement` reaches
 # this glue only from devflow-implement.yml, whose candidate is the issue number.
+# The record-deriving command classes, and the reasons no PR resolved. Each vocabulary has
+# ONE owner used by both its producer and _emit's guard: a second literal list drifts from
+# the producer, and _emit then blanks a value this glue did in fact observe.
+_is_known_class() {
+  case "$1" in
+    review|review-and-fix|pr-description|implement) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_is_known_no_pr_reason() {
+  case "$1" in
+    issue-number-unusable|gh-lookup-failed|no-closing-pr-found|unestablished) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # Announce an operand this function blanked. A silently-emptied operand reaches the record
 # as "not established" for a value the glue did in fact observe, which is the one thing the
 # reason vocabulary must never assert.
 _emit_blanked() {
-  echo "::warning::prepare-harness-floor: DEVFLOW_$1 was emitted EMPTY because the value it was given is outside its accepted shape; the record will read it as not established" >&2
+  echo "::warning::prepare-harness-floor: $1 was emitted EMPTY because the value it was given ('$2') is outside its accepted shape; the record will read it as not established" >&2
+}
+
+# The accepted shape for a number that is BOTH interpolated into a slug and passed to
+# `jq --argjson`: reject a leading zero, which jq normalizes away, leaving the slug
+# (`issue-007`) and the field (`7`) naming different things.
+_emit_number_ok() {
+  case "$1" in
+    ''|*[!0-9]*) return 1 ;;
+    0|[1-9]*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 _emit() {
   local pr="${1:-}" class="${2:-}" issue="${3:-}" reason="${4:-}"
-  case "$pr" in
-    ''|*[0-9]*) case "$pr" in *[!0-9]*) _emit_blanked PR "$pr"; pr="" ;; esac ;;
-    *) _emit_blanked PR "$pr"; pr="" ;;
-  esac
-  case "$issue" in
-    ''|*[0-9]*) case "$issue" in *[!0-9]*) _emit_blanked ISSUE_NUMBER "$issue"; issue="" ;; esac ;;
-    *) _emit_blanked ISSUE_NUMBER "$issue"; issue="" ;;
-  esac
-  case "$class" in
-    ''|review|review-and-fix|pr-description|implement) ;;
-    *) _emit_blanked COMMAND_CLASS "$class"; class="" ;;
-  esac
-  case "$reason" in
-    ''|issue-number-unusable|gh-lookup-failed|no-closing-pr-found|unestablished) ;;
-    *) _emit_blanked NO_PR_REASON "$reason"; reason="" ;;
-  esac
+  if [ -n "$pr" ] && ! _emit_number_ok "$pr"; then
+    _emit_blanked DEVFLOW_EXECUTION_PR "$pr"; pr=""
+  fi
+  if [ -n "$issue" ] && ! _emit_number_ok "$issue"; then
+    _emit_blanked DEVFLOW_ISSUE_NUMBER "$issue"; issue=""
+  fi
+  if [ -n "$class" ] && ! _is_known_class "$class"; then
+    _emit_blanked DEVFLOW_COMMAND_CLASS "$class"; class=""
+  fi
+  if [ -n "$reason" ] && ! _is_known_no_pr_reason "$reason"; then
+    _emit_blanked DEVFLOW_NO_PR_REASON "$reason"; reason=""
+  fi
   printf "DEVFLOW_EXECUTION_PR='%s'\n" "$pr"
   printf "DEVFLOW_COMMAND_CLASS='%s'\n" "$class"
   printf "DEVFLOW_ISSUE_NUMBER='%s'\n" "$issue"
@@ -150,12 +174,10 @@ esac
 # is a silent disarm, where a renamed namespace leaves the floor recording an empty
 # class. The downstream dispatch warning only fires on runs that get that far, so a
 # future rename must fail loud HERE rather than depend on reaching it.
-case "$CLASS" in
-  review|review-and-fix|pr-description|implement) : ;;
-  *)
+if _is_known_class "$CLASS"; then :; else
     echo "::warning::prepare-harness-floor: command '$COMMAND' did not classify (token '$CLASS' is not one of review|review-and-fix|pr-description|implement); the per-class cost floor will be recorded with NO class. If the plugin command namespace changed, the namespace set derived from lib/plugin_identity.py --plugin-names did not cover it." >&2
-    CLASS="" ;;
-esac
+    CLASS=""
+fi
 
 # ── Run the reader over the execution file → cost JSON ───────────────────────
 # An inert COST does NOT short-circuit the PR resolution below. DEVFLOW_EXECUTION_PR
@@ -236,12 +258,20 @@ _resolve_pr_for_issue() {
 
 # The exit code above → the fixed-vocabulary token the PR-less record carries.
 _no_pr_reason_for_rc() {
+  local token
   case "$1" in
-    2) printf 'issue-number-unusable\n' ;;
-    3) printf 'gh-lookup-failed\n' ;;
-    4) printf 'no-closing-pr-found\n' ;;
-    *) printf 'unestablished\n' ;;
+    2) token="issue-number-unusable" ;;
+    3) token="gh-lookup-failed" ;;
+    4) token="no-closing-pr-found" ;;
+    *) token="unestablished" ;;
   esac
+  # Fail loud here rather than letting _emit blank a token this function produced: a new rc
+  # arm added without registering its token would otherwise reach the record as
+  # "not established" for a cause this glue observed.
+  if ! _is_known_no_pr_reason "$token"; then
+    echo "::warning::prepare-harness-floor: _no_pr_reason_for_rc produced '$token', which _is_known_no_pr_reason does not accept; register it there" >&2
+  fi
+  printf '%s\n' "$token"
 }
 
 case "$CLASS" in

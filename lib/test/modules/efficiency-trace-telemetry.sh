@@ -6992,9 +6992,11 @@ rm -rf "$RP_U"
 # ── #2006: the union merge re-applies EVERY floor key ────────────────────────
 # On a concurrent-writer push the staged record is merged onto the fetched base rather than
 # overwriting it, so a floor key absent from the re-apply list is silently dropped on that
-# path. The declared list is RECONCILED against the keys efficiency-trace.sh actually
-# writes — derived from its jq top-level assignments, its parameterized merge calls, and
-# its record-building objects — so a new floor whose key goes unregistered turns this RED.
+# path. The declared list is reconciled against the keys efficiency-trace.sh writes in the
+# three shapes the extractor below recognizes — a jq top-level assignment, a
+# `_floor_merge_key_staged "$f" <key>` call, and a record-building `{schema_version: 1, …}`
+# object. A floor writing its key in some fourth shape is outside that recognition and is
+# NOT caught here, so a new floor uses one of those three or registers its key by hand.
 TB_FLOOR_KEYS="$(grep -o "_DEVFLOW_TELEMETRY_FLOOR_KEYS_JSON='[^']*'" "$LIB/telemetry-branch.sh" | sed "s/.*='//;s/'$//")"
 TB_KEYS_DECLARED="$(printf '%s' "$TB_FLOOR_KEYS" | jq -r '. | sort | join(" ")')"
 TB_KEYS_WRITTEN="$(python3 - "$LIB/efficiency-trace.sh" <<'PYEOF'
@@ -7011,7 +7013,7 @@ for block in re.findall(r"\{schema_version: 1,.*?\}'", src, re.S):
 print(" ".join(sorted(keys)))
 PYEOF
 )"
-assert_eq "#2006 union merge: the declared key list equals the keys the floors actually write" \
+assert_eq "#2006 union merge: the declared key list equals the floor writes the extractor recognizes" \
   "$TB_KEYS_WRITTEN" "$TB_KEYS_DECLARED"
 # The derivation must find something: an extractor that silently returns nothing would make
 # the equality above pass against an empty declared list.
@@ -7020,8 +7022,8 @@ assert_eq "#2006 union merge: the key derivation is not vacuous (it found keys)"
 # Couple the fixture program below to the one telemetry-branch.sh actually runs; without
 # this the fixture is a hand copy and a change to the real program leaves it green.
 TB_MERGE_PROG="$(sed -n "/reduce (\$keys\[\]) as \$k (\./,/else . end)/p" "$LIB/telemetry-branch.sh" | sed "s/^ *//;s/ *\\\\$//" | sed "1s/^'//;\$s/' 2>\/dev\/null)\"$//")"
-assert_eq "#2006 union merge: the fixture program was extracted from telemetry-branch.sh, not transcribed" "yes" \
-  "$(printf '%s' "$TB_MERGE_PROG" | grep -q 'reduce ($keys\[\]) as $k' && echo yes || echo no)"
+assert_eq "#2006 union merge: the fixture program is byte-equal to telemetry-branch.sh's own lines" "yes" \
+  "$(printf '%s\n' "$TB_MERGE_PROG" | grep -qxF "$(grep -F 'if has($k) then . elif ($local[$k] != null)' "$LIB/telemetry-branch.sh" | sed "s/^ *//;s/ *\\\\$//;s/' 2>\/dev\/null)\"$//")" && echo yes || echo no)"
 TB_MERGE_BASE='{"schema_version":1,"slug":"pr-6"}'
 TB_MERGE_LOCAL='{"schema_version":1,"slug":"pr-6","harness_cost":{"cost_usd":5},"permission_denials":{"count":2},"run_profile":{"final_status":"Complete"},"issue_number":2006,"no_pr_reason":"no-closing-pr-found"}'
 assert_eq "#2006 union merge: a base lacking every floor key gains all of them" \

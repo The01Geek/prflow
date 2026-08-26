@@ -189,14 +189,13 @@ class ReviewFindingsRound1(unittest.TestCase):
         self.assertEqual(rr.main(["--retro", "--records", "/nonexistent/x.jsonl"]), 0)
 
     def test_an_existing_but_unreadable_store_IS_a_failure(self):
+        """Produce the OSError by pointing the path at a DIRECTORY, which raises for every
+        user: a chmod-000 file would flip this test on who runs the suite, since it denies
+        nothing to uid 0."""
         with tempfile.TemporaryDirectory() as td:
-            p = Path(td) / "experiment-records.jsonl"
-            p.write_text("{}", encoding="utf-8")
-            p.chmod(0o000)
-            try:
-                _runs, status = ir.load_runs_with_status(p)
-            finally:
-                p.chmod(0o644)
+            store = Path(td) / "experiment-records.jsonl"
+            store.mkdir()
+            _runs, status = ir.load_runs_with_status(store)
         self.assertEqual(status, "unreadable")
 
     def test_phase_shares_marks_a_run_whose_phases_are_partly_unestablished(self):
@@ -211,6 +210,15 @@ class ReviewFindingsRound1(unittest.TestCase):
         _shares, complete2 = ir.phase_shares_with_completeness(whole)
         self.assertTrue(complete2)
 
+    def test_a_negative_phase_duration_is_not_an_established_measurement(self):
+        """Workpad stamps can violate monotonicity; admitting a negative span inflates the
+        remaining shares past 100% while the run still reads fully measured."""
+        run = {"phase_durations_ms": {"Setup": -5000, "Implement": 10000}}
+        shares, complete = ir.phase_shares_with_completeness(run)
+        self.assertNotIn("Setup", shares)
+        self.assertAlmostEqual(shares["Implement"], 1.0)
+        self.assertFalse(complete)
+
     def test_a_partial_phase_share_is_rendered_as_partial(self):
         run = {"phase_durations_ms": {"Setup": 1000, "Review": UNESTABLISHED}}
         self.assertIn("partial", rr._top_phases(run))
@@ -220,9 +228,7 @@ class ReviewFindingsRound1(unittest.TestCase):
         separator discriminates — `Path("PR marked ready").name` returns it unchanged, so a
         separator-free heading passes with or without the path helper."""
         run = {"phase_durations_ms": {"Review/fix loop": 3000, "Setup": 1000}}
-        rendered = rr._top_phases(run)
-        self.assertIn("Review/fix loop=", rendered)
-        self.assertNotIn("fix loop=75%", rendered.replace("Review/fix loop=", ""))
+        self.assertEqual(rr._top_phases(run), "Review/fix loop=75% Setup=25%")
 
     def test_the_status_column_holds_its_widest_sentinel_without_shifting_the_next_column(self):
         """A column narrower than the sentinel it most often holds pushes every later
