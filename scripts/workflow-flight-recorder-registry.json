@@ -105,9 +105,9 @@
     },
     "workpad-cli": {
       "path": "lib/test/modules/workpad-cli.sh",
-      "minimum_assertions": 94,
+      "minimum_assertions": 102,
       "assertion_floor_policy": "exact",
-      "description": "Focused scripts/workpad.py CLI contract (issue #1934): the #338 update --rewrite-ac (post-merge) retag-requires-note structural-abort guard, driven as a real CLI subprocess against a gh stub with its own fixtures."
+      "description": "Focused scripts/workpad.py CLI contract (issue #1934): the #338 update --rewrite-ac (post-merge) retag-requires-note structural-abort guard and the #2024 workpad size limits (per-note byte budget + comment-cap refusal), driven as a real CLI subprocess against a gh stub with its own fixtures."
     },
     "implement-contract": {
       "path": "lib/test/modules/implement-contract.sh",

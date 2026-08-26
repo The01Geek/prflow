@@ -507,4 +507,36 @@ assert_eq "#338: workpad.py --rewrite-ac help states NEW must be a single line" 
 P3REVIEW="$LIB/../skills/implement/phases/phase-3-ac-gate.md"
 devflow_module_pin_unique "#338(T6): §3.4 pins the operative sentence of the self-reconfiguration forbidden case" \
   'is runnable on this host and is never `(post-merge)`' "$P3REVIEW"  # structural-pin-ok: lifecycle-state-transition -- the self-reconfiguration forbidden case bounds the (post-merge) deferral
+
+# --- issue #2024: workpad size limits (per-note budget + comment cap), driven as
+# a real CLI subprocess against the same gh stub. ---
+rm -f "$LIB/../.prflow/tmp/workpad-buffer/7.json"
+# S1: a single --note over 2,048 bytes aborts non-zero, makes NO PATCH, and the
+# stderr names the measured byte count and the 2,048-byte budget.
+_s2024_big="$(printf '%*s' 2049 '' | tr ' ' x)"
+_c="$(run338 "$S338/base.md" --note "$_s2024_big")"
+assert_eq "#2024(S1): an oversize --note aborts non-zero" "no" \
+  "$([ "$_c" = "0" ] && echo yes || echo no)"
+assert_eq "#2024(S1): the oversize --note made NO PATCH" "yes" \
+  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
+assert_eq "#2024(S1): the refusal names the byte count and the 2048-byte budget" "yes" \
+  "$(grep -q '2049 bytes' "$S338/err" && grep -q '2048-byte' "$S338/err" && echo yes || echo no)"
+# S2: a within-budget --note is accepted and PATCHes.
+_c="$(run338 "$S338/base.md" --note "an ordinary short note")"
+assert_eq "#2024(S2): a within-budget --note succeeds (exit 0)" "0" "$_c"
+assert_eq "#2024(S2): the within-budget --note PATCHed" "yes" \
+  "$([ -s "$S338/patchlog" ] && echo yes || echo no)"
+# S3: an update whose resulting comment body exceeds 65,536 bytes aborts non-zero,
+# makes NO PATCH, and the stderr names the 65,536 limit and that it is a byte count.
+_s2024_pad="$(printf '%*s' 66000 '' | tr ' ' x)"
+cp "$S338/base.md" "$S338/base-big.md"
+printf -- '- [ ] %s\n' "$_s2024_pad" >> "$S338/base-big.md"
+_c="$(run338 "$S338/base-big.md" --note "tiny")"
+assert_eq "#2024(S3): an over-cap comment body aborts non-zero" "no" \
+  "$([ "$_c" = "0" ] && echo yes || echo no)"
+assert_eq "#2024(S3): the over-cap comment body made NO PATCH" "yes" \
+  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
+assert_eq "#2024(S3): the refusal names the 65536 limit and that it is a byte count" "yes" \
+  "$(grep -q '65536' "$S338/err" && grep -q 'byte count' "$S338/err" && echo yes || echo no)"
+
 rm -rf "$S338"
