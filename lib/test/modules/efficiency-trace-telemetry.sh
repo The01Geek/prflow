@@ -6796,3 +6796,133 @@ git -C "$T499_U_C" fetch -q origin prflow-telemetry
 assert_eq "#499 union: classifier-unavailable retry refuses the remote write" "no" "$(git -C "$T499_U_C" cat-file -e FETCH_HEAD:.prflow/logs/efficiency/writer-c.json 2>/dev/null && echo yes || echo no)"
 assert_eq "#499 union: classifier-unavailable refusal is breadcrumbed" "yes" "$(printf '%s' "$T499_U_C_ERR" | grep -qF 'could not classify a colliding telemetry blob' && echo yes || echo no)"
 rm -rf "$T499_U_ROOT"
+
+# ── #2006 run-profile floor and PR-less implement record ─────────────────────
+RP_PROFILE='{"phase_durations_ms":{"Setup":263000,"Implement":800000,"Review":"unestablished"},"final_status":"Complete"}'
+
+# Skeleton arm: a PR resolved, no record exists for this run-id → a pr-<N> skeleton
+# carrying run_profile, with the four sub-fields the criterion names.
+RP_SK="$(_hc_repo "rp skeleton")"
+( cd "$RP_SK" && GITHUB_RUN_ID=4001 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 run-profile(skeleton): a pr-<N> skeleton is written for this run-id" "yes" \
+  "$(_et_on_branch "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json")"
+assert_eq "#2006 run-profile(skeleton): run_profile carries exactly the five named sub-fields" \
+  "engine_outcome final_status issue_number phase_durations_ms prior_record_count" \
+  "$(_et_show "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json" | jq -r '.run_profile | keys | join(" ")')"
+assert_eq "#2006 run-profile(skeleton): the workpad-derived durations and status pass through verbatim" \
+  '[263000,"unestablished","Complete"]' \
+  "$(_et_show "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json" | jq -c '[.run_profile.phase_durations_ms.Setup,.run_profile.phase_durations_ms.Review,.run_profile.final_status]')"
+assert_eq "#2006 run-profile(skeleton): the engine step outcome comes from the workflow, not the run" \
+  "success" \
+  "$(_et_show "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json" | jq -r '.run_profile.engine_outcome')"
+# A telemetry branch that exists and holds no prior record for this issue is an
+# ESTABLISHED zero, not an unknown — collapsing the two would let an unread branch
+# report a first run as if it had been counted.
+assert_eq "#2006 run-profile(skeleton): prior_record_count is a real 0 when the ref resolved and matched nothing" \
+  "0" \
+  "$(_et_show "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json" | jq -r '.run_profile.prior_record_count')"
+rm -rf "$RP_SK"
+
+# Inert arms: unset profile is silent; a non-object operand draws one breadcrumb and
+# writes nothing.
+RP_I="$(_hc_repo "rp inert")"
+RP_I_ERR="$( ( cd "$RP_I" && GITHUB_RUN_ID=4002 GITHUB_RUN_ATTEMPT=1 \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 run-profile(inert): unset DEVFLOW_RUN_PROFILE → the helper stays SILENT about the floor" "yes" \
+  "$(printf '%s' "$RP_I_ERR" | grep -q 'run-profile floor' && echo no || echo yes)"
+RP_I_ERR2="$( ( cd "$RP_I" && GITHUB_RUN_ID=4003 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE='not-json' \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 run-profile(inert): a non-object operand draws a named breadcrumb and writes no record" "yes" \
+  "$(printf '%s' "$RP_I_ERR2" | grep -q 'DEVFLOW_RUN_PROFILE is not a JSON object' && echo yes || echo no)"
+assert_eq "#2006 run-profile(inert): the malformed-operand run wrote no blob" "no" \
+  "$(_et_on_branch "$RP_I" ".prflow/logs/efficiency/pr-42-4003-1.json")"
+rm -rf "$RP_I"
+
+# PR-less arm: no PR resolved → an issue-keyed record is written, and the cost and
+# profile floors land on that same file through their any-slug merge arms.
+RP_PL="$(_hc_repo "rp pr-less")"
+( cd "$RP_PL" && GITHUB_RUN_ID=4004 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=failure DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_NO_PR_REASON=no-closing-pr-found \
+    DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=implement \
+    bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 PR-less: a run with no resolvable PR persists an issue-keyed record" "yes" \
+  "$(_et_on_branch "$RP_PL" ".prflow/logs/efficiency/issue-2006-4004-1.json")"
+assert_eq "#2006 PR-less: the record names the issue and why no PR resolved" \
+  'issue-2006 2006 no-closing-pr-found' \
+  "$(_et_show "$RP_PL" ".prflow/logs/efficiency/issue-2006-4004-1.json" | jq -r '.slug + " " + (.issue_number|tostring) + " " + .no_pr_reason')"
+assert_eq "#2006 PR-less: the harness cost floor lands on the issue-keyed record" "execution-file" \
+  "$(_et_show "$RP_PL" ".prflow/logs/efficiency/issue-2006-4004-1.json" | jq -r '.harness_cost.cost_source')"
+assert_eq "#2006 PR-less: the run-profile floor lands on the same issue-keyed record" "Complete failure" \
+  "$(_et_show "$RP_PL" ".prflow/logs/efficiency/issue-2006-4004-1.json" | jq -r '.run_profile.final_status + " " + .run_profile.engine_outcome')"
+# Re-running the backstop for the same run id must not write a second record.
+( cd "$RP_PL" && GITHUB_RUN_ID=4004 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=failure DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_NO_PR_REASON=no-closing-pr-found \
+    DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=implement \
+    bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 PR-less: a backstop re-run for the same run id is a no-op (one record only)" "1" \
+  "$(git -C "$RP_PL" ls-tree -r --name-only refs/heads/prflow-telemetry -- .prflow/logs/efficiency/ | grep -c '^\.prflow/logs/efficiency/issue-2006-' || true)"
+rm -rf "$RP_PL"
+
+# The PR-less floor is implement-only and PR-absent-only: a resolved PR or another
+# class leaves it inert, so it can never displace the PR-keyed record.
+RP_G="$(_hc_repo "rp pr-less gates")"
+( cd "$RP_G" && GITHUB_RUN_ID=4005 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement \
+    bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 PR-less: a resolved PR leaves the issue-keyed floor inert" "no" \
+  "$(_et_on_branch "$RP_G" ".prflow/logs/efficiency/issue-2006-4005-1.json")"
+( cd "$RP_G" && GITHUB_RUN_ID=4006 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=review-and-fix \
+    bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 PR-less: a non-implement class leaves the issue-keyed floor inert" "no" \
+  "$(_et_on_branch "$RP_G" ".prflow/logs/efficiency/issue-2006-4006-1.json")"
+RP_G_ERR="$( ( cd "$RP_G" && GITHUB_RUN_ID=4007 GITHUB_RUN_ATTEMPT=1 \
+    DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=implement \
+    bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 PR-less: no PR AND no issue number draws a named breadcrumb rather than a silent drop" "yes" \
+  "$(printf '%s' "$RP_G_ERR" | grep -q 'cannot be keyed by issue either' && echo yes || echo no)"
+rm -rf "$RP_G"
+
+# ── #2006 prepare-run-profile.sh glue — every branch, under stubbed helpers ───
+RPG="$LIB/../scripts/prepare-run-profile.sh"
+if [ -x "$RPG" ]; then
+  RPG_T="$(git_sandbox "rp glue")"
+  assert_eq "#2006 glue: an empty issue number is inert with a named breadcrumb" "yes" \
+    "$(bash "$RPG" "" "$RPG_T/out.json" 2>&1 | grep -q 'is not a positive integer' && echo yes || echo no)"
+  assert_eq "#2006 glue: a non-numeric issue number is inert with the same named breadcrumb" "yes" \
+    "$(bash "$RPG" abc "$RPG_T/out.json" 2>&1 | grep -q 'is not a positive integer' && echo yes || echo no)"
+  assert_eq "#2006 glue: a missing output path is inert with its OWN breadcrumb" "yes" \
+    "$(bash "$RPG" 2006 "" 2>&1 | grep -q 'no output path was given' && echo yes || echo no)"
+  assert_eq "#2006 glue: every inert branch still exits 0 so the always() backstop is never aborted" "0" \
+    "$(bash "$RPG" "" "$RPG_T/out.json" >/dev/null 2>&1; echo $?)"
+  rm -rf "$RPG_T"
+fi
+
+# ── #2006 derive-run-profile.py — the parser the glue feeds ───────────────────
+DRP="$LIB/../scripts/derive-run-profile.py"
+if [ -x "$DRP" ]; then
+  DRP_T="$(git_sandbox "rp derive")"
+  printf '%s\n' \
+    '<!-- prflow:workpad -->' \
+    '**Status:** 🎉 Complete' \
+    '**Last updated:** 2026-08-26 10:30 UTC' \
+    '' \
+    '## Progress' \
+    '- [x] **Setup** — branch & workpad' \
+    '  - 10:00:00 — run started' \
+    '  - 10:05:30 — hydrated' \
+    '- [ ] **Documentation**' \
+    > "$DRP_T/workpad.md"
+  DRP_OUT="$(python3 "$DRP" --body-file "$DRP_T/workpad.md")"
+  assert_eq "#2006 derive: a phase span comes from its first and last timestamped note" "330000" \
+    "$(printf '%s' "$DRP_OUT" | jq -r '.phase_durations_ms.Setup')"
+  assert_eq "#2006 derive: a phase with no timestamped note is unestablished, never 0" "unestablished" \
+    "$(printf '%s' "$DRP_OUT" | jq -r '.phase_durations_ms.Documentation')"
+  assert_eq "#2006 derive: the final status is the bare word, glyph stripped" "Complete" \
+    "$(printf '%s' "$DRP_OUT" | jq -r '.final_status')"
+  assert_eq "#2006 derive: an unreadable body file exits non-zero rather than emitting an empty profile" "1" \
+    "$(python3 "$DRP" --body-file "$DRP_T/absent.md" >/dev/null 2>&1; echo $?)"
+  rm -rf "$DRP_T"
+fi

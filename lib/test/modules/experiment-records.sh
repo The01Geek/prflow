@@ -1939,3 +1939,61 @@ PY
   assert_eq "#431 config_fingerprint: partial flag / None arm / canonical hash" "yes" \
     "$([ $? -eq 0 ] && echo yes || echo no)"
 fi
+
+# ── #2006 run_profile passthrough and PR-less exclusion ───────────────────────
+# The join carries the run-profile floor's object through verbatim, reads an absent key
+# as JSON null (a pre-change record), and keeps a PR-less implement record out of every
+# PR's run list. That exclusion is keyed on `no_pr_reason` rather than the `issue-<N>`
+# slug: `target_slugs` includes branch-name variants, so a branch literally named
+# `issue-<N>` would make a name-based guard admit the record as one of that PR's runs.
+if [ -f "$BXR" ]; then
+  rp_check() { python3 - "$BXR" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bxr", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+
+pre = m._efficiency_entry({"slug": "pr-1"}, "r1")
+profile = {"phase_durations_ms": {"Setup": 1000, "Review": "unestablished"},
+           "final_status": "Complete", "prior_record_count": 0,
+           "engine_outcome": "success"}
+post = m._efficiency_entry({"slug": "pr-2", "run_profile": profile}, "r2")
+prless = m._efficiency_entry(
+    {"slug": "issue-9", "no_pr_reason": "no-closing-pr-found"}, "r3")
+index = {"pr-2": [post], "issue-9": [prless]}
+ok = (
+    pre["run_profile"] is None and
+    pre["no_pr_reason"] is None and
+    post["run_profile"] == profile and
+    post["run_profile"]["phase_durations_ms"]["Review"] == "unestablished" and
+    prless["no_pr_reason"] == "no-closing-pr-found" and
+    [r["slug"] for r in m._collect_efficiency(index, {"pr-2"})] == ["pr-2"] and
+    m._collect_efficiency(index, {"issue-9"}) == []
+)
+sys.exit(0 if ok else 1)
+PY
+  }
+  rp_check
+  assert_eq "#2006 join: run_profile passes through verbatim, an absent key is null, and a PR-less record joins no PR" "yes" \
+    "$([ $? -eq 0 ] && echo yes || echo no)"
+fi
+
+# A store mixing pre-change and post-change lines must not make actionable-patterns.sh
+# emit a warning it does not emit on a store of pre-change lines alone — the additive
+# fields are invisible to every one of its four warning conditions.
+AP_SH="$LIB/actionable-patterns.sh"
+if [ -f "$AP_SH" ]; then
+  ER_MIX="$(mktemp -d)"
+  ER_PRE_LINE='{"schema_version":1,"pr":1,"issue":11,"branch":"b1","merged_at":"2026-07-01T00:00:00Z","verdict":"APPROVE","config_fingerprint":null,"efficiency_runs":[{"slug":"pr-1","run_id":"r1","cost":{"calls":1,"tokens":10,"wall_clock_s":1},"iterations":1}],"retrospective":null,"important_finding_count":0,"permission_denials_count":0,"provenance":{}}'
+  ER_POST_LINE='{"schema_version":1,"pr":2,"issue":12,"branch":"b2","merged_at":"2026-07-02T00:00:00Z","verdict":"APPROVE","config_fingerprint":null,"efficiency_runs":[{"slug":"pr-2","run_id":"r2","cost":{"calls":1,"tokens":10,"wall_clock_s":1},"iterations":1,"run_profile":{"phase_durations_ms":{"Setup":1000},"final_status":"Complete","prior_record_count":0,"engine_outcome":"success"},"no_pr_reason":null}]}'
+  printf '%s\n' "$ER_PRE_LINE" > "$ER_MIX/pre.jsonl"
+  printf '%s\n%s\n' "$ER_PRE_LINE" "$ER_POST_LINE" > "$ER_MIX/mixed.jsonl"
+  er_ap_warnings() {
+    EXPERIMENTS_FILE="$1" bash "$AP_SH" --full 2>&1 >/dev/null \
+      | grep -c '::warning::actionable-patterns' || true
+  }
+  ER_W_PRE="$(er_ap_warnings "$ER_MIX/pre.jsonl")"
+  ER_W_MIX="$(er_ap_warnings "$ER_MIX/mixed.jsonl")"
+  assert_eq "#2006 mixed store: actionable-patterns.sh emits no warning it does not emit on a pre-change store" \
+    "$ER_W_PRE" "$ER_W_MIX"
+  rm -rf "$ER_MIX"
+fi
