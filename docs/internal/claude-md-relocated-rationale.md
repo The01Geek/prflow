@@ -185,7 +185,7 @@ The probe runs only when `DEVFLOW_GH` is unset or empty — `:=` fires on both �
 
 ## `lib/preflight.sh` as a bash diagnostic (#248)
 
-DevFlow supports any POSIX bash — WSL bash, Git Bash, MSYS2 bash — none mandated. The preflight emits a
+PRFlow supports any POSIX bash — WSL bash, Git Bash, MSYS2 bash — none mandated. The preflight emits a
 `devflow-bash:` breadcrumb carrying the interpreter path and `$BASH_VERSION`, surfaces `DEVFLOW_BASH` when
 set, and prints a remedy naming the three supported bashes plus the override when `$BASH_VERSION` is empty.
 `lib/test/run.sh` guards the breadcrumb and remedy through the `#248` source-level recovery contract and
