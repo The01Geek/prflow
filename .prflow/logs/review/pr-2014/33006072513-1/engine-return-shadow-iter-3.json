@@ -1,0 +1,55 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "complete",
+  "verdict": "APPROVE",
+  "phase_4_1_report": {
+    "summary": "PR #2014 rebalances two CI test shards by moving 4 module-id tokens (installer-wiring, parallel-suite-runner, tier1-rename-migration, experiment-records) from modules-rest into modules-large in lib/test/run-shard.sh's _shard_modules(). Pure data movement between two existing shard-group string literals; no control flow, shard name, order, or printf format changed.",
+    "correctness": "Union invariant verified directly: 20 unique modules across shards exactly matching scripts/workflow-flight-recorder-registry.json test_modules, zero duplicates. --list-shards emits same 5 names in same order (monolith, python-pool, modules-pin, modules-large, modules-rest). #877 assertions in run.sh are membership-agnostic (union==registry set-equality + raw-count no-duplicate) and remain green. No module dropped or run twice.",
+    "spec_compliance": "AC1 SATISFIED (union==registry, no dups, #877 covered). AC2 SATISFIED (shard names/order unchanged). AC3 SATISFIED with one wording inaccuracy (all 19 pre-change modules carry measured durations, source run 32994517846 named, assignment stated; but 'closest to equal-split target' is overclaimed). AC4 SATISFIED (post-change rest 208.62s / large 213.37s, diff 4.75s <= 30s; arithmetic recomputed and confirmed, one 0.01s rounding artifact on large_total immaterial).",
+    "verdict_rationale": "Change is minimal, correct, fully covered by existing invariant tests, and satisfies all four acceptance criteria. The single finding is a Low-severity wording inaccuracy in the PR description's optimality claim, which does not gate merge (AC4 is a <=30s bound, comfortably met, not a strict optimum)."
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Low",
+      "description": "PR description states the moved set is the subset 'closest to the equal-split target', but exhaustive subset-sum over the 14 rest modules shows an exact 0.0s balance and multiple subsets beat the chosen 4.75s diff. The optimality wording is inaccurate; substance of AC3/AC4 is met. Binds PR description only; no code defect. Suggest softening to e.g. 'a subset that balances the two shards to within ~5s'.",
+      "defect_signature": "pr-description-overclaims-optimal-subset"
+    }
+  ],
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "files_changed": 1,
+    "path": "lib/test/run-shard.sh",
+    "change_class": "test-harness-data-movement",
+    "has_new_types": false,
+    "test_relevant": true,
+    "additions_net": 0,
+    "characterization": "trivial: 4 tokens moved between two shard-group string literals; module union unchanged"
+  },
+  "checklist_skipped": false,
+  "checklist_note": "Diff yields one substantive verifiable claim (shard-module union unchanged / no duplicates); verified directly against run-shard.sh --modules-of output and the registry (20 unique == 20 registered, 0 dups). No checklist item failed or was inconclusive.",
+  "phase2_fails": [],
+  "per_reviewer_assessment": {
+    "prflow:code-reviewer": "CLEAN — no findings. Union preserved verbatim, no duplication, registry coverage intact, shard-set/order untouched, no stale prose.",
+    "prflow:silent-failure-hunter": "CLEAN — no findings. No control flow changed; every fail-closed layer (union set-equality, raw-count duplicate guard, per-module unknown-id exit 2, unknown-shard return 2, crashed-shard non-green recombination, ci.yml matrix name-pin) intact.",
+    "prflow:comment-analyzer": "CLEAN — no stale comments. No comment enumerates per-group membership or counts; coupled inventory comment for issue-audit-state still correct (stayed in modules-rest). Non-blocking note: label 'modules-large' now holds fewer modules (9) than 'modules-rest' (10) by count, but groups are balanced by duration not count.",
+    "prflow:pr-test-analyzer": "CLEAN — no findings. #877 assertions are membership-agnostic and cover this move; no test hardcodes per-shard membership of the moved tokens; ci.yml matrix derives modules dynamically via --modules-of.",
+    "prflow:requesting-code-review": "APPROVE — all 4 ACs satisfied; one Low finding (pr-description-overclaims-optimal-subset). AC4 arithmetic recomputed and confirmed (diff 4.75s <= 30s)."
+  },
+  "type_design_analyzer_gated_off": true,
+  "gate_reason": "has_new_types=false"
+}

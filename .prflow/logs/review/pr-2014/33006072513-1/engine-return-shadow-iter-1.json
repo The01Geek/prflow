@@ -1,0 +1,56 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "REJECT",
+  "verdict_rationale": "The code change is correct and fully satisfies AC1 (module union equals registry, no duplicates, #877 invariants intact) and AC2 (--list-shards names/order unchanged). However AC3 and AC4 place obligations on the PR description — a measured per-module duration for every pre-change modules-rest/modules-large module, the named source run, the resulting assignment, and a post-change estimated-total balance within 30s — and PR #2014's body is still the WIP implement stub ('Work in progress — automated review pending.'), carrying none of that evidence. Two acceptance criteria are unmet at the reviewed head 80f58aba9, so the PR does not yet meet its spec.",
+  "phase4_1_report": "Shadow review of PR #2014 (issue #2011 — rebalance modules-rest/modules-large CI shards).\n\nDiff under review: a single 2-line change to lib/test/run-shard.sh's _shard_modules(). Four module-id tokens (installer-wiring, parallel-suite-runner, tier1-rename-migration, experiment-records) moved from the modules-rest group list into the modules-large group list. No shard added or removed; union of module ids unchanged.\n\nPhase 0/2 (engine-verified): --list-shards emits monolith/python-pool/modules-pin/modules-large/modules-rest in unchanged order. Post-change groups: modules-large=9, modules-rest=10, modules-pin=1 => 20 modules, matching the registry with no duplicates. The #877 union/no-duplicate/order/driver assertions in lib/test/run.sh remain satisfied (they are membership-agnostic between the two edited groups).\n\nPhase 3 roster (5 dispatched, 5 returned):\n- code-reviewer: Minor finding — AC3/AC4 description evidence missing; code itself clean.\n- silent-failure-hunter: no findings — pure intra-partition token move; no silent drop/double-run/silent-error path affected.\n- comment-analyzer: no findings — no coupled comment (union comment, ORDER coupled-invariant note, tier headers) rots under the rebalance.\n- pr-test-analyzer: no findings — existing #877 assertions fully protect union/dup/order; the soft time-balance AC is correctly a recorded measurement, not a suite assertion.\n- requesting-code-review (final pass): Medium finding — PR description lacks duration evidence; AC3 UNMET, AC4 UNESTABLISHED. Code change APPROVE-leaning.\n\nAC verification: AC1 SATISFIED, AC2 SATISFIED, AC3 UNMET (WIP stub, no durations/source-run/assignment), AC4 UNMET/UNESTABLISHED (no recorded durations to compute the <=30s balance).\n\nVerdict: REJECT — code is sound, but two acceptance criteria bound to the PR description are currently unsatisfied.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Major",
+      "description": "PR #2014 description is still the WIP implement stub and carries none of the AC3/AC4 evidence: no measured per-module duration for the pre-change modules-rest/modules-large modules, no named source run, no stated resulting assignment, and no demonstration that the post-change estimated shard totals differ by <=30s. AC3 is UNMET and AC4 is UNESTABLISHED at reviewed head 80f58aba9. Not a code defect; blocks verifying the moved set is the one the measurements select.",
+      "defect_signature": "pr-description-missing-duration-evidence"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Minor",
+      "description": "AC3/AC4 require the PR description to record per-module measured durations, the source run, the resulting assignment, and the <=30s balance. The PR body is the WIP placeholder, so the rebalancing rationale (that this specific 4-module set is the one the measurements select and the totals are within 30s) is unverifiable. Evidentiary, not a code defect; discharged if the description is populated before merge.",
+      "defect_signature": "missing-rebalance-evidence"
+    }
+  ],
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "files_changed": 1,
+    "paths": ["lib/test/run-shard.sh"],
+    "insertions": 2,
+    "deletions": 2,
+    "has_new_types": false,
+    "test_relevant": true,
+    "classification": "test-harness-data-movement"
+  },
+  "checklist_skipped": false,
+  "phase2_fails": [],
+  "per_reviewer_assessment": [
+    {"agent": "prflow:code-reviewer", "returned": true},
+    {"agent": "prflow:silent-failure-hunter", "returned": true},
+    {"agent": "prflow:comment-analyzer", "returned": true},
+    {"agent": "prflow:pr-test-analyzer", "returned": true},
+    {"agent": "prflow:requesting-code-review", "returned": true}
+  ],
+  "type_design_analyzer_gated_off": true,
+  "reviewed_head": "80f58aba9ea03b94c5ecbec937edc72500f9d4be"
+}

@@ -1,0 +1,43 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE",
+  "report": "# PRFlow Review — PR #2014 (iteration 1)\n\n**Verdict: APPROVE**\n\n## Change under review\nA CI-shard rebalance in `lib/test/run-shard.sh` `_shard_modules`: four module-id tokens (`installer-wiring`, `parallel-suite-runner`, `tier1-rename-migration`, `experiment-records`) moved from the `modules-rest` shard-group string into the `modules-large` shard-group string. Single file, 15 diff lines. No shard added or removed; the union of module groups is unchanged.\n\n## Diff classification (Phase 0.5)\nsmall_diff=true, config_only=false, has_new_types=false, engine_self_modifying=true (path under `lib/**`), detect_all_audit=false. Profile: engine_self_modifying overrides the checklist behavior -> full Phase 1+2 checklist ran (checklist_skipped=null). Phase 3 roster gated normally; type-design-analyzer skipped (has_new_types false); pr-test-analyzer dispatched (changed path matches `*test*`).\n\n## Checklist (Phase 1/1.5/2)\n7 items generated, deduped to 7 distinct, all VERIFIED PASS against the working tree:\n- Union of all module groups == registered `test_modules` set (20 == 20). PASS\n- No module duplicated across groups (raw emission count 20 == registry size 20; uniq -d empty). PASS\n- Exactly the four named tokens moved; present in modules-large, absent from modules-rest. PASS\n- SHARD_NAMES unchanged (monolith python-pool modules-pin modules-large modules-rest). PASS\n- ci.yml shard matrix references shard NAMES only (unchanged) -> no edit required, coupled-order invariant intact. PASS\n- Four moved tokens are valid registered modules (no extras vs registry). PASS\n- Coverage comment (lines 23-25 / 43-45 'union == registered module set, no module dropped') remains accurate. PASS\n\nIndependent Phase 2 verification executed: union==registry True, duplicates [], dropped [], extra [], moved-in-large True, moved-absent-from-rest True.\n\n## Phase 3 review agents\nDispatched 5 (roster complete for this profile): code-reviewer (model opus), silent-failure-hunter, comment-analyzer, pr-test-analyzer, requesting-code-review (final pass). type-design-analyzer excluded by has_new_types gate. All returned; 0 failed. Every agent found the change a pure partition-preserving rebalance with no defect. The final-pass reviewer returned APPROVE. No findings at any severity.\n\nExtension load (final pass): EXTENSION-STATUS loaded-empty, resolved-root=unset — a success token; no notice owed.\n\n## Verdict rationale\nNo Critical, Important, or Suggestion findings from any agent; all checklist items verified PASS; the correctness invariant that gates this change (union of shard module groups == registry, no duplicate, no drop) holds and is covered by existing dynamically-derived assertions in `lib/test/run.sh` (#877 block, lines ~49556-49572) and `lib/test/modules/parallel-suite-runner.sh`. APPROVE.",
+  "phase3_findings": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "checklist_skipped": null
+  },
+  "cap_drops": [],
+  "checklist": {
+    "generated": 7,
+    "deduped": 7,
+    "passed": 7,
+    "failed": 0,
+    "inconclusive": 0
+  },
+  "acceptance_criteria_source": "issue-2011-context",
+  "reviewed_head": "80f58aba9ea03b94c5ecbec937edc72500f9d4be",
+  "base": "64ea000fdc3d5f196cf839dca77cd51bdf46ff5a",
+  "head_override": "local",
+  "phase_4_4_skipped": true
+}

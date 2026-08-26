@@ -1,0 +1,99 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-26T19:55:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [
+    "PR#2014-body"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "3.5",
+  "current_substep": "fix_delta_verified",
+  "dispatch_mode": null,
+  "sweep_evidence": {
+    "status": "not-applicable-pr-metadata-fix"
+  },
+  "checklist": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [],
+  "expected_reviewers": [],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "AC3/AC4 PR-description deliverable absent (promoted from iter-1 shadow).",
+      "defect_signature": {
+        "file": "PR#2014-body",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "spec_deliverable_absent"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "SHADOW-1",
+      "decision": "applied",
+      "commit": null,
+      "source_file": "PR#2014-body",
+      "claim_text": "PR description records measured per-module durations, source run, resulting assignment, and post-change <=30s balance",
+      "evidence": "PR #2014 body edited to add the full duration tables (all 19 pre-change modules), source run 32994517846, resulting assignment, and post-change totals rest=208.62s / large=213.37s (diff 4.75s); independently re-verified fresh-context: AC3 SATISFIED, AC4 SATISFIED"
+    },
+    {
+      "finding_id": "OVERGRADE-1",
+      "decision": "severity-calibrated",
+      "source_file": "PR#2014-body",
+      "claim_text": "AC3/AC4 PR-description deliverable absent",
+      "original_severity": "Important",
+      "calibrated_severity": "Important",
+      "evidence": "over-grade calibration gate: affirmed at Important — a required acceptance-criteria deliverable (PR-description duration evidence) absent at the reviewed head; not behavior-inert prose, not over-graded; resolved by authoring the deliverable"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": "independent fresh-context re-review confirmed AC3 SATISFIED and AC4 SATISFIED against the edited PR body; no code diff changed (PR-metadata-only fix)"
+    }
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
