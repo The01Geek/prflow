@@ -4272,6 +4272,19 @@ _REVIEW_COVERAGE_AXIS_GAP = {s['name']: s['gap'] for s in _REVIEW_COVERAGE_AXIS_
 # table's own order rather than a hand-maintained second one.
 _REVIEW_COVERAGE_GAPS = tuple(
     dict.fromkeys(s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS))
+# The CLOSED cause-class vocabulary a `--review-coverage-disposition` must name
+# (issue #1984). There is deliberately NO elective member: a run that dropped a
+# review component on a budget belief, or judged its partial pass adequate, has no
+# admissible class and stops at Blocked. Both values are colon-free and lowercase so
+# the cause class round-trips as the third segment of the disposition marker key
+# `review-coverage-disposition:<gap>:<cause-class>`.
+#   `environment-denial`   — a capability the runner did not expose (a tool, an agent
+#     type, a permission). Admissible only with evidence: a recorded `missing` roster
+#     row (the denied member), which is why the lost-write shape below cannot use it.
+#   `dispatched-but-lost`  — a reviewer that WAS dispatched, whose result was lost
+#     after the shadow contract's single bounded re-dispatch (the roster=unestablished
+#     lost-write arm).
+_REVIEW_COVERAGE_CAUSE_CLASSES = ('environment-denial', 'dispatched-but-lost')
 # Shadow-review roster membership (issue #1512): the per-member dispatch enumeration
 # `_review_roster_incoherence` cross-checks the summary `roster` axis against, so a
 # `complete` claim omitting an always-on member is refused rather than self-reported.
@@ -4700,14 +4713,19 @@ def _review_coverage_profile_disproof(facts, repo_root) -> str | None:
 
 
 def _review_coverage_dispositions(progress_content: str) -> dict:
-    """The recorded dispositions as `{gap: reason}`, read from the `## Progress`
-    content. Each is one row carrying a `review-coverage-disposition:<gap>` marker
-    whose visible text holds the reason; the reason is re-read here rather than
-    trusted from the writing call, so a disposition recorded by an earlier phase
-    still reaches the Phase 4.3 finalize call, which repeats no coverage flags.
-    A row whose reason cannot be re-read maps to the empty string, which the
-    verdict's boilerplate check then refuses — an unreadable reason is not a
-    stated one."""
+    """The recorded dispositions as `{gap: (cause_class, reason)}`, read from the
+    `## Progress` content. Each is one row carrying a
+    `review-coverage-disposition:<gap>:<cause-class>` marker whose visible text holds
+    the reason; the reason is re-read here rather than trusted from the writing call,
+    so a disposition recorded by an earlier phase still reaches the Phase 4.3 finalize
+    call, which repeats no coverage flags. A row whose reason cannot be re-read maps to
+    the empty string, which the verdict's boilerplate check then refuses — an
+    unreadable reason is not a stated one.
+
+    A legacy TWO-segment marker (`review-coverage-disposition:<gap>` with no cause-class
+    segment, the pre-#1984 form) is SKIPPED, so its gap stays absent from the returned
+    map and the Complete gate reports it undischarged with `[review-coverage-gap]`
+    (issue #1984 AC6) — a disposition with no cause class discharges nothing."""
     out = {}
     for line in (progress_content or '').splitlines():
         bullet = _PROGRESS_BULLET_RE.match(line)
@@ -4717,17 +4735,22 @@ def _review_coverage_dispositions(progress_content: str) -> dict:
         m = _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(note)
         if not m or m.end() != len(note):
             continue
-        gap = m.group(1)
+        parts = m.group(1).split(':', 1)
+        if len(parts) != 2:
+            # Legacy two-operand marker (no cause-class): skip it so the gap it names
+            # stays undischarged (issue #1984 AC6).
+            continue
+        gap, cause_class = parts
         if gap in out:
-            # Two rows for one gap: which reason the gate judges would depend on row
-            # order, so refuse rather than pick one — the same fail-closed posture
+            # Two rows for one gap: which disposition the gate judges would depend on
+            # row order, so refuse rather than pick one — the same fail-closed posture
             # `_review_coverage_payloads`' duplicate handling takes for the record.
             # The producer already refuses a repeated gap within a call; this arm
             # covers a row planted by hand or by an older workpad.py.
             out[gap] = _REVIEW_COVERAGE_DUPLICATE_DISPOSITION
             continue
         rm = _review_coverage_disposition_reason_re(gap).search(note)
-        out[gap] = (rm.group(1).strip() if rm else '')
+        out[gap] = (cause_class, rm.group(1).strip() if rm else '')
     return out
 
 
@@ -4763,9 +4786,12 @@ def _review_coverage_marker(payload: str) -> str:
     return _checkpoint_marker(_REVIEW_COVERAGE_KEY_PREFIX + payload)
 
 
-def _review_coverage_disposition_marker(gap: str) -> str:
-    """The hidden marker a review-coverage disposition row carries."""
-    return _checkpoint_marker(_REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX + gap)
+def _review_coverage_disposition_marker(gap: str, cause_class: str) -> str:
+    """The hidden marker a review-coverage disposition row carries (issue #1984 added
+    the trailing `:<cause-class>` segment). Both `gap` and `cause_class` are colon-free,
+    so the reader's one `split(':', 2)` on the captured payload is unambiguous."""
+    return _checkpoint_marker(
+        _REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX + gap + ':' + cause_class)
 
 
 def _render_review_coverage_disposition(gap: str, reason: str) -> str:
@@ -4825,7 +4851,9 @@ def _strip_review_coverage_disposition_rows(content: str, gaps) -> str:
     kept = []
     for ln in content.splitlines(keepends=True):
         m = _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(ln)
-        if m and m.group(1) in wanted:
+        # The capture is `<gap>[:<cause-class>]` (issue #1984); match on the gap part
+        # so a re-stated gap's row is replaced regardless of its cause class.
+        if m and m.group(1).split(':', 1)[0] in wanted:
             continue
         kept.append(ln)
     return ''.join(kept)
@@ -5058,8 +5086,42 @@ def _review_coverage_verdict(progress_content: str) -> None:
             "[review-coverage-undispatched]. Stop at a non-terminal or Blocked status "
             "naming the cause instead. No PATCH was made."
         )
+    # #1984: `environment-denial` is corroborated by a recorded `missing` roster row
+    # (the denied member); `roster_members` was read above for the roster cross-check.
+    has_missing_roster_row = any(s == 'missing' for s in roster_members.values())
     for gap in gaps:
-        rejection = _review_coverage_reason_rejection(dispositions[gap])
+        entry = dispositions[gap]
+        if entry is _REVIEW_COVERAGE_DUPLICATE_DISPOSITION:
+            raise _UpdateError(
+                "refusing to finalize Status: Complete — the disposition for gap "
+                f"{gap!r} does not state an acceptable reason: "
+                f"{_review_coverage_reason_rejection(entry)} "
+                "[review-coverage-boilerplate]. Name the specific gap and why it is "
+                "being carried forward. No PATCH was made."
+            )
+        cause_class, reason = entry
+        # #1984: the disposition must carry an admissible cause class from the closed
+        # vocabulary — an elective/budget cause has none, so the run stops here rather
+        # than completing.
+        if cause_class not in _REVIEW_COVERAGE_CAUSE_CLASSES:
+            raise _UpdateError(
+                "refusing to finalize Status: Complete — the disposition for gap "
+                f"{gap!r} carries cause class {cause_class!r}, which is not one of "
+                f"{', '.join(_REVIEW_COVERAGE_CAUSE_CLASSES)} "
+                "[review-coverage-cause-inadmissible]. No PATCH was made."
+            )
+        # #1984: `environment-denial` asserts a capability the runner did not expose,
+        # so it must be corroborated by a recorded `missing` roster row (the denied
+        # member). The lost-write shape (roster=unestablished, no rows) therefore
+        # cannot use it — its gaps are dischargeable only with `dispatched-but-lost`.
+        if cause_class == 'environment-denial' and not has_missing_roster_row:
+            raise _UpdateError(
+                "refusing to finalize Status: Complete — the disposition for gap "
+                f"{gap!r} carries cause class 'environment-denial' but no roster row "
+                "records a member 'missing', so the denied capability is "
+                "uncorroborated [review-coverage-cause-inadmissible]. No PATCH was made."
+            )
+        rejection = _review_coverage_reason_rejection(reason)
         if rejection:
             raise _UpdateError(
                 "refusing to finalize Status: Complete — the disposition for gap "
@@ -6008,6 +6070,32 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             )
         roster_members[member] = status
     if review_coverage_payload:
+        # #1984: corroborate a claimed shadow fan-out. When the record claims the
+        # fan-out was attempted AND the roster axis is a measured value, the run must
+        # back it with per-member rows covering all four always-on reviewers, at least
+        # one reading `dispatched` — otherwise dispatch=attempted with a measured
+        # roster is an uncorroborated summary claim. The lost-write shape
+        # (dispatch=attempted, roster=unestablished) is not measured, so it is exempt
+        # and stays legal with no rows. This runs BEFORE the incoherence cross-check so
+        # a `short` roster whose rows name no dispatched member (which the incoherence
+        # check, needing only one `missing`, would admit) is refused here.
+        _dispatch = review_coverage[_REVIEW_COVERAGE_AXES.index('dispatch')]
+        _roster = review_coverage[_REVIEW_COVERAGE_AXES.index('roster')]
+        if _dispatch == 'attempted' and _roster in ('complete', 'short'):
+            _all_ao_present = all(
+                m in roster_members for m in _SHADOW_ALWAYS_ON_MEMBERS)
+            _any_ao_dispatched = any(
+                roster_members.get(m) == 'dispatched'
+                for m in _SHADOW_ALWAYS_ON_MEMBERS)
+            if not _all_ao_present or not _any_ao_dispatched:
+                raise _UpdateError(
+                    "--record-review-coverage: dispatch=attempted with a measured "
+                    f"roster ({_roster}) must be corroborated by --record-roster-member "
+                    "rows covering every always-on reviewer ("
+                    + ', '.join(_SHADOW_ALWAYS_ON_MEMBERS)
+                    + ") with at least one dispatched, but the enumeration does not "
+                    "[review-coverage-dispatch-uncorroborated]. No PATCH was made."
+                )
         _roster_incoherent = _review_roster_incoherence(
             dict(zip(_REVIEW_COVERAGE_AXES, review_coverage)), roster_members)
         if _roster_incoherent:
@@ -6016,16 +6104,28 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             )
     review_dispositions = list(getattr(args, 'review_coverage_disposition', []) or [])
     _seen_gaps: set[str] = set()
-    for _pair in review_dispositions:
-        # Arity is guaranteed by argparse's nargs=2 from the CLI, but a programmatic
+    # #1984: `environment-denial` must be corroborated by a recorded `missing` roster
+    # row (the denied member) — read the durable rows already in ## Progress and merge
+    # this call's own rows, so a disposition recorded in a later call than the roster
+    # enumeration still sees it.
+    _, _disp_sections = _split_sections(body)
+    _disp_prog_idx = _find_section(_disp_sections, 'Progress')
+    _disp_prog_pre = (_disp_sections[_disp_prog_idx][1]
+                      if _disp_prog_idx is not None else '')
+    _disp_roster = dict(_review_roster_members(_disp_prog_pre))
+    _disp_roster.update(roster_members)
+    _disp_has_missing = any(s == 'missing' for s in _disp_roster.values())
+    for _triple in review_dispositions:
+        # Arity is guaranteed by argparse's nargs=3 from the CLI, but a programmatic
         # caller (the suite builds `args` directly) can pass an element of any other
-        # length — or a bare str, whose `gap, reason` unpack would silently split it
-        # into single characters. `_require_arity` rejects the non-sequence explicitly
+        # length — or a bare str, whose `gap, cause, reason` unpack would silently split
+        # it into single characters. `_require_arity` rejects the non-sequence explicitly
         # and enforces the count, for the same reason `--record-review-coverage` uses
         # it above: the guarantee is local rather than inherited from a distant
         # declaration.
-        _require_arity('--review-coverage-disposition', _pair, 2, ('gap', 'reason'))
-    for gap, reason in review_dispositions:
+        _require_arity('--review-coverage-disposition', _triple, 3,
+                       ('gap', 'cause-class', 'reason'))
+    for gap, cause_class, reason in review_dispositions:
         if gap not in _REVIEW_COVERAGE_GAPS:
             raise _UpdateError(
                 f"--review-coverage-disposition: unknown gap {gap!r}; expected one "
@@ -6040,6 +6140,23 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 "pass one disposition per gap. No PATCH was made."
             )
         _seen_gaps.add(gap)
+        # #1984: the cause class is a CLOSED vocabulary with no elective member — a
+        # budget belief or a "partial pass judged adequate" has none, so it is refused
+        # here and the run cannot record a disposition for that gap.
+        if cause_class not in _REVIEW_COVERAGE_CAUSE_CLASSES:
+            raise _UpdateError(
+                f"--review-coverage-disposition: gap {gap!r} carries cause class "
+                f"{cause_class!r}, which is not one of "
+                f"{', '.join(_REVIEW_COVERAGE_CAUSE_CLASSES)} "
+                "[review-coverage-cause-inadmissible]. No PATCH was made."
+            )
+        if cause_class == 'environment-denial' and not _disp_has_missing:
+            raise _UpdateError(
+                f"--review-coverage-disposition: gap {gap!r} carries cause class "
+                "'environment-denial' but no roster row records a member 'missing', so "
+                "the denied capability is uncorroborated "
+                "[review-coverage-cause-inadmissible]. No PATCH was made."
+            )
         if not _is_single_line(reason):
             # A line boundary would split the row and orphan its marker, the same
             # hazard `--checkpoint`'s single-line TEXT rule guards against.
@@ -6400,10 +6517,10 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             f'{_render_review_roster_member(_member, _status)} '
             f'{_review_roster_marker(_member, _status)}'
         )
-    for _gap, _reason in review_dispositions:
+    for _gap, _cause, _reason in review_dispositions:
         _review_coverage_rows.add(
             f'{_render_review_coverage_disposition(_gap, _reason)} '
-            f'{_review_coverage_disposition_marker(_gap)}'
+            f'{_review_coverage_disposition_marker(_gap, _cause)}'
         )
     progress_notes.extend(sorted(_review_coverage_rows))
     # Inherited required-artifact strip (issue #1347). Runs on BOTH resume arms —
@@ -6483,7 +6600,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             content = _strip_review_coverage_marker_rows(content)
         elif review_dispositions:
             content = _strip_review_coverage_disposition_rows(
-                content, [g for g, _r in review_dispositions])
+                content, [g for g, _c, _r in review_dispositions])
         phase_label = _progress_phase_for_status(content, current_phase)
         for text in progress_notes:
             # `_review_coverage_rows` holds exactly the rows the validated producer
@@ -6547,12 +6664,12 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 # re-states, mirroring its row-level strip.
                 _restated = {
                     f'{_REVIEW_COVERAGE_REFLECTION_PREFIX}{g}:'
-                    for g, _r in review_dispositions
+                    for g, _c, _r in review_dispositions
                 }
                 content = ''.join(
                     ln for ln in content.splitlines(keepends=True)
                     if not any(p in ln for p in _restated))
-            for _gap, _reason in review_dispositions:
+            for _gap, _cause, _reason in review_dispositions:
                 content = _append_reflection(
                     content, 'dropped-failed',
                     f'{_REVIEW_COVERAGE_REFLECTION_PREFIX}{_gap}: {_reason}')
@@ -7118,19 +7235,27 @@ def main():
                         '--review-coverage-disposition exactly as bare skipped does) '
                         'and note that the override was used. REASON states why. Never '
                         'yields a clean record.')
-    u.add_argument('--review-coverage-disposition', nargs=2, action='append',
-                   default=[], metavar=('GAP', 'REASON'),
+    u.add_argument('--review-coverage-disposition', nargs=3, action='append',
+                   default=[], metavar=('GAP', 'CAUSE_CLASS', 'REASON'),
                    help='Carry a recorded review-coverage gap forward under a stated '
-                        'reason (issue #1453). GAP: '
+                        'cause class and reason (issue #1453; the cause class added by '
+                        'issue #1984). GAP: '
                         + '|'.join(_REVIEW_COVERAGE_GAPS)
-                        + '. Repeatable — one per gap; every gap the record reports '
-                          'must be dispositioned. Accepted ONLY over a record reading '
-                          'dispatch=attempted: a run that never dispatched the shadow '
-                          'has no legal way to complete (issue #1230). REASON must '
-                          'name the specific gap — a generic placeholder is refused. '
-                          'Each accepted disposition also appends a dropped-failed '
-                          'reflection bullet, so an incomplete-coverage run always '
-                          'routes to the retrospective.')
+                        + '. CAUSE_CLASS is a CLOSED set with no elective member: '
+                        + '|'.join(_REVIEW_COVERAGE_CAUSE_CLASSES)
+                        + ' — environment-denial (a capability the runner did not '
+                          'expose; must be corroborated by a recorded missing roster '
+                          'row) or dispatched-but-lost (a reviewer that was dispatched '
+                          'whose result was lost). A budget belief or a partial pass '
+                          'judged adequate has no admissible class and stops the run at '
+                          'Blocked. Repeatable — one per gap; every gap the record '
+                          'reports must be dispositioned. Accepted ONLY over a record '
+                          'reading dispatch=attempted: a run that never dispatched the '
+                          'shadow has no legal way to complete (issue #1230). REASON '
+                          'must name the specific gap — a generic placeholder is '
+                          'refused. Each accepted disposition also appends a '
+                          'dropped-failed reflection bullet, so an incomplete-coverage '
+                          'run always routes to the retrospective.')
     u.add_argument('--repo-root', default=None,
                    help='Repository root for resolving the canonical '
                         'verification-flights directory and re-deriving the '
