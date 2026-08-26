@@ -865,7 +865,7 @@ class LabelDerivationTest(unittest.TestCase):
         # carries) took its coverage in this module, alongside tier1-rename-migration
         # which carries the same label for the config-key migration itself.
         self.assertEqual(
-            {"487", "491", "533", "544", "599", "690", "959", "970", "971", "1002", "1041", "1882", "1925"},
+            {"487", "491", "533", "544", "599", "690", "959", "970", "971", "1002", "1041", "1388", "1882", "1925", "1963"},
             module_labels["installer-wiring"],
         )
 
