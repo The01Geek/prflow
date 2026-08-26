@@ -1,0 +1,84 @@
+{
+  "root_completeness": "confirmed — skills/review/SKILL.md read in full to EOF (line 341); phase references read and boundary contracts clear for phase-0-setup.md and phase-3-agents.md",
+  "verdict": "APPROVE WITH ADVISORY NOTES",
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Fail-OPEN on an unreadable UNRECORDED tracked file: iter_blobs() skips an OSError file with only a stderr breadcrumb and never yields it, so a new/not-yet-baselined file (or a file that grew new pending occurrences) that is unreadable is absent from `pending`, the forward-direction AC3 new-occurrence guard never sees it, and cmd_check exits 0. The advertised 'fail-closed both ways' guarantee has a hole in its core direction. Realistically rare (an unreadable git-tracked path is unusual, esp. in CI), so advisory rather than blocking. Remedy: accumulate skipped paths and treat a non-empty skip set as RED.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [104, 107], "kind": "logic_error"},
+      "fix_decision": "advisory — recommend failing closed on a non-empty skip set; not a merge blocker (test-only lint, near-impossible input in CI, no false green on any realistic input)"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter + prflow:requesting-code-review (corroborated, 2 agents)",
+      "severity": "Suggestion",
+      "description": "'audited {audited} of {audited} files' interpolates the same variable on both sides of 'of', so the X-of-Y idiom can never surface a shortfall — a run that skipped an unreadable file still prints N of N, reading as complete coverage. Behavior-inert observability nit (Phase 4.1.5 cap). Remedy: count total ls-files entries separately and emit a skipped tally.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [192, 192], "kind": "documented_falsehood"},
+      "fix_decision": "advisory — pairs with the fail-open fix; capped at Suggestion (behavior-inert)"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Interaction of best-effort unreadable-skip with fail-closed stale detection: an unreadable tracked file that HAS a baseline row is reported as a 'stale pending_sweep_baseline row — the file carries no pending occurrence any more' (RED), which mislabels the cause (transient unreadability, not a completed sweep). Fail-closed on exit code (no false green), but a misleading finding message.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [176, 181], "kind": "logic_error"},
+      "fix_decision": "advisory — cosmetic mislabel of a rare failure; no false green"
+    },
+    {
+      "agent": "prflow:comment-analyzer + prflow:code-reviewer (sub-threshold note)",
+      "severity": "Suggestion",
+      "description": "The --print-population argparse help ('a provenance file emits both a pending and a frozen line') drops the module docstring's qualifier 'with both a value and a pending remainder'. A provenance file with only a value (no prose) emits only the frozen line, so the unqualified 'both' over-generalizes. True for every provenance file in the current data, so a clarity nit governed by the accurate docstring above it — not a documented falsehood.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [952, 954], "kind": "comment_drift"},
+      "fix_decision": "advisory — mirror the docstring qualifier in the help string"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "main() checks args.update_baseline before args.print_population with no mutual-exclusion, so passing both silently rewrites the record and never prints the population. Minor UX; an argparse mutually-exclusive group or a documented precedence note would make it explicit.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [232, 235], "kind": "api_misuse"},
+      "fix_decision": "advisory — low-value UX nit"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Test gaps: (1) frozen-tooling bucket + the frozen bucket-name emission strings in --print-population are unasserted (only pending/frozen-provenance lines checked); (2) malformed/unreadable bucket JSON exit-2 contract untested; (3) count-BELOW-baseline partial-sweep drift untested (only count-above); (4) mid-scan unreadable-file skip untested; (5) repo_root cwd-fallback untested. The four RED fail-closed paths + --update-baseline idempotence (the load-bearing contract) ARE directly asserted.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [54800, 54807], "kind": "test_gap"},
+      "fix_decision": "advisory — coverage of the load-bearing fail-closed contract is adequate; these are completeness improvements"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "git ls-files -z subprocess in iter_blobs uses check=True with no handler in scan/cmd_check/main (unlike repo_root and the bucket-load path), so a git failure raises an uncaught CalledProcessError with a traceback instead of the module's own breadcrumb. Fail-closed on exit code (non-zero), so no silent-pass hazard — just inconsistent with the module's deliberate error surfacing.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [96, 99], "kind": "unhandled_exception"},
+      "fix_decision": "advisory — cosmetic consistency; fail-closed already"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The 3-line comment block below the #1745 run.sh section banner is mostly descriptive narrative rather than the specific wrong change prevented (only 'Drive the exit code and finding lines, not the prose' names a prevented mistake). Sits at the 3-line cap and reads as a conventional section header, so marginal under the prevention-only standard.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [54767, 54770], "kind": "style"},
+      "fix_decision": "advisory — marginal; conventional section header"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": "engine_self_modifying (touches lib/**; full Phase 1+2 checklist) + detect_all_audit (forces Phase 3.1.5 completeness-critic pass). type-design-analyzer skipped (has_new_types false); pr-test-analyzer dispatched (adds a test file + testable Python logic).",
+  "cap_drops": [
+    "'audited N of N' finding capped at Suggestion under Phase 4.1.5 behavior-inert-prose cap (observability nit, not a behavioral falsehood).",
+    "Sub-threshold: code-reviewer's --print-population help over-generalization noted below its 80-confidence bar; folded into the comment-analyzer Suggestion (same site)."
+  ],
+  "report": "Iteration-2 review of PR #1973 (issue #1745) at head 4f163d684. Scope: the fix delta over iteration 1's APPROVE WITH ADVISORY NOTES — module-docstring/help rewordings in lib/test/lint-brand-devflow-sweep.py and added run.sh coverage for --print-population (dual-line provenance emit) and --update-baseline (idempotent reseed leaves --check green).\n\nIteration-1 advisories RESOLVED (confirmed independently by code-reviewer, comment-analyzer, and the final-pass reviewer): the docstring now precisely states the count-UNbounded frozen-bucket rule (AC3 scopes the new-occurrence guard to occurrences OUTSIDE frozen buckets, so a new DevFlow inside a frozen bucket is allowed by design — verified against classify() returning pcount=0 for the three path-based frozen buckets and total-value only for provenance); the --print-population help/docstring correctly describes the one-or-more-lines-per-file contract and the provenance dual-emit; the unreadable-file skip is disclosed as a best-effort limit; and run.sh gains non-vacuous --print-population and --update-baseline assertions (specific output lines + idempotency, not vacuous green).\n\nPhase 3.1.5 completeness-critic (forced by detect_all_audit): independently enumerated the brand-occurrence population by grep over git ls-files (a signal other than the lint's own classify) — 173 tracked files carry brand-cased DevFlow, and ALL 173 are covered by the bucket record (frozen prefixes/exact files/provenance or the pending baseline); 0 uncovered. The real-tree lint exits 0 (audited 1120 of 1120 files). The audit is a genuine superset of the independent signal — complete with respect to it.\n\nCorrectness: all agents confirm the enforcement mechanism satisfies the in-scope ACs (AC1 machine-checkable bucket classification; AC3 new-occurrence-outside-frozen turns RED; AC4/AC5/AC6 fail-closed reconciliation both directions, git ls-files -z worktree-immune population per #711, seeded baseline recorded). AC2's mass prose sweep is correctly out of scope (deferred). first-match ordering (record→historical→tooling→provenance→pending) is correct; provenance split total-value cannot go negative.\n\nNo Critical or blocking findings. The most substantive advisory is a fail-OPEN in iter_blobs: an unreadable UNRECORDED tracked file bypasses the forward-direction AC3 guard and exits 0 — a genuine hole in the 'fail-closed both ways' claim, but realistically rare (an unreadable git-tracked path, near-impossible in CI) and producing no false green on any realistic input; graded Important-advisory, recommend failing closed on a non-empty skip set (which also fixes the corroborated 'audited N of N' observability nit that can never surface a skip). Remaining items are Suggestion-level: the unreadable-file/stale-row mislabel, the --print-population help over-generalization, the update/print precedence, the ls-files check=True traceback, and five test-coverage gaps (frozen-tooling/bucket-name assertions, exit-2 malformed-JSON, count-below-baseline partial-sweep, mid-scan skip, repo_root fallback).\n\nVerdict: APPROVE WITH ADVISORY NOTES — the fix delta is correct and the iteration-1 advisories are addressed; the new findings are all advisory and none blocks merge.",
+  "notes": "Final-pass reviewer reported its prompt-extension load was denied by the harness (a command-form approval prompt, not a helper failure) — consistent with a local/interactive tier where the notice-suppression flag is set; extension state recorded unestablished, non-blocking."
+}

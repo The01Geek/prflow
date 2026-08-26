@@ -1,0 +1,79 @@
+{
+  "root_completeness": "established",
+  "verdict": "APPROVE WITH ADVISORY NOTES",
+  "phase3_findings": [
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Medium",
+      "description": "In the four frozen-provenance files, classify() computes value = count of quoted \"DevFlow\"/'DevFlow' and pending = total - value, but only `pending` is reconciled against the baseline; `value` is never pinned to a recorded count. Adding a NEW quoted \"DevFlow\" value (or partially removing quoted values, e.g. 3->1) raises total and value equally and leaves pending unchanged, so no finding fires. The reverse check only triggers at count==0. This narrows the 'fail-closed both ways' contract stated in the docstring/run.sh header for provenance files.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": "120-123,150-180", "kind": "fail-open-gap"},
+      "fix_decision": "Advisory / defer. Not merge-blocking: the affected set is a closed 4-file selector population where a quoted \"DevFlow\" is by definition the legitimately-frozen superseded provenance value, and new backtick prose still routes to pending -> RED. Recommend the deferred sweep follow-up add a per-entry value_count pin so provenance-value additions also fail closed."
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Low",
+      "description": "frozen-record, frozen-historical and frozen-tooling buckets are count-unbounded with no reverse staleness check, so any number of new DevFlow occurrences added to CHANGELOG.md, the tooling files, or under .prflow/learnings|logs/ produces no finding. Defensible for append-only history, but the module docstring and run.sh header claim 'every occurrence is classified into exactly one bucket' and that a stale assignment 'turns the suite RED', which is fully true only for pending and the zero-case of frozen-provenance.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": "114-119", "kind": "overstated-contract"},
+      "fix_decision": "Advisory. Tighten the docstring to state frozen buckets are deliberately count-unbounded, or add a reverse staleness check for historical_files/tooling_files. Non-blocking."
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Low",
+      "description": "iter_blobs skips a tracked-but-unreadable file with only a stderr breadcrumb and continues; in --check mode that file's DevFlow occurrences escape classification and cmd_check can still return 0. The 'audited N of N' summary reports a self-consistent count, so the skip is not observable from the printed summary in a green suite.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": "84-98", "kind": "fail-open-gap"},
+      "fix_decision": "Advisory. Rare (symlink/permission edge). For a fail-closed lint, prefer treating an unreadable tracked file as a finding, or surface the skipped set in the audited tally. Non-blocking."
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Low",
+      "description": "The shipped --update-baseline mode (cmd_update_baseline, which mutates the record the entire gate trusts and is used to seed and to drain the pending bucket) has zero test coverage. A regression (wrong sort, dropped provenance-file pending remainder, off-by-one) would silently write a bad baseline that then makes the gate pass on drift.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": "188-195", "kind": "test-coverage-gap"},
+      "fix_decision": "Advisory. Recommend a test: run --update-baseline on a drifted fixture, then assert a subsequent --check is clean and the written JSON rows are correct. Non-blocking for this scoped delivery."
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Low",
+      "description": "The shipped --print-population mode (its bucket<TAB>path<TAB>count output contract, including the dual-line emit for a provenance file with both a value and a pending remainder) has zero test coverage.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": "198-207", "kind": "test-coverage-gap"},
+      "fix_decision": "Advisory. Non-blocking."
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Low",
+      "description": "The module docstring (line ~39) and the argparse help (line ~217) both say --print-population 'prints one bucket<TAB>path<TAB>count line per file', but cmd_print_population emits a separate pending line and a separate frozen line, so a frozen-provenance file (e.g. the lib/scan.sh fixture) emits TWO lines. Inaccurate against shipped behavior.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": "39-40,217-218", "kind": "comment-inaccuracy"},
+      "fix_decision": "Advisory. Reword to 'one or more lines per file'. Non-blocking."
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Nit",
+      "description": "The module docstring carries #1002 provenance/design narrative (lines ~7-11). CLAUDE.md comment discipline keeps a contract-header docstring's specification but routes derivation/provenance/design-narrative to internal docs.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": "7-11", "kind": "comment-discipline"},
+      "fix_decision": "Advisory. Optional relocation of the #1002 backstory. Non-blocking."
+    },
+    {
+      "agent": "code-reviewer",
+      "severity": "Nit",
+      "description": "cmd_check prints 'audited {audited} of {audited} files' with the same value twice (cosmetic); the run.sh gate parses 'audited (\\d+) of' and passes.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": "182", "kind": "cosmetic"},
+      "fix_decision": "Advisory. Non-blocking."
+    }
+  ],
+  "phase3_dispatched": ["code-reviewer", "silent-failure-hunter", "comment-analyzer", "pr-test-analyzer", "requesting-code-review"],
+  "expected_reviewers": ["code-reviewer", "silent-failure-hunter", "comment-analyzer", "pr-test-analyzer", "requesting-code-review"],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": true
+  },
+  "cap_drops": {
+    "count": 1,
+    "by_category": {
+      "documented-design-tradeoff": 1
+    }
+  },
+  "report": "# Review — PR #1973 (issue #1745): brand-cased DevFlow bucket enforcement\n\n**Verdict: APPROVE WITH ADVISORY NOTES**\n\n## Scope reviewed\nBranch delta vs origin/main (`git diff --merge-base origin/main`), substantive files only:\n- `lib/test/lint-brand-devflow-sweep.py` (NEW, 237 lines) — fail-closed reconciling lint.\n- `lib/test/brand-devflow-buckets.json` (NEW) — frozen rules + seeded `pending_sweep_baseline` (164 rows, 883 pending occurrences).\n- `lib/test/run.sh` (MODIFIED) — `#1745` fixture RED/GREEN block + real-tree gate (~line 54764).\n- `lib/test/modules/coverage-map.json` (MODIFIED) — `run_sh_blocks` entry `1745` -> `unmodularized` (valid; matches the convention for a run.sh-resident block on its first cycle).\n- `.changeset/issue-1745-brand-devflow-buckets.md` (NEW).\n\nBase-merge noise (CHANGELOG/CITATION/docs) excluded.\n\n## Verification performed\n- Ran the lint on the real tree: `audited 1120 of 1120 files`, exit 0 (clean).\n- Confirmed the frozen buckets and provenance value-vs-pending split; the four provenance files' quoted-value counts reconcile and the baseline drains to a clean state as the tree stands.\n- Confirmed the coverage-map entry parses and sits under `run_sh_blocks` alongside the other `unmodularized` entries.\n\n## Assessment against in-scope acceptance criteria\n- **AC1** (bucket every occurrence + bidirectional fail-closed reconcile): MET, modulo the acknowledged provenance-value narrowing (see notes). Forward (unclassified/count-drift) and reverse (stale baseline row / stale provenance entry) each drive rc=1 with pinned finding substrings.\n- **AC3** (new DevFlow -> RED): MET, fixture-proven for pending prose.\n- **AC4** (no frozen identifier respelled): MET — the provenance reverse check fails closed when the superseded label value disappears.\n- **AC5** (#810 pins unchanged): MET — the run.sh block drives exit codes and finding substrings, introduces no source-presence pin.\n- **AC6** (shipped skills/agents bodies pass lint-shipped-pruned-path.py + #1856 anchor bytes): MET — the PR touches only `lib/test/**`, `coverage-map.json`, and a changeset; no `skills/**`/`agents/**` body altered.\n- **AC2** (mass prose sweep): correctly DEFERRED; `pending_sweep_baseline` seeds the drain target.\n\n## Convention adherence\n- Tree enumeration (#711): population via index-reading `git ls-files -z`, no `--others`, no recursive walk — worktree-immune and quotePath-immune. No marker needed.\n- Repo-root config (#295): `repo_root()` resolves via `git rev-parse --show-toplevel` with an announced cwd fallback breadcrumb.\n- Portability: pure stdlib + git; no GNU-only flags, no `\\b`, no `date -d`.\n- SPDX header present on the new .py file.\n\n## Advisory notes (none merge-blocking)\n1. **Provenance-value fail-open (Medium).** For the four provenance files, only the `pending` remainder is count-reconciled; a new quoted \"DevFlow\" value (or a partial removal) leaves `pending` unchanged and fires no finding. Deliberate and documented for a closed selector set where a quoted \"DevFlow\" is the legitimately-frozen superseded label; recommend the deferred sweep follow-up add a per-entry `value_count` pin so provenance-value additions also fail closed.\n2. **Overstated 'fail-closed both ways' claim (Low).** frozen-record/historical/tooling buckets are count-unbounded with no reverse staleness check; the docstring/run.sh header language is broader than the enforced behavior. Tighten the wording or add reverse checks.\n3. **Unreadable-file skip (Low).** A tracked-but-unreadable file is skipped with only a breadcrumb and can leave rc=0; consider treating it as a finding for a fail-closed lint.\n4. **Untested shipped modes (Low).** `--update-baseline` (mutates the trusted record) and `--print-population` have zero coverage; add fixtures in the follow-up.\n5. **Comment nits (Low/Nit).** `--print-population` help says 'one line per file' but emits up to two; the docstring carries #1002 provenance narrative that discipline routes to internal docs; `audited N of N` prints the value twice (cosmetic).\n\n## Conclusion\nThe scoped-down enforcement mechanism (bucket classification recorded as data + fail-closed reconciling lint + fixtures + seeded baseline) is sound, the in-scope ACs are met, and the real-tree gate is clean. The findings are robustness/documentation improvements, none regresses shipped behavior. Approve with the advisory notes routed to the deferred follow-up.\n"
+}

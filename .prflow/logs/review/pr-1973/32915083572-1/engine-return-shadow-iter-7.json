@@ -1,0 +1,52 @@
+{
+  "root_completeness": "confirmed — skills/review/SKILL.md read in full (341 lines); bounded read past last held line returned nothing at EOF; 9 phase references present under skills/review/phases/",
+  "verdict": "REJECT",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review (final-pass; dispatched via general-purpose+Skill, agent-type unavailable in this env)"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "severity": "Important",
+      "category": "silent-failure / adversarial-parser-convention",
+      "file": "lib/test/lint-brand-devflow-sweep.py",
+      "lines": "103, 179, 212",
+      "summary": "Row-level malformed bucket-record entries raise an uncaught KeyError/TypeError instead of the clean fail-closed exit-2 breadcrumb the module explicitly promises.",
+      "failure_scenario": "The frozen.provenance list and tooling_files are hand-authored. If an author drops the 'file' key from a provenance entry (writes {\"detail\":\"...\"}), or writes a bare string instead of {\"file\":...}, or a pending_sweep_baseline row lacks 'path', the lint dies with a Python traceback (KeyError:'file' at prov_file_set L103 / reverse loop L212, or KeyError:'path' at cmd_check L179) rather than the specific `return 2` breadcrumb the sibling top-level malformed-JSON / missing-'frozen'-object arms (L263-271) produce. The module docstring and the run.sh nofrozen.json test comment both promise 'never an uncaught KeyError traceback', and CLAUDE.md's adversarial-parser convention requires a specific (not generic) breadcrumb for each malformed input shape. The top-level shape matrix is validated at L268 but does not extend to the row level.",
+      "false_red_on_main": false,
+      "note": "Fail-closed invariant is PRESERVED — an uncaught exception still exits non-zero (RED, the safe direction), so this is a diagnostic-quality/convention gap, not a CI-correctness or false-GREEN hazard. Cheap fix: validate row shapes in main() alongside the existing 'frozen' check.",
+      "suggested_fix": "In main(), after the 'frozen' object check, confirm every frozen.get('provenance',[]) entry is a dict with a str 'file' and every pending_sweep_baseline row is a dict with a str 'path'; return 2 with a specific breadcrumb otherwise."
+    },
+    {
+      "severity": "Important",
+      "category": "test-coverage",
+      "file": "lib/test/run.sh",
+      "lines": "#1745 block",
+      "summary": "No test exercises the dual-role provenance-file drain steady-state (a file in BOTH frozen.provenance and pending_sweep_baseline that loses only its prose remainder, keeping its quoted value).",
+      "failure_scenario": "The realistic follow-up-sweep endpoint for lib/scan.sh is: prose remainder swept to PRFlow, quoted value 'DevFlow' retained. classify() then returns ('frozen-provenance',1,0), so the file drops from pending while staying in pending_sweep_baseline, and the reverse baseline loop should fire a 'stale pending_sweep_baseline entry' finding while the provenance reverse guard stays green. This exact dual-membership interaction — the actual state the deferred sweep produces on provenance files — is unasserted. A future refactor mishandling it could produce a false GREEN (undrained baseline row survives) or false RED, uncaught by the suite.",
+      "false_red_on_main": false,
+      "note": "The underlying CODE behavior is already correct (independently confirmed by two reviewers): classify() returns frozen-provenance,1,0 and the reverse baseline loop reds correctly. This is a test-only gap, non-blocking. Add: rewrite fixture scan.sh to keep only its quoted value, stage, assert rc=1 with 'scan.sh: stale pending_sweep_baseline entry' AND absence of a 'stale frozen-provenance' finding."
+    }
+  ],
+  "per_reviewer_assessment": {
+    "prflow:code-reviewer": "No Critical/Important. Ran real-tree lint (rc=0, 1120 files), carveout guard (rc=0), ruff (clean). Explicitly hunted false-RED-on-main and found none outside the parked concurrent-merge residual. Confirmed transient short-circuits before provenance in classify(); CHANGELOG frozen-historical growth allowed; provenance reverse ==0 guard does not spuriously fire. Guideline compliance verified (git ls-files population, SPDX, behavior-driven assertions, coverage-map unmodularized entry valid).",
+    "prflow:silent-failure-hunter": "One Important: row-level malformed-record uncaught traceback (see phase3_findings[0]). Confirmed no false-GREEN escape; skipped/iter_blobs/check=True all propagate as non-zero; forward and reverse presence guards RED correctly.",
+    "prflow:comment-analyzer": "No Critical/Important. Docstrings, JSON _comment, and run.sh comments accurately describe behavior. One inert Minor: classify() docstring says bucket is '' when no frozen occurrences, but a provenance file with zero quoted values returns ('frozen-provenance',0,total) — behaviorally inert (only consumer reads bucket under `if fcount:`). Not raised.",
+    "prflow:pr-test-analyzer": "Coverage thorough and behavior-focused; mapping of claimed behaviors to assertions essentially complete. One borderline-Important gap: the dual-role provenance drain (see phase3_findings[1]). Trivial gaps (quoted-vs-backtick split, frozen-tooling growth) intentionally excluded.",
+    "prflow:requesting-code-review": "Merge-ready; no Critical/Important. Verified real-tree gate green (1120/1120), AC1/AC3 hold, all fail-closed behaviors hold. Established that GitHub CI checks out the post-merge tree so PR-green structurally implies main-green except across a concurrent main advance — the sole remaining false-RED vector is exactly the parked concurrent-merge residual; no other false-RED-on-main scenario constructible."
+  },
+  "diff_profile": "Test/tooling-only change (963 insertions, 0 deletions across 5 files): new fail-closed reconciling lint lib/test/lint-brand-devflow-sweep.py (281 lines), new data lib/test/brand-devflow-buckets.json (532 lines), a #1745 test block appended to lib/test/run.sh (132 lines), a coverage-map.json 'unmodularized' entry, and a changeset. No runtime/shipped-surface code; no new types (type-design-analyzer correctly gated OFF). No consumer-shipped skills/agents body touched.",
+  "cap_drops": [],
+  "report": "Blinded shadow review (iteration 7) of PR #1973 @ a87924eba43bcadc68dadec45a8bb6d2cb46ebf4. Full roster dispatched (code-reviewer, silent-failure-hunter, comment-analyzer, pr-test-analyzer, final-pass requesting-code-review); type-design-analyzer correctly gated OFF (no new types). VERDICT: REJECT on two non-blocking Important findings, neither a false-RED/false-GREEN-on-main hazard.\n\nCORRECTNESS & CI SAFETY: The lint passes on the real tree (rc=0, 1120/1120 files) and fails closed correctly on unreadable files (rc=1), malformed JSON (rc=2) and a missing 'frozen' object (rc=2). AC1 (stale/reverse guard), AC3 (new-occurrence forward guard), AC4/AC5/AC6 (fail-closed arms) all hold. The critical concern — a false RED on the required `lib + python tests` check on main after merge — was independently hunted by three reviewers and found to exist ONLY as the acknowledged, explicitly-parked concurrent-merge presence-baselining residual: because GitHub CI reconciles the post-merge tree, a PR that is green has already been reconciled against merged content, so the only main-RED path is a concurrent main advance between CI and merge. The transient (.changeset/) short-circuit precedes provenance in classify() and is never baselined, so version-consolidate deleting the changeset on merge cannot fire a stale-row RED (explicitly tested). No false-RED-on-main vector outside the parked residual was constructible.\n\nFINDINGS (both Important, both non-blocking): (1) Row-level malformed bucket-record entries (missing 'file'/'path' key or wrong-type row in the hand-authored frozen.provenance / pending_sweep_baseline) raise an uncaught KeyError/TypeError instead of the clean exit-2 breadcrumb the module and its own test comment promise, violating CLAUDE.md's adversarial-parser convention — but it still exits non-zero (RED, safe direction), so it is a diagnostic-quality gap, not a CI-correctness hazard; cheap fix is a row-shape check in main(). (2) A test-coverage gap for the dual-role provenance-file drain steady-state (a provenance file losing only its prose remainder should fire a stale-baseline RED while the provenance guard stays green); the underlying code is already correct — this is a one-assertion test addition.\n\nThe change delivers only the enforcement mechanism; the mass prose sweep (AC2) is explicitly deferred to a follow-up that drains the grandfathered baseline. Both findings are quality improvements the fix loop can address cheaply; the mechanism is functionally sound and safe to merge on correctness grounds."
+}

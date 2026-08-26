@@ -1,0 +1,97 @@
+{
+  "root_completeness": "complete — skills/review/SKILL.md read in full (341 lines); bounded Read past last line returned EOF; root identity + all 10 phase references present under skills/review/phases/",
+  "verdict": "REJECT",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "per_reviewer_assessment": [
+    {"agent": "prflow:code-reviewer", "returned": true},
+    {"agent": "prflow:silent-failure-hunter", "returned": true},
+    {"agent": "prflow:comment-analyzer", "returned": true},
+    {"agent": "prflow:pr-test-analyzer", "returned": true},
+    {"agent": "prflow:requesting-code-review", "returned": true}
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Critical",
+      "description": "Exact per-file DevFlow counts make brand-devflow-buckets.json a CHANGELOG-class conflict hot spot and can turn the required `lib + python tests` check RED on main. lib/test/run.sh — the highest-churn file in the repo, mutated by nearly every PR — is baselined at an EXACT count (270). --check runs against the real tree in the suite (BDS_REAL), so any run.sh DevFlow-count change not matched by a JSON edit reddens the required check. Concurrent-merge scenario: two PRs each add DevFlow-bearing assertion lines to run.sh in different regions and each bump their own baseline row; both branch from main; hunks apply cleanly with no textual conflict, but the single baseline row resolves to one PR's value, so post-merge run.sh count != baseline -> main RED, blocking every subsequent PR until a human runs --update-baseline. This reintroduces exactly the shared-hot-spot anti-pattern CLAUDE.md calls out for CHANGELOG.md/plugin.json. Verified: no --check flag exists (default no-flag mode is the reconcile), run.sh baselined at count 270.",
+      "defect_signature": {"file": "lib/test/brand-devflow-buckets.json", "line_range": [419, 421], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Corroborates the above: exact-count baselining of 163 files (119 live source/prose under skills/, scripts/, lib/, .github/, .prflow/prompt-extensions/, plus run.sh at 270) has no protection against the semantic-merge scenario — two PRs off the same main editing the same baselined file's DevFlow count each go green individually while the post-merge union drifts the count from the single resolved baseline row, turning main's required check RED with no individually-red PR. Suggests narrowing exact-count baselining to low-churn files, or treating high-churn dev-only files (notably lib/test/run.sh) as an unbounded/tooling bucket until the follow-up sweep drains them.",
+      "defect_signature": {"file": "lib/test/brand-devflow-buckets.json", "line_range": [418, 420], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "Documented_falsehood: a `--check` mode/flag is referenced in the docstring (lint line 25) and three run.sh comments/assert descriptions, but argparse defines only --root, --buckets, --update-baseline, --print-population — running `python3 lint-brand-devflow-sweep.py --check` errors with 'unrecognized arguments'. The reconcile behavior is the DEFAULT (no-flag) mode (the docstring itself calls it 'the default (no flag)' at line 50). The attached behavioral claims are true but attributed to a nonexistent flag. Verified against argparse. Reviewer graded Critical/documented_falsehood; as behavior-inert docstring/comment prose it is subject to the Phase 4.1.5 cap (Suggestion) at the verdict stage, but it is a real accuracy defect the fix should correct at all four sites.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [25, 25], "kind": "documented_falsehood"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Quoted renameable prose inside a provenance file is silently absorbed into the frozen count and escapes the pending guard. classify() splits pending = total - value where PROVENANCE_VALUE matches ANY quoted 'DevFlow'/\"DevFlow\" regardless of whether it is the superseded label. A newly-introduced quoted DevFlow that is genuinely renameable prose in one of the 4 provenance selector files (lib/scan.sh, lib/classify-pr-kind.jq, lib/fetch-pr-context.sh, lib/rename-map.json) is counted frozen, leaves pending unchanged, and is never flagged — a silent-escape path for the AC3 new-occurrence guard. The reverse stale-check only needs >=1 value match so it won't catch it either. Bounded (small selector set) but a real gap in exactly the rename residue the lint exists to prevent.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [147, 149], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "frozen-tooling bucket has no controlled fixture assertion — the fixture sets tooling_files: [], so the classify branch is never exercised by a fixture; its only regression coverage is the real-tree gate (asserts rc=0, not that the tooling bucket specifically fired). A fixture listing a tooling file and asserting it needs no baseline row (mirroring the frozen-record assertion) would make the bucket first-class.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": null, "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC3 negative half — a new DevFlow INSIDE a frozen bucket must stay GREEN (frozen buckets are count-unbounded by design) — is not directly tested. No test appends a second occurrence to a frozen file (e.g. CHANGELOG.md or a .prflow/learnings/ path) and asserts rc=0. A regression that began counting frozen occurrences against a baseline would not be distinctly proven harmless for the count-unbounded frozen buckets.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": null, "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "--update-baseline / --print-population call scan()/iter_blobs() without a skipped list, so an unreadable tracked file is breadcrumbed and silently omitted — documented as intentional and backstopped by the --check gate, but a sweep-drain --update-baseline run performed while a file is transiently unreadable seeds a baseline missing that file with only a stderr line. Consider threading a skipped list into cmd_update_baseline and refusing to rewrite the record when non-empty.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [225, 232], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The lint has no internal audited-count floor; a vacuous pass (audited 0 files via the announced cwd fallback landing on a tree with no tracked brand occurrences) is prevented only by the external run.sh audited>0 assertion. Consider a --min-audited / non-zero-on-zero-population guard inside cmd_check so the fail-closed property does not depend on the caller.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [171, 222], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "git failures in iter_blobs/_run (check=True) surface as an uncaught CalledProcessError traceback rather than an actionable diagnostic. Fails closed (good) but not legible; wrapping in the breadcrumb-then-return-2 pattern used for the bucket-record read would improve the failure mode.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [74, 118], "kind": "unhandled_exception"}
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "Redundant `audited {audited} of {audited}` message — both operands are the same variable (skipped files are not counted in audited), so the 'of N' is always tautological. Corroborated by pr-test-analyzer and requesting-code-review. Cosmetic wording; consider `audited N files (M unreadable)`.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [219, 219], "kind": "style"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "A skipped (unreadable) provenance file yields a double finding — appended to skipped (one finding) and, because iter_blobs never yields it, frozen_prov gets no entry so the reverse-provenance loop reports a second 'stale frozen-provenance entry'. Both fail closed (correct direction); cosmetic noise only.",
+      "defect_signature": {"file": "lib/test/lint-brand-devflow-sweep.py", "line_range": [190, 200], "kind": "other"}
+    }
+  ],
+  "diff_profile": "test-infrastructure / non-engine: NEW lib/test/lint-brand-devflow-sweep.py (275 lines), NEW lib/test/brand-devflow-buckets.json (695 lines, 163 baseline rows), MODIFIED lib/test/run.sh (#1745 test block, +116 lines), coverage-map.json entry (1745 -> unmodularized), .changeset. No new types (type-design-analyzer gated OFF). Test code touched (pr-test-analyzer gated ON). No shipped skills/**/agents/** body modified (AC6 holds); #1856 anchor bytes unchanged.",
+  "cap_drops": "none — full roster dispatched (no thinning); type-design-analyzer legitimately gated off (no new types)",
+  "report": "Shadow review of PR #1973 (issue #1745), head dc631e88, blinded/independent. Full Phase 3 roster dispatched (5 reviewers); all returned. The change adds a fail-closed reconciling lint that bucket-classifies every brand-cased DevFlow occurrence and a per-file pending baseline. Mechanically the lint is well-built and thoroughly tested (both reconciliation directions, exit-2 malformed record, unreadable-file fail-closed via dangling symlink, idempotent reseed, dual-emit print-population, provenance value/pending split, transient-deletion no-false-RED regression, real-tree audited>0 gate; git ls-files -z #711-compliant). AC1/AC3/AC4/AC5/AC6 are substantially met and the real-tree lint exits 0 as the tree stands. VERDICT: REJECT, driven by one corroborated load-bearing defect: exact per-file DevFlow-count baselining of high-churn files (lib/test/run.sh at count 270) can turn the REQUIRED `lib + python tests` check RED on main after a clean-textual concurrent merge — no individually-red PR needed — reintroducing precisely the shared-hot-spot conflict anti-pattern CLAUDE.md calls out for CHANGELOG.md/plugin.json. Raised Critical/blocking by the final-pass reviewer and independently Important by code-reviewer (2-agent corroboration on brand-devflow-buckets.json). Secondary Important findings: (a) a verified documented_falsehood — a `--check` mode/flag referenced in the docstring + 3 run.sh comments that argparse does not accept (the default no-flag mode is the reconcile); behavior-inert prose, Phase-4.1.5-cappable at the verdict stage but a real accuracy fix; (b) quoted renameable prose in a provenance file silently absorbed into the frozen count, a bounded AC3 forward-guard escape; (c) two test gaps (no first-class frozen-tooling fixture; no AC3-negative 'growth inside a frozen bucket stays green' assertion). Remaining items are Suggestions. Recommend: before merge, exclude/freeze lib/test/ test-data occurrences (or classify run.sh as frozen-tooling) or replace exact per-file counts with a ceiling/merge-robust tripwire, and correct the --check wording at all four sites."
+}

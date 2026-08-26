@@ -1,0 +1,130 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "4f163d684fb776c0379b9c3a2da625167a291061",
+  "fix_files": [
+    "lib/test/lint-brand-devflow-sweep.py",
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "dispatch_mode": "fanned-out",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": true
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "frozen-provenance value not baseline-reconciled; frozen buckets count-unbounded",
+      "defect_signature": {
+        "file": "lib/test/lint-brand-devflow-sweep.py",
+        "line_range": [
+          95,
+          110
+        ],
+        "kind": "unbounded_frozen"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "--print-population help/docstring said one line per file",
+      "defect_signature": {
+        "file": "lib/test/lint-brand-devflow-sweep.py",
+        "line_range": [
+          39,
+          217
+        ],
+        "kind": "doc_inaccuracy"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "--update-baseline and --print-population untested",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          54770,
+          54790
+        ],
+        "kind": "test_coverage"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "#1002 provenance narrative in docstring",
+      "defect_signature": {
+        "file": "lib/test/lint-brand-devflow-sweep.py",
+        "line_range": [
+          7,
+          11
+        ],
+        "kind": "comment_narrative"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "4f163d684fb776c0379b9c3a2da625167a291061"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "4f163d684fb776c0379b9c3a2da625167a291061"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "4f163d684fb776c0379b9c3a2da625167a291061"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "4f163d684fb776c0379b9c3a2da625167a291061"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 4,
+    "fix_diff_lines": 40,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean"
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

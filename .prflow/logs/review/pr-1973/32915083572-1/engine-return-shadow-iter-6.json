@@ -1,0 +1,79 @@
+{
+  "root_completeness": "complete — skills/review/SKILL.md read in full (341 lines); bounded Read at offset 341 returned nothing at EOF",
+  "verdict": "APPROVE",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "per_reviewer_assessment": [
+    {"agent": "prflow:code-reviewer", "returned": true},
+    {"agent": "prflow:silent-failure-hunter", "returned": true},
+    {"agent": "prflow:comment-analyzer", "returned": true},
+    {"agent": "prflow:pr-test-analyzer", "returned": true},
+    {"agent": "prflow:requesting-code-review", "returned": true}
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Structurally-valid-but-incomplete bucket record is not fail-closed. load_buckets only catches OSError/json.JSONDecodeError; a JSON record missing the 'frozen' key (or sub-keys) hits buckets['frozen'] in scan()/cmd_check() and raises an uncaught KeyError -> traceback exit 1, not the intended exit-2 fail-closed breadcrumb. Only the unparseable-JSON shape is tested; the adversarial-parser 'missing required key'/'wrong-type' rows for this structured-format reader are untested and not handled. Not a false-RED-on-main hazard.",
+      "defect_signature": "load_buckets-missing-frozen-key-KeyError-not-exit2"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Minor",
+      "description": "Residual concurrent same-file sweep-vs-re-add can red the required check on main: PR X fully sweeps file F to PRFlow and removes F's baseline row while concurrent PR Y adds a new brand DevFlow to the same F on disjoint lines; each green individually, but a clean 3-way merge leaves F carrying DevFlow with no baseline row -> forward guard 'no pending_sweep_baseline entry' -> RED on main. Inherent to any presence-baseline scheme; narrow (requires clean same-file merge) and dormant while the sweep is deferred (no rows drained yet). Not blocking; worth a docstring note that the guarantee is count-drift only.",
+      "defect_signature": "presence-baseline-concurrent-row-removal-vs-readd-forward-RED"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Minor",
+      "description": "cmd_check prints 'audited {audited} of {audited} files' — the same variable twice, always X of X. audited counts only successfully-yielded files (skipped files excluded), so the 'N of M' framing asserts full coverage precisely on the fail-closed runs where coverage was incomplete. Cosmetic; skips are surfaced separately as findings. Suggest 'audited N of N (+K unreadable)'.",
+      "defect_signature": "audited-N-of-N-message-masks-skip-count"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Minor",
+      "description": "Comment discipline (CLAUDE.md §2.3): the classify() transient-block inline comment (4 physical lines) and the cmd_check per-file-presence comment (7 physical lines) exceed the 3-line cap and carry design narrative that the module docstring already states; the count-vs-presence rationale is triplicated across the docstring, the inline comments, and the JSON _comment field. Move derivation to internal docs / single-source it; keep only the one-line prohibition each guard earns.",
+      "defect_signature": "comment-over-length-restated-rationale-triplicated"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Minor",
+      "description": "Docstring header says 'Buckets (first match wins)' and lists transient fifth, but classify() tests transient FIRST (before all frozen-* buckets). Match order is made semantically load-bearing by the 'first match wins' phrasing, so the listed order misrepresents precedence. No behavioral impact (no file matches two buckets in the real tree/fixture). Reorder the list or drop the framing.",
+      "defect_signature": "docstring-bucket-order-vs-classify-precedence"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Minor",
+      "description": "PROVENANCE_VALUE regex matches only symmetrically-quoted \"DevFlow\"/'DevFlow'. A provenance-selector file carrying the superseded value UNQUOTED (e.g. inside a --search \"...label:PRFlow,DevFlow\" qualifier, the OR form CLAUDE.md documents) yields value=0, dropping the occurrence into the pending remainder and, if no other quoted value exists, firing a false 'stale frozen-provenance entry' RED. Fail-loud (false positive), not a silent miss. Regex assumes a quoting convention the targeted selectors do not uniformly use.",
+      "defect_signature": "provenance-regex-unquoted-value-false-stale-RED"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Minor",
+      "description": "cmd_update_baseline calls scan(root, buckets) with no `skipped` list, so an unreadable tracked file is breadcrumbed inside iter_blobs and otherwise dropped from the reseeded pending_sweep_baseline without failing closed or surfacing incompleteness in the 'reseeded ... with N file(s)' summary. Partially self-correcting (next cmd_check re-reds), so a confusing seed rather than a silent escape.",
+      "defect_signature": "update-baseline-drops-unreadable-not-failclosed"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Minor",
+      "description": "Untested edge paths: (a) a provenance file also under a frozen prefix (first-match ordering: earlier bucket wins but scan still populates frozen_prov[rel] with the earlier bucket's count) — interaction unexercised; (b) a provenance file with total>0 but value=0 (simultaneous stale-provenance RED and pending remainder); (c) repo_root cwd-fallback branch/breadcrumb; (d) surrogateescape non-UTF8 filename decode; (e) transient_exceptions firing only implicitly proven, .prflow/logs/ prefix and a valid --buckets override unexercised. Edge coverage only; core AC guards fully tested.",
+      "defect_signature": "untested-edge-paths-classify-ordering-and-fallbacks"
+    }
+  ],
+  "diff_profile": "Test/tooling only. Adds lib/test/lint-brand-devflow-sweep.py (280 lines, new fail-closed reconciling lint), lib/test/brand-devflow-buckets.json (bucket data: schema_version 1, frozen record/historical/tooling/provenance sets + 163-row pending_sweep_baseline), a ~126-line #1745 sandbox-fixture test block in lib/test/run.sh, a coverage-map.json entry (owner=unmodularized), and a patch-bump changeset. No skills/** or agents/** bodies touched; no #1856 anchor bytes changed. Real-tree lint run is clean (audited 1120/1120, rc=0).",
+  "cap_drops": [],
+  "report": "Blinded shadow review (iteration 6) of PR #1973 / issue #1745. Full Phase-3 roster dispatched (5 reviewers; type-design-analyzer correctly gated OFF — no new types). All reviewers returned. VERDICT: APPROVE. No Critical or Important false-RED-on-main defect. The specific hazards in the review charter are correctly neutralized: (1) transient .changeset/ files are excluded from reconciliation and never baselined, so version-consolidate's merge-time deletion fires nothing (tested); (2) reconciliation is per-file PRESENCE not count, so a churny hot-spot file (run.sh, itself baselined pending with 284 occurrences that this PR's own additions do not re-red) cannot drift RED on a clean concurrent merge (tested); (3) frozen buckets (CHANGELOG frozen-historical, learnings/logs frozen-record, the feature's own tooling files, provenance values) are not count-bounded, so append-only growth stays green (tested); (4) the lint is byte-count/quoted-value case-sensitive, so frozen identifiers (DEVFLOW_* env vars, devflow-*.yml filenames, /devflow: aliases, devflow_* functions) are structurally never matched — AC4 satisfied by construction, --update-baseline mutates only baseline paths, no source literal is respelled. AC1/AC3/AC5/AC6 hold: fail-closed both directions (forward new-unclassified, reverse stale-baseline and stale-provenance), AC3 new-DevFlow-in-clean-file RED tested, run.sh block adds no source-presence pins (#810 clean), and no shipped skills/agents body or anchor changed so lint-shipped-pruned-path.py is unaffected (AC6 trivially holds). One residual noted by three reviewers: a concurrent same-file baseline-row-removal-vs-re-add clean 3-way merge could red main via the forward guard — inherent to presence-baselining, narrow, dormant while the sweep is deferred, and non-blocking. Strongest substantive finding: a structurally-valid bucket record missing the 'frozen' key raises an uncaught KeyError (exit-1 traceback) instead of the fail-closed exit-2 breadcrumb, contrary to the adversarial-parser convention and untested. Remaining findings are Minor: a misleading 'audited N of N' message that masks the skip count, over-length/triplicated rationale comments (§2.3), a docstring bucket-order-vs-classify-precedence mismatch ('first match wins' lists transient fifth but classify tests it first), an unquoted-provenance-value false-stale-RED edge, --update-baseline not failing closed on an unreadable file, and several untested edge paths. None block merge; the AC2 mass prose sweep is explicitly deferred to a follow-up."
+}
