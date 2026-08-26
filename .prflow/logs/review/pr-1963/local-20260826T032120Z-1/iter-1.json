@@ -1,0 +1,35 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-26T03:21:20Z",
+  "loop_role": "fix",
+  "current_step": "loop-control",
+  "current_substep": "step1_engine_dispatch",
+  "pending_dispatch": {
+    "kind": "review_engine_entry",
+    "roster": [
+      "general-purpose"
+    ],
+    "dispatched_at": "2026-08-26T03:25:00Z",
+    "issued_by": "loop-control"
+  },
+  "config": {
+    "max_iterations": 5,
+    "fix_severity_threshold": "suggestion",
+    "verdict_severity_threshold": "critical"
+  },
+  "step_0_5": {
+    "checkout_rc": 1,
+    "checkout_failure": "gh pr checkout refused: branch 'issue-1388-1276-follow-up-lint-provisioning-installer-digest' is held by an abandoned sibling worktree agent-ae14ea3519985d820; detaching it was denied by the local classifier",
+    "head_ref_expected": "issue-1388-1276-follow-up-lint-provisioning-installer-digest",
+    "head_commit_expected": "743cdef0bc98ab5afe117e73c757910df434d78b",
+    "head_commit_actual": "743cdef0bc98ab5afe117e73c757910df434d78b",
+    "branch_actual": "worktree-pr-1963",
+    "assertion": "head-commit comparand satisfied; branch-name comparand differs by the shepherd-worktree convention this repo's receiving-code-review extension documents. Upstream wired to origin/<head ref>; every push uses the explicit refspec HEAD:refs/heads/<head ref>. Recorded as a deviation, not a pass."
+  },
+  "dispatch_mode": null,
+  "checklist": [],
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
