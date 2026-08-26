@@ -246,22 +246,32 @@ def _scan_ladder_status(output: str) -> str:
     return FINAL_ABSENT if saw_present_empty else FINAL_UNESTABLISHED
 
 
+def _emit_final(skill: str, final: str, cause: str) -> int:
+    """Emit the shared ``final=/terminal=/record=`` contract and return its exit code.
+
+    Both ``reconcile`` and ``classify-ladder-output`` end here, so the terminal
+    vocabulary and the block-vs-clean exit selection cannot drift between them. ``cause``
+    is read only on the ``unestablished`` arm.
+    """
+    terminal = "complete-ok" if final in (FINAL_ARRIVED, FINAL_ABSENT) else "block"
+    sys.stdout.write(f"final={final} terminal={terminal}\n")
+    if final == FINAL_UNESTABLISHED:
+        sys.stdout.write(f"record={_reconcile_record(skill, cause)}\n")
+        return EXIT_FAULT
+    return EXIT_OK
+
+
 def cmd_classify_ladder(args: argparse.Namespace) -> int:
     """Classify from the ladder's emitted status output (stdin) for the workpad-less,
     prose-side tiers — the same ``final=/terminal=/record=`` output shape ``reconcile``
     emits, so a caller routes on one contract regardless of which classifier ran."""
     skill = args.skill or "(unnamed)"
     final = _scan_ladder_status(sys.stdin.read())
-    terminal = "complete-ok" if final in (FINAL_ARRIVED, FINAL_ABSENT) else "block"
-    sys.stdout.write(f"final={final} terminal={terminal}\n")
-    if final == FINAL_UNESTABLISHED:
-        cause = (
-            "the delivery ladder produced no PROMPT-EXTENSION-STATUS line — a denied or "
-            "silent invocation, so arrival could not be established"
-        )
-        sys.stdout.write(f"record={_reconcile_record(skill, cause)}\n")
-        return EXIT_FAULT
-    return EXIT_OK
+    cause = (
+        "the delivery ladder produced no PROMPT-EXTENSION-STATUS line — a denied or "
+        "silent invocation, so arrival could not be established"
+    )
+    return _emit_final(skill, final, cause)
 
 
 def cmd_reconcile(args: argparse.Namespace) -> int:
@@ -306,12 +316,7 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
                 final = FINAL_UNESTABLISHED
                 cause = "no positive arrival record was found in the durable artifact"
 
-    terminal = "complete-ok" if final in (FINAL_ARRIVED, FINAL_ABSENT) else "block"
-    sys.stdout.write(f"final={final} terminal={terminal}\n")
-    if final == FINAL_UNESTABLISHED:
-        sys.stdout.write(f"record={_reconcile_record(skill, cause)}\n")
-        return EXIT_FAULT
-    return EXIT_OK
+    return _emit_final(skill, final, cause)
 
 
 def main(argv: list[str] | None = None) -> int:
