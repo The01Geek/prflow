@@ -1,38 +1,52 @@
 ---
 title: "Working Directory"
-description: "Understand how local PRFlow runs resolve the repository root and nested repositories."
+description: "Understand how a local PRFlow run resolves the repository root, and what changes in a monorepo or a nested checkout."
 ---
 
-Launch PRFlow safely from a repository subdirectory, monorepo package or nested Git checkout by confirming which repository and branch the run will use.
+Confirm which repository a local run will use before you start it, especially in a monorepo or a nested Git checkout.
 
-## Run From Any Repository Subdirectory
+## Check the Root First
 
-Local PRFlow skills can start from the Git repository root or a subdirectory. Core configuration and prompt-extension readers call `git rev-parse --show-toplevel` and anchor the default `.prflow/` path to that root.
+PRFlow anchors its configuration to the Git root, not to the directory you are standing in. Run this before you start a command:
 
-Shell helpers that need bundled sibling files resolve from their own script location. They do not depend on the current directory for those files.
+```bash
+git rev-parse --show-toplevel
+```
 
-As a result, a command run from `packages/web/` normally reads the same root `.prflow/config.json` and `.prflow/prompt-extensions/` files as a command run from the repository root.
+It prints one absolute path, such as `/Users/you/code/acme-api`. That path is the repository PRFlow will act on, and `.prflow/config.json` is read from it. If the printed path is not the repository you meant, move to the right directory before you start the command.
+
+## Run From Any Subdirectory
+
+PRFlow's configuration and prompt-extension readers resolve their default path from the Git root, so a command entered in `packages/web/` reads the same root `.prflow/config.json` and the same `.prflow/prompt-extensions/` files as a command entered at the top of the repository.
+
+Bundled helper files are found relative to the helper itself, not relative to your current directory, so they resolve the same way from anywhere in the tree.
 
 ## The Nearest Git Root Wins
 
-`git rev-parse --show-toplevel` returns the nearest containing Git root. This matters when:
+`git rev-parse --show-toplevel` returns the nearest enclosing Git root, which is not always the one you want. Watch for it in three layouts:
 
-- A monorepo contains a nested Git repository.
-- The current directory is inside a Git submodule.
-- A team deliberately stores `.prflow/` somewhere other than the Git root.
-
-In those layouts, PRFlow anchors to the inner or nearest repository. Move to the intended repository before starting the skill. Explicit configuration-path options, where a helper provides them, are honored as written.
+<AccordionGroup>
+  <Accordion title="A Nested Repository Inside a Monorepo">
+    A vendored or cloned repository inside your monorepo is its own Git root. A command started inside it anchors to that inner repository, and it will not see the monorepo's `.prflow/config.json`.
+  </Accordion>
+  <Accordion title="A Git Submodule">
+    A submodule is a separate Git root for the same reason. Change to the parent checkout first if the parent is the repository you mean to work on.
+  </Accordion>
+  <Accordion title="Configuration Stored Below the Git Root">
+    If your team stores `.prflow/` below the Git root, the default resolution will not find it. Where a helper offers an explicit configuration-path option, that option is honored exactly as written.
+  </Accordion>
+</AccordionGroup>
 
 ## Outside a Git Repository
 
-Some helpers fall back to the current directory when no Git root can be resolved. Issue, branch, workpad and pull-request workflows still depend on real Git and GitHub repository state.
-
-For predictable behavior, start those workflows from inside the intended Git checkout.
+Some helpers fall back to the current directory when no Git root can be found. That fallback is not enough for real work: issue, branch, workpad and pull-request workflows all depend on actual Git and GitHub state. Start those workflows from inside the intended checkout.
 
 ## Do Not Change Directory Mid-Run
 
-PRFlow's authored commands avoid a leading `cd`. Cloud helper paths are repository-relative, and the cloud Bash working directory persists across tool calls. A directory change can make later helpers resolve against the wrong path.
+<Warning>
+  Do not run `cd` while a PRFlow command is in progress. In a cloud run the Bash working directory persists between tool calls and helper paths are repository-relative, so a directory change makes later helpers resolve against the wrong path. Locally it can select a different Git root or break project-specific test commands.
+</Warning>
 
-Local readers re-anchor many paths, but keeping the session inside the same repository avoids selecting another Git root or confusing project-specific test commands.
+PRFlow's own commands are written to avoid a leading `cd` for this reason.
 
-See [Local Runs](/docs/runs/local/index) for the full local execution model.
+See [Local Runs](/docs/runs/local/index) for the rest of the local execution model.

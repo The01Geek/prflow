@@ -1,51 +1,64 @@
 ---
 title: "Installation"
-description: "Install the PRFlow plugin in Claude Code, GitHub Copilot CLI or Codex CLI."
+description: "Install the PRFlow plugin in Claude Code."
 ---
 
-Install the PRFlow plugin to make its skills available in your coding client. Repository initialization is a separate, recommended step.
+Install the PRFlow plugin so its skills are available in Claude Code.
 
-The plugin is named `prflow`. Its marketplace intentionally keeps the `devflow-marketplace` name. PRFlow has no companion-plugin dependencies.
+The plugin is named `prflow`. Its marketplace keeps the name `devflow-marketplace` on purpose, so do not rename it. PRFlow depends on no companion plugin.
 
-If you previously installed DevFlow, follow [Migrate From DevFlow](/docs/getting-started/migrate-from-devflow) instead.
+If you already installed DevFlow, follow [Migrate from DevFlow](/docs/getting-started/migrate-from-devflow) instead of this page.
 
-## Install in Your Client
+## Install the Plugin
 
-Add the marketplace, then install PRFlow:
+<Steps>
+  <Step title="Add the Marketplace">
+    Run this in your terminal:
 
-<Tabs>
-  <Tab title="Claude Code">
     ```bash
     claude plugin marketplace add The01Geek/prflow
+    ```
+  </Step>
+  <Step title="Install PRFlow">
+    ```bash
     claude plugin install prflow@devflow-marketplace
     ```
 
-    The interactive `/plugin` manager provides equivalent marketplace and installation actions. Start a new Claude Code session if the PRFlow skills do not appear immediately.
-  </Tab>
-  <Tab title="GitHub Copilot CLI">
-    ```bash
-    copilot plugin marketplace add The01Geek/prflow
-    copilot plugin install prflow@devflow-marketplace
-    ```
+    The plugin name and the marketplace name are different on purpose. Enter both exactly as shown.
+  </Step>
+  <Step title="Confirm the Skills Are Loaded">
+    Start a new Claude Code session, then enter `/` and look for the `prflow` skills, such as `/prflow:init` and `/prflow:implement`.
 
-    Start a new GitHub Copilot CLI session after installation.
-  </Tab>
-  <Tab title="Codex CLI">
-    ```bash
-    codex plugin marketplace add The01Geek/prflow
-    codex plugin add prflow@devflow-marketplace
-    ```
+    If they do not appear, the session was started before the install finished. Start another session.
+  </Step>
+</Steps>
 
-    Start a new Codex CLI session after installation.
-  </Tab>
-</Tabs>
+The interactive `/plugin` manager offers the same marketplace and install actions if you prefer to work in a menu.
 
-## Continue Setup
+<Note>
+  **Other agent clients.** Claude Code plugins are largely compatible with other agent clients, and PRFlow has been verified to work in GitHub Copilot CLI, Codex CLI, Codex Desktop and VS Code agent modes. Each client installs and names plugins differently, so follow that client's own plugin-installation instructions. PRFlow's documented commands and syntax describe Claude Code.
+</Note>
 
-Plugin installation does not create repository configuration or install system packages. Before the first run:
+## What Installation Does Not Do
 
-1. Confirm the [local requirements](/docs/getting-started/requirements).
-2. Run [initialization](/docs/getting-started/initialization) if you want a configurable repository scaffold and detected tools.
-3. Follow the [first-run guide](/docs/getting-started/first-run).
+Installing the plugin does not create repository configuration and does not install system packages. Two things are still yours to do:
 
-See [Updates](/docs/getting-started/updates) when you need a newer plugin release.
+- Install the [local requirements](/docs/getting-started/requirements) yourself. The plugin manager never runs `pip`, `brew` or `apt`.
+- Run [initialization](/docs/getting-started/initialization) in each repository you want PRFlow to work in. This step is recommended. Local runs still work on built-in defaults without it.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Requirements" icon="list-check" href="/docs/getting-started/requirements">
+    Confirm Git, the GitHub CLI, `jq`, Python and a POSIX bash shell are ready.
+  </Card>
+  <Card title="Initialization" icon="sliders" href="/docs/getting-started/initialization">
+    Scaffold `.prflow/` configuration for the repository.
+  </Card>
+  <Card title="First Run" icon="rocket" href="/docs/getting-started/first-run">
+    Turn a real issue into a pull request.
+  </Card>
+  <Card title="Updates" icon="arrows-rotate" href="/docs/getting-started/updates">
+    Move to a newer PRFlow release later.
+  </Card>
+</CardGroup>
