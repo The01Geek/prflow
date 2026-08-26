@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.53] — 2026-08-26
+
+### Changed
+- **Continue the brand-cased `DevFlow`→`PRFlow` prose sweep (batch 2).** Rewrote the
+  ordinary renameable brand-cased `DevFlow` prose to `PRFlow` in 24 `scripts/`
+  comment and docstring files and reseeded `pending_sweep_baseline` in
+  `lib/test/brand-devflow-buckets.json` to drop the drained files; the reconciling
+  lint stays clean. No frozen identifier, filename, or pinned literal changed
+  spelling. (#1995)
+
 ## [2.34.52] — 2026-08-26
 
 ### Changed
