@@ -2519,7 +2519,8 @@ jobs:
           DEVFLOW_RUN_PROFILE=""
           if [ -f "$FLOOR" ]; then
             COST_FILE="${RUNNER_TEMP:-/tmp}/devflow-harness-cost-$$.json"
-            # The glue prints two eval-able env assignments (PR + class) to stdout and
+            # The glue prints four eval-able env assignments (PR, class, issue number,
+            # no-PR reason) to stdout and
             # writes the cost JSON to $COST_FILE; its breadcrumbs go to the step log.
             eval "$(bash "$FLOOR" "${EXECUTION_FILE:-}" "${DEVFLOW_COMMAND:-}" "${DEVFLOW_CANDIDATE_NUMBER:-}" "$COST_FILE")"
             [ -s "$COST_FILE" ] && DEVFLOW_EXECUTION_COST="$(cat "$COST_FILE")"

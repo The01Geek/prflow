@@ -2364,7 +2364,7 @@ HC_UF_AN="$(GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@y GIT_COMMITTER_NAME=a GIT_COMM
 git -C "$HC_UF_A" update-ref refs/heads/prflow-telemetry "$HC_UF_AN"
 git -C "$HC_UF_A" push -q origin prflow-telemetry
 # Selective jq wrapper: fail ONLY the union merge program, delegate all else to real jq.
-printf '%s\n' '#!/usr/bin/env bash' 'for a in "$@"; do case "$a" in *"elif (\$local.harness_cost"*) exit 1 ;; esac; done' 'exec jq "$@"' > "$HC_UF/jqsel"
+printf '%s\n' '#!/usr/bin/env bash' 'for a in "$@"; do case "$a" in *"elif (\$local[\$k]"*) exit 1 ;; esac; done' 'exec jq "$@"' > "$HC_UF/jqsel"
 chmod +x "$HC_UF/jqsel"
 mkdir -p "$HC_UF/.prflow/tmp/review/pr-6/run-b"
 printf '%s' "$HC_ITER" > "$HC_UF/.prflow/tmp/review/pr-6/run-b/iter-1.json"
@@ -6926,3 +6926,75 @@ if [ -x "$DRP" ]; then
     "$(python3 "$DRP" --body-file "$DRP_T/absent.md" >/dev/null 2>&1; echo $?)"
   rm -rf "$DRP_T"
 fi
+
+# ── #2006 prepare-harness-floor.sh: the two added env assignments ─────────────
+# The issue number keys the PR-less record and the prior-record count, and the reason
+# names WHICH PR-resolution branch fired. The three reasons stay distinguishable: a gh
+# transport failure and a genuinely PR-less run are different facts, and the record's
+# reason field must not assert a cause the glue did not observe.
+if [ -x "$HC_GLUE" ]; then
+  HC_N="$(git_sandbox "hc issue-number")"
+  printf '{"type":"result","total_cost_usd":1}' > "$HC_N/exec.json"
+  cat > "$HC_N/gh-fail" <<'GHEOF'
+#!/usr/bin/env bash
+case "${1:-}" in --version) echo "gh version 0 (stub)"; exit 0 ;; esac
+exit 1
+GHEOF
+  cat > "$HC_N/gh-empty" <<'GHEOF'
+#!/usr/bin/env bash
+case "${1:-}" in --version) echo "gh version 0 (stub)"; exit 0 ;; esac
+exit 0
+GHEOF
+  chmod +x "$HC_N/gh-fail" "$HC_N/gh-empty"
+  HC_N_FAIL="$(DEVFLOW_GH="$HC_N/gh-fail" bash "$HC_GLUE" "$HC_N/exec.json" implement 2006 "$HC_N/c1.json" 2>/dev/null)"
+  assert_eq "#2006 glue: the implement arm emits the issue number even when no PR resolves" "yes" \
+    "$(printf '%s' "$HC_N_FAIL" | grep -qF "DEVFLOW_ISSUE_NUMBER='2006'" && echo yes || echo no)"
+  assert_eq "#2006 glue: a failed gh lookup is reported as gh-lookup-failed, not as an absent PR" "yes" \
+    "$(printf '%s' "$HC_N_FAIL" | grep -qF "DEVFLOW_NO_PR_REASON='gh-lookup-failed'" && echo yes || echo no)"
+  HC_N_EMPTY="$(DEVFLOW_GH="$HC_N/gh-empty" bash "$HC_GLUE" "$HC_N/exec.json" implement 2006 "$HC_N/c2.json" 2>/dev/null)"
+  assert_eq "#2006 glue: a clean lookup that finds no closing PR is reported as no-closing-pr-found" "yes" \
+    "$(printf '%s' "$HC_N_EMPTY" | grep -qF "DEVFLOW_NO_PR_REASON='no-closing-pr-found'" && echo yes || echo no)"
+  # A non-implement class's candidate is a PR number, so emitting it as the issue number
+  # would key the PR-less record to a PR as if it were an issue.
+  HC_N_REVIEW="$(DEVFLOW_GH="$HC_N/gh-empty" bash "$HC_GLUE" "$HC_N/exec.json" "/prflow:review" 88 "$HC_N/c3.json" 2>/dev/null)"
+  assert_eq "#2006 glue: a non-implement class emits an EMPTY issue number" "yes" \
+    "$(printf '%s' "$HC_N_REVIEW" | grep -qF "DEVFLOW_ISSUE_NUMBER=''" && echo yes || echo no)"
+  rm -rf "$HC_N"
+fi
+
+# The fail-closed direction of the prior-record count: when the telemetry-branch fetch
+# could NOT be established, an absent ref says nothing about prior records, so the count
+# is the unestablished sentinel rather than a real 0. devflow_telemetry_list_blobs cannot
+# express this distinction — it returns 0 and prints nothing on an absent ref, a failed
+# ref probe and an unreadable tree alike — which is why the floor probes the ref itself.
+RP_U="$(_hc_repo "rp unestablished")"
+git -C "$RP_U" remote set-url origin "$RP_U/../definitely-no-such-remote.git"
+( cd "$RP_U" && GITHUB_RUN_ID=4008 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 run-profile: an unestablished telemetry fetch makes prior_record_count unestablished, never a real 0" \
+  "unestablished" \
+  "$(_et_show "$RP_U" ".prflow/logs/efficiency/pr-42-4008-1.json" | jq -r '.run_profile.prior_record_count')"
+rm -rf "$RP_U"
+
+# ── #2006: the union merge re-applies EVERY floor key, not just harness_cost ──
+# On a concurrent-writer push the staged record is merged onto the fetched base rather
+# than overwriting it. A floor key missing from that re-apply list is silently dropped
+# on exactly that path, so the list is asserted directly against the merge program.
+TB_MERGE_BASE='{"schema_version":1,"slug":"pr-6"}'
+TB_MERGE_LOCAL='{"schema_version":1,"slug":"pr-6","harness_cost":{"cost_usd":5},"permission_denials":{"count":2},"run_profile":{"final_status":"Complete"}}'
+TB_MERGE_PROG='reduce ("harness_cost", "permission_denials", "run_profile") as $k (.;
+                         if has($k) then . elif ($local[$k] != null) then (. + {($k): $local[$k]}) else . end)'
+assert_eq "#2006 union merge: all three floor keys are re-applied onto a base that lacks them" \
+  '["harness_cost","permission_denials","run_profile"]' \
+  "$(printf '%s' "$TB_MERGE_BASE" | jq -c --argjson local "$TB_MERGE_LOCAL" "$TB_MERGE_PROG" | jq -c '[keys[] | select(. == "harness_cost" or . == "permission_denials" or . == "run_profile")]')"
+# A base that already carries a key wins for THAT key — another writer got there first —
+# while the keys it lacks are still filled in.
+TB_MERGE_BASE2='{"schema_version":1,"slug":"pr-6","harness_cost":{"cost_usd":9}}'
+assert_eq "#2006 union merge: a base-side key wins per key, and the absent ones are still added" \
+  '[9,2,"Complete"]' \
+  "$(printf '%s' "$TB_MERGE_BASE2" | jq -c --argjson local "$TB_MERGE_LOCAL" "$TB_MERGE_PROG" | jq -c '[.harness_cost.cost_usd,.permission_denials.count,.run_profile.final_status]')"
+# The program asserted above is the one lib/telemetry-branch.sh actually runs.
+# structural-pin-ok: generated-artifact-identity -- the merge program is a coupled mirror between the union writer and the fixture above; a divergence silently drops a floor key on the concurrent-push path only
+assert_eq "#2006 union merge: the asserted program is the one telemetry-branch.sh runs" "1" \
+  "$(grep -c 'reduce ("harness_cost", "permission_denials", "run_profile") as \$k' "$LIB/telemetry-branch.sh" || true)"

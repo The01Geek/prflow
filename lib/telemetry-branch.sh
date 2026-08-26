@@ -593,12 +593,16 @@ devflow_telemetry_persist_tree() {
              esac
              [ "$local_selected" = yes ] && [ "$remote_selected" != yes ] && continue
            fi
-          # Staged this run. A staged efficiency RECORD that ALSO exists on base is the
-          # harness-cost merge target (issue #475): this run's only change to it is the
-          # add-if-absent `harness_cost`, so re-apply THAT onto the fetched base version
-          # rather than overwriting it with our possibly-stale full copy (AC5a). Every
-          # OTHER staged path (a fresh record, a skeleton, a durable workpad copy, or a
-          # record absent from base) applies local-wins.
+          # Staged this run. A staged efficiency RECORD that ALSO exists on base is a
+          # floor-merge target: this run's only changes to it are the add-if-absent floor
+          # keys, so re-apply THOSE onto the fetched base version rather than overwriting
+          # it with our possibly-stale full copy (AC5a). Every OTHER staged path (a fresh
+          # record, a skeleton, a durable workpad copy, or a record absent from base)
+          # applies local-wins.
+          #
+          # Re-apply every floor key, not just harness_cost: a key missing from this list
+          # is silently dropped whenever a concurrent writer forces this merge path, so a
+          # new floor in lib/efficiency-trace.sh adds its key here in the same change.
           case "$path" in
             .prflow/logs/efficiency/*.json)
               if git -C "$root" cat-file -e "${base}:${path}" 2>/dev/null; then
@@ -606,13 +610,14 @@ devflow_telemetry_persist_tree() {
                 _u_local="$(git -C "$root" show "${overlay}:${path}" 2>/dev/null)"
                 # jq is a preflight prerequisite (resolve-jq set DEVFLOW_JQ when this file
                 # was sourced by efficiency-trace.sh; a standalone source falls back to
-                # bare `jq`). Add our harness_cost onto base ONLY when base lacks it AND the
+                # bare `jq`). Add each floor key onto base ONLY when base lacks it AND the
                 # local copy actually carries one (a base that already carries one — another
-                # writer got there first — wins; never write a `harness_cost: null` key — the
+                # writer got there first — wins; never write a `<key>: null` key — the
                 # staged record IS a merge-arm target so it carries one, but guard the
                 # operand rather than assume it).
                 if _u_merged="$(printf '%s' "$_u_base" | "${DEVFLOW_JQ:-jq}" -c --argjson local "$_u_local" \
-                      'if has("harness_cost") then . elif ($local.harness_cost != null) then (. + {harness_cost: $local.harness_cost}) else . end' 2>/dev/null)" \
+                      'reduce ("harness_cost", "permission_denials", "run_profile") as $k (.;
+                         if has($k) then . elif ($local[$k] != null) then (. + {($k): $local[$k]}) else . end)' 2>/dev/null)" \
                    && [ -n "$_u_merged" ]; then
                   _u_blob="$(printf '%s\n' "$_u_merged" | git -C "$root" hash-object -w --stdin 2>/dev/null)" || exit 1
                   git -C "$root" update-index --add --cacheinfo "${mode},${_u_blob},${path}" 2>/dev/null || exit 1
@@ -623,8 +628,8 @@ devflow_telemetry_persist_tree() {
                 # behavior) rather than dropping the record — best-effort. Emit a NAMED
                 # breadcrumb so this degradation is auditable rather than silent (the
                 # floor's never-silent discipline): a stale local copy overwriting base
-                # here could revert a concurrent writer's harness_cost (issue #475).
-                echo "::warning::telemetry-branch: harness-cost merge for '${path}' fell back to local-wins — jq unavailable/failed, or an empty base/local blob; a concurrent base-side harness_cost may be reverted this push" >&2
+                # here could revert a concurrent writer's floor keys (issue #475).
+                echo "::warning::telemetry-branch: floor-key merge for '${path}' fell back to local-wins — jq unavailable/failed, or an empty base/local blob; a concurrent base-side harness_cost, permission_denials or run_profile may be reverted this push" >&2
               fi
               ;;
            esac

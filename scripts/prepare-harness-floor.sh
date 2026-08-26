@@ -26,8 +26,9 @@
 #   1. runs scripts/extract-execution-cost.py over the execution file → the cost JSON;
 #   2. normalizes <command> to a class and extracts an explicit trailing PR number;
 #   3. resolves/verifies the PR the record is keyed to (gh via lib/resolve-gh.sh);
-#   4. prints two eval-able env assignments to STDOUT — DEVFLOW_EXECUTION_PR and
-#      DEVFLOW_COMMAND_CLASS — for the `bash "$HELPER" --persist` line.
+#   4. prints four eval-able env assignments to STDOUT — DEVFLOW_EXECUTION_PR,
+#      DEVFLOW_COMMAND_CLASS, DEVFLOW_ISSUE_NUMBER and DEVFLOW_NO_PR_REASON — for
+#      the `bash "$HELPER" --persist` line.
 #
 # Every non-happy branch emits a SPECIFIC ::warning:: so a skipped skeleton/inert floor
 # is auditable in the step log. Best-effort: ALWAYS exits 0 (the ensure-label.sh
