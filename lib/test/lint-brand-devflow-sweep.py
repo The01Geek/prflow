@@ -310,10 +310,9 @@ def cmd_check(root: Path, buckets: dict) -> int:
                 f"matched; the superseded label value moved or was removed"
             )
 
-    # Reverse direction (issue #2003): a frozen-occurrence entry whose context no longer matches
-    # any brand-bearing line is stale — the frozen occurrence moved or was already swept, so the
-    # entry must be removed or its context updated. Checked per entry (not aggregated per file) so
-    # one stale context among several on the same file is still caught.
+    # Reverse direction (issue #2003), per entry: a frozen-occurrence entry whose context no
+    # longer matches any brand-bearing line is stale — remove it or update its context, else a
+    # moved or already-swept occurrence stays silently frozen.
     for entry in buckets["frozen"].get("occurrences", []):
         rel = entry["file"]
         ctx = entry["context"]
