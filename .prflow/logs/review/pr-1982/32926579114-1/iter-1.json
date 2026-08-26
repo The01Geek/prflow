@@ -1,0 +1,148 @@
+{
+  "iter": 1,
+  "source": "review",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true
+  },
+  "checklist": [
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "FAIL"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "FAIL"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "FAIL"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "FAIL"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review",
+    "completeness-critic"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "silent-failure-hunter",
+      "corroboration_count": 3,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "corroboration_count": 4,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "comment-analyzer",
+      "corroboration_count": 2,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "code-reviewer",
+      "corroboration_count": 2,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "requesting-code-review",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "completeness-critic",
+      "corroboration_count": 3,
+      "contributed_to_verdict": false
+    }
+  ],
+  "phase3_failed_agents": [],
+  "telemetry": "unavailable",
+  "synthesized": false
+}
