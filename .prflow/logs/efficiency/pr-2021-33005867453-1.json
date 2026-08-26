@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2021",
+  "generated_at": "2026-08-26T20:38:04Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 41.20365520000001,
+    "tokens": {
+      "input_tokens": 298,
+      "output_tokens": 171939,
+      "cache_read_input_tokens": 49899013,
+      "cache_creation_input_tokens": 511727,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 394,
+        "outputTokens": 210818,
+        "cacheReadInputTokens": 52260248,
+        "cacheCreationInputTokens": 1073275,
+        "webSearchRequests": 0,
+        "costUSD": 40.02948900000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 66,
+        "outputTokens": 18949,
+        "cacheReadInputTokens": 2290371,
+        "cacheCreationInputTokens": 210588,
+        "webSearchRequests": 0,
+        "costUSD": 1.1741662,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 210,
+    "duration_ms": 3697793
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"; echo \"RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; git branch --show-current; git status --porcelain | head; echo \"---base---\"; .prflow/vendor/prflow/scripts/config-get.sh base_branch 2>/dev/null || echo \"no config-get base\"",
+      "BRANCH=$(.prflow/vendor/prflow/scripts/branch-for-issue.py 2009 --title-file .prflow/tmp/devflow-issue-2009-title.txt) || { echo \"FAIL branch-for-issue.py\"; exit 1; }\necho \"BRANCH=$BRANCH\"\n[ -n \"$BRANCH\" ] || { echo \"FAIL empty branch\"; exit 1; }\ngit checkout -b \"$BRANCH\" \"origin/main\"",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 2009 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 2009 --note \"issue-claim audit (count): no count or enumeration claims found — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 2009 --note \"issue-claim audit (negative-scope): issue excluded 'schema change to lint-manifest.json' a …[per-command-truncated]",
+      "which -a ruff 2>&1; echo \"---version---\"; ruff --version 2>&1; echo \"---python -m ruff---\"; python3 -m ruff --version 2>&1; echo \"---PATH ruff dirs---\"; echo \"$PATH\" | tr ':' '\\n' | grep -iE 'lint-bin|local|ruff|RUNNER_TEMP' 2>&1; echo \"---RUNNER_TEMP---\"; ls \"${RUNNER_TEMP:-/home/runner/work/_temp}/prflow-lint-bin\" 2>&1 | head",
+      "env | grep -E '^RUNNER_TEMP=' ; echo \"$PATH\" | tr ':' '\\n' | grep -niE 'lint-bin|/.local/bin'",
+      "/opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff --version 2>&1",
+      "cp /opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff /home/runner/work/_temp/prflow-lint-bin/ruff && echo \"copied\"; ruff --version 2>&1",
+      "git --no-pager diff --stat -- lib/test/run.sh; echo \"=== my hunk line range ===\"; git --no-pager diff -U0 -- lib/test/run.sh | grep -nE '^@@' | head; echo \"=== base check ===\"; git show origin/main:lib/test/run.sh | tee .prflow/tmp/base-run.sh >/dev/null; shellcheck --severity=warning -e SC1091 --extended-analysis=false .prflow/tmp/base-run.sh 2>&1 | grep -c SC2120; echo \"(count of SC2120 in BASE run.sh)\"",
+      "git diff --merge-base origin/main -U0 | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | tail -30; echo \"EXIT=${PIPESTATUS[1]}\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-2009-ruff-version-pin.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | grep -E 'UNRESOLVABLE|CU|RT' | head; echo \"---(empty above = clean)---\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2021/33005867453-1; git diff --merge-base origin/main > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2021/33005867453-1/diff.patch; wc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2021/33005867453-1/diff.patch"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
