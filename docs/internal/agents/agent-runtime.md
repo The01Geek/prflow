@@ -25,7 +25,7 @@ Keeping runtime evidence separate from agent self-report makes it possible to di
 - `skills/review/SKILL.md` and `skills/implement/SKILL.md` — dispatch call sites and phase context.
 - `.github/workflows/agents-seam-probe.yml` and `.github/workflows/matcher-probe.yml` — probe workflows.
 - `scripts/extract-execution-cost.py` and related execution readers — harness artifact handling.
-- `docs/internal/agents-seam-probe.md` and `docs/internal/execution-file-shape.md` — detailed evidence.
+- [`docs/internal/agents-seam-probe.md`](../agents-seam-probe.md) and [`docs/internal/execution-file-shape.md`](../execution-file-shape.md) — detailed evidence.
 
 ## Related topics
 

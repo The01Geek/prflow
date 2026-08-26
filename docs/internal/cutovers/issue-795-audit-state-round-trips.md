@@ -5,6 +5,8 @@ kind: cutover
 
 # Cutover record — issue #795: Step 3.6 state-owner round-trips
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 **What changed.** `/prflow:create-issue`'s Step 3.6 audit lifecycle stopped paying a Bash
 round-trip for work the state owner already knows how to do. `scripts/issue-audit-state.py`
 resolves an omitted `--round` where the state uniquely determines it, publishes a `next_call=`
