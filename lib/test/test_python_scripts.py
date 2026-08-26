@@ -37268,15 +37268,15 @@ try:
     # Undisclosed, the reviewing agent reads these base-ref bytes as untouched PR-head
     # content — on exactly the file a PR editing this action is under review for.
     _disc_1963 = _go_h.read_text(encoding="utf-8")
-    assert_eq("#1963 hardensetup: publishes a displaced_paths output at all", True,
-              "displaced_paths<<" in _disc_1963)
+    assert_eq("#1963 hardensetup: publishes a displaced_setup_paths output at all", True,
+              "displaced_setup_paths<<" in _disc_1963)
     for _want_1963 in (str(_adir / "action.yml"), str(_adir / "trusted.sh"),
                        str(_adir / "evil.sh")):
         assert_eq(f"#1963 hardensetup: discloses {_want_1963}", True,
                   _want_1963 in _disc_1963)
     # And the join must actually carry it, or the disclosure never reaches the prompt.
     assert_eq("#1963 hardensetup: displaced_join consumes the hardensetup producer", True,  # structural-pin-ok: cross-file-phase-contract -- the producer->join wiring is the disclosure path
-              "steps.hardensetup.outputs.displaced_paths" in (SCRIPTS.parent / ".github" / "workflows" / "devflow-runner.yml").read_text(encoding="utf-8"))
+              "steps.hardensetup.outputs.displaced_setup_paths" in (SCRIPTS.parent / ".github" / "workflows" / "devflow-runner.yml").read_text(encoding="utf-8"))
     # Outside Actions (no GITHUB_OUTPUT) the security control still runs and succeeds.
     _head_h2 = _d1388h / "head2"
     _git_1388(_d1388h, "clone", "file://" + str(_origin_h), str(_head_h2))

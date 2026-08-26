@@ -1461,7 +1461,7 @@ jobs:
           if [ -n "${GITHUB_OUTPUT:-}" ]; then
             _hs_d="HARDENSETUP_EOF_$(date +%s%N)_$$"
             {
-              printf 'displaced_paths<<%s\n' "$_hs_d"
+              printf 'displaced_setup_paths<<%s\n' "$_hs_d"
               printf '%s\n' "${base_files[@]}"
               [ -n "$pruned" ] && printf '%s' "$pruned"
               printf '%s\n' "$_hs_d"
@@ -2122,7 +2122,7 @@ jobs:
           # Fourth producer (issue #1388), legitimately empty when hardensetup's
           # `provision_env` gate skipped it. Omitting it let the reviewing agent read
           # base-ref bytes as untouched PR-head content.
-          SETUP_PATHS: ${{ steps.hardensetup.outputs.displaced_paths }}
+          SETUP_PATHS: ${{ steps.hardensetup.outputs.displaced_setup_paths }}
         run: |
           set -euo pipefail
           _j_d="JOINED_EOF_$(date +%s%N)_$$"
