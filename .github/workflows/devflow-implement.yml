@@ -1438,6 +1438,42 @@ jobs:
           fi
           bash "$H"
 
+      # ── Classify prompt-extension arrival (issue #1446) ────────────────────
+      # The independent channel: BEFORE the agent runs, read the extension root
+      # DIRECTLY (not through the load-prompt-extension.sh delivery channel under
+      # test) and record the expected delivery state as a step output. The
+      # post-agent reconcile step below checks that expectation against the run's
+      # durable workpad, so a lost skill body / extension is observable no matter
+      # what the agent self-reports — the class facts (a)/(b) in issue #1446 name.
+      # Runs on THIS tier's own checkout (the implement tier never sets
+      # DEVFLOW_PROMPT_EXTENSION_ROOT, so the detector resolves the same repo-root
+      # extension dir the ladder does).
+      - name: Classify prompt-extension arrival
+        id: extarrival
+        run: |
+          set -euo pipefail
+          H=.prflow/vendor/prflow/scripts/prompt-extension-arrival.py
+          [ -f "$H" ] || H=scripts/prompt-extension-arrival.py
+          if [ ! -f "$H" ]; then
+            # A vendored tree pinned to an older prflow_version carries no detector;
+            # record it so the post-agent reconcile fails CLOSED (a lost detector is
+            # unknown, never clean) rather than silently skipping the check.
+            echo "::warning::prompt-extension-arrival.py absent from both .prflow/vendor/prflow/scripts/ and scripts/ (older prflow_version); recording detector-absent"
+            echo "state=detector-absent" >> "$GITHUB_OUTPUT"
+            echo "root=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # classify exits 3 on a present-but-undeliverable fault; keep the recorded
+          # line either way (-e must not abort on that loud exit), then publish the
+          # resolved root so the run states which root it read (issue #1446 AC8).
+          OUT="$(python3 "$H" classify --skill implement)" || true
+          echo "$OUT"
+          STATE="${OUT#state=}"; STATE="${STATE%% *}"
+          ROOT="${OUT#*root=}"; ROOT="${ROOT%% *}"
+          echo "state=${STATE:-detector-absent}" >> "$GITHUB_OUTPUT"
+          echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+          echo "prompt-extension-arrival: implement extension classified state=${STATE:-detector-absent} root=$ROOT"
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -2249,3 +2285,79 @@ jobs:
           # fail-exhausted arm (interim + cap reached) actually flips.
           [ "$FAIL" -eq 1 ] && flip_to_failed "${DECISION}"
           exit "$FAIL"
+
+      # ── Reconcile prompt-extension arrival (issue #1446) ───────────────────
+      # The enforcing half of the job-level surface: reconcile the pre-agent
+      # expectation (steps.extarrival) against the run's own durable workpad. When
+      # deliverable extension content was present but no positive arrival record
+      # exists — the exact shape a lost skill body / extension produces, since a lost
+      # body can tick no row — derive `unestablished`: fail the job with an
+      # ::error::, force the non-arrival record onto the workpad, and flip its Status
+      # OFF Complete. A genuinely `absent` extension, or a reconciled `arrived`, is
+      # left clean. This runs OUTSIDE the tool matcher (a job-level step), so no
+      # capability grant is needed.
+      - name: Reconcile prompt-extension arrival
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ steps.backstop-token.outputs.token || secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ needs.gate.outputs.number }}
+          EXPECTED: ${{ steps.extarrival.outputs.state }}
+          CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
+        run: |
+          set +e
+          [ -n "${EXPECTED:-}" ] || { echo "prompt-extension-arrival: no pre-agent expectation recorded; nothing to reconcile"; exit 0; }
+          if [ "$EXPECTED" = "absent" ]; then
+            echo "prompt-extension-arrival: implement extension absent (a clean consumer state); Complete permitted"
+            exit 0
+          fi
+          V=.prflow/vendor/prflow/scripts
+          W="$V/workpad.py"; [ -f "$W" ] || W=scripts/workpad.py
+          H="$V/prompt-extension-arrival.py"; [ -f "$H" ] || H=scripts/prompt-extension-arrival.py
+          # permission_denials_count is structurally blind to a lost skill-body load (it
+          # surfaces as a Skill tool result, not a permission_denied event), so every
+          # ::error:: below says so — a low denial count is not evidence the body loaded.
+          fail_closed() {
+            echo "::error::prompt-extension-arrival: $1 — cannot establish that the implement skill body / consumer extension arrived, so this run's Complete claim is unverified. NOTE: permission_denials_count does NOT cover a lost skill-body load (the refused Skill-tool load surfaces as a Skill tool result, not a permission_denied event), so a low denial count is not evidence the body loaded."
+          }
+          if [ "$EXPECTED" = "detector-absent" ] || [ ! -f "$H" ] || [ ! -f "$W" ]; then
+            fail_closed "the arrival detector or workpad helper is absent (older prflow_version)"
+            exit 1
+          fi
+          WID="$(python3 "$W" id "$ISSUE_NUMBER" 2>/dev/null)"
+          if [ -z "$WID" ]; then
+            # No workpad: the run halted before one existed. Enforce only when the agent
+            # step itself reported success — a failed/cancelled job is already non-green,
+            # so AC2's job-conclusion arm is already satisfied.
+            if [ "$CLAUDE_OUTCOME" != "success" ]; then
+              echo "prompt-extension-arrival: no workpad and claude outcome '${CLAUDE_OUTCOME:-unknown}' (already non-green); no enforcement needed"
+              exit 0
+            fi
+            OUT="$(python3 "$H" reconcile --expected "$EXPECTED" --arrival-marker 'extension resolved: implement' --durable-source none --skill implement)"
+            FINAL="${OUT#final=}"; FINAL="${FINAL%% *}"
+            if [ "$FINAL" != "arrived" ] && [ "$FINAL" != "absent" ]; then
+              fail_closed "the run reported success but wrote no workpad recording the extension's arrival"
+              exit 1
+            fi
+            exit 0
+          fi
+          # A workpad exists. If its Status is already non-Complete, the unestablished
+          # criterion (a lost load must merely not report Complete) is already satisfied.
+          STATUS_LINE="$(python3 "$W" status "$ISSUE_NUMBER" 2>/dev/null)"
+          case "$STATUS_LINE" in
+            *Complete*) : ;;
+            *) echo "prompt-extension-arrival: workpad Status is not Complete ('${STATUS_LINE:-unknown}'); the unestablished-terminal criterion is already satisfied"; exit 0 ;;
+          esac
+          BODY="$(python3 "$W" body "$WID" 2>/dev/null)"
+          OUT="$(printf '%s' "$BODY" | python3 "$H" reconcile --expected "$EXPECTED" --arrival-marker 'extension resolved: implement' --durable-source workpad --skill implement)"
+          echo "$OUT"
+          FINAL="${OUT#final=}"; FINAL="${FINAL%% *}"
+          if [ "$FINAL" = "unestablished" ]; then
+            REC="$(printf '%s\n' "$OUT" | sed -n 's/^record=//p')"
+            fail_closed "${REC:-the implement skill body / extension did not arrive}"
+            # Force the durable non-arrival record onto the workpad and flip Status OFF
+            # Complete (best-effort; the ::error:: + non-zero exit already fails the job).
+            python3 "$W" update "$ISSUE_NUMBER" --status Blocked --reflection-kind blocked --reflection "${REC:-prompt-extension arrival unestablished (implement) — the skill body / consumer extension did not reach the agent}" || echo "::warning::prompt-extension-arrival: could not write the durable non-arrival record / flip Status off Complete"
+            exit 1
+          fi
+          echo "prompt-extension-arrival: implement extension arrival reconciled: ${FINAL:-unknown}"
+          exit 0
