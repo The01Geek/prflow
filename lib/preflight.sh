@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# preflight.sh — verify DevFlow's runtime dependencies are present, with clear,
+# preflight.sh — verify PRFlow's runtime dependencies are present, with clear,
 # actionable errors. Exits 0 when the required tools are available; exits 1 when
 # one of them is missing. A missing PyYAML is an advisory gap on the local user
 # tier — it is reported but does not cause a non-zero exit.
 #
 #   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/preflight.sh
 #
-# DevFlow's shell/Python helpers assume: git, gh (authenticated), jq, and
+# PRFlow's shell/Python helpers assume: git, gh (authenticated), jq, and
 # python3 (>=3.11) with PyYAML. Date math and text extraction were written to
 # avoid GNU-only flags (no `date -d`, no `grep -P`), so coreutils/grep flavor
 # does not matter. git, gh, jq and python3 are required — a missing one exits
@@ -19,7 +19,7 @@ set -u
 
 # Running-bash diagnostic (issue #248) — a DIAGNOSTIC, not a selector.
 #
-# DevFlow's helpers are `.sh` scripts, so the shell that RUNS them is chosen at
+# PRFlow's helpers are `.sh` scripts, so the shell that RUNS them is chosen at
 # the invocation boundary (the agent/runner that shells into bash), BEFORE any
 # `.sh` executes — a sourced resolver cannot pick it (bootstrap: the resolver
 # would itself need a chosen bash to run). So `DEVFLOW_BASH` is honored THERE,
@@ -37,7 +37,7 @@ if [ -n "${BASH_VERSION:-}" ]; then
   [ -n "${DEVFLOW_BASH:-}" ] && _dfb_msg="$_dfb_msg; DEVFLOW_BASH=$DEVFLOW_BASH"
   printf '%s\n' "$_dfb_msg" >&2
 else
-  printf '%s\n' "devflow-bash: not running under a POSIX bash (no \$BASH_VERSION). DevFlow shell (.sh) helpers require a POSIX bash — on Windows use WSL bash, Git Bash, or MSYS2 bash, and point DevFlow at it with the DEVFLOW_BASH override (e.g. DEVFLOW_BASH=/path/to/bash)." >&2
+  printf '%s\n' "devflow-bash: not running under a POSIX bash (no \$BASH_VERSION). PRFlow shell (.sh) helpers require a POSIX bash — on Windows use WSL bash, Git Bash, or MSYS2 bash, and point PRFlow at it with the DEVFLOW_BASH override (e.g. DEVFLOW_BASH=/path/to/bash)." >&2
   exit 1
 fi
 
@@ -53,7 +53,7 @@ fi
 readonly -a _DEVFLOW_PREFLIGHT_GUARANTEES=(git gh jq python3 PyYAML)
 
 # Share the interpreter-selection contract with scripts/provision-python3-shim.sh so the
-# two can never disagree on which Python DevFlow uses (see lib/resolve-python.sh).
+# two can never disagree on which Python PRFlow uses (see lib/resolve-python.sh).
 _PREFLIGHT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=resolve-python.sh
 . "$_PREFLIGHT_DIR/resolve-python.sh"

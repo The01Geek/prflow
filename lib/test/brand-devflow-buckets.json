@@ -73,9 +73,6 @@
       "path": ".github/workflows/version-consolidate.yml"
     },
     {
-      "path": ".gitignore"
-    },
-    {
       "path": ".prflow/config.schema.json"
     },
     {
@@ -149,9 +146,6 @@
     },
     {
       "path": ".prflow/prompt-extensions/review.md.example"
-    },
-    {
-      "path": ".prflow/tool-presets.json"
     },
     {
       "path": "CLAUDE.md"
@@ -244,9 +238,6 @@
       "path": "lib/plugin-identity.json"
     },
     {
-      "path": "lib/preflight.sh"
-    },
-    {
       "path": "lib/rename-map.json"
     },
     {
@@ -332,9 +323,6 @@
     },
     {
       "path": "lib/test/test_workflow_flight_recorder.py"
-    },
-    {
-      "path": "requirements.txt"
     },
     {
       "path": "scripts/lint_manifest.py"
