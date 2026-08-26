@@ -1686,8 +1686,8 @@ apply_run_profile_floor() {
     case "$rel" in *-"$ident".json) ;; *) continue ;; esac
     base="$(basename "$rel")"
     if ! blob="$(devflow_telemetry_show_blob "$root" "$ref" "$rel")" || [ -z "$blob" ]; then
-      echo "::warning::efficiency-trace.sh --persist: run-profile floor: could not read ${rel} from the telemetry branch (unreadable or empty blob); this run's run_profile is not attached" >&2
-      return 0
+      echo "::warning::efficiency-trace.sh --persist: run-profile floor: could not read ${rel} from the telemetry branch (unreadable or empty blob); trying the next record for this run-id" >&2
+      continue
     fi
     if printf '%s' "$blob" | "$DEVFLOW_JQ" -e 'has("run_profile")' >/dev/null 2>&1; then
       echo "devflow: efficiency-trace.sh --persist: run-profile floor: record ${rel} already carries run_profile; leaving it untouched (backstop re-run no-op)" >&2

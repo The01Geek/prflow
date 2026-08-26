@@ -66,17 +66,30 @@ COST_OUT="${4:-}"
 # a PR number, so emitting it here would key the PR-less record to a PR as if it were an
 # issue. devflow.yml's trigger negates /prflow:implement, so class `implement` reaches
 # this glue only from devflow-implement.yml, whose candidate is the issue number.
+# Announce an operand this function blanked. A silently-emptied operand reaches the record
+# as "not established" for a value the glue did in fact observe, which is the one thing the
+# reason vocabulary must never assert.
+_emit_blanked() {
+  echo "::warning::prepare-harness-floor: DEVFLOW_$1 was emitted EMPTY because the value it was given is outside its accepted shape; the record will read it as not established" >&2
+}
+
 _emit() {
   local pr="${1:-}" class="${2:-}" issue="${3:-}" reason="${4:-}"
-  case "$pr" in ''|*[!0-9]*) pr="" ;; esac
-  case "$issue" in ''|*[!0-9]*) issue="" ;; esac
+  case "$pr" in
+    ''|*[0-9]*) case "$pr" in *[!0-9]*) _emit_blanked PR "$pr"; pr="" ;; esac ;;
+    *) _emit_blanked PR "$pr"; pr="" ;;
+  esac
+  case "$issue" in
+    ''|*[0-9]*) case "$issue" in *[!0-9]*) _emit_blanked ISSUE_NUMBER "$issue"; issue="" ;; esac ;;
+    *) _emit_blanked ISSUE_NUMBER "$issue"; issue="" ;;
+  esac
   case "$class" in
-    review|review-and-fix|pr-description|implement) ;;
-    *) class="" ;;
+    ''|review|review-and-fix|pr-description|implement) ;;
+    *) _emit_blanked COMMAND_CLASS "$class"; class="" ;;
   esac
   case "$reason" in
-    issue-number-unusable|gh-lookup-failed|no-closing-pr-found|unestablished) ;;
-    *) reason="" ;;
+    ''|issue-number-unusable|gh-lookup-failed|no-closing-pr-found|unestablished) ;;
+    *) _emit_blanked NO_PR_REASON "$reason"; reason="" ;;
   esac
   printf "DEVFLOW_EXECUTION_PR='%s'\n" "$pr"
   printf "DEVFLOW_COMMAND_CLASS='%s'\n" "$class"

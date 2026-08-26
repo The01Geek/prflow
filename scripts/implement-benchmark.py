@@ -30,7 +30,7 @@ from context_eval_shared import UNESTABLISHED  # noqa: E402
 from implement_records import (  # noqa: E402
     fmt,
     is_reject,
-    load_runs,
+    load_runs_with_status,
     mean_or_unestablished,
     median_or_unestablished,
     numeric,
@@ -140,7 +140,15 @@ def main(argv=None):
     parser.add_argument("--records", help="path to experiment-records.jsonl")
     args = parser.parse_args(argv)
 
-    runs = load_runs(args.records)
+    runs, status = load_runs_with_status(args.records)
+    if status == "unreadable":
+        print("devflow: implement-benchmark: the experiment-record store exists but could "
+              "not be read; that is not an empty store, so no cohort below would mean "
+              "anything", file=sys.stderr)
+        return 1
+    if status.startswith("read:"):
+        print(f"NOTE: {status.split(':', 1)[1]} store line(s) could not be parsed and are "
+              f"excluded from both cohorts.")
     cohort_a = select_cohort(runs, args.cohort_a)
     cohort_b = select_cohort(runs, args.cohort_b)
     for label, fingerprint, cohort in (("A", args.cohort_a, cohort_a),

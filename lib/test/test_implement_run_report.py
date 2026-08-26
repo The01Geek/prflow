@@ -150,13 +150,6 @@ class Reader(unittest.TestCase):
 class ReviewFindingsRound1(unittest.TestCase):
     """Findings from the PR #2017 review pass."""
 
-    def test_an_unreadable_store_is_distinguishable_from_an_empty_one(self):
-        """load_runs swallowed every OSError, so an absent or unreadable store reported
-        'no runs yet' — the retrospective's guard cannot fire because the tool exits 0."""
-        runs, status = ir.load_runs_with_status("/nonexistent/definitely/not/here.jsonl")
-        self.assertEqual(runs, [])
-        self.assertEqual(status, "unreadable")
-
     def test_a_present_but_empty_store_reports_read(self):
         td, p = _store("")
         with td:
@@ -172,9 +165,39 @@ class ReviewFindingsRound1(unittest.TestCase):
         self.assertEqual(status, "read:2-unparseable")
 
     def test_the_default_store_is_anchored_to_the_repo_root_not_the_cwd(self):
-        """Every other .prflow reader anchors on the git root; a cwd-relative default
-        makes the tools report an empty store from any subdirectory."""
-        self.assertTrue(ir.default_store().is_absolute())
+        """Every other .prflow reader anchors on the git root; a cwd-relative default makes
+        the tools report an empty store from any subdirectory. Resolve it from a
+        SUBDIRECTORY — from the repo root the two candidates coincide, so only a
+        subdirectory discriminates them."""
+        import os
+        sub = ROOT / "lib" / "test"
+        cwd = os.getcwd()
+        os.chdir(sub)
+        try:
+            resolved = ir.default_store()
+        finally:
+            os.chdir(cwd)
+        self.assertEqual(resolved, ROOT / ".prflow/learnings/experiment-records.jsonl")
+        self.assertNotEqual(resolved, sub / ".prflow/learnings/experiment-records.jsonl")
+
+    def test_an_absent_store_is_not_reported_as_unreadable(self):
+        """A store that does not exist yet is the normal state of a repository that has
+        persisted no run; reporting it as a failure makes every fresh install look broken."""
+        runs, status = ir.load_runs_with_status("/nonexistent/definitely/not/here.jsonl")
+        self.assertEqual(runs, [])
+        self.assertEqual(status, "absent")
+        self.assertEqual(rr.main(["--retro", "--records", "/nonexistent/x.jsonl"]), 0)
+
+    def test_an_existing_but_unreadable_store_IS_a_failure(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "experiment-records.jsonl"
+            p.write_text("{}", encoding="utf-8")
+            p.chmod(0o000)
+            try:
+                _runs, status = ir.load_runs_with_status(p)
+            finally:
+                p.chmod(0o644)
+        self.assertEqual(status, "unreadable")
 
     def test_phase_shares_marks_a_run_whose_phases_are_partly_unestablished(self):
         """Dividing by the established sum alone inflates the rest to 100% with nothing
@@ -193,21 +216,32 @@ class ReviewFindingsRound1(unittest.TestCase):
         self.assertIn("partial", rr._top_phases(run))
 
     def test_phase_labels_are_not_run_through_a_path_helper(self):
-        """Workpad phase headings are names, never paths."""
-        run = {"phase_durations_ms": {"PR marked ready": 1000, "Setup": 3000}}
-        self.assertIn("PR marked ready=", rr._top_phases(run))
+        """Workpad phase headings are names, never paths. Only a heading containing a
+        separator discriminates — `Path("PR marked ready").name` returns it unchanged, so a
+        separator-free heading passes with or without the path helper."""
+        run = {"phase_durations_ms": {"Review/fix loop": 3000, "Setup": 1000}}
+        rendered = rr._top_phases(run)
+        self.assertIn("Review/fix loop=", rendered)
+        self.assertNotIn("fix loop=75%", rendered.replace("Review/fix loop=", ""))
 
-    def test_the_status_column_fits_the_sentinel_it_most_often_holds(self):
-        td, p = _store(_record(1, "2026-07-01T00:00:00Z", 1000, 1.0))
+    def test_the_status_column_holds_its_widest_sentinel_without_shifting_the_next_column(self):
+        """A column narrower than the sentinel it most often holds pushes every later
+        column right on the rows that carry it. Compare the VERDICT column's start
+        offset on a row whose status is the sentinel against one whose status is short —
+        reading the offsets is what a length assertion on the sentinel never did."""
+        profile = {"final_status": "Complete", "phase_durations_ms": {"Setup": 1000}}
+        td, p = _store(
+            _record(1, "2026-07-01T00:00:00Z", 1000, 1.0, run_profile=profile),
+            _record(2, "2026-07-02T00:00:00Z", 2000, 2.0),
+        )
         with td:
             buf = io.StringIO()
             with redirect_stdout(buf):
-                rr.main(["1", "--records", str(p)])
-        header = [ln for ln in buf.getvalue().splitlines() if "status" in ln][0]
-        row = buf.getvalue().splitlines()[buf.getvalue().splitlines().index(header) + 1]
-        self.assertIn(UNESTABLISHED, row)
-        # The sentinel is 13 characters; a 12-wide column would push the next column right.
-        self.assertGreaterEqual(len(UNESTABLISHED), 13)
+                rr.main(["2", "--records", str(p)])
+        rows = [ln for ln in buf.getvalue().splitlines() if "APPROVE" in ln]
+        self.assertEqual(len(rows), 2)
+        offsets = {row.index("APPROVE") for row in rows}
+        self.assertEqual(len(offsets), 1, f"verdict column shifted between rows: {rows}")
 
 
 class PerRunMode(unittest.TestCase):

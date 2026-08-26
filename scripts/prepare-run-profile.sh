@@ -97,7 +97,7 @@ if [ "$DERIVE_RC" -eq 0 ] && [ -s "$OUT" ]; then
   echo "devflow: prepare-run-profile: derived the run profile for issue $ISSUE from workpad comment $COMMENT_ID" >&2
 elif [ "$DERIVE_RC" -ne 0 ]; then
   echo "::warning::prepare-run-profile: derive-run-profile.py exited $DERIVE_RC for workpad comment $COMMENT_ID (issue $ISSUE); its own diagnostic follows, then no run profile is derived this run" >&2
-  cat "$DERIVE_ERR" >&2
+  sed "s/^::/  ::/" "$DERIVE_ERR" >&2
   rm -f "$OUT" 2>/dev/null
 else
   echo "::warning::prepare-run-profile: derive-run-profile.py exited 0 but wrote an empty profile for workpad comment $COMMENT_ID (issue $ISSUE); no run profile derived this run" >&2

@@ -93,10 +93,11 @@ def load_runs_with_status(path=None):
     """`(runs, status)` — every implement run in the store, newest last, plus how the
     read went.
 
-    `status` is `unreadable` when the store could not be opened, else `read`, with
-    `:<n>-unparseable` appended when lines were skipped. Callers render an unreadable
-    store as such: swallowing the error reports a missing or unreadable file as "no runs
-    yet", and every aggregate then shrinks invisibly.
+    `status` is `absent` when the store does not exist (the normal state of a repository
+    that has persisted no implement run), `unreadable` when it exists but could not be
+    opened, else `read`, with `:<n>-unparseable` appended when lines were skipped.
+    Swallowing the difference reports an unreadable file as "no runs yet", and every
+    aggregate then shrinks invisibly.
 
     One experiment-record line joins one merged PR to the efficiency runs behind it, and
     a line can carry runs from more than one command class, so the class is read from each
@@ -105,6 +106,12 @@ def load_runs_with_status(path=None):
     store = Path(path) if path else default_store()
     runs = []
     skipped = 0
+    if not store.exists():
+        # A store that is simply not there yet is the normal state of a repository that
+        # has persisted no implement run — distinct from one that exists and cannot be
+        # read, which is a real failure. Collapsing the two makes every fresh install
+        # report the reader as broken.
+        return runs, "absent"
     try:
         handle = store.open(encoding="utf-8")
     except OSError:

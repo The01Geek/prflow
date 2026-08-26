@@ -6990,25 +6990,40 @@ assert_eq "#2006 run-profile: an unestablished telemetry fetch makes prior_recor
 rm -rf "$RP_U"
 
 # ── #2006: the union merge re-applies EVERY floor key ────────────────────────
-# On a concurrent-writer push the staged record is merged onto the fetched base rather
-# than overwriting it, so a floor key absent from the re-apply list is silently dropped on
-# the concurrent-push path. The list is a single declared constant the jq program is BUILT
-# from, so program-vs-list drift is impossible; these assertions cover the constant's
-# membership and the merge's per-key behavior.
+# On a concurrent-writer push the staged record is merged onto the fetched base rather than
+# overwriting it, so a floor key absent from the re-apply list is silently dropped on that
+# path. The declared list is RECONCILED against the keys efficiency-trace.sh actually
+# writes — derived from its jq top-level assignments, its parameterized merge calls, and
+# its record-building objects — so a new floor whose key goes unregistered turns this RED.
 TB_FLOOR_KEYS="$(grep -o "_DEVFLOW_TELEMETRY_FLOOR_KEYS_JSON='[^']*'" "$LIB/telemetry-branch.sh" | sed "s/.*='//;s/'$//")"
-assert_eq "#2006 union merge: the declared floor-key set covers every key the floors write" \
-  '["harness_cost","permission_denials","run_profile","issue_number","no_pr_reason"]' \
-  "$TB_FLOOR_KEYS"
-# Each declared key is one a floor actually writes — a key listed here but written nowhere
-# would make the list read as covering more than it does.
-for _tb_k in harness_cost permission_denials run_profile issue_number no_pr_reason; do
-  assert_eq "#2006 union merge: declared key '$_tb_k' is written by a floor in efficiency-trace.sh" "yes" \
-    "$(grep -q "$_tb_k" "$LIB/efficiency-trace.sh" && echo yes || echo no)"
-done
+TB_KEYS_DECLARED="$(printf '%s' "$TB_FLOOR_KEYS" | jq -r '. | sort | join(" ")')"
+TB_KEYS_WRITTEN="$(python3 - "$LIB/efficiency-trace.sh" <<'PYEOF'
+import re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+keys = set(re.findall(r'\.([a-z_]+) = \$', src))
+keys |= set(re.findall(r'_floor_merge_key_staged "\$f" ([a-z_]+)', src))
+skeleton = {"schema_version", "slug", "generated_at", "source", "synthesized",
+            "iterations", "per_iteration", "telemetry"}
+for block in re.findall(r"\{schema_version: 1,.*?\}'", src, re.S):
+    for k in re.findall(r'(?:^|[{,])\s*([a-z_]+):', block):
+        if k not in skeleton:
+            keys.add(k)
+print(" ".join(sorted(keys)))
+PYEOF
+)"
+assert_eq "#2006 union merge: the declared key list equals the keys the floors actually write" \
+  "$TB_KEYS_WRITTEN" "$TB_KEYS_DECLARED"
+# The derivation must find something: an extractor that silently returns nothing would make
+# the equality above pass against an empty declared list.
+assert_eq "#2006 union merge: the key derivation is not vacuous (it found keys)" "yes" \
+  "$(test -n "$TB_KEYS_WRITTEN" && echo yes || echo no)"
+# Couple the fixture program below to the one telemetry-branch.sh actually runs; without
+# this the fixture is a hand copy and a change to the real program leaves it green.
+TB_MERGE_PROG="$(sed -n "/reduce (\$keys\[\]) as \$k (\./,/else . end)/p" "$LIB/telemetry-branch.sh" | sed "s/^ *//;s/ *\\\\$//" | sed "1s/^'//;\$s/' 2>\/dev\/null)\"$//")"
+assert_eq "#2006 union merge: the fixture program was extracted from telemetry-branch.sh, not transcribed" "yes" \
+  "$(printf '%s' "$TB_MERGE_PROG" | grep -q 'reduce ($keys\[\]) as $k' && echo yes || echo no)"
 TB_MERGE_BASE='{"schema_version":1,"slug":"pr-6"}'
 TB_MERGE_LOCAL='{"schema_version":1,"slug":"pr-6","harness_cost":{"cost_usd":5},"permission_denials":{"count":2},"run_profile":{"final_status":"Complete"},"issue_number":2006,"no_pr_reason":"no-closing-pr-found"}'
-TB_MERGE_PROG='reduce ($keys[]) as $k (.;
-                         if has($k) then . elif ($local[$k] != null) then (. + {($k): $local[$k]}) else . end)'
 assert_eq "#2006 union merge: a base lacking every floor key gains all of them" \
   '["harness_cost","issue_number","no_pr_reason","permission_denials","run_profile"]' \
   "$(printf '%s' "$TB_MERGE_BASE" | jq -c --argjson local "$TB_MERGE_LOCAL" --argjson keys "$TB_FLOOR_KEYS" "$TB_MERGE_PROG" | jq -c '[keys[] | select(. != "schema_version" and . != "slug")]')"
@@ -7073,16 +7088,25 @@ case "${1:-}" in --version) echo "gh version 0 (stub)"; exit 0 ;; esac
 exit 1
 GHEOF
   chmod +x "$HC_INJ/gh"
-  HC_INJ_OUT="$(DEVFLOW_GH="$HC_INJ/gh" bash "$HC_GLUE" "$HC_INJ/exec.json" implement "2006'; touch /tmp/devflow-pwned #" "$HC_INJ/c.json" 2>/dev/null)"
+  HC_INJ_OUT="$(DEVFLOW_GH="$HC_INJ/gh" bash "$HC_GLUE" "$HC_INJ/exec.json" implement "2006'; : pwned #" "$HC_INJ/c.json" 2>/dev/null)"
   assert_eq "#2006 glue: a quote-carrying candidate never reaches the eval'd output" "yes" \
-    "$(printf '%s' "$HC_INJ_OUT" | grep -q "touch /tmp/devflow-pwned" && echo no || echo yes)"
+    "$(printf '%s' "$HC_INJ_OUT" | grep -q ": pwned" && echo no || echo yes)"
   assert_eq "#2006 glue: an unusable issue number is emitted EMPTY rather than raw" "yes" \
     "$(printf '%s' "$HC_INJ_OUT" | grep -qF "DEVFLOW_ISSUE_NUMBER=''" && echo yes || echo no)"
   # Every emitted line must survive `eval` unchanged — the consumer's own operation is the
   # guard, so drive it rather than re-deriving a quoting rule here.
-  HC_INJ_EVAL="$( eval "$HC_INJ_OUT"; printf '%s|%s' "${DEVFLOW_ISSUE_NUMBER:-}" "${DEVFLOW_COMMAND_CLASS:-}" )"
+  HC_INJ_EVAL="unrun"
+  if ! printf '%s' "$HC_INJ_OUT" | grep -q ": pwned"; then
+    HC_INJ_EVAL="$( eval "$HC_INJ_OUT"; printf '%s|%s' "${DEVFLOW_ISSUE_NUMBER:-}" "${DEVFLOW_COMMAND_CLASS:-}" )"
+  fi
   assert_eq "#2006 glue: the emitted block evals to an empty issue number and the right class" "|implement" \
     "$HC_INJ_EVAL"
+  assert_eq "#2006 glue: blanking an out-of-shape operand draws its own breadcrumb, never silence" "yes" \
+    "$(DEVFLOW_GH="$HC_INJ/gh" bash "$HC_GLUE" "$HC_INJ/exec.json" implement "2006'; : pwned #" "$HC_INJ/c.json" 2>&1 >/dev/null | grep -q 'DEVFLOW_ISSUE_NUMBER was emitted EMPTY' && echo yes || echo no)"
+  # A well-shaped operand must NOT draw it — otherwise the breadcrumb fires on every run
+  # and stops meaning anything.
+  assert_eq "#2006 glue: a well-shaped operand draws no blanking breadcrumb" "yes" \
+    "$(DEVFLOW_GH="$HC_INJ/gh" bash "$HC_GLUE" "$HC_INJ/exec.json" implement 2006 "$HC_INJ/c.json" 2>&1 >/dev/null | grep -q 'was emitted EMPTY' && echo no || echo yes)"
   rm -rf "$HC_INJ"
 fi
 

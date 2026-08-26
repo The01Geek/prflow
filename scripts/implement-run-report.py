@@ -74,9 +74,11 @@ def _top_phases(run, limit=3):
 def render_runs(runs, n, status="read"):
     lines = []
     if status == "unreadable":
-        return ("The experiment-record store could not be read (absent, or unreadable). "
-                "That is not the same as holding no runs — resolve the path before "
-                "reading anything below as a measurement.")
+        return ("The experiment-record store exists but could not be read. That is not the "
+                "same as holding no runs — resolve it before reading anything as a "
+                "measurement.")
+    if status == "absent":
+        return "No experiment-record store yet — no implement run has been persisted."
     if status.startswith("read:"):
         lines.append(f"NOTE: {status.split(':', 1)[1]} store line(s) could not be parsed "
                      f"and are excluded from every figure below.")
@@ -155,8 +157,11 @@ def regressions(weeks):
 def render_retro(runs, status="read"):
     lines = ["## Implement runtime trends", ""]
     if status == "unreadable":
-        lines.append("_(the experiment-record store could not be read — absent or "
-                     "unreadable; this is not the same as holding no runs)_")
+        lines.append("_(the experiment-record store exists but could not be read — this is "
+                     "not the same as holding no runs)_")
+        return "\n".join(lines)
+    if status == "absent":
+        lines.append("_(no implement run records yet)_")
         return "\n".join(lines)
     if status.startswith("read:"):
         lines.append(f"_({status.split(':', 1)[1]} store line(s) unparseable and excluded)_")
@@ -207,8 +212,9 @@ def main(argv=None):
     runs, status = load_runs_with_status(args.records)
     print(render_retro(runs, status) if args.retro
           else render_runs(runs, args.count, status))
-    # An unreadable store is a real failure, not an empty result: the retrospective gates
-    # its append on this exit status, so a zero here posts a degraded section as a good one.
+    # Only an UNREADABLE store is a failure. An absent one is the normal state of a
+    # repository that has persisted no run, and the retrospective gates its append on this
+    # status — returning non-zero there would make every fresh install report a broken tool.
     return 1 if status == "unreadable" else 0
 
 
