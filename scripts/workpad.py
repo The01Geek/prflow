@@ -4778,6 +4778,23 @@ def _review_coverage_reason_rejection(reason):
     return None
 
 
+def _review_coverage_disposition_cause_rejection(cause_class, has_missing_roster_row):
+    """Why a disposition's cause class is inadmissible, or None (issue #1984).
+
+    The single home of the cause-class rule, shared by the write-time
+    `--review-coverage-disposition` validator and the read-time Complete-gate verdict so
+    the closed vocabulary and the environment-denial corroboration cannot drift between
+    the two enforcement points. Returns a diagnostic tail each caller frames with its
+    own prefix; the callers append `[review-coverage-cause-inadmissible]`."""
+    if cause_class not in _REVIEW_COVERAGE_CAUSE_CLASSES:
+        return (f"carries cause class {cause_class!r}, which is not one of "
+                f"{', '.join(_REVIEW_COVERAGE_CAUSE_CLASSES)}")
+    if cause_class == 'environment-denial' and not has_missing_roster_row:
+        return ("carries cause class 'environment-denial' but no roster row records a "
+                "member 'missing', so the denied capability is uncorroborated")
+    return None
+
+
 def _review_coverage_marker(payload: str) -> str:
     """The hidden marker a review-coverage record row carries."""
     return _checkpoint_marker(_REVIEW_COVERAGE_KEY_PREFIX + payload)
@@ -5098,25 +5115,17 @@ def _review_coverage_verdict(progress_content: str) -> None:
             )
         cause_class, reason = entry
         # #1984: the disposition must carry an admissible cause class from the closed
-        # vocabulary — an elective/budget cause has none, so the run stops here rather
-        # than completing.
-        if cause_class not in _REVIEW_COVERAGE_CAUSE_CLASSES:
+        # vocabulary (an elective/budget cause has none), and environment-denial must be
+        # corroborated by a recorded `missing` roster row — so the lost-write shape
+        # (roster=unestablished, no rows) is dischargeable only with dispatched-but-lost.
+        # Same rule as the write-time validator, via one shared helper.
+        _cause_rej = _review_coverage_disposition_cause_rejection(
+            cause_class, has_missing_roster_row)
+        if _cause_rej:
             raise _UpdateError(
                 "refusing to finalize Status: Complete — the disposition for gap "
-                f"{gap!r} carries cause class {cause_class!r}, which is not one of "
-                f"{', '.join(_REVIEW_COVERAGE_CAUSE_CLASSES)} "
-                "[review-coverage-cause-inadmissible]. No PATCH was made."
-            )
-        # #1984: `environment-denial` asserts a capability the runner did not expose,
-        # so it must be corroborated by a recorded `missing` roster row (the denied
-        # member). The lost-write shape (roster=unestablished, no rows) therefore
-        # cannot use it — its gaps are dischargeable only with `dispatched-but-lost`.
-        if cause_class == 'environment-denial' and not has_missing_roster_row:
-            raise _UpdateError(
-                "refusing to finalize Status: Complete — the disposition for gap "
-                f"{gap!r} carries cause class 'environment-denial' but no roster row "
-                "records a member 'missing', so the denied capability is "
-                "uncorroborated [review-coverage-cause-inadmissible]. No PATCH was made."
+                f"{gap!r} {_cause_rej} [review-coverage-cause-inadmissible]. "
+                "No PATCH was made."
             )
         rejection = _review_coverage_reason_rejection(reason)
         if rejection:
@@ -6104,14 +6113,14 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # #1984: `environment-denial` must be corroborated by a recorded `missing` roster
     # row (the denied member) — read the durable rows already in ## Progress and merge
     # this call's own rows, so a disposition recorded in a later call than the roster
-    # enumeration still sees it.
-    _, _disp_sections = _split_sections(body)
-    _disp_prog_idx = _find_section(_disp_sections, 'Progress')
-    _disp_prog_pre = (_disp_sections[_disp_prog_idx][1]
-                      if _disp_prog_idx is not None else '')
-    _disp_roster = dict(_review_roster_members(_disp_prog_pre))
-    _disp_roster.update(roster_members)
-    _disp_has_missing = any(s == 'missing' for s in _disp_roster.values())
+    # enumeration still sees it. Guarded by `review_dispositions` so a note-only or
+    # checkpoint update pays no extra section parse.
+    _disp_has_missing = False
+    if review_dispositions:
+        _disp_roster = dict(
+            _review_roster_members(_progress_content_or_none(body) or ''))
+        _disp_roster.update(roster_members)
+        _disp_has_missing = any(s == 'missing' for s in _disp_roster.values())
     for _triple in review_dispositions:
         # Arity is guaranteed by argparse's nargs=3 from the CLI, but a programmatic
         # caller (the suite builds `args` directly) can pass an element of any other
@@ -6137,21 +6146,14 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 "pass one disposition per gap. No PATCH was made."
             )
         _seen_gaps.add(gap)
-        # #1984: the cause class is a CLOSED vocabulary with no elective member — a
-        # budget belief or a "partial pass judged adequate" has none, so it is refused
-        # here and the run cannot record a disposition for that gap.
-        if cause_class not in _REVIEW_COVERAGE_CAUSE_CLASSES:
+        # #1984: the cause class is a CLOSED vocabulary with no elective member, and
+        # environment-denial must be corroborated by a recorded `missing` roster row —
+        # the rule is shared with the Complete-gate verdict via one helper.
+        _cause_rej = _review_coverage_disposition_cause_rejection(
+            cause_class, _disp_has_missing)
+        if _cause_rej:
             raise _UpdateError(
-                f"--review-coverage-disposition: gap {gap!r} carries cause class "
-                f"{cause_class!r}, which is not one of "
-                f"{', '.join(_REVIEW_COVERAGE_CAUSE_CLASSES)} "
-                "[review-coverage-cause-inadmissible]. No PATCH was made."
-            )
-        if cause_class == 'environment-denial' and not _disp_has_missing:
-            raise _UpdateError(
-                f"--review-coverage-disposition: gap {gap!r} carries cause class "
-                "'environment-denial' but no roster row records a member 'missing', so "
-                "the denied capability is uncorroborated "
+                f"--review-coverage-disposition: gap {gap!r} {_cause_rej} "
                 "[review-coverage-cause-inadmissible]. No PATCH was made."
             )
         if not _is_single_line(reason):
