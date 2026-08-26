@@ -108,7 +108,7 @@ Do not assume the extension was used. Confirm it:
 2. Read the command's own output. It reports the extension's resolved status: content was loaded, the file was absent or empty, or the status could not be established.
 3. For `/prflow:implement`, open the workpad comment on the issue. Its progress list carries a `prompt extension resolved` line for each extension the run loaded. The run cannot report itself complete while such a line is unresolved and unexplained.
 
-On a cloud `/prflow:implement` run, the workflow also checks arrival on its own, separately from what the run says about itself. If the repository has an extension whose text never reached the run, the job fails with an error rather than finishing quietly.
+On a cloud run — whether `/prflow:implement` or an automated review — the workflow also checks arrival on its own, separately from what the run says about itself. If the repository has an extension whose text never reached the run, the job fails with an error rather than finishing quietly. On the local tier and on a run with no workpad, the same check is made from the command's own reported status: a run that cannot establish that the extension arrived records that fact in a durable place (the workpad, the pull-request description, or the command's own output) rather than passing silently.
 
 ## When the File Cannot Be Read
 
