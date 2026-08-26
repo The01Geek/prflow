@@ -9,38 +9,36 @@ The plugin is named `prflow`. Its marketplace intentionally keeps the `devflow-m
 
 If you previously installed DevFlow, follow [Migrate From DevFlow](/docs/getting-started/migrate-from-devflow) instead.
 
-## Claude Code
+## Install in Your Client
 
 Add the marketplace, then install PRFlow:
 
-```bash
-claude plugin marketplace add The01Geek/prflow
-claude plugin install prflow@devflow-marketplace
-```
+<Tabs>
+  <Tab title="Claude Code">
+    ```bash
+    claude plugin marketplace add The01Geek/prflow
+    claude plugin install prflow@devflow-marketplace
+    ```
 
-The interactive `/plugin` manager provides equivalent marketplace and installation actions. Start a new Claude Code session if the PRFlow skills do not appear immediately.
+    The interactive `/plugin` manager provides equivalent marketplace and installation actions. Start a new Claude Code session if the PRFlow skills do not appear immediately.
+  </Tab>
+  <Tab title="GitHub Copilot CLI">
+    ```bash
+    copilot plugin marketplace add The01Geek/prflow
+    copilot plugin install prflow@devflow-marketplace
+    ```
 
-## GitHub Copilot CLI
+    Start a new GitHub Copilot CLI session after installation.
+  </Tab>
+  <Tab title="Codex CLI">
+    ```bash
+    codex plugin marketplace add The01Geek/prflow
+    codex plugin add prflow@devflow-marketplace
+    ```
 
-Add the marketplace, then install PRFlow:
-
-```bash
-copilot plugin marketplace add The01Geek/prflow
-copilot plugin install prflow@devflow-marketplace
-```
-
-Start a new GitHub Copilot CLI session after installation.
-
-## Codex CLI
-
-Add the marketplace, then install PRFlow:
-
-```bash
-codex plugin marketplace add The01Geek/prflow
-codex plugin add prflow@devflow-marketplace
-```
-
-Start a new Codex CLI session after installation.
+    Start a new Codex CLI session after installation.
+  </Tab>
+</Tabs>
 
 ## Continue Setup
 

@@ -25,7 +25,7 @@ The transitional `devflow:` spelling of each key remains accepted for existing c
 | `effort` | `low`, `medium`, `high`, `xhigh` or `max` | No override; session effort applies | Shared review engine. The current client cannot apply a different effort value to each agent. Invalid values warn and fall back to the session effort. | `"effort": "low"` |
 | `iterations` | `first-only` | Absent means every applicable iteration | Review-and-fix. `first-only` removes that agent from later fix-loop iterations. | `"iterations": "first-only"` |
 
-A per-agent `model` override is expressible **only** as one of the four accepted aliases (`sonnet`, `opus`, `haiku`, `fable`). A consumer whose model is addressed through a provider route sets it at the top-level [`claude_model`](providers) rather than in an `agent_overrides` entry — that top-level setting still takes the full or provider-routed identifier the route expects.
+A per-agent `model` override is expressible **only** as one of the four accepted aliases (`sonnet`, `opus`, `haiku`, `fable`). A consumer whose model is addressed through a provider route sets it at the top-level [`claude_model`](/docs/configuration/providers) rather than in an `agent_overrides` entry — that top-level setting still takes the full or provider-routed identifier the route expects.
 
 An agent-specific entry replaces the `default` entry for that agent; the default does not fill missing fields inside a specific entry. The default applies only when no specific entry exists.
 
