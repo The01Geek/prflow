@@ -6801,14 +6801,14 @@ rm -rf "$T499_U_ROOT"
 RP_PROFILE='{"phase_durations_ms":{"Setup":263000,"Implement":800000,"Review":"unestablished"},"final_status":"Complete"}'
 
 # Skeleton arm: a PR resolved, no record exists for this run-id → a pr-<N> skeleton
-# carrying run_profile, with the four sub-fields the criterion names.
+# carrying run_profile, with the sub-fields the assertion below enumerates.
 RP_SK="$(_hc_repo "rp skeleton")"
 ( cd "$RP_SK" && GITHUB_RUN_ID=4001 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
     DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 run-profile(skeleton): a pr-<N> skeleton is written for this run-id" "yes" \
   "$(_et_on_branch "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json")"
-assert_eq "#2006 run-profile(skeleton): run_profile carries exactly the five named sub-fields" \
+assert_eq "#2006 run-profile(skeleton): run_profile carries exactly the enumerated sub-fields" \
   "engine_outcome final_status issue_number phase_durations_ms prior_record_count" \
   "$(_et_show "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json" | jq -r '.run_profile | keys | join(" ")')"
 assert_eq "#2006 run-profile(skeleton): the workpad-derived durations and status pass through verbatim" \
@@ -6977,27 +6977,35 @@ assert_eq "#2006 run-profile: an unestablished telemetry fetch makes prior_recor
   "$(_et_show "$RP_U" ".prflow/logs/efficiency/pr-42-4008-1.json" | jq -r '.run_profile.prior_record_count')"
 rm -rf "$RP_U"
 
-# ── #2006: the union merge re-applies EVERY floor key, not just harness_cost ──
+# ── #2006: the union merge re-applies EVERY floor key ────────────────────────
 # On a concurrent-writer push the staged record is merged onto the fetched base rather
-# than overwriting it. A floor key missing from that re-apply list is silently dropped
-# on the concurrent-push path, so the list is asserted against the merge program.
+# than overwriting it, so a floor key absent from the re-apply list is silently dropped on
+# exactly that path. The list is a single declared constant that the jq program is BUILT
+# from, so program-vs-list drift is impossible; these assertions cover the constant's
+# membership and the merge's per-key behavior.
+TB_FLOOR_KEYS="$(grep -o "_DEVFLOW_TELEMETRY_FLOOR_KEYS_JSON='[^']*'" "$LIB/telemetry-branch.sh" | sed "s/.*='//;s/'$//")"
+assert_eq "#2006 union merge: the declared floor-key set covers every key the floors write" \
+  '["harness_cost","permission_denials","run_profile","issue_number","no_pr_reason"]' \
+  "$TB_FLOOR_KEYS"
+# Each declared key is one a floor actually writes — a key listed here but written nowhere
+# would make the list read as covering more than it does.
+for _tb_k in harness_cost permission_denials run_profile issue_number no_pr_reason; do
+  assert_eq "#2006 union merge: declared key '$_tb_k' is written by a floor in efficiency-trace.sh" "yes" \
+    "$(grep -q "$_tb_k" "$LIB/efficiency-trace.sh" && echo yes || echo no)"
+done
 TB_MERGE_BASE='{"schema_version":1,"slug":"pr-6"}'
-TB_MERGE_LOCAL='{"schema_version":1,"slug":"pr-6","harness_cost":{"cost_usd":5},"permission_denials":{"count":2},"run_profile":{"final_status":"Complete"}}'
-TB_MERGE_PROG='reduce ("harness_cost", "permission_denials", "run_profile") as $k (.;
+TB_MERGE_LOCAL='{"schema_version":1,"slug":"pr-6","harness_cost":{"cost_usd":5},"permission_denials":{"count":2},"run_profile":{"final_status":"Complete"},"issue_number":2006,"no_pr_reason":"no-closing-pr-found"}'
+TB_MERGE_PROG='reduce ($keys[]) as $k (.;
                          if has($k) then . elif ($local[$k] != null) then (. + {($k): $local[$k]}) else . end)'
-assert_eq "#2006 union merge: all three floor keys are re-applied onto a base that lacks them" \
-  '["harness_cost","permission_denials","run_profile"]' \
-  "$(printf '%s' "$TB_MERGE_BASE" | jq -c --argjson local "$TB_MERGE_LOCAL" "$TB_MERGE_PROG" | jq -c '[keys[] | select(. == "harness_cost" or . == "permission_denials" or . == "run_profile")]')"
+assert_eq "#2006 union merge: a base lacking every floor key gains all of them" \
+  '["harness_cost","issue_number","no_pr_reason","permission_denials","run_profile"]' \
+  "$(printf '%s' "$TB_MERGE_BASE" | jq -c --argjson local "$TB_MERGE_LOCAL" --argjson keys "$TB_FLOOR_KEYS" "$TB_MERGE_PROG" | jq -c '[keys[] | select(. != "schema_version" and . != "slug")]')"
 # A base that already carries a key wins for THAT key — another writer got there first —
 # while the keys it lacks are still filled in.
 TB_MERGE_BASE2='{"schema_version":1,"slug":"pr-6","harness_cost":{"cost_usd":9}}'
 assert_eq "#2006 union merge: a base-side key wins per key, and the absent ones are still added" \
-  '[9,2,"Complete"]' \
-  "$(printf '%s' "$TB_MERGE_BASE2" | jq -c --argjson local "$TB_MERGE_LOCAL" "$TB_MERGE_PROG" | jq -c '[.harness_cost.cost_usd,.permission_denials.count,.run_profile.final_status]')"
-# The program asserted above is the one lib/telemetry-branch.sh actually runs.
-# structural-pin-ok: generated-artifact-identity -- the merge program is a coupled mirror between the union writer and the fixture above; a divergence silently drops a floor key on the concurrent-push path only
-assert_eq "#2006 union merge: the asserted program is the one telemetry-branch.sh runs" "1" \
-  "$(grep -c 'reduce ("harness_cost", "permission_denials", "run_profile") as \$k' "$LIB/telemetry-branch.sh" || true)"
+  '[9,2,"Complete",2006]' \
+  "$(printf '%s' "$TB_MERGE_BASE2" | jq -c --argjson local "$TB_MERGE_LOCAL" --argjson keys "$TB_FLOOR_KEYS" "$TB_MERGE_PROG" | jq -c '[.harness_cost.cost_usd,.permission_denials.count,.run_profile.final_status,.issue_number]')"
 
 # ── #2006 glue: the two causes of `workpad.py id` exit 2 stay distinguishable ──
 # argparse also exits 2, on a usage error, so an older vendored workpad.py with no `id`
@@ -7029,4 +7037,31 @@ if [ -x "$RPG" ]; then
   assert_eq "#2006 glue: a silent exit 2 IS the no-workpad arm" "yes" \
     "$(printf '%s' "$RPG_Q_OUT" | grep -q 'has no workpad comment' && echo yes || echo no)"
   rm -rf "$RPG_A"
+fi
+
+# ── #2006 glue: every emitted operand is shape-sanitized before it is eval'd ───
+# Both workflows run `eval "$(bash prepare-harness-floor.sh …)"`, so an operand carrying a
+# single quote breaks out of the quoting and executes. The candidate number reaches _emit
+# on the implement arm, and on the unusable-issue branch it is by construction not a
+# number — so the sanitizing happens in _emit, the one place whose contract asserts it.
+if [ -x "$HC_GLUE" ]; then
+  HC_INJ="$(git_sandbox "hc inject")"
+  printf '{"type":"result","total_cost_usd":1}' > "$HC_INJ/exec.json"
+  cat > "$HC_INJ/gh" <<'GHEOF'
+#!/usr/bin/env bash
+case "${1:-}" in --version) echo "gh version 0 (stub)"; exit 0 ;; esac
+exit 1
+GHEOF
+  chmod +x "$HC_INJ/gh"
+  HC_INJ_OUT="$(DEVFLOW_GH="$HC_INJ/gh" bash "$HC_GLUE" "$HC_INJ/exec.json" implement "2006'; touch /tmp/devflow-pwned #" "$HC_INJ/c.json" 2>/dev/null)"
+  assert_eq "#2006 glue: a quote-carrying candidate never reaches the eval'd output" "yes" \
+    "$(printf '%s' "$HC_INJ_OUT" | grep -q "touch /tmp/devflow-pwned" && echo no || echo yes)"
+  assert_eq "#2006 glue: an unusable issue number is emitted EMPTY rather than raw" "yes" \
+    "$(printf '%s' "$HC_INJ_OUT" | grep -qF "DEVFLOW_ISSUE_NUMBER=''" && echo yes || echo no)"
+  # Every emitted line must survive `eval` unchanged — the consumer's own operation is the
+  # guard, so drive it rather than re-deriving a quoting rule here.
+  HC_INJ_EVAL="$( eval "$HC_INJ_OUT"; printf '%s|%s' "${DEVFLOW_ISSUE_NUMBER:-}" "${DEVFLOW_COMMAND_CLASS:-}" )"
+  assert_eq "#2006 glue: the emitted block evals to an empty issue number and the right class" "|implement" \
+    "$HC_INJ_EVAL"
+  rm -rf "$HC_INJ"
 fi

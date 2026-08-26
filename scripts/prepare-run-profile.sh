@@ -90,11 +90,18 @@ if [ ! -s "$BODY_FILE" ]; then
   exit 0
 fi
 
-if python3 "$DERIVER" --body-file "$BODY_FILE" > "$OUT" 2>/dev/null && [ -s "$OUT" ]; then
+DERIVE_ERR="${OUT}.deriveerr"
+DERIVE_RC=0
+python3 "$DERIVER" --body-file "$BODY_FILE" > "$OUT" 2> "$DERIVE_ERR" || DERIVE_RC=$?
+if [ "$DERIVE_RC" -eq 0 ] && [ -s "$OUT" ]; then
   echo "devflow: prepare-run-profile: derived the run profile for issue $ISSUE from workpad comment $COMMENT_ID" >&2
+elif [ "$DERIVE_RC" -ne 0 ]; then
+  echo "::warning::prepare-run-profile: derive-run-profile.py exited $DERIVE_RC for workpad comment $COMMENT_ID (issue $ISSUE); its own diagnostic follows, then no run profile is derived this run" >&2
+  cat "$DERIVE_ERR" >&2
+  rm -f "$OUT" 2>/dev/null
 else
-  echo "::warning::prepare-run-profile: derive-run-profile.py could not parse workpad comment $COMMENT_ID for issue $ISSUE; no run profile derived this run" >&2
+  echo "::warning::prepare-run-profile: derive-run-profile.py exited 0 but wrote an empty profile for workpad comment $COMMENT_ID (issue $ISSUE); no run profile derived this run" >&2
   rm -f "$OUT" 2>/dev/null
 fi
-rm -f "$BODY_FILE" 2>/dev/null
+rm -f "$BODY_FILE" "$DERIVE_ERR" 2>/dev/null
 exit 0

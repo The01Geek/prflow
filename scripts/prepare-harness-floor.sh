@@ -51,20 +51,37 @@ COMMAND="${2:-}"
 CANDIDATE="${3:-}"
 COST_OUT="${4:-}"
 
-# Emit the four eval-able env assignments and exit 0. $1 = PR (digits or empty),
-# $2 = command class (a known class or empty), $3 = issue number (digits or empty),
-# $4 = the reason no PR resolved (a fixed-vocabulary token or empty). Single-quoting is
-# safe because all four are sanitized to a fixed shape before this is called.
+# Emit the four eval-able env assignments and exit 0. $1 = PR, $2 = command class,
+# $3 = issue number, $4 = the reason no PR resolved.
+#
+# Sanitize HERE rather than trusting each call site: both workflows run
+# `eval "$(bash prepare-harness-floor.sh …)"`, so an operand carrying a single quote
+# breaks out of the quoting below and executes. The candidate number reaches this function
+# unvalidated on the implement arm — on its unusable-issue branch it is by construction
+# not a number — so the one place whose contract asserts the shape is the place that
+# enforces it. A value outside its shape is emitted EMPTY, which every consumer already
+# treats as "not established".
 #
 # $3 is non-empty ONLY on the `implement` arm. Every other class's <candidate_number> is
 # a PR number, so emitting it here would key the PR-less record to a PR as if it were an
 # issue. devflow.yml's trigger negates /prflow:implement, so class `implement` reaches
 # this glue only from devflow-implement.yml, whose candidate is the issue number.
 _emit() {
-  printf "DEVFLOW_EXECUTION_PR='%s'\n" "$1"
-  printf "DEVFLOW_COMMAND_CLASS='%s'\n" "$2"
-  printf "DEVFLOW_ISSUE_NUMBER='%s'\n" "${3:-}"
-  printf "DEVFLOW_NO_PR_REASON='%s'\n" "${4:-}"
+  local pr="${1:-}" class="${2:-}" issue="${3:-}" reason="${4:-}"
+  case "$pr" in ''|*[!0-9]*) pr="" ;; esac
+  case "$issue" in ''|*[!0-9]*) issue="" ;; esac
+  case "$class" in
+    review|review-and-fix|pr-description|implement) ;;
+    *) class="" ;;
+  esac
+  case "$reason" in
+    issue-number-unusable|gh-lookup-failed|no-closing-pr-found|unestablished) ;;
+    *) reason="" ;;
+  esac
+  printf "DEVFLOW_EXECUTION_PR='%s'\n" "$pr"
+  printf "DEVFLOW_COMMAND_CLASS='%s'\n" "$class"
+  printf "DEVFLOW_ISSUE_NUMBER='%s'\n" "$issue"
+  printf "DEVFLOW_NO_PR_REASON='%s'\n" "$reason"
   exit 0
 }
 

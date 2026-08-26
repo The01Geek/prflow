@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import math
+import subprocess
 import statistics
 import sys
 from pathlib import Path
@@ -25,7 +26,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from context_eval_shared import UNESTABLISHED, _median  # noqa: E402
 
-DEFAULT_STORE = Path(".prflow/learnings/experiment-records.jsonl")
+STORE_RELPATH = ".prflow/learnings/experiment-records.jsonl"
+
+
+def default_store():
+    """The store, anchored on the git repo root like every other `.prflow` reader.
+
+    A cwd-relative default reports an empty store from any subdirectory, which these
+    tools would then render as "no runs yet" rather than as a path they could not find.
+    """
+    try:
+        root = subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                              capture_output=True, text=True, check=False)
+        if root.returncode == 0 and root.stdout.strip():
+            return Path(root.stdout.strip()) / STORE_RELPATH
+    except OSError:
+        pass
+    return (Path.cwd() / STORE_RELPATH).resolve()
 
 
 def _figure(value):
@@ -68,18 +85,30 @@ def _fingerprint_sha(record):
 
 
 def load_runs(path=None):
-    """Every implement run in the store, newest last, as flat dicts.
+    """Every implement run in the store, newest last. See `load_runs_with_status`."""
+    return load_runs_with_status(path)[0]
+
+
+def load_runs_with_status(path=None):
+    """`(runs, status)` — every implement run in the store, newest last, plus how the
+    read went.
+
+    `status` is `unreadable` when the store could not be opened, else `read`, with
+    `:<n>-unparseable` appended when lines were skipped. Callers render an unreadable
+    store as such: swallowing the error reports a missing or unreadable file as "no runs
+    yet", and every aggregate then shrinks invisibly.
 
     One experiment-record line joins one merged PR to the efficiency runs behind it, and
     a line can carry runs from more than one command class, so the class is read from each
     run's own `harness_cost.command` rather than from the line.
     """
-    store = Path(path) if path else DEFAULT_STORE
+    store = Path(path) if path else default_store()
     runs = []
+    skipped = 0
     try:
         handle = store.open(encoding="utf-8")
     except OSError:
-        return runs
+        return runs, "unreadable"
     # Iterated, not read_text().splitlines(): the store is append-only and already several
     # megabytes, and materializing it doubles peak memory for a strictly line-by-line read.
     with handle:
@@ -89,12 +118,15 @@ def load_runs(path=None):
             try:
                 record = json.loads(line)
             except json.JSONDecodeError:
+                skipped += 1
                 continue
             if not isinstance(record, dict):
+                skipped += 1
                 continue
             _ingest(record, runs)
     runs.sort(key=lambda r: (r["merged_at"] or "", str(r["run_id"] or "")))
-    return runs
+    status = "read" if not skipped else f"read:{skipped}-unparseable"
+    return runs, status
 
 
 def _ingest(record, runs):
@@ -127,14 +159,27 @@ def _ingest(record, runs):
 
 def phase_shares(run):
     """{phase: fraction of this run's attributed phase time}, or {} when unestablished."""
+    return phase_shares_with_completeness(run)[0]
+
+
+def phase_shares_with_completeness(run):
+    """`(shares, complete)` — the per-phase fractions, and whether every phase this run
+    recorded was established.
+
+    The shares are fractions of the ESTABLISHED total, so a run with an unmeasured phase
+    still sums to 100%. `complete` is what stops that from reading as a whole-run
+    measurement: without it a run measured on one phase renders identically to one
+    measured on all of them.
+    """
     durations = run.get("phase_durations_ms")
     if not isinstance(durations, dict):
-        return {}
+        return {}, False
     established = {k: v for k, v in durations.items() if _figure(v) is not None}
+    complete = len(established) == len(durations)
     total = sum(established.values())
     if total <= 0:
-        return {}
-    return {k: v / total for k, v in established.items()}
+        return {}, complete
+    return {k: v / total for k, v in established.items()}, complete
 
 
 def is_reject(verdict):

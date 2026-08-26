@@ -42,8 +42,11 @@ from context_eval_shared import UNESTABLISHED  # noqa: E402
 
 
 def _load_workpad():
-    """`scripts/workpad.py` as a module. It is hyphen-free but sits beside this file, so
-    load it by path — importing by name would depend on the caller's sys.path."""
+    """`scripts/workpad.py` as a module, loaded by explicit path under a private name.
+
+    A plain `import workpad` would bind whatever `workpad` module the caller's sys.path
+    resolves first; this file is imported by tests that already load several modules under
+    their own names, so the explicit path is what keeps the binding unambiguous."""
     spec = importlib.util.spec_from_file_location(
         "_drp_workpad", Path(__file__).resolve().parent / "workpad.py")
     module = importlib.util.module_from_spec(spec)
@@ -152,6 +155,11 @@ def derive(body):
     # is established — reporting one would be a guess presented as a fact.
     base_date = _base_date(body)
     stamps = _phase_stamps(lines)
+    if not stamps:
+        # The section parsed but held no recognized phase heading. That is a workpad this
+        # parser could not read, not a run with no phases — an empty map would report it
+        # as an established measurement of nothing.
+        return {"phase_durations_ms": UNESTABLISHED, "final_status": status}
     durations = {p: (_span_ms(triples, base_date) if base_date else UNESTABLISHED)
                  for p, triples in stamps.items()}
     return {"phase_durations_ms": durations, "final_status": status}

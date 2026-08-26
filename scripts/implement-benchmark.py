@@ -47,8 +47,12 @@ def select_cohort(runs, fingerprint):
 
     A prefix is accepted because a sha256 is unwieldy to type; a prefix that matches more
     than one distinct fingerprint is rejected by the caller rather than silently merging
-    two cohorts into one.
+    two cohorts into one. An EMPTY operand selects nothing rather than everything — it
+    prefix-matches every run, so it would otherwise make both cohorts the whole store and
+    compare it against itself.
     """
+    if not fingerprint:
+        return []
     return [r for r in runs
             if isinstance(r["fingerprint"], str) and r["fingerprint"].startswith(fingerprint)]
 
@@ -77,8 +81,13 @@ def withholding_reasons(label_a, stats_a, label_b, stats_b):
     """Every reason the verdict is withheld. Empty means it may be reported."""
     reasons = []
     for label, stats in ((label_a, stats_a), (label_b, stats_b)):
-        if stats["count"] < MIN_COHORT_RUNS:
-            reasons.append(f"cohort {label} holds {stats['count']} run(s), fewer than the "
+        # Gate on the ESTABLISHED durations, not the raw count: every statistic below is
+        # computed over those, so a five-run cohort with four unmeasured durations would
+        # otherwise print a verdict drawn from a one-sample mean.
+        established = stats["established_durations"]
+        if established < MIN_COHORT_RUNS:
+            reasons.append(f"cohort {label} holds {established} run(s) with an established "
+                           f"duration (of {stats['count']}), fewer than the "
                            f"{MIN_COHORT_RUNS} required for a verdict")
     for label, stats in ((label_a, stats_a), (label_b, stats_b)):
         if stats["reject_runs"]:

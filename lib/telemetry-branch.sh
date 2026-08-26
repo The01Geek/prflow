@@ -59,6 +59,11 @@ _DEVFLOW_TELEMETRY_COMMIT_MSG="chore: persist review-and-fix observability artif
 # Bounded retry caps — enough to survive a burst of parallel writers without
 # looping forever on a persistently-diverging ref or an unpushable remote.
 _DEVFLOW_TELEMETRY_CAS_TRIES=5
+# The top-level keys lib/efficiency-trace.sh's floors add to a record, and the ONLY keys a
+# staged copy differs from base by. The concurrent-push union merge re-applies exactly
+# these onto the fetched base; a floor whose key is missing here has that key silently
+# dropped whenever a competing writer forces that path, so a new floor adds its key here.
+_DEVFLOW_TELEMETRY_FLOOR_KEYS_JSON='["harness_cost","permission_denials","run_profile","issue_number","no_pr_reason"]'
 _DEVFLOW_TELEMETRY_PUSH_TRIES=4
 
 # Every push-failure breadcrumb ends by saying the records are "retained on the local ref".
@@ -615,7 +620,8 @@ devflow_telemetry_persist_tree() {
                 # staged record IS a merge-arm target so it carries one, but guard the
                 # operand rather than assume it).
                 if _u_merged="$(printf '%s' "$_u_base" | "${DEVFLOW_JQ:-jq}" -c --argjson local "$_u_local" \
-                      'reduce ("harness_cost", "permission_denials", "run_profile") as $k (.;
+                      --argjson keys "$_DEVFLOW_TELEMETRY_FLOOR_KEYS_JSON" \
+                      'reduce ($keys[]) as $k (.;
                          if has($k) then . elif ($local[$k] != null) then (. + {($k): $local[$k]}) else . end)' 2>/dev/null)" \
                    && [ -n "$_u_merged" ]; then
                   _u_blob="$(printf '%s\n' "$_u_merged" | git -C "$root" hash-object -w --stdin 2>/dev/null)" || exit 1

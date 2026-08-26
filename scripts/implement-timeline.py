@@ -108,18 +108,22 @@ def download_transcript(run_id: str, dest: Path, repo: str | None = None) -> Pat
     cmd.extend(["-n", _artifact_name_prefix(run_id)])
     proc = subprocess.run(cmd, capture_output=True, text=True)
     detail = (proc.stderr or proc.stdout or "").strip()
-    kind = _classify_download_failure(detail)
-    if kind == "expired":
-        raise ArtifactExpired(detail)
-    if kind == "run-missing":
-        raise RuntimeError(f"run {run_id} was not found in this repository: {detail}")
+    # Classify only a FAILURE. Classifying first read a successful download whose output
+    # merely mentioned a marker phrase as an expired artifact.
     if proc.returncode != 0:
+        kind = _classify_download_failure(detail)
+        if kind == "expired":
+            raise ArtifactExpired(detail)
+        if kind == "run-missing":
+            raise RuntimeError(f"run {run_id} was not found in this repository: {detail}")
         raise RuntimeError(f"gh run download failed (rc {proc.returncode}): {detail}")
     files = sorted(p for p in dest.rglob("*") if p.is_file())
     if not files:
         # gh reports the no-matching-artifact case on stdout at exit 0, so an empty
-        # download directory is the same expired condition rather than a new one.
-        raise ArtifactExpired(f"artifact {_artifact_name_prefix(run_id)} downloaded no files")
+        # download directory is that same expired condition rather than a new one — this
+        # is what still catches it now that classification is gated on a non-zero status.
+        raise ArtifactExpired(
+            f"artifact {_artifact_name_prefix(run_id)} downloaded no files: {detail}")
     return files[0]
 
 
@@ -189,7 +193,20 @@ def _phase_from_read(item) -> str | None:
     return path[idx:]
 
 
-def build_timeline(raw: str) -> dict:
+def read_transcript(path):
+    """`(text, note)` for one transcript file. Undecodable bytes are named as their own
+    cause rather than replaced and then re-reported as unparseable records — those are
+    different failures, and only one of them means the artifact is not a transcript."""
+    data = Path(path).read_bytes()
+    try:
+        return data.decode("utf-8"), None
+    except UnicodeDecodeError as exc:
+        return data.decode("utf-8", errors="replace"), (
+            f"the artifact holds undecodable bytes at offset {exc.start} and is probably "
+            f"not a UTF-8 transcript; the records below are what survived replacement")
+
+
+def build_timeline(raw: str, notes=None) -> dict:
     """The three views over one transcript. Never raises on a malformed transcript."""
     starts: dict[str, tuple[int | None, str, str]] = {}
     order: list[str] = []
@@ -240,7 +257,7 @@ def build_timeline(raw: str) -> dict:
         phases[phase] = phases.get(phase, 0) + duration
         activities[name] = activities.get(name, 0) + duration
 
-    diagnostics = []
+    diagnostics = list(notes or [])
     if skipped:
         diagnostics.append(
             f"skipped {skipped} unparseable record(s) — a truncated final line, or a "
@@ -280,13 +297,16 @@ def main(argv=None, _download=download_transcript):
     parser.add_argument("--repo", help="owner/repo, when not inferable from the git remote")
     args = parser.parse_args(argv)
 
+    notes = []
     if args.transcript:
         try:
-            raw = Path(args.transcript).read_text(encoding="utf-8", errors="replace")
+            raw, note = read_transcript(args.transcript)
         except OSError as exc:
             print(f"devflow: implement-timeline: cannot read {args.transcript}: {exc}",
                   file=sys.stderr)
             return 1
+        if note:
+            notes.append(note)
     else:
         with tempfile.TemporaryDirectory() as td:
             try:
@@ -298,9 +318,11 @@ def main(argv=None, _download=download_transcript):
             except RuntimeError as exc:
                 print(f"devflow: implement-timeline: {exc}", file=sys.stderr)
                 return 1
-            raw = Path(path).read_text(encoding="utf-8", errors="replace")
+            raw, note = read_transcript(path)
+            if note:
+                notes.append(note)
 
-    timeline = build_timeline(raw)
+    timeline = build_timeline(raw, notes)
     print(_render(timeline))
     if args.json_path:
         try:

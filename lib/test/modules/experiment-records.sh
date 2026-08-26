@@ -1980,20 +1980,58 @@ fi
 # A store mixing pre-change and post-change lines must not make actionable-patterns.sh
 # emit a warning it does not emit on a store of pre-change lines alone — the additive
 # fields are invisible to every one of its four warning conditions.
+#
+# Drive the script the way its own usage states — $1 retrospectives.jsonl, $2
+# overrides.json, $3 optional --full — and place experiment-records.jsonl BESIDE the
+# retrospectives file, which is where the script derives it from. An EXPERIMENTS_FILE
+# passed through the environment is overwritten by that derivation, and passing --full as
+# $1 makes both invocations fail identically, so a comparison built either way compares
+# two failures and can never go red.
 AP_SH="$LIB/actionable-patterns.sh"
 if [ -f "$AP_SH" ]; then
-  ER_MIX="$(mktemp -d)"
   ER_PRE_LINE='{"schema_version":1,"pr":1,"issue":11,"branch":"b1","merged_at":"2026-07-01T00:00:00Z","verdict":"APPROVE","config_fingerprint":null,"efficiency_runs":[{"slug":"pr-1","run_id":"r1","cost":{"calls":1,"tokens":10,"wall_clock_s":1},"iterations":1}],"retrospective":null,"important_finding_count":0,"permission_denials_count":0,"provenance":{}}'
-  ER_POST_LINE='{"schema_version":1,"pr":2,"issue":12,"branch":"b2","merged_at":"2026-07-02T00:00:00Z","verdict":"APPROVE","config_fingerprint":null,"efficiency_runs":[{"slug":"pr-2","run_id":"r2","cost":{"calls":1,"tokens":10,"wall_clock_s":1},"iterations":1,"run_profile":{"phase_durations_ms":{"Setup":1000},"final_status":"Complete","prior_record_count":0,"engine_outcome":"success"},"no_pr_reason":null}]}'
-  printf '%s\n' "$ER_PRE_LINE" > "$ER_MIX/pre.jsonl"
-  printf '%s\n%s\n' "$ER_PRE_LINE" "$ER_POST_LINE" > "$ER_MIX/mixed.jsonl"
+  ER_POST_LINE='{"schema_version":1,"pr":2,"issue":12,"branch":"b2","merged_at":"2026-07-02T00:00:00Z","verdict":"APPROVE","config_fingerprint":null,"efficiency_runs":[{"slug":"pr-2","run_id":"r2","cost":{"calls":1,"tokens":10,"wall_clock_s":1},"iterations":1,"run_profile":{"phase_durations_ms":{"Setup":1000},"final_status":"Complete","prior_record_count":0,"issue_number":12,"engine_outcome":"success"},"no_pr_reason":null}]}'
+  ER_RETRO_LINE='{"pr":1,"issue":11,"branch":"b1","merged_at":"2026-07-01T00:00:00Z","verdict":"APPROVE","findings":[{"tag":"convention-violation","summary":"s"}]}'
   er_ap_warnings() {
-    EXPERIMENTS_FILE="$1" bash "$AP_SH" --full 2>&1 >/dev/null \
+    # $1 = the experiment-records.jsonl content. Returns the ::warning:: count.
+    local d
+    d="$(mktemp -d)"
+    printf '%s\n' "$ER_RETRO_LINE" > "$d/retrospectives.jsonl"
+    printf '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$d/overrides.json"
+    printf '%s' "$1" > "$d/experiment-records.jsonl"
+    bash "$AP_SH" "$d/retrospectives.jsonl" "$d/overrides.json" --full 2>&1 >/dev/null \
       | grep -c '::warning::actionable-patterns' || true
+    rm -rf "$d"
   }
-  ER_W_PRE="$(er_ap_warnings "$ER_MIX/pre.jsonl")"
-  ER_W_MIX="$(er_ap_warnings "$ER_MIX/mixed.jsonl")"
+  ER_PRE_CONTENT="$ER_PRE_LINE
+"
+  ER_MIX_CONTENT="$ER_PRE_LINE
+$ER_POST_LINE
+"
+  ER_W_PRE="$(er_ap_warnings "$ER_PRE_CONTENT")"
+  ER_W_MIX="$(er_ap_warnings "$ER_MIX_CONTENT")"
+  er_ap_stdout() {
+    local d out
+    d="$(mktemp -d)"
+    printf '%s\n' "$ER_RETRO_LINE" > "$d/retrospectives.jsonl"
+    printf '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$d/overrides.json"
+    printf '%s' "$1" > "$d/experiment-records.jsonl"
+    out="$(bash "$AP_SH" "$d/retrospectives.jsonl" "$d/overrides.json" --full 2>/dev/null)"
+    rm -rf "$d"
+    printf '%s' "$out"
+  }
+  # Positive control: the fixture is otherwise valid and the script RUNS over it, emitting
+  # its pattern array. Without this an equal warning count below could be two identical
+  # failures agreeing rather than two real runs agreeing.
+  assert_eq "#2006 mixed store: the pre-change fixture drives actionable-patterns.sh to real output (positive control)" "yes" \
+    "$(er_ap_stdout "$ER_PRE_CONTENT" | jq -e 'type == "array"' >/dev/null 2>&1 && echo yes || echo no)"
+  assert_eq "#2006 mixed store: the mixed fixture drives it to real output too (positive control)" "yes" \
+    "$(er_ap_stdout "$ER_MIX_CONTENT" | jq -e 'type == "array"' >/dev/null 2>&1 && echo yes || echo no)"
   assert_eq "#2006 mixed store: actionable-patterns.sh emits no warning it does not emit on a pre-change store" \
     "$ER_W_PRE" "$ER_W_MIX"
-  rm -rf "$ER_MIX"
+  # And the corrupt-store arm still warns — proving the counter can go non-zero, so the
+  # equality above is not passing merely because nothing is ever counted.
+  assert_eq "#2006 mixed store: a corrupt store DOES warn (the counter is not inert)" "yes" \
+    "$(test "$(er_ap_warnings 'not json at all
+')" -gt 0 && echo yes || echo no)"
 fi

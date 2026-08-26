@@ -147,6 +147,69 @@ class Reader(unittest.TestCase):
         self.assertNotIn("Review", shares)
 
 
+class ReviewFindingsRound1(unittest.TestCase):
+    """Findings from the PR #2017 review pass."""
+
+    def test_an_unreadable_store_is_distinguishable_from_an_empty_one(self):
+        """load_runs swallowed every OSError, so an absent or unreadable store reported
+        'no runs yet' — the retrospective's guard cannot fire because the tool exits 0."""
+        runs, status = ir.load_runs_with_status("/nonexistent/definitely/not/here.jsonl")
+        self.assertEqual(runs, [])
+        self.assertEqual(status, "unreadable")
+
+    def test_a_present_but_empty_store_reports_read(self):
+        td, p = _store("")
+        with td:
+            runs, status = ir.load_runs_with_status(p)
+        self.assertEqual(runs, [])
+        self.assertEqual(status, "read")
+
+    def test_corrupt_lines_are_counted_not_silently_dropped(self):
+        td, p = _store("{not json", _record(1, "2026-07-01T00:00:00Z", 1000, 1.0), "[1,2]")
+        with td:
+            runs, status = ir.load_runs_with_status(p)
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(status, "read:2-unparseable")
+
+    def test_the_default_store_is_anchored_to_the_repo_root_not_the_cwd(self):
+        """Every other .prflow reader anchors on the git root; a cwd-relative default
+        makes the tools report an empty store from any subdirectory."""
+        self.assertTrue(ir.default_store().is_absolute())
+
+    def test_phase_shares_marks_a_run_whose_phases_are_partly_unestablished(self):
+        """Dividing by the established sum alone inflates the rest to 100% with nothing
+        saying the run was only partly measured."""
+        run = {"phase_durations_ms": {"Setup": 1000, "Implement": 3000,
+                                      "Review": UNESTABLISHED}}
+        shares, complete = ir.phase_shares_with_completeness(run)
+        self.assertAlmostEqual(shares["Setup"], 0.25)
+        self.assertFalse(complete)
+        whole = {"phase_durations_ms": {"Setup": 1000, "Implement": 3000}}
+        _shares, complete2 = ir.phase_shares_with_completeness(whole)
+        self.assertTrue(complete2)
+
+    def test_a_partial_phase_share_is_rendered_as_partial(self):
+        run = {"phase_durations_ms": {"Setup": 1000, "Review": UNESTABLISHED}}
+        self.assertIn("partial", rr._top_phases(run))
+
+    def test_phase_labels_are_not_run_through_a_path_helper(self):
+        """Workpad phase headings are names, never paths."""
+        run = {"phase_durations_ms": {"PR marked ready": 1000, "Setup": 3000}}
+        self.assertIn("PR marked ready=", rr._top_phases(run))
+
+    def test_the_status_column_fits_the_sentinel_it_most_often_holds(self):
+        td, p = _store(_record(1, "2026-07-01T00:00:00Z", 1000, 1.0))
+        with td:
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rr.main(["1", "--records", str(p)])
+        header = [ln for ln in buf.getvalue().splitlines() if "status" in ln][0]
+        row = buf.getvalue().splitlines()[buf.getvalue().splitlines().index(header) + 1]
+        self.assertIn(UNESTABLISHED, row)
+        # The sentinel is 13 characters; a 12-wide column would push the next column right.
+        self.assertGreaterEqual(len(UNESTABLISHED), 13)
+
+
 class PerRunMode(unittest.TestCase):
     def test_n_is_required_without_retro(self):
         with self.assertRaises(SystemExit):

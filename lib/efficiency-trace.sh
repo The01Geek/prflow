@@ -1546,8 +1546,9 @@ apply_denial_floor() {
 # failed jq leaves the file untouched. $2 = key name, $3 = its JSON value, $4 = a display
 # label, $5 = the floor name for the breadcrumb. Parameterized on the key because this
 # diff would otherwise add a third near-identical copy of _floor_merge_staged. The two
-# existing copies are deliberately NOT folded into this one: lib/test/run.sh pins their
-# breadcrumb literals, so rewording them would break coupled pins this change does not own.
+# existing copies are deliberately NOT folded into this one: their breadcrumb literals are
+# pinned in lib/test/modules/efficiency-trace-telemetry.sh, so rewording them would break
+# coupled pins this change does not own.
 _floor_merge_key_staged() {
   local file="$1" key="$2" val="$3" label="$4" floor="$5" jq_err
   if "$DEVFLOW_JQ" -e --arg k "$key" 'has($k)' "$file" >/dev/null 2>&1; then
@@ -1574,8 +1575,8 @@ _floor_merge_key_staged() {
 # ident. The family is the filename prefixes this run's own record can be keyed under —
 # `pr-<N>-` and `issue-<N>-` — so the count is a NAME match over the tree listing and reads
 # no blob. Reading each blob to match an issue number inside it would cost two processes per
-# stored record on every persist, on a branch that grows by one record per cloud run forever
-# (2390 records at the time of writing); the name match costs none.
+# stored record on every persist, on a branch that grows by one record per cloud run
+# forever; the name match costs none.
 #
 # The bound this buys, stated because the field means less than its name suggests otherwise:
 # it counts prior records under THIS run's own pr-/issue- keys, so an issue whose work moved
@@ -1684,8 +1685,10 @@ apply_run_profile_floor() {
   while IFS= read -r rel; do
     case "$rel" in *-"$ident".json) ;; *) continue ;; esac
     base="$(basename "$rel")"
-    blob="$(devflow_telemetry_show_blob "$root" "$ref" "$rel")" || continue
-    [ -n "$blob" ] || continue
+    if ! blob="$(devflow_telemetry_show_blob "$root" "$ref" "$rel")" || [ -z "$blob" ]; then
+      echo "::warning::efficiency-trace.sh --persist: run-profile floor: could not read ${rel} from the telemetry branch (unreadable or empty blob); this run's run_profile is not attached" >&2
+      return 0
+    fi
     if printf '%s' "$blob" | "$DEVFLOW_JQ" -e 'has("run_profile")' >/dev/null 2>&1; then
       echo "devflow: efficiency-trace.sh --persist: run-profile floor: record ${rel} already carries run_profile; leaving it untouched (backstop re-run no-op)" >&2
       return 0

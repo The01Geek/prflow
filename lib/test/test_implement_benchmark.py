@@ -114,29 +114,29 @@ class Statistics(unittest.TestCase):
 
 class VerdictWithholding(unittest.TestCase):
     def test_a_small_cohort_alone_withholds(self):
-        stats_small = {"count": 4, "reject_runs": []}
-        stats_ok = {"count": 9, "reject_runs": []}
+        stats_small = {"count": 4, "established_durations": 4, "reject_runs": []}
+        stats_ok = {"count": 9, "established_durations": 9, "reject_runs": []}
         reasons = bm.withholding_reasons("A", stats_small, "B", stats_ok)
         self.assertEqual(len(reasons), 1)
         self.assertIn("fewer than the 5", reasons[0])
 
     def test_a_reject_run_alone_withholds(self):
-        stats_ok = {"count": 9, "reject_runs": []}
-        stats_reject = {"count": 9, "reject_runs": ["r1"]}
+        stats_ok = {"count": 9, "established_durations": 9, "reject_runs": []}
+        stats_reject = {"count": 9, "established_durations": 9, "reject_runs": ["r1"]}
         reasons = bm.withholding_reasons("A", stats_ok, "B", stats_reject)
         self.assertEqual(len(reasons), 1)
         self.assertIn("REJECT", reasons[0])
 
     def test_both_conditions_print_both_reasons(self):
         reasons = bm.withholding_reasons(
-            "A", {"count": 2, "reject_runs": []},
-            "B", {"count": 9, "reject_runs": ["r1", "r2"]})
+            "A", {"count": 2, "established_durations": 2, "reject_runs": []},
+            "B", {"count": 9, "established_durations": 9, "reject_runs": ["r1", "r2"]})
         self.assertEqual(len(reasons), 2)
 
     def test_two_clean_cohorts_report_a_verdict(self):
         self.assertEqual(
-            bm.withholding_reasons("A", {"count": 5, "reject_runs": []},
-                                   "B", {"count": 6, "reject_runs": []}), [])
+            bm.withholding_reasons("A", {"count": 5, "established_durations": 5, "reject_runs": []},
+                                   "B", {"count": 6, "established_durations": 6, "reject_runs": []}), [])
 
     def test_the_minimum_is_a_named_constant(self):
         self.assertEqual(bm.MIN_COHORT_RUNS, 5)
@@ -146,6 +146,32 @@ class VerdictWithholding(unittest.TestCase):
         self.assertTrue(ir.is_reject("reject with notes"))
         self.assertFalse(ir.is_reject("APPROVE with notes"))
         self.assertFalse(ir.is_reject(None))
+
+
+class ReviewFindingsRound1(unittest.TestCase):
+    def test_an_empty_prefix_selects_no_cohort(self):
+        """An empty operand prefix-matches every run, so it would select the whole store
+        as BOTH cohorts and compare it against itself."""
+        td, p = _store(*_cohort(FP_A, 3, 1000, 1.0))
+        with td:
+            runs = ir.load_runs(p)
+        self.assertEqual(bm.select_cohort(runs, ""), [])
+
+    def test_the_verdict_is_withheld_on_too_few_ESTABLISHED_durations(self):
+        """The statistics are computed over the established durations, so gating on the
+        raw cohort size lets a five-run cohort with four unmeasured durations print a
+        verdict from a one-sample mean."""
+        reasons = bm.withholding_reasons(
+            "A", {"count": 5, "established_durations": 1, "reject_runs": []},
+            "B", {"count": 6, "established_durations": 6, "reject_runs": []})
+        self.assertEqual(len(reasons), 1)
+        self.assertIn("established duration", reasons[0])
+
+    def test_a_cohort_measured_throughout_is_not_withheld(self):
+        self.assertEqual(
+            bm.withholding_reasons("A", {"count": 5, "established_durations": 5, "reject_runs": []},
+                                   "B", {"count": 5, "established_durations": 5, "reject_runs": []}),
+            [])
 
 
 class EndToEnd(unittest.TestCase):

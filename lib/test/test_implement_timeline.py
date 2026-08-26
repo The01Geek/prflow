@@ -54,9 +54,12 @@ def _jsonl(*lines):
     return "\n".join(lines) + "\n"
 
 
-# One production-realistic captured transcript: an implement run that reads its phase-1
-# reference, runs two Bash calls, moves to phase 2, and reads one review-engine phase
-# file (which must NOT re-attribute the phase).
+# A production-shaped transcript, SYNTHESIZED from this file's own constructors rather
+# than captured from a run: it reproduces the record shape and the sequence an implement
+# run produces — a phase-1 reference read, two Bash calls, a move to phase 2, and one
+# review-engine phase file that must NOT re-attribute the phase — while staying readable
+# and free of any run's content. The captured-artifact path is exercised separately by
+# CapturedArtifactShape below, against bytes taken from a real scrubbed artifact.
 REALISTIC = _jsonl(
     _rec("2026-08-26T10:00:00.000Z", "user", "implement 2006"),
     _rec("2026-08-26T10:00:01.000Z", "assistant",
@@ -242,6 +245,105 @@ class DownloadFailureClassification(unittest.TestCase):
 
     def test_empty_stderr_is_other(self):
         self.assertEqual(tl._classify_download_failure(""), "other")
+
+
+# A CAPTURED-SHAPE fixture: the key set below was taken from a real Claude Code transcript
+# on this machine and scrubbed of all content, so it carries the sibling keys a synthesized
+# record omits (parentUuid/uuid/sessionId/cwd/version/toolUseResult/isSidechain, and the
+# `is_error` flag on a tool_result). Those extra keys are the point — a parser that only
+# ever sees the minimal shape is untested against the artifact it actually reads.
+def _captured_assistant(ts, uuid, items):
+    return json.dumps({
+        "parentUuid": "00000000-0000-0000-0000-000000000000", "isSidechain": True,
+        "agentId": "aaaaaaaaaaaaaaaaa",
+        "message": {"model": "claude-opus-5", "id": "msg_x", "type": "message",
+                    "role": "assistant", "content": items,
+                    "usage": {"input_tokens": 2, "output_tokens": 5}},
+        "requestId": "req_x", "type": "assistant", "uuid": uuid, "timestamp": ts,
+        "sessionKind": "bg", "userType": "external", "entrypoint": "cli",
+        "cwd": "/scrubbed", "sessionId": "s", "version": "2.1.246", "gitBranch": "b",
+    })
+
+
+def _captured_result(ts, uuid, tool_id):
+    return json.dumps({
+        "parentUuid": "00000000-0000-0000-0000-000000000000", "isSidechain": True,
+        "agentId": "aaaaaaaaaaaaaaaaa", "type": "user",
+        "message": {"role": "user",
+                    "content": [{"tool_use_id": tool_id, "type": "tool_result",
+                                 "content": "scrubbed", "is_error": False}]},
+        "uuid": uuid, "timestamp": ts,
+        "toolUseResult": {"stdout": "scrubbed", "stderr": "", "interrupted": False},
+        "sourceToolAssistantUUID": "0", "sessionKind": "bg", "userType": "external",
+        "entrypoint": "cli", "cwd": "/scrubbed", "sessionId": "s",
+        "version": "2.1.246", "gitBranch": "b",
+    })
+
+
+CAPTURED = _jsonl(
+    _captured_assistant("2026-08-26T20:00:00.000Z", "u1",
+                        [_read("skills/implement/phases/phase-1-setup.md", "c1")]),
+    _captured_result("2026-08-26T20:00:04.000Z", "u2", "c1"),
+    _captured_assistant("2026-08-26T20:00:05.000Z", "u3",
+                        [{"type": "thinking", "thinking": "", "signature": "x"},
+                         {"type": "text", "text": "scrubbed"},
+                         _tool("Bash", "c2", command="scrubbed")]),
+    _captured_result("2026-08-26T20:00:12.000Z", "u4", "c2"),
+)
+
+
+class CapturedArtifactShape(unittest.TestCase):
+    """The parser against the real record shape, not the minimal synthesized one."""
+
+    def test_the_captured_shape_parses_and_attributes(self):
+        out = tl.build_timeline(CAPTURED)
+        self.assertEqual(out["phases"]["skills/implement/phases/phase-1-setup.md"], 11_000)
+        self.assertEqual(out["activities"]["Read"], 4_000)
+        self.assertEqual(out["activities"]["Bash"], 7_000)
+
+    def test_thinking_and_text_blocks_beside_a_tool_use_are_ignored(self):
+        """A real assistant record interleaves thinking/text blocks with tool_use; only
+        the tool_use may become a step."""
+        out = tl.build_timeline(CAPTURED)
+        self.assertEqual([s["tool"] for s in out["steps"]], ["Read", "Bash"])
+
+    def test_the_captured_shape_yields_no_spurious_diagnostics(self):
+        self.assertEqual(tl.build_timeline(CAPTURED)["diagnostics"], [])
+
+
+class ReviewFindingsRound1(unittest.TestCase):
+    def test_a_successful_download_is_not_classified_from_its_output(self):
+        """The failure classifier ran before the exit status was read, so a SUCCESSFUL
+        download whose output happens to mention a marker phrase was raised as expired."""
+        import subprocess as sp
+
+        class _Proc:
+            returncode = 0
+            stdout = "Downloading artifacts... no artifacts found in the other repo\n"
+            stderr = ""
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td)
+            (dest / "transcript.jsonl").write_text(REALISTIC, encoding="utf-8")
+            real = sp.run
+            sp.run = lambda *a, **k: _Proc()
+            try:
+                path = tl.download_transcript("123", dest)
+            finally:
+                sp.run = real
+        self.assertEqual(Path(path).name, "transcript.jsonl")
+
+    def test_undecodable_bytes_are_reported_as_their_own_cause(self):
+        """errors='replace' turned a binary artifact into replacement characters, which
+        then surfaced as a generic unparseable-record count naming two other causes."""
+        with tempfile.TemporaryDirectory() as td:
+            art = Path(td) / "transcript.jsonl"
+            art.write_bytes(b'{"timestamp": "2026-08-26T10:00:00.000Z"}\n\xff\xfe\x00binary\n')
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = tl.main(["--transcript", str(art)])
+        self.assertEqual(rc, 0)
+        self.assertIn("undecodable", buf.getvalue().lower())
 
 
 if __name__ == "__main__":

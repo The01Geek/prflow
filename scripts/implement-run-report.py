@@ -31,11 +31,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from context_eval_shared import UNESTABLISHED  # noqa: E402
 from implement_records import (  # noqa: E402
     fmt,
-    load_runs,
+    load_runs_with_status,
     mean_or_unestablished,
     median_or_unestablished,
     numeric,
-    phase_shares,
+    phase_shares_with_completeness,
     seconds,
 )
 
@@ -59,27 +59,39 @@ def _iso_week(merged_at):
 
 
 def _top_phases(run, limit=3):
-    shares = phase_shares(run)
+    """The largest phase shares, marked `partial` when the run recorded a phase whose
+    duration was never established — the shares are fractions of the measured total, so
+    without that mark a one-phase measurement renders like a whole-run one."""
+    shares, complete = phase_shares_with_completeness(run)
     if not shares:
         return UNESTABLISHED
     ranked = sorted(shares.items(), key=lambda kv: -kv[1])[:limit]
-    return " ".join(f"{Path(p).name}={s * 100:.0f}%" for p, s in ranked)
+    # The keys are workpad phase headings ("PR marked ready"), never paths.
+    rendered = " ".join(f"{name}={s * 100:.0f}%" for name, s in ranked)
+    return rendered if complete else rendered + " (partial)"
 
 
-def render_runs(runs, n):
+def render_runs(runs, n, status="read"):
     lines = []
+    if status == "unreadable":
+        return ("The experiment-record store could not be read (absent, or unreadable). "
+                "That is not the same as holding no runs — resolve the path before "
+                "reading anything below as a measurement.")
+    if status.startswith("read:"):
+        lines.append(f"NOTE: {status.split(':', 1)[1]} store line(s) could not be parsed "
+                     f"and are excluded from every figure below.")
     recent = runs[-n:] if n else []
     lines.append(f"Most recent {len(recent)} implement run(s) "
                  f"(of {len(runs)} in the store)")
     lines.append(f"{'run_id':>14}  {'duration':>10}  {'cost':>9}  "
-                 f"{'status':<12}  {'verdict':<20}  phase share")
+                 f"{'status':<13}  {'verdict':<20}  phase share")
     for run in recent:
         duration = run["duration_ms"]
         duration_s = f"{duration / 1000:.0f}s" if duration is not None else UNESTABLISHED
         lines.append(
             f"{str(run['run_id'] or UNESTABLISHED):>14}  {duration_s:>10}  "
             f"{fmt(run['cost_usd']):>9}  "
-            f"{str(run['terminal_status'] or UNESTABLISHED):<12}  "
+            f"{str(run['terminal_status'] or UNESTABLISHED):<13}  "
             f"{str(run['verdict'] or UNESTABLISHED):<20}  {_top_phases(run)}")
     durations = [r["duration_ms"] for r in recent]
     costs = [r["cost_usd"] for r in recent]
@@ -140,8 +152,15 @@ def regressions(weeks):
     return found
 
 
-def render_retro(runs):
+def render_retro(runs, status="read"):
     lines = ["## Implement runtime trends", ""]
+    if status == "unreadable":
+        lines.append("_(the experiment-record store could not be read — absent or "
+                     "unreadable; this is not the same as holding no runs)_")
+        return "\n".join(lines)
+    if status.startswith("read:"):
+        lines.append(f"_({status.split(':', 1)[1]} store line(s) unparseable and excluded)_")
+        lines.append("")
     if not runs:
         lines.append("_(no implement run records yet)_")
         return "\n".join(lines)
@@ -185,9 +204,12 @@ def main(argv=None):
     if args.count is not None and args.count <= 0:
         parser.error("the number of runs to render must be a positive integer")
 
-    runs = load_runs(args.records)
-    print(render_retro(runs) if args.retro else render_runs(runs, args.count))
-    return 0
+    runs, status = load_runs_with_status(args.records)
+    print(render_retro(runs, status) if args.retro
+          else render_runs(runs, args.count, status))
+    # An unreadable store is a real failure, not an empty result: the retrospective's
+    # `||` guard can only fire on a non-zero exit.
+    return 1 if status == "unreadable" else 0
 
 
 if __name__ == "__main__":
