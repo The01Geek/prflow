@@ -1,0 +1,99 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-26T00:30:00Z",
+  "fix_commit_sha": "096525ca",
+  "fix_files": [
+    "lib/test/run.sh",
+    "lib/test/extract-command-heads.py"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "loop-exit",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Critical",
+      "description": "shadow-surfaced: #1621 non-vacuity proof asserts ruff flags E731, but E731 left ruff 0.16 default select -> monolith shard RED in CI after the pin advance",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          55114,
+          55119
+        ],
+        "kind": "version-coupled-test-vacuity"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "096525ca"
+    }
+  ],
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": "2026-08-26T00:20:00Z",
+    "reviewed_sha": "4ca20c2d82e5411d7ecaeb4eda367c1275f5c34a",
+    "verdict": "REJECT-then-converged",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Critical",
+        "description": "#1621 non-vacuity E731 vacuity under ruff 0.16 (confirmed via CI run 32962398541 monolith FAIL)"
+      }
+    ],
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_1": 0,
+      "new": 1,
+      "new_critical": 1,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": true
+  },
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 8,
+    "new_corroborated_critical_count": 0
+  },
+  "post_fix_verification": "final-pass reviewer confirmed CI run 32963562637 monolith shard PASS + lint PASS on head 096525ca; F401 fires rc 1 under 0.16.4; install-state clean; ruff clean; no new Critical/Important -> CLEAN-FULL",
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

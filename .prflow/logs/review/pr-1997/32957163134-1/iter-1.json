@@ -1,0 +1,121 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-26T00:00:00Z",
+  "fix_commit_sha": "4ca20c2d",
+  "fix_files": [
+    ".prflow/install-state.json",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "lib/test/run.sh",
+    "lib/test/test_coverage_map_merge.py",
+    "lib/test/test_render_audit_prompt.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Critical",
+      "description": ".prflow/install-state.json drift: mechanical pass edited digest-pinned scripts/install_state.py, scripts/lint_provision.py, and devflow-implement.yml without regenerating install-state.json (lint-manifest CI job red)",
+      "defect_signature": {
+        "file": ".prflow/install-state.json",
+        "kind": "generated-artifact-drift"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "stale ruff==0.15.* prose in docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:1272 (present-tense CI description)",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          1272,
+          1272
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "stale ruff==0.15.* desk-remedy in lib/test/run.sh:55121 #1621 skip message",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          55121,
+          55121
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "bare ClassVar[list] where list[str]/list[tuple] is more precise (test_coverage_map_merge.py SUBSTITUTED, test_render_audit_prompt.py MATRIX)",
+      "defect_signature": {
+        "file": "lib/test/test_coverage_map_merge.py",
+        "kind": "type-precision"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "4ca20c2d"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "4ca20c2d"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "4ca20c2d"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "4ca20c2d"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 4,
+    "fix_diff_lines": 20,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "shadow_synthesized": true,
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
