@@ -1621,12 +1621,18 @@ _prior_implement_record_count() {
       printf 'unestablished\n'; return 0
     fi
     # An implement record persisted with no cost operand carries no harness_cost at all, so
-    # the class is read from three positive signals; a candidate matching none of them is
-    # unclassifiable, not "some other class".
+    # a second positive signal is needed; a candidate matching neither is unclassifiable,
+    # not "some other class".
+    #
+    # Do NOT add a `.slug` or `.source` signal here. Measured over the 2409 records on the
+    # telemetry branch: 557 records with no harness_cost carry a `.slug` starting `issue-`
+    # and were written by review-and-fix runs on an issue-named branch, so a slug signal
+    # OVERCOUNTS them as implement; and 191 records whose harness_cost.command IS
+    # "implement" carry `.source == "review-and-fix"`, so a source signal misclassifies
+    # implement records as other. Neither field separates the classes.
     _class="$(printf '%s' "$blob" | "$DEVFLOW_JQ" -r '
         if (.harness_cost.command? // null) == "implement" then "implement"
         elif (.harness_cost.command? // null) != null then "other"
-        elif (.slug? // "") | startswith("issue-") then "implement"
         elif (.run_profile.issue_number? // null) != null then "implement"
         else "unknown" end' 2>/dev/null)" || _class=""
     case "$_class" in

@@ -31,7 +31,10 @@ DERIVER="$HERE/derive-run-profile.py"
 # and its absence would drop the very diagnostic this exists to surface; a `::`-leading line
 # is prefixed so the runner reads it as text rather than as a workflow command.
 _echo_captured() {
-  while IFS= read -r _line; do
+  local _line
+  # `|| [ -n "$_line" ]` or an unterminated final line is dropped entirely — which is the
+  # very diagnostic-loss this helper exists to prevent.
+  while IFS= read -r _line || [ -n "$_line" ]; do
     case "$_line" in
       ::*) printf '  |%s\n' "$_line" >&2 ;;
       *)   printf '  %s\n' "$_line" >&2 ;;

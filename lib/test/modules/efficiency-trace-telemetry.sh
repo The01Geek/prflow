@@ -7162,7 +7162,9 @@ RP_INERT2_ERR="$( ( cd "$RP_INERT2" && GITHUB_RUN_ID=4012 GITHUB_RUN_ATTEMPT=1 \
 assert_eq "#2006 run-profile: with NEITHER operand set the floor stays silent" "yes" \
   "$(printf '%s' "$RP_INERT2_ERR" | grep -q 'run-profile floor' && echo no || echo yes)"
 # Positive control: silence must mean the floor declined, not that --persist died before
-# reaching it. The cost floor's own skeleton for the same run is the completion witness.
+# reaching it. No witness is writable under the silent run's own env (it sets no operand at
+# all), so this establishes the weaker claim it can: the SAME env plus a cost operand
+# completes --persist and writes a record carrying no run_profile key.
 ( cd "$RP_INERT2" && GITHUB_RUN_ID=4013 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 run-profile: --persist DID complete on that run (silence is a decline, not a death)" "yes" \
@@ -7185,4 +7187,42 @@ RP_CNT="$(_hc_repo "rp prior-count")"
 # Two prior records share the pr-42- key; only one of them is an implement run.
 assert_eq "#2006 prior_record_count: a same-key review record is not counted as an implement one" "1" \
   "$(_et_show "$RP_CNT" ".prflow/logs/efficiency/pr-42-5003-1.json" | jq -r '.run_profile.prior_record_count')"
-rm -rf "$RP_CNT"
+
+# The run_profile.issue_number signal: a prior record with NO harness_cost but a
+# run_profile.issue_number is an implement record and must be counted. Without this the
+# signal could be deleted and the block above would stay green.
+RP_CNT2="$(_hc_repo "rp prior-count profile-only")"
+( cd "$RP_CNT2" && GITHUB_RUN_ID=5101 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_PR=43 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 prior_record_count precondition: the profile-only prior record carries no harness_cost" "false" \
+  "$(_et_show "$RP_CNT2" ".prflow/logs/efficiency/pr-43-5101-1.json" | jq -r 'has("harness_cost")')"
+assert_eq "#2006 prior_record_count precondition: but it does carry run_profile.issue_number" "2006" \
+  "$(_et_show "$RP_CNT2" ".prflow/logs/efficiency/pr-43-5101-1.json" | jq -r '.run_profile.issue_number')"
+( cd "$RP_CNT2" && GITHUB_RUN_ID=5102 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=43 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 prior_record_count: a harness_cost-less prior record is counted via run_profile.issue_number" "1" \
+  "$(_et_show "$RP_CNT2" ".prflow/logs/efficiency/pr-43-5102-1.json" | jq -r '.run_profile.prior_record_count')"
+rm -rf "$RP_CNT2"
+
+# The unknown arm: a same-key prior record matching NEITHER signal makes the whole count
+# `unestablished` rather than a decimal that silently omits it. A record with an `issue-`
+# slug and source "review-and-fix" is exactly this shape — 557 such records sit on the
+# telemetry branch — and must NOT be counted as implement.
+RP_CNT3="$(_hc_repo "rp prior-count unknown")"
+# The iteration-collection path writes a record for every run dir it finds; with no cost
+# operand for THIS run id, the prior run's record lands carrying no harness_cost at all —
+# the shape 557 records on the real telemetry branch have.
+mkdir -p "$RP_CNT3/.prflow/tmp/review/pr-44/5201-1"
+printf '%s' "$HC_ITER" > "$RP_CNT3/.prflow/tmp/review/pr-44/5201-1/iter-1.json"
+( cd "$RP_CNT3" && GITHUB_RUN_ID=5201 GITHUB_RUN_ATTEMPT=1 \
+    DEVFLOW_COMMAND_CLASS=review-and-fix bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 prior_record_count precondition: the unclassifiable prior record matches neither signal" "true" \
+  "$(_et_show "$RP_CNT3" ".prflow/logs/efficiency/pr-44-5201-1.json" | jq -r '(has("harness_cost") | not) and (.run_profile.issue_number == null)')"
+( cd "$RP_CNT3" && GITHUB_RUN_ID=5202 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=44 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 prior_record_count: an unclassifiable same-key record makes the count unestablished, not a short decimal" "unestablished" \
+  "$(_et_show "$RP_CNT3" ".prflow/logs/efficiency/pr-44-5202-1.json" | jq -r '.run_profile.prior_record_count')"
+rm -rf "$RP_CNT3"
