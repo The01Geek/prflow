@@ -54238,6 +54238,8 @@ assert_eq "public site: dark-mode pagination text uses the cream palette color" 
   "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" '.dark #pagination :where(a, a *)')"
 assert_eq "public site: content borders use the brown palette color" "yes" \
   "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" 'border-color: #593e2e;')"
+assert_eq "public site: dark-mode content borders use the lighter brown palette color" "yes" \
+  "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" 'border-color: #866e60;')"
 assert_eq "public site: content shadows use the brown palette color" "yes" \
   "$(public_file_contains "$PUBLIC_SITE_ROOT/style.css" 'rgba(89, 62, 46, 0.24)')"
 assert_eq "public site: every navigation route resolves to a page" "yes" "$(public_route_files_resolve)"
@@ -54248,6 +54250,10 @@ assert_eq "public site: custom homepage matches the documentation page shell spa
   "$(public_file_contains "$PUBLIC_SITE_ROOT/index.mdx" '<div className="px-4 pt-40 lg:pt-10 lg:pl-16 lg:pr-10">')"
 assert_eq "public site: custom homepage matches the documentation reading-column width" "yes" \
   "$(public_file_contains "$PUBLIC_SITE_ROOT/index.mdx" '<div className="mx-auto w-full max-w-2xl 2xl:max-w-3xl xl:w-[calc(100%-13rem)]">')"
+assert_eq "public site: homepage glow keeps the primary brown in light mode" "yes" \
+  "$(public_file_contains "$PUBLIC_SITE_ROOT/index.mdx" 'bg-[#593e2e]/15')"
+assert_eq "public site: homepage glow uses the darker brown only in dark mode" "yes" \
+  "$(public_file_contains "$PUBLIC_SITE_ROOT/index.mdx" 'dark:bg-[#452929]/15')"
 assert_eq "public site: documentation hub is navigated exactly once" "1" "$(public_nav_routes | awk '$0 == "docs/index" { n++ } END { print n + 0 }')"
 assert_eq "public site: every documentation directory has index.md" "yes" "$(public_directories_have_index)"
 assert_eq "public site: documentation nesting is at most category/subcategory/page" "yes" "$(public_docs_stay_shallow)"

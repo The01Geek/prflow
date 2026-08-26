@@ -67,6 +67,10 @@
   border-color: #593e2e;
 }
 
+.dark #content-container :where(.card, a, input, textarea, select, button, blockquote, hr, th, td) {
+  border-color: #866e60;
+}
+
 #content-container .card {
   box-shadow: 0 1px 2px rgba(89, 62, 46, 0.24), 0 0 0 1px rgba(89, 62, 46, 0.16);
 }
