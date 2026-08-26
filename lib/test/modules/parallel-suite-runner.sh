@@ -1404,4 +1404,100 @@ assert_eq "cheap-lint gate real: the real brand finding launches NO shard" "yes"
 assert_eq "cheap-lint gate real: the real brand finding is attributed, not inconclusive" "yes" \
   "$(case "$PSR_RH_OUT" in *"was inconclusive"*) echo no ;; *"reported findings"*) echo yes ;; *) echo no ;; esac)"
 
+# ── ruff-version cheap-lint gate (issue #2009) ───────────────────────────────
+# The gate refuses a launch ONLY on a positively-attributed version skew (the ruff on PATH
+# reports a minor family that differs from the family the lint manifest pins) and fails OPEN
+# on every unrunnable-probe arm (ruff absent, ruff non-executing). The DEVFLOW_RUFF_VERSION_PROBE
+# seam drives each arm from a fixture tree that carries its own manifest + the real helper, so
+# the comparand is read from the manifest and not from a copy in the coordinator.
+PSR_RV_TREE="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_RV_TREE"
+mkdir -p "$PSR_RV_TREE/.prflow" "$PSR_RV_TREE/scripts"
+cp "$LIB/../scripts/ruff-version-skew.py" "$PSR_RV_TREE/scripts/ruff-version-skew.py"
+# A minimal manifest: the helper reads only tools.ruff.version. Pins the 0.16 family.
+printf '%s\n' '{"schema_version":1,"tools":{"ruff":{"version":"0.16.4"}}}' > "$PSR_RV_TREE/.prflow/lint-manifest.json"
+# Stubs behaving like `ruff --version`: a skewed reading, a matching reading, and a
+# non-executing binary (exit 126, no version). "Absent" is modelled by a probe path that
+# does not exist (exit 127), driven inline below.
+PSR_RV_SKEW="$(psr_plant_preflight ruff-skew 0 "ruff 0.6.9")"
+PSR_RV_MATCH="$(psr_plant_preflight ruff-match 0 "ruff 0.16.4")"
+PSR_RV_NONEXEC="$(psr_plant_preflight ruff-nonexec 126)"
+
+# (a) A skewed ruff refuses the coordinator launch and names the pip remedy (AC2).
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_SKEW" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: a skewed ruff exits non-zero" "yes" \
+  "$(case "$PSR_RV_RC" in 0) echo no ;; *) echo yes ;; esac)"
+assert_eq "#2009 ruff-version gate: a skewed ruff launches NO shard" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launched shard"*) echo no ;; *"launching no shard"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2009 ruff-version gate: the refusal names the pip remedy" "yes" \
+  "$(case "$PSR_RV_OUT" in *"python3 -m pip install --user --force-reinstall 'ruff==0.16."*) echo yes ;; *) echo no ;; esac)"
+
+# (b) The same skew via the standalone --preflight boundary the AC names explicitly (AC2).
+PSR_RVP_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_SKEW" \
+  bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_RVP_RC=$?
+assert_eq "#2009 ruff-version gate --preflight: a skewed ruff exits non-zero" "yes" \
+  "$(case "$PSR_RVP_RC" in 0) echo no ;; *) echo yes ;; esac)"
+assert_eq "#2009 ruff-version gate --preflight: the refusal names the pip remedy" "yes" \
+  "$(case "$PSR_RVP_OUT" in *"--force-reinstall 'ruff==0.16."*) echo yes ;; *) echo no ;; esac)"
+
+# (c) A matching ruff passes silently and the shard launches.
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_MATCH" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: a matching ruff exits 0" "0" "$PSR_RV_RC"
+assert_eq "#2009 ruff-version gate: a matching ruff launches the shard" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2009 ruff-version gate: a matching ruff emits no gate output" "yes" \
+  "$(case "$PSR_RV_OUT" in *"ruff-version cheap-lint"*) echo no ;; *) echo yes ;; esac)"
+
+# (d) An absent ruff (nonexistent probe path, exit 127) fails OPEN with a warning (AC3).
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_TREE/no-such-ruff --version" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: an absent ruff proceeds (exit 0)" "0" "$PSR_RV_RC"
+assert_eq "#2009 ruff-version gate: an absent ruff launches the shard" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2009 ruff-version gate: an absent ruff is inconclusive, not a refusal" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launching no shard"*) echo no ;; *"could not run ruff"*) echo yes ;; *) echo no ;; esac)"
+
+# (e) A non-executing ruff (exit 126, no version) also fails OPEN with a warning (AC3).
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_NONEXEC" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: a non-executing ruff proceeds (exit 0)" "0" "$PSR_RV_RC"
+assert_eq "#2009 ruff-version gate: a non-executing ruff launches the shard" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2009 ruff-version gate: a non-executing ruff is inconclusive, not a refusal" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launching no shard"*) echo no ;; *"could not run ruff"*) echo yes ;; *) echo no ;; esac)"
+
+# (f) The comparand is read from the manifest: bumping the pinned family alone turns the
+# formerly-matching ruff into a skew, with NO edit to run-parallel.sh (AC4).
+printf '%s\n' '{"schema_version":1,"tools":{"ruff":{"version":"0.17.0"}}}' > "$PSR_RV_TREE/.prflow/lint-manifest.json"
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_MATCH" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: bumping the manifest family alone turns a formerly-matching ruff into a skew" "yes" \
+  "$(case "$PSR_RV_RC" in 0) echo no ;; *) echo yes ;; esac)"
+assert_eq "#2009 ruff-version gate: the manifest-driven refusal names the new pinned family" "yes" \
+  "$(case "$PSR_RV_OUT" in *"'ruff==0.17."*) echo yes ;; *) echo no ;; esac)"
+
 rm -rf "$PSR_ROOT"

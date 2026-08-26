@@ -66,6 +66,10 @@
 #                                 clean/drift/uncheckable arms; the DEFAULT binding and the
 #                                 verdict contract are driven end-to-end against the real
 #                                 helper from lib/test/modules/regenerate-artifacts.sh.
+#   DEVFLOW_RUFF_VERSION_PROBE    command behaving like `ruff --version` for the cheap-lint
+#                                 ruff-version check (issue #2009); defaults to `ruff
+#                                 --version`. Set empty to disable the check. Fixtures inject
+#                                 a stub here to drive the skew/absent/non-executing arms.
 #   TMPDIR                        parent of the per-shard scratch roots (always), and
 #                                 the fallback run-root parent when the checkout root is
 #                                 unusable (read-only, full, or name space exhausted).
@@ -247,6 +251,45 @@ _cheap_lint_run() { # <label> <sentinel-prefix> <command string>
   return 0
 }
 
+# ── ruff-version cheap-lint check (issue #2009) ──────────────────────────────
+# Refuse the launch ONLY when a ruff on PATH positively reports a version whose minor family
+# skews from the family the lint manifest pins — the skew that reddens the in-suite #1621 ruff
+# gate on rule-set drift, not on real findings. Fail OPEN (a WARNING, then proceed) whenever the
+# check cannot run: ruff absent, ruff non-executing, no readable manifest, or an unparseable
+# version — so an absent/non-executing ruff stays the #1621 skip's case, never a pre-launch
+# refusal. The expected family is read from the manifest at run time (no second copy lives here).
+# DEVFLOW_RUFF_VERSION_PROBE is the test seam — a command behaving like `ruff --version`; an
+# explicitly-empty value disables the gate, as the `-` (never `:-`) siblings above.
+_ruff_version_preflight() {
+  local probe="${DEVFLOW_RUFF_VERSION_PROBE-ruff --version}"
+  local manifest="$REPO_ROOT/.prflow/lint-manifest.json"
+  local helper="$REPO_ROOT/scripts/ruff-version-skew.py"
+  local out rc verdict vrc
+  [ -n "$probe" ] || return 0
+  # A checkout with no manifest pin (or no helper) has nothing to enforce: skip silently.
+  { [ -s "$manifest" ] && [ -r "$helper" ]; } || return 0
+  # shellcheck disable=SC2086  # deliberate word-split: a probe command plus its argument(s)
+  out="$($probe 2>&1)"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf 'run-parallel: WARNING: the ruff-version cheap-lint check could not run ruff (absent or non-executing, exit %s); proceeding\n' "$rc" >&2
+    return 0
+  fi
+  verdict="$(python3 "$helper" --manifest "$manifest" --reported "$out" 2>&1)"
+  vrc=$?
+  case "$vrc" in
+    0) return 0 ;;
+    1)
+      printf '%s\n' "$verdict" >&2
+      printf 'run-parallel: the ruff-version cheap-lint gate found a version skew (see above); launching no shard — install the pinned ruff and re-run\n' >&2
+      return 1 ;;
+    *)
+      printf 'run-parallel: WARNING: the ruff-version cheap-lint check was inconclusive (exit %s); proceeding\n' "$vrc" >&2
+      [ -z "$verdict" ] || printf '%s\n' "$verdict" >&2
+      return 0 ;;
+  esac
+}
+
 # Returns 0 to PROCEED, 1 on the first positively-attributed finding; a refusal
 # short-circuits so a second gate's output cannot bury the one that fired.
 # Keep `-` (never `:-`) below, or an explicitly-empty override stops disabling its gate.
@@ -255,6 +298,7 @@ _cheap_lint_preflight() {
     "${DEVFLOW_REFERENCE_SIZE_PREFLIGHT-python3 $SCRIPT_DIR/lint-reference-size.py}" || return 1
   _cheap_lint_run 'brand-sweep' 'lint-brand-devflow-sweep: audited ' \
     "${DEVFLOW_BRAND_SWEEP_PREFLIGHT-python3 $SCRIPT_DIR/lint-brand-devflow-sweep.py}" || return 1
+  _ruff_version_preflight || return 1
   return 0
 }
 
