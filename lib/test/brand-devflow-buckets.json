@@ -166,6 +166,9 @@
       "path": "agents/deferral-drafter.md"
     },
     {
+      "path": "docs/external/docs/getting-started/index.md"
+    },
+    {
       "path": "docs/external/docs/getting-started/initialization.md"
     },
     {
@@ -173,6 +176,15 @@
     },
     {
       "path": "docs/external/docs/getting-started/migrate-from-devflow.md"
+    },
+    {
+      "path": "docs/external/docs/getting-started/updates.md"
+    },
+    {
+      "path": "docs/external/docs/reference/glossary.md"
+    },
+    {
+      "path": "docs/external/docs/workflows/retrospective-weekly.md"
     },
     {
       "path": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"
