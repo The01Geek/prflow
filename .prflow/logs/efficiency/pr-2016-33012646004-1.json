@@ -63,5 +63,93 @@
       "iter": 2,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 74.06754635000001,
+    "tokens": {
+      "input_tokens": 346,
+      "output_tokens": 249531,
+      "cache_read_input_tokens": 84006305,
+      "cache_creation_input_tokens": 704485,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 568,
+        "outputTokens": 357192,
+        "cacheReadInputTokens": 89748806,
+        "cacheCreationInputTokens": 2606688,
+        "webSearchRequests": 0,
+        "costUSD": 72.74066175000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 86,
+        "outputTokens": 17034,
+        "cacheReadInputTokens": 2387438,
+        "cacheCreationInputTokens": 271554,
+        "webSearchRequests": 0,
+        "costUSD": 1.3268845999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 219,
+    "duration_ms": 7055259
+  },
+  "permission_denials": {
+    "count": 26,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"; git rev-parse --show-toplevel; git branch --show-current",
+      "WP_BRANCH=\"issue-2008-an-environment-only-fix-after-a-red-completion\"\nPR_JSON=$(gh pr list --head \"$WP_BRANCH\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''\necho \"PR_JSON_HEAD=$PR_JSON\"\nif [ \"$PR_JSON\" = \"[]\" ]; then\n  PR_JSON=$(gh pr list --search \"2008 in:body\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''\n  echo \"PR_JSON_BODY=$PR_JSON\"\nfi",
+      "RUN_URL=\"https://github.com/The01Geek/prflow/actions/runs/33012646004\"\nPR_BODY=$(gh api repos/The01Geek/prflow/pulls/2016 --jq '.body' 2>/dev/null) || { PR_BODY=\"\"; echo \"read failed\"; }\necho \"$PR_BODY\" | grep -o '\\[View run\\]([^)]*)' ",
+      "gh api repos/The01Geek/prflow/pulls/2016 --jq \".body\" > /tmp/pr2016body.txt 2>/tmp/pr2016err.txt\ncat /tmp/pr2016err.txt\ngrep -o \"View run\" /tmp/pr2016body.txt\nwc -c /tmp/pr2016body.txt",
+      "gh api repos/The01Geek/prflow/pulls/2016 --jq \".body\" > /tmp/pr2016body.txt",
+      "mkdir -p .prflow/tmp\ngh api repos/The01Geek/prflow/pulls/2016 --jq \".body\" > .prflow/tmp/pr2016body.txt",
+      "git -C /home/runner/work/prflow/prflow log --oneline -15",
+      "git -C /home/runner/work/prflow/prflow diff --name-only main...HEAD 2>/dev/null | head -50",
+      "git -C /home/runner/work/prflow/prflow diff --name-only origin/main HEAD",
+      "git reset --hard 707ada9dc7a47b6a63e3c9147cdddc3a6b3c7cd7 2>&1 | tail -2; echo \"HEAD:\"; git rev-parse HEAD; echo \"@{u}:\"; git rev-parse @{u}; echo \"status:\"; git status --porcelain | head",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/verification-flight-2008.json 2>/dev/null; echo \"---\"; git -C /home/runner/work/prflow/prflow rev-parse HEAD",
+      "python3 - <<'EOF'\nimport json, subprocess, datetime\npath = \"/home/runner/work/prflow/prflow/.prflow/tmp/verification-flight-2008.json\"\nsha = subprocess.check_output([\"git\",\"rev-parse\",\"HEAD\"], cwd=\"/home/runner/work/prflow/prflow\").decode().strip()\nrecord = {\n  \"issue\": 2008,\n  \"command\": \"lib/test/run-module.sh parallel-suite-runner\",\n  \"head\": sha,\n  \"result\": \"passed\",\n  \"tally\": {\"passed\": 250, \"failed\": 0},\n  \"log\": \"/home/runner/work/prflow/prflow/.prflow/tmp/test-module-logs/parallel-suit …[per-command-truncated]",
+      "cat > /home/runner/work/prflow/prflow/.prflow/tmp/write_flight_record.py <<'PYEOF'\nimport json, subprocess, datetime\npath = \"/home/runner/work/prflow/prflow/.prflow/tmp/verification-flight-2008.json\"\nsha = subprocess.check_output([\"git\",\"rev-parse\",\"HEAD\"], cwd=\"/home/runner/work/prflow/prflow\").decode().strip()\nrecord = {\n  \"issue\": 2008,\n  \"command\": \"lib/test/run-module.sh parallel-suite-runner\",\n  \"head\": sha,\n  \"result\": \"passed\",\n  \"tally\": {\"passed\": 250, \"failed\": 0},\n  \"log\": \"/home/run …[per-command-truncated]",
+      "scripts/prompt-surface-growth.py 2>&1 | head -20; echo \"RC=$?\"",
+      "scripts/prompt-surface-growth.py",
+      ".prflow/vendor/prflow/scripts/verification-flight.py finish --flight f601c4fd825c09bf56a4e406bb7d60be3140e3b55a88669596e8ca836b1a5afb --token ec1892f199f101bac4d9e45252936dbd64fa09d2f71456e8c056b4e264133899 --result failed --summary-file /dev/stdin <<'EOF' 2>&1 | tail -2 || echo \"finish-failed-noted\"\n{\"command\": \"lib/test/run-parallel.sh\", \"passed\": 21927, \"failed\": 1, \"skipped\": 0, \"skipped_checks\": [], \"note\": \"environment-only #1621 ruff-version failure (installed 0.6.9 vs pinned 0.16.x)\"}\nEO …[per-command-truncated]",
+      "echo \"which ruff:\"; which ruff; echo \"pip show ruff:\"; pip show ruff 2>&1 | grep -E \"Version|Location\"; echo \"python -m ruff:\"; python3 -m ruff --version 2>&1 | head -1; echo \"user-base bin:\"; ls ~/.local/bin/ruff 2>&1; ~/.local/bin/ruff --version 2>&1 | head -1",
+      "ls -la /opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff 2>&1; /opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff --version 2>&1 | head -1; echo \"---target---\"; ls -la /home/runner/work/_temp/prflow-lint-bin/ruff",
+      "ls -la /opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff; echo \"---target---\"; ls -la /home/runner/work/_temp/prflow-lint-bin/ruff",
+      "ls -la /opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff",
+      "git ls-files '*.py' | xargs python3 -m ruff check --no-force-exclude 2>&1 | tail -5; echo \"RUFF016-RC=${PIPESTATUS[1]}\"",
+      "chmod +x .prflow/tmp/rbin/ruff; echo \"chmod-rc=$?\"; echo \"=== PATH ===\"; env | grep '^PATH=' | head -1; echo \"=== verify shim ===\"; .prflow/tmp/rbin/ruff --version",
+      ".prflow/vendor/prflow/scripts/checkout-fingerprint.py | tee .prflow/tmp/fresh-fp.json; echo \"---eligible?---\"; .prflow/vendor/prflow/scripts/shard-tally.py same-tree-eligible --recorded .prflow/tmp/parallel-suite/run-37435-0/fingerprint.json --fresh .prflow/tmp/fresh-fp.json; echo \"ELIG-RC=$?\"",
+      ".prflow/vendor/prflow/scripts/shard-tally.py same-tree-eligible --recorded .prflow/tmp/parallel-suite/run-37435-0/fingerprint.json --fresh .prflow/tmp/fresh-fp.json; echo \"ELIG-RC=$?\"",
+      ".prflow/vendor/prflow/scripts/shard-tally.py same-tree-eligible --recorded .prflow/tmp/parallel-suite/run-37435-0/fingerprint.json --fresh .prflow/tmp/fresh-fp.json",
+      "find .prflow/tmp/relaunch-monolith-tally -maxdepth 2 | head; echo \"=== summary content ===\"; find .prflow/tmp/relaunch-monolith-tally -name summary -exec cat {} \\;"
+    ],
+    "total": 26,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
