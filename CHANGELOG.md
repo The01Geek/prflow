@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.44] — 2026-08-26
+
+### Changed
+Fix three Phase 4.1 documentation-pass integration bugs: honor `docs.external_enabled: false` instead of blocking on the unused `.docs.external` key, align the release-notes/changelog config defaults with the `prflow:docs-release-notes` child skill so an unconfigured repo's release note is staged rather than dropped, and give the docs-sync-internal prompt extension's public-doc-impact handoff a concrete named shape the external step can consume.
+
 ## [2.34.43] — 2026-08-26
 
 ### Changed
