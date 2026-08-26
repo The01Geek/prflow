@@ -1,0 +1,32 @@
+{
+  "root_completeness": "established",
+  "verdict": "APPROVE",
+  "phase3_findings": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "report": "## Verdict: APPROVE (clean, mechanical DevFlow→PRFlow brand-prose sweep — batch 3 — with the reconciling lint as backstop; no findings)\n\n## Issue Compliance\nReviewed against issue #1996: brand-cased DevFlow→PRFlow prose sweep — criteria from the /prflow:implement workpad comment; scope narrowed: 3 deferred, 0 rewritten, 0 dropped without a record. Requirement-based checklist items are included in the verification results below.\nCriteria came from the `/prflow:implement` workpad comment — this run's authoritative set, narrowed from the issue (2.2.5 narrowed the reviewed set to the single in-scope batch-3 criterion).\n- Deferred by this run: After the sweep, no brand-cased `DevFlow` remains in an occurrence whose bucket is ordinary renameable prose.\n- Deferred by this run: `lib/test/lint-brand-devflow-sweep.py`'s default (no-flag) mode passes with `pending_sweep_baseline` empty in `lib/test/brand-devflow-buckets.json`.\n- Deferred by this run: Every file in `pending_sweep_baseline` whose brand-cased `DevFlow` occurrence turns out to be semantically frozen is reclassified into the correct frozen bucket rather than rewritten, and confirmed absent from `pending_sweep_baseline` for that reason.\n(These three terminal-state criteria are audited scope decisions recorded by the run — confirm the deferred work is filed as follow-up issues before final closure of #1996.)\n\n## Verification Checklist Results\n5 passed, 0 failed, 0 inconclusive — 0 via lite probe, 5 via agent.\n\n<details><summary>✅ Passed items (5 of 5) — click to expand</summary>\n\n- VC-1: Batch 3 sweep — the four files' brand-cased DevFlow prose reads PRFlow, all four removed from pending_sweep_baseline, and lint-brand-devflow-sweep.py default mode passes clean (verified: lint rc=0, \"audited 1145 of 1145 files\") [.changeset/issue-1996-brand-sweep-batch-3.md]\n- VC-2: No residual generic brand-cased DevFlow in the four files (verified: grep 'DevFlow' returns 0 hits across lib/preflight.sh, requirements.txt, .gitignore, .prflow/tool-presets.json) [lib/preflight.sh]\n- VC-3: Frozen identifiers preserved — DEVFLOW_* env vars, devflow_copy_slice, /devflow:init, devflow-bash: breadcrumb retain their spelling [.prflow/tool-presets.json]\n- VC-4: The four baseline removals dropped from pending_sweep_baseline (not another bucket); JSON well-formed and the four paths appear in no remaining bucket (verified) [lib/test/brand-devflow-buckets.json]\n- VC-5: Changeset frontmatter valid — bump: patch, type: Changed; no edit to plugin.json/CHANGELOG.md [.changeset/issue-1996-brand-sweep-batch-3.md]\n\n</details>\n\n## Code Review Findings\nNone. All five Phase-3 reviewers (code-reviewer, silent-failure-hunter, comment-analyzer, pr-test-analyzer, requesting-code-review) returned clean.\n\nover-grade annotation: no finding flagged\nintra-diff contradiction scan: no contradiction found\ntruthfulness sweep: no finding promoted\n\n## Verdict Criteria\n- No FAIL / INCONCLUSIVE checklist items.\n- No self-contradicting-diff findings; every rewritten comment verified accurate against HEAD and all frozen identifiers correctly retained.\n- No findings at or above the default `critical` verdict threshold.\n- checklist_skipped is null (engine_self_modifying forced the full Phase 1+2 checklist because lib/** paths changed) — no caveat.\n- 0 agents failed.\n- No findings → APPROVE."
+}
