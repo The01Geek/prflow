@@ -249,8 +249,8 @@ them read as though they did (issue #871):
 
 - the **Write tool** into `.prflow/tmp/**` (granted in the review profile) —
   **PERMITTED, run 29111394360** (probe shape 9). This is the *orchestrator* grant; the two
-  `PENDING` **dispatched-subagent** `Write` entries further down this file (issue #858,
-  review and implement tiers) are a separate measurement and do not qualify it.
+  **dispatched-subagent** `Write` entries further down this file (issue #858, review and
+  implement tiers; since MEASURED PERMITTED) are a separate measurement and do not qualify it.
 - `… | tee` — probe shape 10; **no per-row verdict is transcribed** in this file.
 - `tee <<'EOF'` — probe shape 6; **no per-row verdict is transcribed** in this file.
 - repo-relative **vendored-literal** helper paths — the **leading-token** form is

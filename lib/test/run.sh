@@ -27335,6 +27335,9 @@ PRT_AGENTS="code-reviewer silent-failure-hunter comment-analyzer type-design-ana
 # Exclusions are append-only HISTORICAL / MIGRATION surfaces where the OLD id legitimately
 # survives and rewriting it would falsify the record:
 #   - .prflow/logs/                  audit scratch (per the issue AC).
+#   - .prflow/learnings/              append-only experiment/retrospective records: migrated
+#                                     pre-internalization telemetry carries the old id in
+#                                     per_iteration verbatim; rewriting it falsifies the record.
 #   - CHANGELOG.md                    release history (past entries describing prior config
 #                                     state) PLUS the new #141 entry, which documents the
 #                                     breaking rename and so necessarily names the old id.
@@ -27343,8 +27346,8 @@ PRT_AGENTS="code-reviewer silent-failure-hunter comment-analyzer type-design-ana
 #                                     example are rewired to devflow: (asserted positively
 #                                     below), only the migration section names the old id.
 PRT_PAT="pr-review-""toolkit:"
-assert_eq "#141 no operative surface references the namespaced pr-review-toolkit agent id (logs/CHANGELOG/migration-doc excepted)" \
-  "" "$(tracked_scan "$FDROOT" "$PRT_PAT" ':!.prflow/logs' ':!CHANGELOG.md' ':!docs/internal/review-agent-overrides.md')"
+assert_eq "#141 no operative surface references the namespaced pr-review-toolkit agent id (logs/learnings/CHANGELOG/migration-doc excepted)" \
+  "" "$(tracked_scan "$FDROOT" "$PRT_PAT" ':!.prflow/logs' ':!.prflow/learnings' ':!CHANGELOG.md' ':!docs/internal/review-agent-overrides.md')"
 
 # (2/2b/2c) Per-agent vendoring + dispatch-resolves + structural validity. For each of the
 # five review agents: the file exists first-party under agents/; the shared review engine
@@ -27559,8 +27562,8 @@ SP_SKILLS="requesting-code-review receiving-code-review"
 # positively in (1c)), not forbidden.
 SP_PAT_REQ="superpowers:""requesting-code-review"
 SP_PAT_REC="superpowers:""receiving-code-review"
-assert_eq "#142 no operative surface references the old namespaced requesting-code-review id (logs/CHANGELOG/migration-doc excepted)" \
-  "" "$(tracked_scan "$FDROOT" "$SP_PAT_REQ" ':!.prflow/logs' ':!CHANGELOG.md' ':!docs/internal/review-agent-overrides.md')"
+assert_eq "#142 no operative surface references the old namespaced requesting-code-review id (logs/learnings/CHANGELOG/migration-doc excepted)" \
+  "" "$(tracked_scan "$FDROOT" "$SP_PAT_REQ" ':!.prflow/logs' ':!.prflow/learnings' ':!CHANGELOG.md' ':!docs/internal/review-agent-overrides.md')"
 assert_eq "#142 no operative surface references the old namespaced receiving-code-review id (logs/CHANGELOG excepted)" \
   "" "$(tracked_scan "$FDROOT" "$SP_PAT_REC" ':!.prflow/logs' ':!CHANGELOG.md')"
 
@@ -53582,6 +53585,100 @@ _wfs_restore_p1
 # it does not detect) is discharged by the docstring itself and human review — a
 # docstring-presence grep would be a prohibited wording-only pin (CLAUDE.md's
 # executable-evidence policy), so none is written here.
+
+# ── #1946 paged-read-idiom reconciliation lint (lib/test/lint-paged-read-idiom.py) ──
+# The paged-read recovery idiom is copied across many skills/** files; a prose declaration
+# named only a subset. This lint is the mechanical reconciliation: it enumerates skills/**.md
+# carriers (index-reading git ls-files) and reconciles them against a registered INVENTORY,
+# failing on an unregistered carrier, a vanished fingerprint, or a drifted termination
+# wording. Driven like the #1124/#1633 siblings: the real tree is the live gate, plus a
+# scratch root (copies of the enrolled files, derived from --print-inventory) driven via
+# --files-from so the enumeration runs without a git repo, proving the guard non-vacuous.
+PRI_LINT="$LIB/test/lint-paged-read-idiom.py"
+# Live gate: every enrolled copy carries its fingerprint+marker and no other skills/**.md
+# file carries the fingerprint → clean.
+PRI_OUT="$(python3 "$PRI_LINT" 2>&1)"; PRI_RC=$?
+assert_eq "#1946 lint: clean on the tree as it stands" "rc=0" \
+  "$([ "$PRI_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$PRI_RC" "$PRI_OUT")"
+# Inventory membership (AC2, non-vacuous): each enrolled copy is registered, and the
+# corrected variant carries a stated reason for standing alone.
+PRI_INV="$(python3 "$PRI_LINT" --print-inventory)"
+for _pri_f in \
+  "skills/review/SKILL.md" "skills/implement/SKILL.md" \
+  "skills/implement/phases/phase-2-sweeps-contract.md" \
+  "skills/implement/phases/phase-4-documentation.md" \
+  "skills/create-issue/SKILL.md" "skills/docs-verify/SKILL.md" \
+  "skills/review-and-fix/SKILL.md" \
+  "skills/review-and-fix/references/loop-control.md" \
+  "skills/review-and-fix/references/fixing.md" ; do
+  assert_eq "#1946 lint: inventory registers $_pri_f" "yes" \
+    "$(case "$PRI_INV" in *"$_pri_f"*) echo yes ;; *) echo no ;; esac)"
+done
+assert_eq "#1946 lint: the corrected variant stands alone with a stated reason (AC2)" "yes" \
+  "$(case "$PRI_INV" in *"loop-control.md"*"corrected-variant"*"stands alone deliberately"*) echo yes ;; *) echo no ;; esac)"
+# Scratch root: copy the enrolled files (derived from --print-inventory field 1) into a
+# scratch tree and build a files-from population list, so the enumeration runs with no git repo.
+PRI_ROOT="$(mktemp -d)"; _suite_tmp_dir "$PRI_ROOT"
+PRI_LST="$PRI_ROOT/files.lst"; : > "$PRI_LST"
+while IFS="$(printf '\t')" read -r _pri_p _pri_rest; do
+  [ -n "$_pri_p" ] || continue
+  mkdir -p "$PRI_ROOT/$(dirname "$_pri_p")"
+  cp "$REPO_ROOT/$_pri_p" "$PRI_ROOT/$_pri_p"
+  printf '%s\n' "$_pri_p" >> "$PRI_LST"
+done <<< "$PRI_INV"
+# GREEN: clean scratch copies pass.
+assert_eq "#1946 lint: a clean scratch root passes (GREEN)" "0" \
+  "$(python3 "$PRI_LINT" --root "$PRI_ROOT" --files-from "$PRI_LST" >/dev/null 2>&1; echo $?)"
+# RED 1 — an unregistered carrier (a new skills/**.md carrying the fingerprint) is reported
+# by path: drift from an ADDED copy is detectable (AC3).
+mkdir -p "$PRI_ROOT/skills/zz-newcopy"
+printf 'A partial-view notice; page forward until a page adds nothing new.\n' > "$PRI_ROOT/skills/zz-newcopy/SKILL.md"
+PRI_LST2="$PRI_ROOT/files2.lst"; cp "$PRI_LST" "$PRI_LST2"; printf '%s\n' "skills/zz-newcopy/SKILL.md" >> "$PRI_LST2"
+PRI_NEW_OUT="$(python3 "$PRI_LINT" --root "$PRI_ROOT" --files-from "$PRI_LST2" 2>&1)"; PRI_NEW_RC=$?
+assert_eq "#1946 lint: an unregistered carrier fails closed (RED)" "1" "$PRI_NEW_RC"
+assert_eq "#1946 lint: the RED report names the unregistered copy" "yes" \
+  "$(case "$PRI_NEW_OUT" in *"skills/zz-newcopy/SKILL.md: carries the paged-read idiom"*"NOT"*) echo yes ;; *) echo no ;; esac)"
+rm -rf "$PRI_ROOT/skills/zz-newcopy"
+# RED 2 — a vanished fingerprint on an enrolled copy → RED naming it (drift from a REMOVED
+# or reworded copy is detectable, AC3).
+# Portable in-place edit (BSD/macOS `sed -i` needs a suffix arg — CLAUDE.md bans GNU-only flags).
+sed 's/partial-view/PAGED/g' "$PRI_ROOT/skills/docs-verify/SKILL.md" > "$PRI_ROOT/edit.tmp"; mv "$PRI_ROOT/edit.tmp" "$PRI_ROOT/skills/docs-verify/SKILL.md"
+PRI_VAN_OUT="$(python3 "$PRI_LINT" --root "$PRI_ROOT" --files-from "$PRI_LST" 2>&1)"; PRI_VAN_RC=$?
+assert_eq "#1946 lint: a vanished fingerprint fails closed (RED)" "1" "$PRI_VAN_RC"
+assert_eq "#1946 lint: the vanished-fingerprint report names the copy" "yes" \
+  "$(case "$PRI_VAN_OUT" in *"docs-verify/SKILL.md: enrolled copy no longer carries"*) echo yes ;; *) echo no ;; esac)"
+cp "$REPO_ROOT/skills/docs-verify/SKILL.md" "$PRI_ROOT/skills/docs-verify/SKILL.md"
+# RED 3 — a termination-wording drift (marker changed, fingerprint kept) → RED naming the
+# copy and the expected marker (drift from a REWORDED copy is detectable, AC3).
+sed 's/adds nothing new/adds nothing fresh/g' "$PRI_ROOT/skills/create-issue/SKILL.md" > "$PRI_ROOT/edit.tmp"; mv "$PRI_ROOT/edit.tmp" "$PRI_ROOT/skills/create-issue/SKILL.md"
+PRI_DRIFT_OUT="$(python3 "$PRI_LINT" --root "$PRI_ROOT" --files-from "$PRI_LST" 2>&1)"; PRI_DRIFT_RC=$?
+assert_eq "#1946 lint: a termination-wording drift fails closed (RED)" "1" "$PRI_DRIFT_RC"
+assert_eq "#1946 lint: the drift report names the copy and the marker" "yes" \
+  "$(case "$PRI_DRIFT_OUT" in *"create-issue/SKILL.md: the paged-read idiom's termination wording drifted"*) echo yes ;; *) echo no ;; esac)"
+cp "$REPO_ROOT/skills/create-issue/SKILL.md" "$PRI_ROOT/skills/create-issue/SKILL.md"
+# RED 4 — an UNREADABLE non-enrolled skills/**.md carrier fails CLOSED (the load-bearing arm:
+# a new copy must not hide behind a read error). A files-from entry for a skills/ path absent
+# on disk makes read_source raise OSError → "unreadable" → reported, never skipped.
+PRI_LST3="$PRI_ROOT/files3.lst"; cp "$PRI_LST" "$PRI_LST3"; printf '%s\n' "skills/zz-ghost/SKILL.md" >> "$PRI_LST3"
+PRI_GHOST_OUT="$(python3 "$PRI_LINT" --root "$PRI_ROOT" --files-from "$PRI_LST3" 2>&1)"; PRI_GHOST_RC=$?
+assert_eq "#1946 lint: an unreadable non-enrolled carrier fails closed (RED)" "1" "$PRI_GHOST_RC"
+assert_eq "#1946 lint: the unreadable-carrier report names it and says it fails closed" "yes" \
+  "$(case "$PRI_GHOST_OUT" in *"skills/zz-ghost/SKILL.md: could not be read"*"fails closed"*) echo yes ;; *) echo no ;; esac)"
+# RED 5 — an unenumerable population fails CLOSED (audited-nothing must never read as
+# audited-everything). An empty files-from list makes enumerate_population raise.
+PRI_EMPTY="$PRI_ROOT/empty.lst"; : > "$PRI_EMPTY"
+PRI_ENUM_OUT="$(python3 "$PRI_LINT" --root "$PRI_ROOT" --files-from "$PRI_EMPTY" 2>&1)"; PRI_ENUM_RC=$?
+assert_eq "#1946 lint: an unenumerable population fails closed (RED)" "1" "$PRI_ENUM_RC"
+assert_eq "#1946 lint: the enumeration-failure report says so" "yes" \
+  "$(case "$PRI_ENUM_OUT" in *"population could not be enumerated"*) echo yes ;; *) echo no ;; esac)"
+# RED 6 — an enrolled copy that cannot be read at all fails CLOSED (the text-is-None enrolled
+# branch, distinct from the fingerprint-absent RED 2 above). Remove an enrolled scratch copy.
+rm -f "$PRI_ROOT/skills/review-and-fix/SKILL.md"
+PRI_MISS_OUT="$(python3 "$PRI_LINT" --root "$PRI_ROOT" --files-from "$PRI_LST" 2>&1)"; PRI_MISS_RC=$?
+assert_eq "#1946 lint: an unreadable enrolled copy fails closed (RED)" "1" "$PRI_MISS_RC"
+assert_eq "#1946 lint: the unreadable-enrolled report names it" "yes" \
+  "$(case "$PRI_MISS_OUT" in *"review-and-fix/SKILL.md: enrolled copy could not be read"*) echo yes ;; *) echo no ;; esac)"
+cp "$REPO_ROOT/skills/review-and-fix/SKILL.md" "$PRI_ROOT/skills/review-and-fix/SKILL.md"
 
 # ── #1633 scratch-write anchoring (phase-1-setup.md) ──────────────────────────
 # The root .gitignore rule is root-anchored (/.prflow/*), so a cwd-relative scratch
