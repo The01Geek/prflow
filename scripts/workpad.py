@@ -4830,7 +4830,13 @@ def _review_coverage_disposition_cause_rejection(cause_class, has_missing_roster
     `--review-coverage-disposition` validator and the read-time Complete-gate verdict so
     the closed vocabulary and the environment-denial corroboration cannot drift between
     the two enforcement points. Returns a diagnostic tail each caller frames with its
-    own prefix; the callers append `[review-coverage-cause-inadmissible]`."""
+    own prefix; the callers append `[review-coverage-cause-inadmissible]`.
+
+    Corroboration scope is roster-global, not per-gap: `environment-denial` is admitted
+    for ANY gap whenever ANY roster row reads `missing`, so the corroborating row need
+    not name the capability the disposed gap depended on. That matches issue #1984's
+    acceptance wording; it closes the primary hole (a gap with no `missing` row at all)
+    and leaves tying corroboration to the specific gap to a follow-up."""
     if cause_class not in _REVIEW_COVERAGE_CAUSE_CLASSES:
         return (f"carries cause class {cause_class!r}, which is not one of "
                 f"{', '.join(_REVIEW_COVERAGE_CAUSE_CLASSES)}")
