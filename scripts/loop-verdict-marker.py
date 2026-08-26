@@ -76,6 +76,7 @@ import argparse
 import re
 import sys
 
+
 def _force_utf8_streams():
     """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
     streams of any process that imports this module for tests. Tolerates a stream that
@@ -154,17 +155,16 @@ def _cmd_compose(args: argparse.Namespace) -> int:
     token = _normalize_result(args.result)
     if token is None:
         sys.stderr.write(
-            "loop-verdict-marker: result '%s' is not one of the six loop-level "
+            f"loop-verdict-marker: result '{args.result}' is not one of the six loop-level "
             "results (APPROVE / APPROVE with notes / APPROVE WITH CAVEAT / "
             "APPROVE WITH ADVISORY NOTES / APPROVE WITH UNRESOLVED SHADOW FINDINGS "
             "/ REJECT) — refusing to compose a marker (no line emitted)\n"
-            % args.result
         )
         return 3
     coverage = _normalize_coverage(args.coverage)
     # Reuse MARKER_PREFIX so the producer and the reader's _MARKER_RE can never drift
     # on the marker's leading literal.
-    sys.stdout.write("%sresult=%s coverage=%s -->\n" % (MARKER_PREFIX, token, coverage))
+    sys.stdout.write(f"{MARKER_PREFIX}result={token} coverage={coverage} -->\n")
     return 0
 
 
@@ -179,7 +179,7 @@ def _cmd_read(args: argparse.Namespace) -> int:
             # An unreadable/undecodable input is not a decided verdict: route to the
             # prose fallback, never to clean.
             print(ROUTE_NO_MARKER)
-            sys.stderr.write("loop-verdict-marker: could not read input: %s\n" % exc)
+            sys.stderr.write(f"loop-verdict-marker: could not read input: {exc}\n")
             return 2
 
     # LINE 1 ONLY — the fixed position. splitlines()[0] is line 1; an empty input
@@ -193,34 +193,34 @@ def _cmd_read(args: argparse.Namespace) -> int:
 
     m = _MARKER_RE.match(line1)
     if m is None:
-        print("%s marker-shaped-line-1-does-not-match-the-marker-grammar" % ROUTE_MALFORMED)
+        print(f"{ROUTE_MALFORMED} marker-shaped-line-1-does-not-match-the-marker-grammar")
         return 3
 
     result = m.group("result")
     coverage = m.group("coverage")
     if result not in _RESULT_TOKENS:
-        print("%s unknown-result-token=%s" % (ROUTE_MALFORMED, result))
+        print(f"{ROUTE_MALFORMED} unknown-result-token={result}")
         return 3
     if coverage not in _COVERAGE_TOKENS:
-        print("%s unknown-coverage-token=%s" % (ROUTE_MALFORMED, coverage))
+        print(f"{ROUTE_MALFORMED} unknown-coverage-token={coverage}")
         return 3
 
     if result == "reject":
         print(ROUTE_REJECT)
         return 0
     if result == "approve-unresolved-shadow-findings":
-        print("%s %s" % (ROUTE_AWUSF, coverage))
+        print(f"{ROUTE_AWUSF} {coverage}")
         return 0
     # A clean approve-family result — decided against the single-source set, never by
     # exclusion, so a future result token that is in _RESULT_TOKENS but in none of the
     # buckets above fails CLOSED to MALFORMED rather than being classified CLEAN.
     if result in _CLEAN_APPROVE_TOKENS:
         if coverage == "full":
-            print("%s %s" % (ROUTE_CLEAN_FULL, result))
+            print(f"{ROUTE_CLEAN_FULL} {result}")
         else:
-            print("%s %s" % (ROUTE_CLEAN_NOT_VERIFIED, result))
+            print(f"{ROUTE_CLEAN_NOT_VERIFIED} {result}")
         return 0
-    print("%s unrouted-result-token=%s" % (ROUTE_MALFORMED, result))
+    print(f"{ROUTE_MALFORMED} unrouted-result-token={result}")
     return 3
 
 

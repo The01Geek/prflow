@@ -43,9 +43,9 @@ it, and neither of those two would notice a memo that captured repository state.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.machinery
 import importlib.util
-import hashlib
 import io
 import json
 import re
@@ -452,7 +452,7 @@ class MemoizedParseContractTests(unittest.TestCase):
                 "exec_module",
                 side_effect=boom,
             ):
-                with self.assertRaises(Exception):
+                with self.assertRaises(RuntimeError):
                     loader()
         self.assertTrue(registered, "the loader never reached module creation")
         for name in registered:
@@ -618,28 +618,28 @@ class PinCorpusLint810Tests(unittest.TestCase):
                 ),
                 (
                     "unresolved literal",
-                    "F=\"$LIB/../docs/x.md\"\n"
-                    f"assert_pin_unique \"wording\" \"$UNKNOWN\" \"$F\"  {marker}",
+                    ("F=\"$LIB/../docs/x.md\"\n"
+                    f"assert_pin_unique \"wording\" \"$UNKNOWN\" \"$F\"  {marker}"),
                 ),
                 (
                     "empty literal",
-                    "F=\"$LIB/../docs/x.md\"\n"
-                    f"assert_pin_unique \"wording\" '' \"$F\"  {marker}",
+                    ("F=\"$LIB/../docs/x.md\"\n"
+                    f"assert_pin_unique \"wording\" '' \"$F\"  {marker}"),
                 ),
                 (
                     "missing target",
-                    "F=\"$LIB/../docs/missing.md\"\n"
-                    f"assert_pin_unique \"wording\" 'human-facing prose' \"$F\"  {marker}",
+                    ("F=\"$LIB/../docs/missing.md\"\n"
+                    f"assert_pin_unique \"wording\" 'human-facing prose' \"$F\"  {marker}"),
                 ),
                 (
                     "outside repository",
-                    f"F=\"{outside}\"\n"
-                    f"assert_pin_unique \"wording\" 'TOKEN' \"$F\"  {marker}",
+                    (f"F=\"{outside}\"\n"
+                    f"assert_pin_unique \"wording\" 'TOKEN' \"$F\"  {marker}"),
                 ),
                 (
                     "literal absent from target",
-                    "F=\"$LIB/../docs/x.md\"\n"
-                    f"assert_pin_unique \"wording\" 'ABSENT' \"$F\"  {marker}",
+                    ("F=\"$LIB/../docs/x.md\"\n"
+                    f"assert_pin_unique \"wording\" 'ABSENT' \"$F\"  {marker}"),
                 ),
             )
             for label, source in cases:
@@ -1127,18 +1127,7 @@ class PinCorpusLint810Tests(unittest.TestCase):
         )
 
     def test_runtime_pipe_count_absence_and_temp_greps_are_not_raw_presence_pins(self):
-        source = "\n".join(
-            [
-                "assert_eq \"runtime\" \"yes\" \"$(printf x | grep -qF x && echo yes || echo no)\"",
-                "assert_eq \"count\" \"1\" \"$(grep -cF x \"$DOC\")\"",
-                "assert_eq \"absence\" \"no\" \"$(grep -qF x \"$DOC\" && echo yes || echo no)\"",
-                "assert_eq \"temp\" \"yes\" \"$(grep -qF x \"$TMP_FILE\" && echo yes || echo no)\"",
-                # A scratch DIR plus a relative capture name is the ordinary way to
-                # write a runtime haystack; it is the same carve-out as the bare var.
-                "assert_eq \"temp dir\" \"yes\" \"$(grep -qF x \"$TMP_MI/edit-args\" && echo yes || echo no)\"",
-                "assert_eq \"temp braced\" \"yes\" \"$(grep -qF x \"${TEMP_D}/args\" && echo yes || echo no)\"",
-            ]
-        )
+        source = 'assert_eq "runtime" "yes" "$(printf x | grep -qF x && echo yes || echo no)"\nassert_eq "count" "1" "$(grep -cF x "$DOC")"\nassert_eq "absence" "no" "$(grep -qF x "$DOC" && echo yes || echo no)"\nassert_eq "temp" "yes" "$(grep -qF x "$TMP_FILE" && echo yes || echo no)"\nassert_eq "temp dir" "yes" "$(grep -qF x "$TMP_MI/edit-args" && echo yes || echo no)"\nassert_eq "temp braced" "yes" "$(grep -qF x "${TEMP_D}/args" && echo yes || echo no)"'
         sites = self.mod.extract_guard_sites(source, "lib/test/a.sh", repo_root="/repo")
         self.assertEqual([], [site for site in sites if site.family == "raw-presence"])
 
@@ -1146,13 +1135,7 @@ class PinCorpusLint810Tests(unittest.TestCase):
         # The carve-out is for UNRESOLVABLE runtime scratch only. A `TMP_`-named var
         # that actually resolves to repository source is a source-presence pin and
         # must not be exempted by its name.
-        source = "\n".join(
-            [
-                'TMP_DOC="$LIB/../docs/x.md"',
-                "assert_eq \"named temp\" \"yes\" \"$(grep -qF x \"$TMP_DOC\" && echo yes || echo no)\"",
-                "assert_eq \"inline temp\" \"yes\" \"$(grep -qF x \"$TMP_DOC/y\" && echo yes || echo no)\"",
-            ]
-        )
+        source = 'TMP_DOC="$LIB/../docs/x.md"\nassert_eq "named temp" "yes" "$(grep -qF x "$TMP_DOC" && echo yes || echo no)"\nassert_eq "inline temp" "yes" "$(grep -qF x "$TMP_DOC/y" && echo yes || echo no)"'
         sites = self.mod.extract_guard_sites(source, "lib/test/a.sh", repo_root="/repo")
         self.assertEqual(
             2, len([site for site in sites if site.family == "raw-presence"])
@@ -1336,76 +1319,76 @@ class PinCorpusLint810Tests(unittest.TestCase):
         malformed = (
             (
                 "unterminated quoted path",
-                'diff --git a/lib/test/a.sh b/lib/test/a.sh\n'
+                ('diff --git a/lib/test/a.sh b/lib/test/a.sh\n'
                 "--- a/lib/test/a.sh\n"
                 '+++ "b/lib/test/a.sh\n'
                 "@@ -0,0 +1 @@\n"
-                "+assert_pin_unique \"wording\" 'literal' \"$F\"\n",
+                "+assert_pin_unique \"wording\" 'literal' \"$F\"\n"),
             ),
             (
                 "missing new header",
-                "diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
+                ("diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
                 "--- a/lib/test/a.sh\n"
                 "@@ -0,0 +1 @@\n"
-                "+assert_pin_unique \"wording\" 'literal' \"$F\"\n",
+                "+assert_pin_unique \"wording\" 'literal' \"$F\"\n"),
             ),
             (
                 "malformed hunk",
-                "diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
+                ("diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
                 "--- a/lib/test/a.sh\n"
                 "+++ b/lib/test/a.sh\n"
                 "@@ malformed @@\n"
-                "+assert_pin_unique \"wording\" 'literal' \"$F\"\n",
+                "+assert_pin_unique \"wording\" 'literal' \"$F\"\n"),
             ),
             (
                 "truncated hunk",
-                "diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
+                ("diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
                 "--- a/lib/test/a.sh\n"
                 "+++ b/lib/test/a.sh\n"
                 "@@ -0,0 +1,2 @@\n"
-                "+assert_pin_unique \"wording\" 'literal' \"$F\"\n",
+                "+assert_pin_unique \"wording\" 'literal' \"$F\"\n"),
             ),
             (
                 "headers without hunk",
-                "diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
+                ("diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
                 "--- a/lib/test/a.sh\n"
-                "+++ b/lib/test/a.sh\n",
+                "+++ b/lib/test/a.sh\n"),
             ),
             (
                 "arbitrary post-header text",
-                "diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
+                ("diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
                 "--- a/lib/test/a.sh\n"
                 "+++ b/lib/test/a.sh\n"
-                "GARBAGE\n",
+                "GARBAGE\n"),
             ),
             (
                 "both sides dev null",
-                "diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
+                ("diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
                 "--- /dev/null\n"
                 "+++ /dev/null\n"
                 "@@ -0,0 +1 @@\n"
-                "+wording\n",
+                "+wording\n"),
             ),
             (
                 "misplaced no-newline marker",
-                "diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
+                ("diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
                 "--- a/lib/test/a.sh\n"
                 "+++ b/lib/test/a.sh\n"
                 "@@ -1 +1 @@\n"
                 "\\ No newline at end of file\n"
                 "-old\n"
-                "+new\n",
+                "+new\n"),
             ),
             (
                 "duplicate no-newline marker",
-                "diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
+                ("diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
                 "--- a/lib/test/a.sh\n"
                 "+++ b/lib/test/a.sh\n"
                 "@@ -1 +1 @@\n"
                 "-old\n"
                 "\\ No newline at end of file\n"
                 "\\ No newline at end of file\n"
-                "+new\n",
+                "+new\n"),
             ),
             (
                 "bare diff header",
@@ -1413,13 +1396,13 @@ class PinCorpusLint810Tests(unittest.TestCase):
             ),
             (
                 "index without change record",
-                "diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
-                "index 123..456 100644\n",
+                ("diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
+                "index 123..456 100644\n"),
             ),
             (
                 "malformed index metadata",
-                "diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
-                "index garbage\n",
+                ("diff --git a/lib/test/a.sh b/lib/test/a.sh\n"
+                "index garbage\n"),
             ),
         )
         for label, diff in malformed:
@@ -1607,23 +1590,23 @@ class PinCorpusLint810Tests(unittest.TestCase):
         cases = (
             (
                 "computed",
-                "DOC=\"$(printf %s \"$LIB/../docs/x.md\")\"\n"
+                ("DOC=\"$(printf %s \"$LIB/../docs/x.md\")\"\n"
                 "assert_eq \"wording\" \"yes\" "
-                "\"$(grep -qF -- 'HUMAN PROSE' \"$DOC\" && echo yes || echo no)\"",
+                "\"$(grep -qF -- 'HUMAN PROSE' \"$DOC\" && echo yes || echo no)\""),
             ),
             (
                 "indented assignment",
-                "wrap() {\n"
+                ("wrap() {\n"
                 "  local DOC=\"$LIB/../docs/x.md\"\n"
                 "  assert_eq \"wording\" \"yes\" "
                 "\"$(grep -Fq -- 'HUMAN PROSE' \"$DOC\" && echo yes || echo no)\"\n"
-                "}",
+                "}"),
             ),
             (
                 "single-quoted target",
-                "assert_eq \"wording\" \"yes\" "
+                ("assert_eq \"wording\" \"yes\" "
                 "\"$(grep -Fq -- 'HUMAN PROSE' 'docs/x.md' "
-                "&& echo yes || echo no)\"",
+                "&& echo yes || echo no)\""),
             ),
         )
         for label, source in cases:
@@ -1687,13 +1670,13 @@ class PinCorpusLint810Tests(unittest.TestCase):
             ),
             (
                 "assigned pathlib",
-                "text = Path('docs/x.md').read_text()\n"
-                "self.assertIn('advisory wording', text)",
+                ("text = Path('docs/x.md').read_text()\n"
+                "self.assertIn('advisory wording', text)"),
             ),
             (
                 "assigned open",
-                "text = open('docs/x.md').read()\n"
-                "self.assertIn('advisory wording', text)",
+                ("text = open('docs/x.md').read()\n"
+                "self.assertIn('advisory wording', text)"),
             ),
             (
                 "plain assert",
@@ -1944,7 +1927,7 @@ class PinCorpusLint810Tests(unittest.TestCase):
         for failed_command in commands:
             with self.subTest(command=failed_command):
 
-                def runner(args, **_kwargs):
+                def runner(args, failed_command=failed_command, **_kwargs):
                     rendered = " ".join(args)
                     rc = 1 if failed_command in rendered else 0
                     stdout = (
@@ -2139,12 +2122,12 @@ class PinCorpusLint810Tests(unittest.TestCase):
             # The fixture materialized every audited source as a file; replacing
             # one with a directory makes read_text raise IsADirectoryError, the
             # OSError arm of the pin-source read.
-            victim = root / sorted(self.mod.AUDITED_PIN_SOURCES)[0]
+            victim = root / min(self.mod.AUDITED_PIN_SOURCES)
             victim.unlink()
             victim.mkdir()
             with self.assertRaisesRegex(
                 self.mod.InfrastructureError,
-                "pin source unreadable: " + re.escape(sorted(self.mod.AUDITED_PIN_SOURCES)[0]),
+                "pin source unreadable: " + re.escape(min(self.mod.AUDITED_PIN_SOURCES)),
             ):
                 self.mod.scan_static_pin_changes(root, git_runner=runner)
 
@@ -2474,7 +2457,7 @@ class AdjudicationStateTests(unittest.TestCase):
         key = "literal:" + "a" * 64
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            base, historical, added = self._prepared_bundle_repo(root)
+            base, historical, _added = self._prepared_bundle_repo(root)
             self.assertEqual(
                 [{key: (None, ("boundary", "authorized rationale"))}],
                 self.mod.discover_new_adjudication_delta_manifests(root, base),
@@ -2564,8 +2547,8 @@ class AdjudicationChangeScanTests(unittest.TestCase):
             [
                 "git",
                 "show",
-                "63585ad75031859db3b25db5432e3af3d515ba3a:"
-                "lib/test/pin-corpus-adjudications.tsv",
+                ("63585ad75031859db3b25db5432e3af3d515ba3a:"
+                "lib/test/pin-corpus-adjudications.tsv"),
             ],
             cwd=REPO_ROOT,
             check=True,
@@ -4515,7 +4498,7 @@ class RetiredMutationHelperBanTests(unittest.TestCase):
             outside = root / "docs/unfrozen.md"
             outside.parent.mkdir(parents=True)
             outside.write_text("ordinary unrelated addition\n", encoding="utf-8")
-            audited = root / sorted(self.mod.AUDITED_PIN_SOURCES)[0]
+            audited = root / min(self.mod.AUDITED_PIN_SOURCES)
             audited.write_text(
                 "# ordinary non-helper edit\n"
                 + audited.read_text(encoding="utf-8"),
@@ -4536,7 +4519,7 @@ class RetiredMutationHelperBanTests(unittest.TestCase):
             with self.subTest(helper=helper), tempfile.TemporaryDirectory() as td:
                 root = Path(td)
                 self._repo(root)
-                source = root / sorted(self.mod.AUDITED_PIN_SOURCES)[0]
+                source = root / min(self.mod.AUDITED_PIN_SOURCES)
                 source.write_text(
                     source.read_text(encoding="utf-8")
                     + f"\n{helper} new retired helper call\n",
@@ -4557,7 +4540,7 @@ class RetiredMutationHelperBanTests(unittest.TestCase):
             ),
             (
                 "wrapper",
-                sorted(self.mod.AUDITED_PIN_SOURCES)[0],
+                min(self.mod.AUDITED_PIN_SOURCES),
                 '\nwrap() { assert_pin_red_under "$@"; }\n',
             ),
         )
@@ -5904,7 +5887,7 @@ class BundleStemLoopAndAliasResolution1008Tests(unittest.TestCase):
             "# Beta\n\nStep two: %s.\n" % (literal or self.LITERAL), encoding="utf-8"
         )
         (phases / "orphan.md").write_text(
-            "# Orphan\n\n%s.\n" % self.ORPHAN_LITERAL, encoding="utf-8"
+            f"# Orphan\n\n{self.ORPHAN_LITERAL}.\n", encoding="utf-8"
         )
         return root
 

@@ -261,9 +261,9 @@ def _scan_template(body_lines: list[str], start_lineno: int) -> list[tuple[int, 
         if _TPL_CMD_SUBST.search(line) or _TPL_BACKTICK.search(line):
             findings.append((
                 lineno,
-                "unescaped command substitution ($(...) or backticks) in a body template "
+                ("unescaped command substitution ($(...) or backticks) in a body template "
                 "the run substitutes into a double-quoted fence argument — escape it, or "
-                "give the block a `text` info string if it is inert",
+                "give the block a `text` info string if it is inert"),
             ))
         if _TPL_EXIT_STATUS.search(line):
             findings.append((lineno, "unescaped exit-status parameter $? in a body template"))

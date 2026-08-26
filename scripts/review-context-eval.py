@@ -64,7 +64,7 @@ import sys
 # in scripts/context_eval_shared.py (issue #1900). Keep the sys.path insert: this file is
 # loaded by path (its test, no package parent), so the sibling import fails without it.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from context_eval_shared import (  # noqa: E402,F401
+from context_eval_shared import (  # noqa: F401
     UNESTABLISHED,
     _context_tokens,
     _iter_session_files,
@@ -260,9 +260,7 @@ def eval_corpus(corpus_root):
         except OSError as exc:
             skipped["unreadable_file"] += 1
             sys.stderr.write(
-                "warning: skipping unreadable session file {}: {}\n".format(
-                    session_file, exc
-                )
+                f"warning: skipping unreadable session file {session_file}: {exc}\n"
             )
             continue
         with handle:
@@ -304,9 +302,7 @@ def eval_corpus(corpus_root):
                 except (AttributeError, TypeError, ValueError, KeyError) as exc:
                     skipped["malformed_record"] += 1
                     sys.stderr.write(
-                        "warning: skipping malformed {} record at {}:{}: {}: {}\n".format(
-                            rtype, session_file, lineno, type(exc).__name__, exc
-                        )
+                        f"warning: skipping malformed {rtype} record at {session_file}:{lineno}: {type(exc).__name__}: {exc}\n"
                     )
                     continue
 
@@ -367,7 +363,7 @@ def build_report(corpus_root):
 
 def _render_context_line(c):
     reads = " ".join(
-        "{}={}".format(k, v) for k, v in c["engine_reads"].items())
+        f"{k}={v}" for k, v in c["engine_reads"].items())
     kind = "subagent" if c["is_subagent"] else "main-thread"
     return (
         "- {context} [{kind}]: peak={peak} turns={turns} "
@@ -403,17 +399,17 @@ def render_text(contexts, engine_files, summary, skipped):
     # aggregate() builds this dict in the canonical field order, so iterating it renders
     # every field once with no per-field literal to keep in sync.
     for key, value in summary.items():
-        lines.append("- {}: {}".format(key, value))
+        lines.append(f"- {key}: {value}")
     lines.append("")
     # The axis exclusion (a Read whose path shape was unusable) is reported under its own
     # heading rather than inflating the skipped headline a maintainer reads as "bad
     # transcript data": it is not a parse failure, it removes a block from ONE axis.
     excluded = {"unresolvable_read_path": skipped.get("unresolvable_read_path", 0)}
     record_skips = {k: v for k, v in skipped.items() if k not in excluded}
-    lines.append("## Skipped records and files: {}".format(sum(record_skips.values())))
+    lines.append(f"## Skipped records and files: {sum(record_skips.values())}")
     for reason in sorted(record_skips):
         if record_skips[reason]:
-            lines.append("- {}: {}".format(reason, record_skips[reason]))
+            lines.append(f"- {reason}: {record_skips[reason]}")
     lines.append("")
     lines.append("## Dropped from an axis (not a parse failure)")
     lines.append("- Read blocks dropped from the engine-read axis (unresolvable path): "
@@ -451,7 +447,7 @@ def main(argv=None):
     if not os.path.isdir(corpus):
         # No corpus present: exit non-zero naming the missing path — never a
         # silently-empty baseline.
-        sys.stderr.write("error: transcript directory not found: {}\n".format(corpus))
+        sys.stderr.write(f"error: transcript directory not found: {corpus}\n")
         return 2
 
     report = build_report(corpus)

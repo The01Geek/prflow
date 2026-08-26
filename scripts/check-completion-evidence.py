@@ -53,7 +53,7 @@ from enum import Enum
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import reception_identity as ri  # noqa: E402
+import reception_identity as ri
 
 # gh is read only on the remote-trace arm; the Python gh-caller pattern (no probe).
 GH = os.environ.get("DEVFLOW_GH") or "gh"
@@ -145,7 +145,7 @@ def _emit(token: str, detail: str) -> int:
 # ─────────────────────────────────────────────────────────────────────────────
 # Best-effort JSON-object reader (the six-shape adversarial matrix, CLAUDE.md)
 # ─────────────────────────────────────────────────────────────────────────────
-def _read_json_object(path: Path) -> "tuple[dict | None, str | None]":
+def _read_json_object(path: Path) -> tuple[dict | None, str | None]:
     """Read a JSON *object* artifact. Returns (obj, None) or (None, reason).
 
     Every degraded shape — array, scalar, valid-falsy (`false`/`0`/`""`),
@@ -170,7 +170,7 @@ def _read_json_object(path: Path) -> "tuple[dict | None, str | None]":
     return obj, None
 
 
-def _require_object(path_str: "str | None", label: str) -> dict:
+def _require_object(path_str: str | None, label: str) -> dict:
     """Read a REQUIRED JSON object or raise a missing-evidence Verdict.
 
     A None path (the operand was not supplied where the context requires one) is
@@ -227,7 +227,7 @@ def _check_rebind(obj: dict, label: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # Candidate-identity re-derivation (single source of truth — the #668 routine)
 # ─────────────────────────────────────────────────────────────────────────────
-def _claim_time_identity(claim_identity: "str | None", repo_root: "str | None") -> str:
+def _claim_time_identity(claim_identity: str | None, repo_root: str | None) -> str:
     """The claim-time candidate identity.
 
     Re-derived at validation time by calling the shipped preflight producer, so
@@ -422,7 +422,7 @@ def _check_undischarged_findings(args, findings_inventory: dict, ledger: dict) -
 # ─────────────────────────────────────────────────────────────────────────────
 # Deferral-trace checks (tokens 7 and 8)
 # ─────────────────────────────────────────────────────────────────────────────
-def _own_repo(args) -> "str | None":
+def _own_repo(args) -> str | None:
     """The `owner/repo` slug of the repository the validator runs in.
 
     Resolved through the resolved gh (`gh repo view`), NEVER through a non-preflight
@@ -434,7 +434,7 @@ def _own_repo(args) -> "str | None":
     if args.own_repo:
         return args.own_repo
     try:
-        proc = subprocess.run(  # noqa: S603 - argv list, no shell
+        proc = subprocess.run(
             [GH, "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -473,10 +473,9 @@ def _probe_remote(args, path: str) -> _RemoteProbe:
     the target's existence is UNKNOWN, never proven absent).
     """
     try:
-        proc = subprocess.run(  # noqa: S603 - argv list, no shell
+        proc = subprocess.run(
             [GH, "api", path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
     except OSError:
         return _RemoteProbe.UNREACHABLE
@@ -603,7 +602,7 @@ def _check_code_comment(args, entry: dict) -> None:
         )
 
 
-def _check_remote_trace(args, entry: dict, own: "str | None") -> None:
+def _check_remote_trace(args, entry: dict, own: str | None) -> None:
     """A pr-thread / follow-up-issue trace.
 
     The cited target is probed via the resolved gh:
@@ -663,7 +662,7 @@ def _check_remote_trace(args, entry: dict, own: "str | None") -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 # Orchestration — the fixed evaluation order
 # ─────────────────────────────────────────────────────────────────────────────
-def _validate(args) -> "tuple[str, str]":
+def _validate(args) -> tuple[str, str]:
     """Run the checks in order; return (token, detail). Raises _Internal on an
     internal failure (exit 2, no verdict line)."""
     context = args.context
@@ -746,7 +745,7 @@ def _validate(args) -> "tuple[str, str]":
 FLIGHT_STATE_PASSED = "passed"
 
 
-def _validate_implement_record(rec: dict, claim_identity: str) -> "tuple[str, str]":
+def _validate_implement_record(rec: dict, claim_identity: str) -> tuple[str, str]:
     """The strict implement-completion checks over a flight record `rec`.
 
     Raises a Verdict on the first failing class; returns (TOK_PASS, detail) when the
@@ -824,10 +823,10 @@ def _validate_implement_record(rec: dict, claim_identity: str) -> "tuple[str, st
 
 
 def validate_implement_completion(
-    record_path: "str | None",
-    repo_root: "str | None" = None,
-    claim_identity: "str | None" = None,
-) -> "tuple[str, str]":
+    record_path: str | None,
+    repo_root: str | None = None,
+    claim_identity: str | None = None,
+) -> tuple[str, str]:
     """Importable entry point used lazily by scripts/workpad.py's terminal gate.
 
     Reads the canonical flight record at `record_path` and runs the strict
@@ -891,7 +890,7 @@ def _is_full_hex_sha(value: object) -> bool:
     )
 
 
-def _ci_git_read(repo_root: "str | None", argv: "list[str]") -> str:
+def _ci_git_read(repo_root: str | None, argv: list[str]) -> str:
     """Read `git <argv>` in `repo_root` through reception_identity's native-git reader
     (argv list, no shell, Windows-safe) — the module's single git-spawn routine, so
     the CI checks add no subprocess of their own and the module's "git only inside the
@@ -905,7 +904,7 @@ def _ci_git_read(repo_root: "str | None", argv: "list[str]") -> str:
         raise _Internal(f"ci_git:{exc.reason}")
 
 
-def _required_checks(repo_root: "str | None") -> "frozenset[str]":
+def _required_checks(repo_root: str | None) -> frozenset[str]:
     """The required-check set, read from the single declared source
     `.github/workflows/ci.yml` under `repo_root`: the `name:` of every job marked with a
     `# prflow:required-check` line. An absent ci.yml declares no required checks (an empty
@@ -918,7 +917,7 @@ def _required_checks(repo_root: "str | None") -> "frozenset[str]":
         return frozenset()
     except OSError as exc:
         raise _Internal(f"required_checks:unreadable:{exc.__class__.__name__}")
-    names: "set[str]" = set()
+    names: set[str] = set()
     lines = text.splitlines()
     for i, line in enumerate(lines):
         if line.strip() != _REQUIRED_CHECK_MARKER:
@@ -936,7 +935,7 @@ def _required_checks(repo_root: "str | None") -> "frozenset[str]":
     return frozenset(names)
 
 
-def _validate_ci_record(record: object, repo_root: "str | None") -> "tuple[str, str]":
+def _validate_ci_record(record: object, repo_root: str | None) -> tuple[str, str]:
     """The strict CI-derived completion checks over a decoded `record`.
 
     Raises a Verdict on the first failing class; returns (TOK_PASS, detail) when the
@@ -1057,8 +1056,8 @@ def _validate_ci_record(record: object, repo_root: "str | None") -> "tuple[str, 
 
 def validate_implement_completion_ci(
     record: object,
-    repo_root: "str | None" = None,
-) -> "tuple[str, str]":
+    repo_root: str | None = None,
+) -> tuple[str, str]:
     """Importable entry point used lazily by scripts/workpad.py's terminal gate for
     the CI-derived evidence family (issue #1611).
 
@@ -1147,7 +1146,7 @@ def _force_utf8_streams():
             pass
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     # The verdict line carries a U+2014 em-dash; force a UTF-8-capable stdout so a
     # non-pass verdict emitted from the except-Verdict handler below cannot raise an
@@ -1177,7 +1176,7 @@ def main(argv: "list[str] | None" = None) -> int:
             json.dumps({"ok": False, "internal_error": exc.reason}) + "\n"
         )
         return 2
-    except Exception as exc:  # noqa: BLE001 - contract: no bare traceback, no verdict line
+    except Exception as exc:
         sys.stderr.write(
             json.dumps({"ok": False, "internal_error": f"unexpected:{exc.__class__.__name__}"})
             + "\n"

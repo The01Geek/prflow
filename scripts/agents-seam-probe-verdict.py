@@ -134,14 +134,14 @@ def parse_execution_file(exec_file):
     non-empty diagnostic when the file was absent/empty/unparseable/partially
     corrupt (which forces INCONCLUSIVE)."""
     if not (exec_file and os.path.isfile(exec_file)):
-        return None, "execution file path absent or not a regular file at '%s'" % exec_file
+        return None, f"execution file path absent or not a regular file at '{exec_file}'"
     try:
         with open(exec_file, encoding="utf-8", errors="replace") as fh:
             raw = fh.read()
     except OSError as e:
         # Present-but-unreadable (PermissionError/OSError) or a TOCTOU disappearance:
         # route to the INCONCLUSIVE floor instead of raising, honoring "Always exits 0".
-        return [], "execution file present but unreadable (%s)" % e.__class__.__name__
+        return [], f"execution file present but unreadable ({e.__class__.__name__})"
     try:
         return json.loads(raw), ""
     except Exception:
@@ -162,8 +162,7 @@ def parse_execution_file(exec_file):
         return [], "execution file present but unparseable"
     if dropped:
         return parsed, (
-            "%d execution-file line(s) were unparseable — verdict may be incomplete"
-            % dropped
+            f"{dropped} execution-file line(s) were unparseable — verdict may be incomplete"
         )
     return parsed, ""
 
@@ -309,8 +308,8 @@ def render(exec_file, adjudicated_governed):
         decision = (
             "DO NOT SHIP the applied arm — fact (i) forwarding is proven but fact (ii) "
             "(effort governs the dispatch) needs human adjudication of the recorded "
-            "self-report (SEAM_PROBE_EFFORT=%s); keep the honest fallback and re-run "
-            "with --adjudicated-governed once a human confirms fact (ii)" % effort_signal
+            f"self-report (SEAM_PROBE_EFFORT={effort_signal}); keep the honest fallback and re-run "
+            "with --adjudicated-governed once a human confirms fact (ii)"
         )
     elif verdict == "SEAM_UNPROVEN":
         decision = (
@@ -338,52 +337,49 @@ def render(exec_file, adjudicated_governed):
     out.append("")
     out.append(
         "Deterministic verdict from the execution file's recorded `tool_use` inputs "
-        "(the seam marker `%s` ⇒ fact (i) forwarding proven) and `permission_denials`, "
+        f"(the seam marker `{FORWARDED_MARKER}` ⇒ fact (i) forwarding proven) and `permission_denials`, "
         "with fact (ii) (effort governs the dispatch) adjudicated by a human from the "
-        "recorded self-report. The model's prose is never the measurement." % FORWARDED_MARKER
+        "recorded self-report. The model's prose is never the measurement."
     )
     out.append("")
     if verdict == "SEAM_FORWARDED":
         out.append("> [!NOTE]")
         out.append(
             "> Fact (i) is proven but fact (ii) is **not** auto-measurable: effort is "
-            "not a harness-recorded field, so the recorded `SEAM_PROBE_EFFORT=%s` "
+            f"not a harness-recorded field, so the recorded `SEAM_PROBE_EFFORT={effort_signal}` "
             "self-report must be adjudicated by a human. The applied arm ships ONLY "
             "once a human confirms fact (ii) and re-runs this verdict with "
-            "`--adjudicated-governed`." % effort_signal
+            "`--adjudicated-governed`."
         )
         out.append("")
     if verdict == "INSTRUMENT_NOT_FIRED":
         out.append("> [!WARNING]")
         out.append(
-            "> INSTRUMENT NON-FIRE (issue #1177) — the session dispatched `%s` but the "
+            "> INSTRUMENT NON-FIRE (issue #1177) — the session dispatched `{}` but the "
             "prompt's Step 2 put neither marker into the record "
-            "(bash_tool_use_recorded=%s), so the deterministic instrument had nothing to "
+            "(bash_tool_use_recorded={}), so the deterministic instrument had nothing to "
             "read. This is a property of the INSTRUMENT, not of the seam: the run is "
             "uninformative in EITHER direction and must not be counted as a negative. "
-            "Re-dispatch the probe."
-            % (AGENT_NAME, "yes" if ev["bash_recorded"] else "no")
+            "Re-dispatch the probe.".format(AGENT_NAME, "yes" if ev["bash_recorded"] else "no")
         )
         out.append("")
     if verdict == "INCONCLUSIVE":
         out.append("> [!WARNING]")
         if note_top:
-            out.append("> %s — verdict INCONCLUSIVE; re-run the probe." % note_top)
+            out.append(f"> {note_top} — verdict INCONCLUSIVE; re-run the probe.")
         else:
             out.append(
-                "> No dispatch of the probe subagent_type was attempted (forwarded=%s, "
-                "dispatch_attempted=%s), so the seam was not exercised — verdict "
-                "INCONCLUSIVE; re-run the probe."
-                % ("yes" if forwarded else "no", "yes" if dispatch_attempted else "no")
+                "> No dispatch of the probe subagent_type was attempted (forwarded={}, "
+                "dispatch_attempted={}), so the seam was not exercised — verdict "
+                "INCONCLUSIVE; re-run the probe.".format("yes" if forwarded else "no", "yes" if dispatch_attempted else "no")
             )
         out.append("")
     out.append("| Verdict | Ship applied arm? | Evidence |")
     out.append("|---------|-------------------|----------|")
     out.append(
-        "| **%s** | %s | forwarded(marker)=%s; dispatch_attempted=%s; "
-        "nonforwarding_signal=%s; bash_tool_use_recorded=%s; effort_self_report=%s; "
-        "fact(ii)_adjudicated=%s |"
-        % (
+        "| **{}** | {} | forwarded(marker)={}; dispatch_attempted={}; "
+        "nonforwarding_signal={}; bash_tool_use_recorded={}; effort_self_report={}; "
+        "fact(ii)_adjudicated={} |".format(
             verdict,
             "yes" if ship else "no",
             "yes" if forwarded else "no",
@@ -395,7 +391,7 @@ def render(exec_file, adjudicated_governed):
         )
     )
     out.append("")
-    out.append("**Applied-arm decision (issue #610 AC1): %s.**" % decision)
+    out.append(f"**Applied-arm decision (issue #610 AC1): {decision}.**")
     out.append("")
     out.append(
         "### Verdict-inert diagnostic — does the record carry the dispatched subagent's "
@@ -403,8 +399,7 @@ def render(exec_file, adjudicated_governed):
     )
     out.append("")
     out.append(
-        "`dispatch_result_channel=%s; forwarded_marker_in_result_channel=%s`"
-        % (ev["result_channel"], ev["marker_in_results"])
+        "`dispatch_result_channel={}; forwarded_marker_in_result_channel={}`".format(ev["result_channel"], ev["marker_in_results"])
     )
     out.append("")
     out.append(
@@ -420,7 +415,7 @@ def render(exec_file, adjudicated_governed):
         "found at all; it never means the marker was absent from one."
     )
     out.append("")
-    out.append("### Raw denial entries (%d)" % len(denials))
+    out.append(f"### Raw denial entries ({len(denials)})")
     out.append("")
     if denials:
         out.append("```")
@@ -433,7 +428,7 @@ def render(exec_file, adjudicated_governed):
     # Dump the recorded tool_use entries so an operator can confirm the harness's actual
     # dispatch shape and the subagent's self-report on the first live run.
     out.append("")
-    out.append("### Raw tool_use entries (%d)" % len(tool_uses))
+    out.append(f"### Raw tool_use entries ({len(tool_uses)})")
     out.append("")
     if tool_uses:
         out.append("```")
@@ -474,7 +469,7 @@ def main():
         except OSError as e:
             sys.stderr.write(
                 "agents-seam-probe-verdict: could not append to GITHUB_STEP_SUMMARY "
-                "(%s); verdict is on stdout\n" % e.__class__.__name__
+                f"({e.__class__.__name__}); verdict is on stdout\n"
             )
     return 0
 

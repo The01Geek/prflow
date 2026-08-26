@@ -242,8 +242,7 @@ def _repo_root() -> str | None:
         r = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
             check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             encoding="utf-8",
         )
     except OSError:
@@ -376,7 +375,7 @@ def extract_section(text: str, heading: str) -> str:
         # lstripped test recognized INDENTED fences the loader treats as ordinary text,
         # so a consumer section wrapping a column-0 `## ` heading in an indented fence
         # made the two hooks forward different bodies at the same `appended` status.
-        if line.startswith("```") or line.startswith("~~~"):
+        if line.startswith(("```", "~~~")):
             kind = line[0]
             if not in_fence:
                 in_fence = True

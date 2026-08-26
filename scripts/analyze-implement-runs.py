@@ -4,9 +4,9 @@
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
 
-from pathlib import Path
 import os
 import sys
+from pathlib import Path
 
 
 def _force_utf8_streams():

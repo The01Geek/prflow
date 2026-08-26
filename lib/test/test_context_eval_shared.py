@@ -25,6 +25,7 @@ import re
 import sys
 import tempfile
 import unittest
+from typing import ClassVar
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
@@ -34,7 +35,7 @@ _SCRIPTS = os.path.join(_REPO, "scripts")
 # instruments pull in via `from context_eval_shared import …` are the SAME module object —
 # the identity assertions below rest on that.
 sys.path.insert(0, _SCRIPTS)
-import context_eval_shared as SHARED  # noqa: E402
+import context_eval_shared as SHARED
 
 
 def _load_module(name, path):
@@ -114,16 +115,16 @@ class SingleSourceIdentityTest(unittest.TestCase):
         for mod, label in ((CIE, "create_issue_eval"), (CICE, "create-issue-context-eval shim"),
                             (ICE, "implement-context-eval"), (RCE, "review-context-eval")):
             for name in _SHARED_NAMES:
-                self.assertTrue(hasattr(mod, name), "{} missing {}".format(label, name))
+                self.assertTrue(hasattr(mod, name), f"{label} missing {name}")
                 self.assertIs(getattr(mod, name), getattr(SHARED, name),
-                              "{}.{} is not the shared definition".format(label, name))
+                              f"{label}.{name} is not the shared definition")
 
     def test_residency_keys_is_shared_where_imported(self):
         # RESIDENCY_KEYS moves too, but it is imported only where used (create_issue_eval's
         # _residency_spend, reached through the shim), so assert its identity on those two.
         for mod, label in ((CIE, "create_issue_eval"), (CICE, "create-issue-context-eval shim")):
             self.assertIs(mod.RESIDENCY_KEYS, SHARED.RESIDENCY_KEYS,
-                          "{}.RESIDENCY_KEYS is not the shared definition".format(label))
+                          f"{label}.RESIDENCY_KEYS is not the shared definition")
 
 
 class NoPrivateRedefinitionTest(unittest.TestCase):
@@ -137,7 +138,7 @@ class NoPrivateRedefinitionTest(unittest.TestCase):
 
     # `(?m)^` pins column 0, so a nested/local definition and the `_median_or_unestablished`
     # wrappers the instruments legitimately keep do not match.
-    _REDEFINITION = {
+    _REDEFINITION: ClassVar[dict[str, str]] = {
         "_iter_session_files": r"(?m)^def _iter_session_files\(",
         "_median": r"(?m)^def _median\(",
         "_context_tokens": r"(?m)^def _context_tokens\(",
@@ -156,8 +157,7 @@ class NoPrivateRedefinitionTest(unittest.TestCase):
             for name, pattern in self._REDEFINITION.items():
                 self.assertIsNone(
                     re.search(pattern, src),
-                    "{} redefines {} instead of importing the shared one".format(
-                        fname, name))
+                    f"{fname} redefines {name} instead of importing the shared one")
 
     def test_each_pattern_fires_on_the_shape_it_forbids(self):
         # Positive control: without it a typo'd pattern reads as a passing absence

@@ -7,18 +7,18 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import datetime as dt
 import hashlib
 import json
+import math
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
-
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9._-]+$")
 SAFE_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
@@ -480,7 +480,7 @@ def _analyst_timeout() -> float:
         value = float(raw)
     except ValueError:
         value = 0.0
-    if value <= 0 or value != value or value == float("inf"):
+    if value <= 0 or math.isnan(value) or value == float("inf"):
         print(
             f"devflow: workflow-run-analysis: DEVFLOW_CLAUDE_TIMEOUT value {raw!r} is not a "
             f"positive number of seconds; using default {DEFAULT_ANALYST_TIMEOUT_SECONDS:.0f}s",
@@ -516,7 +516,7 @@ def main(argv: list[str]) -> int:
         ]
         try:
             result = subprocess.run(
-                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                command, capture_output=True, text=True,
                 timeout=_analyst_timeout(),
             )
         except subprocess.TimeoutExpired as exc:

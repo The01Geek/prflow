@@ -176,7 +176,7 @@ def _load_module(path: Path = IAS, name: str = "_ias795"):
     module = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(module)
-    except Exception as exc:  # noqa: BLE001 - any ORDINARY load failure is a Refusal, not a traceback
+    except Exception as exc:
         # The spec guard above does NOT cover a missing file: `spec_from_file_location`
         # returns a fully-populated spec for a path that does not exist, and the failure
         # surfaces here as `FileNotFoundError`. `main()` catches only `Refusal`, so without
@@ -352,8 +352,8 @@ def _invocations(text: str, registered: frozenset[str], where: str) -> list[str]
 
 def _subparser_of(parser, name):
     """The subparser registered under `name`, or None."""
-    for action in parser._actions:  # noqa: SLF001
-        if isinstance(action, argparse._SubParsersAction):  # noqa: SLF001
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
             return action.choices.get(name)
     return None
 
@@ -427,13 +427,13 @@ def check_readonly_complement(module, registered, report):
 
     parser = module.build_parser()
     name_to_handler = {}
-    for action in parser._actions:  # noqa: SLF001
-        if isinstance(action, argparse._SubParsersAction):  # noqa: SLF001
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
             for name, sub in action.choices.items():
-                fn = sub._defaults.get("func")  # noqa: SLF001
+                fn = sub._defaults.get("func")
                 name_to_handler[name] = getattr(fn, "__name__", None)
 
-    predicate = module._is_read_only  # noqa: SLF001
+    predicate = module._is_read_only
     readonly = sorted(n for n in registered if predicate(n))
     if not readonly:
         raise Refusal("readonly-complement: the read-only predicate selected NO registered "
@@ -573,7 +573,7 @@ def check_readbacks(module, registered, report):
                       f"{_DOCSTRING_ANCHOR!r} section")
     section = doc.split(_DOCSTRING_ANCHOR, 1)[1]
     named = {t for t in _backticked(section) if t in registered and t.startswith("query-")}
-    dispatched = set(module._MULTILINE_READBACKS)  # noqa: SLF001
+    dispatched = set(module._MULTILINE_READBACKS)
     unbacked = sorted(dispatched - registered)
     if unbacked:
         raise Refusal("read-backs: _MULTILINE_READBACKS names "
@@ -591,17 +591,17 @@ def check_readbacks(module, registered, report):
     # `_emit_next_call` raises on an excluded name, which is the executable boundary this
     # arm grades against; the complement direction — every NON-excluded subcommand really
     # being one the emitter can serve — is `check_emitting_complement` below.
-    excluded = set(module._NEXT_CALL_EXCLUDED)  # noqa: SLF001
+    excluded = set(module._NEXT_CALL_EXCLUDED)
     if not dispatched <= excluded:
         raise Refusal("read-backs: a multi-line read-back is missing from "
                       f"_NEXT_CALL_EXCLUDED ({sorted(dispatched - excluded)}) — a "
                       "multi-line answer would gain a trailing next_call= line")
     for name in sorted(excluded):
         try:
-            module._emit_next_call(name, None, None)  # noqa: SLF001
+            module._emit_next_call(name, None, None)
         except AssertionError:
             continue
-        except Exception:  # noqa: BLE001
+        except Exception:
             raise Refusal(f"read-backs: _emit_next_call({name!r}) did not refuse the way "
                           "the exclusion predicate requires") from None
         raise Refusal(f"read-backs: _emit_next_call accepted the excluded {name!r}; the "
@@ -630,7 +630,7 @@ def check_emitting_complement(module, registered, report):
     an empty namespace: it asserts the emitter tolerates every field being ABSENT, which is
     the structural property, not that any particular answer is produced.
     """
-    excluded = set(module._NEXT_CALL_EXCLUDED)  # noqa: SLF001
+    excluded = set(module._NEXT_CALL_EXCLUDED)
     emitting = sorted(registered - excluded)
     if not emitting:
         raise Refusal("emitting-complement: no subcommand emits next_call= at all — the "
@@ -644,8 +644,8 @@ def check_emitting_complement(module, registered, report):
             # lines would corrupt the surface being read.
             with contextlib.redirect_stdout(io.StringIO()), \
                     contextlib.redirect_stderr(io.StringIO()):
-                module._emit_next_call(name, args, None)  # noqa: SLF001
-        except Exception as exc:  # noqa: BLE001
+                module._emit_next_call(name, args, None)
+        except Exception as exc:
             raise Refusal(
                 f"emitting-complement: _emit_next_call({name!r}) raised "
                 f"{type(exc).__name__}: {exc} on a namespace carrying no optional field. "
@@ -675,13 +675,13 @@ def check_round_defaulted(module, registered, report):
     """
     parser = module.build_parser()
     optional_round = set()
-    for action in parser._actions:  # noqa: SLF001
-        if isinstance(action, argparse._SubParsersAction):  # noqa: SLF001
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
             for name, sub in action.choices.items():
-                for a in sub._actions:  # noqa: SLF001
+                for a in sub._actions:
                     if "--round" in a.option_strings and not a.required:
                         optional_round.add(name)
-    declared = set(module._ROUND_DEFAULTED)  # noqa: SLF001
+    declared = set(module._ROUND_DEFAULTED)
     if declared - registered:
         raise Refusal(f"round-defaulted: _ROUND_DEFAULTED names "
                       f"{sorted(declared - registered)}, which the parser does not register")
@@ -768,7 +768,7 @@ def check_flag_vocabulary(module, parser, registered, report):
         sub = _subparser_of(parser, name)
         if sub is None:
             continue
-        for action in sub._actions:  # noqa: SLF001 - argparse exposes no public accessor
+        for action in sub._actions:
             option_strings.update(action.option_strings)
     if not option_strings:
         raise Refusal("flag-vocabulary: no option strings could be read off any subparser, "
@@ -877,15 +877,15 @@ def _fenced_state_owner_calls(extractor, text: str,
     refuses like any other unregistered operand.
     """
     found: list[str] = []
-    for block in extractor._fenced_bash_blocks(text):                     # noqa: SLF001
-        cleaned = extractor._join_continuations(                          # noqa: SLF001
-            extractor._strip_case_patterns(                               # noqa: SLF001
-                extractor._strip_comments_and_heredocs(block)))           # noqa: SLF001
-        for statement in extractor._boundary_units(cleaned):              # noqa: SLF001
-            tokens = [extractor._normalize(t)                             # noqa: SLF001
-                      for t in extractor._tokenize(statement)]            # noqa: SLF001
+    for block in extractor._fenced_bash_blocks(text):
+        cleaned = extractor._join_continuations(
+            extractor._strip_case_patterns(
+                extractor._strip_comments_and_heredocs(block)))
+        for statement in extractor._boundary_units(cleaned):
+            tokens = [extractor._normalize(t)
+                      for t in extractor._tokenize(statement)]
             for index, token in enumerate(tokens):
-                if extractor._helper_basename(token) != _STATE_OWNER_SCRIPT:  # noqa: SLF001
+                if extractor._helper_basename(token) != _STATE_OWNER_SCRIPT:
                     continue
                 for candidate in tokens[index + 1:]:
                     if candidate.startswith("-"):

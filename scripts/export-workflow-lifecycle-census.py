@@ -209,7 +209,7 @@ def _gh_json(gh: str, args: list[str]) -> Any:
         return None
 
 
-def fetch_runs_and_jobs(gh: str, repo: str, workflows: list[str], created_after: str, created_before: str) -> "tuple[list[dict], dict[int, list[dict]], bool]":
+def fetch_runs_and_jobs(gh: str, repo: str, workflows: list[str], created_after: str, created_before: str) -> tuple[list[dict], dict[int, list[dict]], bool]:
     """Paginate Actions runs + their jobs via gh. Returns (runs, jobs_by_run, pagination_complete).
 
     Pagination is complete only if every page was fetched and the final page was
@@ -413,7 +413,7 @@ def _force_utf8_streams():
             pass
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     parser = argparse.ArgumentParser(description="Export an immutable Actions run/job census snapshot (issue #527).")
     parser.add_argument("--repo", required=True, help="owner/repo to census")

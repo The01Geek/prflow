@@ -19,7 +19,6 @@ from collections import Counter
 from collections.abc import Set as AbstractSet
 from pathlib import Path
 
-
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent
 BASE_REVISION = "1d4d306bcacd4970df170faeab94e602724943b8"
@@ -333,7 +332,7 @@ def refresh_admission_error(
         # maintainer WHAT is wrong but not WHICH row produced it, and the loop
         # short-circuits, so a second bad row stays invisible until the first is
         # fixed.  Callers match the cause with `assertIn`, not equality.
-        def named(cause: str) -> str:
+        def named(cause: str, number=number, row=row) -> str:
             return (
                 f"{cause} (row {number}: {row['assertion_name']!r} "
                 f"-> {row['new_assertion_name']!r})"
@@ -608,7 +607,7 @@ class ResidualRequiredCopyRetirementManifestTests(unittest.TestCase):
         )
         lines: list[bytes] = []
         for raw in result.stdout.splitlines():
-            if raw.startswith("#") or raw.startswith("source_file\t"):
+            if raw.startswith(("#", "source_file\t")):
                 continue
             cells = raw.split("\t")
             if cells[15] not in PROSE_BUCKETS:

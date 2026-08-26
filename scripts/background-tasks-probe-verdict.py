@@ -141,7 +141,7 @@ def parse_execution_file(exec_file):
         # (missing, a directory, a special file). A present-but-empty regular file is NOT
         # this branch — isfile() is true, so it flows to the read/parse path and surfaces
         # "present but unparseable" instead.
-        return None, "execution file path absent or not a regular file at '%s'" % exec_file
+        return None, f"execution file path absent or not a regular file at '{exec_file}'"
     try:
         with open(exec_file, encoding="utf-8", errors="replace") as fh:
             raw = fh.read()
@@ -152,7 +152,7 @@ def parse_execution_file(exec_file):
         # "Always exits 0" contract. Under matcher-probe.yml's `set -euo pipefail` verdict
         # step a traceback yields a red step with NO verdict table, on exactly the degraded
         # run the probe exists to characterize.
-        return [], "execution file present but unreadable (%s)" % e.__class__.__name__
+        return [], f"execution file present but unreadable ({e.__class__.__name__})"
     try:
         return json.loads(raw), ""
     except Exception:
@@ -174,8 +174,7 @@ def parse_execution_file(exec_file):
         return [], "execution file present but unparseable"
     if dropped:
         return parsed, (
-            "%d execution-file line(s) were unparseable — verdict may be incomplete"
-            % dropped
+            f"{dropped} execution-file line(s) were unparseable — verdict may be incomplete"
         )
     return parsed, ""
 
@@ -298,7 +297,7 @@ def render(exec_file):
         # -> INCONCLUSIVE floor instead, the direction every other arm already takes.
         denials, tool_uses = [], []
         note_top = (note_top + "; " if note_top else "") + (
-            "execution file could not be walked (%s)" % e.__class__.__name__
+            f"execution file could not be walked ({e.__class__.__name__})"
         )
     (verdict, record, dispatch_attempted, result_in_hand, ack_only,
      control_before, control_after) = compute_verdict(denials, tool_uses, note_top)
@@ -334,7 +333,7 @@ def render(exec_file):
     )
     out.append("")
     out.append("> [!IMPORTANT]")
-    out.append("> %s" % VERSION_CAVEAT)
+    out.append(f"> {VERSION_CAVEAT}")
     out.append("")
     if verdict == "NOT_DISPATCHED":
         out.append("> [!NOTE]")
@@ -347,13 +346,13 @@ def render(exec_file):
     if verdict == "INCONCLUSIVE":
         out.append("> [!WARNING]")
         if note_top:
-            out.append("> %s — verdict INCONCLUSIVE; re-run the probe." % note_top)
+            out.append(f"> {note_top} — verdict INCONCLUSIVE; re-run the probe.")
         else:
             out.append(
-                "> No usable outcome was recorded (dispatch_attempted=%s, "
-                "result_in_hand=%s, ack_only=%s, control_before=%s, control_after=%s), so "
+                "> No usable outcome was recorded (dispatch_attempted={}, "
+                "result_in_hand={}, ack_only={}, control_before={}, control_after={}), so "
                 "an in-hand result cannot be distinguished from a skipped step — verdict "
-                "INCONCLUSIVE; re-run the probe." % (
+                "INCONCLUSIVE; re-run the probe.".format(
                     "yes" if dispatch_attempted else "no",
                     "yes" if result_in_hand else "no",
                     "yes" if ack_only else "no",
@@ -365,8 +364,8 @@ def render(exec_file):
     out.append("| Verdict | Record it? | Evidence |")
     out.append("|---------|-----------|----------|")
     out.append(
-        "| **%s** | %s | dispatch_attempted=%s; result_in_hand=%s; ack_only=%s; "
-        "control_before=%s; control_after=%s |" % (
+        "| **{}** | {} | dispatch_attempted={}; result_in_hand={}; ack_only={}; "
+        "control_before={}; control_after={} |".format(
             verdict,
             "yes" if record else "no",
             "yes" if dispatch_attempted else "no",
@@ -377,9 +376,9 @@ def render(exec_file):
         )
     )
     out.append("")
-    out.append("**Decision (issue #812 AC2/AC3): %s.**" % decision)
+    out.append(f"**Decision (issue #812 AC2/AC3): {decision}.**")
     out.append("")
-    out.append("### Raw denial entries (%d)" % len(denials))
+    out.append(f"### Raw denial entries ({len(denials)})")
     out.append("")
     if denials:
         out.append("```")
@@ -394,7 +393,7 @@ def render(exec_file):
     # that the probe's token only appears via the real attempt, and this is how that
     # assumption is checked rather than assumed.
     out.append("")
-    out.append("### Raw tool_use entries (%d)" % len(tool_uses))
+    out.append(f"### Raw tool_use entries ({len(tool_uses)})")
     out.append("")
     if tool_uses:
         out.append("```")
@@ -423,7 +422,7 @@ def main():
         except OSError as e:
             sys.stderr.write(
                 "background-tasks-probe-verdict: could not append to "
-                "GITHUB_STEP_SUMMARY (%s); verdict is on stdout\n" % e.__class__.__name__
+                f"GITHUB_STEP_SUMMARY ({e.__class__.__name__}); verdict is on stdout\n"
             )
     return 0
 

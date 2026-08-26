@@ -173,7 +173,7 @@ class EngineKeyRecognizerTest(unittest.TestCase):
         # than silently reporting zero engine reads.
         for prefix in RCE.ENGINE_PREFIXES:
             self.assertTrue(os.path.isdir(os.path.join(_REPO, prefix.rstrip("/"))),
-                            "engine prefix names no on-disk subtree: {}".format(prefix))
+                            f"engine prefix names no on-disk subtree: {prefix}")
         seen = 0
         for prefix in RCE.ENGINE_PREFIXES:
             root = os.path.join(_REPO, prefix.rstrip("/"))
@@ -192,7 +192,7 @@ class FixtureDerivedTest(unittest.TestCase):
     re-derived independently."""
 
     def test_per_context_reads_and_peak_match_rederivation(self):
-        contexts, engine_totals, skipped = RCE.eval_corpus(os.path.join(_FIX, "corpus"))
+        contexts, _engine_totals, skipped = RCE.eval_corpus(os.path.join(_FIX, "corpus"))
         self.assertEqual(sum(skipped.values()), 0)
         got = {c["context"]: c for c in contexts}
         exp = {c["context"]: c for c in _expected_from_fixture(
@@ -262,13 +262,13 @@ class BoundaryTest(_SingleCorpusMixin, unittest.TestCase):
         # counts, not one — witnessed across separate files (the real subagent layout).
         contexts, totals, _ = self._run({
             "main.jsonl": [
-                '{"type":"assistant","isSidechain":false,"sessionId":"A",'
+                ('{"type":"assistant","isSidechain":false,"sessionId":"A",'
                 '"message":{"usage":{"input_tokens":5},"content":[{"type":"tool_use",'
-                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}')],
             "sub.jsonl": [
-                '{"type":"assistant","isSidechain":true,"agentId":"G",'
+                ('{"type":"assistant","isSidechain":true,"agentId":"G",'
                 '"message":{"usage":{"input_tokens":6},"content":[{"type":"tool_use",'
-                '"id":"2","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                '"id":"2","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}')],
         })
         self.assertEqual(len(contexts), 2)
         self.assertEqual(totals["skills/review/SKILL.md"]["total"], 2)
@@ -280,13 +280,13 @@ class BoundaryTest(_SingleCorpusMixin, unittest.TestCase):
         # file. isSidechain (not the file) separates the contexts.
         contexts, _, _ = self._run({
             "s.jsonl": [
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{"input_tokens":5},"content":[{"type":"tool_use",'
-                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}',
-                '{"type":"assistant","isSidechain":true,"agentId":"G",'
+                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'),
+                ('{"type":"assistant","isSidechain":true,"agentId":"G",'
                 '"message":{"usage":{"input_tokens":6},"content":[{"type":"tool_use",'
                 '"id":"2","name":"Read","input":{"file_path":'
-                '"skills/review-and-fix/SKILL.md"}}]}}'],
+                '"skills/review-and-fix/SKILL.md"}}]}}')],
         })
         kinds = {c["context"]: c["is_subagent"] for c in contexts}
         self.assertEqual(kinds, {"main:S": False, "sub:G": True})
@@ -298,12 +298,12 @@ class BoundaryTest(_SingleCorpusMixin, unittest.TestCase):
         # re-derivation, so a fallback bug mirrored into that oracle cannot pass.
         contexts, totals, _ = self._run({
             "s.jsonl": [
-                '{"type":"assistant","isSidechain":false,'
+                ('{"type":"assistant","isSidechain":false,'
                 '"message":{"usage":{"input_tokens":5},"content":[{"type":"tool_use",'
-                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}',
-                '{"type":"assistant","isSidechain":true,'
+                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'),
+                ('{"type":"assistant","isSidechain":true,'
                 '"message":{"usage":{"input_tokens":6},"content":[{"type":"tool_use",'
-                '"id":"2","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                '"id":"2","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}')],
         })
         self.assertEqual(
             {c["context"]: c["is_subagent"] for c in contexts},
@@ -317,23 +317,23 @@ class BoundaryTest(_SingleCorpusMixin, unittest.TestCase):
         # isinstance guard the key would be built from a non-string and detonate.
         contexts, _, _ = self._run({
             "sub.jsonl": [
-                '{"type":"assistant","isSidechain":true,"agentId":17,'
+                ('{"type":"assistant","isSidechain":true,"agentId":17,'
                 '"message":{"usage":{"input_tokens":6},"content":[{"type":"tool_use",'
-                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}')],
         })
         self.assertEqual([c["context"] for c in contexts], ["sub:file:sub.jsonl"])
 
     def test_peak_is_max_per_turn_residency(self):
         contexts, _, _ = self._run({
             "s.jsonl": [
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{"input_tokens":10,"cache_read_input_tokens":20,'
                 '"cache_creation_input_tokens":5,"output_tokens":99},"content":['
                 '{"type":"tool_use","id":"1","name":"Read",'
-                '"input":{"file_path":"skills/review/SKILL.md"}}]}}',
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                '"input":{"file_path":"skills/review/SKILL.md"}}]}}'),
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{"input_tokens":1},"content":[{"type":"tool_use",'
-                '"id":"2","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                '"id":"2","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}')],
         })
         # output_tokens excluded; peak is the max turn (35), not the last (1).
         self.assertEqual(contexts[0]["peak_context"], 35)
@@ -343,19 +343,19 @@ class BoundaryTest(_SingleCorpusMixin, unittest.TestCase):
         # object reports an UNESTABLISHED peak, never a real-looking 0.
         contexts, _, _ = self._run({
             "s.jsonl": [
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"content":[{"type":"tool_use","id":"1","name":"Read",'
-                '"input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                '"input":{"file_path":"skills/review/SKILL.md"}}]}}')],
         })
         self.assertEqual(contexts[0]["peak_context"], RCE.UNESTABLISHED)
 
     def test_non_engine_read_not_counted(self):
         contexts, totals, _ = self._run({
             "s.jsonl": [
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{"input_tokens":1},"content":[{"type":"tool_use",'
                 '"id":"1","name":"Read",'
-                '"input":{"file_path":"skills/implement/SKILL.md"}}]}}'],
+                '"input":{"file_path":"skills/implement/SKILL.md"}}]}}')],
         })
         self.assertEqual(contexts, [])
         self.assertEqual(totals, {})
@@ -367,10 +367,10 @@ class BoundaryTest(_SingleCorpusMixin, unittest.TestCase):
             "s.jsonl": [
                 '{"type":"queue-operation","operation":"enqueue"}',
                 '{"type":"summary","summary":"x"}',
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{"input_tokens":1},"content":[{"type":"tool_use",'
                 '"id":"1","name":"Read",'
-                '"input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                '"input":{"file_path":"skills/review/SKILL.md"}}]}}')],
         })
         self.assertEqual(len(contexts), 1)
         self.assertEqual(sum(skipped.values()), 0)
@@ -379,10 +379,10 @@ class BoundaryTest(_SingleCorpusMixin, unittest.TestCase):
         contexts, _, _ = self._run({
             "s.jsonl": [
                 '{"type":"system","subtype":"compact_boundary","sessionId":"S"}',
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{"input_tokens":1},"content":[{"type":"tool_use",'
                 '"id":"1","name":"Read",'
-                '"input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                '"input":{"file_path":"skills/review/SKILL.md"}}]}}')],
         })
         self.assertEqual(contexts[0]["compact_boundary_count"], 1)
 
@@ -429,15 +429,15 @@ class AdversarialTest(_SingleCorpusMixin, unittest.TestCase):
     def test_malformed_records_degrade_and_are_reported(self):
         # AC5: an unparseable record is a skipped record with a reason; the run still
         # reports on the records it could parse.
-        contexts, totals, skipped = self._run({
+        contexts, _totals, skipped = self._run({
             "s.jsonl": [
                 'not json at all',
                 '["a","list"]',
                 '{"no":"type"}',
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{"input_tokens":1},"content":[{"type":"tool_use",'
                 '"id":"1","name":"Read",'
-                '"input":{"file_path":"skills/review/SKILL.md"}}]}}',
+                '"input":{"file_path":"skills/review/SKILL.md"}}]}}'),
                 '{"type":"assistant","isSidechain":false',  # truncated
             ],
         })
@@ -451,10 +451,10 @@ class AdversarialTest(_SingleCorpusMixin, unittest.TestCase):
         # missing measurement.
         contexts, _, _ = self._run({
             "s.jsonl": [
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{"cache_read_input_tokens":7},"content":['
                 '{"type":"tool_use","id":"1","name":"Read",'
-                '"input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                '"input":{"file_path":"skills/review/SKILL.md"}}]}}')],
         })
         self.assertEqual(contexts[0]["peak_context"], 7)
 
@@ -462,20 +462,20 @@ class AdversarialTest(_SingleCorpusMixin, unittest.TestCase):
         saved = sys.stderr
         sys.stderr = io.StringIO()
         try:
-            contexts, totals, skipped = self._run({
+            contexts, _totals, skipped = self._run({
                 "s.jsonl": [
-                    '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                    ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                     '"message":{"usage":{"input_tokens":1},"content":[{"type":"tool_use",'
-                    '"id":"1","name":"Read","input":["not","a","dict"]}]}}',
-                    '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                    '"id":"1","name":"Read","input":["not","a","dict"]}]}}'),
+                    ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                     '"message":{"usage":{"input_tokens":2},"content":[{"type":"tool_use",'
                     '"id":"2","name":"Read",'
-                    '"input":{"file_path":"skills/review/SKILL.md"}}]}}',
+                    '"input":{"file_path":"skills/review/SKILL.md"}}]}}'),
                     # A context reporting NO engine read still has its dropped Read
                     # accounted: excluding it from the fold would lose the tally.
-                    '{"type":"assistant","isSidechain":true,"agentId":"G",'
+                    ('{"type":"assistant","isSidechain":true,"agentId":"G",'
                     '"message":{"usage":{"input_tokens":3},"content":[{"type":"tool_use",'
-                    '"id":"3","name":"Read","input":{"file_path":null}}]}}'],
+                    '"id":"3","name":"Read","input":{"file_path":null}}]}}')],
             })
         finally:
             sys.stderr = saved
@@ -487,14 +487,14 @@ class AdversarialTest(_SingleCorpusMixin, unittest.TestCase):
         # json.loads accepts bare Infinity; int(inf) raises OverflowError, which is OUTSIDE
         # eval_corpus's per-record backstop tuple — without the _usage_value guard one such
         # record aborts the whole walk. Assert the run still reports the good record.
-        contexts, totals, skipped = self._run({
+        contexts, _totals, skipped = self._run({
             "s.jsonl": [
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{"input_tokens":Infinity},"content":[{"type":"tool_use",'
-                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}',
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'),
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{"input_tokens":42},"content":[{"type":"tool_use",'
-                '"id":"2","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}',
+                '"id":"2","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'),
             ],
         })
         self.assertEqual(len(contexts), 1)
@@ -517,13 +517,13 @@ class AdversarialTest(_SingleCorpusMixin, unittest.TestCase):
         # 0 into the peak would report an unmeasured turn as a real value.
         contexts, _, _ = self._run({
             "s.jsonl": [
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{},"content":[{"type":"tool_use","id":"1",'
-                '"name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}',
-                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                '"name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'),
+                ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                 '"message":{"usage":{"output_tokens":80},"content":[{"type":"tool_use",'
                 '"id":"2","name":"Read",'
-                '"input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                '"input":{"file_path":"skills/review/SKILL.md"}}]}}')],
         })
         self.assertEqual(contexts[0]["peak_context"], RCE.UNESTABLISHED)
         self.assertEqual(contexts[0]["usage_missing_turns"], 2)
@@ -532,14 +532,14 @@ class AdversarialTest(_SingleCorpusMixin, unittest.TestCase):
         saved = sys.stderr
         sys.stderr = io.StringIO()
         try:
-            contexts, totals, skipped = self._run({
+            contexts, _totals, skipped = self._run({
                 "s.jsonl": [
-                    '{"type":"assistant","isSidechain":false,"sessionId":"S",'
-                    '"message":["not","a","dict"]}',
-                    '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                    ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                    '"message":["not","a","dict"]}'),
+                    ('{"type":"assistant","isSidechain":false,"sessionId":"S",'
                     '"message":{"usage":{"input_tokens":9},"content":[{"type":"tool_use",'
                     '"id":"1","name":"Read",'
-                    '"input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                    '"input":{"file_path":"skills/review/SKILL.md"}}]}}')],
             })
         finally:
             sys.stderr = saved
@@ -630,7 +630,7 @@ class RenderAndCliTest(unittest.TestCase):
         summary = RCE.aggregate(contexts, totals)
         text = RCE.render_text(contexts, totals, summary, skipped)
         for key, value in summary.items():
-            self.assertIn("- {}: {}".format(key, value), text)
+            self.assertIn(f"- {key}: {value}", text)
         # AC1: each engine file appears with its read count.
         self.assertIn("skills/review/SKILL.md", text)
 
@@ -674,7 +674,7 @@ class SecretDetectorTest(unittest.TestCase):
                  os.path.join(_REPO, "docs", "internal", "review-context.md")]
         for path in named:
             self.assertTrue(os.path.exists(path),
-                            "secret-scan target is missing: {}".format(path))
+                            f"secret-scan target is missing: {path}")
         targets = list(named)
         for dirpath, _dirs, files in os.walk(_FIX):  # tree-walk-ok: rooted at the fixed committed review-eval fixtures subdir, not the repo root
             for f in sorted(files):
@@ -684,7 +684,7 @@ class SecretDetectorTest(unittest.TestCase):
         for path in targets:
             with open(path, encoding="utf-8") as fh:
                 hits = _scan_for_secrets(fh.read())
-            self.assertFalse(hits, "owner-id/transcript shape {} in {}".format(hits, path))
+            self.assertFalse(hits, f"owner-id/transcript shape {hits} in {path}")
 
 
 class NoAutoInvocationTest(unittest.TestCase):
@@ -710,11 +710,11 @@ class NoAutoInvocationTest(unittest.TestCase):
         for sub in ("skills", ".github", "scripts", "lib", ".prflow/prompt-extensions"):
             root = os.path.join(_REPO, sub)
             self.assertTrue(os.path.isdir(root),
-                            "no-auto-invocation scan root is missing: {}".format(sub))
+                            f"no-auto-invocation scan root is missing: {sub}")
 
             def _walk_error(exc, _sub=sub):
-                self.fail("could not walk {} while checking the no-auto-invocation "
-                          "invariant: {}".format(_sub, exc))
+                self.fail(f"could not walk {_sub} while checking the no-auto-invocation "
+                          f"invariant: {exc}")
 
             for dirpath, dirs, files in os.walk(root, onerror=_walk_error):  # tree-walk-ok: rooted at fixed subtrees (skills/.github/scripts/lib/.prflow/prompt-extensions), not the repo root
                 dirs[:] = [d for d in dirs if d != "__pycache__"]
@@ -728,10 +728,10 @@ class NoAutoInvocationTest(unittest.TestCase):
                             if needle in fh.read():
                                 offenders.append(rel)
                     except OSError as exc:
-                        self.fail("could not read {}: {}".format(rel, exc))
+                        self.fail(f"could not read {rel}: {exc}")
         self.assertEqual(sorted(offenders), [],
                          "unexpected reference(s) to the maintainer-only script: "
-                         "{}".format(sorted(offenders)))
+                         f"{sorted(offenders)}")
 
 
 if __name__ == "__main__":

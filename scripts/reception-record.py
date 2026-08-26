@@ -71,7 +71,8 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import reception_identity as ri  # noqa: E402
+import reception_identity as ri
+
 
 def _force_utf8_streams():
     """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
@@ -157,7 +158,7 @@ def _fail(reason: str, code: int = 1) -> int:
 # artifacts into one directory, so an unguarded chmod-per-write would emit the
 # same warning three times AND append it after every other diagnostic — which
 # would displace the record a caller reads as the last stderr line.
-_HARDENED_DIRS: "set[str]" = set()
+_HARDENED_DIRS: set[str] = set()
 
 
 def _harden_dir(parent: Path) -> None:
@@ -217,7 +218,7 @@ def _atomic_write_json(path: Path, obj: dict) -> None:
                 pass
 
 
-def _read_json_object(path: Path) -> "tuple[dict | None, str | None]":
+def _read_json_object(path: Path) -> tuple[dict | None, str | None]:
     """Read a JSON *object* artifact, applying the six-shape adversarial matrix.
 
     Returns (obj, None) for a real object, or (None, reason) for every degraded
@@ -299,7 +300,7 @@ def _repo_root(args) -> str:
         return os.getcwd()
 
     try:
-        proc = subprocess.run(  # noqa: S603 - argv list, no shell
+        proc = subprocess.run(
             [GIT, "rev-parse", "--show-toplevel"],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -320,7 +321,7 @@ def _repo_root(args) -> str:
     return root
 
 
-def _check_ledger_tags(record: dict, token: str) -> "str | None":
+def _check_ledger_tags(record: dict, token: str) -> str | None:
     """Verify a findings ledger's own discriminators before it is joined.
 
     `kind` and `claim_context_token` are written as discriminators; reading a
@@ -367,7 +368,7 @@ def _session_dir(args) -> Path:
     return d if d.is_absolute() else (Path(_repo_root(args)) / d)
 
 
-def _check_ignored(sample_path: Path, cwd: str) -> "bool | None":
+def _check_ignored(sample_path: Path, cwd: str) -> bool | None:
     """Return True if `sample_path` is gitignored, False if not, None if git
     could not answer (breadcrumb-and-fail-closed at the call site).
 
@@ -375,7 +376,7 @@ def _check_ignored(sample_path: Path, cwd: str) -> "bool | None":
     that need not yet exist — never a path-shape assumption.
     """
     try:
-        proc = subprocess.run(  # noqa: S603 - argv list, no shell
+        proc = subprocess.run(
             [GIT, "check-ignore", "-q", str(sample_path)],
             cwd=cwd,
             stdout=subprocess.DEVNULL,
@@ -390,7 +391,7 @@ def _check_ignored(sample_path: Path, cwd: str) -> "bool | None":
     return None  # 128 (not a git repo / error) is undecidable -> fail closed
 
 
-def _paths(session_dir: Path, token: str) -> "tuple[Path, Path, Path]":
+def _paths(session_dir: Path, token: str) -> tuple[Path, Path, Path]:
     return (
         session_dir / f"{token}.identity.json",
         session_dir / f"{token}.findings.json",
@@ -682,13 +683,13 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
         return args.func(args)
-    except Exception as exc:  # noqa: BLE001 - contract: no bare traceback escapes
+    except Exception as exc:
         # Every error path IN A COMMAND BODY emits the attributable
         # {"ok": false, "reason": ...} record. Without this arm a residual
         # exception (a non-serializable value reaching json.dumps, an OSError

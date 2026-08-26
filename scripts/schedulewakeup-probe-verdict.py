@@ -70,7 +70,7 @@ def parse_execution_file(exec_file):
         # NOT this branch — isfile() is true, so it flows to the read/parse path and
         # surfaces "present but unparseable" instead; keep this wording accurate to the
         # branch that emits it (PR #417 review — silent-failure-hunter).
-        return None, "execution file path absent or not a regular file at '%s'" % exec_file
+        return None, f"execution file path absent or not a regular file at '{exec_file}'"
     try:
         with open(exec_file, encoding="utf-8", errors="replace") as fh:
             raw = fh.read()
@@ -81,7 +81,7 @@ def parse_execution_file(exec_file):
         # through render()/main(), honoring this module's "Always exits 0" contract
         # (issue #415, PR #417 review finding). Unknown is not zero — a degraded read
         # is never collapsed onto the shippable REMOVED.
-        return [], "execution file present but unreadable (%s)" % e.__class__.__name__
+        return [], f"execution file present but unreadable ({e.__class__.__name__})"
     try:
         return json.loads(raw), ""
     except Exception:
@@ -103,8 +103,7 @@ def parse_execution_file(exec_file):
         return [], "execution file present but unparseable"
     if dropped:
         return parsed, (
-            "%d execution-file line(s) were unparseable — verdict may be incomplete"
-            % dropped
+            f"{dropped} execution-file line(s) were unparseable — verdict may be incomplete"
         )
     return parsed, ""
 
@@ -228,18 +227,18 @@ def render(exec_file):
     if inconclusive:
         out.append("> [!WARNING]")
         if note_top:
-            out.append("> %s — verdict INCONCLUSIVE; re-run the probe." % note_top)
+            out.append(f"> {note_top} — verdict INCONCLUSIVE; re-run the probe.")
         else:
             out.append("> No positive ScheduleWakeup signal (denial=no, attempt=no), so "
                        "tool removal cannot be distinguished from the model not attempting "
-                       "the call (controls: before=%s, after=%s) — verdict INCONCLUSIVE; "
-                       "re-run the probe." % (
+                       "the call (controls: before={}, after={}) — verdict INCONCLUSIVE; "
+                       "re-run the probe.".format(
                            "yes" if control_before else "no",
                            "yes" if control_after else "no"))
         out.append("")
     out.append("| Verdict | Ship flag? | Evidence |")
     out.append("|---------|-----------|----------|")
-    out.append("| **%s** | %s | denial=%s; tool_use(ScheduleWakeup)=%s; control_before(grep)=%s; control_after(grep)=%s |" % (
+    out.append("| **{}** | {} | denial={}; tool_use(ScheduleWakeup)={}; control_before(grep)={}; control_after(grep)={} |".format(
         verdict,
         "yes" if ship else "no",
         "yes" if sw_denied else "no",
@@ -248,9 +247,9 @@ def render(exec_file):
         "yes" if control_after else "no",
     ))
     out.append("")
-    out.append("**claude_args decision (issue #415 AC4): %s.**" % decision)
+    out.append(f"**claude_args decision (issue #415 AC4): {decision}.**")
     out.append("")
-    out.append("### Raw denial entries (%d)" % len(denials))
+    out.append(f"### Raw denial entries ({len(denials)})")
     out.append("")
     if denials:
         out.append("```")
@@ -265,7 +264,7 @@ def render(exec_file):
     # keys on the recorded name field, so this dump is how that field's real spelling is
     # confirmed rather than assumed.
     out.append("")
-    out.append("### Raw tool_use entries (%d)" % len(tool_uses))
+    out.append(f"### Raw tool_use entries ({len(tool_uses)})")
     out.append("")
     if tool_uses:
         out.append("```")
@@ -305,7 +304,7 @@ def main():
         except OSError as e:
             sys.stderr.write(
                 "schedulewakeup-probe-verdict: could not append to "
-                "GITHUB_STEP_SUMMARY (%s); verdict is on stdout\n" % e.__class__.__name__
+                f"GITHUB_STEP_SUMMARY ({e.__class__.__name__}); verdict is on stdout\n"
             )
     return 0
 

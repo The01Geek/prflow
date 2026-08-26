@@ -4,8 +4,8 @@
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from workflow_flight_recorder import fail_open_main
 

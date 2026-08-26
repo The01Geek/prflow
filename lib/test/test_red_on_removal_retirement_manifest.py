@@ -17,7 +17,6 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
-
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent
 BASE_REVISION = "19b8d837f320e848983d420287e05bf356977bac"

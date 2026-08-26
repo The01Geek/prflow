@@ -84,7 +84,7 @@ from pathlib import Path
 # Import the shared merge-base plumbing whether this file is run as a script from the repo
 # root or loaded by path (spec_from_file_location) in the focused test.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import retention_check_common as common  # noqa: E402
+import retention_check_common as common
 
 MAP_REL = "lib/test/modules/coverage-map.json"
 ALLOW_REL = "lib/test/coverage-map-retention-allow.json"
@@ -104,13 +104,13 @@ ACK_FLAG = "--allow-degraded-base"
 CONTENT_FIELDS = ("note", "owner")
 
 
-def _allow_index(allow_value: object) -> "tuple[set[tuple[str, str]], list[str]]":
+def _allow_index(allow_value: object) -> tuple[set[tuple[str, str]], list[str]]:
     """Return ({(half, key) with a non-empty reason}, [breadcrumbs]).
 
     A malformed allowlist is fail-closed: it contributes NO permitted removals and a
     breadcrumb, so a broken escape hatch can never launder a loss into a pass."""
-    permitted: "set[tuple[str, str]]" = set()
-    errors: "list[str]" = []
+    permitted: set[tuple[str, str]] = set()
+    errors: list[str] = []
     if allow_value is None:
         return permitted, errors
     if not isinstance(allow_value, list):
@@ -148,12 +148,12 @@ def _content(entry: object, field: str) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
-def detect_losses(base_map: object, head_map: object, allow_value: object) -> "list[str]":
+def detect_losses(base_map: object, head_map: object, allow_value: object) -> list[str]:
     """Return retention violations (empty ⇒ clean). Pure — never raises, never reads a file.
 
     A base or head that is not a well-shaped map contributes a fail-closed breadcrumb
     rather than being read as 'no keys' — an unestablished comparand is never a pass."""
-    violations: "list[str]" = []
+    violations: list[str] = []
     permitted, allow_errors = _allow_index(allow_value)
     violations.extend(f"[retain] {e}" for e in allow_errors)
 
@@ -196,12 +196,12 @@ def detect_losses(base_map: object, head_map: object, allow_value: object) -> "l
 
 
 def classify_outcome(
-    violations: "list[str]",
-    unestablished: "list[str]",
+    violations: list[str],
+    unestablished: list[str],
     allow_degraded: bool,
     base_ref: str,
     comparand_substituted: bool,
-) -> "tuple[int, list[str]]":
+) -> tuple[int, list[str]]:
     """Select the outcome. Pure — the focused test drives every arm and the arm ORDER.
 
     COMPARAND_SUBSTITUTED says the comparison ran against BASE_REF's own tip rather than
@@ -240,8 +240,8 @@ def classify_outcome(
         return EXIT_LOSS, lines
     if violations or unestablished:
         lines = [
-            "[retain] the base comparand could not be established, so this run proves "
-            "nothing about key retention — it is NOT a clean pass:"
+            ("[retain] the base comparand could not be established, so this run proves "
+            "nothing about key retention — it is NOT a clean pass:")
         ]
         lines.extend(f"[retain]   - {reason}" for reason in unestablished)
         if violations:
@@ -275,7 +275,7 @@ def classify_outcome(
     ]
 
 
-def main(argv: "list[str]") -> int:
+def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("repo_root", nargs="?", default=".", help="repository root (default: cwd)")
     parser.add_argument(
@@ -302,7 +302,7 @@ def main(argv: "list[str]") -> int:
 
     # Every reason the base comparand cannot be trusted. Non-empty ⇒ a green result would
     # be a claim the run never established, so it routes to EXIT_UNESTABLISHED.
-    unestablished: "list[str]" = []
+    unestablished: list[str] = []
 
     merge_base, mb_error, mb_degraded = common.merge_base(repo_root, base_ref)
     if merge_base is None:

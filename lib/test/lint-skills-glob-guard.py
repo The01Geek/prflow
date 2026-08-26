@@ -284,7 +284,7 @@ def scan_file(text: str, path: str) -> tuple[list[str], bool]:
         # rest of the file out of the scan.
         is_delimiter = len(line) - len(line.lstrip(" ")) <= 3
         if not in_fence:
-            if is_delimiter and (stripped.startswith("```") or stripped.startswith("~~~")):
+            if is_delimiter and (stripped.startswith(("```", "~~~"))):
                 fence_marker = stripped[0] * 3
                 info = stripped.lstrip("`~").split()
                 in_fence = True
@@ -382,8 +382,8 @@ def main(argv: list[str] | None = None) -> int:
         if unclosed:
             # Not counted in read_ok: the file was read but not reliably scanned.
             skipped.append(
-                (relative, "unterminated code fence at EOF — fence parity desynced "
-                 "(a nested fence?), so this file's shell lines were not reliably scanned")
+                (relative, ("unterminated code fence at EOF — fence parity desynced "
+                 "(a nested fence?), so this file's shell lines were not reliably scanned"))
             )
             continue
         read_ok += 1

@@ -8,17 +8,16 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
 import time
-from dataclasses import dataclass
-from typing import Literal, TypeAlias
 import unittest
-
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal, TypeAlias
 
 ROOT = Path(__file__).resolve().parents[2]
 RUN_SH = ROOT / "lib/test/run.sh"
@@ -1607,7 +1606,7 @@ rm -f "$RESULTS_FILE" "$RESULTS_FILE.names" "$SKIPS_FILE"
         return proc.returncode, proc.stdout, proc.stderr
 
     @staticmethod
-    def _recap_bullets(out: str) -> "list[str]":
+    def _recap_bullets(out: str) -> list[str]:
         """The recap's bullet lines, VERBATIM (leading indent included).
 
         The indent is part of the asserted shape — it is what run-module.sh's recap uses and
@@ -1872,8 +1871,8 @@ class ShardedPythonTestDriverTests(unittest.TestCase):
         *,
         width: str = "3",
         env_extra: str = "",
-        mode: "str | None" = None,
-    ) -> "tuple[str, str]":
+        mode: str | None = None,
+    ) -> tuple[str, str]:
         """Run the driver over SCRIPT_PATH, returning (VERDICT line, combined output).
 
         `mode` is the driver's optional fourth positional argument (issue #890). None
@@ -1910,7 +1909,7 @@ rm -f "$RESULTS_FILE" "$RESULTS_FILE.names" "$MODULE_FAILURES_FILE" "$SKIPS_FILE
         line = [ln for ln in proc.stdout.splitlines() if ln.startswith("VERDICT ")][-1]
         return line, output
 
-    def _write_suite(self, tmp: str, *, source: "str | None" = None, **kwargs) -> Path:
+    def _write_suite(self, tmp: str, *, source: str | None = None, **kwargs) -> Path:
         path = Path(tmp) / "synthetic_suite.py"
         path.write_text(
             source if source is not None else self._suite_source(**kwargs),
@@ -2519,7 +2518,7 @@ class IgnoredSignalDiagnosticTests(unittest.TestCase):
         # runs the diagnostic (simulating the affected-host inherited-ignore state).
         preexec = None
         if ignore:
-            preexec = lambda: [signal.signal(s, signal.SIG_IGN) for s in ignore]  # noqa: E731
+            preexec = lambda: [signal.signal(s, signal.SIG_IGN) for s in ignore]
         return subprocess.run(
             ["bash", str(WARN_IGNORED_SIGNALS)],
             capture_output=True, text=True, preexec_fn=preexec,

@@ -209,7 +209,7 @@ MAIN_COVERAGE_MAP = {
 }
 
 
-def _build_repo(tmp: Path, *, coverage_map: "dict | None", run_sh: "str | None") -> None:
+def _build_repo(tmp: Path, *, coverage_map: dict | None, run_sh: str | None) -> None:
     """Write the two files main() reads under a fresh git repo, and stage them.
 
     _git_tracked runs `git ls-files`, so the tree must be a git repo with the files staged

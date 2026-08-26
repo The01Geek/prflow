@@ -195,8 +195,8 @@ def check_review_boundary(review_tokens):
         extra = [t for t in review_tokens if t not in lock]
         missing = [t for t in lock if t not in review_tokens]
         lines = [
-            "review profile drift from the reviewer security boundary lock "
-            f"({LOCK_PATH}):",
+            ("review profile drift from the reviewer security boundary lock "
+            f"({LOCK_PATH}):"),
         ]
         if extra:
             lines.append(
@@ -308,7 +308,7 @@ def _assign_anchor_re(var):
     # Locates the CANONICAL region assignment for replacement positioning: a
     # single-quoted assignment that BEGINS a line (after indent). The generated banner +
     # assignment are spliced at this match, so it must stay line-anchored.
-    return re.compile(r"^([ \t]*)" + re.escape(var) + r"='[^']*'", re.M)
+    return re.compile(r"^([ \t]*)" + re.escape(var) + r"='[^']*'", re.MULTILINE)
 
 
 def _count_replacement_assignments(text, var):
@@ -361,7 +361,7 @@ def _existing_banner(text, indent, rid):
     line that carries the banner prefix + this region but is malformed."""
     valid_re = re.compile(
         r"^" + re.escape(indent) + _BANNER_RE_TMPL.format(rid=re.escape(rid)) + r"$",
-        re.M,
+        re.MULTILINE,
     )
     m = valid_re.search(text)
     if m:
@@ -369,7 +369,7 @@ def _existing_banner(text, indent, rid):
     # Prefix present for this region but not a valid banner → malformed.
     malformed_re = re.compile(
         r"^[ \t]*" + re.escape(BANNER_PREFIX) + r" region=" + re.escape(rid) + r"\b.*$",
-        re.M,
+        re.MULTILINE,
     )
     if malformed_re.search(text):
         die(
@@ -423,7 +423,7 @@ def process_assign(text, region, tokens, version):
 
 def parse_assign_tokens(text, region):
     var = region["var"]
-    m = re.search(r"^[ \t]*" + re.escape(var) + r"='([^']*)'", text, re.M)
+    m = re.search(r"^[ \t]*" + re.escape(var) + r"='([^']*)'", text, re.MULTILINE)
     if not m:
         return None
     body = m.group(1)
@@ -434,7 +434,7 @@ def parse_assign_tokens(text, region):
 
 def parse_banner(text, rid):
     valid_re = re.compile(
-        r"^[ \t]*" + _BANNER_RE_TMPL.format(rid=re.escape(rid)) + r"$", re.M
+        r"^[ \t]*" + _BANNER_RE_TMPL.format(rid=re.escape(rid)) + r"$", re.MULTILINE
     )
     m = valid_re.search(text)
     if not m:

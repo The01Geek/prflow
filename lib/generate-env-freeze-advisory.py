@@ -279,7 +279,7 @@ def derive(root: Path, block: dict) -> dict[str, set[str]]:
         if text is None or "DEVFLOW_" not in text:
             continue
         for pattern in READ_PATTERNS:
-            for match in re.finditer(pattern, text, re.M):
+            for match in re.finditer(pattern, text, re.MULTILINE):
                 reads.add(match.group(1))
 
     declared: set[str] = set()
@@ -371,15 +371,15 @@ def body(block: dict, rows: list[dict]) -> list[str]:
         (
             "cloud",
             "Set in GitHub — repository or organization settings",
-            "You set these under **Settings → Secrets and variables → Actions**. "
-            "PRFlow can only read them.",
+            ("You set these under **Settings → Secrets and variables → Actions**. "
+            "PRFlow can only read them."),
         ),
         (
             "operator",
             "Set on your machine — shell profile or install one-liner",
-            "You set these in your own environment. Every one resolves through a "
+            ("You set these in your own environment. Every one resolves through a "
             "`${NAME:-…}`-style default, so a name that stops resolving is "
-            "byte-identical to one that was never set.",
+            "byte-identical to one that was never set."),
         ),
     ):
         selected = [r for r in rows if r["channel"] == channel]

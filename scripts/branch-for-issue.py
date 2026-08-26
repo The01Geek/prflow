@@ -34,7 +34,6 @@ import sys
 import unicodedata
 from datetime import date
 
-
 _NON_SLUG_RE = re.compile(r'[^a-z0-9]+')
 _MAX_SLUG_LEN = 50
 # Minimum length the slug head must keep when we cut at a hyphen boundary
@@ -127,7 +126,8 @@ def main():
     else:
         base = f'issue-{args.number}-{slug}'
     if _branch_exists(base):
-        base = f'{base}-{date.today().strftime("%Y%m%d")}'
+        # Local branch-name datestamp — a tz-aware datetime would change nothing here.
+        base = f'{base}-{date.today().strftime("%Y%m%d")}'  # noqa: DTZ011
 
     print(base)
 

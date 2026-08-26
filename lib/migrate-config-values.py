@@ -214,10 +214,10 @@ def migrate_agent_override_keys(
         return [], [], []
     if namespaces is None:
         return [], [], [
-            "NOTE: the `agent_overrides` keys were left as they are — the accepted subagent"
+            ("NOTE: the `agent_overrides` keys were left as they are — the accepted subagent"
             f" namespaces could not be resolved ({why}), and this migration will not guess at"
             " them. Nothing is broken: a key under the superseded namespace still resolves."
-            " Re-run after repairing the plugin install to complete the rename."
+            " Re-run after repairing the plugin install to complete the rename.")
         ]
     old_ns, new_ns = namespaces
 
@@ -342,11 +342,11 @@ def residual_advisory(cfg: dict, renames: dict) -> list[str]:
         + ". Your workflow files read those key names, so renaming one here would read as"
         " `disabled` and silently switch the workflow it toggles off; they move only in a"
         " change that migrates both sides together. Leave them as they are.",
-        "NOTICE: the `DEVFLOW_*` ENVIRONMENT identifiers (GitHub variables and secrets, and"
+        ("NOTICE: the `DEVFLOW_*` ENVIRONMENT identifiers (GitHub variables and secrets, and"
         " shell overrides) are frozen too and must never be hand-renamed — nothing reads a"
         " `PRFLOW_*` equivalent, so renaming one removes the setting rather than moving it."
         " That is a separate inventory this notice does not restate:"
-        " `lib/generate-env-freeze-advisory.py` renders it.",
+        " `lib/generate-env-freeze-advisory.py` renders it."),
     ]
 
 

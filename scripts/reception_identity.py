@@ -99,7 +99,7 @@ class IdentityError(Exception):
         self.reason = reason
 
 
-def _run_git(args: list[str], cwd: str, extra_env: "dict | None" = None) -> bytes:
+def _run_git(args: list[str], cwd: str, extra_env: dict | None = None) -> bytes:
     """Run `git <args>` in `cwd`, returning stdout bytes, raising IdentityError.
 
     Native subprocess with an argv list and no shell. A missing git binary, an
@@ -109,12 +109,11 @@ def _run_git(args: list[str], cwd: str, extra_env: "dict | None" = None) -> byte
     if extra_env:
         env.update(extra_env)
     try:
-        proc = subprocess.run(  # noqa: S603 - argv list, no shell
+        proc = subprocess.run(
             [GIT, *args],
             cwd=cwd,
             env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
     except FileNotFoundError as exc:
         raise IdentityError("git_not_found") from exc
@@ -127,7 +126,7 @@ def _run_git(args: list[str], cwd: str, extra_env: "dict | None" = None) -> byte
     return proc.stdout
 
 
-def _run_git_text(args: list[str], cwd: str, extra_env: "dict | None" = None) -> str:
+def _run_git_text(args: list[str], cwd: str, extra_env: dict | None = None) -> str:
     """`_run_git` decoded to stripped UTF-8 text, raising IdentityError on bad bytes.
 
     Decoding lives here rather than at each call site so the module's
@@ -145,7 +144,7 @@ def _run_git_text(args: list[str], cwd: str, extra_env: "dict | None" = None) ->
         raise IdentityError(f"git_output_not_utf8:{args[0]}") from exc
 
 
-def derive_candidate_identity(repo_root: "str | None" = None) -> str:
+def derive_candidate_identity(repo_root: str | None = None) -> str:
     """Return the candidate identity — the git tree object ID of working-tree content.
 
     `repo_root` defaults to the current working directory; git resolves the actual

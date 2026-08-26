@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import csv
-from collections import Counter
 import importlib.util
 import io
 import json
@@ -16,6 +15,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -368,15 +368,7 @@ assert_pin_red_on_removal "docs count" 'literal docs' "$MAXI_SKILL"
             (root / "docs/copy.md").write_text("literal docs\n", encoding="utf-8")
             tracked = root / "tracked.txt"
             tracked.write_text(
-                "\n".join(
-                    [
-                        "lib/test/run.sh",
-                        "skills/x/SKILL.md",
-                        ".prflow/logs/history.txt",
-                        "skills/x/OTHER.md",
-                        "docs/copy.md",
-                    ]
-                )
+                "lib/test/run.sh\nskills/x/SKILL.md\n.prflow/logs/history.txt\nskills/x/OTHER.md\ndocs/copy.md"
                 + "\n",
                 encoding="utf-8",
             )
@@ -453,13 +445,7 @@ devflow_module_pin_red_under "outside mutation" 'shared literal' 's/x/y/' "$LIB/
             (root / "docs/home.md").write_text("shared literal\n", encoding="utf-8")
             tracked = root / "tracked.txt"
             tracked.write_text(
-                "\n".join(
-                    [
-                        "docs/home.md",
-                        "lib/test/run.sh",
-                        "lib/test/modules/installer-wiring.sh",
-                    ]
-                )
+                "docs/home.md\nlib/test/run.sh\nlib/test/modules/installer-wiring.sh"
                 + "\n",
                 encoding="utf-8",
             )
@@ -786,9 +772,9 @@ devflow_module_pin_red_under "outside mutation" 'shared literal' 's/x/y/' "$LIB/
                     "working tree. Refresh the census with the two-commit",
                     "inventory-free protocol in CONTRIBUTING.md; never hand-edit",
                     "the census.",
-                    f"adjudication keys compared: {len(shared)} shared; "
+                    (f"adjudication keys compared: {len(shared)} shared; "
                     f"{len(retired)} only at the recorded revision, "
-                    f"{len(added)} only in the working tree (both uncompared)",
+                    f"{len(added)} only in the working tree (both uncompared)"),
                 ],
             )
 
@@ -987,7 +973,7 @@ devflow_module_pin_red_under "outside mutation" 'shared literal' 's/x/y/' "$LIB/
             )
             mutated_working = scratch / "mutated-working-adjudications.tsv"
             mutated_rows = list(working_lines)
-            mutated_rows[target] = "\t".join((key, other_bucket, sentinel))
+            mutated_rows[target] = f"{key}\t{other_bucket}\t{sentinel}"
             mutated_working.write_text("\n".join(mutated_rows) + "\n", encoding="utf-8")
             mutated = scratch / "mutated-adjudications.tsv"
             shared, _, _ = self._reconciled_adjudications(

@@ -146,9 +146,7 @@ def load_rsa_private_key(pem: bytes):
     # and an RFC 1421 header — never the whole text: the base64 alphabet is uppercase-
     # inclusive, so a body run spelling ENCRYPTED would refuse a valid unencrypted key.
     if any(
-        (line.startswith("-----BEGIN") and "ENCRYPTED" in line)
-        or line.startswith("Proc-Type:")
-        or line.startswith("DEK-Info:")
+        line.startswith("-----BEGIN") and "ENCRYPTED" in line or line.startswith(("Proc-Type:", "DEK-Info:"))
         for line in (raw.strip() for raw in text.splitlines())
     ):
         raise SignerError("passphrase-protected (encrypted) PEM")
@@ -215,7 +213,7 @@ def main(argv) -> int:
     try:
         token = sign_jwt(argv[0], argv[1], argv[2], sys.stdin.buffer.read())
     except SignerError as exc:
-        sys.stderr.write("sign-jwt-rs256: refusing to sign — %s\n" % exc)
+        sys.stderr.write(f"sign-jwt-rs256: refusing to sign — {exc}\n")
         return 2
     sys.stdout.buffer.write(token)
     return 0

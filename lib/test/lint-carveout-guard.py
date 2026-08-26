@@ -271,13 +271,13 @@ def check(ci_text: str, files: list[str]) -> tuple[bool, str]:
     if offenders:
         return (
             False,
-            f"FAIL: {', '.join(offenders)} "
+            (f"FAIL: {', '.join(offenders)} "
             f"{'is a tracked' if len(offenders) == 1 else 'are tracked'} lib/test/**/*.sh "
             f"{'file' if len(offenders) == 1 else 'files'} that CI does not lint and "
             f"that {'is' if len(offenders) == 1 else 'are'} NOT under the exempt prefix "
             f"`{EXEMPT_PREFIX}` — landed on the not-CI-linted, not-exempt side of the "
             "partition. Add to a shellcheck invocation in .github/workflows/ci.yml, or (if "
-            f"deliberately unlintable fixtures) move under {EXEMPT_PREFIX}.",
+            f"deliberately unlintable fixtures) move under {EXEMPT_PREFIX}."),
         )
     return (True, "OK")
 

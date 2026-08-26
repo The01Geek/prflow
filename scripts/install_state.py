@@ -65,7 +65,7 @@ lint_manifest = _load_lint_manifest()
 class StateResult:
     """Typed outcome of a marker read: `established` XOR `unestablished`."""
 
-    __slots__ = ("state", "reason", "status")
+    __slots__ = ("reason", "state", "status")
 
     def __init__(self, status: str, *, state=None, reason: str | None = None):
         if status not in ("established", "unestablished"):

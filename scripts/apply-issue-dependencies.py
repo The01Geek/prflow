@@ -236,8 +236,11 @@ def main(argv: list[str]) -> int:
     # 0 rather than raising before any handler exists.
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from preflight import dependency_section_scan, malformed_reserved_dependency_heading
-    except Exception as exc:  # noqa: BLE001 - best-effort: any import failure exits 0
+        from preflight import (
+            dependency_section_scan,
+            malformed_reserved_dependency_heading,
+        )
+    except Exception as exc:
         _err(
             f"could not import the dependency recognizer from scripts/preflight.py "
             f"({type(exc).__name__}: {exc}); no dependency registered."
@@ -260,7 +263,7 @@ def main(argv: list[str]) -> int:
     try:
         numbers, skipped = dependency_section_scan(body)
         malformed = malformed_reserved_dependency_heading(body)
-    except Exception as exc:  # noqa: BLE001 - best-effort: any recognizer failure exits 0
+    except Exception as exc:
         _err(
             f"the dependency recognizer failed on issue #{number}'s body "
             f"({type(exc).__name__}: {exc}); no dependency registered."

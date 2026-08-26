@@ -9,16 +9,15 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
 import time
-from typing import NamedTuple
 import unittest
+from pathlib import Path
+from typing import NamedTuple
 from unittest import mock
-
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNNER_SOURCE = ROOT / "lib/test/run-module.sh"
@@ -1034,11 +1033,11 @@ class ModuleRunnerTests(unittest.TestCase):
     def test_module_workspace_rejects_unsafe_successful_mktemp_output(self) -> None:
         unsafe_results = (
             "printf '/\\n'; exit 0",
-            'candidate="${2%XXXXXX}fixture"; mkdir -p "$candidate"; '
-            'printf "%s/..\\n" "$candidate"; exit 0',
-            'target="${2%XXXXXX}target"; link="${2%XXXXXX}link"; '
+            ('candidate="${2%XXXXXX}fixture"; mkdir -p "$candidate"; '
+            'printf "%s/..\\n" "$candidate"; exit 0'),
+            ('target="${2%XXXXXX}target"; link="${2%XXXXXX}link"; '
             'mkdir -p "$target"; ln -s "$target" "$link"; '
-            'printf "%s\\n" "$link"; exit 0',
+            'printf "%s\\n" "$link"; exit 0'),
         )
         for fake_result in unsafe_results:
             with self.subTest(fake_result=fake_result):
@@ -1472,10 +1471,10 @@ class ModuleRunnerTests(unittest.TestCase):
             [
                 "bash",
                 "-c",
-                'set -u; RESULTS_FILE="$1"; DETAILS_FILE="$2";'
+                ('set -u; RESULTS_FILE="$1"; DETAILS_FILE="$2";'
                 ' assert_eq() { if [ "$2" = "$3" ]; then printf "PASS\\n" >> "$RESULTS_FILE";'
                 ' else printf "FAIL %s want=[%s] got=[%s]\\n" "$1" "$2" "$3" >> "$RESULTS_FILE"; fi; };'
-                ' . "$3"; . "$4"',
+                ' . "$3"; . "$4"'),
                 "bash",
                 str(Path(self.temporary_directory.name) / "tally"),
                 str(Path(self.temporary_directory.name) / "details"),

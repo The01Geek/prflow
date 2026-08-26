@@ -6,10 +6,9 @@
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import sys
-
+from pathlib import Path
 
 CONTROLLED = (
     "PRFLOW_BENCHMARK_CONFIGURATION",
@@ -59,17 +58,17 @@ def main():
     state_file = copy_artifact(source["state_file"], "audit-state.json")
     initial = copy_artifact(source["checkpoints"]["initial"], "draft-initial.md")
     revisions = [
-        copy_artifact(value, "draft-revision-{}.md".format(index))
+        copy_artifact(value, f"draft-revision-{index}.md")
         for index, value in enumerate(source["checkpoints"]["revisions"], 1)
     ]
     final = copy_artifact(source["checkpoints"]["final"], "draft-final.md")
     prompt_bytes = Path(env["PRFLOW_BENCHMARK_PROMPT_PATH"]).read_bytes()
     repetition = int(env["PRFLOW_BENCHMARK_REPETITION"])
     scenario_id = env["PRFLOW_BENCHMARK_SCENARIO_ID"]
-    run_id = "{}-{}-{}".format(configuration, scenario_id, repetition)
+    run_id = f"{configuration}-{scenario_id}-{repetition}"
     occurrence = dict(source["occurrence"])
-    occurrence["session_id"] = "session-{}-{}".format(configuration, run_id)
-    occurrence["occurrence_id"] = "occurrence-{}".format(run_id)
+    occurrence["session_id"] = f"session-{configuration}-{run_id}"
+    occurrence["occurrence_id"] = f"occurrence-{run_id}"
     run = {
         "run_id": run_id,
         "configuration": configuration,
@@ -85,10 +84,8 @@ def main():
         },
         "provenance": {
             "repo_sha": source["provenance"]["repo_sha"],
-            "skill_fingerprint": "sha256:{}".format(configuration),
-            "prompt_fingerprint": "sha256:{}".format(
-                hashlib.sha256(prompt_bytes).hexdigest()
-            ),
+            "skill_fingerprint": f"sha256:{configuration}",
+            "prompt_fingerprint": f"sha256:{hashlib.sha256(prompt_bytes).hexdigest()}",
             "model": "stub-model",
             "effort": "stub-effort",
             "output_style": "stub-style",

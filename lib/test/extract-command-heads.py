@@ -87,10 +87,7 @@ import sys
 # posture. `[` / `[[` are treated as syntax rather than as the `test` binary,
 # matching how the fences actually use them (`if [ -z "$WP" ]; then`).
 RESERVED = frozenset(
-    """
-    if then else elif fi for while until do done case esac in function select
-    { } ( ) [[ ]] [ ] : . source return break continue exit
-    """.split()
+    ["if", "then", "else", "elif", "fi", "for", "while", "until", "do", "done", "case", "esac", "in", "function", "select", "{", "}", "(", ")", "[[", "]]", "[", "]", ":", ".", "source", "return", "break", "continue", "exit"]
 )
 
 # Stripped before the head is read, mirroring Claude Code's wrapper handling.
@@ -488,11 +485,13 @@ def _head_of(statement: str) -> list[str] | None:
         i += 1
         while i < len(tokens) and tokens[i].startswith("-"):
             i += 1
-        if wrapper in WRAPPERS_WITH_OPERAND and i < len(tokens):
-            if not tokens[i].startswith("-") and re.fullmatch(
-                r"[0-9]+[smhd]?", tokens[i]
-            ):
-                i += 1
+        if (
+            wrapper in WRAPPERS_WITH_OPERAND
+            and i < len(tokens)
+            and not tokens[i].startswith("-")
+            and re.fullmatch(r"[0-9]+[smhd]?", tokens[i])
+        ):
+            i += 1
     # Skip leading redirections (`>out cmd` is legal, if rare).
     while i < len(tokens) and _REDIRECTION.match(tokens[i]):
         i += 1
@@ -614,7 +613,7 @@ def _classify_boundary(statement: str, helper_basenames, launchers):
             return ("unexpanded-anchor", head)
         if head.startswith("/"):
             return ("absolute-path", head)
-        if head.startswith("scripts/") or head.startswith("lib/"):
+        if head.startswith(("scripts/", "lib/")):
             return ("repo-root-path", head)
         return ("helper-not-leading", head)
     # Case B: a granted launcher head followed anywhere by a bundled helper. Scan

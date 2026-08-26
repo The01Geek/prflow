@@ -45,7 +45,7 @@ import sys
 import time
 import tracemalloc
 from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +54,7 @@ from typing import Any
 # helpers, none of which the analyzer calls — and the run.sh grep pin asserts
 # this module contains no subprocess call site of its own.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import workflow_flight_recorder as wfr  # noqa: E402
+import workflow_flight_recorder as wfr
 
 SAFE_ID = wfr.SAFE_ID
 REGISTRY_SCHEMA_VERSION = 1
@@ -468,7 +468,7 @@ FILE_MODE = 0o600
 # --------------------------------------------------------------------------- #
 # Input-byte accounting (performance.input_bytes).
 # --------------------------------------------------------------------------- #
-def _count_input_bytes(stats: "dict | None", n: int) -> None:
+def _count_input_bytes(stats: dict | None, n: int) -> None:
     """Accumulate bytes actually READ from source inputs (manifests, bundle
     metadata, transcripts, stop-attempts logs, the registry, the cloud census
     snapshot) into ``stats["input_bytes"]``. performance.input_bytes
@@ -584,7 +584,7 @@ def _atomic_write(path: Path, data: bytes) -> None:
                 pass
 
 
-def tempfile_staged(parent: Path) -> "tuple[int, str]":
+def tempfile_staged(parent: Path) -> tuple[int, str]:
     import tempfile
     return tempfile.mkstemp(dir=str(parent), prefix=".vb-")
 
@@ -596,7 +596,7 @@ def _now_iso() -> str:
     return datetime.now(tz=timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def _parse_iso_ms(value: Any) -> "int | None":
+def _parse_iso_ms(value: Any) -> int | None:
     if not isinstance(value, str) or not value:
         return None
     try:
@@ -608,7 +608,7 @@ def _parse_iso_ms(value: Any) -> "int | None":
     return int(parsed.timestamp() * 1000)
 
 
-def _ms_to_iso(ms: "int | None") -> "str | None":
+def _ms_to_iso(ms: int | None) -> str | None:
     if ms is None:
         return None
     return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
@@ -704,7 +704,7 @@ def _canonical_command(command: str) -> str:
     return re.sub(r"\s+", " ", command).strip()
 
 
-def _redact_secrets(command: str) -> "tuple[str, bool, list[str]]":
+def _redact_secrets(command: str) -> tuple[str, bool, list[str]]:
     """Canonicalize + redact secret-bearing tokens before digesting.
 
     Returns (redacted_command, secret_affected, typed_slots). For every
@@ -729,21 +729,21 @@ def _redact_secrets(command: str) -> "tuple[str, bool, list[str]]":
     redacted = command
     slots: list[str] = []
 
-    def env_repl(match: "re.Match[str]") -> str:
+    def env_repl(match: re.Match[str]) -> str:
         name = match.group(1)
         slots.append(f"env:{name.upper()}")
         return f"{name}=<env:{name.upper()}>"
 
     redacted = SECRET_ENV_ASSIGNMENT.sub(env_repl, redacted)
 
-    def flag_repl(match: "re.Match[str]") -> str:
+    def flag_repl(match: re.Match[str]) -> str:
         flag = match.group(1).lower()
         slots.append(f"flag:{flag.lstrip('-')}")
         return f"{match.group(1)}=<flag:{flag.lstrip('-')}>"
 
     redacted = SECRET_FLAG.sub(flag_repl, redacted)
 
-    def assign_repl(match: "re.Match[str]") -> str:
+    def assign_repl(match: re.Match[str]) -> str:
         name = match.group(1)
         label = name.lstrip("-").upper()
         slots.append(f"assign:{label}")
@@ -754,19 +754,19 @@ def _redact_secrets(command: str) -> "tuple[str, bool, list[str]]":
     # already-substituted markers.
     redacted = SECRET_ASSIGNMENT_FALLBACK.sub(assign_repl, redacted)
 
-    def short_u_repl(match: "re.Match[str]") -> str:
+    def short_u_repl(match: re.Match[str]) -> str:
         slots.append("flag:u")
         return f"{match.group(1)}<flag:u>"
 
     redacted = SECRET_SHORT_U.sub(short_u_repl, redacted)
 
-    def url_repl(match: "re.Match[str]") -> str:
+    def url_repl(match: re.Match[str]) -> str:
         slots.append("url-cred")
         return f"{match.group(1)}<url-cred>@"
 
     redacted = SECRET_URL.sub(url_repl, redacted)
 
-    def bearer_repl(match: "re.Match[str]") -> str:
+    def bearer_repl(match: re.Match[str]) -> str:
         slots.append("bearer")
         return f"{match.group(1)}<bearer>"
 
@@ -1229,7 +1229,7 @@ def load_cloud_mappings(registry_path: Path) -> dict[str, dict[str, object]]:
 # --------------------------------------------------------------------------- #
 # Local census: one EligibleLifecycle row per start manifest.
 # --------------------------------------------------------------------------- #
-def build_local_census(manifests_dir: Path, registry: dict, stats: "dict | None" = None) -> list[EligibleLifecycle]:
+def build_local_census(manifests_dir: Path, registry: dict, stats: dict | None = None) -> list[EligibleLifecycle]:
     rows: list[EligibleLifecycle] = []
     if not manifests_dir.exists() or not manifests_dir.is_dir():
         # This function is the SOLE producer of the entire local denominator, so
@@ -1429,7 +1429,7 @@ def _host_profile_from_manifest(doc: dict) -> dict | None:
 # --------------------------------------------------------------------------- #
 # Local native import left-join + source missingness.
 # --------------------------------------------------------------------------- #
-def join_local_imports(rows: list[EligibleLifecycle], bundles_dir: Path, max_bytes: int, stats: "dict | None" = None) -> list[EligibleLifecycle]:
+def join_local_imports(rows: list[EligibleLifecycle], bundles_dir: Path, max_bytes: int, stats: dict | None = None) -> list[EligibleLifecycle]:
     """Left-join imported bundles onto local census rows; set source_status."""
     out: list[EligibleLifecycle] = []
     for row in rows:
@@ -1457,7 +1457,7 @@ def join_local_imports(rows: list[EligibleLifecycle], bundles_dir: Path, max_byt
     return out
 
 
-def _classify_source_status(bundle: Path, max_bytes: int, stats: "dict | None" = None) -> str:
+def _classify_source_status(bundle: Path, max_bytes: int, stats: dict | None = None) -> str:
     # SYMLINK CHECKS RUN BEFORE exists() CHECKS, deliberately: exists()
     # follows symlinks, so a DANGLING symlink reads as "absent" and would
     # silently take the not-imported/legacy/no-transcript arms with no
@@ -1583,7 +1583,7 @@ def _classify_source_status(bundle: Path, max_bytes: int, stats: "dict | None" =
     return SOURCE_AVAILABLE
 
 
-def _import_failed(bundle: Path, stats: "dict | None" = None) -> "bool | None":
+def _import_failed(bundle: Path, stats: dict | None = None) -> bool | None:
     """Thin tri-state wrapper over ``_stop_attempts_state`` (the production
     classification path in ``_classify_source_status`` calls
     ``_stop_attempts_state`` directly; this wrapper carries the documented
@@ -1629,7 +1629,7 @@ def _import_failed(bundle: Path, stats: "dict | None" = None) -> "bool | None":
     return False
 
 
-def _stop_attempts_state(bundle: Path, stats: "dict | None" = None) -> "tuple[str, list[int | None]]":
+def _stop_attempts_state(bundle: Path, stats: dict | None = None) -> tuple[str, list[int | None]]:
     """Read stop-attempts.jsonl in the writer's real shape.
 
     Returns (state, captured_byte_claims) where state is one of:
@@ -1665,7 +1665,7 @@ def _stop_attempts_state(bundle: Path, stats: "dict | None" = None) -> "tuple[st
     nonblank = 0
     parsed = 0
     corrupt = 0
-    claims: list["int | None"] = []
+    claims: list[int | None] = []
     captured = False
     for line in text.splitlines():
         if not line.strip():
@@ -1856,7 +1856,7 @@ def _command_head(command: str) -> str:
     return head[:120]
 
 
-def _exit_evidence(result: dict | None) -> "dict | None":
+def _exit_evidence(result: dict | None) -> dict | None:
     if not result:
         return None
     is_error = bool(result.get("is_error", False))
@@ -2047,8 +2047,8 @@ def _workspace_state(events: list, start_idx: int, end_idx: int) -> dict:
 
 def extract_verification_lifecycles(
     rows: list[EligibleLifecycle], bundles_dir: Path, registry: dict, max_bytes: int,
-    stats: "dict | None" = None,
-) -> "tuple[list[VerificationRequest], list[VerificationProcessLaunch], list[EligibleLifecycle]]":
+    stats: dict | None = None,
+) -> tuple[list[VerificationRequest], list[VerificationProcessLaunch], list[EligibleLifecycle]]:
     """Extract verification requests + process launches from source_available
     local lifecycles. Returns (requests, launches, updated_rows)."""
     requests: list[VerificationRequest] = []
@@ -2200,7 +2200,7 @@ def _select_root_occurrence(occurrences: list, consumer: str | None):
     return occurrences[0] if occurrences else None
 
 
-def _build_result_indexes(events: list) -> "tuple[dict[str, dict], dict[str, object]]":
+def _build_result_indexes(events: list) -> tuple[dict[str, dict], dict[str, object]]:
     """One O(events) pass: map tool_use_id -> result item and -> the enclosing
     event. Built once per lifecycle so every tool_use lookup is O(1) instead of
     a full re-scan via ``_result_for`` / ``_find_result_event``."""
@@ -2423,7 +2423,7 @@ def group_launches(launches: list[VerificationProcessLaunch]) -> list[Relationsh
     return groups
 
 
-def _classify_relationship(members: list[VerificationProcessLaunch]) -> "tuple[str, str]":
+def _classify_relationship(members: list[VerificationProcessLaunch]) -> tuple[str, str]:
     if len(members) == 1:
         return REL_SINGLE, CONFIDENCE_EXACT
     # A redacted digest alone cannot establish an exact binding match: secret-
@@ -2807,7 +2807,7 @@ def stratify(launches: list[VerificationProcessLaunch], rows: list[EligibleLifec
     }
 
 
-def _duration_bucket(ms: Any) -> "str | None":
+def _duration_bucket(ms: Any) -> str | None:
     if not isinstance(ms, int):
         return None
     if ms < 10_000:
@@ -2827,7 +2827,7 @@ def _duration_bucket(ms: Any) -> "str | None":
 CLOUD_SNAPSHOT_SCHEMA = 1
 
 
-def read_cloud_census(snapshot_path: Path, stats: "dict | None" = None) -> "tuple[dict[str, Any] | None, str]":
+def read_cloud_census(snapshot_path: Path, stats: dict | None = None) -> tuple[dict[str, Any] | None, str]:
     """Read an explicit Actions run/job census snapshot.
 
     Returns ``(doc, reason)``: ``doc`` is the parsed snapshot or ``None`` when it
@@ -2886,7 +2886,7 @@ def read_cloud_census(snapshot_path: Path, stats: "dict | None" = None) -> "tupl
     return doc, "ok"
 
 
-def build_cloud_census(snapshot: dict[str, Any] | None, cloud_mappings: dict[str, dict[str, object]]) -> "tuple[list[EligibleLifecycle], dict[str, Any]]":
+def build_cloud_census(snapshot: dict[str, Any] | None, cloud_mappings: dict[str, dict[str, object]]) -> tuple[list[EligibleLifecycle], dict[str, Any]]:
     rows: list[EligibleLifecycle] = []
     coverage: dict[str, Any] = {"available": False, "pagination_complete": None, "unavailable": True}
     if snapshot is None:
@@ -3095,7 +3095,7 @@ def compute_source_snapshot_hash(rows: list[EligibleLifecycle], cloud_snapshot: 
 # --------------------------------------------------------------------------- #
 # Report generation (no over-claiming; cites source-event IDs only).
 # --------------------------------------------------------------------------- #
-def generate_report(baseline: "VerificationBaseline") -> str:
+def generate_report(baseline: VerificationBaseline) -> str:
     m = baseline.metrics
     sample = baseline.manual_review_sample
     lines: list[str] = []
@@ -3223,7 +3223,7 @@ class VerificationBaseline:
         })
 
 
-def _cleanup(out_dir: Path) -> "tuple[int, int]":
+def _cleanup(out_dir: Path) -> tuple[int, int]:
     """Delete baseline + manual-review artifacts without touching native sources.
 
     Returns (removed, failed). A per-artifact unlink/rmdir failure is COUNTED,
@@ -3288,7 +3288,7 @@ def _force_utf8_streams():
             pass
 
 
-def main(argv: "list[str] | None" = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     parser = argparse.ArgumentParser(description="Offline verification-launch baseline analyzer (issue #527, Wave 1).")
     parser.add_argument("--manifests-dir", default=DEFAULT_MANIFESTS_DIR)
@@ -3406,7 +3406,7 @@ def main(argv: "list[str] | None" = None) -> int:
     stratification = stratify(launches, all_rows)
 
     # 7. Performance reporting.
-    current, peak = tracemalloc.get_traced_memory()
+    _current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     wall_ms = int((time.monotonic() - wall_start) * 1000)
     performance = {

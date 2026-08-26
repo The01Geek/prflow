@@ -231,7 +231,7 @@ def validate(
                     p: extract_profile_grants(base_dir / contract.ROOTS[p]["workflow"])
                     for p in contract.ROOTS
                 }
-        except Exception as exc:  # noqa: BLE001 — fail closed on any derivation error
+        except Exception as exc:
             return [Violation(WRONG_FIELD_TYPE,
                               f"could not derive default validation dependencies from the "
                               f"reachability contract: {exc}")]
@@ -328,7 +328,7 @@ def _load_contract_module():
     contract_dir = REPO_ROOT / "lib" / "test"
     if str(contract_dir) not in sys.path:
         sys.path.insert(0, str(contract_dir))
-    import cloud_writer_contract  # noqa: E402
+    import cloud_writer_contract
 
     return cloud_writer_contract
 

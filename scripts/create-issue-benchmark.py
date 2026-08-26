@@ -7,7 +7,6 @@ import importlib.util
 import os
 import sys
 
-
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _SPEC = importlib.util.spec_from_file_location(
     "create_issue_benchmark", os.path.join(_SCRIPT_DIR, "create_issue_benchmark.py")

@@ -238,12 +238,12 @@ def parse_execution_file(exec_file):
     path, so callers need no None-guard — and note_top is a non-empty diagnostic when the
     file was absent/empty/unparseable/partially corrupt (which forces unestablished)."""
     if not (exec_file and os.path.isfile(exec_file)):
-        return [], "execution file path absent or not a regular file at '%s'" % exec_file
+        return [], f"execution file path absent or not a regular file at '{exec_file}'"
     try:
         with open(exec_file, encoding="utf-8", errors="replace") as fh:
             raw = fh.read()
     except OSError as e:
-        return [], "execution file present but unreadable (%s)" % e.__class__.__name__
+        return [], f"execution file present but unreadable ({e.__class__.__name__})"
     if not raw.strip():
         # A ZERO-BYTE (or whitespace-only) file is the most likely product of a
         # claude-code-action step dying before it wrote the first record — the session
@@ -264,8 +264,8 @@ def parse_execution_file(exec_file):
         if isinstance(doc, (list, dict)):
             return doc, ""
         return [], (
-            "execution file parsed as JSON but its top level is a %s, not an object or "
-            "array — it is not an execution record" % type(doc).__name__
+            f"execution file parsed as JSON but its top level is a {type(doc).__name__}, not an object or "
+            "array — it is not an execution record"
         )
     # Not a single JSON document — try JSONL, counting unparseable lines. A PARTIAL
     # corruption (some lines parse but the write/marker record does not) would otherwise
@@ -284,7 +284,7 @@ def parse_execution_file(exec_file):
         return [], "execution file present but unparseable"
     if dropped:
         return parsed, (
-            "%d execution-file line(s) were unparseable — verdict may be incomplete" % dropped
+            f"{dropped} execution-file line(s) were unparseable — verdict may be incomplete"
         )
     return parsed, ""
 
@@ -359,8 +359,8 @@ def collect(parsed):
                 # breadcrumb naming the observed type; the caller folds it into note_top,
                 # which forces unestablished.
                 shape_notes.append(
-                    "a permission_denials key is present but is a %s, not a list — the "
-                    "denial entries could not be enumerated" % type(pd).__name__
+                    f"a permission_denials key is present but is a {type(pd).__name__}, not a list — the "
+                    "denial entries could not be enumerated"
                 )
             if isinstance(pd, list):
                 for d in pd:
@@ -645,19 +645,19 @@ def compute(denials, tool_uses, note_top, side_path, side_present, upstream_empt
         # docstring's three-outcome contract forbids. The PERMITTED side has always carried
         # the corresponding guard (it requires write_chain_ok); this closes the asymmetry.
         verdict, reason = "unestablished", (
-            "a permission_denials entry naming the Write into %s was recorded, but NO "
+            f"a permission_denials entry naming the Write into {side_path} was recorded, but NO "
             "dispatch appears in this file — with no dispatchee to attribute it to, the "
-            "denial cannot be read as the subagent's" % side_path
+            "denial cannot be read as the subagent's"
         )
     elif write_denied and orchestrator_write_recorded:
         # The premise is falsified by the file itself: a parent-less (orchestrator-issued)
         # Write naming the same side-effect file is recorded, so the denial has more than one
         # possible author and the no-orchestrator-write attribution does not hold.
         verdict, reason = "unestablished", (
-            "a permission_denials entry naming the Write into %s was recorded, but a "
+            f"a permission_denials entry naming the Write into {side_path} was recorded, but a "
             "parent-less (orchestrator-issued) Write naming the same file was recorded too — "
             "the no-orchestrator-write premise the denial attribution rests on is falsified, "
-            "so the denial is not attributable to the dispatched subagent" % side_path
+            "so the denial is not attributable to the dispatched subagent"
         )
     elif write_denied:
         # Checked BEFORE the dispatch-refused arm, and safely so: the dispatch-echo hazard
@@ -672,11 +672,10 @@ def compute(denials, tool_uses, note_top, side_path, side_present, upstream_empt
         # "no orchestrator-issued Write names that file" would publish an unknown as a
         # measured zero, the very collapse the surrounding arms exist to prevent.
         verdict, reason = "DENIED", (
-            "a permission_denials entry for the subagent's Write into %s was recorded, a "
-            "dispatch is recorded in this file, and %s; attribution rests on this job's "
+            "a permission_denials entry for the subagent's Write into {} was recorded, a "
+            "dispatch is recorded in this file, and {}; attribution rests on this job's "
             "prompt containing no orchestrator write, so the denial has exactly one "
-            "possible author"
-            % (
+            "possible author".format(
                 side_path,
                 "no orchestrator-issued Write names that file"
                 if chains_are_recorded
@@ -703,10 +702,9 @@ def compute(denials, tool_uses, note_top, side_path, side_present, upstream_empt
         # name the parent_tool_use_id chain tying the Write to this job's own dispatch, and
         # a reader can re-verify the two ids against the execution file.
         verdict, reason = "PERMITTED", (
-            "a subagent Write tool_use targeting %s was recorded, its parent chains to a "
-            "dispatch recorded in this file (tool_use id '%s' -> parent_tool_use_id '%s'), "
+            f"a subagent Write tool_use targeting {side_path} was recorded, its parent chains to a "
+            f"dispatch recorded in this file (tool_use id '{write_chain_pair[0]}' -> parent_tool_use_id '{write_chain_pair[1]}'), "
             "and the on-disk side-effect file carries the probe's payload marker"
-            % (side_path, write_chain_pair[0], write_chain_pair[1])
         )
     elif not dispatch_recorded and not recorded_at_all:
         verdict, reason = "unestablished", (
@@ -744,9 +742,9 @@ def compute(denials, tool_uses, note_top, side_path, side_present, upstream_empt
         # the write into side_path), but the reason describes what the file actually shows.
         verdict, reason = "unestablished", (
             "a permission_denials entry for a `Write` carrying the probe's payload was "
-            "recorded, but it does not name %s — the refused write targeted some OTHER "
+            f"recorded, but it does not name {side_path} — the refused write targeted some OTHER "
             "path, so it establishes nothing about the write this probe measures and is "
-            "not reported as its denial" % side_path
+            "not reported as its denial"
         )
     elif unclassified_write_denied:
         # Same placement rationale as the arm above, for the entry shape that names neither
@@ -759,10 +757,9 @@ def compute(denials, tool_uses, note_top, side_path, side_present, upstream_empt
         # field would be false about exactly the shape the helper considers most likely.
         verdict, reason = "unestablished", (
             "a permission_denials entry was recorded that the three narrower classifiers "
-            "all declined — it names neither %s nor the probe's payload marker, and it is "
+            f"all declined — it names neither {side_path} nor the probe's payload marker, and it is "
             "not attributable to the dispatch — so the per-entry denial shape leaves it "
             "neither attributable to nor ruled out of the write this probe measures"
-            % side_path
         )
     elif not write_recorded:
         verdict, reason = "unestablished", (
@@ -785,8 +782,8 @@ def compute(denials, tool_uses, note_top, side_path, side_present, upstream_empt
         else:
             _why = "the on-disk side-effect file is absent"
         verdict, reason = "unestablished", (
-            "a chain-attributable Write tool_use was recorded but %s, so the permit is "
-            "uncorroborated" % _why
+            f"a chain-attributable Write tool_use was recorded but {_why}, so the permit is "
+            "uncorroborated"
         )
 
     # A RECORDED dispatch wins over a co-recorded refusal: the table must not report
@@ -802,8 +799,8 @@ def compute(denials, tool_uses, note_top, side_path, side_present, upstream_empt
     # contract. An ordinary branch is always live and fails closed onto `unestablished`.
     if verdict not in _VERDICTS:
         sys.stderr.write(
-            "subagent-write-probe-verdict: internal error — verdict %r is outside the "
-            "closed vocabulary %s; reporting unestablished\n" % (verdict, list(_VERDICTS))
+            f"subagent-write-probe-verdict: internal error — verdict {verdict!r} is outside the "
+            f"closed vocabulary {list(_VERDICTS)}; reporting unestablished\n"
         )
         verdict, reason = "unestablished", (
             "the verdict derivation produced a value outside the closed three-outcome "
@@ -833,15 +830,14 @@ def render(exec_file, tier, side_effect_file, upstream_empty, params):
         # file no probe job writes — every write-side signal would then read absent and the
         # run would render a confident-looking negative about a marker that never existed.
         tier_note = (
-            "--tier value '%s' is not one of %s, so the tier-derived write marker names no "
-            "side-effect file any probe job writes and nothing measurable was looked for"
-            % (tier, "/".join(VALID_TIERS))
+            "--tier value '{}' is not one of {}, so the tier-derived write marker names no "
+            "side-effect file any probe job writes and nothing measurable was looked for".format(tier, "/".join(VALID_TIERS))
         )
         sys.stderr.write(
-            "subagent-write-probe-verdict: %s; reporting unestablished\n" % tier_note
+            f"subagent-write-probe-verdict: {tier_note}; reporting unestablished\n"
         )
         tier = "unknown"
-    side_path = "subwrite-%s.txt" % tier
+    side_path = f"subwrite-{tier}.txt"
     # VERIFY THE OUTCOME, NOT THE PRECONDITION. `isfile` proves a path exists; it proves
     # nothing about whether the subagent's write LANDED — which is the corroboration the
     # PERMITTED reason rests on. A zero-byte file, a truncated write, or a file authored by
@@ -867,8 +863,8 @@ def render(exec_file, tier, side_effect_file, upstream_empty, params):
             # measurable DENIED. It travels on its own channel instead.
             side_state = "unreadable"
             side_note = (
-                "the on-disk side-effect file %s is present but could not be read (%s), so "
-                "its content could not corroborate the write" % (side_effect_file, exc)
+                f"the on-disk side-effect file {side_effect_file} is present but could not be read ({exc}), so "
+                "its content could not corroborate the write"
             )
     side_present = side_state == "corroborated"
 
@@ -915,9 +911,9 @@ def render(exec_file, tier, side_effect_file, upstream_empty, params):
     )
 
     out = []
-    out.append("## Dispatched-subagent Write probe — %s tier (issue #858)" % tier)
+    out.append(f"## Dispatched-subagent Write probe — {tier} tier (issue #858)")
     out.append("")
-    out.append("**Verdict: `%s`**" % r["verdict"])
+    out.append("**Verdict: `{}`**".format(r["verdict"]))
     out.append("")
     out.append(r["reason"] + ".")
     out.append("")
@@ -929,27 +925,27 @@ def render(exec_file, tier, side_effect_file, upstream_empty, params):
     )
     out.append("")
     out.append("> [!IMPORTANT]")
-    out.append("> %s" % VERSION_CAVEAT)
+    out.append(f"> {VERSION_CAVEAT}")
     out.append("")
     # The two control facts, reported INDEPENDENTLY (never conjoined), plus dispatch and
     # write as separate fields so a reader can tell a denied write from an absent dispatch.
     out.append("| Field | Value |")
     out.append("|-------|-------|")
-    out.append("| tier | `%s` |" % tier)
-    out.append("| verdict | **%s** |" % r["verdict"])
-    out.append("| dispatch_outcome | %s |" % r["dispatch_outcome"])
+    out.append(f"| tier | `{tier}` |")
+    out.append("| verdict | **{}** |".format(r["verdict"]))
+    out.append("| dispatch_outcome | {} |".format(r["dispatch_outcome"]))
     out.append("| recorded_at_all | %s |" % ("yes" if r["recorded_at_all"] else "no"))
     out.append("| chain_attributable | %s |" % ("yes" if r["chain_attributable"] else "no"))
     out.append("| control_before | %s |" % ("yes" if r["control_before"] else "no"))
     out.append("| control_after | %s |" % ("yes" if r["control_after"] else "no"))
-    out.append("| write_outcome | %s |" % r["write_outcome"])
+    out.append("| write_outcome | {} |".format(r["write_outcome"]))
     out.append("| write_chain_ok | %s |" % ("yes" if r["write_chain_ok"] else "no"))
     # Four-valued, not a yes/no: `absent` (no file), `corroborated` (present AND carrying the
     # payload), `wrong-content` (present but NOT carrying it — an established negative, never
     # laundered into "absent"), `unreadable` (present, content unestablished). Collapsing the
     # last three onto "no" would report an established wrong-content file and an unmeasurable
     # one as the same thing as no file at all.
-    out.append("| side_effect_state | %s |" % side_state)
+    out.append(f"| side_effect_state | {side_state} |")
     out.append("")
     # Every permission-decision parameter travels with the verdict — the resolved literal
     # verbatim, not a prose summary of the composition.
@@ -962,7 +958,7 @@ def render(exec_file, tier, side_effect_file, upstream_empty, params):
     ):
         val = params.get(key)
         if val:
-            out.append("**%s:** `%s`" % (label, val))
+            out.append(f"**{label}:** `{val}`")
             out.append("")
     allowlist = params.get("allowlist")
     if allowlist:
@@ -974,7 +970,7 @@ def render(exec_file, tier, side_effect_file, upstream_empty, params):
         out.append("")
     # The observed denial-entry shape — the read that upgrades the DENIED side from
     # by-construction to measured.
-    out.append("### Observed `permission_denials` entries (%d)" % len(r["denials"]))
+    out.append(f"### Observed `permission_denials` entries ({len(r['denials'])})")
     out.append("")
     if r["denials"]:
         out.append("```")
@@ -1031,9 +1027,8 @@ def main():
             nxt = args[i + 1] if i + 1 < len(args) else None
             if nxt is None or nxt in flag_keys or nxt == "--upstream-tools-empty":
                 sys.stderr.write(
-                    "subagent-write-probe-verdict: %s was given no value (%s); treating it "
-                    "as empty\n"
-                    % (a, "end of arguments" if nxt is None else "next argument is %s" % nxt)
+                    "subagent-write-probe-verdict: {} was given no value ({}); treating it "
+                    "as empty\n".format(a, "end of arguments" if nxt is None else f"next argument is {nxt}")
                 )
                 val = ""
                 consumed = 1
@@ -1057,9 +1052,8 @@ def main():
             # verdict. Breadcrumb and continue: the always-exit-0 contract still holds, and
             # the operator can see which flag the helper did not understand.
             sys.stderr.write(
-                "subagent-write-probe-verdict: unrecognised argument %r was ignored "
-                "(recognised flags: %s, --upstream-tools-empty)\n"
-                % (a, ", ".join(sorted(flag_keys)))
+                "subagent-write-probe-verdict: unrecognised argument {!r} was ignored "
+                "(recognised flags: {}, --upstream-tools-empty)\n".format(a, ", ".join(sorted(flag_keys)))
             )
             i += 1
         else:
@@ -1071,9 +1065,8 @@ def main():
             # Only the FIRST positional is the execution file. Extra positionals are usually
             # a value that lost its flag; dropping them silently hides that.
             sys.stderr.write(
-                "subagent-write-probe-verdict: %d extra positional argument(s) after the "
-                "execution file were ignored: %s\n"
-                % (len(positional) - 1, ", ".join(repr(p) for p in positional[1:]))
+                f"subagent-write-probe-verdict: {len(positional) - 1} extra positional argument(s) after the "
+                f"execution file were ignored: {', '.join(repr(p) for p in positional[1:])}\n"
             )
     if not exec_file:
         exec_file = os.environ.get("EXECUTION_FILE", "") or ""
@@ -1085,17 +1078,16 @@ def main():
     # and NO verdict table — the one outcome the three-outcome design says cannot happen.
     try:
         table = render(exec_file, tier, side_effect_file, upstream_empty, params)
-    except Exception as e:  # noqa: BLE001 - the always-exit-0 contract is the point
+    except Exception as e:
         sys.stderr.write(
-            "subagent-write-probe-verdict: unexpected %s while deriving the verdict; "
-            "reporting unestablished\n" % e.__class__.__name__
+            f"subagent-write-probe-verdict: unexpected {e.__class__.__name__} while deriving the verdict; "
+            "reporting unestablished\n"
         )
         table = (
             "## Dispatched-subagent Write probe (issue #858)\n\n"
             "**Verdict: `unestablished`**\n\n"
-            "the verdict could not be derived (%s while reading or walking the execution "
+            f"the verdict could not be derived ({e.__class__.__name__} while reading or walking the execution "
             "file); nothing about the write is established (see stderr).\n"
-            % e.__class__.__name__
         )
     print(table)
     summary = os.environ.get("GITHUB_STEP_SUMMARY", "")
@@ -1109,7 +1101,7 @@ def main():
         except OSError as e:
             sys.stderr.write(
                 "subagent-write-probe-verdict: could not append to GITHUB_STEP_SUMMARY "
-                "(%s); verdict is on stdout\n" % e.__class__.__name__
+                f"({e.__class__.__name__}); verdict is on stdout\n"
             )
     return 0
 
