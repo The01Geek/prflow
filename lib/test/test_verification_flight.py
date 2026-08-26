@@ -971,7 +971,14 @@ class TestExitStatusBackstop(Harness):
         shapes = (None, True, False, "0", 0.0, [], 0, 1, -1)
         for i, status in enumerate(shapes):
             with self.subTest(exit_status=status):
-                summary = {"command": "run.sh"}
+                # The command must be a real whole-suite spelling: the reader also
+                # gates on the command being whole-suite evidence, and a fixture that
+                # is not would make every shape below disagree for that reason
+                # instead of the exit-status reason this test exists to cover. The
+                # command is deliberately NOT a parity dimension — the writer accepts
+                # any command because flights coordinate focused and shard runs too,
+                # and only the completion gate requires a whole-suite result.
+                summary = {"command": "lib/test/run.sh"}
                 if status is not None:
                     summary["exit_status"] = status
                 k, t = self._running(f"es-parity-{i}")
@@ -1904,6 +1911,141 @@ class TestPhaseEventAppend(Harness):
         self.assertEqual(rec["count"], 0)
         self.assertIs(rec["reused"], False)
         self.assertEqual(rec["note"], "")
+
+
+class TestFinishFromRunnerLog(Harness):
+    """`finish --from-runner-log` derives terminal evidence from a retained log.
+
+    Two of the five implement runs analysed for this change hand-authored the flight's
+    status JSON with `--result passed` after reading `--help` inline; that improvisation
+    is what let run 32957163134 finish a flight on lint evidence. Deriving the summary
+    from the log the runner retained removes the hand-assertion. The log is
+    agent-and-tool-mutable text, so every shape below must produce a NAMED breadcrumb
+    rather than a silent misread.
+    """
+
+    PARALLEL_CLEAN = (
+        "... shard output ...\n"
+        "1234 passed, 0 failed\n"
+        "\n"
+        "shard-tally combine: 5 shard(s): monolith, python, jq, shell, installer\n"
+        "run-parallel: shard roster: monolith python jq shell installer\n"
+        "run-parallel: retained logs: /tmp/run-1/logs\n"
+        "run-parallel: elapsed 940s\n"
+        "run-parallel: aggregate CLEAN\n"
+    )
+    PARALLEL_FAILED = PARALLEL_CLEAN.replace(
+        "1234 passed, 0 failed", "1230 passed, 4 failed"
+    ).replace("aggregate CLEAN", "aggregate FAILED — read the retained logs above")
+
+    def _log(self, text):
+        path = os.path.join(self.tmp, f"log-{os.urandom(4).hex()}.txt")
+        Path(path).write_text(text, encoding="utf-8")
+        return path
+
+    def _finish_from_log(self, result, log_path, extra=None, decl=None):
+        _, owner = self.claim(decl)
+        k, t = owner["flight_key"], owner["token"]
+        self.run_cmd(["mark-running", "--flight", k, "--token", t, "--state-dir", self.state])
+        argv = ["finish", "--flight", k, "--token", t, "--result", result,
+                "--state-dir", self.state, "--logs-dir", self.logs,
+                "--from-runner-log", log_path] + (extra or [])
+        code, out = self.run_cmd(argv)
+        return k, code, out
+
+    def test_clean_coordinator_log_derives_a_passing_summary(self):
+        k, code, _out = self._finish_from_log("passed", self._log(self.PARALLEL_CLEAN))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        self.assertTrue(st["satisfies_verification"])
+        summary = st["suite_summary"]
+        self.assertEqual(summary["exit_status"], 0)
+        self.assertEqual(summary["command"], "lib/test/run-parallel.sh")
+        self.assertEqual(summary["passed"], 1234)
+        self.assertEqual(summary["failed"], 0)
+        # The derivation must record where it came from, so a later reader can audit it.
+        self.assertIn("runner_log", summary)
+
+    def test_failing_log_contradicting_a_passed_result_is_refused(self):
+        # The headline guard: a caller claiming `passed` over a log that says FAILED.
+        _k, code, out = self._finish_from_log("passed", self._log(self.PARALLEL_FAILED))
+        self.assertEqual(code, vf.EXIT_CAS_REJECT)
+        self.assertEqual(out["reason"], "runner_log_contradicts_result")
+
+    def test_failing_log_with_a_truthful_failed_result_is_recorded(self):
+        k, code, _ = self._finish_from_log("failed", self._log(self.PARALLEL_FAILED))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state])
+        self.assertEqual(st["state"], "failed")
+        self.assertEqual(st["suite_summary"]["failed"], 4)
+
+    def test_skips_in_the_log_reach_skipped_checks(self):
+        log = self.PARALLEL_CLEAN.replace(
+            "1234 passed, 0 failed", "1233 passed, 0 failed, 1 skipped"
+        )
+        k, code, _ = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        # A skip population must survive into the record so the completion reader's
+        # no-skip policy fires; a derived summary must not launder it away.
+        self.assertEqual(len(st["skipped_checks"]), 1)
+
+    def test_module_log_derives_its_module_command(self):
+        log = "...\nModule workpad-contract: 42 passed, 0 failed\n"
+        k, code, _ = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        self.assertEqual(st["suite_summary"]["command"],
+                         "lib/test/run-module.sh workpad-contract")
+
+    # ── adversarial input-shape matrix ──────────────────────────────────────────
+    def test_absent_log_is_a_named_refusal(self):
+        _k, code, out = self._finish_from_log(
+            "passed", os.path.join(self.tmp, "nope.txt"))
+        self.assertEqual(code, vf.EXIT_INVALID)
+        self.assertTrue(out["reason"].startswith("runner_log:"), out["reason"])
+
+    def test_unrecognized_log_is_a_named_refusal(self):
+        for i, (text, label) in enumerate([("", "empty"), ("hello world\n", "no marker"),
+                                           ("\x00\x01binary", "binary-ish")]):
+            # distinct checkout per iteration -> distinct flight key (avoids attach)
+            _k, code, out = self._finish_from_log(
+                "passed", self._log(text),
+                decl=_decl(checkout={"head": _hexid(f"head-unrec-{i}")}))
+            self.assertEqual(code, vf.EXIT_INVALID, label)
+            self.assertEqual(out["reason"], "runner_log_unrecognized", label)
+
+    def test_marker_without_a_tally_is_a_named_refusal(self):
+        # A truncated log: the runner's terminal marker survived, the tally did not.
+        log = "run-parallel: retained logs: /tmp/x\nrun-parallel: aggregate CLEAN\n"
+        _k, code, out = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_INVALID)
+        self.assertEqual(out["reason"], "runner_log_no_tally")
+
+    def test_clean_looking_tally_under_a_failed_aggregate_is_refused(self):
+        # The documented coordinator hazard: a shard that did not complete returns a
+        # non-zero status even when its tally reads clean. The aggregate marker wins.
+        log = self.PARALLEL_CLEAN.replace(
+            "aggregate CLEAN", "aggregate FAILED — a shard did not complete")
+        _k, code, out = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_CAS_REJECT)
+        self.assertEqual(out["reason"], "runner_log_contradicts_result")
+
+    def test_supplying_both_evidence_sources_is_refused(self):
+        _, owner = self.claim()
+        k, t = owner["flight_key"], owner["token"]
+        self.run_cmd(["mark-running", "--flight", k, "--token", t, "--state-dir", self.state])
+        code, out = self.run_cmd([
+            "finish", "--flight", k, "--token", t, "--result", "passed",
+            "--state-dir", self.state, "--logs-dir", self.logs,
+            "--from-runner-log", self._log(self.PARALLEL_CLEAN),
+            "--summary-file", self._write({"command": "x", "exit_status": 0}),
+        ])
+        self.assertEqual(code, vf.EXIT_INVALID)
+        self.assertEqual(out["reason"], "summary_source_ambiguous")
 
 
 if __name__ == "__main__":

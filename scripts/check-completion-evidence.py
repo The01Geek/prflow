@@ -47,6 +47,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shlex
 import subprocess
 import sys
 from enum import Enum
@@ -744,6 +746,107 @@ def _validate(args) -> tuple[str, str]:
 # (missing -> stale -> not-pass -> skipped).
 FLIGHT_STATE_PASSED = "passed"
 
+#: The commands whose result IS a whole-suite result (issue #1607's gate rule).
+#: `run.sh` is the serial full suite; `run-parallel.sh` is the shard coordinator.
+#: A focused module, a single shard, a lint and a focused Python file are all
+#: deliberately absent — each is intermediate-iteration evidence only.
+WHOLE_SUITE_RUNNERS = ("lib/test/run.sh", "lib/test/run-parallel.sh")
+
+#: The recombination helper. A `combine` reconciled against the true partition by
+#: name (`--require-shards`) is the second accepted whole-suite result: it is what
+#: the shard-decomposition path produces when the tier terminates the coordinator.
+#: Without that flag the count floor alone can be met by a subset, so an
+#: unreconciled combine is NOT a whole-suite result (issue #1289).
+RECOMBINE_HELPER = "lib/test/shard-tally.py"
+RECOMBINE_SUBCOMMAND = "combine"
+RECOMBINE_RECONCILE_FLAG = "--require-shards"
+
+#: Interpreter/wrapper heads whose first non-flag operand is the real invocation.
+_WRAPPER_HEADS = ("bash", "sh", "python3", "python", "env")
+
+#: Segment separators. A declared command is routinely a list or a pipeline —
+#: `cd <root>; lib/test/run-parallel.sh`, or `run-parallel.sh 2>&1 | tail -25` —
+#: so every segment is examined, not just the whole string's first token.
+_SEGMENT_SPLIT = re.compile(r"\|\||&&|[;|\n]")
+
+
+def _head_invokes(head: str, target: str) -> bool:
+    """True iff `head` invokes the repo-relative `target` path.
+
+    Matches the bare repo-relative form and any absolute or `./`-prefixed spelling
+    of it, and nothing else. The comparison is anchored on a path boundary so a
+    same-suffixed but different file (`my-run.sh` vs `run.sh`) cannot match.
+    """
+    return head == target or head.endswith("/" + target)
+
+
+def _segment_tokens(command: str):
+    """Yield each segment of `command` as a token list, leading assignments dropped.
+
+    An unparseable segment (an unbalanced quote) yields nothing at all rather than a
+    best guess: an unreadable segment must never be the thing that establishes a
+    whole-suite claim, which is the fail-closed direction.
+    """
+    for segment in _SEGMENT_SPLIT.split(command):
+        try:
+            tokens = shlex.split(segment, comments=False)
+        except ValueError:
+            continue
+        # Drop leading `VAR=value` assignments, then unwrap an interpreter head.
+        while tokens and "=" in tokens[0] and not tokens[0].startswith("-") \
+                and "/" not in tokens[0].split("=", 1)[0]:
+            tokens = tokens[1:]
+        if tokens and tokens[0] in _WRAPPER_HEADS:
+            # Skip the interpreter's OWN leading flags only, then keep the script and
+            # everything after it. Filtering every flag out would strip the invocation's
+            # own arguments, losing the `--require-shards` reconciliation flag below.
+            rest = tokens[1:]
+            while rest and rest[0].startswith("-"):
+                rest = rest[1:]
+            tokens = rest
+        if tokens:
+            yield tokens
+
+
+def classify_whole_suite_command(command: str) -> tuple[bool, str]:
+    """Classify a declared verification command as a whole-suite result, or not.
+
+    Returns `(True, detail)` only when some segment of `command` INVOKES a
+    whole-suite runner as its head, or is a partition-reconciled recombination.
+    Returns `(False, detail)` otherwise, naming what was declared — an unestablished
+    command is never a pass, so every non-matching shape lands on the False arm.
+
+    This is a best-effort parser over a caller-supplied string: it can be defeated by
+    a caller determined to spell a lint so it looks like a coordinator invocation. It
+    is a NARROWING of the false-green path, exactly like the exit-status backstop it
+    sits beside — it catches the run that ran the wrong thing and declared it
+    honestly, which is the observed failure (run 32957163134 declared its ruff
+    invocation verbatim), not the one that lies about what it ran.
+    """
+    for tokens in _segment_tokens(command):
+        head = tokens[0]
+        for runner in WHOLE_SUITE_RUNNERS:
+            if _head_invokes(head, runner):
+                return True, f"whole-suite runner {runner}"
+        if _head_invokes(head, RECOMBINE_HELPER):
+            rest = tokens[1:]
+            if RECOMBINE_SUBCOMMAND not in rest:
+                continue
+            reconciled = any(
+                t == RECOMBINE_RECONCILE_FLAG
+                or t.startswith(RECOMBINE_RECONCILE_FLAG + "=")
+                for t in rest
+            )
+            if reconciled:
+                return True, (
+                    f"recombined shard partition reconciled with "
+                    f"{RECOMBINE_RECONCILE_FLAG}"
+                )
+            # A combine with no reconciliation flag is a partial-recombination risk,
+            # not a whole-suite result. Keep scanning: a later segment may still
+            # carry a real whole-suite invocation.
+    return False, "no whole-suite runner or reconciled recombination is invoked"
+
 
 def _validate_implement_record(rec: dict, claim_identity: str) -> tuple[str, str]:
     """The strict implement-completion checks over a flight record `rec`.
@@ -764,6 +867,15 @@ def _validate_implement_record(rec: dict, claim_identity: str) -> tuple[str, str
         raise Verdict(
             TOK_MISSING,
             "suite_summary.command is missing or not a nonempty string",
+        )
+    # The command must be a WHOLE-SUITE result, not merely a nonempty string. Run
+    # 32957163134 finished this flight declaring a ruff invocation and reached
+    # Complete on it; a nonempty-string check cannot tell a lint from the suite.
+    whole_suite, why = classify_whole_suite_command(command)
+    if not whole_suite:
+        raise Verdict(
+            TOK_MISSING,
+            f"suite_summary.command is not whole-suite evidence ({why}): {command!r}",
         )
     exit_status = summary.get("exit_status")
     # An integer, and NOT a bool (bool is an int subclass) and NOT the string "0":

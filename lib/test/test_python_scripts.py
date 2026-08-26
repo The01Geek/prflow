@@ -33265,6 +33265,43 @@ assert_eq("#1087 any skip (even host-capability) → skipped-checks-present", "s
 _t, _d = cce.validate_implement_completion(_p, _root, claim_identity="DIFFERENT-TREE")
 assert_eq("#1087 changed candidate identity → stale-candidate", "stale-candidate", _t)
 
+# ── The declared command must be a WHOLE-SUITE result ────────────────────────────
+# Cloud implement run 32957163134 (issue #742) reached `🎉 Complete` and published
+# PR #1997 having run no test suite at all: its flight was finished `--result passed`
+# declaring `git ls-files '*.py' | xargs python3 -m ruff check`, and the nonempty-string
+# check above accepted it. The whole-suite gate must bind the command to an actual
+# whole-suite runner or a complete recombined shard partition.
+def _cce_tok_for_command(_cmd):
+    _r = dict(_PASS_REC)
+    _r["suite_summary"] = dict(_PASS_REC["suite_summary"], command=_cmd)
+    _rt, _kk = _write_flight(_r)
+    _pth = os.path.join(_rt, '.prflow', 'tmp', 'verification-flights', _kk + '.json')
+    return cce.validate_implement_completion(_pth, _rt, claim_identity="treeX")[0]
+
+
+for _cmd, _lbl in [
+    ("git ls-files '*.py' | xargs python3 -m ruff check --no-force-exclude", "the #742 ruff bypass"),
+    ("lib/test/run-module.sh workpad-contract", "a focused module"),
+    ("lib/test/run-shard.sh monolith", "a single shard"),
+    ("python3 lib/test/test_python_scripts.py", "a focused python file"),
+    ("shellcheck --severity=warning lib/test/run.sh", "a lint"),
+    ("echo lib/test/run-parallel.sh", "a runner named as an argument, not invoked"),
+    ("lib/test/shard-tally.py combine --tally a.json", "a recombination with no --require-shards"),
+]:
+    assert_eq(f"#742 {_lbl} is not whole-suite evidence → missing-evidence",
+              "missing-evidence", _cce_tok_for_command(_cmd))
+
+for _cmd, _lbl in [
+    ("lib/test/run.sh", "the serial full suite"),
+    ("lib/test/run-parallel.sh", "the coordinator"),
+    ("lib/test/run-parallel.sh 2>&1 | tail -25", "the coordinator with a granted tail"),
+    ("cd /home/runner/work/prflow/prflow; lib/test/run-parallel.sh", "the coordinator after a cd segment"),
+    ("lib/test/shard-tally.py combine --tally a.json --require-shards \"monolith python\"",
+     "a reconciled recombined partition"),
+]:
+    assert_eq(f"#742 {_lbl} IS whole-suite evidence → pass", "pass", _cce_tok_for_command(_cmd))
+
+
 # ── workpad integration: no marker → no PATCH (maps "Completion requires marker",
 #    "Skipped-step regression is executable") ──────────────────────────────────────
 workpad._completion_evidence_verdict = _REAL_COMPLETION_EVIDENCE_VERDICT

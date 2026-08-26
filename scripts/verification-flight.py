@@ -922,6 +922,146 @@ def cmd_mark_running(args) -> int:
     return EXIT_OK
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Runner-log derivation (`finish --from-runner-log`)
+# ─────────────────────────────────────────────────────────────────────────────
+# Terminal evidence hand-authored by the caller is the weakest link in the whole
+# gate: the caller supplies every operand the gate exists to distrust, and two of
+# the five implement runs surveyed for this change wrote their summary JSON by hand
+# after reading `--help` inline. This mode derives the same operands from the log a
+# runner RETAINED — every runner names that log's absolute path on exit — so the
+# caller asserts a file path instead of a verdict.
+#
+# It is a best-effort parser over agent-and-tool-mutable text, so every unreadable,
+# truncated or self-contradicting shape below produces a NAMED refusal reason. It
+# never guesses: an operand it cannot establish refuses the derivation rather than
+# defaulting, because an unestablished measurement collapsed onto a real value is
+# the exact false-green this mode exists to remove.
+
+#: `run-parallel: aggregate CLEAN` / `... aggregate FAILED — <detail>`. The
+#: coordinator's own verdict, and the ONLY operand that decides a coordinator run:
+#: it returns non-zero for a shard that did not complete even when the recombined
+#: tally reads clean, so the tally alone is not the result.
+_RE_AGGREGATE = re.compile(r"^run-parallel:\s+aggregate\s+(CLEAN|FAILED)\b", re.M)
+#: `Module <id>: N passed, M failed[, K skipped]` — run-module.sh's terminal line,
+#: which is also the only place the module id appears in its own log.
+_RE_MODULE = re.compile(r"^Module\s+(\S+):\s+(\d+)\s+passed,\s+(\d+)\s+failed", re.M)
+#: `run-shard.sh: retained log: <abs>` — the shard runner's self-identification.
+_RE_SHARD = re.compile(r"^run-shard\.sh:\s+retained log:", re.M)
+#: The tally line every runner and the recombination print.
+_RE_TALLY = re.compile(
+    r"^(\d+)\s+passed,\s+(\d+)\s+failed(?:,\s+(\d+)\s+skipped)?\s*$", re.M
+)
+#: Itemized skip lines (`  SKIP  <name> ...`), the population the tally counts.
+_RE_SKIP_LINE = re.compile(r"^\s*SKIP\s+(.*\S)\s*$", re.M)
+#: `run-parallel: elapsed <N>s`.
+_RE_ELAPSED = re.compile(r"^run-parallel:\s+elapsed\s+(\d+)s\b", re.M)
+#: `run-parallel: retained logs: <path>` / `run-shard.sh: retained log: <path>`.
+_RE_RETAINED = re.compile(r"^(?:run-parallel:\s+retained logs|run-shard\.sh:\s+retained log):\s+(\S.*?)\s*$", re.M)
+
+
+class RunnerLogError(Exception):
+    """A named refusal to derive terminal evidence from a runner log."""
+
+    def __init__(self, reason: str, detail: str = ""):
+        super().__init__(reason)
+        self.reason = reason
+        self.detail = detail
+
+
+def _read_runner_log(path_str: str) -> str:
+    """Read a runner log as text, or raise a named RunnerLogError.
+
+    Decoding is `errors="replace"`: a log carrying a stray non-UTF-8 byte is still a
+    log, and refusing it would send the caller straight back to hand-authoring the
+    summary. A file that decodes to nothing recognizable is caught by the marker
+    scan below, not here.
+    """
+    try:
+        return Path(path_str).read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise RunnerLogError(f"runner_log:{exc.__class__.__name__}", str(exc)) from exc
+
+
+def derive_summary_from_runner_log(path_str: str) -> tuple[dict, list, str]:
+    """Derive `(suite_summary, skipped_checks, derived_result)` from a runner log.
+
+    `derived_result` is `"passed"` or `"failed"` — the log's OWN verdict, which the
+    caller's `--result` must agree with. Raises RunnerLogError, never returns a
+    partial derivation.
+    """
+    text = _read_runner_log(path_str)
+
+    # 1) Identify the runner from its own terminal marker. An unrecognized log is
+    #    refused outright: without a marker there is nothing to attribute a tally to.
+    aggregate = _RE_AGGREGATE.search(text)
+    module = _RE_MODULE.search(text)
+    shard = _RE_SHARD.search(text)
+    if aggregate:
+        command = "lib/test/run-parallel.sh"
+    elif module:
+        command = f"lib/test/run-module.sh {module.group(1)}"
+    elif shard:
+        command = "lib/test/run-shard.sh"
+    else:
+        raise RunnerLogError(
+            "runner_log_unrecognized",
+            "no run-parallel / run-shard / run-module terminal marker found",
+        )
+
+    # 2) The tally. A truncated log can carry the marker and have lost the tally, so
+    #    its absence is its own reason rather than a zero-filled summary.
+    tallies = _RE_TALLY.findall(text)
+    if not tallies and module:
+        # run-module.sh's tally is embedded in its `Module <id>: ...` line.
+        tallies = [(module.group(2), module.group(3), None)]
+    if not tallies:
+        raise RunnerLogError("runner_log_no_tally", f"no tally line in {path_str}")
+    # The LAST tally is the terminal one: a coordinator log carries each shard's tally
+    # before the recombined total, and the recombination is what the aggregate covers.
+    passed_s, failed_s, skipped_s = tallies[-1]
+    passed, failed = int(passed_s), int(failed_s)
+    skipped_count = int(skipped_s) if skipped_s else 0
+
+    # 3) The skip population. The itemized lines are what a reader's no-skip policy
+    #    inspects, so they must survive the derivation rather than collapse to a count.
+    skip_items = [{"name": n, "kind": "unparsed", "reason": "derived from runner log"}
+                  for n in _RE_SKIP_LINE.findall(text)]
+    if not skip_items and skipped_count:
+        # The count is established but the itemization is not (a capped or truncated
+        # log). Record the count as an unnamed population rather than dropping it —
+        # dropping it would launder a skip into a clean pass.
+        skip_items = [{"name": f"<unitemized skip {i + 1}>", "kind": "unparsed",
+                       "reason": "counted in the runner tally, not itemized in the log"}
+                      for i in range(skipped_count)]
+
+    # 4) The result. For a coordinator the aggregate marker DECIDES it — a clean-looking
+    #    tally under `aggregate FAILED` is the documented did-not-complete shard case.
+    #    For the other runners the tally is the only verdict available.
+    if aggregate:
+        derived_result = "passed" if aggregate.group(1) == "CLEAN" else "failed"
+    else:
+        derived_result = "failed" if failed > 0 else "passed"
+
+    summary = {
+        "command": command,
+        "exit_status": 0 if derived_result == "passed" else 1,
+        "passed": passed,
+        "failed": failed,
+        "skipped_checks": skip_items,
+        # Provenance: the reader can re-derive this summary from the same bytes.
+        "runner_log": str(path_str),
+        "evidence_source": "runner-log-derivation",
+    }
+    elapsed = _RE_ELAPSED.search(text)
+    if elapsed:
+        summary["elapsed_s"] = int(elapsed.group(1))
+    retained = _RE_RETAINED.search(text)
+    if retained:
+        summary["retained_logs"] = retained.group(1)
+    return summary, skip_items, derived_result
+
+
 def cmd_finish(args) -> int:
     state_dir = _state_dir(args.state_dir, args.logs_dir)
     path = _flight_path(state_dir, args.flight)
@@ -936,7 +1076,40 @@ def cmd_finish(args) -> int:
 
     summary = None
     skipped: list = []
-    if args.summary_file:
+    from_log = getattr(args, "from_runner_log", None)
+    if from_log and args.summary_file:
+        # Two evidence sources cannot both be authoritative; picking one silently
+        # would hide which the record actually rests on.
+        _print({"ok": False, "result": "rejected", "reason": "summary_source_ambiguous"})
+        return EXIT_INVALID
+    if from_log:
+        try:
+            summary, skipped, derived = derive_summary_from_runner_log(from_log)
+        except RunnerLogError as exc:
+            _print({"ok": False, "result": "rejected", "reason": exc.reason,
+                    "detail": exc.detail})
+            return EXIT_INVALID
+        # The log's own verdict is the authority. A caller claiming a result the log
+        # contradicts is refused NON-TERMINALLY, exactly like the exit-status
+        # backstop: the flight stays running and re-finishable, so the truthful
+        # `finish` can still land.
+        if args.result in ("passed", "failed") and args.result != derived:
+            _print({
+                "ok": False, "result": "rejected",
+                "reason": "runner_log_contradicts_result",
+                "declared_result": args.result,
+                "runner_log_result": derived,
+                "runner_log": str(from_log),
+                "state": "running",
+                "satisfies_verification": False,
+                "remedy": (
+                    "retain this flight's owner token; the flight is left `running` "
+                    "and re-finishable, so re-issue `finish` with the result the "
+                    "runner log establishes"
+                ),
+            })
+            return EXIT_CAS_REJECT
+    elif args.summary_file:
         try:
             summary = _load_json_arg(args.summary_file)
         except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
@@ -1306,6 +1479,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="JSON object of terminal evidence. `--result passed` additionally requires a "
              "JSON integer 0 `exit_status`; anything else is refused non-terminally, "
              "leaving the flight running and re-finishable.",
+    )
+    p_fin.add_argument(
+        "--from-runner-log", default=None,
+        help="Derive the terminal evidence from a log a runner retained (every runner "
+             "names its retained log's absolute path on exit) instead of hand-authoring "
+             "a --summary-file. The log's own verdict decides the result: a --result "
+             "the log contradicts is refused non-terminally. Mutually exclusive with "
+             "--summary-file.",
     )
     add_common(p_fin)
     p_fin.set_defaults(func=cmd_finish)
