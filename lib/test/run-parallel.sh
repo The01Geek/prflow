@@ -266,7 +266,7 @@ _ruff_version_preflight() {
   local helper="$REPO_ROOT/scripts/ruff-version-skew.py"
   local out rc verdict vrc
   [ -n "$probe" ] || return 0
-  # A checkout with no manifest pin (or no helper) has nothing to enforce: skip silently.
+  # Nothing to compare when this checkout lacks the manifest pin or the helper: skip silently.
   { [ -s "$manifest" ] && [ -r "$helper" ]; } || return 0
   # shellcheck disable=SC2086  # deliberate word-split: a probe command plus its argument(s)
   out="$($probe 2>&1)"
