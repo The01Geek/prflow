@@ -38,6 +38,10 @@
       "count": 2
     },
     {
+      "path": ".changeset/issue-1745-brand-devflow-buckets.md",
+      "count": 1
+    },
+    {
       "path": ".github/actions/read-project-config/action.yml",
       "count": 1
     },
