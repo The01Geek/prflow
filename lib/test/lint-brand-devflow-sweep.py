@@ -143,10 +143,16 @@ def record_shape_error(buckets) -> str | None:
         val = frozen.get(key, [])
         if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
             return f"frozen.{key} must be a list of strings"
-    for i, entry in enumerate(frozen.get("provenance", [])):
+    prov = frozen.get("provenance", [])
+    if not isinstance(prov, list):
+        return "frozen.provenance must be a list"
+    for i, entry in enumerate(prov):
         if not isinstance(entry, dict) or not isinstance(entry.get("file"), str):
             return f"frozen.provenance[{i}] lacks a string 'file'"
-    for i, row in enumerate(buckets.get("pending_sweep_baseline", [])):
+    pending_rows = buckets.get("pending_sweep_baseline", [])
+    if not isinstance(pending_rows, list):
+        return "pending_sweep_baseline must be a list"
+    for i, row in enumerate(pending_rows):
         if not isinstance(row, dict) or not isinstance(row.get("path"), str):
             return f"pending_sweep_baseline[{i}] lacks a string 'path'"
     return None

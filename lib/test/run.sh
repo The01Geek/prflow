@@ -54847,7 +54847,15 @@ assert_eq "#1745 a pending row missing its 'path' key fails closed with exit 2" 
 printf '{"schema_version": 1, "frozen": {"provenance": [], "record_prefixes": "not-a-list"}, "pending_sweep_baseline": []}' > "$BDS_FX/badlist.json"
 BDS_BL_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/badlist.json" >/dev/null 2>&1; echo $?)"
 assert_eq "#1745 a list-valued frozen key given a JSON string fails closed with exit 2" "2" "$BDS_BL_RC"
-rm -f "$BDS_FX/nofrozen.json" "$BDS_FX/badrow.json" "$BDS_FX/badpending.json" "$BDS_FX/badlist.json"
+# The 'provenance'/'pending_sweep_baseline' containers themselves given a SCALAR (not a list)
+# also fail closed with the clean exit-2 breadcrumb, never an uncaught TypeError from enumerate().
+printf '{"schema_version": 1, "frozen": {"provenance": "not-a-list"}, "pending_sweep_baseline": []}' > "$BDS_FX/scalarprov.json"
+BDS_SP_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/scalarprov.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a scalar 'provenance' fails closed with exit 2 (not a TypeError)" "2" "$BDS_SP_RC"
+printf '{"schema_version": 1, "frozen": {"provenance": []}, "pending_sweep_baseline": 7}' > "$BDS_FX/scalarpending.json"
+BDS_SPB_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/scalarpending.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#1745 a scalar 'pending_sweep_baseline' fails closed with exit 2 (not a TypeError)" "2" "$BDS_SPB_RC"
+rm -f "$BDS_FX/nofrozen.json" "$BDS_FX/badrow.json" "$BDS_FX/badpending.json" "$BDS_FX/badlist.json" "$BDS_FX/scalarprov.json" "$BDS_FX/scalarpending.json"
 
 # --print-population emits one line per bucket per file; a provenance file with both a
 # frozen value and a pending remainder emits the dual line pair (the documented contract).
