@@ -140,5 +140,107 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.48",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 34.32678030000001,
+    "tokens": {
+      "input_tokens": 116,
+      "output_tokens": 116250,
+      "cache_read_input_tokens": 13161654,
+      "cache_creation_input_tokens": 367646,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 197,
+        "outputTokens": 181358,
+        "cacheReadInputTokens": 15920576,
+        "cacheCreationInputTokens": 1319498,
+        "webSearchRequests": 0,
+        "costUSD": 22.120758,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 787,
+        "outputTokens": 124210,
+        "cacheReadInputTokens": 18103529,
+        "cacheCreationInputTokens": 2936657,
+        "webSearchRequests": 0,
+        "costUSD": 12.206022300000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 134,
+    "duration_ms": 2037372
+  },
+  "permission_denials": {
+    "count": 63,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-1}\"",
+      "f=/home/runner/.claude/projects/-home-runner-work-prflow-prflow/643e3908-1a12-42f4-8d4d-85c1edd48d3d/tool-results/bti35o7uf.txt; echo \"=== STALE rows ===\"; grep -cP '^STALE\\t' \"$f\" || true; echo \"=== verdict rows (tab-separated) ===\"; grep -P '^(STALE|UNRESOLVABLE|VERIFIED)\\t' \"$f\" | head -20; echo \"=== sp-rc ===\"; grep 'sp-rc=' \"$f\"",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-verifier\" ; echo \"ov-rc=$?\"\nmkdir -p .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\nrm -f .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1/*.json 2>/dev/null; echo wiped",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-verifier\" ; echo \"ov-rc=$?\"\nmkdir -p .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\nfind .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1 -name '*.json' -delete\necho wiped",
+      "git show f8a3e84f6773648201f05acb8750d21b74b5f94c:.github/actions/setup-project-env/lint_provision.py 2>&1 | head -5\necho ---\ngit show f8a3e84f6773648201f05acb8750d21b74b5f94c --stat | grep -i lint_provision\nfind / -iname \"lint_provision.py\" 2>/dev/null",
+      "git show f8a3e84f6773648201f05acb8750d21b74b5f94c -- '*lint_provision.py' 2>&1 | head -5\ngit ls-tree -r f8a3e84f6773648201f05acb8750d21b74b5f94c --name-only | grep -i lint_provision",
+      "git ls-tree -r f8a3e84f6773648201f05acb8750d21b74b5f94c --name-only | grep -i lint_provision",
+      "\nSHA=f8a3e84f6773648201f05acb8750d21b74b5f94c\nfor f in .prflow/lint-manifest.json scripts/lint_manifest.py scripts/lint_provision.py scripts/install_state.py .github/actions/setup-project-env/action.yml .github/actions/setup-project-env/provision-lint-tools.sh .github/workflows/devflow-implement.yml; do\necho \"$f: $(git show $SHA:$f | sha256sum)\"\ndone",
+      "git show f8a3e84f6773648201f05acb8750d21b74b5f94c: | grep -i \"lint\" \ngit show f8a3e84f6773648201f05acb8750d21b74b5f94c:.github/actions/setup-project-env/action.yml | grep -n \"TARGET_OS\\|TARGET_ARCH\\|SCRIPTS_DIR\\|LINT_MANIFEST\\|INSTALL_STATE\\|DEST_BIN\\|provision-lint\"\nfind / -iname \"provision-lint-tools.sh\" 2>/dev/null",
+      "find / -iname \"provision-lint-tools*\" 2>/dev/null",
+      "mkdir -p .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1/VC-13.json << 'EOF'\n{\n  \"id\": \"VC-13\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"vendor-slice.sh lines 81-84 (at head f8a3e84) copy $src/.prflow/lint-manifest.json and $src/.prflow/install-state.json into the staged slice, with a comment (lines 79-80) stating the setup action reads lint-manifest.json and gates on install-state.json. Both files exist tracked at head: git cat- …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1/VC-15.json << 'EOF'\n{\n  \"id\": \"VC-15\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"install-state.json (PR head f8a3e84) enumerates components manifest, manifest-reader, lint-provision, install-state-reader, setup-action, provision-helper, implement-workflow each with a sha256 digest -- matching the claim's 'manife …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1/VC-16.json <<'EOF'\n{\n  \"id\": \"VC-16\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"install_state.check_readiness (scripts/install_state.py) returns a typed Readiness with specific reasons: install-state-missing (absent marker, covers backfill/missing-marker/interrupted-publication), manifest-missing, component-miss …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1/VC-19.json << 'EOF'\n{\n  \"id\": \"VC-19\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"provision-lint-tools.sh installs run-local with no sudo (uses `install -m 0755` / `cp`, never sudo). Digest is verified before extraction: 'got=$(_digest \\\"$archive\\\"); [ \\\"$got\\\" = \\\"$digest\\\" ] || _die ... checksum mismatch' occur …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1/VC-22.json << 'EOF'\n{\n  \"id\": \"VC-22\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"devflow-runner.yml (PR head f8a3e84) has a 'Harden setup-project-env onto trusted base-ref bytes' step (id: hardensetup, lines 1396-1470) that runs before the 'Provision project environment (opt-in)' step at line 1482-1485 which doe …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1/VC-28.json << 'EOF'\n{\n  \"id\": \"VC-28\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"docs/internal/install.md:340 (at PR head f8a3e84f6773648201f05acb8750d21b74b5f94c) states install-state.json and lint-manifest.json 'both ship to consumers (re-included past the /.prflow/* ignore rule)'. Confirmed in .gitignore at t …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1/VC-27.json << 'EOF'\n{\n  \"id\": \"VC-27\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"The claim attributes the first-install/backfill/missing-marker/version-skew/interrupted-publication fail-closed matrix to lib/test/modules/installer-wiring.sh section 4b. In fact that logic and its deterministic pre-model assertions …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1/VC-33.json << 'EOF'\n{\n  \"id\": \"VC-33\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/install_state.py (PR head f8a3e84f6773648201f05acb8750d21b74b5f94c) defines load_state(path) -> StateResult (line 188) whose .status property returns the string 'established' or 'unestablished' (StateResult class, lines ~62-108, .status attribute set in __init__ validated against those t …[per-command-truncated]",
+      "for p in .prflow/lint-manifest.json scripts/lint_manifest.py scripts/lint_provision.py scripts/install_state.py .github/actions/setup-project-env/action.yml .github/actions/setup-project-env/provision-lint-tools.sh .github/workflows/devflow-implement.yml; do echo -n \"$p: \"; git cat-file -e f8a3e84f6773648201f05acb8750d21b74b5f94c:\"$p\" 2>&1 && echo OK || echo MISSING; done",
+      "git show f8a3e84f6773648201f05acb8750d21b74b5f94c:lib/generate-install-state.py 2>&1 | head -5\ngit show f8a3e84f6773648201f05acb8750d21b74b5f94c: 2>&1 | grep -i install-state\ngit ls-tree -r f8a3e84f6773648201f05acb8750d21b74b5f94c --name-only | grep -i install\ngit show f8a3e84f6773648201f05acb8750d21b74b5f94c:lib/generate-install-state.py | sed -n '30,50p'",
+      "mkdir -p .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1/VC-35.json <<'EOF'\n{\n  \"id\": \"VC-35\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"lib/generate-install-state.py:36-44 at head f8a3e84f6773648201f05acb8750d21b74b5f94c defines COMPONENTS with exactly the seven named keys (manifest, manifest-reader, lint-provision, install-state-reader, setup-action, provision-helper, implement-workflow) mapping to .prflow/lint-manifest.json, sc …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1/VC-36.json <<'EOF'\n{\n  \"id\": \"VC-36\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"install.sh (PR head f8a3e84) lines 1544-1550 declare exactly seven --component operands with names manifest, manifest-reader, lint-provision, install-state-reader, setup-action, provision-helper, implement-workflow, each mapped to the same repo-relative paths (.prflow/lint-manifest.json, scripts/ …[per-command-truncated]",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null; echo \"---\"; git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py 2>&1 | head -200",
+      "git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py 2>&1 | head -300",
+      "git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py | head -300",
+      "git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null; echo \"---\"; git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py 2>&1 | head -300",
+      "git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py 2>&1 | head -400",
+      "git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py",
+      "git show f8a3e84f6773648201f05acb8750d21b74b5f94c:lib/test/test_python_scripts.py > /tmp/test_python_scripts.py 2>&1; wc -l /tmp/test_python_scripts.py; git show f8a3e84f6773648201f05acb8750d21b74b5f94c:.github/actions/setup-project-env/provision-lint-tools.sh > /tmp/provision-lint-tools.sh 2>&1; wc -l /tmp/provision-lint-tools.sh",
+      "git cat-file -e f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py; echo $?",
+      "git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py > /tmp/lp.py; wc -l /tmp/lp.py",
+      "git show f8a3e84f6773648201f05acb8750d21b74b5f94c:lib/test/test_python_scripts.py > /tmp/test_python_scripts.py 2>&1",
+      "git show f8a3e84f6773648201f05acb8750d21b74b5f94c:.github/actions/setup-project-env/provision-lint-tools.sh > /tmp/provision-lint-tools.sh 2>&1",
+      "git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py > /tmp/lp.py",
+      "git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py > /home/runner/work/prflow/prflow/.prflow/tmp/lp.py",
+      "mkdir -p .prflow/tmp/review/pr-1963/32932989369-1/verdicts/iter-1\ngit show f8a3e84f6773648201f05acb8750d21b74b5f94c:lib/test/test_python_scripts.py > .prflow/tmp/review/pr-1963/32932989369-1/tps.py\ngit show f8a3e84f6773648201f05acb8750d21b74b5f94c:.github/actions/setup-project-env/provision-lint-tools.sh > .prflow/tmp/review/pr-1963/32932989369-1/plt.sh\nwc -l .prflow/tmp/review/pr-1963/32932989369-1/tps.py .prflow/tmp/review/pr-1963/32932989369-1/plt.sh",
+      "git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py > /tmp/lint_provision_head.py",
+      "git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py | head -200",
+      "git -C /home/runner/work/prflow/prflow show f8a3e84f6773648201f05acb8750d21b74b5f94c:scripts/lint_provision.py > /home/runner/work/prflow/prflow/.prflow/tmp/lint_provision_head.py"
+    ],
+    "total": 63,
+    "truncated": true,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
