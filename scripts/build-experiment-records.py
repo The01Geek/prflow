@@ -623,6 +623,15 @@ def _efficiency_entry(record, run_id):
         # deleted `Devflow Review` check-run summary line). `None` when the record carries
         # no denial data.
         "permission_denials": record.get("permission_denials"),
+        # Run profile (issue #2006): the top-level `run_profile` object passes through
+        # VERBATIM, exactly like the two floors above. `None` when the record predates
+        # the floor — an absent key is JSON null in the join, never a zero-valued object.
+        # A sub-field the producer could not establish stays the string `unestablished`
+        # all the way through; only the whole key's absence becomes null.
+        "run_profile": record.get("run_profile"),
+        # Present only on a PR-less implement record (issue #2006). `_collect_efficiency`
+        # reads it to keep such a record out of every PR's join.
+        "no_pr_reason": record.get("no_pr_reason"),
         # Per-reviewer/loop-position forensics (issue #1826): the whole `per_iteration`
         # array passes through VERBATIM, normalized to `[]` when missing/non-list so a
         # floor/synthesis run or one malformed record yields an empty array, never None.
@@ -811,7 +820,12 @@ def _collect_efficiency(eff_index, target_slugs):
     (both slug families). Sorted by (slug, run_id) for a deterministic store."""
     runs = []
     for slug in target_slugs:
-        runs.extend(eff_index.get(slug, []))
+        # A PR-less implement record (issue #2006) describes a run for which no PR ever
+        # resolved, so it has no outcome to join to and must never be counted as one of
+        # this PR's runs. Exclude it by the `no_pr_reason` field its producer writes, not
+        # by its `issue-<N>` filename: `target_slugs` includes branch-name variants, so a
+        # branch literally named `issue-<N>` would make a name-based guard admit it.
+        runs.extend(r for r in eff_index.get(slug, []) if r.get("no_pr_reason") is None)
     runs.sort(key=lambda r: (r["slug"], r["run_id"]))
     return runs
 
