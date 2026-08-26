@@ -207,8 +207,8 @@ def main(argv=None):
     runs, status = load_runs_with_status(args.records)
     print(render_retro(runs, status) if args.retro
           else render_runs(runs, args.count, status))
-    # An unreadable store is a real failure, not an empty result: the retrospective's
-    # `||` guard can only fire on a non-zero exit.
+    # An unreadable store is a real failure, not an empty result: the retrospective gates
+    # its append on this exit status, so a zero here posts a degraded section as a good one.
     return 1 if status == "unreadable" else 0
 
 

@@ -54,12 +54,12 @@ COST_OUT="${4:-}"
 # Emit the four eval-able env assignments and exit 0. $1 = PR, $2 = command class,
 # $3 = issue number, $4 = the reason no PR resolved.
 #
-# Sanitize HERE rather than trusting each call site: both workflows run
+# Sanitize HERE rather than at the call sites: both workflows run
 # `eval "$(bash prepare-harness-floor.sh …)"`, so an operand carrying a single quote
 # breaks out of the quoting below and executes. The candidate number reaches this function
 # unvalidated on the implement arm — on its unusable-issue branch it is by construction
 # not a number — so the one place whose contract asserts the shape is the place that
-# enforces it. A value outside its shape is emitted EMPTY, which every consumer already
+# enforces it. A value outside its shape is emitted EMPTY, the shape a consumer already
 # treats as "not established".
 #
 # $3 is non-empty ONLY on the `implement` arm. Every other class's <candidate_number> is

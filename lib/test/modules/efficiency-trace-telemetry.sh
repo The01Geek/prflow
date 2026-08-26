@@ -6887,6 +6887,10 @@ rm -rf "$RP_G"
 
 # ── #2006 prepare-run-profile.sh glue — its inert branches, under stubs ──────
 RPG="$LIB/../scripts/prepare-run-profile.sh"
+# A guarded-out block silently drops its assertions, which an exact floor reports as a
+# bare count mismatch; assert the precondition so a lost executable bit names itself.
+assert_eq "#2006 module precondition: scripts/prepare-run-profile.sh is executable (guard 1)" "yes" \
+  "$(test -x "$RPG" && echo yes || echo no)"
 if [ -x "$RPG" ]; then
   RPG_T="$(git_sandbox "rp glue")"
   assert_eq "#2006 glue: an empty issue number is inert with a named breadcrumb" "yes" \
@@ -6902,6 +6906,10 @@ fi
 
 # ── #2006 derive-run-profile.py — the parser the glue feeds ───────────────────
 DRP="$LIB/../scripts/derive-run-profile.py"
+# A guarded-out block silently drops its assertions, which an exact floor reports as a
+# bare count mismatch; assert the precondition so a lost executable bit names itself.
+assert_eq "#2006 module precondition: scripts/derive-run-profile.py is executable (guard 1)" "yes" \
+  "$(test -x "$DRP" && echo yes || echo no)"
 if [ -x "$DRP" ]; then
   DRP_T="$(git_sandbox "rp derive")"
   printf '%s\n' \
@@ -6932,6 +6940,10 @@ fi
 # names WHICH PR-resolution branch fired. The three reasons stay distinguishable: a gh
 # transport failure and a genuinely PR-less run are different facts, and the record's
 # reason field must not assert a cause the glue did not observe.
+# A guarded-out block silently drops its assertions, which an exact floor reports as a
+# bare count mismatch; assert the precondition so a lost executable bit names itself.
+assert_eq "#2006 module precondition: scripts/prepare-harness-floor.sh is executable (guard 1)" "yes" \
+  "$(test -x "$HC_GLUE" && echo yes || echo no)"
 if [ -x "$HC_GLUE" ]; then
   HC_N="$(git_sandbox "hc issue-number")"
   printf '{"type":"result","total_cost_usd":1}' > "$HC_N/exec.json"
@@ -6980,7 +6992,7 @@ rm -rf "$RP_U"
 # ── #2006: the union merge re-applies EVERY floor key ────────────────────────
 # On a concurrent-writer push the staged record is merged onto the fetched base rather
 # than overwriting it, so a floor key absent from the re-apply list is silently dropped on
-# exactly that path. The list is a single declared constant that the jq program is BUILT
+# the concurrent-push path. The list is a single declared constant the jq program is BUILT
 # from, so program-vs-list drift is impossible; these assertions cover the constant's
 # membership and the merge's per-key behavior.
 TB_FLOOR_KEYS="$(grep -o "_DEVFLOW_TELEMETRY_FLOOR_KEYS_JSON='[^']*'" "$LIB/telemetry-branch.sh" | sed "s/.*='//;s/'$//")"
@@ -7011,6 +7023,10 @@ assert_eq "#2006 union merge: a base-side key wins per key, and the absent ones 
 # argparse also exits 2, on a usage error, so an older vendored workpad.py with no `id`
 # subcommand reaches the same code the "no workpad comment" arm reads. Reporting a
 # missing comment there names a cause the glue never observed.
+# A guarded-out block silently drops its assertions, which an exact floor reports as a
+# bare count mismatch; assert the precondition so a lost executable bit names itself.
+assert_eq "#2006 module precondition: scripts/prepare-run-profile.sh is executable (guard 2)" "yes" \
+  "$(test -x "$RPG" && echo yes || echo no)"
 if [ -x "$RPG" ]; then
   RPG_A="$(git_sandbox "rp argparse")"
   printf '%s\n' \
@@ -7044,6 +7060,10 @@ fi
 # single quote breaks out of the quoting and executes. The candidate number reaches _emit
 # on the implement arm, and on the unusable-issue branch it is by construction not a
 # number — so the sanitizing happens in _emit, the one place whose contract asserts it.
+# A guarded-out block silently drops its assertions, which an exact floor reports as a
+# bare count mismatch; assert the precondition so a lost executable bit names itself.
+assert_eq "#2006 module precondition: scripts/prepare-harness-floor.sh is executable (guard 2)" "yes" \
+  "$(test -x "$HC_GLUE" && echo yes || echo no)"
 if [ -x "$HC_GLUE" ]; then
   HC_INJ="$(git_sandbox "hc inject")"
   printf '{"type":"result","total_cost_usd":1}' > "$HC_INJ/exec.json"
@@ -7065,3 +7085,25 @@ GHEOF
     "$HC_INJ_EVAL"
   rm -rf "$HC_INJ"
 fi
+
+# ── #2006: both new floors honour the telemetry off-switch ───────────────────
+# The off-switch-that-never-worked class: a floor that ignores
+# efficiency_telemetry_enabled keeps writing after a consumer disables telemetry. Both
+# pre-existing floors assert this arm; the two new ones must too.
+RP_OFF="$(_hc_repo "rp disabled")"
+printf '{"prflow_review_and_fix":{"efficiency_telemetry_enabled":false}}' > "$RP_OFF/.prflow/config.json"
+RP_OFF_ERR="$( ( cd "$RP_OFF" && GITHUB_RUN_ID=4009 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 run-profile: telemetry disabled → the operand draws a breadcrumb and nothing is attached" "yes" \
+  "$(printf '%s' "$RP_OFF_ERR" | grep -q 'run-profile floor: efficiency telemetry is disabled' && echo yes || echo no)"
+assert_eq "#2006 run-profile: telemetry disabled → no record is written" "no" \
+  "$(_et_on_branch "$RP_OFF" ".prflow/logs/efficiency/pr-42-4009-1.json")"
+RP_OFF_ERR2="$( ( cd "$RP_OFF" && GITHUB_RUN_ID=4010 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_NO_PR_REASON=no-closing-pr-found DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 PR-less: telemetry disabled → the floor draws a breadcrumb and writes nothing" "yes" \
+  "$(printf '%s' "$RP_OFF_ERR2" | grep -q 'PR-less floor: efficiency telemetry is disabled' && echo yes || echo no)"
+assert_eq "#2006 PR-less: telemetry disabled → no issue-keyed record is written" "no" \
+  "$(_et_on_branch "$RP_OFF" ".prflow/logs/efficiency/issue-2006-4010-1.json")"
+rm -rf "$RP_OFF"
