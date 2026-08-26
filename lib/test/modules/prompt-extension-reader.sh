@@ -1031,6 +1031,47 @@ assert_eq "pea reconcile: undeliverable-broken-symlink → unestablished/block" 
 PEA_OUT="$(printf '' | python3 "$PEA" reconcile --expected undeliverable-nonregular --arrival-marker 'x' --durable-source workpad --skill implement 2>/dev/null)"
 assert_eq "pea reconcile: undeliverable-nonregular → unestablished/block" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
 
+# issue #1971: classify-ladder-output — the local/interactive & cloud-review prose-side
+# positive-signal classifier. It reads the delivery ladder's OWN emitted status output
+# (load-prompt-extension.sh's `PROMPT-EXTENSION-STATUS:` line) from stdin, and classifies
+# `arrived` ONLY on a produced content-present status, `absent` ONLY on a produced
+# present-empty status, and `unestablished` whenever NO recognized status line was
+# produced at all — which is what a permission denial of a helper invoked by path looks
+# like (no output). A rule declaring delivery `arrived` by absence-of-evidence is exactly
+# what this mode must NOT do (AC1/AC2).
+
+# arrived — a real ladder status line (with the load-bearing `load-prompt-extension.sh: `
+# prefix) reporting content-present → arrived / complete-ok, exit 0 (AC1).
+PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: content-present status → arrived/complete-ok" "final=arrived terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: arrived → exit 0" "0" "$PEA_RC"
+
+# absent — a produced present-empty status (the ladder's no-op arm: no extension file, or
+# an empty one) → absent / complete-ok, exit 0 (AC2 absent arm). Prior stdout bytes from
+# the extension itself precede the status line in a real capture; they are ignored.
+PEA_OUT="$(printf '%s\n%s\n' 'some earlier stdout bytes' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: present-empty' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: present-empty status → absent/complete-ok" "final=absent terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: absent → exit 0" "0" "$PEA_RC"
+
+# unestablished — NO status line at all (empty stdin, the denial-shaped no-output case) →
+# unestablished / block, exit 3, forced record emitted (AC1 positive-signal rule: a denial
+# yields no output, byte-identical to silent non-delivery, and must never read as arrival).
+PEA_OUT="$(printf '' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: no status line (denial-shaped) → unestablished/block" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: unestablished → exit 3 (block)" "3" "$PEA_RC"
+assert_eq "pea classify-ladder: unestablished emits a forced record line" "yes" \
+  "$(case "$PEA_OUT" in *"record=prompt-extension arrival unestablished"*) echo yes ;; *) echo no ;; esac)"
+
+# unestablished — a PROMPT-EXTENSION-STATUS line the ladder never produces (an unknown
+# token) is NOT a recognized produced status → unestablished, fail-closed, never arrival.
+PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: banana' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: unknown status token → unestablished/block (fail-closed)" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: unknown token → exit 3" "3" "$PEA_RC"
+
+# content-present wins over present-empty when both lines are present in the capture.
+PEA_OUT="$(printf '%s\n%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: present-empty' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"
+assert_eq "pea classify-ladder: content-present wins over present-empty → arrived" "final=arrived terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"
+
 rm -rf "$PEA_DIR"
 
 rm -rf "$LPE_DIR"

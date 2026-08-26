@@ -59,6 +59,15 @@ FINAL_ARRIVED = "arrived"
 FINAL_ABSENT = "absent"
 FINAL_UNESTABLISHED = "unestablished"
 
+# The delivery ladder's own emitted status line (load-prompt-extension.sh), which the
+# local/interactive & cloud-review prose-side classifier reads instead of statting the
+# root — the tier has no job-level step to run `classify` in. Only these two status
+# tokens are ones the ladder produces; anything else (including no line at all) is not a
+# positive signal (AC1/AC2).
+LADDER_STATUS_PREFIX = "PROMPT-EXTENSION-STATUS:"
+LADDER_STATUS_CONTENT_PRESENT = "content-present"
+LADDER_STATUS_PRESENT_EMPTY = "present-empty"
+
 # Exit codes: 0 = clean state (arrived/absent), 2 = bad arguments, 3 = a loud fault
 # (classify) or a `block` terminal (reconcile). A fault and a block both mean the run
 # must not report `Complete`, so they share the loud exit rather than a silent 0.
@@ -198,6 +207,54 @@ def _reconcile_record(skill: str, cause: str) -> str:
     )
 
 
+def _scan_ladder_status(output: str) -> str:
+    """Positive-signal classify of the delivery ladder's own emitted status output (AC1/AC2).
+
+    The local/interactive tier and the read-only cloud-review tier have no job-level step
+    to run ``classify`` in, so they read ``load-prompt-extension.sh``'s own
+    ``PROMPT-EXTENSION-STATUS:`` line from the captured invocation output instead. The rule
+    is positive-signal only: ``arrived`` ONLY on a produced ``content-present`` status,
+    ``absent`` ONLY on a produced ``present-empty`` status, and ``unestablished`` whenever
+    no recognized status line was produced at all — which is exactly what a permission
+    denial of a helper invoked by path looks like (no output), byte-identical to a silent
+    non-delivery. Declaring ``arrived`` by absence of evidence is the false-``Complete``
+    semantics this mode must never reinstate.
+
+    ``content-present`` wins over ``present-empty`` if both appear; an unrecognized token
+    after the prefix is not a status the ladder produces, so it does not signal arrival.
+    """
+    saw_present_empty = False
+    for line in output.splitlines():
+        idx = line.find(LADDER_STATUS_PREFIX)
+        if idx == -1:
+            continue
+        rest = line[idx + len(LADDER_STATUS_PREFIX):].split()
+        token = rest[0] if rest else ""
+        if token == LADDER_STATUS_CONTENT_PRESENT:
+            return FINAL_ARRIVED
+        if token == LADDER_STATUS_PRESENT_EMPTY:
+            saw_present_empty = True
+    return FINAL_ABSENT if saw_present_empty else FINAL_UNESTABLISHED
+
+
+def cmd_classify_ladder(args: argparse.Namespace) -> int:
+    """Classify from the ladder's emitted status output (stdin) for the workpad-less,
+    prose-side tiers — the same ``final=/terminal=/record=`` output shape ``reconcile``
+    emits, so a caller routes on one contract regardless of which classifier ran."""
+    skill = args.skill or "(unnamed)"
+    final = _scan_ladder_status(sys.stdin.read())
+    terminal = "complete-ok" if final in (FINAL_ARRIVED, FINAL_ABSENT) else "block"
+    sys.stdout.write(f"final={final} terminal={terminal}\n")
+    if final == FINAL_UNESTABLISHED:
+        cause = (
+            "the delivery ladder produced no PROMPT-EXTENSION-STATUS line — a denied or "
+            "silent invocation, so arrival could not be established"
+        )
+        sys.stdout.write(f"record={_reconcile_record(skill, cause)}\n")
+        return EXIT_FAULT
+    return EXIT_OK
+
+
 def cmd_reconcile(args: argparse.Namespace) -> int:
     expected = args.expected
     if expected not in _CLASSIFY_TOKENS:
@@ -267,6 +324,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Override the extension directory outright (as DEVFLOW_PROMPT_EXTENSION_ROOT does).",
     )
     p_classify.set_defaults(func=cmd_classify)
+
+    p_ladder = sub.add_parser(
+        "classify-ladder-output",
+        help="Classify from the delivery ladder's emitted status output (stdin) for the "
+        "workpad-less, prose-side tiers — arrived/absent/unestablished by positive signal.",
+    )
+    p_ladder.add_argument("--skill", default=None, help="Skill/extension name, for the record text.")
+    p_ladder.set_defaults(func=cmd_classify_ladder)
 
     p_reconcile = sub.add_parser(
         "reconcile",
