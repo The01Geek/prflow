@@ -6836,8 +6836,9 @@ RP_I_ERR2="$( ( cd "$RP_I" && GITHUB_RUN_ID=4003 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RU
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
 assert_eq "#2006 run-profile(inert): a non-object operand draws a named breadcrumb and writes no record" "yes" \
   "$(printf '%s' "$RP_I_ERR2" | grep -q 'DEVFLOW_RUN_PROFILE is not a JSON object' && echo yes || echo no)"
-assert_eq "#2006 run-profile(inert): the malformed-operand run wrote no blob" "no" \
-  "$(_et_on_branch "$RP_I" ".prflow/logs/efficiency/pr-42-4003-1.json")"
+assert_eq "#2006 run-profile(inert): a malformed operand still lands the key, workpad half unestablished" \
+  '["unestablished","unestablished"]' \
+  "$(_et_show "$RP_I" ".prflow/logs/efficiency/pr-42-4003-1.json" | jq -c '[.run_profile.phase_durations_ms,.run_profile.final_status]')"
 rm -rf "$RP_I"
 
 # PR-less arm: no PR resolved → an issue-keyed record is written, and the cost and
@@ -7133,3 +7134,47 @@ assert_eq "#2006 PR-less: telemetry disabled → the floor draws a breadcrumb an
 assert_eq "#2006 PR-less: telemetry disabled → no issue-keyed record is written" "no" \
   "$(_et_on_branch "$RP_OFF" ".prflow/logs/efficiency/issue-2006-4010-1.json")"
 rm -rf "$RP_OFF"
+
+# ── #2006: run_profile lands WHOLE even when the workpad half is unavailable ──
+# The workpad-sourced pair can fail to derive while engine_outcome and prior_record_count —
+# neither of which needs a workpad — are available, so gating the whole key on the profile
+# recorded established fields as absent rather than as unestablished.
+RP_NOPROF="$(_hc_repo "rp no-profile")"
+( cd "$RP_NOPROF" && GITHUB_RUN_ID=4011 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ENGINE_OUTCOME=failure \
+    DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement \
+    bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 run-profile: with no DEVFLOW_RUN_PROFILE the key still lands whole" \
+  "engine_outcome final_status issue_number phase_durations_ms prior_record_count" \
+  "$(_et_show "$RP_NOPROF" ".prflow/logs/efficiency/pr-42-4011-1.json" | jq -r '.run_profile | keys | join(" ")')"
+assert_eq "#2006 run-profile: the fields needing no workpad are RECORDED, not absent" \
+  '["failure",0]' \
+  "$(_et_show "$RP_NOPROF" ".prflow/logs/efficiency/pr-42-4011-1.json" | jq -c '[.run_profile.engine_outcome,.run_profile.prior_record_count]')"
+assert_eq "#2006 run-profile: the workpad-sourced pair reads unestablished, never absent" \
+  '["unestablished","unestablished"]' \
+  "$(_et_show "$RP_NOPROF" ".prflow/logs/efficiency/pr-42-4011-1.json" | jq -c '[.run_profile.phase_durations_ms,.run_profile.final_status]')"
+rm -rf "$RP_NOPROF"
+
+# Neither operand set → still inert and silent, so the agent-side persist call sites are
+# unchanged by this floor.
+RP_INERT2="$(_hc_repo "rp both-unset")"
+RP_INERT2_ERR="$( ( cd "$RP_INERT2" && GITHUB_RUN_ID=4012 GITHUB_RUN_ATTEMPT=1 \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 run-profile: with NEITHER operand set the floor stays silent" "yes" \
+  "$(printf '%s' "$RP_INERT2_ERR" | grep -q 'run-profile floor' && echo no || echo yes)"
+rm -rf "$RP_INERT2"
+
+# ── #2006: prior_record_count counts IMPLEMENT records, as its name says ──────
+# A review or review-and-fix run on the same PR shares the pr-<N>- key, so a name-only
+# count would inflate the figure with records from other command classes.
+RP_CNT="$(_hc_repo "rp prior-count")"
+( cd "$RP_CNT" && GITHUB_RUN_ID=5001 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=review-and-fix bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+( cd "$RP_CNT" && GITHUB_RUN_ID=5002 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+( cd "$RP_CNT" && GITHUB_RUN_ID=5003 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+# Two prior records share the pr-42- key; only one of them is an implement run.
+assert_eq "#2006 prior_record_count: a same-key review record is not counted as an implement one" "1" \
+  "$(_et_show "$RP_CNT" ".prflow/logs/efficiency/pr-42-5003-1.json" | jq -r '.run_profile.prior_record_count')"
+rm -rf "$RP_CNT"

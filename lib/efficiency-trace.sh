@@ -1572,11 +1572,10 @@ _floor_merge_key_staged() {
 # excluding this run's own ident. Prints a decimal count, or the string `unestablished`.
 #
 # $2 = the PR number (may be empty), $3 = the issue number (may be empty), $4 = this run's
-# ident. The family is the filename prefixes this run's own record can be keyed under —
-# `pr-<N>-` and `issue-<N>-` — so the count is a NAME match over the tree listing and reads
-# no blob. Reading each blob to match an issue number inside it would cost two processes per
-# stored record on every persist, on a branch that grows by one record per cloud run
-# forever; the name match costs none.
+# ident. The filename prefixes this run's own record can be keyed under — `pr-<N>-` and
+# `issue-<N>-` — bound the candidates by NAME first, and only those few are read to confirm
+# each is an implement record. Reading every blob instead would cost two processes per stored
+# record on every persist, on a branch that grows by one record per cloud run forever.
 #
 # The bound this buys, stated because the field means less than its name suggests otherwise:
 # it counts prior records under THIS run's own pr-/issue- keys, so an issue whose work moved
@@ -1587,7 +1586,7 @@ _floor_merge_key_staged() {
 # unreadable tree alike, so its empty output cannot distinguish a real zero from a failed
 # read — the exact fail-open this count must not inherit.
 _prior_implement_record_count() {
-  local root="$1" pr="$2" issue="$3" ident="$4" ref rel base n=0 rc=0 listing
+  local root="$1" pr="$2" issue="$3" ident="$4" ref rel base blob _match n=0 rc=0 listing
   ref="$(devflow_telemetry_ref)"
   git -C "$root" rev-parse --verify --quiet "$ref" >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 1 ]; then
@@ -1606,11 +1605,20 @@ _prior_implement_record_count() {
     [ -n "$rel" ] || continue
     base="${rel##*/}"
     case "$base" in *-"$ident".json) continue ;; esac
+    _match=no
     if [ -n "$pr" ]; then
-      case "$base" in "pr-${pr}-"*.json) n=$((n + 1)); continue ;; esac
+      case "$base" in "pr-${pr}-"*.json) _match=yes ;; esac
     fi
-    if [ -n "$issue" ]; then
-      case "$base" in "issue-${issue}-"*.json) n=$((n + 1)); continue ;; esac
+    if [ "$_match" = no ] && [ -n "$issue" ]; then
+      case "$base" in "issue-${issue}-"*.json) _match=yes ;; esac
+    fi
+    [ "$_match" = yes ] || continue
+    # A review or review-and-fix run on the same PR shares this key, so confirm the class
+    # rather than counting it: the field names implement records specifically.
+    blob="$(devflow_telemetry_show_blob "$root" "$ref" "$rel")" || continue
+    [ -n "$blob" ] || continue
+    if printf '%s' "$blob" | "$DEVFLOW_JQ" -e '(.harness_cost.command? // "") == "implement"' >/dev/null 2>&1; then
+      n=$((n + 1))
     fi
   done <<EOF
 $listing
@@ -1624,16 +1632,25 @@ EOF
 # apply_harness_floor's arms so the two floors behave identically. $1 root, $2 staging root.
 apply_run_profile_floor() {
   local root="$1" stage="$2"
-  # Unset/empty profile → INERT and SILENT, so the agent-side persist call sites
-  # (Loop-Exit, Stop-hook) stay byte-identical to before this floor existed.
-  [ -n "${DEVFLOW_RUN_PROFILE:-}" ] || return 0
+  # Inert and SILENT unless the backstop supplied at least one operand, so the agent-side
+  # persist call sites (Loop-Exit, Stop-hook), which set neither, stay byte-identical to
+  # before this floor existed. Gating on the PROFILE alone would drop engine_outcome and
+  # prior_record_count — neither of which needs a workpad — whenever the workpad-sourced
+  # half could not be derived, recording them as absent rather than as unestablished.
+  if [ -z "${DEVFLOW_RUN_PROFILE:-}" ] && [ -z "${DEVFLOW_ENGINE_OUTCOME:-}" ]; then
+    return 0
+  fi
   if [ "$ENABLED" != "true" ]; then
     echo "::warning::efficiency-trace.sh --persist: run-profile floor: efficiency telemetry is disabled; DEVFLOW_RUN_PROFILE supplied but not attached this run" >&2
     return 0
   fi
-  if ! printf '%s' "$DEVFLOW_RUN_PROFILE" | "$DEVFLOW_JQ" -e 'type == "object"' >/dev/null 2>&1; then
-    echo "::warning::efficiency-trace.sh --persist: run-profile floor: DEVFLOW_RUN_PROFILE is not a JSON object; no floor write this run" >&2
-    return 0
+  local profile="${DEVFLOW_RUN_PROFILE:-}"
+  if [ -z "$profile" ]; then
+    echo "::warning::efficiency-trace.sh --persist: run-profile floor: no DEVFLOW_RUN_PROFILE this run; the workpad-sourced fields are recorded as unestablished and the rest of run_profile still lands" >&2
+    profile='{}'
+  elif ! printf '%s' "$profile" | "$DEVFLOW_JQ" -e 'type == "object"' >/dev/null 2>&1; then
+    echo "::warning::efficiency-trace.sh --persist: run-profile floor: DEVFLOW_RUN_PROFILE is not a JSON object; the workpad-sourced fields are recorded as unestablished and the rest of run_profile still lands" >&2
+    profile='{}'
   fi
   if [ -z "${GITHUB_RUN_ID:-}" ]; then
     echo "::warning::efficiency-trace.sh --persist: run-profile floor: GITHUB_RUN_ID is unset, so this run's record cannot be identified; no floor write" >&2
@@ -1656,7 +1673,7 @@ apply_run_profile_floor() {
     *) prior_json="$prior" ;;
   esac
   local run_profile
-  if ! run_profile="$(printf '%s' "$DEVFLOW_RUN_PROFILE" | "$DEVFLOW_JQ" -c \
+  if ! run_profile="$(printf '%s' "$profile" | "$DEVFLOW_JQ" -c \
         --argjson prior "$prior_json" \
         --argjson issue "$issue_json" \
         --arg outcome "${DEVFLOW_ENGINE_OUTCOME:-}" \

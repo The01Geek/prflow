@@ -12,8 +12,10 @@ the identity the join already stamps on each record.
 
 Per cohort the report holds the run count and the mean, median and population standard
 deviation of duration and cost. The efficiency verdict is WITHHELD, with the reason
-printed, whenever either cohort holds fewer than MIN_COHORT_RUNS runs and whenever either
-cohort contains a run whose final review verdict was REJECT. The two conditions are
+printed, whenever either cohort holds fewer than MIN_COHORT_RUNS runs with an ESTABLISHED
+duration — the figures are computed over those, so a larger cohort of mostly-unmeasured runs
+still withholds — and whenever either cohort contains a run whose final review verdict was
+REJECT. The two conditions are
 independent: either alone withholds, and both print when both apply — crediting an
 optimization on a cohort whose work was rejected would read a quality failure as a speedup.
 """

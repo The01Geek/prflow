@@ -209,7 +209,7 @@ class CliSurface(unittest.TestCase):
         def fake_download(run_id, dest, repo=None):
             calls.append(run_id)
             raise tl.ArtifactExpired(
-                f"no artifact matching claude-execution-transcript-{run_id}")
+                f"no artifact named claude-execution-transcript-{run_id}-<attempt>")
 
         buf = io.StringIO()
         with redirect_stdout(buf):
@@ -314,24 +314,48 @@ class CapturedArtifactShape(unittest.TestCase):
 class ReviewFindingsRound1(unittest.TestCase):
     def test_a_successful_download_is_not_classified_from_its_output(self):
         """The failure classifier ran before the exit status was read, so a SUCCESSFUL
-        download whose output happens to mention a marker phrase was raised as expired."""
+        download whose output happens to mention a marker phrase was raised as expired.
+        The retrieval is two gh calls now — the artifact listing, then the download — so
+        the stub answers by which one it was handed."""
         import subprocess as sp
 
         class _Proc:
-            returncode = 0
-            stdout = "Downloading artifacts... no artifacts found in the other repo\n"
-            stderr = ""
+            def __init__(self, stdout):
+                self.returncode = 0
+                self.stdout = stdout
+                self.stderr = ""
+
+        def fake_run(cmd, **kwargs):
+            if "api" in cmd:
+                return _Proc('[{"name": "claude-execution-transcript-123-1"}]')
+            return _Proc("Downloading artifacts... no artifacts found in the other repo\n")
 
         with tempfile.TemporaryDirectory() as td:
             dest = Path(td)
             (dest / "transcript.jsonl").write_text(REALISTIC, encoding="utf-8")
             real = sp.run
-            sp.run = lambda *a, **k: _Proc()
+            sp.run = fake_run
             try:
                 path = tl.download_transcript("123", dest)
             finally:
                 sp.run = real
         self.assertEqual(Path(path).name, "transcript.jsonl")
+
+    def test_an_absent_gh_binary_is_a_named_error_not_a_traceback(self):
+        import subprocess as sp
+
+        def fake_run(cmd, **kwargs):
+            raise OSError(2, "No such file or directory")
+
+        real = sp.run
+        sp.run = fake_run
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                with self.assertRaises(RuntimeError) as ctx:
+                    tl.download_transcript("123", Path(td))
+        finally:
+            sp.run = real
+        self.assertIn("could not run", str(ctx.exception))
 
     def test_undecodable_bytes_are_reported_as_their_own_cause(self):
         """errors='replace' turned a binary artifact into replacement characters, which
@@ -344,6 +368,63 @@ class ReviewFindingsRound1(unittest.TestCase):
                 rc = tl.main(["--transcript", str(art)])
         self.assertEqual(rc, 0)
         self.assertIn("undecodable", buf.getvalue().lower())
+
+
+class TextChannelRendersAllThreeViews(unittest.TestCase):
+    """The criterion names per-phase, per-step AND per-activity totals; a per-step COUNT is
+    not the per-step wall clock, and the data reaching only --json leaves the text channel
+    short of what the tool claims to print."""
+
+    def test_all_three_views_appear_with_per_step_durations(self):
+        with tempfile.TemporaryDirectory() as td:
+            art = Path(td) / "transcript.jsonl"
+            art.write_text(REALISTIC, encoding="utf-8")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                tl.main(["--transcript", str(art)])
+        out = buf.getvalue()
+        self.assertIn("Per-phase wall clock", out)
+        self.assertIn("Per-activity wall clock", out)
+        self.assertIn("Per-step wall clock", out)
+        # Each step's own duration, not merely a count of steps.
+        self.assertIn("5.0s", out)   # the first Bash call
+        self.assertIn("10.0s", out)  # the second Bash call
+        self.assertIn("phase-1-setup.md", out)
+
+
+
+class ArtifactNameResolution(unittest.TestCase):
+    """The uploaders name the artifact `claude-execution-transcript-<run_id>-<run_attempt>`
+    and `gh run download -n` matches EXACTLY, so composing the name without the attempt
+    misses every time — and the miss is then classified as an expired artifact and exits 0,
+    which is a success-shaped failure."""
+
+    UPLOADED = "claude-execution-transcript-33012646004-1"
+
+    def test_the_resolved_name_carries_the_run_attempt_suffix(self):
+        listing = [{"name": self.UPLOADED}, {"name": "some-other-artifact"}]
+        self.assertEqual(tl.resolve_artifact_name("33012646004", listing), self.UPLOADED)
+
+    def test_a_later_attempt_is_resolved_too(self):
+        listing = [{"name": "claude-execution-transcript-33012646004-3"}]
+        self.assertEqual(tl.resolve_artifact_name("33012646004", listing),
+                         "claude-execution-transcript-33012646004-3")
+
+    def test_the_highest_attempt_wins_when_several_are_present(self):
+        listing = [{"name": "claude-execution-transcript-77-1"},
+                   {"name": "claude-execution-transcript-77-11"},
+                   {"name": "claude-execution-transcript-77-2"}]
+        self.assertEqual(tl.resolve_artifact_name("77", listing),
+                         "claude-execution-transcript-77-11")
+
+    def test_a_run_with_no_matching_artifact_resolves_to_none(self):
+        self.assertIsNone(tl.resolve_artifact_name("77", [{"name": "unrelated"}]))
+        self.assertIsNone(tl.resolve_artifact_name("77", []))
+
+    def test_another_runs_artifact_is_not_matched(self):
+        """A prefix match must not admit run 7712's artifact for run 77."""
+        self.assertIsNone(tl.resolve_artifact_name(
+            "77", [{"name": "claude-execution-transcript-7712-1"}]))
 
 
 if __name__ == "__main__":

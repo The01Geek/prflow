@@ -88,7 +88,54 @@ def _classify_download_failure(stderr: str) -> str:
 
 
 def _artifact_name_prefix(run_id: str) -> str:
-    return f"claude-execution-transcript-{run_id}"
+    """The uploaders name the artifact `<prefix>-<run_attempt>`, so this is a PREFIX and
+    never a whole name — `gh run download -n` matches exactly, and handing it the
+    attempt-less form misses every artifact there is."""
+    return f"claude-execution-transcript-{run_id}-"
+
+
+def resolve_artifact_name(run_id: str, listing):
+    """The full artifact name for `run_id` from a run's artifact listing, or None.
+
+    Selects the HIGHEST attempt numerically: a re-run uploads a further artifact under the
+    same run id, and the latest attempt is the one whose transcript describes the run a
+    caller asking for that id means. Anchored on the trailing `-` so run 7712's artifact is
+    never admitted for run 77.
+    """
+    prefix = _artifact_name_prefix(run_id)
+    best, best_attempt = None, None
+    for item in listing or []:
+        name = item.get("name") if isinstance(item, dict) else None
+        if not isinstance(name, str) or not name.startswith(prefix):
+            continue
+        suffix = name[len(prefix):]
+        if not suffix.isdigit():
+            continue
+        attempt = int(suffix)
+        if best_attempt is None or attempt > best_attempt:
+            best, best_attempt = name, attempt
+    return best
+
+
+def _list_run_artifacts(gh, run_id, repo):
+    """The run's artifact listing, or None when it could not be established."""
+    cmd = [gh, "api", f"repos/{{owner}}/{{repo}}/actions/runs/{run_id}/artifacts",
+           "--jq", ".artifacts"]
+    if repo:
+        cmd = [gh, "api", f"repos/{repo}/actions/runs/{run_id}/artifacts", "--jq", ".artifacts"]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+    except OSError as exc:
+        raise RuntimeError(f"could not run {gh}: {exc}") from exc
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip()
+        if _classify_download_failure(detail) == "run-missing":
+            raise RuntimeError(f"run {run_id} was not found in this repository: {detail}")
+        raise RuntimeError(f"gh api artifacts failed (rc {proc.returncode}): {detail}")
+    try:
+        return json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"could not parse the artifact listing for run {run_id}: {exc}") from exc
 
 
 def download_transcript(run_id: str, dest: Path, repo: str | None = None) -> Path:
@@ -102,11 +149,21 @@ def download_transcript(run_id: str, dest: Path, repo: str | None = None) -> Pat
     # Python gh caller and lib/resolve-gh.sh. A `which` probe would pick the present-but-
     # unrunnable Windows/WSL shim the override exists to route around.
     gh = os.environ.get("DEVFLOW_GH") or "gh"
+    # Resolve the artifact's FULL name first — `-n` matches exactly, and the uploaders
+    # append the run attempt — then download that name.
+    name = resolve_artifact_name(run_id, _list_run_artifacts(gh, run_id, repo))
+    if name is None:
+        raise ArtifactExpired(
+            f"no artifact named {_artifact_name_prefix(run_id)}<attempt> on run {run_id} "
+            f"(expired past the 7-day retention, or never uploaded)")
     cmd = [gh, "run", "download", str(run_id), "-D", str(dest)]
     if repo:
         cmd.extend(["--repo", repo])
-    cmd.extend(["-n", _artifact_name_prefix(run_id)])
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    cmd.extend(["-n", name])
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+    except OSError as exc:
+        raise RuntimeError(f"could not run {gh}: {exc}") from exc
     detail = (proc.stderr or proc.stdout or "").strip()
     # Classify only a FAILURE. Classifying first read a successful download whose output
     # merely mentioned a marker phrase as an expired artifact.
@@ -122,8 +179,7 @@ def download_transcript(run_id: str, dest: Path, repo: str | None = None) -> Pat
         # gh reports the no-matching-artifact case on stdout at exit 0, so an empty
         # download directory is that same expired condition rather than a new one — this
         # is what still catches it now that classification is gated on a non-zero status.
-        raise ArtifactExpired(
-            f"artifact {_artifact_name_prefix(run_id)} downloaded no files: {detail}")
+        raise ArtifactExpired(f"artifact {name} downloaded no files: {detail}")
     return files[0]
 
 
@@ -282,7 +338,14 @@ def _render(timeline: dict) -> str:
     for tool, ms in sorted(timeline["activities"].items(), key=lambda kv: -kv[1]):
         out.append(f"  {ms / 1000:9.1f}s  {tool}")
     out.append("")
-    out.append(f"Per-step records: {len(timeline['steps'])}")
+    out.append(f"Per-step wall clock ({len(timeline['steps'])} step(s), in order)")
+    for index, step in enumerate(timeline["steps"], start=1):
+        duration = step["duration_ms"]
+        rendered = (UNESTABLISHED if duration == UNESTABLISHED
+                    else f"{duration / 1000:.1f}s")
+        phase = step["phase"]
+        label = phase if phase == UNATTRIBUTED else Path(phase).name
+        out.append(f"  {index:>4}  {rendered:>12}  {step['tool']:<10}  {label}")
     unestablished = sum(1 for s in timeline["steps"] if s["duration_ms"] == UNESTABLISHED)
     if unestablished:
         out.append(f"  {unestablished} step(s) have an unestablished duration "
@@ -324,7 +387,14 @@ def main(argv=None, _download=download_transcript):
             except RuntimeError as exc:
                 print(f"devflow: implement-timeline: {exc}", file=sys.stderr)
                 return 1
-            raw, note = read_transcript(path)
+            try:
+                raw, note = read_transcript(path)
+            except OSError as exc:
+                # The same failure class the --transcript arm names; the temp directory is
+                # gone by the time a traceback would surface, so name it here too.
+                print(f"devflow: implement-timeline: cannot read the downloaded artifact "
+                      f"for run {args.run_id}: {exc}", file=sys.stderr)
+                return 1
             if note:
                 notes.append(note)
 

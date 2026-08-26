@@ -2,10 +2,9 @@
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
 # prepare-run-profile.sh — the backstop-step glue for the run-profile floor (issue #2006).
-# It is the branch-selecting shell the CLAUDE.md inline-workflow-shell convention keeps OUT
-# of the workflow YAML (the scripts/prepare-harness-floor.sh precedent): a mis-selected arm
-# here silently empties the profile while the workflow still "works", so the branches are
-# driven directly by the test suite.
+# It holds the branch-selecting shell that would otherwise live in the workflow YAML, on the
+# scripts/prepare-harness-floor.sh precedent: a mis-selected arm here silently empties the
+# profile while the workflow still "works", so the branches are driven directly by the suite.
 #
 # Usage:
 #   prepare-run-profile.sh <issue_number> <profile_out_file>
@@ -79,11 +78,18 @@ if [ "$ID_RC" -ne 0 ] || [ -z "$COMMENT_ID" ]; then
 fi
 
 BODY_FILE="${OUT}.workpad"
-if ! python3 "$WORKPAD" body "$COMMENT_ID" > "$BODY_FILE" 2>/dev/null; then
-  echo "::warning::prepare-run-profile: could not fetch the body of workpad comment $COMMENT_ID for issue $ISSUE; no run profile derived this run" >&2
-  rm -f "$BODY_FILE" 2>/dev/null
+BODY_ERR="${OUT}.bodyerr"
+BODY_RC=0
+python3 "$WORKPAD" body "$COMMENT_ID" > "$BODY_FILE" 2> "$BODY_ERR" || BODY_RC=$?
+if [ "$BODY_RC" -ne 0 ]; then
+  # Preserve the helper's own diagnostic: auth failure, rate limit, 404 and a parse failure
+  # are different causes, and one causeless warning names none of them.
+  echo "::warning::prepare-run-profile: workpad.py body exited $BODY_RC for comment $COMMENT_ID (issue $ISSUE); its own diagnostic follows, then no run profile is derived this run" >&2
+  sed "s/^::/  ::/" "$BODY_ERR" >&2
+  rm -f "$BODY_FILE" "$BODY_ERR" 2>/dev/null
   exit 0
 fi
+rm -f "$BODY_ERR" 2>/dev/null
 if [ ! -s "$BODY_FILE" ]; then
   echo "::warning::prepare-run-profile: workpad comment $COMMENT_ID for issue $ISSUE fetched as an empty body; no run profile derived this run" >&2
   rm -f "$BODY_FILE" 2>/dev/null

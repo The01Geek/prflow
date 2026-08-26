@@ -67,7 +67,10 @@ _LAST_UPDATED_RE = re.compile(
     r"^\*\*Last updated:\*\*\s+(\d{4})-(\d{2})-(\d{2})\s", re.MULTILINE
 )
 _STATUS_RE = re.compile(r"^\*\*Status:\*\*\s+(.*?)\s*$", re.MULTILINE)
-_TOP_LEVEL_RE = re.compile(r"^-\s+\[[ x]\]\s+\*\*(?P<phase>[^*]+)\*\*")
+# Accepts the same row shapes workpad.py's own `_TOP_LEVEL_CHECKBOX_RE` does — a `*`
+# bullet and a capital-X tick included. A narrower pattern silently discards every
+# timestamped note under a row it fails to match rather than reporting unestablished.
+_TOP_LEVEL_RE = re.compile(r"^[-*]\s+\[[ xX]\]\s+\*\*(?P<phase>[^*]+)\*\*")
 _NOTE_TS_RE = re.compile(r"^\s+-\s+(?P<h>\d{2}):(?P<m>\d{2}):(?P<s>\d{2})\s+—")
 
 
@@ -160,8 +163,12 @@ def derive(body):
         # parser could not read, not a run with no phases — an empty map would report it
         # as an established measurement of nothing.
         return {"phase_durations_ms": UNESTABLISHED, "final_status": status}
-    durations = {p: (_span_ms(triples, base_date) if base_date else UNESTABLISHED)
-                 for p, triples in stamps.items()}
+    # Seed from the full phase vocabulary, not from what matched: a phase the parser never
+    # saw is otherwise absent from the map entirely, so a consumer counting established
+    # entries against the map's own length reads a one-phase measurement as complete.
+    durations = {phase: UNESTABLISHED for phase in PROGRESS_PHASES}
+    for phase, triples in stamps.items():
+        durations[phase] = _span_ms(triples, base_date) if base_date else UNESTABLISHED
     return {"phase_durations_ms": durations, "final_status": status}
 
 
