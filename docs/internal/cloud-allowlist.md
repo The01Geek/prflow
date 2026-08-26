@@ -434,6 +434,15 @@ ladder is now invoked unconditionally at all five call sites, so there is no con
 arm left for a run to decline. Nothing in CI, the suite, or the verdict distinguishes a
 lost extension from a delivered one; the workpad's per-surface `prompt extension
 resolved: …` rows are the run-authored record that narrows — never closes — that gap.
+**On the implement tier issue #1446 closes it with an independent job-level detector:**
+`devflow-implement.yml` brackets the agent step with pre-/post-agent steps driving
+`scripts/prompt-extension-arrival.py`, which reads the extension root *directly* (not
+through the ladder under test) and reconciles that expectation against the run's durable
+workpad, blocking `Complete` when deliverable content was expected but no ticked arrival
+row records it — the shape a lost skill body produces, which `permission_denials_count`
+is structurally blind to. Being job-level it runs outside the matcher and needs no grant
+here. The local/interactive and cloud-review tiers still rely on the run-authored record
+above (issue #1971).
 Residual 1 — whether `${CLAUDE_SKILL_DIR}` is substituted inside placeholder text — was
 never measured and now never will be: with the channel retired there is no call site to
 dispatch it against. The anchor was used rather than a vendored literal because this
