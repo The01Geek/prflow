@@ -664,6 +664,48 @@ assert_eq "psr output: a clean run names the retained-log root" "yes" \
   "$(case "$PSR_CLEAN" in *"retained logs: "*/logs*) echo yes ;; *) echo no ;; esac)"
 assert_eq "psr output: a clean run says so" "yes" \
   "$(case "$PSR_CLEAN" in *"aggregate CLEAN"*) echo yes ;; *) echo no ;; esac)"
+# issue #742: the coordinator's verdict must live in a FILE, not only on the console.
+# `verification-flight.py finish --from-runner-log` reads the `aggregate` marker, and
+# before this the marker existed on stdout alone while `retained logs:` named a
+# DIRECTORY — so the prescribed completion path could not be walked at all.
+assert_eq "psr #742: a clean run names a retained coordinator log FILE" "yes" \
+  "$(case "$PSR_CLEAN" in *"retained coordinator log: "*) echo yes ;; *) echo no ;; esac)"
+PSR_COORD_LOG=''
+while IFS= read -r psr_line || [ -n "$psr_line" ]; do
+  case "$psr_line" in
+    "run-parallel: retained coordinator log: "*)
+      PSR_COORD_LOG="${psr_line#run-parallel: retained coordinator log: }" ;;
+  esac
+done <<PSR_COORD_EOF
+$PSR_CLEAN
+PSR_COORD_EOF
+assert_eq "psr #742: the named coordinator log exists on disk" "yes" \
+  "$([ -n "$PSR_COORD_LOG" ] && [ -f "$PSR_COORD_LOG" ] && echo yes || echo no)"
+assert_eq "psr #742: the coordinator log carries the aggregate verdict" "1" \
+  "$(grep -c '^run-parallel: aggregate CLEAN$' "$PSR_COORD_LOG" 2>/dev/null || echo 0)"
+assert_eq "psr #742: the coordinator log carries the recombined tally" "1" \
+  "$(grep -c '^3 passed, 0 failed$' "$PSR_COORD_LOG" 2>/dev/null || echo 0)"
+# The FAILED verdict goes to stderr on the console; it must still reach the file, or a
+# failing run would derive as unrecognized instead of as a failure.
+PSR_FAIL_RUN="$(cd "$PSR_T6" && SYN_BULK=1 DEVFLOW_SHARD_DISPATCHER="$PSR_T6/dispatch.sh" bash lib/test/run-parallel.sh 2>&1)"
+PSR_FAIL_LOG=''
+while IFS= read -r psr_line || [ -n "$psr_line" ]; do
+  case "$psr_line" in
+    "run-parallel: retained coordinator log: "*)
+      PSR_FAIL_LOG="${psr_line#run-parallel: retained coordinator log: }" ;;
+  esac
+done <<PSR_FAIL_EOF
+$PSR_FAIL_RUN
+PSR_FAIL_EOF
+assert_eq "psr #742: a failing run's coordinator log carries the FAILED verdict" "1" \
+  "$(grep -c '^run-parallel: aggregate FAILED' "$PSR_FAIL_LOG" 2>/dev/null || echo 0)"
+# End-to-end: the log the coordinator named is consumable by the mode that reads it.
+assert_eq "psr #742: verification-flight derives the coordinator log it was handed" "lib/test/run-parallel.sh|0" \
+  "$(python3 -c 'import importlib.util,sys
+spec=importlib.util.spec_from_file_location("vf",sys.argv[1])
+m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+s,_k,r=m.derive_summary_from_runner_log(sys.argv[2])
+print(s["command"]+"|"+str(s["failed"]))' "$LIB/../scripts/verification-flight.py" "$PSR_COORD_LOG" 2>/dev/null)"
 # issue #1808: capture stdout ALONE (not 2>&1) so this tests the elapsed line is on
 # STDOUT — a 2>&1 capture would pass even if the line wrongly went to stderr.
 PSR_CLEAN_OUT="$(cd "$PSR_T6" && DEVFLOW_SHARD_DISPATCHER="$PSR_T6/dispatch.sh" bash lib/test/run-parallel.sh 2>/dev/null)"

@@ -588,19 +588,43 @@ fi
 # tally (launch failure, crash-before-upload) is named as missing in `combine`'s own output
 # too — the count floor alone could be satisfied by a subset. This is additive to the
 # `--expect`/`MISSING`/`SHARD_RCS` diagnostics above, never a replacement.
-if ! python3 "$TALLY_HELPER" combine ${TALLY_ARGS[@]+"${TALLY_ARGS[@]}"} --expect "$EXPECTED" --require-shards "$SHARDS" --detail-cap "$DETAIL_CAP"; then
-  AGGREGATE_RC=1
+# The coordinator's own terminal block is written to a retained FILE as well as the
+# console (issue #742). Do not drop this capture: `--from-runner-log` reads the
+# `aggregate` verdict, and a console-only marker exists in no file the caller can pass.
+COORD_LOG="$RUN_ROOT/coordinator.log"
+: > "$COORD_LOG" 2>/dev/null || COORD_LOG=""
+
+# Emit one terminal line to the console stream named by $1 AND to the coordinator log.
+# Do not collapse this into a single `tee` of the whole block: `aggregate FAILED` and the
+# diagnostics above it belong on stderr for the console, and a merged tee would move them.
+_coord_line() {
+  [ -z "$COORD_LOG" ] || printf '%s\n' "$2" >> "$COORD_LOG" 2>/dev/null || :
+  if [ "$1" = stderr ]; then printf '%s\n' "$2" >&2; else printf '%s\n' "$2"; fi
+}
+
+if [ -n "$COORD_LOG" ]; then
+  python3 "$TALLY_HELPER" combine ${TALLY_ARGS[@]+"${TALLY_ARGS[@]}"} --expect "$EXPECTED" --require-shards "$SHARDS" --detail-cap "$DETAIL_CAP" 2>&1 | tee -a "$COORD_LOG"
+  [ "${PIPESTATUS[0]}" -eq 0 ] || AGGREGATE_RC=1
+else
+  if ! python3 "$TALLY_HELPER" combine ${TALLY_ARGS[@]+"${TALLY_ARGS[@]}"} --expect "$EXPECTED" --require-shards "$SHARDS" --detail-cap "$DETAIL_CAP"; then
+    AGGREGATE_RC=1
+  fi
 fi
 
 printf '\n'
-printf 'run-parallel: shard roster:%s\n' "$(printf ' %s' $SHARDS)"
-printf 'run-parallel: retained logs: %s\n' "$RUN_ROOT/logs"
+_coord_line stdout "$(printf 'run-parallel: shard roster:%s' "$(printf ' %s' $SHARDS)")"
+_coord_line stdout "$(printf 'run-parallel: retained logs: %s' "$RUN_ROOT/logs")"
+if [ -n "$COORD_LOG" ]; then
+  _coord_line stdout "$(printf 'run-parallel: retained coordinator log: %s' "$COORD_LOG")"
+else
+  printf 'run-parallel: coordinator log unwritable under %s — --from-runner-log has no coordinator log to read for this run\n' "$RUN_ROOT" >&2
+fi
 # issue #1808: placed before the AGGREGATE_RC branch below so the branch cannot skip it;
 # do not compute it via date or another external program — keep the SECONDS builtin (AC2).
-printf 'run-parallel: elapsed %ss\n' "$SECONDS"
+_coord_line stdout "$(printf 'run-parallel: elapsed %ss' "$SECONDS")"
 if [ "$AGGREGATE_RC" -eq 0 ]; then
-  printf 'run-parallel: aggregate CLEAN\n'
+  _coord_line stdout 'run-parallel: aggregate CLEAN'
 else
-  printf 'run-parallel: aggregate FAILED — read the retained logs above rather than re-running\n' >&2
+  _coord_line stderr 'run-parallel: aggregate FAILED — read the retained logs above rather than re-running'
 fi
 exit "$AGGREGATE_RC"

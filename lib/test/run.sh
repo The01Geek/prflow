@@ -55296,4 +55296,11 @@ devflow_render_test_summary "$PASS" "$FAIL" "$SKIP" "$SKIPS_FILE"
 # tally/record disagreement instead of printing a short list that reads complete. It prints
 # NOTHING when FAIL is 0, so a clean run's terminal output is unchanged (the #456 contract).
 devflow_render_failure_recap "$FAIL" "$RESULTS_FILE.names"
+# Self-identify the serial driver and the two population selectors it ran under (issue
+# #742). Do not drop the selector fields: a log with both set is the `monolith` shard,
+# which never discharges a completion gate, and without them a reader of this log cannot
+# tell that reduced run from the full serial suite.
+printf 'run.sh: serial suite complete (skip-suite-modules=%s, skip-python-pool=%s)\n' \
+  "$([ "${DEVFLOW_SKIP_SUITE_MODULES:-}" = 1 ] && printf 1 || printf 0)" \
+  "$([ "${DEVFLOW_SKIP_PYTHON_POOL:-}" = 1 ] && printf 1 || printf 0)"
 [ "$FAIL" -eq 0 ]

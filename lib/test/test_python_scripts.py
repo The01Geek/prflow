@@ -33265,12 +33265,7 @@ assert_eq("#1087 any skip (even host-capability) → skipped-checks-present", "s
 _t, _d = cce.validate_implement_completion(_p, _root, claim_identity="DIFFERENT-TREE")
 assert_eq("#1087 changed candidate identity → stale-candidate", "stale-candidate", _t)
 
-# ── The declared command must be a WHOLE-SUITE result ────────────────────────────
-# Cloud implement run 32957163134 (issue #742) reached `🎉 Complete` and published
-# PR #1997 having run no test suite at all: its flight was finished `--result passed`
-# declaring `git ls-files '*.py' | xargs python3 -m ruff check`, and the nonempty-string
-# check above accepted it. The whole-suite gate must bind the command to an actual
-# whole-suite runner or a complete recombined shard partition.
+# ── The declared command must be a WHOLE-SUITE result (issue #742) ───────────────
 def _cce_tok_for_command(_cmd):
     _r = dict(_PASS_REC)
     _r["suite_summary"] = dict(_PASS_REC["suite_summary"], command=_cmd)
@@ -33287,6 +33282,14 @@ for _cmd, _lbl in [
     ("shellcheck --severity=warning lib/test/run.sh", "a lint"),
     ("echo lib/test/run-parallel.sh", "a runner named as an argument, not invoked"),
     ("lib/test/shard-tally.py combine --tally a.json", "a recombination with no --require-shards"),
+    # The `monolith` shard, spelled with its own env prefix. run-shard.sh runs exactly
+    # this string; stripping the assignments made the same run classify two ways.
+    ("DEVFLOW_SKIP_SUITE_MODULES=1 DEVFLOW_SKIP_PYTHON_POOL=1 bash lib/test/run.sh",
+     "the monolith shard spelled as its own env-prefixed run.sh"),
+    ("DEVFLOW_SKIP_SUITE_MODULES=1 lib/test/run.sh", "run.sh minus the module tier"),
+    ("env DEVFLOW_SKIP_PYTHON_POOL=1 lib/test/run.sh", "run.sh minus the python pool"),
+    ("lib/test/run-parallel.sh --preflight", "the read-only preflight, which runs no test"),
+    ("lib/test/run-parallel.sh --list-shards", "a shard enumeration"),
 ]:
     assert_eq(f"#742 {_lbl} is not whole-suite evidence → missing-evidence",
               "missing-evidence", _cce_tok_for_command(_cmd))
@@ -33298,6 +33301,8 @@ for _cmd, _lbl in [
     ("cd /home/runner/work/prflow/prflow; lib/test/run-parallel.sh", "the coordinator after a cd segment"),
     ("lib/test/shard-tally.py combine --tally a.json --require-shards \"monolith python\"",
      "a reconciled recombined partition"),
+    # An explicit `=0` is not a reduction: only a set selector reduces the population.
+    ("DEVFLOW_SKIP_SUITE_MODULES=0 lib/test/run.sh", "run.sh with the selectors explicitly off"),
 ]:
     assert_eq(f"#742 {_lbl} IS whole-suite evidence → pass", "pass", _cce_tok_for_command(_cmd))
 

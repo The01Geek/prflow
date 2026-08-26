@@ -132,14 +132,17 @@ case "$SHARD" in
     ;;
 esac
 
-# Echo the captured log so the shard job's own log carries the detail too.
-cat "$LOG_FILE" || true
-
 # Name the retained log's absolute path on the passing and failing shard exit, so a
 # tail-piped reader re-reads it instead of re-executing (issue #1923); the CLAUDE.md
 # tail-pipe bullet relies on this line, and builtins keep it off non-preflight tools.
+# Append it BEFORE the echo, not after: a reader passing this file to
+# `--from-runner-log` needs the marker INSIDE the file it names (issue #742), and the
+# `cat` below still puts the same line on the console.
 LOG_FILE_ABS="$(cd "${LOG_FILE%/*}" && pwd -P)/${LOG_FILE##*/}"
-printf 'run-shard.sh: retained log: %s\n' "$LOG_FILE_ABS"
+printf 'run-shard.sh: retained log: %s\n' "$LOG_FILE_ABS" >> "$LOG_FILE"
+
+# Echo the captured log so the shard job's own log carries the detail too.
+cat "$LOG_FILE" || true
 
 # Detect the #671 plugin-validate gate's CLI-absence self-skip: a skip exits 0, so a disarmed
 # gate would otherwise recombine green (issue #1830). Do not scope this to `monolith` by name,

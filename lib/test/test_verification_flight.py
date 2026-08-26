@@ -1916,12 +1916,10 @@ class TestPhaseEventAppend(Harness):
 class TestFinishFromRunnerLog(Harness):
     """`finish --from-runner-log` derives terminal evidence from a retained log.
 
-    Two of the five implement runs analysed for this change hand-authored the flight's
-    status JSON with `--result passed` after reading `--help` inline; that improvisation
-    is what let run 32957163134 finish a flight on lint evidence. Deriving the summary
-    from the log the runner retained removes the hand-assertion. The log is
-    agent-and-tool-mutable text, so every shape below must produce a NAMED breadcrumb
-    rather than a silent misread.
+    The log is agent-and-tool-mutable text, so every shape below must produce a NAMED
+    breadcrumb rather than a silent misread. Each fixture is a shape a shipped runner
+    actually emits — keep them that way, or this class verifies a format no producer
+    writes (issue #742).
     """
 
     PARALLEL_CLEAN = (
@@ -1931,6 +1929,7 @@ class TestFinishFromRunnerLog(Harness):
         "shard-tally combine: 5 shard(s): monolith, python, jq, shell, installer\n"
         "run-parallel: shard roster: monolith python jq shell installer\n"
         "run-parallel: retained logs: /tmp/run-1/logs\n"
+        "run-parallel: retained coordinator log: /tmp/run-1/coordinator.log\n"
         "run-parallel: elapsed 940s\n"
         "run-parallel: aggregate CLEAN\n"
     )
@@ -2033,6 +2032,104 @@ class TestFinishFromRunnerLog(Harness):
         _k, code, out = self._finish_from_log("passed", self._log(log))
         self.assertEqual(code, vf.EXIT_CAS_REJECT)
         self.assertEqual(out["reason"], "runner_log_contradicts_result")
+
+    def test_module_skips_are_not_laundered_into_a_clean_pass(self):
+        # run-module.sh emits `Module <id>: N passed, M failed, K skipped`. Reading only
+        # the first three fields derived an EMPTY skip population from a log announcing
+        # one — the exact laundering the derivation exists to prevent.
+        log = ("...\nModule regen: 40 passed, 0 failed, 1 skipped\n"
+               "  SKIP  #434 stale-prose self-scan [blocking-gate] — dirty tree\n")
+        k, code, _ = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        self.assertEqual(len(st["skipped_checks"]), 1)
+        # The kind is load-bearing to a skip reader and must survive the derivation.
+        self.assertEqual(st["skipped_checks"][0]["kind"], "blocking-gate")
+
+    def test_an_unitemized_module_skip_count_still_reaches_skipped_checks(self):
+        # The reviewer-measured shape: the tally announces a skip and the log itemizes
+        # none. Deriving an EMPTY population from it launders the skip into a pass.
+        log = "Module regen: 40 passed, 0 failed, 1 skipped\n"
+        k, code, _ = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        self.assertEqual(len(st["skipped_checks"]), 1)
+
+    def test_a_module_log_is_not_scored_by_a_nested_sub_suites_tally(self):
+        # A module's captured output carries the bare tallies of the fixtures it drove.
+        # Taking the LAST of those reported a failing module as passed.
+        log = ("Module m: 3 passed, 2 failed\n"
+               "... driven fixture output ...\n"
+               "12 passed, 0 failed\n")
+        k, code, _ = self._finish_from_log("failed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state])
+        self.assertEqual(st["suite_summary"]["failed"], 2)
+        self.assertEqual(st["state"], "failed")
+
+    def test_serial_run_sh_log_is_recognized_as_itself(self):
+        # A serial full-suite log carries `Module <id>: ...` lines from its own
+        # meta-tests; without run.sh's marker the first of those was attributed the
+        # whole suite's tally, reporting a full serial run as a focused module.
+        log = ("Module foo: 1 passed, 0 failed\n"
+               "6112 passed, 0 failed\n"
+               "run.sh: serial suite complete (skip-suite-modules=0, skip-python-pool=0)\n")
+        k, code, _ = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        self.assertEqual(st["suite_summary"]["command"], "lib/test/run.sh")
+        self.assertEqual(st["suite_summary"]["passed"], 6112)
+
+    def test_a_reduced_population_run_sh_log_names_its_selectors(self):
+        # Both selectors set is verbatim the `monolith` shard. The derived command must
+        # carry them, or the completion gate cannot tell it from the full serial suite.
+        log = ("6000 passed, 0 failed\n"
+               "run.sh: serial suite complete (skip-suite-modules=1, skip-python-pool=1)\n")
+        k, code, _ = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        self.assertEqual(
+            st["suite_summary"]["command"],
+            "DEVFLOW_SKIP_SUITE_MODULES=1 DEVFLOW_SKIP_PYTHON_POOL=1 lib/test/run.sh")
+
+    def test_summary_sh_skip_placeholders_are_not_counted_as_skips(self):
+        # summary.sh's parenthesised diagnostics announce that the ITEMIZATION failed.
+        # Counting them refused a clean run over a cosmetic breadcrumb.
+        log = ("run.sh: serial suite complete (skip-suite-modules=0, skip-python-pool=0)\n"
+               "10 passed, 0 failed\n"
+               "  SKIP  (detail unavailable — skip log absent or unreadable)\n")
+        k, code, _ = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        self.assertEqual(st["skipped_checks"], [])
+
+    def test_a_stdout_only_coordinator_capture_is_told_it_lost_stderr(self):
+        # `aggregate FAILED` goes to stderr, so a `>` capture of a failing coordinator
+        # run carries coordinator lines and no verdict. Name that, or the caller reads
+        # a generic "unrecognized" and re-runs a 15-minute suite to find out why.
+        log = ("run-parallel: shard roster: alpha\n"
+               "run-parallel: retained logs: /tmp/x/logs\n"
+               "5 passed, 0 failed\n")
+        _k, code, out = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_INVALID)
+        self.assertEqual(out["reason"], "runner_log_no_aggregate")
+
+    def test_a_shard_log_is_attributed_to_the_shard_not_its_driver(self):
+        # run-shard.sh appends its marker INTO the log it names, and that log also holds
+        # the driver's own marker. The outermost runner owns the result.
+        log = ("6000 passed, 0 failed\n"
+               "run.sh: serial suite complete (skip-suite-modules=1, skip-python-pool=1)\n"
+               "run-shard.sh: retained log: /tmp/x/monolith.log\n")
+        k, code, _ = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        self.assertEqual(st["suite_summary"]["command"], "lib/test/run-shard.sh")
 
     def test_supplying_both_evidence_sources_is_refused(self):
         _, owner = self.claim()
