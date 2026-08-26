@@ -13,7 +13,7 @@ Consumer prompt extension (load first). Before doing this skill's work, load any
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh docs-verify
 ```
 
-If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/prompt-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
+If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. If instead the harness refuses the command outright — a permission denial rather than a missing file — the extension's state is **unestablished**: report that in the run's output and never treat it as a clean policy pass (*unknown is not zero*). Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/prompt-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
 
 ## Mode
 
@@ -187,13 +187,14 @@ Read the shared writing standard before composing in either mode. Both modes com
 
 ### Step 1: Locate Documentation Files
 Search for any existing documentation about the topic **within the supplied `--search-space` operand**; when no operand was supplied, search `[[INTERNAL_DOC_LOCATION]]`:
-- Use `glob` to find files in that search space matching the topic name
-- Search for files containing the topic using `grep` and `find` commands
+- When the search space carries an `index.md` routing map (and a `glossary.md`), read the index first and follow its routing to the page that owns the topic — the index locates the owning page faster than a raw search, and a routed page a name-match would miss is still in scope
+- Use the runner's Glob tool to find files in that search space matching the topic name
+- Search for files containing the topic with the runner's Grep tool first, then `rg` where it resolves on the host, then `grep -rnE`
 - Document all files found (or note if no files exist)
 
 ### Step 2: Search Codebase for Topic
 Identify all code related to the topic, **searching the supplied `--search-space` operand**; when no operand was supplied, search the whole tracked tree. In report-only mode the duty floor above — not the size of that space — bounds how far this search goes:
-- Search that space (`grep`, `find`) for classes, functions, features mentioned in the topic
+- Search that space for classes, functions, and features mentioned in the topic, with the runner's Grep tool first, then `rg` where it resolves on the host, then `grep -rnE`
 - Review all relevant source files
 - Document the key files and features involved
 
