@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2002",
+  "generated_at": "2026-08-26T17:52:06Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.274772800000003,
+    "tokens": {
+      "input_tokens": 102,
+      "output_tokens": 58369,
+      "cache_read_input_tokens": 9328146,
+      "cache_creation_input_tokens": 264378,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 154,
+        "outputTokens": 86431,
+        "cacheReadInputTokens": 10590902,
+        "cacheCreationInputTokens": 663468,
+        "webSearchRequests": 0,
+        "costUSD": 12.5950885,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 164,
+        "outputTokens": 26814,
+        "cacheReadInputTokens": 3621719,
+        "cacheCreationInputTokens": 674749,
+        "webSearchRequests": 0,
+        "costUSD": 2.679684300000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 69,
+    "duration_ms": 953094
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p .prflow/tmp/review/pr-2002/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\ngh pr diff 2002 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-2002/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}/diff.patch | grep -c '^diff --git'; echo \"rc=$?\"",
+      "echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "mkdir -p .prflow/tmp/review/pr-2002/32994952402-1/verdicts/iter-1\nrm -f .prflow/tmp/review/pr-2002/32994952402-1/verdicts/iter-1/*.json\ngrep -nF -- \"bump: patch\" .changeset/preflight-cheap-lint-gate.md; echo \"grep-rc=$?\"",
+      "mkdir -p .prflow/tmp/review/pr-2002/32994952402-1/verdicts/iter-1\nfind .prflow/tmp/review/pr-2002/32994952402-1/verdicts/iter-1 -name '*.json' -delete\ngrep -nF -- \"bump: patch\" .changeset/preflight-cheap-lint-gate.md; echo \"grep-rc=$?\"",
+      "sed -n '1370,1400p' <(git show 3f7b6888320436befaac6f1acef5df670763a382:lib/test/modules/parallel-suite-runner.sh)",
+      "git show 3f7b6888320436befaac6f1acef5df670763a382:lib/test/modules/parallel-suite-runner.sh > /tmp/psr.sh\nsed -n '1370,1400p' /tmp/psr.sh",
+      "git show 3f7b6888320436befaac6f1acef5df670763a382:lib/test/modules/parallel-suite-runner.sh > /tmp/psr.sh",
+      "HEAD=3f7b6888320436befaac6f1acef5df670763a38\ngit cat-file -e $HEAD:lib/test/run-parallel.sh && echo ok || echo missing\ngit show $HEAD:lib/test/run-parallel.sh | grep -n \"retained logs\"\necho ---\ngit show $HEAD:lib/test/modules/parallel-suite-runner.sh | grep -n \"retained logs\\|RUN_ROOT\\|rm -rf\\|run-\\*\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2002/32994952402-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2002/32994952402-1/verdicts/iter-1/VC-13-f0a6b1c3.json <<'EOF'\n{\"id\":\"VC-13\",\"verdict\":\"PASS\",\"evidence\":\"lib/test/run-parallel.sh:249-256 (head 3f7b6888320436befaac6f1acef5df670763a382): both DEVFLOW_REFERENCE_SIZE_PREFLIGHT and DEVFLOW_BRAND_SWEEP_PREFLIGHT overrides use the '${VAR-default}' form (dash, not colon-dash) as shown in `\\\"${DE …[per-command-truncated]",
+      "printf '{\"pairs\":' > .prflow/tmp/review/pr-2002/32994952402-1/pairs2.json\ncat .prflow/tmp/review/pr-2002/32994952402-1/pairs.json >> .prflow/tmp/review/pr-2002/32994952402-1/pairs2.json\nprintf '}' >> .prflow/tmp/review/pr-2002/32994952402-1/pairs2.json\n.prflow/vendor/prflow/scripts/normalize-verdicts.py .prflow/tmp/review/pr-2002/32994952402-1/pairs2.json; echo \"norm-rc=$?\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before; echo \"snap-rc=$?\""
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
