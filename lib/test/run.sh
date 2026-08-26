@@ -12396,7 +12396,7 @@ echo "load-prompt-extension.sh (consumer prompt-extension reader)"
 # module owns the whole former in-file section; see its .inventory.md for the
 # coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/prompt-extension-reader.sh" \
-  "prompt-extension-reader" 215; then
+  "prompt-extension-reader" 228; then
   printf 'ERROR: prompt-extension-reader boundary could not record its result\n'
   exit 1
 fi
