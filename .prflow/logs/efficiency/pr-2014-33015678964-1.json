@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2014",
+  "generated_at": "2026-08-26T22:12:19Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 7.3215025,
+    "tokens": {
+      "input_tokens": 90,
+      "output_tokens": 51031,
+      "cache_read_input_tokens": 7793655,
+      "cache_creation_input_tokens": 214845,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 90,
+        "outputTokens": 51031,
+        "cacheReadInputTokens": 7793655,
+        "cacheCreationInputTokens": 214845,
+        "webSearchRequests": 0,
+        "costUSD": 7.3215025,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 61,
+    "duration_ms": 2417583
+  },
+  "permission_denials": {
+    "count": 12,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GHA=[$GITHUB_ACTIONS] RUNID=[$GITHUB_RUN_ID] SESSION=[$CLAUDE_CODE_SESSION_ID]\"; git branch --show-current; git status --porcelain | head; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh base_branch 2>/dev/null || echo \"no config-get\"",
+      "for s in monolith python-pool modules-pin modules-large modules-rest; do lib/test/run-shard.sh --modules-of \"$s\"; echo; done | tr ' ' '\\n' | grep -v '^$' | sort > /home/runner/work/prflow/prflow/.prflow/tmp/union.txt; echo \"UNION_COUNT=$(wc -l < /home/runner/work/prflow/prflow/.prflow/tmp/union.txt)\"; echo \"DUP_COUNT=$(sort /home/runner/work/prflow/prflow/.prflow/tmp/union.txt | uniq -d | wc -l)\"; echo \"REGISTRY_KEYS:\"; jq -r '.test_modules | keys[]' scripts/workflow-flight-recorder-registry.jso …[per-command-truncated]",
+      "{ lib/test/run-shard.sh --modules-of monolith; echo; lib/test/run-shard.sh --modules-of python-pool; echo; lib/test/run-shard.sh --modules-of modules-pin; echo; lib/test/run-shard.sh --modules-of modules-large; echo; lib/test/run-shard.sh --modules-of modules-rest; echo; } | tr ' ' '\\n' | grep -v '^$' | sort > /home/runner/work/prflow/prflow/.prflow/tmp/union.txt; jq -r '.test_modules | keys[]' scripts/workflow-flight-recorder-registry.json | sort > /home/runner/work/prflow/prflow/.prflow/tmp/re …[per-command-truncated]",
+      "lib/test/run-shard.sh --modules-of modules-large | tr ' ' '\\n' > /home/runner/work/prflow/prflow/.prflow/tmp/m-large.txt",
+      "lib/test/run-shard.sh --modules-of modules-rest | tr ' ' '\\n' > /home/runner/work/prflow/prflow/.prflow/tmp/m-rest.txt",
+      "lib/test/run-shard.sh --modules-of modules-pin | tr ' ' '\\n' > /home/runner/work/prflow/prflow/.prflow/tmp/m-pin.txt",
+      "jq -r '.test_modules | keys[]' scripts/workflow-flight-recorder-registry.json | sort > /home/runner/work/prflow/prflow/.prflow/tmp/reg.txt",
+      "lib/test/run-shard.sh --modules-of modules-large | tr ' ' '\\n' > .prflow/tmp/m-large.txt; lib/test/run-shard.sh --modules-of modules-rest | tr ' ' '\\n' > .prflow/tmp/m-rest.txt; lib/test/run-shard.sh --modules-of modules-pin | tr ' ' '\\n' > .prflow/tmp/m-pin.txt; jq -r '.test_modules | keys[]' scripts/workflow-flight-recorder-registry.json | sort > .prflow/tmp/reg.txt; cat .prflow/tmp/m-large.txt .prflow/tmp/m-rest.txt .prflow/tmp/m-pin.txt | grep -v '^$' | sort > .prflow/tmp/union.txt; echo \"UN …[per-command-truncated]",
+      "git ls-files '*.py' | xargs python3 -m ruff check 2>&1 | tail -5; echo \"PINNED_RUFF_EXIT=${PIPESTATUS[1]}\"",
+      "which -a ruff; echo \"---\"; ls -la /home/runner/work/_temp/prflow-lint-bin/ 2>&1; echo \"--- pip ruff script? ---\"; ls -la ~/.local/bin/ruff /usr/bin/ruff /opt/hostedtoolcache/Python/*/x64/bin/ruff 2>&1 | head",
+      "/opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff --version",
+      "rm -f /home/runner/work/prflow/prflow/.prflow/tmp/refl-2011.md; rm -f /home/runner/work/_temp/prflow-lint-bin/ruff; echo \"removed shim\"; ruff --version"
+    ],
+    "total": 12,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
