@@ -112,5 +112,91 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.49",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 45.44288594999999,
+    "tokens": {
+      "input_tokens": 320,
+      "output_tokens": 148107,
+      "cache_read_input_tokens": 54955064,
+      "cache_creation_input_tokens": 505453,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 466,
+        "outputTokens": 197112,
+        "cacheReadInputTokens": 59441311,
+        "cacheCreationInputTokens": 1189168,
+        "webSearchRequests": 0,
+        "costUSD": 43.978534249999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 80,
+        "outputTokens": 19817,
+        "cacheReadInputTokens": 2181621,
+        "cacheCreationInputTokens": 331879,
+        "webSearchRequests": 0,
+        "costUSD": 1.4643517,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 205,
+    "duration_ms": 4723941
+  },
+  "permission_denials": {
+    "count": 24,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"; echo \"BASE=${BASE:-<empty>}\"; git branch --show-current; git status --porcelain | head; echo \"---lint---\"; ls -la lib/test/lint-brand-devflow-sweep.py 2>&1; echo \"---baseline---\"; jq '.pending_sweep_baseline | length' lib/rename-map.json 2>&1",
+      "python3 lib/test/lint-brand-devflow-sweep.py 2>&1 | tail -30; echo \"EXIT:${PIPESTATUS[0]}\"; echo \"===baseline count===\"; jq '.pending_sweep_baseline | length' lib/test/brand-devflow-buckets.json 2>&1",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/issue-body; rm -f /home/runner/work/prflow/prflow/.prflow/tmp/issue-body/issue-1985.md; gh issue view 1985 --json body --jq '.body' > /dev/null 2>&1; echo \"run:$GITHUB_RUN_ID attempt:$GITHUB_RUN_ATTEMPT server:$GITHUB_SERVER_URL repo:$GITHUB_REPOSITORY\"",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      "BRANCH=$(.prflow/vendor/prflow/scripts/branch-for-issue.py 1985 --title-file .prflow/tmp/devflow-issue-1985-title.txt) || { echo \"FAILED branch-for-issue.py\"; exit 1; }\necho \"BRANCH=$BRANCH\"",
+      "echo \"=== provenance files (quoted value bucket) ===\"; jq -r '.frozen.provenance[].file' lib/test/brand-devflow-buckets.json 2>/dev/null; echo \"=== any provenance file also in pending baseline? ===\"; comm -12 <(jq -r '.frozen.provenance[].file' lib/test/brand-devflow-buckets.json | sort) <(jq -r '.pending_sweep_baseline[].path' lib/test/brand-devflow-buckets.json | sort)",
+      "jq -r '.frozen.provenance[].file' lib/test/brand-devflow-buckets.json | sort > /home/runner/work/prflow/prflow/.prflow/tmp/prov.txt; jq -r '.pending_sweep_baseline[].path' lib/test/brand-devflow-buckets.json | sort > /home/runner/work/prflow/prflow/.prflow/tmp/pending.txt; echo \"=== provenance files ===\"; cat /home/runner/work/prflow/prflow/.prflow/tmp/prov.txt; echo \"=== overlap prov∩pending ===\"; comm -12 /home/runner/work/prflow/prflow/.prflow/tmp/prov.txt /home/runner/work/prflow/prflow/.prf …[per-command-truncated]",
+      "env | grep -c DEVFLOW_APP_ID; echo \"---APP_ID set?---\"; if [ -n \"${DEVFLOW_APP_ID:-}\" ]; then echo \"APP_ID_NONEMPTY\"; else echo \"APP_ID_EMPTY\"; fi",
+      "echo \"=== migrate-from-devflow.md (head) ===\"; head -30 docs/external/docs/getting-started/migrate-from-devflow.md; echo \"=== DevFlow occurrence counts in candidate docs ===\"; for f in docs/internal/*.md docs/internal/cutovers/*.md docs/external/docs/getting-started/*.md README.md .changeset/README.md; do c=$(grep -c \"DevFlow\" \"$f\" 2>/dev/null); echo \"$c $f\"; done",
+      "for f in docs/internal/claude-md-extension-audit-coupled-sites.md docs/internal/claude-md-relocated-rationale.md docs/internal/glossary.md docs/internal/implement-skill.md docs/internal/index.md docs/internal/shadow-review.md docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md docs/external/docs/getting-started/initialization.md docs/external/docs/getting-started/installation.md README.md .changeset/README.md; do echo \"### $f\"; grep -n \"DevFlow\" \"$f\"; done",
+      "cd /home/runner/work/prflow/prflow\necho \"=== Leftover brand-cased DevFlow in the 23 drained files (should be none) ===\"\nfor f in .changeset/README.md docs/internal/shadow-review.md lib/generate-capability-profiles.py lib/generate-plugin-identity.py lib/plugin_identity.py lib/resolve-bin.sh lib/resolve-gh.sh lib/resolve-jq.sh lib/resolve-python.sh scripts/authorize-actor.sh scripts/config-get.sh scripts/consolidate-changesets.py scripts/gh-fresh.sh scripts/harden-stop-hooks.sh scripts/install-gh- …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; base=$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD~3); echo \"base=$base\"; git show $base:lib/test/brand-devflow-buckets.json 2>/dev/null | grep -n \"generate-install-state\\|generate-capability\\|generate-plugin-identity\"; echo \"and DevFlow in base generate-install-state:\"; git show $base:lib/generate-install-state.py 2>/dev/null | grep -c \"DevFlow\"",
+      "cd /home/runner/work/prflow/prflow; git stash -u >/dev/null 2>&1; git worktree add -q /tmp/base-wt eacb292b8 2>&1 | head; cd /tmp/base-wt && python3 lib/test/lint-brand-devflow-sweep.py 2>&1 | head -20; echo \"RC=$?\"",
+      "git worktree add -q /tmp/base-wt eacb292b8 2>&1 | head; python3 /tmp/base-wt/lib/test/lint-brand-devflow-sweep.py --root /tmp/base-wt 2>&1 | head -20; echo \"RC=$?\"",
+      "git worktree add -q /tmp/base-wt eacb292b8",
+      "git ls-tree eacb292b8 lib/generate-install-state.py; echo \"---current tracked?---\"; git ls-files lib/generate-install-state.py",
+      "python3 lib/test/lint-brand-devflow-sweep.py 2>&1 | tail -20; echo \"RC=${PIPESTATUS[0]}\"",
+      "diff <(git show HEAD:docs/internal/shadow-review.md) <(git show HEAD:skills/review-and-fix/references/shadow-review.md) >/dev/null 2>&1 && echo \"IDENTICAL\" || echo \"DIFFERENT FILES\"; wc -l docs/internal/shadow-review.md skills/review-and-fix/references/shadow-review.md",
+      "python3 lib/test/pin-corpus-lint.py 2>&1 | tail -15; echo \"EXIT ${PIPESTATUS[0]}\"",
+      "for f in .changeset/README.md docs/internal/shadow-review.md lib/generate-capability-profiles.py lib/generate-install-state.py lib/generate-plugin-identity.py lib/plugin_identity.py lib/resolve-bin.sh lib/resolve-gh.sh lib/resolve-jq.sh lib/resolve-python.sh scripts/authorize-actor.sh scripts/config-get.sh scripts/consolidate-changesets.py scripts/gh-fresh.sh scripts/harden-stop-hooks.sh scripts/install-gh-wrapper.sh scripts/loop-verdict-marker.py scripts/normalize-verdicts.py scripts/provision- …[per-command-truncated]",
+      "CREATE_STATE=\"\"; gh issue create --title \"Finish the brand-cased DevFlow to PRFlow prose sweep (batches 2+)\" --body-file /home/runner/work/prflow/prflow/.prflow/tmp/deferral-draft-1985-1.md && CREATE_STATE=ok || CREATE_STATE=failed; echo \"phase 4.0 create fence ran; create=[${CREATE_STATE}]\"",
+      "cd /home/runner/work/prflow/prflow\ngh pr list --head \"$(git branch --show-current)\" --json number,title,body 2>&1 | head -c 3000\necho\necho \"=== try 1992 ===\"\ngh pr view 1992 --json number,title,body,headRefName 2>&1 | head -c 2000",
+      "cd /home/runner/work/prflow/prflow\necho \"=== size helper ===\"\nscripts/prompt-surface-growth.py 2>&1\necho \"=== EXIT:$? ===\"\necho \"=== baseline count now ===\"\npython3 -c \"import json; d=json.load(open('lib/test/brand-devflow-buckets.json')); print('pending:', len(d['pending_sweep_baseline']))\"\necho \"=== deferrals/workpad ===\"\nls .prflow/tmp/review/pr-1992/deferrals.json 2>&1 || echo \"no deferrals\"",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"===EXIT:$?===\""
+    ],
+    "total": 24,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
