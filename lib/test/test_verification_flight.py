@@ -2131,6 +2131,103 @@ class TestFinishFromRunnerLog(Harness):
                               "--allow-unverified-checkout"])
         self.assertEqual(st["suite_summary"]["command"], "lib/test/run-shard.sh")
 
+    def test_a_clean_aggregate_beside_a_failing_tally_is_refused(self):
+        # The symmetric partner of the FAILED-aggregate guard above. A real coordinator
+        # never emits this pair, so it is truncation or tampering — deriving `passed`
+        # from it is the false green this mode exists to remove.
+        log = self.PARALLEL_CLEAN.replace("1234 passed, 0 failed", "1230 passed, 4 failed")
+        _k, code, out = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_INVALID)
+        self.assertEqual(out["reason"], "runner_log_aggregate_contradicts_tally")
+
+    def test_a_coordinator_log_is_scored_by_its_last_tally(self):
+        # A coordinator log carries each shard's tally before the recombined total.
+        # Scoring it by the FIRST would report one shard's verdict for the whole run.
+        log = self.PARALLEL_CLEAN.replace(
+            "... shard output ...\n",
+            "shard monolith\n300 passed, 0 failed\nshard python\n934 passed, 0 failed\n")
+        k, code, _ = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        self.assertEqual(st["suite_summary"]["passed"], 1234)
+
+    def test_a_reconciled_recombination_derives_its_own_command(self):
+        # The shard-decomposition path's whole-suite result. Without this branch the
+        # derivation fell through to the bare shard runner, which the gate refuses.
+        log = ("1234 passed, 0 failed\n"
+               "\n"
+               "shard-tally combine: 2 shard(s): monolith, python\n"
+               "shard-tally combine: required partition covered (2 shard(s)): "
+               "monolith, python\n")
+        k, code, _ = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        self.assertEqual(
+            st["suite_summary"]["command"],
+            'lib/test/shard-tally.py combine --require-shards "monolith python"')
+
+    def test_an_unreconciled_combine_roster_is_not_a_recombination(self):
+        # cmd_combine prints the bare roster line for EVERY combine, reconciled or not.
+        # Matching it would derive an accepted whole-suite command from a partial
+        # recombination — the #1289 false green.
+        log = ("1234 passed, 0 failed\n"
+               "shard-tally combine: 2 shard(s): monolith, python\n")
+        _k, code, out = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_INVALID)
+        self.assertEqual(out["reason"], "runner_log_unrecognized")
+
+    def test_a_recombination_is_scored_by_its_own_tally(self):
+        log = ("1230 passed, 4 failed\n"
+               "shard-tally combine: required partition covered (2 shard(s)): "
+               "monolith python\n")
+        k, code, _ = self._finish_from_log("failed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state])
+        self.assertEqual(st["state"], "failed")
+        self.assertEqual(st["suite_summary"]["failed"], 4)
+
+    def test_a_coordinator_log_outranks_the_recombination_line_it_carries(self):
+        # run-parallel.sh tees combine's output into its own retained log, so both
+        # markers are present. The coordinator's aggregate owns a coordinator run.
+        log = self.PARALLEL_CLEAN.replace(
+            "shard-tally combine: 5 shard(s): monolith, python, jq, shell, installer\n",
+            "shard-tally combine: required partition covered (5 shard(s)): "
+            "monolith, python, jq, shell, installer\n")
+        k, code, _ = self._finish_from_log("passed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state,
+                              "--allow-unverified-checkout"])
+        self.assertEqual(st["suite_summary"]["command"], "lib/test/run-parallel.sh")
+
+    def test_a_shard_log_is_scored_by_its_own_tally_not_the_aggregate(self):
+        # The shard branch has no aggregate marker, so the tally is the only verdict.
+        log = ("6000 passed, 3 failed\n"
+               "run.sh: serial suite complete (skip-suite-modules=1, skip-python-pool=1)\n"
+               "run-shard.sh: retained log: /tmp/x/monolith.log\n")
+        k, code, _ = self._finish_from_log("failed", self._log(log))
+        self.assertEqual(code, vf.EXIT_OK)
+        _, st = self.run_cmd(["status", "--flight", k, "--state-dir", self.state])
+        self.assertEqual(st["suite_summary"]["command"], "lib/test/run-shard.sh")
+        self.assertEqual(st["state"], "failed")
+
+    def test_a_runner_log_error_reason_is_a_closed_immutable_vocabulary(self):
+        # `.reason` is the machine code distant assertions key on. A typo at a raise
+        # site, or a post-construction rewrite, rebuilds the valid-but-wrong error the
+        # shared _CodedError base exists to prevent.
+        with self.assertRaises(ValueError):
+            vf.RunnerLogError("runner_log_typo")
+        with self.assertRaises(ValueError):
+            vf.RunnerLogError("unknown_prefix:detail")
+        exc = vf.RunnerLogError("runner_log:OSError", "detail here")
+        self.assertEqual(exc.reason, "runner_log:OSError")
+        self.assertEqual(exc.detail, "detail here")
+        with self.assertRaises(AttributeError):
+            exc.reason = "runner_log_no_tally"
+        with self.assertRaises(AttributeError):
+            exc._detail = "rewritten"
+
     def test_supplying_both_evidence_sources_is_refused(self):
         _, owner = self.claim()
         k, t = owner["flight_key"], owner["token"]

@@ -33290,6 +33290,14 @@ for _cmd, _lbl in [
     ("env DEVFLOW_SKIP_PYTHON_POOL=1 lib/test/run.sh", "run.sh minus the python pool"),
     ("lib/test/run-parallel.sh --preflight", "the read-only preflight, which runs no test"),
     ("lib/test/run-parallel.sh --list-shards", "a shard enumeration"),
+    # An unbalanced quote shreds the segment; a best guess would be a whole-suite claim
+    # over an unreadable command.
+    ("lib/test/run-parallel.sh 'unclosed", "an unparseable segment"),
+    ("bash lib/test/run-shard.sh monolith", "a single shard behind a wrapper head"),
+    ("python3 lib/test/shard-tally.py combine --tally a.json",
+     "an unreconciled combine behind an interpreter head"),
+    ("lib/test/shard-tally.py --require-shards \"a b\" combine --tally a.json",
+     "a combine subcommand that is not the first operand"),
 ]:
     assert_eq(f"#742 {_lbl} is not whole-suite evidence → missing-evidence",
               "missing-evidence", _cce_tok_for_command(_cmd))
@@ -33303,6 +33311,14 @@ for _cmd, _lbl in [
      "a reconciled recombined partition"),
     # An explicit `=0` is not a reduction: only a set selector reduces the population.
     ("DEVFLOW_SKIP_SUITE_MODULES=0 lib/test/run.sh", "run.sh with the selectors explicitly off"),
+    # The wrapper unwrap was only exercised on the reject side; an accept-side row is
+    # what keeps the unwrap from silently narrowing to a reject-only filter.
+    ("bash lib/test/run.sh", "the serial full suite behind a bash wrapper head"),
+    ("python3 lib/test/shard-tally.py combine --tally a.json --require-shards \"monolith python\"",
+     "a reconciled recombination behind an interpreter head"),
+    ("lib/test/shard-tally.py combine --tally a.json --require-shards=\"monolith python\"",
+     "a reconciled recombination spelled with the equals form"),
+    ("env lib/test/run-parallel.sh", "the coordinator behind a bare env head"),
 ]:
     assert_eq(f"#742 {_lbl} IS whole-suite evidence → pass", "pass", _cce_tok_for_command(_cmd))
 

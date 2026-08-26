@@ -945,6 +945,16 @@ _RE_MODULE = re.compile(
     r"^Module\s+(\S+):\s+(\d+)\s+passed,\s+(\d+)\s+failed(?:,\s+(\d+)\s+skipped)?",
     re.MULTILINE,
 )
+#: `shard-tally combine: required partition covered (<n> shard(s)): <ids>` — the
+#: recombination's self-identification. Match ONLY this affirmative line, never the
+#: bare `shard-tally combine: <n> shard(s):` roster: cmd_combine emits the covered
+#: line only when `--require-shards` was given AND the partition reconciled, which is
+#: exactly the reconciled recombination the completion gate accepts (issue #1289).
+_RE_RECOMBINE = re.compile(
+    r"^shard-tally combine:\s+required partition covered\s+"
+    r"\(\d+\s+shard\(s\)\):\s+(\S.*?)\s*$",
+    re.MULTILINE,
+)
 #: `run-shard.sh: retained log: <abs>` — the shard runner's self-identification.
 _RE_SHARD = re.compile(r"^run-shard\.sh:\s+retained log:", re.MULTILINE)
 #: `run.sh: serial suite complete (skip-suite-modules=<0|1>, skip-python-pool=<0|1>)`.
@@ -981,13 +991,33 @@ _RE_RETAINED = re.compile(
 )
 
 
-class RunnerLogError(Exception):
+class RunnerLogError(_CodedError):
     """A named refusal to derive terminal evidence from a runner log."""
+
+    # The closed reason vocabulary — coupled to every raise site in the derivation
+    # path below. A new raise site adds its code here in the same change (a
+    # construction-time ValueError otherwise catches the omission at the desk).
+    _EXACT_REASONS = frozenset({
+        "runner_log_no_aggregate",
+        "runner_log_unrecognized",
+        "runner_log_no_tally",
+        "runner_log_aggregate_contradicts_tally",
+    })
+    _REASON_PREFIXES = frozenset({
+        "runner_log",
+    })
+
+    __slots__ = ("_detail",)
 
     def __init__(self, reason: str, detail: str = ""):
         super().__init__(reason)
-        self.reason = reason
-        self.detail = detail
+        # object.__setattr__ bypasses the base's post-construction seal, which is
+        # exactly what construction needs — and nothing after construction gets to.
+        object.__setattr__(self, "_detail", detail)
+
+    @property
+    def detail(self) -> str:
+        return self._detail
 
 
 def _read_runner_log(path_str: str) -> str:
@@ -1017,11 +1047,20 @@ def derive_summary_from_runner_log(path_str: str) -> tuple[dict, list, str]:
     #    embeds the driver's markers and a coordinator log does not, so testing the
     #    inner markers first would attribute an outer run to its innermost driver.
     aggregate = _RE_AGGREGATE.search(text)
+    recombine = _RE_RECOMBINE.search(text)
     shard = _RE_SHARD.search(text)
     runsh = _RE_RUNSH.search(text)
     module = _RE_MODULE.search(text)
     if aggregate:
         command = "lib/test/run-parallel.sh"
+    elif recombine:
+        # The shard-decomposition path's own whole-suite result. Test it AFTER the
+        # aggregate: the coordinator tees this same line into its log, and the
+        # coordinator's verdict — not the recombination's — owns a coordinator run.
+        ids = " ".join(t for t in re.split(r"[,\s]+", recombine.group(1)) if t)
+        command = (
+            f'lib/test/shard-tally.py combine --require-shards "{ids}"'
+        )
     elif shard:
         command = "lib/test/run-shard.sh"
     elif runsh:
@@ -1045,14 +1084,15 @@ def derive_summary_from_runner_log(path_str: str) -> tuple[dict, list, str]:
     else:
         raise RunnerLogError(
             "runner_log_unrecognized",
-            "no run-parallel / run-shard / run.sh / run-module terminal marker found",
+            "no run-parallel / shard-tally combine / run-shard / run.sh / run-module "
+            "terminal marker found",
         )
 
     # 2) The tally, read from the identified runner's OWN authoritative line. A module
     #    log's captured output carries many bare `N passed, M failed` lines from the
     #    fixtures it drove; taking the last of those would report a nested sub-suite's
     #    verdict for the module.
-    if module and not (aggregate or shard or runsh):
+    if module and not (aggregate or recombine or shard or runsh):
         passed_s, failed_s, skipped_s = module.group(2), module.group(3), module.group(4)
         tally_end = module.end()
     else:
@@ -1102,6 +1142,17 @@ def derive_summary_from_runner_log(path_str: str) -> tuple[dict, list, str]:
     #    For the other runners the tally is the only verdict available.
     if aggregate:
         derived_result = "passed" if aggregate.group(1) == "CLEAN" else "failed"
+        if derived_result == "passed" and failed > 0:
+            # Do not let the marker override a failing tally in THIS direction. The
+            # marker outranks the tally only to turn a clean-looking tally red (a
+            # shard that did not complete); a real coordinator never prints CLEAN
+            # beside a failing tally, so this shape is truncation or tampering —
+            # the input this mode exists to distrust.
+            raise RunnerLogError(
+                "runner_log_aggregate_contradicts_tally",
+                f"`aggregate CLEAN` beside a terminal tally reporting {failed} "
+                f"failed in {path_str}",
+            )
     else:
         derived_result = "failed" if failed > 0 else "passed"
 

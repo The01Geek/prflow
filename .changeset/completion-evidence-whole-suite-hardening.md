@@ -33,3 +33,13 @@ type: Fixed
   capture, carries a module log's `K skipped` and each skip's `[kind]` into `skipped_checks`,
   ignores `summary.sh`'s parenthesised itemization-failure placeholders, and names a
   stdout-only coordinator capture as `runner_log_no_aggregate` rather than as unrecognized.
+- **The derivation recognizes the shard-decomposition path's own result, and refuses a
+  self-contradicting coordinator log.** A capture of `shard-tally.py combine` carrying the
+  `required partition covered` line — which `combine` prints only when `--require-shards` was
+  given and the partition reconciled — now derives that reconciled recombination command
+  instead of falling through to the bare shard runner the gate refuses; the unreconciled
+  roster line is not matched, and a coordinator log carrying both is still owned by its
+  `aggregate` verdict. `aggregate CLEAN` beside a terminal tally reporting failures is now
+  refused as `runner_log_aggregate_contradicts_tally`, the symmetric partner of the existing
+  clean-tally-under-`FAILED` guard. `RunnerLogError` extends the file's shared `_CodedError`
+  base, so its `reason` vocabulary is validated at construction and immutable afterwards.
