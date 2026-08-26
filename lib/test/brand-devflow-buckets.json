@@ -229,9 +229,6 @@
       "path": "lib/generate-capability-profiles.py"
     },
     {
-      "path": "lib/generate-install-state.py"
-    },
-    {
       "path": "lib/generate-plugin-identity.py"
     },
     {
