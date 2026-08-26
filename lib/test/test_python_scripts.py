@@ -11790,6 +11790,31 @@ def _replay_1388():
 assert_eq("#1984 AC8: the #1388 budget-excuse sequence does NOT reach Complete",
           False, _replay_1388())
 
+
+# AC8, step-wise: replay the #1388 sequence and NAME the refusal literal that fires at
+# each refused step. Step 1 (the coverage record) writes; the budget-cause disposition
+# has no admissible class ([review-coverage-cause-inadmissible]); and the undispositioned
+# record cannot reach Complete ([review-coverage-gap]).
+def _replay_1388_steps():
+    body = _rc_row("not-verified:attempted:unestablished:skipped", members=[])
+    out = {}
+    try:
+        apply_mut(body, make_args(review_coverage_disposition=[
+            ["shadow-coverage", "budget",
+             "the shadow fan-out was dropped to conserve orchestrator budget"]]), [])
+        out["disposition"] = None
+    except workpad._UpdateError as _e:
+        out["disposition"] = str(_e)
+    out["complete"] = _rc_complete(body)
+    return out
+_1388_steps = _replay_1388_steps()
+assert_eq("#1984 AC8: the #1388 budget disposition is refused [review-coverage-cause-inadmissible]",
+          True, _1388_steps["disposition"] is not None
+          and "[review-coverage-cause-inadmissible]" in _1388_steps["disposition"])
+assert_eq("#1984 AC8: the undispositioned #1388 record cannot reach Complete [review-coverage-gap]",
+          True, _1388_steps["complete"] is not None
+          and "[review-coverage-gap]" in _1388_steps["complete"])
+
 # AC2/AC6: the absent-record shape is UNESTABLISHED, never complete.
 _rc_absent = _rc_complete(_RC_BASE)
 assert_eq("#1453 AC2/AC6: a Complete with no review-coverage record is refused",
