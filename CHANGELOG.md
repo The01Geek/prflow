@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.41] — 2026-08-26
+
+### Changed
+docs-sync-internal: replace the per-file update quota with a behavior-change rule, add the Structure Contract (index routing, taxonomy, glossary, canonical pointers, pinned-path guard, size ceiling), currency and prose-shape rules, enumeration/universal-claim verification, and verified-against freshness markers; docs-bootstrap-internal: create the routing index at bootstrap and mark the taxonomy as a coupled pair with the sync skill.
+
 ## [2.34.40] — 2026-08-26
 
 ### Added
