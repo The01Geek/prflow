@@ -4301,11 +4301,9 @@ _REVIEW_COVERAGE_AXIS_GAP = {s['name']: s['gap'] for s in _REVIEW_COVERAGE_AXIS_
 _REVIEW_COVERAGE_GAPS = tuple(
     dict.fromkeys(s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS))
 # The CLOSED cause-class vocabulary a `--review-coverage-disposition` must name
-# (issue #1984) — no elective member, so a budget or elective cause has no admissible
-# class. It rides the disposition marker key as `…:<gap>:<cause-class>`.
-#   `environment-denial`   — a capability the runner did not expose. Admissible only
-#     with a recorded `missing` roster row, so a record with none cannot use it.
-#   `dispatched-but-lost`  — a reviewer that WAS dispatched, whose result was lost.
+# (issue #1984). It rides the disposition marker key as `…:<gap>:<cause-class>`, so a
+# member must stay colon-free. Admissibility lives in
+# `_review_coverage_disposition_cause_rejection`; do not restate it here.
 _REVIEW_COVERAGE_CAUSE_CLASSES = ('environment-denial', 'dispatched-but-lost')
 if any(':' in c for c in _REVIEW_COVERAGE_CAUSE_CLASSES):
     # An explicit raise (not a bare `assert`, which `python3 -O` strips) pins the
@@ -5175,11 +5173,8 @@ def _review_coverage_verdict(progress_content: str) -> None:
                 "being carried forward. No PATCH was made."
             )
         cause_class, reason = entry
-        # #1984: the disposition must carry an admissible cause class from the closed
-        # vocabulary (an elective/budget cause has none), and environment-denial must be
-        # corroborated by a recorded `missing` roster row — so the lost-write shape
-        # (roster=unestablished, no rows) is dischargeable only with dispatched-but-lost.
-        # Same rule as the write-time validator, via one shared helper.
+        # #1984: cause-class admissibility is defined once, in
+        # `_review_coverage_disposition_cause_rejection`; do not restate it here.
         _cause_rej = _review_coverage_disposition_cause_rejection(
             cause_class, has_missing_roster_row)
         if _cause_rej:
@@ -6197,9 +6192,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 "pass one disposition per gap. No PATCH was made."
             )
         _seen_gaps.add(gap)
-        # #1984: the cause class is a CLOSED vocabulary with no elective member, and
-        # environment-denial must be corroborated by a recorded `missing` roster row —
-        # the rule is shared with the Complete-gate verdict via one helper.
+        # #1984: cause-class admissibility is defined once, in
+        # `_review_coverage_disposition_cause_rejection`; do not restate it here.
         _cause_rej = _review_coverage_disposition_cause_rejection(
             cause_class, _disp_has_missing)
         if _cause_rej:
