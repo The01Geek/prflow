@@ -21316,7 +21316,9 @@ fi
 # The setup-project-env step is gated on the base-ref provision flag.
 assert_eq "provision: setup-project-env step present" "1" \
   "$(grep -c 'uses: ./.github/actions/setup-project-env' "$RUNNER" || true)"
-assert_eq "provision: setup-project-env gated on base provision_env" "1" \
+# TWO steps gate on the base provision flag: the #1388 setup-env hardening step
+# (materializes the trusted base-ref action body) and the provision step it protects.
+assert_eq "provision: setup-project-env gated on base provision_env" "2" \
   "$(grep -c "if: steps.baseprovision.outputs.provision_env == 'true'" "$RUNNER" || true)"
 
 # Coupling: the tool-profile guard and the provision step must read the SAME
@@ -22113,15 +22115,15 @@ assert_eq "provision: malformed/non-object base config warns + read-only (basepr
 # Trust boundary: the flag and setup block come from the base ref. BASE_REF is
 # sourced from the trusted event payload, fetched from origin, and read out of
 # FETCH_HEAD — never the checked-out PR head.
-# FOUR sites read the trusted BASE_REF from the event payload and fetch it (issue #908
-# review: was three before the new harden_guard step): the baseprovision step, the
-# #458 harden-stop-hooks step, the #874 baseversion step, and the #908 harden_guard
-# step (all under the same trusted-source rule — the guard's own trusted-copy
-# displacement needs its own independent fetch, for the same reason #874's baseversion
-# step does not rely on another step's FETCH_HEAD surviving).
-assert_eq "provision: base ref from trusted event payload (baseprovision + #458 harden + #874 baseversion + #908 harden_guard)" "4" \
+# These sites read the trusted BASE_REF from the event payload and fetch it (the
+# assertions below pin the exact count): the baseprovision step, the #458
+# harden-stop-hooks step, the #874 baseversion step, the #908 harden_guard step, and
+# the #1388 setup-env hardening step (all under the same trusted-source rule — each
+# trusted-copy displacement needs its own independent fetch, for the same reason
+# #874's baseversion step does not rely on another step's FETCH_HEAD surviving).
+assert_eq "provision: base ref from trusted event payload (baseprovision + #458 harden + #874 baseversion + #908 harden_guard + #1388 setup-env harden)" "5" \
   "$(grep -c 'github.event.pull_request.base.ref || github.event.repository.default_branch' "$RUNNER" || true)"
-assert_eq "provision: base config fetched from origin BASE_REF (baseprovision + #458 harden + #874 baseversion + #908 harden_guard)" "4" \
+assert_eq "provision: base config fetched from origin BASE_REF (baseprovision + #458 harden + #874 baseversion + #908 harden_guard + #1388 setup-env harden)" "5" \
   "$(grep -c 'git fetch --depth=1 origin "\$BASE_REF"' "$RUNNER" || true)"
 # Two readers of the trusted base config: baseprovision (provision_env, allowed_tools,
 # setup) and the #874 baseversion step (prflow_version).
@@ -24675,6 +24677,8 @@ mkdir -p "$VS_REMOTE/docs/site" "$VS_REMOTE/docs/external" "$VS_REMOTE/docs/inte
 printf '{}' > "$VS_REMOTE/.prflow/config.example.json"
 printf '{}' > "$VS_REMOTE/.prflow/config.schema.json"
 printf '{}' > "$VS_REMOTE/.prflow/tool-presets.json"
+printf '{}' > "$VS_REMOTE/.prflow/lint-manifest.json"   # #1388: shipped by devflow_copy_slice
+printf '{}' > "$VS_REMOTE/.prflow/install-state.json"   # #1388: the compatibility marker ships too
 ( cd "$VS_REMOTE" && git init -q -b main && git add -A \
     && git -c user.email=t@t -c user.name=t commit -qm fixture ) >/dev/null 2>&1
 # Capture the BASE (non-tip) commit, then add a second commit carrying a
@@ -24797,6 +24801,9 @@ assert_eq "vendor: self ships no docs/ tree after pruning" "no" "$(vexists "$VS_
 assert_eq "vendor: self copies lib/" "yes" "$(vexists "$VS_SELF/lib")"
 assert_eq "vendor: self copies skills/" "yes" "$(vexists "$VS_SELF/skills")"
 assert_eq "vendor: self copies .prflow/tool-presets.json" "yes" "$(vexists "$VS_SELF/.prflow/tool-presets.json")"
+# #1388: the lint manifest and its digest-bound compatibility marker ship to consumers.
+assert_eq "#1388 vendor: self ships .prflow/lint-manifest.json" "yes" "$(vexists "$VS_SELF/.prflow/lint-manifest.json")"
+assert_eq "#1388 vendor: self ships .prflow/install-state.json marker" "yes" "$(vexists "$VS_SELF/.prflow/install-state.json")"
 
 # #677 exclusions: the produced slice must ship neither the published GitHub Pages
 # HTML (docs/site), the Mintlify source (docs/external), nor DevFlow's own test suite
@@ -24908,6 +24915,11 @@ mkdir -p "$VS_FLOORSRC"/.claude-plugin "$VS_FLOORSRC"/agents "$VS_FLOORSRC"/docs
 printf '{}' > "$VS_FLOORSRC/.prflow/config.example.json"
 printf '{}' > "$VS_FLOORSRC/.prflow/config.schema.json"
 printf '{}' > "$VS_FLOORSRC/.prflow/tool-presets.json"
+# #1388: lint-manifest.json + install-state.json are now copy-list members too, so
+# this fixture must carry them or the .prflow cp aborts BEFORE the floor and case (b)
+# silently degrades into case (a) — the exact hazard the comment below guards against.
+printf '{}' > "$VS_FLOORSRC/.prflow/lint-manifest.json"
+printf '{}' > "$VS_FLOORSRC/.prflow/install-state.json"
 VS_FLOORSRC_DEST="$(mktemp -d)/dest"
 VS_FLOORSRC_RC=0
 # Capture stderr (the die stream) so we can assert the abort came from the FLOOR,
@@ -48373,7 +48385,7 @@ rm -rf "$D487"
 # hand-edited workflow — driven end to end and joined to the shipped workflow's own
 # trigger-time guard.
 if ! devflow_run_full_suite_module "$LIB/test/modules/installer-wiring.sh" \
-  "installer-wiring" 297; then
+  "installer-wiring" 304; then
   printf 'ERROR: installer-wiring boundary could not record its result\n'
   exit 1
 fi

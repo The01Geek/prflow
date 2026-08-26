@@ -726,6 +726,10 @@ jobs:
       - uses: ./.github/actions/setup-project-env
         with:
           config_json: ${{ steps.cfg.outputs.json }}
+          # Install the manifest's bounded ShellCheck/Ruff toolchain before the
+          # model runs, so implement runs start with verified lint tools instead
+          # of improvising installs in paid turns (issue #1388).
+          lint_mode: provision
 
       # ── Long-run credential refresh (issue #487) ──────────────────────────
       # A GitHub App installation token expires 60 minutes after minting and
