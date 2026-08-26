@@ -110,5 +110,97 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.51",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 47.42315565,
+    "tokens": {
+      "input_tokens": 334,
+      "output_tokens": 135473,
+      "cache_read_input_tokens": 56865400,
+      "cache_creation_input_tokens": 489915,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 532,
+        "outputTokens": 171734,
+        "cacheReadInputTokens": 62379347,
+        "cacheCreationInputTokens": 1350164,
+        "webSearchRequests": 0,
+        "costUSD": 45.761389750000006,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 96,
+        "outputTokens": 27099,
+        "cacheReadInputTokens": 2643582,
+        "cacheCreationInputTokens": 344747,
+        "webSearchRequests": 0,
+        "costUSD": 1.6617659000000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 219,
+    "duration_ms": 4758661
+  },
+  "permission_denials": {
+    "count": 30,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset}\"; git branch --show-current; git status --porcelain | head; git rev-parse --show-toplevel",
+      "cd /home/runner/work/prflow/prflow 2>/dev/null; python3 lib/test/lint-brand-devflow-sweep.py --print-population | grep '^pending' | sort -t$'\\t' -k2 | awk -F'\\t' '{printf \"%-70s %s\\n\", $2, $3}'",
+      ".prflow/vendor/prflow/scripts/workpad.py handoff-state /home/runner/work/prflow/prflow/.prflow/tmp/implement-handoff-1993-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json --issue 1993 --run-id $GITHUB_RUN_ID --run-attempt $GITHUB_RUN_ATTEMPT",
+      "git rev-parse --path-format=absolute --git-common-dir; git rev-parse --path-format=absolute --git-dir; echo \"---\"\nBASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\necho \"BASE=$BASE\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1993 --branch \"$(git branch --show-current)\"",
+      "cd /home/runner/work/prflow/prflow 2>/dev/null\nfor f in scripts/analyze-workflow-runs.py scripts/apply-labels.sh scripts/build-experiment-records.py scripts/check-verified-premises.py scripts/decide-verdict-gap-job-status.sh scripts/dedupe-review-command.sh scripts/discover-deferral-manifests.py scripts/emit-git-env.sh scripts/extract-execution-shape.sh scripts/file-deferrals.py scripts/lint_manifest.py scripts/load-prompt-extension.sh scripts/match-deferrals.py scripts/match-lint-adjudications. …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow 2>/dev/null; sed -i 's/DevFlow/PRFlow/g' \\\n  scripts/analyze-workflow-runs.py \\\n  scripts/apply-labels.sh \\\n  scripts/build-experiment-records.py \\\n  scripts/check-verified-premises.py \\\n  scripts/decide-verdict-gap-job-status.sh \\\n  scripts/dedupe-review-command.sh \\\n  scripts/discover-deferral-manifests.py \\\n  scripts/emit-git-env.sh \\\n  scripts/extract-execution-shape.sh \\\n  scripts/file-deferrals.py \\\n  scripts/lint_manifest.py \\\n  scripts/load-prompt-exten …[per-command-truncated]",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1993-brand-sweep-batch-2-scripts.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"exit=$?\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1995/32947740578-1\ngit diff origin/main...HEAD > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1995/32947740578-1/diff.patch 2>&1 || git diff origin/main...HEAD | tee /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1995/32947740578-1/diff.patch >/dev/null\nwc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1995/32947740578-1/diff.patch",
+      "for f in scripts/analyze-workflow-runs.py scripts/apply-labels.sh scripts/emit-git-env.sh scripts/provision-local-settings.sh scripts/resolve-existing-pr.sh scripts/workflow_flight_recorder.py; do n=$(grep -c 'DevFlow' \"$f\"); echo \"$f: $n DevFlow\"; done",
+      "for f in scripts/analyze-workflow-runs.py scripts/apply-labels.sh scripts/build-experiment-records.py scripts/check-verified-premises.py scripts/decide-verdict-gap-job-status.sh scripts/dedupe-review-command.sh scripts/discover-deferral-manifests.py scripts/emit-git-env.sh scripts/extract-execution-shape.sh scripts/file-deferrals.py scripts/load-prompt-extension.sh scripts/match-deferrals.py scripts/match-lint-adjudications.py scripts/pretooluse-shape-guard.py scripts/prompt-surface-growth.py sc …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfiles=$(git diff origin/main...HEAD --name-only -- scripts/)\nfor f in $files; do\n  if [ -f \"$f\" ]; then\n    c=$(grep -c \"DevFlow\" \"$f\" 2>/dev/null || echo 0)\n    if [ \"$c\" != \"0\" ]; then echo \"$f: $c remaining DevFlow\"; grep -n \"DevFlow\" \"$f\"; fi\n  fi\ndone\necho \"=== DONE ===\"",
+      "git diff origin/main...HEAD --name-only -- scripts/ | while IFS= read -r f; do [ -f \"$f\" ] && grep -Hn \"DevFlow\" \"$f\"; done; echo DONE",
+      "cd /home/runner/work/prflow/prflow\necho \"=== edited files (non-json,non-changeset) ===\"; git diff origin/main...HEAD --name-only | grep -v buckets.json | grep -v changeset | sort\necho \"=== removed from baseline ===\"; git diff origin/main...HEAD -- lib/test/brand-devflow-buckets.json | grep '^-' | grep 'path' | sed 's/[^\"]*\"//;s/\".*//' | sort",
+      "git -C /home/runner/work/prflow/prflow diff origin/main...HEAD --name-only | grep -v buckets.json | grep -v changeset | sort",
+      "git -C /home/runner/work/prflow/prflow diff origin/main...HEAD -- lib/test/brand-devflow-buckets.json | grep '^-' | grep 'path' | sed 's/[^\"]*\"//;s/\".*//' | sort",
+      "git -C /home/runner/work/prflow/prflow diff origin/main...HEAD --name-only | grep -v buckets.json | grep -v changeset | sort > /tmp/edited.txt; git -C /home/runner/work/prflow/prflow diff origin/main...HEAD -- lib/test/brand-devflow-buckets.json | grep '^-' | grep path | sed 's/[^\"]*\"//;s/\".*//' | sort > /tmp/removed.txt; echo \"ONLY IN EDITED:\"; comm -23 /tmp/edited.txt /tmp/removed.txt; echo \"ONLY IN REMOVED:\"; comm -13 /tmp/edited.txt /tmp/removed.txt; echo END",
+      "git -C /home/runner/work/prflow/prflow diff origin/main...HEAD --name-only",
+      "git diff origin/main...HEAD --name-only | grep -v buckets.json | grep -v changeset | sort > /tmp/edited.txt; wc -l /tmp/edited.txt",
+      "git diff origin/main...HEAD --name-only | grep -v buckets.json | grep -v changeset | sort > /tmp/edited.txt",
+      "git diff origin/main...HEAD -- lib/test/brand-devflow-buckets.json | grep '^-' | grep path | sed 's/[^\"]*\"//;s/\".*//' | sort > /tmp/removed.txt",
+      "d=/home/runner/work/prflow/prflow; git diff origin/main...HEAD --name-only | grep -v buckets.json | grep -v changeset | sort > \"$d/.prflow/tmp/edited.txt\"; git diff origin/main...HEAD -- lib/test/brand-devflow-buckets.json | grep '^-' | grep path | sed 's/[^\"]*\"//;s/\".*//' | sort > \"$d/.prflow/tmp/removed.txt\"; echo \"ONLY EDITED (not removed from baseline):\"; comm -23 \"$d/.prflow/tmp/edited.txt\" \"$d/.prflow/tmp/removed.txt\"; echo \"ONLY REMOVED (not edited):\"; comm -13 \"$d/.prflow/tmp/edited.txt\" …[per-command-truncated]",
+      "git diff origin/main...HEAD --name-only | grep -v buckets.json | grep -v changeset | sort > /home/runner/work/prflow/prflow/.prflow/tmp/edited.txt",
+      "git diff origin/main...HEAD --name-only | grep -v buckets.json | grep -v changeset | sort > edited.txt",
+      "comm -3 <(git diff origin/main...HEAD --name-only | grep -vE 'buckets.json|changeset' | sort) <(git diff origin/main...HEAD -- lib/test/brand-devflow-buckets.json | grep '^-' | grep path | sed 's/[^\"]*\"//;s/\".*//' | sort)",
+      "CREATE_STATE=\"\"\ngh issue create \\\n  --title \"Finish remaining batches of the brand-cased DevFlow-to-PRFlow prose sweep\" \\\n  --body-file /home/runner/work/prflow/prflow/.prflow/tmp/deferral-draft-1993-1.md \\\n  && CREATE_STATE=ok || CREATE_STATE=failed\necho \"phase 4.0 create fence ran; create=[${CREATE_STATE}]\"",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"---EXIT:$?---\"",
+      "python3 lib/test/lint-brand-devflow-sweep.py 2>&1 | tail -20; echo \"---EXIT:${PIPESTATUS[0]}---\"",
+      "scripts/prompt-surface-growth.py",
+      ".prflow/vendor/prflow/lib/test/regenerate-artifacts.py --with-floors 2>&1 | tail -15; echo \"exit=$?\""
+    ],
+    "total": 30,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
