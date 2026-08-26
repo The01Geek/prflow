@@ -3131,6 +3131,39 @@ def _note_file_payload(args) -> str:
     return cached
 
 
+def _deferred_filed_file_values(args) -> list:
+    """Read `--mark-deferred-filed-file` as one marker value per line (issue #1446).
+
+    A deferred criterion's normalized text routinely carries backticks and an
+    apostrophe, and the cloud matcher denies command substitution — so neither
+    single- nor double-quoting `--mark-deferred-filed`'s inline value is
+    shell-safe, and a run that cannot write its markers re-files the same
+    follow-up on a later Phase 4 entry. This is the interpolation-free arm, the
+    per-line twin of `--reflection-file`: bytes come off disk verbatim through
+    the shared `_read_file_payload` reader, so a value round-trips byte-identical.
+
+    Blank and whitespace-only lines are dropped (a trailing newline is normal);
+    each surviving line is stripped of its line ending only, since a value the
+    `deferred-presence` predicate printed carries no leading or trailing space.
+    A file whose every line is blank raises rather than silently marking nothing.
+    Memoized like the other file arms so the `-`/stdin form survives two reads."""
+    path = getattr(args, 'mark_deferred_filed_file', None)
+    if not path:
+        return []
+    cached = getattr(args, '_deferred_filed_file_cache', None)
+    if cached is None:
+        payload = _read_file_payload(
+            path, '--mark-deferred-filed-file', 'deferred-filed marker')
+        cached = [ln.strip() for ln in payload.splitlines() if ln.strip()]
+        if not cached:
+            raise _UpdateError(
+                "--mark-deferred-filed-file: no non-blank line in "
+                f"{path!r}; a marker value must be a `criterion:` line "
+                "`deferred-presence` printed, one per line")
+        args._deferred_filed_file_cache = cached
+    return cached
+
+
 class _UpdateError(Exception):
     """Raised by mutation helpers in `_apply_mutations` to signal a *structural*
     failure — a missing target section, a missing `Status`/`Last updated` line, an
@@ -5396,6 +5429,7 @@ def _has_non_checkpoint_mutation(args) -> bool:
         args.record_classification, args.reconcile_reproduction,
         args.scope_decision_deferred, args.scope_decision_rewritten,
         args.bind_scope_decisions, args.mark_deferred_filed,
+        getattr(args, 'mark_deferred_filed_file', None),
         getattr(args, 'record_completion_evidence', None),
         getattr(args, 'record_completion_evidence_ci', None),
         getattr(args, 'record_review_coverage', None),
@@ -6125,6 +6159,34 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             content = _reconcile_extension_rows(content)
         sections[idx] = (heading, content)
 
+    # WHOLE-SECTION REPLACEMENTS RUN BEFORE THE TICKS, for the reason the row-shape
+    # repairs above do (issue #1389): `--tick-plan-n N` resolves its index against the
+    # section body present when the tick runs, so a single call combining
+    # `--replace-plan-file` with `--tick-plan-n` used to resolve every index against
+    # the PRE-replace Plan — on a seed one-row Plan, each index above 1 recorded a
+    # volatile miss ("index out of range") while the replace itself landed, so the
+    # ticks were silently lost. Do not move these below `_apply_section_ticks`.
+    if args.replace_plan_file:
+        new_content = _read_section_file(args.replace_plan_file, '--replace-plan-file')
+        sections = _set_section_content(sections, 'Plan', new_content)
+
+    if args.replace_acs_file:
+        new_content = _read_section_file(args.replace_acs_file, '--replace-acs-file')
+        sections = _set_section_content(
+            sections, 'Acceptance Criteria', new_content,
+        )
+
+    if args.set_reproduction_file:
+        new_content = _read_section_file(
+            args.set_reproduction_file, '--set-reproduction-file',
+        )
+        if _find_section(sections, 'Reproduction') is not None:
+            sections = _set_section_content(sections, 'Reproduction', new_content)
+        else:
+            sections = _insert_section_after(
+                sections, 'Acceptance Criteria', '## Reproduction', new_content,
+            )
+
     # Progress has no index form (Progress checkboxes stay substring-addressed);
     # Plan/AC accept both the substring and `-n` index forms in one call.
     _apply_section_ticks(
@@ -6263,27 +6325,6 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             )
         sections[idx] = (heading, content)
 
-    if args.replace_plan_file:
-        new_content = _read_section_file(args.replace_plan_file, '--replace-plan-file')
-        sections = _set_section_content(sections, 'Plan', new_content)
-
-    if args.replace_acs_file:
-        new_content = _read_section_file(args.replace_acs_file, '--replace-acs-file')
-        sections = _set_section_content(
-            sections, 'Acceptance Criteria', new_content,
-        )
-
-    if args.set_reproduction_file:
-        new_content = _read_section_file(
-            args.set_reproduction_file, '--set-reproduction-file',
-        )
-        if _find_section(sections, 'Reproduction') is not None:
-            sections = _set_section_content(sections, 'Reproduction', new_content)
-        else:
-            sections = _insert_section_after(
-                sections, 'Acceptance Criteria', '## Reproduction', new_content,
-            )
-
     # Notes and checkpoint rows are both timestamped ## Progress bullets, so they
     # share one Progress lookup + append loop (a checkpoint row is just a note whose
     # text carries the hidden marker). `checkpoint_inserts` holds only absent keys
@@ -6297,7 +6338,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # reason the scope-decision records do, and each is one whole isolated
     # bullet — which is precisely what lets `_isolated_progress_markers` refuse
     # a marker embedded in free-text prose.
-    mark_filed = getattr(args, 'mark_deferred_filed', None) or []
+    mark_filed = list(getattr(args, 'mark_deferred_filed', None) or [])
+    mark_filed.extend(_deferred_filed_file_values(args))
     if mark_filed:
         # Best-effort: a marker whose value matches no deferred record on the body
         # being written discharges nothing, and the writer would not learn that
@@ -6915,6 +6957,15 @@ def main():
                         'matching record then reads not-outstanding, which is '
                         'what stops a second Phase 4 entry re-filing it. '
                         'Repeatable — one per filed criterion.')
+    u.add_argument('--mark-deferred-filed-file', metavar='PATH', default=None,
+                   help='The interpolation-free arm of --mark-deferred-filed: '
+                        'read one NORMALIZED_TEXT per line from PATH (or stdin '
+                        'when PATH is -), bypassing the shell. Use it whenever a '
+                        'criterion text carries a backtick, an apostrophe or a '
+                        '$ — neither quoting style is safe for those inline, so '
+                        'the markers would go unwritten and a later Phase 4 '
+                        'entry would re-file the same follow-up. Blank lines are '
+                        'ignored; combines with inline --mark-deferred-filed.')
     u.add_argument('--note', metavar='TEXT', action='append', default=[],
                    help='Append a note bullet, prefixed with a time-only '
                         'HH:MM:SS UTC timestamp and nested under the current '

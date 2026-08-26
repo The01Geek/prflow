@@ -346,6 +346,7 @@ jobs:
           # they are added explicitly rather than shipping unlinted.
           shellcheck --severity=warning -e SC1091 \
             lib/test/module-harness.sh lib/test/run-module.sh lib/test/summary.sh \
+            lib/test/slice-source-fixture.sh \
             lib/test/run-shard.sh lib/test/gate-shard-result.sh \
             lib/test/run-parallel.sh \
             lib/test/modules/parallel-suite-runner.sh \

@@ -176,6 +176,8 @@ _suite_tmp_file "$SKIPS_FILE"
 . "$LIB/test/summary.sh"
 # shellcheck source=lib/test/module-harness.sh disable=SC1091
 . "$LIB/test/module-harness.sh"
+# shellcheck source=lib/test/slice-source-fixture.sh disable=SC1091
+. "$LIB/test/slice-source-fixture.sh"
 
 # SKIP_HELPER_REGION_BEGIN — the SOLE `printf '  NOTE ` skip-emit lives inside skip();
 # the #456 meta-assertion below asserts no other NOTE emit appears in this file outside
@@ -24647,17 +24649,14 @@ rm -rf "$VS_EMPTY"
 # commit to the real repo (it is out of #161's git-mutation scope). Converting a clone dest
 # to git_sandbox would also break `git clone`, which requires its target to NOT pre-exist.
 VS_REMOTE="$(git_sandbox "vendor fetch fixture remote")"
-mkdir -p "$VS_REMOTE"/.claude-plugin "$VS_REMOTE"/agents "$VS_REMOTE"/docs \
-        "$VS_REMOTE"/lib "$VS_REMOTE"/scripts "$VS_REMOTE"/skills "$VS_REMOTE"/LICENSES "$VS_REMOTE"/.prflow
+# Members derived from vendor-slice.sh's own cp list (issue #1388), each carrying
+# a placeholder file so the clone below carries the whole slice — git won't track
+# empty dirs, and the real repo has no empty slice member either.
+assert_eq "#1388 the vendor fetch fixture remote builds from the slice’s own derived member list" "0" \
+  "$(devflow_build_slice_source_fixture "$VS_REMOTE" >/dev/null 2>&1; echo $?)"
 printf '{}' > "$VS_REMOTE/.claude-plugin/plugin.json"
 printf '{}' > "$VS_REMOTE/.claude-plugin/marketplace.json"
 : > "$VS_REMOTE/scripts/resolve-implement-trigger.sh"
-# git won't track empty dirs — give each slice dir a file so the clone carries
-# the whole slice (mirrors the real repo, where none of these dirs are empty).
-: > "$VS_REMOTE/agents/placeholder.md"
-: > "$VS_REMOTE/lib/placeholder.sh"
-: > "$VS_REMOTE/skills/placeholder.md"
-: > "$VS_REMOTE/LICENSES/placeholder-LICENSE"   # #671: LICENSES/ is now a copy-list member, so the fetch fixture must carry it
 # The fixture must CARRY every excluded subtree, otherwise the fetch-branch
 # exclusion assertions below would pass vacuously — absent from the source, never
 # pruned. With these present the assertions observe the prune actually running.
@@ -24702,7 +24701,7 @@ assert_eq "#677 vendor: fetch slice excludes docs/site (published-page HTML)" "n
 assert_eq "vendor: fetch slice excludes docs/external (published Mintlify source)" "no" "$(vexists "$VS_FETCH/docs/external")"
 assert_eq "#1188 vendor: fetch slice excludes docs/internal (DevFlow's maintainer documentation)" "no" "$(vexists "$VS_FETCH/docs/internal")"
 assert_eq "#677 vendor: fetch slice excludes lib/test (DevFlow's own test suite)" "no" "$(vexists "$VS_FETCH/lib/test")"
-assert_eq "#677 vendor: fetch slice keeps non-test lib/ contents" "yes" "$(vexists "$VS_FETCH/lib/placeholder.sh")"
+assert_eq "#677 vendor: fetch slice keeps non-test lib/ contents" "yes" "$(vexists "$VS_FETCH/lib/.placeholder")"
 
 # fetch branch pinned to a NON-TIP commit SHA. `--branch` rejects any raw SHA,
 # so this always takes the full-clone + checkout fallback (the path install.sh's
@@ -24896,14 +24895,12 @@ assert_eq "vendor: missing scripts/ leaves dest non-existent (no partial copy la
 # (b) source whose dirs all copy cleanly but with NO plugin.json — cp succeeds,
 #     so this genuinely reaches and trips the explicit sanity-floor check.
 VS_FLOORSRC="$(mktemp -d)"
-mkdir -p "$VS_FLOORSRC"/.claude-plugin "$VS_FLOORSRC"/agents "$VS_FLOORSRC"/docs \
-        "$VS_FLOORSRC"/lib "$VS_FLOORSRC"/scripts "$VS_FLOORSRC"/skills "$VS_FLOORSRC"/LICENSES "$VS_FLOORSRC"/.prflow
+# Members derived from vendor-slice.sh's own cp list (issue #1388) — a member
+# added there must not have to be transcribed here, or the cp aborts under set -e
+# and this case silently degrades into a duplicate of case (a).
+assert_eq "#1388 the vendor-slice floor fixture (b) builds from the slice’s own derived member list" "0" \
+  "$(devflow_build_slice_source_fixture "$VS_FLOORSRC" >/dev/null 2>&1; echo $?)"
 # NOTE: no .claude-plugin/plugin.json — the floor's plugin.json check must fire.
-# (LICENSES/ present so the cp succeeds and the run reaches the floor rather than
-# aborting early at the LICENSES copy.)
-printf '{}' > "$VS_FLOORSRC/.prflow/config.example.json"
-printf '{}' > "$VS_FLOORSRC/.prflow/config.schema.json"
-printf '{}' > "$VS_FLOORSRC/.prflow/tool-presets.json"
 VS_FLOORSRC_DEST="$(mktemp -d)/dest"
 VS_FLOORSRC_RC=0
 # Capture stderr (the die stream) so we can assert the abort came from the FLOOR,

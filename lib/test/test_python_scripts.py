@@ -237,7 +237,7 @@ def make_args(**overrides):
         bind_scope_decisions=None,
         # issue #815 filed-marker writer — same reason as the scope-decision
         # attributes above: `_apply_mutations` reads it on every call.
-        mark_deferred_filed=[],
+        mark_deferred_filed=[], mark_deferred_filed_file=None,
         # issue #1087 completion verification-flight evidence — `_apply_mutations`
         # and the terminal gate read these on every call.
         record_completion_evidence=None, repo_root=None, claim_identity=None,
@@ -25197,6 +25197,31 @@ assert_eq("#815 a written filed marker is read back by the predicate as a discha
               make_args(mark_deferred_filed=[DP_CRIT]))))
 
 
+# ── issue #1446: the interpolation-free arm. A criterion text carrying a backtick
+# and an apostrophe cannot be safely quoted inline on the cloud matcher, so the run
+# that hit this wrote no markers at all and a later Phase 4 entry would re-file the
+# same follow-up. `--mark-deferred-filed-file` takes one value per line off disk.
+_DP1446 = "the run\u2019s `arrived` state is recorded, not $inferred"
+with tempfile.TemporaryDirectory() as _d1446:
+    _f1446 = os.path.join(_d1446, "filed.txt")
+    with open(_f1446, "w", encoding="utf-8") as _fh:
+        _fh.write("\n" + _DP1446 + "\n\n")          # blank lines are ignored
+    assert_eq("#1446 --mark-deferred-filed-file discharges a criterion whose text "
+              "carries a backtick, an apostrophe and a $",
+              (1, "not-outstanding: 1\n"),
+              _dp_run(apply_mut(
+                  _dp_body(progress_extra=_dp_note(_dp_rec(42, "deferred", _DP1446))),
+                  make_args(mark_deferred_filed_file=_f1446))))
+    _blank1446 = os.path.join(_d1446, "blank.txt")
+    with open(_blank1446, "w", encoding="utf-8") as _fh:
+        _fh.write("   \n\n")
+    assert_raises("#1446 an all-blank --mark-deferred-filed-file aborts rather than "
+                  "silently marking nothing",
+                  workpad._UpdateError,
+                  lambda: apply_mut(_dp_body(),
+                                    make_args(mark_deferred_filed_file=_blank1446)))
+
+
 # ── #815 the argv surface itself ───────────────────────────────────────────────
 # Every row above reaches cmd_deferred_presence directly, so the subparser wiring
 # — the subcommand name, the positional ORDER (issue then pr), and the int
@@ -37342,6 +37367,35 @@ assert_eq("#1389 a [!...] glob class negates rather than matching a literal !",
           (False, True),
           (_lint_changed._glob_match("s/[!x].py", "s/x.py"),
            _lint_changed._glob_match("s/[!x].py", "s/y.py")))
+
+# ── issue #1389 dogfood fix: a single `update` combining `--replace-plan-file`
+# with `--tick-plan-n` resolves the tick indices against the POST-replace Plan.
+# Before the fix the ticks resolved against the pre-replace body, so on a seed
+# one-row Plan every index above 1 recorded a volatile miss while the replace
+# itself landed — the ticks were silently lost.
+_WP1389_BODY = (
+    "<!-- prflow:workpad -->\n# Workpad\n\n"
+    "**Last updated:** 2026-05-15T00:00:00Z\n\n"
+    "## Plan\n\n- [ ] seed placeholder\n\n"
+    "## Progress\n\n- [ ] **Implement**\n"
+)
+with tempfile.TemporaryDirectory() as _d1389w:
+    _plan1389 = os.path.join(_d1389w, "plan.md")
+    with open(_plan1389, "w", encoding="utf-8") as _fh:
+        _fh.write("- [ ] one\n- [ ] two\n- [ ] three\n")
+    _failed1389 = []
+    _out1389 = workpad._apply_mutations(
+        _WP1389_BODY,
+        make_args(replace_plan_file=_plan1389, tick_plan_n=[2, 3]),
+        _failed1389,
+    )
+    _plan_section_1389 = _out1389[_out1389.index("## Plan"):_out1389.index("## Progress")]
+    assert_eq("#1389 replace-plan-file + tick-plan-n in one call ticks the "
+              "post-replace rows and records no volatile miss",
+              ([], True, True),
+              (_failed1389,
+               "- [x] two" in _plan_section_1389,
+               "- [x] three" in _plan_section_1389))
 
 
 print()
