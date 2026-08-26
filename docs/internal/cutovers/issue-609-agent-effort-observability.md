@@ -5,6 +5,8 @@ kind: growth
 
 # Issue #609 — per-agent effort observability: mandatory prompt growth
 
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 ## Files
 
 - `skills/review-and-fix/SKILL.md` (25,673 → 25,989 bytes): the `### Schema` block gains the

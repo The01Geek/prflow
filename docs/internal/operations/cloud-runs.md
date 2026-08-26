@@ -1,5 +1,7 @@
 # Cloud runs
 
+<!-- verified-against: 26c9ad96d 2026-08-25 -->
+
 This page explains the optional GitHub Actions tier and the trust boundaries that govern it.
 
 ## Current behavior
@@ -22,11 +24,13 @@ Cloud execution combines automation with repository credentials, so the workflow
 ## Source of truth
 
 - `.github/workflows/devflow.yml`, `.github/workflows/devflow-implement.yml`, and `.github/workflows/devflow-runner.yml` — cloud jobs and trust boundaries.
+- `.github/workflows/stall-observer.yml` — scheduled, report-only stalled-run observer (no writer credentials, no agent).
+- `.github/workflows/telemetry-push.yml` — the telemetry relay retained for already-installed consumers of the withheld automatic-review tier.
 - `.github/actions/setup-project-env/` and `.github/actions/vendor-plugin/` — runtime setup and materialization.
 - `install.sh` — consumer workflow installation.
 - `.prflow/config.schema.json` — cloud configuration keys.
-- `docs/internal/cloud-setup.md` — detailed setup and migration evidence.
-- `docs/internal/architecture/execution-model.md` — shared execution boundary.
+- [`docs/internal/cloud-setup.md`](../cloud-setup.md) — detailed setup and migration evidence.
+- [`docs/internal/architecture/execution-model.md`](../architecture/execution-model.md) — shared execution boundary.
 
 ## Related topics
 

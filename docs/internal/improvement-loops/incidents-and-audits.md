@@ -22,9 +22,9 @@ Maintainers need the reason behind an unusual guard or boundary, but an incident
 
 - `lib/test/` guards and probe fixtures — executable audit checks.
 - `.github/workflows/matcher-probe.yml` and other probe workflows — re-runnable evidence sources.
-- `docs/internal/review-skill-load-outage-2026-08.md` — incident and outage records.
-- `docs/internal/claude-md-extension-audit-*.md` — prompt-surface audit evidence.
-- `docs/internal/cutovers/` — historical implementation records.
+- [`docs/internal/review-skill-load-outage-2026-08.md`](../review-skill-load-outage-2026-08.md) — incident and outage records.
+- [`docs/internal/claude-md-extension-audit-consumers.md`](../claude-md-extension-audit-consumers.md), [`docs/internal/claude-md-extension-audit-coupled-sites.md`](../claude-md-extension-audit-coupled-sites.md), and [`docs/internal/claude-md-extension-audit-duplicates.md`](../claude-md-extension-audit-duplicates.md) — prompt-surface audit evidence.
+- [`docs/internal/cutovers/`](../cutovers/index.md) — historical implementation records.
 
 ## Related topics
 

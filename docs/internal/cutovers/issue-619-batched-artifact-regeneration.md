@@ -2,6 +2,10 @@
 schema: 1
 kind: growth
 ---
+# Issue #619 — batched artifact regeneration (historical record)
+
+> Historical record — not current behavior. See the canonical topic pages under `docs/internal/` for the present rules.
+
 
 ## Files
 
