@@ -26,7 +26,7 @@
     "scripts/update-branch-checkpoint.sh": "c60408fb8f9e2227aabf9cf1094462a946a1471230f8e9b5e598a490c5f290b5",
     "scripts/workpad.py": "cc1a91221bdbcb1b96b058f04f05a5888ccf9155f489f7081ea6226d09c565a7",
     "skills/docs-release-notes/SKILL.md": "d3dcd37e667ac48b75f351e341fbabf7b2d62fd1f4d86d6162b96ef6b037ffbd",
-    "skills/docs-sync-external/SKILL.md": "dcd8cb6274d310440c31193f3f1ce26798c2b5075e911eaa8e2b6f63620b0766",
+    "skills/docs-sync-external/SKILL.md": "ba64ef4b56566e5794f91a5837dff46f4ed0ee50fa2672784dcf725a11d5e6d8",
     "skills/docs-sync-internal/SKILL.md": "66fa5cd511c283f240354ca64d2a2e58d6b4407cbc9edebae7b9a0bc231b055b",
     "skills/docs/SKILL.md": "768a7f288fa9ace3e22881ba66476940e5863f7a114e59e77cd85e9b55d8128e",
     "skills/implement/SKILL.md": "8e67e86017f6181ae2fcd91b9d2b8fd6d63ff3de0873f89a0c5340d7c464ee80",
