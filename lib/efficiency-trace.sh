@@ -424,10 +424,14 @@ recorded_fix_shas() {
 # `N<TAB>sha` lines for subjects matching the fix-commit contract, excluding any
 # sha in $1 (space-separated already-recorded set). Deterministic, network-free.
 # Adversarial subjects each emit an exit-0 stderr breadcrumb and are skipped:
-# prefix present but no trailing `)` iteration suffix, a non-numeric iteration
-# token, an already-recorded sha, or a duplicate N (first unexcluded occurrence
-# wins). Known accepted lenience: `(iteration1)` (missing space) parses as
-# iteration 1 — the strip drops at most one optional space. Known limitation:
+# prefix present but the iteration clause never closed with `)`, a non-numeric
+# iteration token, an already-recorded sha, or a duplicate N (first unexcluded
+# occurrence wins). Two accepted leniences: `(iteration1)` (missing space) parses
+# as iteration 1 — the strip drops at most one optional space — and trailing text
+# after the closing `)` is ignored (issue #1946). The subject is authored per run
+# rather than emitted by a template, so a trailing summary is the common shape in
+# practice, and an ends-with match skipped every such commit.
+# Known limitation:
 # iteration numbers restart at 1 per review loop, so a branch carrying TWO
 # unrecorded loops keeps only the first loop's commit for each N (duplicate-N
 # breadcrumbs name the rest) — acceptable for a minimal floor. Always exits 0.
@@ -458,9 +462,12 @@ select_fix_commits() {
     esac
     n="${subj#"$FIX_COMMIT_SUBJECT_PREFIX"}"      # -> " N)"
     n="${n# }"                                    # drop one leading space
+    # Read the token up to the FIRST ')' — do not require the subject to END there
+    # (issue #1946), or every fix commit carrying a trailing summary is skipped and
+    # synthesis recovers nothing from it.
     case "$n" in
-      *")") n="${n%)}" ;;
-      *) echo "::warning::efficiency-trace.sh --persist: fix-commit ${sha} matches the fix-subject prefix but does not END with the '(iteration N)' suffix (trailing text after it, or a missing ')'); skipping" >&2; continue ;;
+      *")"*) n="${n%%)*}" ;;
+      *) echo "::warning::efficiency-trace.sh --persist: fix-commit ${sha} matches the fix-subject prefix but its '(iteration N)' clause has no closing ')'; skipping" >&2; continue ;;
     esac
     case "$n" in
       ''|*[!0-9]*) echo "::warning::efficiency-trace.sh --persist: fix-commit ${sha} has a non-numeric iteration token '${n}'; skipping" >&2; continue ;;

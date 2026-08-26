@@ -2647,16 +2647,18 @@ assert_eq "et-synth(T4): leading-zero iteration 01 collides with 1 in the dedupe
 assert_eq "et-synth(T4): leading-zero 01 never reaches --argjson (no iter-01 write-failure breadcrumb)" "no" \
   "$(printf '%s' "$ETSA_ERR" | grep -qF 'failed to write synthesized iter-01' && echo yes || echo no)"
 # The documented (iteration1) missing-space lenience: it parses as iteration 1,
-# proven POSITIVELY by the duplicate-breadcrumb count — the dup "(iteration 1)"
-# commit, the "(iteration 01)" commit, and the "(iteration1)" commit each collide
-# with iteration 1, so exactly three duplicate breadcrumbs fire; a mutation that
-# kills the lenience (rerouting "(iteration1)" to the no-suffix family arm)
-# drops the count to two.
-assert_eq "et-synth(T4): the (iteration1) lenience parses as iteration 1 (three duplicate-iteration-1 breadcrumbs)" "3" \
+# proven POSITIVELY by the duplicate-breadcrumb count — the dup "(iteration 1)",
+# "(iteration 01)", "(iteration1)" and (since #1946) "(iteration 1) follow-up"
+# commits each collide with iteration 1, so exactly four duplicate breadcrumbs
+# fire; a mutation that kills either lenience drops the count.
+assert_eq "et-synth(T4): the (iteration1) lenience parses as iteration 1 (four duplicate-iteration-1 breadcrumbs)" "4" \
   "$(printf '%s' "$ETSA_ERR" | grep -cF 'duplicate iteration 1')"
-# The missing-')' arm has its own distinct breadcrumb.
-assert_eq "et-synth(T4): BOTH does-not-end-with-suffix shapes breadcrumbed (missing ')' AND trailing text)" "2" \
-  "$(printf '%s' "$ETSA_ERR" | grep -cF "does not END with the '(iteration N)' suffix")"
+# issue #1946: trailing text after the closing ')' is parsed, not skipped — a fix
+# commit's subject is authored per run and commonly carries a trailing summary, so
+# an ends-with match dropped most real commits. Only the missing-')' shape is
+# unparseable now, and it keeps its own breadcrumb.
+assert_eq "et-synth(T4): the missing-')' shape alone is breadcrumbed as unparseable" "1" \
+  "$(printf '%s' "$ETSA_ERR" | grep -cF "clause has no closing ')'")"
 rm -rf "$ETSA_REPO"
 
 # T4 zero-match: workpad-less dir + NO fix commits → no record, "was not captured"
