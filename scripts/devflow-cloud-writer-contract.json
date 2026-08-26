@@ -1,6 +1,6 @@
 {
   "files": {
-    "lib/efficiency-trace.sh": "4c40f34680841e59edc1da7273281f33aa02fb52c9abf8d38a4f8345a82ddf24",
+    "lib/efficiency-trace.sh": "129700d58d5fd63cff079082292de16b42c047e453df8dd5738396518ab56cb2",
     "scripts/apply-issue-dependencies.py": "58d359123968f8ed257ed0aafd5daf59d50c868f10cbdee535a884f49c6aed8f",
     "scripts/apply-labels.sh": "60dbb6c38aae3f9864a9f575f3908143039359f769a00893f0478345a2fe0f2f",
     "scripts/branch-for-issue.py": "1aac999bd12ff4487a1024717ba7e5b25eadc1eddcf23e5338107f9d35690ba5",
@@ -24,7 +24,7 @@
     "scripts/section_parse.py": "9333d432e81365eb92e44709bf4317d4d0f37046098b0c0f0d866eb11cd33108",
     "scripts/stale-prose-lint.py": "28ae9e650b69ce2a922857e93c1ec61ba8167eac5b64b0866aec580b0fdd8a90",
     "scripts/update-branch-checkpoint.sh": "c60408fb8f9e2227aabf9cf1094462a946a1471230f8e9b5e598a490c5f290b5",
-    "scripts/workpad.py": "cc1a91221bdbcb1b96b058f04f05a5888ccf9155f489f7081ea6226d09c565a7",
+    "scripts/workpad.py": "82062fd7550b8b4c5c78661161e4a073819ef0e626d1f0e6a76bbcc6be1b59db",
     "skills/docs-release-notes/SKILL.md": "d3dcd37e667ac48b75f351e341fbabf7b2d62fd1f4d86d6162b96ef6b037ffbd",
     "skills/docs-sync-external/SKILL.md": "ba64ef4b56566e5794f91a5837dff46f4ed0ee50fa2672784dcf725a11d5e6d8",
     "skills/docs-sync-internal/SKILL.md": "2601af4df21b528edbbad02338758f557542cdea8d1a0424f759ada155763017",
@@ -61,7 +61,7 @@
     "skills/review-and-fix/references/loop-control.md": "fa688518b5e0020d75ce678a766c34da86c54fe462ae1f878c27fc53f751da92",
     "skills/review-and-fix/references/loop-exit.md": "ed9e4c2b98f9671b0b37ed2416979752f5b7c12fcb8ad377056f9decca8a3e67",
     "skills/review-and-fix/references/pre-fix-gates.md": "645057b6c2ca9a6f0da4c30efb2a96d60bae8247cc207b6d226c042a215534a4",
-    "skills/review-and-fix/references/shadow-review.md": "04693f435b1a2fa4be8abd813d3433370dfaf3b2da992312e93cecb1c552d406",
+    "skills/review-and-fix/references/shadow-review.md": "ccb1a3721fa4ccf87766dc84afdb39e700abd5fc126ea1b38c6fa5b4272f0528",
     "skills/review/SKILL.md": "5ad8d30ed1d7b0a83f18556e712041a5aa3690aeba780aefe6d9b1a1a1398ba7",
     "skills/review/phases/phase-0-3-6-blocker-recheck.md": "cec0cb5214ad56fa5627250c268f63d1592153ab6819cd5c419e402dcbdf6f89",
     "skills/review/phases/phase-0-6-stale-prose-lint.md": "ce543972277aa329e991a5b51dac58c21a90d892d3f65465fb264c57980b6e1c",
