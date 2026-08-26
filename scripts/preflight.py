@@ -52,6 +52,12 @@ import tempfile
 from pathlib import Path
 from typing import NoReturn
 
+# Running this file as a script already puts scripts/ on sys.path, but a consumer
+# that loads it through importlib.util.spec_from_file_location (how
+# lib/test/test_python_scripts.py drives every helper here) does not — so the
+# lint_changed / lint_manifest sibling imports below would fail without this.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 
 def _force_utf8_streams():
     """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
@@ -1156,6 +1162,21 @@ def ignore_precondition(args: argparse.Namespace) -> int:
     return BLOCKED_EXIT
 
 
+def lint_changed(args: argparse.Namespace) -> int:
+    # Delegated to the lint_changed sibling module (issue #1389): the changed-file
+    # advisory lint layer, kept out of this file so its git-enumeration, base64url,
+    # selection, and receipt machinery does not bloat the Phase 1 preflight surface.
+    import lint_changed as _lint
+
+    return _lint.cmd_lint_changed(args)
+
+
+def lint_full(args: argparse.Namespace) -> int:
+    import lint_changed as _lint
+
+    return _lint.cmd_lint_full(args)
+
+
 class _Parser(argparse.ArgumentParser):
     """Exit usage errors with UNAVAILABLE_EXIT, not argparse's default 2.
 
@@ -1203,6 +1224,19 @@ def main() -> int:
         "so the enrolled fence need not compute the repository root itself.",
     )
     ignore_parser.set_defaults(func=ignore_precondition)
+
+    # ── lint-changed / lint-full (issue #1389) ──────────────────────────────
+    # Advisory changed-file and repository-wide lint, selected through the
+    # trigger-time validated lint manifest. `--manifest` lets a caller pass the
+    # validated artifact rather than the candidate-edited working-tree copy.
+    for _name, _func in (("lint-changed", lint_changed), ("lint-full", lint_full)):
+        _p = subparsers.add_parser(_name)
+        _p.add_argument("--manifest", help="path to the validated lint manifest (default: repo .prflow/lint-manifest.json)")
+        _p.add_argument("--base", help="base branch for the merge-base changed set (default: config base_branch or main)")
+        _p.add_argument("--run-id", help="receipt run id (default: $GITHUB_RUN_ID or 'local')")
+        _p.add_argument("--run-attempt", help="receipt run attempt (default: $GITHUB_RUN_ATTEMPT or '1')")
+        _p.set_defaults(func=_func)
+
     args = parser.parse_args()
     try:
         return args.func(args)

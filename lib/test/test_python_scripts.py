@@ -36910,6 +36910,153 @@ with _tf1740.TemporaryDirectory() as _d1740:
               3, validate_ica.main(["--record-file", str(_p_bin)]))
 
 
+# ── issue #1389: changed-file lint layer (scripts/lint_changed.py) ───────────
+# The advisory changed-file lint helper preflight.py's lint-changed/lint-full
+# subcommands delegate to. These assertions cover the base64url canonical
+# identity, record classification, the NUL-safe population with its three
+# distinct outcomes, manifest-driven selection (run.sh special routing + the `--`
+# separator), and atomic-receipt sequencing — each fails first because the module
+# did not exist before this change.
+import json as _json1389  # noqa: E402
+import subprocess as _subprocess1389  # noqa: E402
+
+_lint_changed = _load('lint_changed', SCRIPTS / 'lint_changed.py')
+_lint_manifest_1389 = _json1389.loads((cwc.REPO_ROOT / '.prflow' / 'lint-manifest.json').read_text())
+
+
+def _git1389(d, *args):
+    _subprocess1389.run(['git', '-C', str(d), *args], check=True,
+                        capture_output=True)
+
+
+# base64url canonical identity round-trips raw bytes without loss, incl. the three
+# path-byte hazards the AC names (invalid UTF-8, tab, newline); the display field is
+# lossy and MUST NOT be used for identity.
+for _label, _raw in (("invalid-utf8", b"x\xff\xfe.sh"),
+                     ("tab", b"tab\there.py"),
+                     ("newline", b"nl\nhere.sh"),
+                     ("plain", b"a/b.py")):
+    assert_eq(f"#1389 base64url round-trips {_label} path bytes without loss",
+              _raw, _lint_changed.unb64url(_lint_changed.b64url(_raw)))
+# base64url is padding-free (unpadded canonical form).
+assert_eq("#1389 base64url canonical token is unpadded",
+          False, "=" in _lint_changed.b64url(b"abc"))
+# Two distinct non-UTF-8 paths that decode to the SAME display string keep distinct
+# canonical identities — proving identity reads the raw bytes, not the display text.
+_p1 = b"a\xff.sh"
+_p2 = b"a\xfe.sh"
+assert_eq("#1389 distinct non-UTF-8 paths keep distinct canonical identity",
+          True, _lint_changed.b64url(_p1) != _lint_changed.b64url(_p2))
+
+# Record classification over the closed vocabulary, keyed on final-state eligibility.
+_cls = _lint_changed._classify_raw
+assert_eq("#1389 add classifies runnable", ("add", b"x.py"),
+          (_cls("100644", "100644", "A", b"x.py", None).kind,
+           _cls("100644", "100644", "A", b"x.py", None).run_path))
+_d = _cls("100644", "000000", "D", b"x.py", None)
+assert_eq("#1389 delete is examined-not-run (final absent)",
+          ("delete", None, "deleted-final-absent"), (_d.kind, _d.run_path, _d.skip_reason))
+_s = _cls("100644", "120000", "T", b"lnk", None)
+assert_eq("#1389 symlink final is never executed",
+          ("symlink", None, "symlink-not-executed"), (_s.kind, _s.run_path, _s.skip_reason))
+_sm = _cls("160000", "160000", "M", b"sub", None)
+assert_eq("#1389 submodule is never executed",
+          ("submodule", None, "submodule-not-executed"), (_sm.kind, _sm.run_path, _sm.skip_reason))
+_r = _cls("100644", "100644", "R100", b"old.py", b"new.py")
+assert_eq("#1389 rename runs the destination, source examined-not-run",
+          ("rename", b"old.py", b"new.py", b"new.py"), (_r.kind, _r.src, _r.dst, _r.run_path))
+_m = _cls("100644", "100755", "M", b"a.sh", None)
+assert_eq("#1389 a mode-only change classifies as mode and runs", ("mode", b"a.sh"),
+          (_m.kind, _m.run_path))
+# A malformed --raw stream is unestablished (None), never a clean empty parse.
+assert_eq("#1389 malformed --raw record parses to None (→ unestablished)",
+          None, _lint_changed._parse_raw_z(b"not-a-record\x00path\x00"))
+
+# NUL-safe population: three distinct outcomes.
+with tempfile.TemporaryDirectory() as _d1389:
+    _git1389(_d1389, "init", "-q", "-b", "main")
+    _git1389(_d1389, "config", "user.email", "a@b.c")
+    _git1389(_d1389, "config", "user.name", "t")
+    (Path(_d1389) / "keep.py").write_text("x = 1\n")
+    (Path(_d1389) / "gone.py").write_text("y = 2\n")
+    _git1389(_d1389, "add", "-A")
+    _git1389(_d1389, "commit", "-qm", "base")
+    _git1389(_d1389, "update-ref", "refs/remotes/origin/main", "HEAD")
+    # established-empty: nothing changed since the base.
+    _pop_empty = _lint_changed.enumerate_population("main", _d1389)
+    assert_eq("#1389 no changes since base is established-empty (not unestablished)",
+              ("empty", True), (_pop_empty.status, _pop_empty.established))
+    # established-nonempty with add + delete + symlink.
+    (Path(_d1389) / "new.py").write_text("z = 3\n")
+    (Path(_d1389) / "gone.py").unlink()
+    (Path(_d1389) / "alink").symlink_to("keep.py")
+    _git1389(_d1389, "add", "-A")
+    _pop = _lint_changed.enumerate_population("main", _d1389)
+    assert_eq("#1389 add+delete+symlink is established-nonempty", "nonempty", _pop.status)
+    _kinds = {r.kind for r in _pop.records}
+    assert_eq("#1389 population records the add/delete/symlink kinds",
+              True, {"add", "delete", "symlink"} <= _kinds)
+    _runs = {_lint_changed.os.fsdecode(p) for p in _pop.run_paths()}
+    assert_eq("#1389 only the eligible destination runs (delete/symlink excluded)",
+              ({"new.py"}, False, False),
+              ("new.py" in _runs and _runs == {"new.py"} and {"new.py"} or _runs,
+               "alink" in _runs, "gone.py" in _runs))
+
+# unestablished: a missing base ref (no origin/<base>) is not a clean empty set.
+with tempfile.TemporaryDirectory() as _d1389b:
+    _git1389(_d1389b, "init", "-q", "-b", "main")
+    _git1389(_d1389b, "config", "user.email", "a@b.c")
+    _git1389(_d1389b, "config", "user.name", "t")
+    (Path(_d1389b) / "f.py").write_text("x = 1\n")
+    _git1389(_d1389b, "add", "-A")
+    _git1389(_d1389b, "commit", "-qm", "c")
+    _pop_u = _lint_changed.enumerate_population("main", _d1389b)
+    assert_eq("#1389 missing base ref is unestablished, not empty",
+              ("unestablished", "missing-base-ref"), (_pop_u.status, _pop_u.reason))
+
+# Manifest-driven selection: run.sh takes the special --extended-analysis=false
+# invocation and appears in NO broad shell invocation; a `--` precedes the first path.
+_invs = _lint_changed.select_invocations(
+    [b"lib/test/run.sh", b"scripts/foo.sh", b"scripts/a.py"], _lint_manifest_1389)
+_by_op = {i.op_id: i for i in _invs}
+assert_eq("#1389 run.sh routes to its special invocation", True,
+          "run-sh-extended-analysis-off" in _by_op)
+_special = _by_op["run-sh-extended-analysis-off"]
+assert_eq("#1389 the run.sh special carries --extended-analysis=false",
+          True, "--extended-analysis=false" in _special.flags)
+_shell_paths = [_lint_changed.os.fsdecode(p) for p in _by_op["shell-portable"].paths]
+assert_eq("#1389 run.sh is absent from the broad shell invocation",
+          (False, True), ("lib/test/run.sh" in _shell_paths, "scripts/foo.sh" in _shell_paths))
+_argv = _by_op["shell-portable"].argv()
+assert_eq("#1389 broad argv places -- before the first selected path",
+          "scripts/foo.sh", _argv[_argv.index("--") + 1])
+# A file named like a value-taking option is passed as a path (after --).
+_optinv = [i for i in _lint_changed.select_invocations([b"--exclude=x.py"], _lint_manifest_1389)
+           if i.op_id == "python"][0]
+_oargv = _optinv.argv()
+assert_eq("#1389 an option-named file is linted as a path, not a flag",
+          "--exclude=x.py", _oargv[_oargv.index("--") + 1])
+# A fixtures path (top-level exclusion) is selected by nothing.
+assert_eq("#1389 a top-level-excluded fixtures path is selected by no invocation",
+          [], _lint_changed.select_invocations([b"lib/test/fixtures/a.sh"], _lint_manifest_1389))
+
+# Atomic receipts: monotonic sequence, and a duplicate path is a named non-success.
+with tempfile.TemporaryDirectory() as _d1389c:
+    _w = _lint_changed.ReceiptWriter(_d1389c, "run", "1")
+    _t0, _seq0 = _w.write("python", {"outcome": "ran"})
+    _t1, _seq1 = _w.write("python", {"outcome": "ran"})
+    assert_eq("#1389 receipt sequence is monotonic across invocations", (0, 1), (_seq0, _seq1))
+    assert_eq("#1389 each receipt lands at its own <op>-<seq>.json path",
+              True, Path(_t0).name == "python-0.json" and Path(_t1).name == "python-1.json")
+    # A pre-existing receipt path is refused (O_EXCL), never silently overwritten.
+    _w2 = _lint_changed.ReceiptWriter(_d1389c, "run", "1")
+    Path(_w2.dir / "shell-2.json").write_text("{}")  # collide with the next seq
+    # Force the next seq to 2 so the write targets the pre-existing name.
+    (_w2.dir / ".seq").write_text("2")
+    assert_raises("#1389 a pre-existing receipt path is a named non-success",
+                  _lint_changed.ReceiptError, lambda: _w2.write("shell", {"outcome": "ran"}))
+
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
