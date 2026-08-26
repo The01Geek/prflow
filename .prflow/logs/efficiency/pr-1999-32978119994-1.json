@@ -125,5 +125,98 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.54",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 57.98668105000001,
+    "tokens": {
+      "input_tokens": 366,
+      "output_tokens": 167904,
+      "cache_read_input_tokens": 66653643,
+      "cache_creation_input_tokens": 552476,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 620,
+        "outputTokens": 240803,
+        "cacheReadInputTokens": 75074799,
+        "cacheCreationInputTokens": 1791867,
+        "webSearchRequests": 0,
+        "costUSD": 56.83152825000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 62,
+        "outputTokens": 13125,
+        "cacheReadInputTokens": 1577794,
+        "cacheCreationInputTokens": 283288,
+        "webSearchRequests": 0,
+        "costUSD": 1.1551527999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 241,
+    "duration_ms": 5514885
+  },
+  "permission_denials": {
+    "count": 31,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "cd /home/runner/work/prflow/prflow 2>/dev/null; lib/test/lint-brand-devflow-sweep.py 2>&1 | head -40; echo \"---EXIT: ${PIPESTATUS[0]:-$?}---\"",
+      "lib/test/lint-brand-devflow-sweep.py 2>&1 | head -60",
+      "lib/test/lint-brand-devflow-sweep.py",
+      "python3 lib/test/lint-brand-devflow-sweep.py --print-population 2>/dev/null | grep '^pending' | cut -f2 | sort > .prflow/tmp/pending-files.txt; wc -l .prflow/tmp/pending-files.txt; echo \"=== by top dir ===\"; cut -d/ -f1 .prflow/tmp/pending-files.txt | sort | uniq -c | sort -rn",
+      "echo \"ACTIONS=${GITHUB_ACTIONS:-unset}\"; echo \"RUN_ID=${GITHUB_RUN_ID:-unset}\"; echo \"APP=${DEVFLOW_APP_ID:-unset}\"; echo \"SESSION=${CLAUDE_CODE_SESSION_ID:-unset}\"; git branch --show-current; echo \"--- base ---\"; .prflow/vendor/prflow/scripts/config-get.sh base_branch 2>/dev/null || echo \"config-get failed\"",
+      "cd /home/runner/work/prflow/prflow\nBASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\necho \"BASE=$BASE\"\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 1996 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1996 --note \"issue-claim audit (count): claimed 'roughly 123 files' in pending_sweep_baseline, verified 123 at HEAD\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1996 --note \"issue-claim audit (negative-scope): no scope-exclusion claims found …[per-command-truncated]",
+      "for f in lib/preflight.sh lib/plugin-identity.json .prflow/tool-presets.json requirements.txt .gitignore .prflow/config.schema.json; do echo \"=== $f ===\"; grep -n 'DevFlow' \"$f\" | grep -v 'DEVFLOW'; done",
+      "grep -n 'def normalize_criterion' scripts/section_parse.py; sed -n \"$(grep -n 'def normalize_criterion' scripts/section_parse.py | head -1 | cut -d: -f1),+30p\" scripts/section_parse.py",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p .prflow/tmp/review/pr-1999/32978119994-1/\ngit diff main...HEAD > .prflow/tmp/review/pr-1999/32978119994-1/diff.patch 2>/dev/null\necho \"=== diff vs main...HEAD ===\"; wc -l .prflow/tmp/review/pr-1999/32978119994-1/diff.patch\necho \"=== files changed (local HEAD vs main) ===\"\ngit diff --stat main...HEAD 2>/dev/null\necho \"=== also plain diff main..HEAD ===\"\ngit diff --stat main HEAD 2>/dev/null\necho \"=== current branch ===\"; git branch --show-current; git l …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\ngit diff main...HEAD > .prflow/tmp/review/pr-1999/32978119994-1/diff.patch\necho \"=== wc ===\"; wc -l .prflow/tmp/review/pr-1999/32978119994-1/diff.patch\ngit diff --stat main...HEAD\necho \"=== branch ===\"; git branch --show-current; git log --oneline -6",
+      "cd /home/runner/work/prflow/prflow\nfor f in skills/review/SKILL.md skills/review/phases/phase-0-setup.md skills/review/phases/phase-1-checklist.md skills/review/phases/phase-3-agents.md skills/review/phases/phase-4-verdict.md; do echo \"=== $f : $(wc -l < $f) lines ===\"; done",
+      "cd /home/runner/work/prflow/prflow\nlib/test/lint-brand-devflow-sweep.py 2>&1 | tail -20 ; echo \"lint-rc=$?\"\necho \"=== residual brand-cased DevFlow in the four files? ===\"\ngrep -c 'DevFlow' lib/preflight.sh requirements.txt .gitignore .prflow/tool-presets.json 2>/dev/null",
+      "for f in lib/preflight.sh requirements.txt .gitignore .prflow/tool-presets.json; do echo \"=== $f ===\"; grep -c \"DevFlow\" \"$f\" || echo 0; done",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review; echo \"EXIT: $?\"",
+      "cd /home/runner/work/prflow/prflow; for f in lib/preflight.sh requirements.txt .gitignore .prflow/tool-presets.json; do echo \"== $f ==\"; grep -n \"DevFlow\" \"$f\" || echo \"(no DevFlow)\"; done",
+      "cd /home/runner/work/prflow/prflow\ngit diff main...HEAD > .prflow/tmp/review/pr-1999/32978119994-1/full-diff.patch\ncat .prflow/tmp/review/pr-1999/32978119994-1/full-diff.patch",
+      "cd /home/runner/work/prflow/prflow\necho \"=== remaining DevFlow (brand-cased) in the 4 swept files ===\"\nfor f in lib/preflight.sh requirements.txt .gitignore .prflow/tool-presets.json; do\n  echo \"--- $f ---\"\n  grep -n \"DevFlow\" \"$f\" || echo \"(none)\"\ndone",
+      "for f in lib/preflight.sh requirements.txt .gitignore .prflow/tool-presets.json; do n=$(grep -c 'DevFlow' \"$f\"); echo \"$f: DevFlow-count=$n\"; done",
+      "cd /home/runner/work/prflow/prflow\necho \"=== git log PR branch check ===\"\ngit log --oneline -5\necho \"=== brand DevFlow occurrences in the 4 swept files ===\"\nfor f in .gitignore .prflow/tool-presets.json lib/preflight.sh requirements.txt; do\n  echo \"--- $f ---\"\n  grep -c \"DevFlow\" \"$f\" 2>/dev/null || echo \"file missing\"\ndone\necho \"=== quoted-value form (provenance) in those files ===\"\nfor f in .gitignore .prflow/tool-presets.json lib/preflight.sh requirements.txt; do\n  grep -nE \"[\\\"']DevFlow[\\\"'] …[per-command-truncated]",
+      "for f in lib/preflight.sh requirements.txt .gitignore .prflow/tool-presets.json; do echo \"== $f ==\"; grep -n \"DevFlow\" \"$f\" || echo \"(no DevFlow)\"; done",
+      "CREATE_STATE=\"\"\ngh issue create \\\n  --title \"Finish the brand-cased DevFlow to PRFlow prose sweep (Batch 4+)\" \\\n  --body-file .prflow/tmp/deferral-draft-1996-1.md \\\n  && CREATE_STATE=ok || CREATE_STATE=failed\necho \"phase 4.0 create fence ran; create=[${CREATE_STATE}]\"",
+      "echo \"=== SIZE HELPER ===\" && scripts/prompt-surface-growth.py 2>&1; echo \"=== DEFERRALS ===\"; ls -la .prflow/tmp/review/pr-1999/deferrals.json 2>&1 || echo \"(none)\"",
+      "scripts/prompt-surface-growth.py 2>&1",
+      "cat > /tmp/pr1999-body.md <<'EOF'\n<!-- PR_BODY_START -->\n## Summary\n- Batch 3 of the phased brand-cased `DevFlow`→`PRFlow` prose sweep for issue #1996: respells the ordinary renameable brand-cased `DevFlow` to `PRFlow` in four fully-cleared comment-only files, with no code-behavior change.\n- Reseeds the sweep census baseline to drop the four now-drained files, keeping the reconciling lint green.\n- The three original terminal-state acceptance criteria (whole baseline empty + full frozen-bucket re …[per-command-truncated]",
+      "lib/test/run-parallel.sh 2>&1 | tail -40; echo \"SUITEEXIT=${PIPESTATUS[0]}\"",
+      "which -a ruff; echo \"---0.16.4 console script---\"; ls -la /opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff 2>/dev/null; /opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff --version 2>/dev/null; echo \"---PATH head---\"; echo \"$PATH\" | tr ':' '\\n' | head -8",
+      "which -a ruff; echo \"---16.4 script---\"; ls -la /opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff; /opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff --version",
+      "/home/runner/work/_temp/prflow-lint-bin/ruff --version",
+      "cp /opt/hostedtoolcache/Python/3.11.16/x64/bin/ruff /home/runner/work/_temp/prflow-lint-bin/ruff && ruff --version",
+      "rm -f /home/runner/work/_temp/prflow-lint-bin/ruff && echo \"removed\" && ruff --version"
+    ],
+    "total": 31,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
