@@ -1167,10 +1167,8 @@ assert_eq "#1288 --preflight: a second argument is refused by the arity guard" "
 
 
 # ── Cheap-lint gate preflight (fail-fast before the coordinator) ─────────────
-# EVIDENCE: cloud implement run 32929107360 spent 12.6 min on a Phase 4.3 gate run that went
-# RED on exactly two sub-second standalone lints (the #1595 reference-size ceiling and the
-# #1745 brand-baseline sweep), then paid a second 12.5 min coordinator after the one-line
-# fix. Both are `run.sh`-resident, so nothing cheaper than the whole coordinator caught them.
+# The two cheap lints (the #1595 reference-size ceiling and the #1745 brand-baseline sweep)
+# are `run.sh`-resident, so nothing cheaper than the whole coordinator caught either.
 #
 # The verdict contract is the SAME fail-closed-on-attribution / fail-open-on-unusable shape
 # `_artifact_preflight` uses, and the refusal comparand is each lint's own COMPLETION
@@ -1326,5 +1324,89 @@ PSR_CLO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
 assert_eq "cheap-lint gate --preflight: a crashing lint proceeds (exit 0)" "0" "$PSR_CLO_RC"
 assert_eq "cheap-lint gate --preflight: a crashing lint is inconclusive, not a refusal" "yes" \
   "$(case "$PSR_CLO_OUT" in *"launching no shard"*) echo no ;; *"was inconclusive (exit 1"*) echo yes ;; *) echo no ;; esac)"
+
+# ── Real-helper coupling pin + default resolution ───────────────────────────
+# The stub arms above prove the coordinator's SELECTION logic but restate each sentinel
+# themselves, so a stub-only module could never catch the comparand and a lint's real
+# completion line drifting apart — the same gap `regenerate-artifacts.sh` closes for the
+# artifact preflight by driving the real helper end-to-end. Two distinct exposures, two
+# arms, because one does not cover the other:
+#
+#   (a) the bundled-default `python3 $SCRIPT_DIR/lint-*.py` resolution branch, which every
+#       override-injecting arm above bypasses; and
+#   (b) the brand sentinel LITERAL, which is reached only on a NON-ZERO exit — `_cheap_lint_run`
+#       returns on `rc -eq 0` before the sentinel loop, so no clean run can pin it.
+PSR_RH="$PSR_ROOT/real-helper"; mkdir -p "$PSR_RH"
+
+# (a) Default resolution: the REAL coordinator in the REAL checkout, with both cheap-lint
+# overrides unset, so `$SCRIPT_DIR` resolves to the real `lib/test` and the default command
+# line runs the real lints against this tree. Only the artifact preflight and the shard
+# dispatcher are stubbed, so no shard work happens. A synthetic tree cannot serve here: each
+# lint loads sibling modules (`lint_population.py`, `step36_manifest.py`) by path, so a
+# copied fixture exercises a dependency closure that has to be maintained by hand and drifts
+# silently — and the drift shows up as an inconclusive warning, which is a fail-OPEN result.
+PSR_RH_TREE="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_RH_TREE"
+PSR_RH_OUT="$(cd "$LIB/.." && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RH_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RH_RC=$?
+assert_eq "cheap-lint gate real: the bundled default resolves and runs (exit 0)" "0" "$PSR_RH_RC"
+assert_eq "cheap-lint gate real: the bundled default launches the shard" "yes" \
+  "$(case "$PSR_RH_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+# The discriminating half: a default that did not resolve (a wrong path, a missing
+# interpreter, a renamed file) exits non-zero with no sentinel and would warn INCONCLUSIVE
+# while still exiting 0 — indistinguishable from clean on the exit status alone. Pinning the
+# absence of that warning is what makes this arm a real check rather than a tautology.
+assert_eq "cheap-lint gate real: the bundled default is not silently inconclusive" "yes" \
+  "$(case "$PSR_RH_OUT" in *"cheap-lint gate was inconclusive"*) echo no ;; *) echo yes ;; esac)"
+
+# (b) The brand sentinel, pinned against the REAL helper producing a REAL finding. The
+# fixture is a git repo (the lint enumerates via `git ls-files`) holding one unclassified
+# brand occurrence, so the lint exits 1 and prints its own completion line. If that line is
+# ever reworded, the comparand in `run-parallel.sh` stops matching, the refusal silently
+# degrades to warn-and-proceed, and THIS arm goes RED — which is the whole point.
+#
+# The brand literal is assembled at run time rather than written here, because a verbatim
+# occurrence in this file would itself become an unclassified finding in the real tree.
+PSR_RH_BFX="$PSR_RH/brand-fixture"
+python3 - "$PSR_RH_BFX" <<'PSR_BRAND_BUILD'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+(root / "docs").mkdir(parents=True, exist_ok=True)
+(root / "lib" / "test").mkdir(parents=True, exist_ok=True)
+brand = "Dev" + "Flow"          # assembled: a literal here would red the real tree
+(root / "docs" / "unclassified.md").write_text(f"{brand} prose nobody classified\n", encoding="utf-8")
+buckets = {"schema_version": 1,
+           "frozen": {"transient_prefixes": [], "transient_exceptions": [],
+                      "record_prefixes": [], "historical_files": [],
+                      "tooling_files": [], "provenance": []},
+           "pending_sweep_baseline": []}
+(root / "lib" / "test" / "brand-devflow-buckets.json").write_text(
+    json.dumps(buckets, indent=2) + "\n", encoding="utf-8")
+subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+PSR_BRAND_BUILD
+
+# Control: the real lint really does find and really does emit its completion line here.
+# Without this, a fixture that silently stopped producing a finding would leave the arm
+# below passing for the wrong reason.
+PSR_RH_BRAW="$(python3 "$LIB/test/lint-brand-devflow-sweep.py" --root "$PSR_RH_BFX" 2>&1)"; PSR_RH_BRC=$?
+assert_eq "cheap-lint gate real: the brand fixture really produces a finding" "1" "$PSR_RH_BRC"
+assert_eq "cheap-lint gate real: the real brand lint emits its completion line" "yes" \
+  "$(case "$PSR_RH_BRAW" in "lint-brand-devflow-sweep: audited "*) echo yes ;; *) echo no ;; esac)"
+
+# The pin: driven through the coordinator, the real lint's real output must be read as an
+# attributed FINDING (refuse, launch nothing), never as inconclusive.
+PSR_RH_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="python3 $LIB/test/lint-brand-devflow-sweep.py --root $PSR_RH_BFX" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RH_RC=$?
+assert_eq "cheap-lint gate real: the real brand sentinel is matched, so the gate refuses" "yes" \
+  "$([ "$PSR_RH_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate real: the real brand finding launches NO shard" "yes" \
+  "$(case "$PSR_RH_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+assert_eq "cheap-lint gate real: the real brand finding is attributed, not inconclusive" "yes" \
+  "$(case "$PSR_RH_OUT" in *"was inconclusive"*) echo no ;; *"reported findings"*) echo yes ;; *) echo no ;; esac)"
 
 rm -rf "$PSR_ROOT"

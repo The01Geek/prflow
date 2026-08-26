@@ -214,11 +214,9 @@ _artifact_preflight() {
 }
 
 # ── Cheap-lint gate — definition (read-only; fail-fast before any shard) ─────
-# Two sub-second, read-only lints are `lib/test/run.sh`-resident, so before this the
-# ONLY thing that caught either was the whole coordinator: cloud implement run
-# 32929107360 paid 12.6 min to discover a reference-size ceiling breach and a brand
-# baseline drift, then a second 12.5 min coordinator after the one-line fix. Running
-# them here costs well under a second and turns that into an immediate refusal.
+# Two sub-second, read-only lints are `lib/test/run.sh`-resident, so nothing cheaper
+# than a whole coordinator pass caught either. Running them here refuses in well under
+# a second instead.
 #
 # The verdict contract is `_artifact_preflight`'s: refuse ONLY on a positively-attributed
 # finding, fail OPEN on anything that leaves the check unusable. The comparand is each
