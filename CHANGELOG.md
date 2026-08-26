@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.37] — 2026-08-26
+
+### Changed
+CLAUDE.md documentation routing: link the internal-docs entry map (`docs/internal/index.md`) beside the full system reference, and append machine-readable `<!-- canonical: docs/internal/<file>.md -->` markers to the seven bullets that explicitly name a canonical internal-docs page, so tooling can derive the canonical-page set instead of hand-maintaining it.
+
 ## [2.34.36] — 2026-08-26
 
 ### Changed
