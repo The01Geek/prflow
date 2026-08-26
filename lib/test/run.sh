@@ -54020,19 +54020,71 @@ import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
-link_pattern = re.compile(r"(?<!!)\[[^]]+\]\((/[^)\s]+)")
+# Markdown links only: JSX href= attributes on the custom homepage are outside this contract.
+link_pattern = re.compile(r"(?<!!)\[[^]]+\]\(([^)\s]+)")
+fence_pattern = re.compile(r"^\s*(```|~~~)")
+heading_pattern = re.compile(r"^#{1,6}\s+(.+)$")
+id_pattern = re.compile(r"id=\"([^\"]+)\"")
+DOC_SUFFIXES = {".md", ".mdx"}
+
+
+def slugify(text):
+    # Mintlify derives heading anchors the GitHub way: strip formatting and punctuation,
+    # lowercase, whitespace runs become single hyphens.
+    text = re.sub(r"[`*_]", "", text).strip().lower()
+    text = re.sub(r"[^a-z0-9\s-]", "", text)
+    return re.sub(r"\s+", "-", text)
+
+
+def unfenced_lines(page):
+    in_fence = False
+    for line in page.read_text(encoding="utf-8").splitlines():
+        if fence_pattern.match(line):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            yield line
+
+
+def page_anchors(page):
+    anchors = set()
+    for line in unfenced_lines(page):
+        match = heading_pattern.match(line)
+        if match:
+            anchors.add(slugify(match.group(1)))
+        anchors.update(value.lower() for value in id_pattern.findall(line))
+    return anchors
+
 
 for page in root.rglob("*"):  # tree-walk-ok: scoped to the selected public-site source root, including unstaged Markdown pages but never repository worktrees
-    if not page.is_file() or page.suffix not in {".md", ".mdx"}:
+    if not page.is_file() or page.suffix not in DOC_SUFFIXES:
         continue
-    for href in link_pattern.findall(page.read_text(encoding="utf-8")):
-        route = href.split("#", 1)[0].split("?", 1)[0].lstrip("/")
-        if not route:
+    for href in (h for line in unfenced_lines(page) for h in link_pattern.findall(line)):
+        if href.startswith(("http://", "https://", "mailto:")):
             continue
-        candidates = (root / route, root / f"{route}.md", root / f"{route}.mdx")
-        if not any(candidate.is_file() for candidate in candidates):
+        target, _, fragment = href.partition("#")
+        target = target.split("?", 1)[0]
+        if target == "":
+            target_page = page
+        elif target.startswith("/"):
+            route = target.lstrip("/")
+            candidates = (root / route, root / f"{route}.md", root / f"{route}.mdx")
+            target_page = next((c for c in candidates if c.is_file()), None)
+            if target_page is None:
+                print("no")
+                raise SystemExit(0)
+        else:
+            # A bare relative link renders differently per route depth, so the site
+            # convention is root-relative; a relative form is refused outright.
             print("no")
             raise SystemExit(0)
+        if fragment and target_page.suffix in DOC_SUFFIXES:
+            anchors = page_anchors(target_page)
+            # A page with no derivable anchors (e.g. a JSX-only page) is left
+            # unverified rather than failed; explicit id= anchors are honored.
+            if anchors and fragment.lower() not in anchors:
+                print("no")
+                raise SystemExit(0)
 
 print("yes")
 PY
@@ -54200,6 +54252,19 @@ assert_eq "public site guard: a missing root-relative link target is rejected" "
   "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
 printf '# Present\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
 assert_eq "public site guard: the same link fixture passes when its target exists" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n[Relative](missing)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a bare relative internal link is rejected" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n```text\n[Relative](missing)\n```\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a pseudo-link inside a code fence is not checked" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n[Anchor](/docs/missing#absent-heading)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a fragment matching no heading in its target page is rejected" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Present\n\n## Known Heading: Kept\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n[Anchor](/docs/missing#known-heading-kept)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a fragment matching a derived heading slug passes" "yes" \
   "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
 
 # The four guards below were hardcoded to the live tree and observed only its passing state, so

@@ -1,67 +1,90 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="720" viewBox="0 0 900 720" role="img" aria-labelledby="title" aria-describedby="description">
+  <style>
+    @media (prefers-color-scheme: dark) {
+      [fill="#FAF7EE"] { fill: #4A3221; }
+      [stroke="#D9CFB6"] { stroke: #6C7440; }
+      rect[fill="#FFFFFF"] { fill: #5D4230; }
+      [fill="#555934"] { fill: #6C7440; }
+      [stroke="#555934"] { stroke: #A9B06B; }
+      [fill="#565A35"] { fill: #A9B06B; }
+      [fill="#4F5430"] { fill: #DCE0B8; }
+      [fill="#6E7544"] { fill: #B9BF7E; }
+      [fill="#E7DFC6"] { fill: #3E4425; }
+      [fill="#DDD3BC"] { fill: #4E5330; }
+      [fill="#EEE7D3"] { fill: #4F3A28; }
+      [fill="#A89F84"] { fill: #B7A98F; }
+      [fill="#3B2A1E"] { fill: #F2E6D8; }
+      [fill="#6E5D4C"] { fill: #D9C6B2; }
+      [fill="#FFF8EC"] { fill: #4C3A20; }
+      [fill="#7A4D00"] { fill: #F0C980; }
+      [fill="#F0F8F4"] { fill: #2E4034; }
+      [fill="#E8F5EF"] { fill: #2E4034; }
+      [fill="#2F6B51"] { fill: #9FD4BC; }
+    }
+  </style>
   <title id="title">PRFlow cloud run trust boundary</title>
   <desc id="description">A GitHub comment passes through an authorization gate that uses narrow GitHub permissions. The gate starts a maintainer-controlled agent job with model credentials and configured repository permissions. The agent job produces a branch, workpad, pull request or review. A person reviews and merges the work.</desc>
 
   <defs>
     <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#635BFF"/>
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#565A35"/>
     </marker>
   </defs>
 
-  <rect x="1" y="1" width="898" height="718" rx="28" fill="#FBFAFF" stroke="#E2DFFF" stroke-width="2"/>
+  <rect x="1" y="1" width="898" height="718" rx="28" fill="#FAF7EE" stroke="#D9CFB6" stroke-width="2"/>
 
   <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
-    <text x="46" y="52" fill="#19172B" font-size="26" font-weight="600">How a cloud command becomes review-ready work</text>
-    <text x="46" y="83" fill="#5C5875" font-size="16">The authorization gate runs before the agent job.</text>
-    <text x="46" y="107" fill="#5C5875" font-size="16">Repository rules still govern what each job can access.</text>
+    <text x="46" y="52" fill="#3B2A1E" font-size="26" font-weight="600">How a cloud command becomes review-ready work</text>
+    <text x="46" y="83" fill="#6E5D4C" font-size="16">The authorization gate runs before the agent job.</text>
+    <text x="46" y="107" fill="#6E5D4C" font-size="16">Repository rules still govern what each job can access.</text>
 
-    <rect x="462" y="134" width="392" height="446" rx="24" fill="#F2F0FF" stroke="#7C73FF" stroke-width="2" stroke-dasharray="8 7"/>
-    <rect x="487" y="118" width="256" height="34" rx="17" fill="#635BFF"/>
-    <text x="615" y="141" fill="#FFFFFF" font-size="13" font-weight="600" text-anchor="middle" letter-spacing="0.5">TRUSTED EXECUTION BOUNDARY</text>
+    <rect x="462" y="134" width="392" height="446" rx="24" fill="#EEE7D3" stroke="#6E7544" stroke-width="2" stroke-dasharray="8 7"/>
+    <rect x="487" y="118" width="256" height="34" rx="17" fill="#555934"/>
+    <text x="615" y="141" fill="#F7F3E6" font-size="13" font-weight="600" text-anchor="middle" letter-spacing="0.5">TRUSTED EXECUTION BOUNDARY</text>
 
-    <line x1="408" y1="250" x2="500" y2="250" stroke="#635BFF" stroke-width="3" marker-end="url(#arrow)"/>
-    <line x1="680" y1="326" x2="680" y2="404" stroke="#635BFF" stroke-width="3" marker-end="url(#arrow)"/>
-    <line x1="502" y1="480" x2="410" y2="480" stroke="#635BFF" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="408" y1="250" x2="500" y2="250" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="680" y1="326" x2="680" y2="404" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
+    <line x1="502" y1="480" x2="410" y2="480" stroke="#555934" stroke-width="3" marker-end="url(#arrow)"/>
 
     <g>
-      <rect x="48" y="176" width="360" height="150" rx="18" fill="#FFFFFF" stroke="#D8D4F4" stroke-width="2"/>
-      <circle cx="88" cy="218" r="20" fill="#EAE8FF"/>
-      <text x="88" y="225" fill="#4B45CC" font-size="19" font-weight="700" text-anchor="middle">1</text>
-      <text x="122" y="224" fill="#19172B" font-size="20" font-weight="600">GitHub comment</text>
-      <text x="76" y="270" fill="#5C5875" font-size="17">A collaborator requests implementation</text>
-      <text x="76" y="296" fill="#5C5875" font-size="17">or review.</text>
+      <rect x="48" y="176" width="360" height="150" rx="18" fill="#FFFFFF" stroke="#DDD3BC" stroke-width="2"/>
+      <circle cx="88" cy="218" r="20" fill="#E7DFC6"/>
+      <text x="88" y="225" fill="#4F5430" font-size="19" font-weight="700" text-anchor="middle">1</text>
+      <text x="122" y="224" fill="#3B2A1E" font-size="20" font-weight="600">GitHub comment</text>
+      <text x="76" y="270" fill="#6E5D4C" font-size="17">A collaborator requests implementation</text>
+      <text x="76" y="296" fill="#6E5D4C" font-size="17">or review.</text>
     </g>
 
     <g>
-      <rect x="500" y="176" width="324" height="150" rx="18" fill="#FFFFFF" stroke="#635BFF" stroke-width="2"/>
-      <circle cx="540" cy="218" r="20" fill="#EAE8FF"/>
-      <text x="540" y="225" fill="#4B45CC" font-size="19" font-weight="700" text-anchor="middle">2</text>
-      <text x="574" y="224" fill="#19172B" font-size="20" font-weight="600">Authorization gate</text>
-      <text x="528" y="270" fill="#5C5875" font-size="17">Checks the allowed list and</text>
-      <text x="528" y="296" fill="#5C5875" font-size="17">uses narrow GitHub permissions.</text>
+      <rect x="500" y="176" width="324" height="150" rx="18" fill="#FFFFFF" stroke="#555934" stroke-width="2"/>
+      <circle cx="540" cy="218" r="20" fill="#E7DFC6"/>
+      <text x="540" y="225" fill="#4F5430" font-size="19" font-weight="700" text-anchor="middle">2</text>
+      <text x="574" y="224" fill="#3B2A1E" font-size="20" font-weight="600">Authorization gate</text>
+      <text x="528" y="270" fill="#6E5D4C" font-size="17">Checks the allowed list and</text>
+      <text x="528" y="296" fill="#6E5D4C" font-size="17">uses narrow GitHub permissions.</text>
     </g>
 
     <g>
-      <rect x="500" y="404" width="324" height="150" rx="18" fill="#FFFFFF" stroke="#635BFF" stroke-width="2"/>
-      <circle cx="540" cy="446" r="20" fill="#EAE8FF"/>
-      <text x="540" y="453" fill="#4B45CC" font-size="19" font-weight="700" text-anchor="middle">3</text>
-      <text x="574" y="452" fill="#19172B" font-size="20" font-weight="600">Agent job</text>
-      <text x="528" y="498" fill="#5C5875" font-size="17">Receives model credentials and</text>
-      <text x="528" y="524" fill="#5C5875" font-size="17">configured repository permissions.</text>
+      <rect x="500" y="404" width="324" height="150" rx="18" fill="#FFFFFF" stroke="#555934" stroke-width="2"/>
+      <circle cx="540" cy="446" r="20" fill="#E7DFC6"/>
+      <text x="540" y="453" fill="#4F5430" font-size="19" font-weight="700" text-anchor="middle">3</text>
+      <text x="574" y="452" fill="#3B2A1E" font-size="20" font-weight="600">Agent job</text>
+      <text x="528" y="498" fill="#6E5D4C" font-size="17">Receives model credentials and</text>
+      <text x="528" y="524" fill="#6E5D4C" font-size="17">configured repository permissions.</text>
     </g>
 
     <g>
-      <rect x="48" y="404" width="360" height="150" rx="18" fill="#FFFFFF" stroke="#D8D4F4" stroke-width="2"/>
-      <circle cx="88" cy="446" r="20" fill="#EAE8FF"/>
-      <text x="88" y="453" fill="#4B45CC" font-size="19" font-weight="700" text-anchor="middle">4</text>
-      <text x="122" y="452" fill="#19172B" font-size="20" font-weight="600">Work product</text>
-      <text x="76" y="498" fill="#5C5875" font-size="17">Branch, workpad, pull request</text>
-      <text x="76" y="524" fill="#5C5875" font-size="17">or review.</text>
+      <rect x="48" y="404" width="360" height="150" rx="18" fill="#FFFFFF" stroke="#DDD3BC" stroke-width="2"/>
+      <circle cx="88" cy="446" r="20" fill="#E7DFC6"/>
+      <text x="88" y="453" fill="#4F5430" font-size="19" font-weight="700" text-anchor="middle">4</text>
+      <text x="122" y="452" fill="#3B2A1E" font-size="20" font-weight="600">Work product</text>
+      <text x="76" y="498" fill="#6E5D4C" font-size="17">Branch, workpad, pull request</text>
+      <text x="76" y="524" fill="#6E5D4C" font-size="17">or review.</text>
     </g>
 
-    <line x1="228" y1="554" x2="228" y2="615" stroke="#A39EBE" stroke-width="2"/>
-    <circle cx="228" cy="615" r="5" fill="#635BFF"/>
-    <text x="228" y="652" fill="#19172B" font-size="18" font-weight="600" text-anchor="middle">Human review and merge</text>
-    <text x="228" y="678" fill="#5C5875" font-size="16" text-anchor="middle">Automation stops before merge.</text>
+    <line x1="228" y1="554" x2="228" y2="615" stroke="#A89F84" stroke-width="2"/>
+    <circle cx="228" cy="615" r="5" fill="#555934"/>
+    <text x="228" y="652" fill="#3B2A1E" font-size="18" font-weight="600" text-anchor="middle">Human review and merge</text>
+    <text x="228" y="678" fill="#6E5D4C" font-size="16" text-anchor="middle">Automation stops before merge.</text>
   </g>
 </svg>
