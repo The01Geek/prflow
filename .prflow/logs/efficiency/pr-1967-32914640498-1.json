@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1967",
+  "generated_at": "2026-08-26T00:27:08Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.35",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.131251000000001,
+    "tokens": {
+      "input_tokens": 32,
+      "output_tokens": 17739,
+      "cache_read_input_tokens": 2017342,
+      "cache_creation_input_tokens": 160678,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 58,
+        "outputTokens": 37531,
+        "cacheReadInputTokens": 2532362,
+        "cacheCreationInputTokens": 371834,
+        "webSearchRequests": 0,
+        "costUSD": 5.131251000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 26,
+    "duration_ms": 346276
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-EMPTY} ATTEMPT=${GITHUB_RUN_ATTEMPT:-EMPTY}\"",
+      "RID=$(date -u +%Y%m%dT%H%M%SZ); echo \"run-id=$RID\"; mkdir -p .prflow/tmp/review/pr-1967/$RID; gh pr diff 1967 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1967/$RID/diff.patch | grep -c '^diff --git'",
+      "echo \"=== 'assembled whole' / 'whole document' ===\"; git ls-files 'skills/**' | grep '\\.md$' | xargs grep -l 'assembled whole\\|whole document\\|offset.*limit\\|returns the file in pages\\|page forward until' 2>/dev/null; echo \"=== markers present in enrolled files (verify live-gate assumptions) ===\"; for f in skills/review-and-fix/references/loop-control.md skills/review-and-fix/references/fixing.md; do echo \"-- $f --\"; grep -o 'terminates the paging\\|forward to EOF\\|adds nothing new' \"$f\" 2>/dev/n …[per-command-truncated]",
+      "for f in \"skills/review/SKILL.md:adds nothing new\" \"skills/implement/SKILL.md:adds nothing new\" \"skills/implement/phases/phase-2-sweeps-contract.md:adds nothing new\" \"skills/implement/phases/phase-4-documentation.md:adds nothing new\" \"skills/create-issue/SKILL.md:adds nothing new\" \"skills/docs-verify/SKILL.md:adds nothing new\" \"skills/review-and-fix/SKILL.md:adds nothing new\" \"skills/review-and-fix/references/loop-control.md:terminates the paging\" \"skills/review-and-fix/references/fixing.md:forw …[per-command-truncated]"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
