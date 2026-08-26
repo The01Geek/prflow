@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1963",
+  "generated_at": "2026-08-26T03:12:50Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.39",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 16.1946565,
+    "tokens": {
+      "input_tokens": 54,
+      "output_tokens": 50561,
+      "cache_read_input_tokens": 4846588,
+      "cache_creation_input_tokens": 267310,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 164,
+        "outputTokens": 127824,
+        "cacheReadInputTokens": 9346050,
+        "cacheCreationInputTokens": 1131188,
+        "webSearchRequests": 0,
+        "costUSD": 15.9417825,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 2,
+        "outputTokens": 12480,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 51228,
+        "webSearchRequests": 0,
+        "costUSD": 0.25287400000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 47,
+    "duration_ms": 1095276
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-1963/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"dir=.prflow/tmp/review/pr-1963/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "D=.prflow/tmp/review/pr-1963/32924350684-1; awk '/^diff --git/{n++} n>=1 && n<=10' $D/diff.patch | tee $D/batch-1.patch | grep -c '^diff --git'; awk '/^diff --git/{n++} n>=11 && n<=20' $D/diff.patch | tee $D/batch-2.patch | grep -c '^diff --git'; awk '/^diff --git/{n++} n>=21 && n<=30' $D/diff.patch | tee $D/batch-3.patch | grep -c '^diff --git'",
+      "echo \"=== VC-17 .gitignore re-include (lite) ===\"; git show 64c4be4d16043e3e9b15f99035b8e6f17ab56edd:.gitignore | grep -nF '!/.prflow/install-state.json' ; echo \"--- manifest reinc ---\"; git show 64c4be4d16043e3e9b15f99035b8e6f17ab56edd:.gitignore | grep -nF '!/.prflow/lint-manifest.json'\necho \"=== VC-19 changeset bump (lite) ===\"; git show 64c4be4d16043e3e9b15f99035b8e6f17ab56edd:.changeset/issue-1388-lint-provisioning.md | grep -nF 'bump:'\necho \"=== both files tracked at head (VC-8/VC-17/VC-31 …[per-command-truncated]",
+      "git ls-tree 64c4be4d16043e3e9b15f99035b8e6f17ab56edd -- .prflow/install-state.json .prflow/lint-manifest.json"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
