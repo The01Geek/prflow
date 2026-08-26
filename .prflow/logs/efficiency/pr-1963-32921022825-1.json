@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1963",
+  "generated_at": "2026-08-26T02:09:08Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.36",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.94119975,
+    "tokens": {
+      "input_tokens": 32,
+      "output_tokens": 20313,
+      "cache_read_input_tokens": 2380831,
+      "cache_creation_input_tokens": 200211,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 110,
+        "outputTokens": 65523,
+        "cacheReadInputTokens": 4850242,
+        "cacheCreationInputTokens": 660266,
+        "webSearchRequests": 0,
+        "costUSD": 8.94119975,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 28,
+    "duration_ms": 494623
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/config-get.sh .base_branch main; echo \"---run-env---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-}\"",
+      "cd /home/runner/work/prflow/prflow; sed -n '1,15p' install.sh | grep -n \"set -\"; grep -n \"^log()\\|^log ()\\|log()\" install.sh | head; sed -n '/^log()/,/^}/p' install.sh | head -20"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
