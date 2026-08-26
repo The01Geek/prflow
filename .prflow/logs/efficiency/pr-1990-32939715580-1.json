@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1990",
+  "generated_at": "2026-08-26T07:01:27Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.49",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.692692250000004,
+    "tokens": {
+      "input_tokens": 50,
+      "output_tokens": 36436,
+      "cache_read_input_tokens": 4024407,
+      "cache_creation_input_tokens": 226194,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 139,
+        "outputTokens": 89795,
+        "cacheReadInputTokens": 7254302,
+        "cacheCreationInputTokens": 795479,
+        "webSearchRequests": 0,
+        "costUSD": 11.692692250000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 40,
+    "duration_ms": 713054
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-1990/bootstrap",
+      "git show 0795af5b:scripts/workpad.py > .prflow/tmp/review/pr-1990/run/workpad_head.py; echo \"=== disposition_marker calls ===\"; grep -n \"_review_coverage_disposition_marker(\" .prflow/tmp/review/pr-1990/run/workpad_head.py; echo \"=== review_dispositions unpack loops ===\"; grep -nE \"for .* in review_dispositions\" .prflow/tmp/review/pr-1990/run/workpad_head.py; echo \"=== dispositions[gap] / _review_coverage_dispositions callers ===\"; grep -n \"_review_coverage_dispositions(\" .prflow/tmp/review/pr-19 …[per-command-truncated]",
+      "mkdir -p .prflow/tmp; rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "git show 0795af5b941dc980121842a5c90e9dbaac6fa12f:lib/test/test_python_scripts.py > /tmp/head_test.py; wc -l /tmp/head_test.py",
+      "git show 0795af5b941dc980121842a5c90e9dbaac6fa12f:lib/test/test_python_scripts.py > /tmp/head_test.py",
+      "git show 0795af5b941dc980121842a5c90e9dbaac6fa12f:lib/test/test_python_scripts.py > /home/runner/work/prflow/prflow/.prflow/tmp/head_test.py"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
