@@ -1,0 +1,37 @@
+name: Mintlify Docs Check
+
+on:
+  pull_request:
+    paths:
+      - 'docs/external/**'
+
+permissions:
+  contents: read
+
+# Advisory by design — never add a `# prflow:required-check` marker or branch-protection
+# requirement to this job: the Mintlify CLI is an external dependency this repository does
+# not control, so it must not gate merges.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  mintlify-validate:
+    name: mintlify validation (advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install Mintlify CLI
+        run: npm install -g mint
+      - name: Report CLI version
+        run: mint --version
+        working-directory: docs/external
+      - name: Validate docs configuration
+        run: mint validate
+        working-directory: docs/external
+      - name: Check for broken links
+        run: mint broken-links
+        working-directory: docs/external

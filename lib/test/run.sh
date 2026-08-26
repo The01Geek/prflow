@@ -12394,7 +12394,7 @@ echo "load-prompt-extension.sh (consumer prompt-extension reader)"
 # module owns the whole former in-file section; see its .inventory.md for the
 # coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/prompt-extension-reader.sh" \
-  "prompt-extension-reader" 177; then
+  "prompt-extension-reader" 215; then
   printf 'ERROR: prompt-extension-reader boundary could not record its result\n'
   exit 1
 fi
@@ -18827,8 +18827,8 @@ _936_EXPECTED="$(cat <<'EOF'
 .prflow/config.schema.json
 CLAUDE.md
 README.md
+docs/external/docs/reference/release-notes-archive-2026.md
 docs/external/docs/runs/cloud/installation.md
-docs/external/release-notes.md
 docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md
 docs/internal/cloud-allowlist.md
 docs/internal/cloud-setup.md
@@ -18932,7 +18932,7 @@ assert_eq "#936/#582: install.sh's workflow copy loop ships exactly devflow + de
 assert_eq "#936/#582: the withheld auto-review tier is absent from install.sh's copy loop" \
   "absent" "$(case " $_582_SHIPPED " in *" devflow-review "*|*" devflow-runner "*|*" telemetry-push "*) echo present ;; *) echo absent ;; esac)"
 _582_RETAINED="devflow-runner telemetry-push"
-_582_INTERNAL="ci matcher-probe version-consolidate agents-seam-probe stall-observer"
+_582_INTERNAL="ci matcher-probe version-consolidate agents-seam-probe stall-observer mintlify-check"
 # Exhaustive-and-disjoint: compare the on-disk basename set against the three lists
 # concatenated. A duplicate across lists makes the concatenated count exceed the
 # deduplicated count; a missing file makes the sorted sets differ. Both are asserted.
@@ -53012,7 +53012,7 @@ assert_eq "#1402/#1423 lint: an empty DEVFLOW_WITHHELD_TIER does not refuse (the
 # The print flag exits before the slice and schema reads, so a query about the workflow set
 # cannot be refused by — or misdiagnosed against — a source it never consults.
 assert_eq "#1402 lint: --print-never-shipped-set is independent of the slice and schema sources" \
-  "rc=0|agents-seam-probe ci devflow-runner matcher-probe stall-observer telemetry-push version-consolidate" \
+  "rc=0|agents-seam-probe ci devflow-runner matcher-probe mintlify-check stall-observer telemetry-push version-consolidate" \
   "$(cd "$LIB/.." && sp_encode --print-never-shipped-set --slice-source /dev/null --schema-source /dev/null)"
 # Selection collects every candidate before choosing, so ambiguity refuses rather than
 # resolving by position. Both conjuncts say nothing about a loop's DIRECTION — the fixture's
@@ -53046,7 +53046,7 @@ assert_eq "#1402 lint: --print-never-shipped-set joins the mutually exclusive pr
 # copy loop, turns this RED rather than silently widening or narrowing the audit.
 SP_NEVER_REAL="$(cd "$LIB/.." && python3 "$SP_LINT" --print-never-shipped-set | python3 -c 'import sys; print(" ".join(sys.stdin.read().split()))')"
 assert_eq "#1402 lint: the real never-shipped set matches the checked-in expectation" \
-  "agents-seam-probe ci devflow-runner matcher-probe stall-observer telemetry-push version-consolidate" "$SP_NEVER_REAL"
+  "agents-seam-probe ci devflow-runner matcher-probe mintlify-check stall-observer telemetry-push version-consolidate" "$SP_NEVER_REAL"
 # The #582 partition names this same group from its own transcribed literals: everything the
 # copy loop does NOT install, i.e. the plugin-internal group PLUS the retained-but-unshipped
 # withheld tier (issue #1423 — a withheld name reaches no fresh consumer, so it is forbidden
@@ -54036,20 +54036,92 @@ import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
-link_pattern = re.compile(r"(?<!!)\[[^]]+\]\((/[^)\s]+)")
+# Markdown links only: JSX href= attributes on the custom homepage are outside this contract.
+link_pattern = re.compile(r"(?<!!)\[[^]]+\]\(([^)\s]+)")
+fence_pattern = re.compile(r"^\s*(```|~~~)")
+heading_pattern = re.compile(r"^#{1,6}\s+(.+)$")
+# Anchored to an element opening: a bare id="..." match would count incidental
+# prose mentions as valid fragment targets, silently widening the accepted set.
+id_pattern = re.compile(r"<[^<>]*\sid=\"([^\"]+)\"")
+DOC_SUFFIXES = {".md", ".mdx"}
 
-for page in root.rglob("*"):  # tree-walk-ok: scoped to the selected public-site source root, including unstaged Markdown pages but never repository worktrees
-    if not page.is_file() or page.suffix not in {".md", ".mdx"}:
-        continue
-    for href in link_pattern.findall(page.read_text(encoding="utf-8")):
-        route = href.split("#", 1)[0].split("?", 1)[0].lstrip("/")
-        if not route:
+
+class UnterminatedFence(Exception):
+    pass
+
+
+def slugify(text):
+    # GitHub/Mintlify hyphenate each whitespace character separately -- collapsing a run
+    # to one hyphen ("\s+") mis-slugs headings with punctuation between spaces
+    # ("Foo & Bar" -> foo--bar on the site).
+    text = re.sub(r"[`*_]", "", text).strip().lower()
+    text = re.sub(r"[^a-z0-9\s-]", "", text)
+    return re.sub(r"\s", "-", text)
+
+
+def unfenced_lines(page):
+    in_fence = False
+    lines = []
+    for line in page.read_text(encoding="utf-8").splitlines():
+        if fence_pattern.match(line):
+            in_fence = not in_fence
             continue
-        candidates = (root / route, root / f"{route}.md", root / f"{route}.mdx")
-        if not any(candidate.is_file() for candidate in candidates):
-            print("no")
-            raise SystemExit(0)
+        if not in_fence:
+            lines.append(line)
+    if in_fence:
+        # A fence left open at EOF would silently exclude every later link from
+        # validation -- fail closed instead of returning the truncated line set.
+        raise UnterminatedFence(str(page))
+    return lines
 
+
+def page_anchors(page):
+    anchors = set()
+    for line in unfenced_lines(page):
+        match = heading_pattern.match(line)
+        if match:
+            anchors.add(slugify(match.group(1)))
+        anchors.update(value.lower() for value in id_pattern.findall(line))
+    return anchors
+
+
+def scan(root):
+    for page in root.rglob("*"):  # tree-walk-ok: scoped to the selected public-site source root, including unstaged Markdown pages but never repository worktrees
+        if not page.is_file() or page.suffix not in DOC_SUFFIXES:
+            continue
+        for href in (h for line in unfenced_lines(page) for h in link_pattern.findall(line)):
+            if href.startswith(("http://", "https://", "mailto:")):
+                continue
+            target, _, fragment = href.partition("#")
+            target = target.split("?", 1)[0]
+            if target == "":
+                target_page = page
+            elif target.startswith("/"):
+                route = target.lstrip("/")
+                candidates = (root / route, root / f"{route}.md", root / f"{route}.mdx")
+                target_page = next((c for c in candidates if c.is_file()), None)
+                if target_page is None:
+                    print("no")
+                    raise SystemExit(0)
+            else:
+                # A bare relative link renders differently per route depth, so the site
+                # convention is root-relative; a relative form is refused outright.
+                print("no")
+                raise SystemExit(0)
+            if fragment and target_page.suffix in DOC_SUFFIXES:
+                anchors = page_anchors(target_page)
+                # A page with no derivable anchors (e.g. a JSX-only page) is left
+                # unverified rather than failed; explicit id= anchors are honored.
+                if anchors and fragment.lower() not in anchors:
+                    print("no")
+                    raise SystemExit(0)
+
+
+try:
+    scan(root)
+except UnterminatedFence:
+    print("no")
+    raise SystemExit(0)
 print("yes")
 PY
 }
@@ -54216,6 +54288,48 @@ assert_eq "public site guard: a missing root-relative link target is rejected" "
   "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
 printf '# Present\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
 assert_eq "public site guard: the same link fixture passes when its target exists" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n[Relative](missing)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a bare relative internal link is rejected" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n```text\n[Relative](missing)\n```\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a pseudo-link inside a code fence is not checked" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n[Anchor](/docs/missing#absent-heading)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a fragment matching no heading in its target page is rejected" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Present\n\n## Known Heading: Kept\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n[Anchor](/docs/missing#known-heading-kept)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a fragment matching a derived heading slug passes" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n```text\n[Relative](missing)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: an unterminated code fence fails closed" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Present\n\n## Foo & Bar\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n[Anchor](/docs/missing#foo--bar)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: punctuation between spaces derives one hyphen per space" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n[Anchor](/docs/missing#foo-bar)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: the run-collapsed slug of that heading is rejected" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Present\n\n<div id="Explicit-Anchor"></div>\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n[Anchor](/docs/missing#explicit-anchor)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: an explicit element id anchor is honored" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Present\n\nSet id="fake" in the config.\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n[Anchor](/docs/missing#fake)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a prose id= mention is not a fragment target" "no" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf 'Plain body with no headings or ids.\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n[Anchor](/docs/missing#anything)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a page with no derivable anchors is left unverified" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Present\n' > "$PUBLIC_LINK_FIXTURE/docs/missing.md"
+printf '# Docs\n\n## Local Heading\n\n[Jump](#local-heading)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a same-page fragment matching a heading passes" "yes" \
+  "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
+printf '# Docs\n\n## Local Heading\n\n[Jump](#absent)\n' > "$PUBLIC_LINK_FIXTURE/docs/index.md"
+assert_eq "public site guard: a same-page fragment matching nothing is rejected" "no" \
   "$(public_internal_links_resolve "$PUBLIC_LINK_FIXTURE")"
 
 # The four guards below were hardcoded to the live tree and observed only its passing state, so

@@ -175,6 +175,7 @@ Create markdown-formatted report listing:
 - Changes that need CORRECTED documentation (Edit in place)
 - Changes that need NO documentation update (with justification)
 - Pinned paths found by the pinned-path guard, and any page flagged over the size ceiling with its split proposal
+- **Public-doc impact** list: one line per user-visible behavior change on the branch (a changed command, output, setting, or workflow a user would notice), or the explicit line "Public-doc impact: none" — the external documentation step consumes this list as its comparison scope, and an omitted list is indistinguishable from an empty one
 - Summary: Behavior changes found vs. documentation pages added/corrected (explain any difference)
 
 Step 4: Make Actual File Edits
@@ -216,6 +217,7 @@ Before completing, verify you have:
 - [ ] Searched for related documentation using the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) for each behavior change
 - [ ] Determined the owning page and action (add / correct in place / none) for each behavior change
 - [ ] Provided markdown-formatted analysis output listing ALL behavior changes and their documentation status
+- [ ] Recorded the **Public-doc impact** list (or its explicit "Public-doc impact: none" line) in the analysis output
 - [ ] Actually edited documentation files so every owning page describes current behavior
 - [ ] Ran the pinned-path guard before any rename/move/delete, and flagged any touched page over the size ceiling
 - [ ] Verified documentation updates are proportional to code change scope

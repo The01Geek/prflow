@@ -5,6 +5,8 @@ description: "Look up every public PRFlow command, argument, supported client an
 
 Find the canonical syntax and client availability for every public PRFlow command. A command is the text you enter. It invokes a PRFlow skill, whose documented behavior is called a workflow in these guides.
 
+This reference lists the commands you invoke yourself. PRFlow also ships internal skills (such as the retrospective analysis stages that `retrospective-weekly` dispatches) that are marked not directly invocable; they are intentionally absent from this matrix.
+
 ## Client Syntax
 
 Replace `<skill>` with the command name from the matrix.

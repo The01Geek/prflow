@@ -49,6 +49,8 @@ mint validate
 mint broken-links
 ```
 
+Pull requests that change `docs/external/**` also run these two commands automatically through the advisory `.github/workflows/mintlify-check.yml` workflow; a failure there is a fix-before-merge signal, not a required check.
+
 The repository test suite also checks that every page under `docs/external/docs/` is navigated exactly once, the root landing page is navigated once, root-relative internal links resolve, each documentation directory has an index page, nesting stays shallow and no generated web assets or dependency manifests enter the public source tree. Top-level release notes are intentionally outside the documentation-navigation check because they belong to the release-notes workflow.
 
 ## Normal Publishing Flow
