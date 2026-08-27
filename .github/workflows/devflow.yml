@@ -1751,8 +1751,11 @@ jobs:
             *) SKILL="" ;;
           esac
           if [ -z "$SKILL" ]; then
-            echo "::warning::prompt-extension-arrival: could not select a skill from command '$CMD'; recording detector-absent"
-            echo "state=detector-absent" >> "$GITHUB_OUTPUT"
+            # Never reuse detector-absent here: its reconcile arm diagnoses an older
+            # prflow_version, so a command added to resolve-command-trigger.sh's allowlist
+            # without an arm above would fail closed pointing at the wrong remedy.
+            echo "::warning::prompt-extension-arrival: no skill arm above matches command '$CMD' (add one); recording skill-unresolved"
+            echo "state=skill-unresolved" >> "$GITHUB_OUTPUT"
             echo "skill=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -2660,6 +2663,14 @@ jobs:
           if [ "$EXPECTED" = "detector-absent" ]; then
             fail_closed "the arrival detector is absent (older prflow_version)"
             record_non_arrival "prompt-extension arrival unestablished — the arrival detector is absent (older prflow_version)"
+            exit 1
+          fi
+          # Enforcing, not a pass-through: an unclassified command has no arrival evidence
+          # at all, and exiting clean here would be the declare-arrival-by-absence the
+          # positive-signal rule exists to forbid.
+          if [ "$EXPECTED" = "skill-unresolved" ]; then
+            fail_closed "the pre-agent classify step matched no skill arm for command '$CMD', so no extension could be classified"
+            record_non_arrival "prompt-extension arrival unestablished — the pre-agent classify step matched no skill arm for this command; add one to that step's case"
             exit 1
           fi
           case "$EXPECTED" in

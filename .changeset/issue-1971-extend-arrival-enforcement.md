@@ -17,7 +17,8 @@ implement tier to the local/interactive tier and the cloud review/command tier.
   checkout. Because the read-only review/command tier has no implement-style positive-tick
   arrival row, the post-agent step enforces only what it can establish at job level — it
   fails closed on a successful run whose expectation is unestablished (no pre-agent token,
-  detector absent, or an undeliverable extension file). On an arrived-expected (deliverable)
+  detector absent, no skill arm matching the command, or an undeliverable extension file).
+  On an arrived-expected (deliverable)
   run it records that consumption cannot be independently confirmed on this read-only tier
   and passes; the agent-side classify and forced durable record are the consumption catch.
 - The three workpad-less skill bodies (`skills/review`, `skills/review-and-fix`,

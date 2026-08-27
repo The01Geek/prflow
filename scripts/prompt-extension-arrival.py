@@ -78,8 +78,9 @@ LADDER_STATUS_CONTENT_PRESENT = "content-present"
 LADDER_STATUS_PRESENT_EMPTY = "present-empty"
 
 # Exit codes: 0 = clean state (arrived/absent), 2 = bad arguments, 3 = a loud fault
-# (classify) or a `block` terminal (reconcile). A fault and a block both mean the run
-# must not report `Complete`, so they share the loud exit rather than a silent 0.
+# (classify) or a `block` terminal (reconcile AND classify-ladder-output, which share
+# `_emit_final`). A fault and a block both mean the run must not report `Complete`, so
+# they share the loud exit rather than a silent 0.
 EXIT_OK = 0
 EXIT_BADARGS = 2
 EXIT_FAULT = 3
@@ -234,6 +235,9 @@ def _scan_ladder_status(output: str) -> str:
     """
     saw_present_empty = False
     for line in output.splitlines():
+        # Substring, never `startswith`: the ladder emits the prefix behind its own
+        # `load-prompt-extension.sh: ` breadcrumb, so anchoring the match to the line
+        # start would classify every real arrival as unestablished.
         idx = line.find(LADDER_STATUS_PREFIX)
         if idx == -1:
             continue

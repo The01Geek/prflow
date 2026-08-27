@@ -1074,6 +1074,13 @@ PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: une
 assert_eq "pea classify-ladder: real unestablished(reason) token → unestablished/block" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
 assert_eq "pea classify-ladder: unestablished(reason) → exit 3" "3" "$PEA_RC"
 
+# unestablished — the prefix with NO token after it (a truncated/malformed status line)
+# exercises the `rest[0] if rest else ""` empty-list arm, which must fold to unestablished
+# rather than raising IndexError.
+PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS:' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: prefix with no token → unestablished/block" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: prefix with no token → exit 3" "3" "$PEA_RC"
+
 # content-present wins over present-empty when both lines are present in the capture.
 PEA_OUT="$(printf '%s\n%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: present-empty' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"
 assert_eq "pea classify-ladder: content-present wins over present-empty → arrived" "final=arrived terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"
