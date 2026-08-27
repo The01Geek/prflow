@@ -1917,7 +1917,12 @@ jobs:
             echo "::notice::run-profile floor inert: no issue number for this command class; the run profile is derived for implement runs only"
           else
             PROFILE_FILE="${RUNNER_TEMP:-/tmp}/devflow-run-profile-$$.json"
-            bash "$PROFILE_GLUE" "$DEVFLOW_ISSUE_NUMBER" "$PROFILE_FILE"
+            # Do NOT drop the rc: the glue exits 0 by design, so a non-zero exit means a
+            # corrupt or partial vendored copy, which must draw a NAMED ::warning:: rather
+            # than leaving DEVFLOW_RUN_PROFILE silently empty with no diagnosis.
+            if ! bash "$PROFILE_GLUE" "$DEVFLOW_ISSUE_NUMBER" "$PROFILE_FILE"; then
+              echo "::warning::run-profile floor inert: $PROFILE_GLUE exited non-zero (a corrupt or partial vendored copy); the run profile is skipped this run"
+            fi
             [ -s "$PROFILE_FILE" ] && DEVFLOW_RUN_PROFILE="$(cat "$PROFILE_FILE")"
             rm -f "$PROFILE_FILE"
           fi

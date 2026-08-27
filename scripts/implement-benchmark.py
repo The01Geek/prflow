@@ -123,10 +123,18 @@ def render(fp_a, cohort_a, fp_b, cohort_b):
             lines.append(f"  - {reason}")
         return "\n".join(lines)
     mean_a, mean_b = stats_a["duration_mean_ms"], stats_b["duration_mean_ms"]
-    if mean_a == UNESTABLISHED or mean_b == UNESTABLISHED or mean_a <= 0:
+    # Keep the two arms' reasons distinct: a zero or negative baseline mean IS established,
+    # so reporting it as unestablished would send a reader hunting for a missing measurement
+    # instead of the impossible duration that actually blocked the percentage.
+    if mean_a == UNESTABLISHED or mean_b == UNESTABLISHED:
         lines.append("Efficiency verdict WITHHELD:")
         lines.append("  - a cohort's mean duration could not be established, so there is "
                      "nothing to compare")
+        return "\n".join(lines)
+    if mean_a <= 0:
+        lines.append("Efficiency verdict WITHHELD:")
+        lines.append(f"  - cohort A's mean duration is {mean_a:g} ms, so a percentage "
+                     f"against it is undefined")
         return "\n".join(lines)
     delta = (mean_b - mean_a) / mean_a * 100
     direction = "faster" if delta < 0 else "slower"

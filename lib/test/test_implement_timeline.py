@@ -458,5 +458,44 @@ class ArtifactNameResolution(unittest.TestCase):
             "77", [{"name": "claude-execution-transcript-7712-1"}]))
 
 
+class RenderTruncation(unittest.TestCase):
+    """The per-step render caps at PER_STEP_RENDER_CAP rows. The docstring calls truncation
+    the common production case, so an off-by-one or a missing header ships silently."""
+
+    def _timeline(self, step_count):
+        return {"phases": {"p": 1000}, "activities": {"Read": 1000},
+                "steps": [{"duration_ms": 1000, "phase": tl.UNATTRIBUTED, "tool": "Read"}
+                          for _ in range(step_count)],
+                "diagnostics": []}
+
+    def _step_rows(self, rendered):
+        return [ln for ln in rendered.splitlines()
+                if re.match(r"^\s+\d+\s+[\d.]+s\s+Read\s", ln)]
+
+    def test_an_over_cap_timeline_renders_exactly_the_cap(self):
+        out = tl._render(self._timeline(tl.PER_STEP_RENDER_CAP + 37))
+        self.assertEqual(len(self._step_rows(out)), tl.PER_STEP_RENDER_CAP)
+
+    def test_the_header_states_the_true_total_and_the_truncation(self):
+        out = tl._render(self._timeline(tl.PER_STEP_RENDER_CAP + 37))
+        self.assertIn(f"Per-step wall clock ({tl.PER_STEP_RENDER_CAP + 37} step(s), in order",
+                      out)
+        self.assertIn(f"showing the first {tl.PER_STEP_RENDER_CAP} — pass --json for all",
+                      out)
+
+    def test_a_timeline_exactly_at_the_cap_is_not_truncated(self):
+        """The boundary an off-by-one would break: at the cap every row is shown and the
+        truncation clause must be absent."""
+        out = tl._render(self._timeline(tl.PER_STEP_RENDER_CAP))
+        self.assertEqual(len(self._step_rows(out)), tl.PER_STEP_RENDER_CAP)
+        self.assertNotIn("showing the first", out)
+        self.assertIn(f"({tl.PER_STEP_RENDER_CAP} step(s), in order)", out)
+
+    def test_an_under_cap_timeline_carries_no_truncation_clause(self):
+        out = tl._render(self._timeline(3))
+        self.assertEqual(len(self._step_rows(out)), 3)
+        self.assertNotIn("showing the first", out)
+
+
 if __name__ == "__main__":
     unittest.main()

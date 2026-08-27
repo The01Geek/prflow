@@ -197,5 +197,38 @@ class EndToEnd(unittest.TestCase):
         self.assertNotIn("faster", out)
 
 
+class PostGateVerdictArms(unittest.TestCase):
+    """The two arms AFTER the withholding gate: a cohort passes every gate (enough
+    established durations, no REJECT) and the percentage is still undefined."""
+
+    def test_a_zero_baseline_mean_withholds_and_names_the_baseline(self):
+        """duration_ms 0 is an ESTABLISHED figure, so cohort A clears the count gate and
+        reaches `mean_a <= 0` — where dividing by it would raise."""
+        td, p = _store(*(_cohort(FP_A, bm.MIN_COHORT_RUNS, 0, 1.0)
+                         + _cohort(FP_B, bm.MIN_COHORT_RUNS, 2000, 2.0, start=50)))
+        with td:
+            runs = ir.load_runs(p)
+        stats_a = bm.describe(bm.select_cohort(runs, FP_A))
+        # Positive control: the fixture is otherwise valid — it is not withheld by the gate.
+        self.assertEqual(stats_a["established_durations"], bm.MIN_COHORT_RUNS)
+        self.assertEqual(bm.withholding_reasons(
+            "A", stats_a, "B", bm.describe(bm.select_cohort(runs, FP_B))), [])
+        out = bm.render(FP_A, bm.select_cohort(runs, FP_A),
+                        FP_B, bm.select_cohort(runs, FP_B))
+        self.assertIn("Efficiency verdict WITHHELD:", out)
+        self.assertIn("cohort A's mean duration is 0 ms", out)
+        self.assertNotIn("Efficiency verdict: cohort B is", out)
+
+    def test_the_zero_baseline_reason_is_not_the_unestablished_reason(self):
+        """A zero mean WAS established; naming it unestablished would misdirect the reader."""
+        td, p = _store(*(_cohort(FP_A, bm.MIN_COHORT_RUNS, 0, 1.0)
+                         + _cohort(FP_B, bm.MIN_COHORT_RUNS, 2000, 2.0, start=50)))
+        with td:
+            runs = ir.load_runs(p)
+        out = bm.render(FP_A, bm.select_cohort(runs, FP_A),
+                        FP_B, bm.select_cohort(runs, FP_B))
+        self.assertNotIn("could not be established", out)
+
+
 if __name__ == "__main__":
     unittest.main()

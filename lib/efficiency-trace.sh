@@ -1570,21 +1570,13 @@ _floor_merge_key_staged() {
 
 # Count prior efficiency records for this run's own record family on the telemetry branch,
 # excluding this run's own ident. Prints a decimal count, or the string `unestablished`.
-#
 # $2 = the PR number (may be empty), $3 = the issue number (may be empty), $4 = this run's
-# ident. The filename prefixes this run's own record can be keyed under — `pr-<N>-` and
-# `issue-<N>-` — bound the candidates by NAME first, and only those few are read to confirm
-# each is an implement record. Reading every blob instead would cost two processes per stored
-# record on every persist, on a branch that grows by one record per cloud run forever.
+# ident. Counts only records under THIS run's own `pr-<N>-`/`issue-<N>-` keys, so an issue
+# whose work moved to a second PR begins a new count under that PR's key.
 #
-# The bound this buys, stated because the field means less than its name suggests otherwise:
-# it counts prior records under THIS run's own pr-/issue- keys, so an issue whose work moved
-# to a second PR begins a new count under that PR's key.
-#
-# Probes the ref ITSELF rather than reading devflow_telemetry_list_blobs' output: that
-# helper returns 0 and prints nothing on an absent ref, an unestablished ref probe AND an
-# unreadable tree alike, so its empty output cannot distinguish a real zero from a failed
-# read — the exact fail-open this count must not inherit.
+# Do NOT derive the absent-ref case from devflow_telemetry_list_blobs' empty output: it
+# prints nothing for an absent ref, an unestablished probe and an unreadable tree alike, so
+# a real zero would be indistinguishable from a failed read. Probe the ref itself.
 _prior_implement_record_count() {
   local root="$1" pr="$2" issue="$3" ident="$4" ref rel base blob _match _class n=0 rc=0 listing
   ref="$(devflow_telemetry_ref)"
@@ -1624,12 +1616,10 @@ _prior_implement_record_count() {
     # a second positive signal is needed; a candidate matching neither is unclassifiable,
     # not "some other class".
     #
-    # Do NOT add a `.slug` or `.source` signal here. Measured over the 2409 records on the
-    # telemetry branch: 557 records with no harness_cost carry a `.slug` starting `issue-`
-    # and were written by review-and-fix runs on an issue-named branch, so a slug signal
-    # OVERCOUNTS them as implement; and 191 records whose harness_cost.command IS
-    # "implement" carry `.source == "review-and-fix"`, so a source signal misclassifies
-    # implement records as other. Neither field separates the classes.
+    # Do NOT add a `.slug` or `.source` signal here: measured against the stored records,
+    # a slug signal overcounts review-and-fix runs on issue-named branches as implement and
+    # a source signal misclassifies implement records as other (census in
+    # docs/internal/improvement-loops/runtime-evaluations.md).
     _class="$(printf '%s' "$blob" | "$DEVFLOW_JQ" -r '
         if (.harness_cost.command? // null) == "implement" then "implement"
         elif (.harness_cost.command? // null) != null then "other"

@@ -55,6 +55,17 @@ The per-run record's added fields are populated by floors in `lib/efficiency-tra
 PR still persists an issue-keyed record naming why. A field whose source is unavailable holds
 the string `unestablished` and is excluded from every aggregate rather than counted as zero.
 
+### Why the prior-record count classifies on `harness_cost.command` alone
+
+`_prior_implement_record_count` in `lib/efficiency-trace.sh` classifies a candidate record as an
+implement record from `harness_cost.command`, falling back to the presence of
+`run_profile.issue_number`, and deliberately reads neither `.slug` nor `.source`. Measured over the
+2409 records on the telemetry branch at the time issue #2006 landed: 557 records carrying no
+`harness_cost` have a `.slug` beginning `issue-` but were written by review-and-fix runs on
+issue-named branches, so a slug signal overcounts them as implement; and 191 records whose
+`harness_cost.command` is `implement` carry `.source == "review-and-fix"`, so a source signal
+misclassifies genuine implement records as other. Neither field separates the two classes.
+
 The transcript channel is separate from the record channel: `implement-timeline.py` reads an
 artifact that expires after seven days, and reports that expiry as a notice at exit 0 rather
 than as a failure. A figure it cannot establish is not a zero.
