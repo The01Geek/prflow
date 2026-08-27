@@ -198,7 +198,10 @@ fi
 # already guards against for the idempotency read (issue #664;
 # lib/test/lint-gh-api-repo-path.py enforces it). The jq maps a merged PR (state
 # `closed`, `merged` true) to `merged`, a closed-unmerged PR to `closed`, an open
-# one to `open`, and anything unresolvable to the empty string.
+# one whose GitHub auto-merge is armed (non-null `auto_merge`) to `automerge`, any
+# other open one to `open`, and anything unresolvable to the empty string. `.merged`
+# is tested first and `automerge` is emitted only for an open PR, so a merged or
+# closed PR still carrying an auto_merge record takes its own arm (issue #2067).
 #
 # FAIL CLOSED on an unestablished state — the same asymmetry as the idempotency
 # read and the author comparand: a missed notification is recoverable (a
@@ -214,7 +217,7 @@ fi
 # still runs if scratch allocation fails.
 STATE_ERR="$(mktemp 2>/dev/null || echo /dev/null)"
 if ! PR_STATE="$("$DEVFLOW_GH" api "repos/{owner}/{repo}/pulls/${PR}" \
-      --jq 'if .merged then "merged" else (.state // "") end' 2>"$STATE_ERR")"; then
+      --jq 'if .merged then "merged" elif (.state == "open" and .auto_merge != null) then "automerge" else (.state // "") end' 2>"$STATE_ERR")"; then
   _note warning "ci auto-review trigger: could not read PR #$PR state to check whether it is still open ($(tr '\n' ' ' < "$STATE_ERR")); NOT posting (fail-closed — review spend on an already-merged or closed target is unrecoverable, a missed notification is not)."
   [ "$STATE_ERR" = /dev/null ] || rm -f "$STATE_ERR"
   exit 0
@@ -223,6 +226,11 @@ fi
 case "$PR_STATE" in
   open)
     : ;;  # still actionable — fall through to the idempotency read and post
+  automerge)
+    # Armed auto-merge merges at CI-green, racing this trigger onto a merged
+    # target (issue #2067, PR #2059) — skip, like the merged/closed arms.
+    _note warning "ci auto-review trigger: PR #$PR has GitHub auto-merge enabled and is set to merge once its required checks pass; NOT posting a review request (it would race the auto-merge onto a merged target nobody can act on). Comment /prflow:review by hand if a review is still wanted."
+    exit 0 ;;
   merged)
     _note warning "ci auto-review trigger: PR #$PR is already merged; NOT posting a review request (its output would land on a merged target nobody can act on)."
     exit 0 ;;
