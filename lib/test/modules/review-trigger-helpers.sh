@@ -4790,11 +4790,8 @@ case "$*" in
     [ -n "${PCRT_STATE_REC-}" ] && printf '%s\n' "$*" >> "$PCRT_STATE_REC"
     [ "${PCRT_STATE_RC:-0}" = 0 ] || { echo "HTTP 500" >&2; exit 1; }
     if [ -n "${PCRT_PR_JSON-}" ]; then
-      _jqprog=""; _wantjq=0
-      for _arg in "$@"; do
-        [ "$_wantjq" = 1 ] && { _jqprog="$_arg"; break; }
-        [ "$_arg" = "--jq" ] && _wantjq=1
-      done
+      _jqprog="."; _prev=""
+      for _a in "$@"; do [ "$_prev" = "--jq" ] && _jqprog="$_a"; _prev="$_a"; done
       printf '%s' "$PCRT_PR_JSON" | jq -r "$_jqprog"; exit 0
     fi
     printf '%s' "${PCRT_PR_STATE-open}"; exit 0 ;;
