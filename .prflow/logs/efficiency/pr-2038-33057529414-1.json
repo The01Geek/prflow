@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2038",
+  "generated_at": "2026-08-27T09:23:01Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.67",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.991384750000002,
+    "tokens": {
+      "input_tokens": 50,
+      "output_tokens": 29929,
+      "cache_read_input_tokens": 4191508,
+      "cache_creation_input_tokens": 225365,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 124,
+        "outputTokens": 64683,
+        "cacheReadInputTokens": 6180967,
+        "cacheCreationInputTokens": 710094,
+        "webSearchRequests": 0,
+        "costUSD": 9.991384750000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 43,
+    "duration_ms": 512357
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; gh pr view 2038 --json number,headRefOid,baseRefName,title,state,closingIssuesReferences 2>&1 | head -50",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before",
+      "git show d3b2e8f9c51d083151df7d445fd219cb21a7be15:lib/test/modules/coverage-map.json | python3 -c \"\nimport json,sys\nm=json.load(sys.stdin)\nd=m if isinstance(m,dict) else {}\n# find entries with both focused_test and owner unmodularized\ndef walk(o):\n    for k,v in o.items():\n        if isinstance(v,dict):\n            if v.get('owner')=='unmodularized' and 'focused_test' in v:\n                print('both:',k)\nwalk(list(d.values())[0] if False else d.get('units',d))\n\" 2>/dev/null | head; echo \"---\"; …[per-command-truncated]",
+      "git show d3b2e8f9c51d083151df7d445fd219cb21a7be15:lib/test/modules/coverage-map.json > /tmp/cm.json; python3 /dev/stdin <<'EOF'\nimport json\nm=json.load(open('/tmp/cm.json'))\ndef walk(o):\n    if isinstance(o,dict):\n        if o.get('owner')=='unmodularized' and 'focused_test' in o:\n            print('both present')\n        for v in o.values(): walk(v)\nwalk(m)\nEOF",
+      "git show d3b2e8f9c51d083151df7d445fd219cb21a7be15:lib/test/modules/coverage-map.json > .prflow/tmp/cm.json; python3 - <<'EOF'\nimport json\nm=json.load(open('/home/runner/work/prflow/prflow/.prflow/tmp/cm.json'))\nn=0\ndef walk(o):\n    global n\n    if isinstance(o,dict):\n        if o.get('owner')=='unmodularized' and 'focused_test' in o:\n            n+=1\n        for v in o.values(): walk(v)\nwalk(m)\nprint('both present count:',n)\nEOF"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
