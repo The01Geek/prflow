@@ -5609,6 +5609,23 @@ chmod +x "$P2060_TMP/gh-patchfail"
 assert_eq "#2060 refresh-pr-on-resume: PATCH write fails -> REFUSED patch, exit 3" \
   "REFUSED patch 3" \
   "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-patchfail" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+# REFUSED resolve arm: the resolver itself fails (gh pr list errors -> resolve-issue-pr rc 3).
+assert_eq "#2060 refresh-pr-on-resume: resolver fails -> REFUSED resolve, exit 3" \
+  "REFUSED resolve 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-fail" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+# REFUSED empty-body arm: PR resolves but the read returns an empty body.
+cat > "$P2060_TMP/gh-emptybody" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *"pulls/7"*) printf '' ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-emptybody"
+assert_eq "#2060 refresh-pr-on-resume: empty PR body -> REFUSED empty-body, exit 3" \
+  "REFUSED empty-body 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-emptybody" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
 # resolve-issue-pr CLI: gh exits 0 but emits non-array/invalid JSON -> REFUSED, exit 3.
 printf '#!/usr/bin/env bash\nprintf %%s %s\n' "'not valid json'" > "$P2060_TMP/gh-badjson"
 chmod +x "$P2060_TMP/gh-badjson"
@@ -5624,8 +5641,8 @@ tail' | python3 "$P2060_PNB" strip)"
 
 # workpad.py terminal-stop text selector: EXACTLY Failed/Cancelled(note) + blocked(reflection)
 # mirror; Complete and every other status/kind write NONE (AC3, AC7 untouched-surface).
-assert_eq "#2060 workpad mirror text: Failed/Cancelled/blocked select text; Complete/other None (AC3)" \
-  "run died: x|run cancelled — u|cannot reproduce: y|None|None" \
+assert_eq "#2060 workpad mirror text: Failed/Cancelled/blocked select text; Complete/other/empty-payload None (AC3)" \
+  "run died: x|run cancelled — u|cannot reproduce: y|None|None|None|None" \
   "$(python3 - "$P2060_WP" <<'PY'
 import importlib.util, sys
 from types import SimpleNamespace
@@ -5637,6 +5654,8 @@ print("|".join(str(x) for x in [
   t("Blocked", "blocked", [], ["cannot reproduce: y"]),
   t("Complete", None, ["done"], []),
   t("Implementing", "note", ["progress"], []),
+  t("Failed", None, [], []),          # stop status but empty notes -> no block
+  t("Blocked", "blocked", [], []),    # blocked kind but empty reflection -> no block
 ]))
 PY
 )"

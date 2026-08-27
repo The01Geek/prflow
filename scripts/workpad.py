@@ -3625,12 +3625,9 @@ def _repo_from_issue_url(issue_url):
     return m.group(1) if m else None
 
 
-# Stopped-run note block markers (issue #2060). COUPLED, single-source-forbidden copy: the
-# same markers and add/strip transform live in scripts/pr-note-block.py (the CLI the gate job
-# and the branch-setup resume strip run). workpad.py CANNOT import that helper — its repo-owned
-# import edges are locked to section_parse.py for the Stop-hook closure hardening (issues
-# #458/#583), so a spec_from_file_location or a new sibling import would break that boundary.
-# lib/test/run.sh pins these two literals byte-identical to pr-note-block.py's.
+# Stopped-run note block markers (issue #2060) — a pinned COUPLED copy of scripts/pr-note-block.py's
+# markers+transform: workpad.py must NOT import that helper (its import edges are locked to
+# section_parse.py for the Stop-hook closure, #458/#583), and lib/test/run.sh pins these byte-identical.
 _STOPPED_NOTE_START = "<!-- prflow:stopped-run-note-start -->"
 _STOPPED_NOTE_END = "<!-- prflow:stopped-run-note-end -->"
 
