@@ -221,6 +221,7 @@ assert_eq "raf fix_below_threshold_iterations clamp: negative falls back to one"
 assert_eq "raf fix_below_threshold_iterations clamp: non-integer falls back" "1" "$(_raf_fbi_clamp abc)"
 assert_eq "raf fix_below_threshold_iterations clamp: object-coerced falls back" "1" "$(_raf_fbi_clamp '[object Object]')"
 assert_eq "raf fix_below_threshold_iterations clamp: array-coerced falls back" "1" "$(_raf_fbi_clamp '1,2')"
+assert_eq "raf fix_below_threshold_iterations clamp: float falls back" "1" "$(_raf_fbi_clamp 2.5)"
 assert_eq "raf fix_below_threshold_iterations clamp: empty falls back" "1" "$(_raf_fbi_clamp '')"
 assert_eq "raf fix_below_threshold_iterations clamp: resolver failure falls back" "1" "$(_raf_fbi_clamp '' 2)"
 

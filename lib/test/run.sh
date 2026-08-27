@@ -1316,10 +1316,11 @@ assert_eq "fix_below_threshold_iterations: array value coerced (config-get)" "1,
   "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
 rm -f "$FBI_CFG"
 
-# The review-and-fix inline clamp for the damper window, applied to the resolver output above.
-# Mirrors the exact value logic in skills/review-and-fix/references/loop-control.md (floor 0,
-# NOT 1): a configured 0 is honored; a negative/non-integer/empty value or a resolver failure
-# (rc≠0) falls back to the default 1. Keep byte-aligned with the loop-control.md clamp block.
+# The review-and-fix inline clamp for the damper window — a hand-maintained mirror of the shipped
+# clamp in skills/review-and-fix/references/loop-control.md (floor 0, NOT 1 — a configured 0 is the
+# honored off-switch). Keep byte-aligned with that block. Like maxi_clamp above, this mirror cannot
+# catch the SHIPPED clamp being edited; its wording is review-covered (#885/#946 retired the drift
+# pins), so do not re-add a source pin here.
 fbi_clamp() {
   local v="$1" rc="${2:-0}"
   if [ "$rc" -ne 0 ] || ! printf '%s' "$v" | grep -Eq '^-?[0-9]+$'; then
