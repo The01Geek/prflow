@@ -81,24 +81,26 @@ class ClassifyOwnReviews(unittest.TestCase):
                 if verdict_head else 'no marker')
         return {'id': rid, 'state': state, 'user': {'login': login}, 'body': body}
 
-    def test_marked_on_head_scoped_to_login(self):
+    def test_marked_scoped_to_login_carries_marker_head(self):
         reviews = [self._review(1, 'bot[bot]', _HEAD),
-                   self._review(2, 'human', _HEAD),
-                   self._review(3, 'bot[bot]', 'b' * 40)]  # marker names another head
-        placed = gate._classify_own_reviews(reviews, _HEAD, 'bot[bot]')
-        self.assertEqual([r for (r, _s) in placed['marked']], [1])
-        self.assertEqual(placed['unmarked'], [3])  # own-login, marker off-head → unmarked
+                   self._review(2, 'human', _HEAD),          # a human review is excluded
+                   self._review(3, 'bot[bot]', 'b' * 40)]    # a different reviewed head
+        placed = gate._classify_own_reviews(reviews, 'bot[bot]')
+        # Both own-login marker-bearing reviews are marked, each carrying its own head.
+        self.assertEqual([(r, h) for (r, _s, h) in placed['marked']],
+                         [(1, _HEAD), (3, 'b' * 40)])
+        self.assertEqual(placed['unmarked'], [])
 
     def test_unmarked_own_review(self):
         placed = gate._classify_own_reviews(
-            [self._review(5, 'bot[bot]', None)], _HEAD, 'bot[bot]')
+            [self._review(5, 'bot[bot]', None)], 'bot[bot]')
         self.assertEqual(placed['marked'], [])
         self.assertEqual(placed['unmarked'], [5])
 
     def test_non_string_body_is_unmarked(self):
         placed = gate._classify_own_reviews(
             [{'id': 9, 'state': 'APPROVED', 'user': {'login': 'bot[bot]'}, 'body': None}],
-            _HEAD, 'bot[bot]')
+            'bot[bot]')
         self.assertEqual(placed['unmarked'], [9])
 
 
@@ -146,7 +148,7 @@ class GateEndToEnd(unittest.TestCase):
             with open(os.path.join(rr, 'phase-log'), 'w') as f:
                 f.write(phaselog)
 
-    def _run(self, d, head, base, eng, pre, reviews):
+    def _run(self, d, _head, base, eng, pre, reviews):
         pre_p = os.path.join(d, 'pre.json')
         rev_p = os.path.join(d, 'rev.json')
         with open(pre_p, 'w') as f:
@@ -155,7 +157,7 @@ class GateEndToEnd(unittest.TestCase):
             json.dump(reviews, f)
         out = subprocess.run(
             [sys.executable, _GATE, '--pre-inventory', pre_p, '--post-tree-root', d,
-             '--reviews-payload', rev_p, '--head', head, '--base-ref', base,
+             '--reviews-payload', rev_p, '--base-ref', base,
              '--repo-root', d, '--reviewer-login', 'bot[bot]',
              '--vendored-engine-root', eng],
             capture_output=True, text=True)
@@ -300,13 +302,13 @@ class GateEndToEnd(unittest.TestCase):
         self.assertEqual(first, second)
 
     def test_reviews_payload_unreadable_unestablished(self):
-        d, head, base, eng = self._sandbox('code')
+        d, _head, base, eng = self._sandbox('code')
         pre_p = os.path.join(d, 'pre.json')
         with open(pre_p, 'w') as f:
             json.dump({'run_roots': [], 'review_ids': []}, f)
         out = subprocess.run(
             [sys.executable, _GATE, '--pre-inventory', pre_p, '--post-tree-root', d,
-             '--reviews-payload', os.path.join(d, 'nope.json'), '--head', head,
+             '--reviews-payload', os.path.join(d, 'nope.json'),
              '--base-ref', base, '--repo-root', d, '--reviewer-login', 'bot[bot]',
              '--vendored-engine-root', eng],
             capture_output=True, text=True)

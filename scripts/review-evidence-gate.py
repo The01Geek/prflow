@@ -19,8 +19,9 @@ WHAT IT READS, AND WHY EACH INPUT IS SHAPED THIS WAY.
                           engine, no clock comparison (the engine cannot expand an env var
                           under the cloud matcher, so it stamps no run identity).
   --post-tree-root DIR    the repo root whose `.prflow/tmp/review/` tree is re-listed now.
-  --reviews-payload FILE  the head's reviews-API JSON array, fetched post-engine.
-  --head SHA              the reviewed head SHA the verdict must name.
+  --reviews-payload FILE  the PR's reviews-API JSON array, fetched post-engine. The
+                          reviewed head is read from THIS run's verdict marker's own
+                          `head=`, so no runner-supplied head is needed or trusted.
   --base-ref REF          the PR base ref for the diff-classification recompute (may be
                           empty; then origin/HEAD is used, as workpad.py does).
   --repo-root DIR         the repo root for the classification recompute.
@@ -159,13 +160,14 @@ def _list_run_roots(post_tree_root):
     return roots, None
 
 
-def _classify_own_reviews(reviews, head, reviewer_login):
-    """From a reviews-API array, place this-identity reviews on the head by the line-1
-    producer marker (the rule scripts/classify-head-reviews.sh uses), additionally
-    returning each placed review's id and state so the gate can dismiss the one hollow
-    verdict. Returns {'marked': [(id, state), ...], 'unmarked': [id, ...]}, both scoped to
-    `reviewer_login`. A review with a non-string body is treated as unmarked."""
-    head_lc = (head or '').lower()
+def _classify_own_reviews(reviews, reviewer_login):
+    """From a reviews-API array, split this-identity reviews into those carrying the
+    line-1 producer verdict marker (the rule scripts/classify-head-reviews.sh reads) and
+    those without it. A marked review carries the reviewed tree in its own marker `head=`
+    (never a runner-supplied head), so the gate reads that as the reviewed head — which is
+    what makes a /prflow:review-and-fix verdict identified against the head IT recorded,
+    not the PR's current head. Returns {'marked': [(id, state, marker_head), ...],
+    'unmarked': [id, ...]}, both scoped to `reviewer_login`; a non-string body is unmarked."""
     marked = []
     unmarked = []
     for review in reviews:
@@ -180,8 +182,8 @@ def _classify_own_reviews(reviews, head, reviewer_login):
         body = review.get('body')
         line1 = body.split('\n', 1)[0] if isinstance(body, str) else ''
         m = _VERDICT_MARKER_RE.match(line1)
-        if m and m.group('head').lower() == head_lc:
-            marked.append((rid, state))
+        if m:
+            marked.append((rid, state, m.group('head').lower()))
         else:
             unmarked.append(rid)
     return {'marked': marked, 'unmarked': unmarked}
@@ -274,27 +276,22 @@ def _decide(args):
     if not isinstance(reviews, list):
         return 'unestablished reviews-payload-not-an-array', _detail(
             'review-evidence-gate: the reviews payload is not a JSON array.')
-    if not args.head:
-        return 'unestablished head-absent', _detail(
-            'review-evidence-gate: no reviewed head SHA was supplied, so no ',
-            'verdict could be placed on the head.')
     if not args.reviewer_login:
         return 'unestablished reviewer-login-absent', _detail(
             'review-evidence-gate: no reviewer login was supplied, so this ',
             "run's own reviews could not be told from a human's.")
 
-    placed = _classify_own_reviews(reviews, args.head, args.reviewer_login)
-    # This run's verdict: a marker-bearing review on the head whose id is NOT in the
-    # pre-engine inventory (a verdict already present before the engine step is a prior
-    # run's and contributes to no arm of this run's evidence — never dismissed).
-    fresh_marked = [(rid, state) for (rid, state) in placed['marked']
+    placed = _classify_own_reviews(reviews, args.reviewer_login)
+    # This run's verdict: a marker-bearing review whose id is NOT in the pre-engine
+    # inventory (a verdict already present before the engine step is a prior run's and
+    # contributes to no arm of this run's evidence — never dismissed).
+    fresh_marked = [(rid, state, mhead) for (rid, state, mhead) in placed['marked']
                     if rid not in pre_review_ids]
     fresh_unmarked = [rid for rid in placed['unmarked'] if rid not in pre_review_ids]
 
     if not fresh_marked:
         detail = _detail(
-            'review-evidence-gate: this run posted no marker-bearing verdict ',
-            'for the reviewed head.')
+            'review-evidence-gate: this run posted no marker-bearing verdict.')
         if fresh_unmarked:
             detail.extend(_detail(
                 'review-evidence-gate: unmarked own-identity review(s) present ',
@@ -303,10 +300,12 @@ def _decide(args):
                     i for i in fresh_unmarked if isinstance(i, int)))))
         return 'no-verdict', detail
 
-    # Choose the newest marker-bearing verdict review (largest id) as the run's verdict.
-    verdict_id, verdict_state = max(
+    # The newest marker-bearing verdict review (largest id) is the run's verdict; the
+    # reviewed head is that verdict marker's OWN head, so a /prflow:review-and-fix verdict
+    # is graded against the head it recorded rather than the PR's current head.
+    verdict_id, verdict_state, reviewed_head = max(
         fresh_marked,
-        key=lambda pair: pair[0] if isinstance(pair[0], int) else -1)
+        key=lambda t: t[0] if isinstance(t[0], int) else -1)
 
     # Does the diff owe the checklist phases? Reuse workpad.py's own classification.
     if not _engine_root_has_instruction(args.vendored_engine_root):
@@ -317,7 +316,7 @@ def _decide(args):
             'required of it.')
 
     facts = workpad._recompute_diff_facts(
-        args.head, args.base_ref or None, args.repo_root)
+        reviewed_head, args.base_ref or None, args.repo_root)
     if not facts['resolved']:
         return 'unestablished diff-classification-unresolved', _detail(
             'review-evidence-gate: the reviewed diff could not be recomputed: ',
@@ -344,7 +343,7 @@ def _decide(args):
 
     fail_detail_head = (
         f'review-evidence-gate: this run posted a merge-gating verdict (review '
-        f'{verdict_id}, state {verdict_state}) for head {args.head}, its diff requires '
+        f'{verdict_id}, state {verdict_state}) for head {reviewed_head}, its diff requires '
         f'the checklist phases ({disproof}), but ')
 
     if not fresh_roots:
@@ -408,8 +407,6 @@ def main(argv=None):
                         help='repo root whose .prflow/tmp/review/ tree is re-listed now.')
     parser.add_argument('--reviews-payload', required=True,
                         help='reviews-API JSON array path, or - for stdin.')
-    parser.add_argument('--head', default='',
-                        help='the reviewed head SHA the verdict must name.')
     parser.add_argument('--base-ref', default='',
                         help='the PR base ref for the diff recompute (may be empty).')
     parser.add_argument('--repo-root', default='.',
