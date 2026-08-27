@@ -1,0 +1,31 @@
+{
+  "root_completeness": "established",
+  "verdict": "APPROVE WITH CAVEAT",
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": 4,
+  "expected_reviewers": ["code-reviewer", "silent-failure-hunter", "comment-analyzer", "requesting-code-review"],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "review-and-fix-extension-gate:prompt-surface-edit-routing",
+      "severity": "Important",
+      "description": "The diff touches prompt-surface trigger globs (skills/implement/SKILL.md and skills/implement/phases/phase-3-review.md), so the implement run must carry a 'Writing-skills evidence:' marker with all four slots (skill-loaded=, guidance-applied=, pressure-scenario=, micro-tests=), each =yes/=no. The issue #2061 workpad (comment 5443224714) contains NO such marker at all (expected two: one for SKILL.md, one for phase-3-review.md). All four slot dispositions are therefore UNDISCHARGED — 'unknown is not zero'. Under the review-and-fix extension gate #1 an absent marker = FAIL finding. Remedy: the run must record the Writing-skills evidence marker(s) in the workpad (restate the marker with a stated disposition per slot; 'no' with a one-clause reason is a fully discharging value). This is a run-process attestation gap only; the code deliverable itself is correct and complete.",
+      "defect_signature": "missing-writing-skills-evidence-marker:prompt-surface-edit",
+      "fix_decision": "must-fix-before-completion (record the Writing-skills evidence marker(s) in the workpad; not a code change)"
+    }
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": true
+  },
+  "cap_drops": {
+    "count": 2,
+    "by_category": {
+      "out-of-scope-preexisting": 2
+    }
+  },
+  "report": "## Review report — PR #2062 (issue #2061), head 25cf7ac8\n\n### Scope\nProse-only change. The substantive delta is the 7-file issue-#2061 change (`ab5d9a98a..HEAD`): skills/implement/SKILL.md, agents/branch-setup.md, skills/implement/phases/phase-3-review.md, docs/internal/{install,implement-skill,DEVFLOW_SYSTEM_OVERVIEW}.md, and .changeset/issue-2061-workpad-notes-cleanup.md. The larger `main...HEAD` diff is branch-merge noise (content already present in main; main is the merge-base).\n\n### Phase 0.5 diff profile\nsmall_diff, prose-only (not config_only), no new types, not engine-self-modifying (does not touch skills/review). Phase 1 checklist skipped (tiny prose diff). type-design-analyzer and pr-test-analyzer gated out (no new types, no executable code / tests). Roster dispatched fanned-out: code-reviewer, silent-failure-hunter, comment-analyzer, requesting-code-review — all 4 returned, 0 failed.\n\n### Phase 3 reviewer results\nAll four reviewers found NO Critical/Important/Minor code defects. The load-bearing routing claim was independently verified against scripts/workpad.py (lines 58-59 + `_append_progress_note`): `--note` appends into the `## Progress` section, whereas `--reflection-kind note` writes the Devflow Reflection block — so relocating the three resume-precheck cases to `--note` is a genuine fix. Internal consistency confirmed: the single reader (phase-3-review.md) and all three docs now name `## Progress`; no stale Reflection-block wording survives; the removed SKILL.md skill-directory instruction and its install.md parenthetical were deleted together with no dangling reference; the `<!-- prflow:skill-dir-reported-base-first -->` sentinel and its ordering (lint-reported-base-dir-arm.py) are intact; the two terminal stop cases correctly keep their `--reflection-kind blocked` reflections.\n\nCapped/dropped (Phase 4.1.5): (1) an adjacent branch-freshness note block in agents/branch-setup.md mixes `--note` and `--reflection-kind note` — pre-existing and out of issue #2061 scope; (2) the `resume pre-check: ` (spaced) vs `resume-precheck: ` (hyphenated) spelling mismatch in the stop cases — pre-existing, explicitly noted and left alone by the issue. Both dropped as pre-existing/out-of-scope.\n\n### Repo-policy gates (review-and-fix extension)\n- Gate 1 — Prompt-surface edit routing evidence: FAIL. Diff touches skills/implement/SKILL.md and skills/implement/phases/phase-3-review.md. The issue #2061 workpad carries NO `Writing-skills evidence:` marker (expected two). All four slots (skill-loaded/guidance-applied/pressure-scenario/micro-tests) are undischarged. Reported as the single Important finding above. Remedy is to record the marker(s) in the workpad — an attestation step, not a code change.\n- Gate 2 — Wording-only pin review: N/A. The diff adds no test pins.\n- Gate 3 (prefer rewording) / Gate 4 (verify outcome): satisfied — no misreadable-rule findings; the outcome (`--note` → `## Progress`) was verified at the code, not the precondition.\n\n### Issue Compliance (Phase 0.4 ACs)\n- AC1 (SKILL.md no longer records skill-directory Reflection note; substring absent): PASS — `grep -c` returns 0.\n- AC2 (resolution rule + wslpath/cygpath ladder retained; sentinel precedes first command use): PASS.\n- AC3 (install.md no Reflection-note sentence): PASS.\n- AC4 (all three resume-precheck cases carry a written-out command, each writing to `## Progress`; two stop cases unchanged): PASS.\n- AC5 (phase-3-review.md names `## Progress`): PASS.\n- AC6 (implement-skill.md and DEVFLOW_SYSTEM_OVERVIEW.md name `## Progress`): PASS.\nAll six acceptance criteria met.\n\n### Verdict\nAPPROVE WITH CAVEAT. The code deliverable is correct, internally consistent, and satisfies every acceptance criterion. The caveat is the failed prompt-surface-edit evidence gate: the run should record the `Writing-skills evidence:` marker(s) in the workpad before claiming completion."
+}
