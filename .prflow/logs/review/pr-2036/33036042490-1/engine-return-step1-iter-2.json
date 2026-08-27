@@ -1,0 +1,28 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "complete",
+  "engine_root": "skills/review/SKILL.md",
+  "verdict": "APPROVE",
+  "report": "PR #2036 (HEAD 27778e772, iteration 2) is a help-text/docs-only change to scripts/verification-flight.py making its --help self-documenting: adds EXIT_CODE_MEANINGS (dict[int,str]) rendered into the top-level help epilog via _exit_code_epilog(), renders claim --help's required declaration keys from the same in-module _PROFILE_REQUIRED/_CHECKOUT_REQUIRED constants the validator reads plus a fixed attach-semantics paragraph via _claim_epilog(), removes the redundant per-code trailing EXIT_* comments, and corrects a stale attach-path source comment to name skills/review-and-fix/references/fixing.md (verified to exist and hold the attach re-anchor rule). Adds 5 tests (TestSelfDocumentingHelp) that enumerate the module's own constants (drift-proof), assert exit-code number+meaning as one rendered unit, assert a completeness set-equality between EXIT_CODE_MEANINGS keys and the module's EXIT_* int constants (closes the fail-open path), anchor the required-keys assertion past 'required keys:' to avoid the --state-dir cwd false positive, whitespace-collapse the attach-phrase check, and pin EXIT_INVALID(3) for a malformed invocation. Adds one repo-local CLAUDE.md crib line to the single-flight consult bullet (correct tier-general placement, points only to shipped --help) and a well-formed changeset. AC6 verified byte-unchanged: git diff --stat touches only 4 files; lib/capability-profiles.json, generated workflow allowlists, and lib/test/modules/harness-python-guards.sh are untouched — no tool grant added. Both help commands render correctly. All 6 acceptance criteria satisfied and test-proven; behavior (exit codes/JSON/state) unchanged. Only two low-severity Suggestion-level items surfaced, neither blocking.",
+  "phase3_findings": [
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Low",
+      "description": "test_claim_help_states_required_declaration_keys has no non-empty guard on the enumerated constants: if _PROFILE_REQUIRED and _CHECKOUT_REQUIRED were both emptied, the for-loop would assert nothing and pass vacuously (the len==2 check only proves the marker rendered). Optional one-line hardening (assertTrue on the tuples) for symmetry with the exit-code test; practical exposure is small since emptying the tuples would break the validators.",
+      "defect_signature": "test-required-keys-no-nonempty-guard",
+      "fix_decision": "no-fix (Suggestion; optional hardening, non-blocking)"
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The fact 'rendered into --help' is stated in both adjacent comments in scripts/verification-flight.py (the exit-codes block comment and the EXIT_CODE_MEANINGS comment), brushing CLAUDE.md §2.3.4a restatement rule. Behavior-inert prose; optionally drop the parenthetical from the first comment.",
+      "defect_signature": "restated-render-fact-comment",
+      "fix_decision": "no-fix (Suggestion; behavior-inert, non-blocking)"
+    }
+  ],
+  "phase3_dispatched": ["code-reviewer", "comment-analyzer", "silent-failure-hunter", "type-design-analyzer", "pr-test-analyzer", "requesting-code-review(final-pass)"],
+  "expected_reviewers": ["code-reviewer", "comment-analyzer", "silent-failure-hunter", "type-design-analyzer", "pr-test-analyzer", "requesting-code-review(final-pass)"],
+  "phase3_failed_agents": [],
+  "diff_profile": "docs-and-help-text only; no behavioral change (exit codes/JSON/state unchanged); new types: EXIT_CODE_MEANINGS dict (has_new_types=true); tests touched (pr-test-analyzer armed); no tool grant added",
+  "cap_drops": []
+}

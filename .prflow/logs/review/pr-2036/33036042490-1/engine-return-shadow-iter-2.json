@@ -1,0 +1,42 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "complete",
+  "engine_root": "skills/review/SKILL.md",
+  "verdict": "APPROVE",
+  "report": "Blinded convergence-time shadow review of PR #2036 (issue #2034) at HEAD d05a43f9d, Phases 0-4.3 fanned out to all 6 reviewers, each given the whole diff and resolved ACs with no prior findings. The change makes scripts/verification-flight.py --help self-documenting: adds module-level EXIT_CODE_MEANINGS dict rendered into the top-level parser epilog via _exit_code_epilog(); renders _PROFILE_REQUIRED/_CHECKOUT_REQUIRED required keys plus attach semantics into the claim subparser epilog via _claim_epilog(); both use RawDescriptionHelpFormatter; removes redundant per-code trailing EXIT_* comments (meaning single-sourced in the dict); fixes a stale attach-path comment to name skills/review-and-fix/references/fixing.md (the prior phase-3-fix-loop.md was the wrong file). Adds 5 tests (TestSelfDocumentingHelp), a CLAUDE.md crib line, and a changeset. All six acceptance criteria verified against the shipped code: AC1 exit-code meanings rendered + completeness test enumerating module EXIT_* constants (set-equality, bool-excluded); AC2 required keys rendered live from the validator's own constants; AC3 attach semantics stated and asserted; AC4 CLAUDE.md crib line names claim --input-file and status --current-checkout-file and routes further questions to --help; AC5 corrected path file confirmed to exist (contains the attach re-anchor rule); AC6 no tool grant added -- lib/capability-profiles.json, .github/workflows/*, lib/test/modules/harness-python-guards.sh all byte-unchanged; diff touches only the script, its test, CLAUDE.md, and a changeset. Tests confirmed to fail against pre-change code (bug-reproduction-first) and pass now. No behavioral change to exit codes/JSON/state. Convention checks clean: single-source-of-truth honored, tests guard the executable --help surface not prose presence, no GNU-only constructs, CLAUDE.md edit is repo-local under the autonomous-run carve-out and reads as instruction-plus-consequence. No Critical/Major/Minor defects. One non-blocking Suggestion (two EXIT_CODE_MEANINGS block comments lean toward restating the render site -- borderline under comment-discipline, useful as single-source pointers, no action required). One out-of-scope observation: status --current-checkout-file carries a copy-pasted --state-dir help string, but this is pre-existing on origin/main and untouched by this diff.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "The two added comments on the EXIT_CODE_MEANINGS block ('rendered into --help' and 'Rendered by _exit_code_epilog() below.') lean toward restating where the constant is consumed rather than naming a wrong change prevented; borderline under the comment-discipline rule, useful as single-source pointers. No action required.",
+      "defect_signature": "exit-meanings-comment-restates-render-site"
+    }
+  ],
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "per_reviewer_assessment": [
+    {"agent": "prflow:code-reviewer", "returned": true},
+    {"agent": "prflow:silent-failure-hunter", "returned": true},
+    {"agent": "prflow:comment-analyzer", "returned": true},
+    {"agent": "prflow:type-design-analyzer", "returned": true},
+    {"agent": "prflow:pr-test-analyzer", "returned": true},
+    {"agent": "prflow:requesting-code-review", "returned": true}
+  ],
+  "phase2_fails": 0,
+  "diff_profile": "help-text/docs-only; touches scripts/verification-flight.py (help epilog renderers + EXIT_CODE_MEANINGS + comment path fix), lib/test/test_verification_flight.py (+5 tests), CLAUDE.md (1 crib line), .changeset/ (new). No behavioral change; no tool grant (AC6).",
+  "cap_drops": []
+}

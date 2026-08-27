@@ -1,0 +1,54 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "engine_root": "skills/review/SKILL.md",
+  "verdict": "APPROVE",
+  "report": "# Shadow Review — PR #2036 (issue #2034)\n\n**Verdict: APPROVE.** Blinded, structurally-independent shadow review; six Phase-3 reviewers fanned out from a fresh context with no prior findings.\n\n## Diff under review\nHelp-text/documentation-only change to `scripts/verification-flight.py` (+ its test file, CLAUDE.md crib line, changeset). Adds a module-level `EXIT_CODE_MEANINGS` dict and two render functions `_exit_code_epilog()`/`_claim_epilog()` that render argparse `--help` epilogs from the module's own constants (`EXIT_*`, `_PROFILE_REQUIRED`, `_CHECKOUT_REQUIRED`), removes now-redundant inline `EXIT_*` comments, and corrects a stale attach-path comment pointer. No behavioral change to exit codes, JSON shapes, or state; no tool grant added.\n\n## Acceptance criteria (issue #2034)\n- AC1 (top-level --help states each exit-code meaning; test enumerates EXIT_* constants) — SATISFIED. All 6 EXIT_* constants are in EXIT_CODE_MEANINGS; completeness test enforces key-set equality with `bool`-exclusion guard.\n- AC2 (claim --help states required declaration keys from _PROFILE_REQUIRED/_CHECKOUT_REQUIRED) — SATISFIED. Rendered single-source from the validator's own iteration operands.\n- AC3 (claim --help states attach semantics: attaches, exits 0, reports role in JSON, reuse from JSON fields not exit code) — SATISFIED; cited JSON field names (role/state/reuse_ready/satisfies_verification) are real emitted fields.\n- AC4 (CLAUDE.md single-flight bullet gains one line naming claim --input-file and status --flight … --current-checkout-file, routing further questions to --help) — SATISFIED.\n- AC5 (attach-path comment names skills/review-and-fix/references/fixing.md) — SATISFIED; target file exists and line 82 carries the attach re-anchor rule; old phase-3-fix-loop.md pointer corrected.\n- AC6 (capability-profiles.json, generated allowlists, harness-python-guards.sh byte-unchanged) — SATISFIED; diff-stat shows only 4 files, none of those surfaces touched.\n\n## Phase 2 (checklist verification)\nAll verifiable claims in this help-text-only diff pass; no FAILs and no INCONCLUSIVE items material to the verdict. Format-coupling claim confirmed: the two-space `f\"{code}  {meaning}\"` test assertion matches `_exit_code_epilog()`'s `  {code}  {meaning}` rendering under RawDescriptionHelpFormatter.\n\n## Phase 3 findings\nNo Critical or Major findings from any reviewer. Three Suggestion/Low-severity test-strengthening observations, none blocking merge:\n1. (pr-test-analyzer, Low) `test_claim_help_states_required_declaration_keys` uses bare `assertIn(key, help_text)` unanchored to the required-keys epilog block; the required key `cwd` also appears in the `--state-dir` default help text, so that one key's check could pass vacuously. Class-level bug-reproduction-first still holds (other keys absent pre-change). Strengthen by slicing to the required-keys section before membership check.\n2. (type-design-analyzer, Suggestion) claim-key completeness enforced one-directionally (added key covered; stale key not asserted absent). Redundant here since help is machine-rendered by `', '.join(...)`, so a stale key is structurally impossible.\n3. (type-design-analyzer, Suggestion) EXIT_CODE_MEANINGS projects code->meaning and drops the symbolic name; deliberate and appropriate for a CLI consumer.\n\nComment discipline, single-source-of-truth, and no-tool-grant conventions all upheld. Reviewers that could run the tests confirmed all 5 new tests (and the full 129-test suite) pass.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Low",
+      "description": "test_claim_help_states_required_declaration_keys uses a bare assertIn(key, help_text) not anchored to the required-keys epilog block; the required key 'cwd' also appears in the --state-dir default help text, so that per-key check can pass vacuously even if _claim_epilog() dropped it. Class-level bug-reproduction-first still holds. Strengthen by slicing help to the 'declaration file (--input-file) required keys:' section before membership check.",
+      "defect_signature": "claim-help-required-key-assertion-unanchored-cwd-vacuous"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "claim-key completeness relation enforced only one direction (added key must appear; no assertion that help lists no stale key). Structurally redundant here because help is machine-rendered via ', '.join(...), so a stale key cannot occur.",
+      "defect_signature": "claim-help-required-key-completeness-one-directional"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "EXIT_CODE_MEANINGS projects code->meaning and drops the symbolic constant name; --help shows only integer + prose. Deliberate and appropriate projection for a CLI consumer, not a defect.",
+      "defect_signature": "exit-code-meanings-drops-symbolic-name"
+    }
+  ],
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "per_reviewer_assessment": [
+    {"agent": "prflow:code-reviewer", "returned": true},
+    {"agent": "prflow:silent-failure-hunter", "returned": true},
+    {"agent": "prflow:comment-analyzer", "returned": true},
+    {"agent": "prflow:type-design-analyzer", "returned": true},
+    {"agent": "prflow:pr-test-analyzer", "returned": true},
+    {"agent": "prflow:requesting-code-review", "returned": true}
+  ],
+  "phase2_fails": [],
+  "diff_profile": "docs-help-text-only; 4 files (scripts/verification-flight.py, lib/test/test_verification_flight.py, CLAUDE.md, .changeset/*); has_new_types=true (EXIT_CODE_MEANINGS dict + 2 render fns); tests modified (5 new tests); no behavioral change; no tool grant",
+  "cap_drops": []
+}

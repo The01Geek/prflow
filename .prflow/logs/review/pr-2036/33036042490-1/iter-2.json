@@ -1,0 +1,177 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-27T00:00:00Z",
+  "fix_commit_sha": "d05a43f9df18ec938bd564a4afa1048458666f84",
+  "fix_files": [
+    "lib/test/test_verification_flight.py",
+    "scripts/verification-flight.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "4.5",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Low",
+      "description": "required-keys test would pass vacuously only if both module tuples were emptied.",
+      "defect_signature": {
+        "file": "lib/test/test_verification_flight.py",
+        "line_range": [
+          1934,
+          1940
+        ],
+        "kind": "test_robustness"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "'rendered into --help' restated across two adjacent comments (Phase 2.3.4a restatement).",
+      "defect_signature": {
+        "file": "scripts/verification-flight.py",
+        "line_range": [
+          100,
+          108
+        ],
+        "kind": "comment_restatement"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "d05a43f9df18ec938bd564a4afa1048458666f84"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "d05a43f9df18ec938bd564a4afa1048458666f84"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 8,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-27T00:00:00Z",
+    "reviewed_sha": "d05a43f9df18ec938bd564a4afa1048458666f84",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:type-design-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "EXIT_CODE_MEANINGS block comment still mentions its render site (mild residual restatement).",
+        "defect_signature": {
+          "file": "scripts/verification-flight.py",
+          "line_range": [
+            100,
+            108
+          ],
+          "kind": "comment_restatement"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 1,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

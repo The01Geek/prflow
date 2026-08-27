@@ -1,0 +1,235 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T00:00:00Z",
+  "fix_commit_sha": "b3ac674f3c93c3b7cc776b9ad0c68805bff19eb2",
+  "fix_files": [
+    "lib/test/test_verification_flight.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Exit-code number half of the top-level help test can pass vacuously off unrelated digits.",
+      "defect_signature": {
+        "file": "lib/test/test_verification_flight.py",
+        "line_range": [
+          1918,
+          1926
+        ],
+        "kind": "test_robustness"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "EXIT_CODE_MEANINGS key-set completeness (dict superset of all EXIT_* constants) is unenforced.",
+      "defect_signature": {
+        "file": "lib/test/test_verification_flight.py",
+        "line_range": [
+          1918,
+          1926
+        ],
+        "kind": "test_coverage"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "Attach-semantics test matches hardcoded prose phrases rather than a rendered contract.",
+      "defect_signature": {
+        "file": "lib/test/test_verification_flight.py",
+        "line_range": [
+          1938,
+          1943
+        ],
+        "kind": "wording_pin"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "b3ac674f3c93c3b7cc776b9ad0c68805bff19eb2"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "b3ac674f3c93c3b7cc776b9ad0c68805bff19eb2"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "pushed_back",
+      "source_file": "lib/test/test_verification_flight.py",
+      "claim_text": "attach-semantics test matches hardcoded prose phrases rather than a rendered contract",
+      "skip_category": "claim-quality",
+      "evidence": "AC3 mandates a test asserting the attach statement appears in claim --help; the assertion targets rendered --help interface text, the sanctioned executable surface for interface prose per the issue's own testing strategy and CLAUDE.md's guard-executable-behavior rule. It is not a source-presence pin.",
+      "parking_evidence": {
+        "basis": "the attach-statement assertion is required by acceptance criterion 3 and targets the rendered --help interface, the sanctioned executable surface — not a source-wording pin",
+        "failing_input": "the attach-semantics assertion on claim --help output",
+        "source": "issue #2034 AC3; issue testing strategy",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 18,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-27T00:00:00Z",
+    "reviewed_sha": "b3ac674f3c93c3b7cc776b9ad0c68805bff19eb2",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:type-design-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Low",
+        "description": "test_claim_help_states_required_declaration_keys unanchored assertIn: 'cwd' also appears in --state-dir default help text, vacuous-match risk.",
+        "defect_signature": {
+          "file": "lib/test/test_verification_flight.py",
+          "line_range": [
+            1934,
+            1937
+          ],
+          "kind": "test_robustness"
+        }
+      },
+      {
+        "agent": "prflow:type-design-analyzer",
+        "severity": "Suggestion",
+        "description": "Claim-key completeness one-directional; structurally redundant since help is machine-rendered.",
+        "defect_signature": {
+          "file": "lib/test/test_verification_flight.py",
+          "line_range": [
+            1934,
+            1937
+          ],
+          "kind": "test_coverage"
+        }
+      },
+      {
+        "agent": "prflow:type-design-analyzer",
+        "severity": "Suggestion",
+        "description": "EXIT_CODE_MEANINGS drops symbolic constant name (deliberate, appropriate for a CLI consumer).",
+        "defect_signature": {
+          "file": "scripts/verification-flight.py",
+          "line_range": [
+            101,
+            108
+          ],
+          "kind": "type_design"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 2,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
