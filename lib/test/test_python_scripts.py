@@ -38931,6 +38931,21 @@ assert_eq('#2029 verify: one result per declared artifact (never narrows)', 10,
 assert_eq('#2029 verify: every result is verified', True,
           all(r.status == 'verified' for r in _vlm_ok.results))
 
+# ok tracks the ACTUAL declared count, not a hardcoded size: drop one artifact (leaving the
+# tool non-empty so the manifest still validates), and the whole-manifest pass still requires
+# verified == the now-smaller declared count — pinning the count gate against len(declared).
+_vlm_sub_manifest = json.loads(json.dumps(_VLM_BASE))
+_vlm_sub_manifest['tools']['ruff']['artifacts'].pop()
+_vlm_sub_content = _vlm_seed_digests(_vlm_sub_manifest)
+_vlm_sub = _vlm_run(_vlm_sub_manifest, lambda u: _vlm_sub_content[u])
+_vlm_sub_declared = len(_VLM.iter_declared_artifacts(_vlm_sub_manifest))
+assert_eq('#2029 verify: a smaller declared set still verifies clean', True, _vlm_sub.ok)
+assert_eq('#2029 verify: ok is gated on the actual declared count (9), not a constant 10',
+          True,
+          _vlm_sub_declared == 9
+          and len(_vlm_sub.results) == _vlm_sub_declared
+          and sum(1 for r in _vlm_sub.results if r.ok) == _vlm_sub_declared)
+
 # A wrong digest on one declared artifact fails the whole check, and names that artifact.
 _vlm_bad_manifest = json.loads(json.dumps(_VLM_BASE))
 _vlm_bad_content = _vlm_seed_digests(_vlm_bad_manifest)
