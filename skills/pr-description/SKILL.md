@@ -65,10 +65,7 @@ If an issue number is available (from `$ARGUMENTS` or extracted from the existin
 
 ```bash
 ISSUE_NUMBER=$ARGUMENTS  # or the extracted number
-WORKPAD_ID=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py id "$ISSUE_NUMBER" 2>/dev/null || true)
-if [ -n "$WORKPAD_ID" ]; then
-    WORKPAD_BODY=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py body "$WORKPAD_ID" 2>/dev/null || true)
-fi
+WORKPAD_BODY=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py body --issue "$ISSUE_NUMBER" 2>/dev/null || true)
 ```
 
 If `WORKPAD_BODY` is set, scan its `## Acceptance Criteria` section for lines matching `^[-*]\s+\[[ x]\]\s+.*\(post-merge\)\s*$`. Strip the leading checkbox and the trailing `(post-merge)` tag from each match; collect them as `POST_MERGE_ITEMS` for Step 2's template.
