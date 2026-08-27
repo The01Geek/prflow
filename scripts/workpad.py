@@ -3146,39 +3146,51 @@ def _read_file_payload(path: str, flag: str, thing: str) -> str:
     return text
 
 
-def _reflection_file_payload(args) -> str:
-    """Read `--reflection-file`'s payload at most once per invocation, memoized on
-    `args`.
+def _multi_file_payloads(args, attr, cache_attr, flag, thing) -> list:
+    """Read `flag`'s repeatable `--*-file` payloads as one bullet payload per path
+    (issue #2076), memoized as a whole list on `args`.
 
-    Two consumers need the SAME text: `_apply_mutations`, which renders the bullet,
-    and `cmd_update`'s failed-write buffering (issue #1214), which must persist it
-    when the PATCH drops it. The `-`/stdin arm can only be read once — a second read
-    returns empty and would raise the empty-payload `_UpdateError` against a payload
-    that was in fact fine — so the first read is cached and a later caller is served
-    from that cache. Failure modes are `_read_file_payload`'s unchanged
-    `_UpdateError` contract; only a SUCCESSFUL read is cached, so a caller that
-    retries after a failure re-reads rather than seeing a half-populated cache."""
-    cached = getattr(args, '_reflection_file_payload_cache', None)
+    Both `--note-file` and `--reflection-file` are declared `action='append'`, so
+    `attr` holds a list of paths; this returns a parallel list of decoded payloads,
+    one per path, in command-line order. Two consumers need the SAME payloads:
+    `_apply_mutations`, which renders the bullets, and `_cmd_update_inner`'s
+    failed-write buffering (issues #1214/#1813), which persists them when the PATCH
+    drops them — so the whole list is read once and cached; a later caller is served
+    from that cache. The `-`/stdin arm can only be read once, which the single
+    build-and-cache guarantees; and because stdin is consumed exactly once, `-` may
+    appear at most once per flag — a repeat is refused BEFORE any read (so it never
+    consumes stdin or reaches a PATCH) rather than surfacing later as a spurious
+    empty-payload error against the already-drained stream. Only a SUCCESSFUL build
+    is cached, so a caller that retries after a failure re-reads rather than seeing a
+    half-populated cache. Modeled on `_deferred_filed_file_values`."""
+    paths = getattr(args, attr, None)
+    if not paths:
+        return []
+    cached = getattr(args, cache_attr, None)
     if cached is None:
-        cached = _read_file_payload(args.reflection_file, '--reflection-file', 'reflection')
-        args._reflection_file_payload_cache = cached
+        stdin_count = paths.count('-')
+        if stdin_count > 1:
+            raise _UpdateError(
+                f"{flag}: the stdin form '-' may be passed at most once per flag "
+                f"(stdin can only be read once); it was passed {stdin_count} times")
+        cached = [_read_file_payload(p, flag, thing) for p in paths]
+        setattr(args, cache_attr, cached)
     return cached
 
 
-def _note_file_payload(args) -> str:
-    """Read `--note-file`'s payload at most once per invocation, memoized on
-    `args` — the note twin of `_reflection_file_payload` (both share
-    `_read_file_payload`). Two consumers need the SAME text:
-    `_cmd_update_inner`'s failed-write buffering (which persists the note when a
-    PATCH drops it) and `_apply_mutations`, which renders the bullet. The
-    `-`/stdin arm can only be read once, so the first read is cached and a later
-    caller is served from that cache; only a SUCCESSFUL read is cached, so a
-    caller that retries after a failure re-reads rather than seeing a stale one."""
-    cached = getattr(args, '_note_file_payload_cache', None)
-    if cached is None:
-        cached = _read_file_payload(args.note_file, '--note-file', 'note')
-        args._note_file_payload_cache = cached
-    return cached
+def _reflection_file_payloads(args) -> list:
+    """`--reflection-file`'s payloads, one per path (issue #2076). See
+    `_multi_file_payloads` for the memoization and single-use-`-` contract."""
+    return _multi_file_payloads(
+        args, 'reflection_file', '_reflection_file_payload_cache',
+        '--reflection-file', 'reflection')
+
+
+def _note_file_payloads(args) -> list:
+    """`--note-file`'s payloads, one per path (issue #2076) — the note twin of
+    `_reflection_file_payloads`. See `_multi_file_payloads` for the contract."""
+    return _multi_file_payloads(
+        args, 'note_file', '_note_file_payload_cache', '--note-file', 'note')
 
 
 def _deferred_filed_file_values(args) -> list:
@@ -3701,31 +3713,33 @@ def _cmd_update_inner(args):
     _own_reflections = list(args.reflection or [])
     _own_kind = args.reflection_kind or _DEFAULT_REFLECTION_KIND
     if args.reflection_file:
-        # A file-sourced reflection is buffered exactly like an inline one. This is
-        # the case issue #1214 exists for: the mandated stop-path recipe delivers the
-        # Blocked reflection in its OWN `--reflection-file` call carrying no inline
-        # --note/--reflection, and that recipe's documented inline fallback covers a
-        # *structural* error only — never a PATCH failure — so leaving the payload
-        # uncaptured drops the run's terminal reflection on the one path the feature
-        # was built to rescue. The read is memoized (see `_reflection_file_payload`),
-        # so `_apply_mutations` below reuses this text rather than re-reading, which
-        # is also what keeps the `-`/stdin arm single-read. Pulling the read forward
-        # of `_apply_mutations` means a bad payload now reports before a
-        # co-occurring structural fault rather than after it; both still abort the
-        # whole call with exit 1 and no PATCH, which is the contract that matters.
+        # A file-sourced reflection is buffered like an inline one, and a repeated
+        # flag buffers its payloads (issue #2076), not just the last. This
+        # is the case issue #1214 exists for: the mandated stop-path recipe delivers
+        # the Blocked reflection in its OWN `--reflection-file` call carrying no
+        # inline --note/--reflection, and that recipe's documented inline fallback
+        # covers a *structural* error only — never a PATCH failure — so leaving a
+        # payload uncaptured drops the run's terminal reflection on the one path the
+        # feature was built to rescue. The reads are memoized (see
+        # `_reflection_file_payloads`), so `_apply_mutations` below reuses this text
+        # rather than re-reading, which is also what keeps the `-`/stdin arm
+        # single-read. Pulling the read forward of `_apply_mutations` means a bad
+        # payload now reports before a co-occurring structural fault rather than
+        # after it; both still abort the whole call with exit 1 and no PATCH, which
+        # is the contract that matters.
         try:
-            _own_reflections.append(_reflection_file_payload(args))
+            _own_reflections.extend(_reflection_file_payloads(args))
         except _UpdateError as e:
             sys.stderr.write(f"workpad.py update: {e}\n")
             sys.exit(1)
     if getattr(args, 'note_file', None):
-        # A file-sourced note is buffered exactly like an inline --note, so a
-        # PATCH failure preserves it — the note twin of the --reflection-file
-        # rescue above (issue #1813 mirrors #1214). The read is memoized, so
-        # `_apply_mutations` renders from the same text without re-reading, which
-        # also keeps the `-`/stdin arm single-read.
+        # A file-sourced note is buffered like an inline --note, and a repeated flag
+        # preserves its payloads through a PATCH failure (issue #2076) — the twin of
+        # the --reflection-file rescue above (issue #1813 mirrors #1214). The reads
+        # are memoized, so `_apply_mutations` renders from the same text without
+        # re-reading, which also keeps the `-`/stdin arm single-read.
         try:
-            _own_notes.append(_note_file_payload(args))
+            _own_notes.extend(_note_file_payloads(args))
         except _UpdateError as e:
             sys.stderr.write(f"workpad.py update: {e}\n")
             sys.exit(1)
@@ -6735,13 +6749,14 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     for _ckey, _ctext in checkpoint_reqs:
         if f'{_ctext} {_checkpoint_marker(_ckey)}' in body:
             _checkpoint_covered_texts.add(_ctext)
-    # A --note-file payload (issue #1813) is an ordinary note appended AFTER the
-    # inline --note bullets, mirroring the --reflection/--reflection-file order.
-    # The read is memoized (see `_note_file_payload`), so this reuses the text
-    # `_cmd_update_inner` already read for buffering rather than re-reading it.
+    # --note-file payloads (issues #1813/#2076) are ordinary notes appended AFTER
+    # the inline --note bullets, one per path in command-line order, mirroring the
+    # --reflection/--reflection-file order. The reads are memoized (see
+    # `_note_file_payloads`), so this reuses the text `_cmd_update_inner` already
+    # read for buffering rather than re-reading it.
     _notes_in = list(args.note)
     if getattr(args, 'note_file', None):
-        _notes_in.append(_note_file_payload(args))
+        _notes_in.extend(_note_file_payloads(args))
     _notes = [n for n in _notes_in if n not in _checkpoint_covered_texts]
     # issue #1509: a review-coverage downgrade/override records its reason as an ordinary
     # ## Progress note alongside the (mutated) record row.
@@ -6905,15 +6920,15 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         kind = args.reflection_kind or _DEFAULT_REFLECTION_KIND
         for bullet in args.reflection:
             content = _append_reflection(content, kind, bullet)
-        # The --reflection-file bullet appends AFTER the inline --reflection
-        # bullets, under the same kind. Its reader raises _UpdateError (unreadable
-        # path, undecodable payload, empty/whitespace-only) before the PATCH, so a
-        # bad payload aborts the whole call with no partial write. The read goes
+        # The --reflection-file bullets append AFTER the inline --reflection
+        # bullets, one per path in command-line order, under the same kind (issue
+        # #2076). Their reader raises _UpdateError (unreadable path, undecodable
+        # payload, empty/whitespace-only, or a repeated stdin `-`) before the PATCH,
+        # so a bad payload aborts the whole call with no partial write. The reads go
         # through the memo so `cmd_update`'s failed-write buffering sees the same
         # text without re-reading (and without re-consuming stdin on the `-` arm).
-        if args.reflection_file:
-            content = _append_reflection(
-                content, kind, _reflection_file_payload(args))
+        for bullet in _reflection_file_payloads(args):
+            content = _append_reflection(content, kind, bullet)
         sections[idx] = (heading, content)
 
     # Every accepted review-coverage disposition also files its own `dropped-failed`
@@ -7338,30 +7353,37 @@ def main():
                         'Status\'s phase inside ## Progress. May be passed '
                         'multiple times to append several entries (sharing one '
                         'timestamp) in one atomic update.')
-    u.add_argument('--note-file', metavar='PATH', default=None,
+    u.add_argument('--note-file', metavar='PATH', action='append', default=[],
                    help='Append a ## Progress note bullet whose text is read '
                         'verbatim as UTF-8 from PATH (or from stdin when PATH is '
                         '"-"), bypassing shell interpolation — use for text '
                         'containing backticks, $, or double quotes. Compose the '
                         'payload file with an editor/Write tool, never a shell '
                         'heredoc or redirect, or the interpolation hazard just '
-                        'moves upstream. Combines with --note; the file bullet '
-                        'appends after any inline --note bullets. An unreadable '
-                        'path, an undecodable (non-UTF-8) payload, or an empty/'
-                        'whitespace-only payload aborts the call before any PATCH.')
+                        'moves upstream. May be passed more than once to append '
+                        'one bullet per payload, in order, each measured on its '
+                        'own against the per-note byte budget; the stdin form "-" '
+                        'may be used at most once per flag. Combines with --note; '
+                        'the file bullets append after any inline --note bullets. '
+                        'An unreadable path, an undecodable (non-UTF-8) payload, or '
+                        'an empty/whitespace-only payload aborts the call before '
+                        'any PATCH.')
     u.add_argument('--reflection', metavar='TEXT', action='append', default=[],
                    help='Append a bullet to Devflow Reflection (no timestamp). '
                         'May be passed multiple times to append several bullets '
                         'in one atomic update.')
-    u.add_argument('--reflection-file', metavar='PATH', default=None,
+    u.add_argument('--reflection-file', metavar='PATH', action='append', default=[],
                    help='Append a Devflow Reflection bullet whose text is read '
                         'verbatim as UTF-8 from PATH (or from stdin when PATH is '
                         '"-"), bypassing shell interpolation — use for text '
-                        'containing backticks, $, or double quotes. The call\'s '
-                        '--reflection-kind applies; the file bullet appends after '
-                        'any --reflection bullets. An unreadable path, an '
-                        'undecodable (non-UTF-8) payload, or an empty/'
-                        'whitespace-only payload aborts the call before any PATCH.')
+                        'containing backticks, $, or double quotes. May be passed '
+                        'more than once to append one bullet per payload, in '
+                        'order; the stdin form "-" may be used at most once per '
+                        'flag. The call\'s --reflection-kind applies to every file '
+                        'bullet; the file bullets append after any --reflection '
+                        'bullets. An unreadable path, an undecodable (non-UTF-8) '
+                        'payload, or an empty/whitespace-only payload aborts the '
+                        'call before any PATCH.')
     u.add_argument('--reflection-kind',
                    # Derive choices from the taxonomy dict so the CLI-validated
                    # set and the `_REFLECTION_KINDS[kind]` lookup can never drift

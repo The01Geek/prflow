@@ -236,8 +236,8 @@ def make_args(**overrides):
         'tick_progress': [], 'tick_plan': [], 'tick_plan_n': [], 'tick_ac': [], 'tick_ac_n': [],
         'rewrite_ac': [],
         'replace_plan_file': None, 'replace_acs_file': None, 'set_reproduction_file': None,
-        'note': [], 'reflection': [], 'reflection_kind': None, 'reflection_file': None,
-        'note_file': None,
+        'note': [], 'reflection': [], 'reflection_kind': None, 'reflection_file': [],
+        'note_file': [],
         'marker': None,
         'reconcile_reproduction': None, 'record_classification': None,
         'checkpoint': [], 'expect_comment_id': None, 'expect_status': None,
@@ -1470,7 +1470,7 @@ for _label, _prose, _kw in [
     ("a structural _UpdateError", 'could not read',
      {'replace_plan_file': '/nonexistent/plan-1562.md'}),
     ("an unreadable --reflection-file", '--reflection-file',
-     {'reflection_file': '/nonexistent/refl-1562.md'}),
+     {'reflection_file': ['/nonexistent/refl-1562.md']}),
 ]:
     _e = _oc(_label, "not-persisted", "reissue-call", 1, **_kw)
     assert_eq(f"#1562: {_label} keeps its existing prose line", True, _prose in _e)
@@ -2773,7 +2773,7 @@ def _reflect_file(payload_bytes, kind='note', body=WORKPAD_V2, also_reflection=N
         out = apply_mut(body, make_args(
             reflection=(also_reflection or []),
             reflection_kind=kind,
-            reflection_file=str(p)))
+            reflection_file=[str(p)]))
     return out.split('## Devflow Reflection', 1)[1]
 
 # Backticks + $(…) round-trip byte-identical (the shell-interpolation hazard the
@@ -2823,7 +2823,7 @@ def _reflect_stdin(payload_bytes, kind='note'):
     sys.stdin = _FakeStdin(payload_bytes)
     try:
         out = apply_mut(WORKPAD_V2, make_args(
-            reflection_kind=kind, reflection_file='-'))
+            reflection_kind=kind, reflection_file=['-']))
     finally:
         sys.stdin = saved
     return out.split('## Devflow Reflection', 1)[1]
@@ -2837,7 +2837,7 @@ def _empty_file():
     with tempfile.TemporaryDirectory() as d:
         p = Path(d) / 'e.txt'
         p.write_bytes(b'')
-        apply_mut(WORKPAD_V2, make_args(reflection_file=str(p)))
+        apply_mut(WORKPAD_V2, make_args(reflection_file=[str(p)]))
 assert_raises("--reflection-file: empty payload raises _UpdateError",
               workpad._UpdateError, _empty_file)
 
@@ -2845,7 +2845,7 @@ def _ws_only_file():
     with tempfile.TemporaryDirectory() as d:
         p = Path(d) / 'w.txt'
         p.write_bytes(b'   \n\t  \n')
-        apply_mut(WORKPAD_V2, make_args(reflection_file=str(p)))
+        apply_mut(WORKPAD_V2, make_args(reflection_file=[str(p)]))
 assert_raises("--reflection-file: whitespace-only payload raises _UpdateError",
               workpad._UpdateError, _ws_only_file)
 
@@ -2853,13 +2853,13 @@ def _undecodable_file():
     with tempfile.TemporaryDirectory() as d:
         p = Path(d) / 'u.txt'
         p.write_bytes(b'\xff\xfe\xfd not utf-8')
-        apply_mut(WORKPAD_V2, make_args(reflection_file=str(p)))
+        apply_mut(WORKPAD_V2, make_args(reflection_file=[str(p)]))
 assert_raises("--reflection-file: undecodable payload raises _UpdateError (no traceback)",
               workpad._UpdateError, _undecodable_file)
 
 def _unreadable_file():
     apply_mut(WORKPAD_V2, make_args(
-        reflection_file='/nonexistent/definitely/missing/payload.txt'))
+        reflection_file=['/nonexistent/definitely/missing/payload.txt']))
 assert_raises("--reflection-file: unreadable path raises _UpdateError",
               workpad._UpdateError, _unreadable_file)
 
@@ -2871,7 +2871,7 @@ assert_raises("--reflection-file: unreadable path raises _UpdateError",
 def _bad_file_with_inline():
     apply_mut(WORKPAD_V2, make_args(
         reflection=['inline bullet that must not persist'],
-        reflection_file='/nonexistent/definitely/missing/payload.txt'))
+        reflection_file=['/nonexistent/definitely/missing/payload.txt']))
 assert_raises("--reflection-file: a bad payload aborts even with an inline --reflection (no partial write)",
               workpad._UpdateError, _bad_file_with_inline)
 
@@ -2909,7 +2909,7 @@ def _note_file(payload_bytes, body=WORKPAD_V2, also_note=None):
         p = Path(d) / 'payload.txt'
         p.write_bytes(payload_bytes)
         out = apply_mut(body, make_args(
-            status='Implementing', note=(also_note or []), note_file=str(p)))
+            status='Implementing', note=(also_note or []), note_file=[str(p)]))
     return out.split('## Plan', 1)[0]
 
 # Backticks + $(…) + quotes round-trip byte-identical (the hazard the flag defeats).
@@ -2937,7 +2937,7 @@ def _note_stdin(payload_bytes):
     saved = sys.stdin
     sys.stdin = _FakeStdin(payload_bytes)
     try:
-        out = apply_mut(WORKPAD_V2, make_args(status='Implementing', note_file='-'))
+        out = apply_mut(WORKPAD_V2, make_args(status='Implementing', note_file=['-']))
     finally:
         sys.stdin = saved
     return out.split('## Plan', 1)[0]
@@ -2956,7 +2956,7 @@ def _nf_empty():
     with tempfile.TemporaryDirectory() as d:
         p = Path(d) / 'e.txt'
         p.write_bytes(b'')
-        apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+        apply_mut(WORKPAD_V2, make_args(note_file=[str(p)]))
 assert_raises("--note-file: empty payload raises _UpdateError",
               workpad._UpdateError, _nf_empty)
 
@@ -2964,7 +2964,7 @@ def _nf_ws_only():
     with tempfile.TemporaryDirectory() as d:
         p = Path(d) / 'w.txt'
         p.write_bytes(b'   \n\t  \n')
-        apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+        apply_mut(WORKPAD_V2, make_args(note_file=[str(p)]))
 assert_raises("--note-file: whitespace-only payload raises _UpdateError",
               workpad._UpdateError, _nf_ws_only)
 
@@ -2972,13 +2972,13 @@ def _nf_undecodable():
     with tempfile.TemporaryDirectory() as d:
         p = Path(d) / 'u.txt'
         p.write_bytes(b'\xff\xfe\xfd not utf-8')
-        apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+        apply_mut(WORKPAD_V2, make_args(note_file=[str(p)]))
 assert_raises("--note-file: undecodable payload raises _UpdateError (no traceback)",
               workpad._UpdateError, _nf_undecodable)
 
 def _nf_unreadable():
     apply_mut(WORKPAD_V2, make_args(
-        note_file='/nonexistent/definitely/missing/note-1813.txt'))
+        note_file=['/nonexistent/definitely/missing/note-1813.txt']))
 assert_raises("--note-file: unreadable path raises _UpdateError",
               workpad._UpdateError, _nf_unreadable)
 
@@ -2987,7 +2987,7 @@ assert_raises("--note-file: unreadable path raises _UpdateError",
 def _nf_bad_with_inline():
     apply_mut(WORKPAD_V2, make_args(
         note=['inline note that must not persist'],
-        note_file='/nonexistent/definitely/missing/note-1813.txt'))
+        note_file=['/nonexistent/definitely/missing/note-1813.txt']))
 assert_raises("--note-file: a bad payload aborts even with an inline --note (no partial write)",
               workpad._UpdateError, _nf_bad_with_inline)
 
@@ -2997,12 +2997,150 @@ def _nf_empty_msg():
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / 'e.txt'
             p.write_bytes(b'')
-            apply_mut(WORKPAD_V2, make_args(note_file=str(p)))
+            apply_mut(WORKPAD_V2, make_args(note_file=[str(p)]))
     except workpad._UpdateError as e:
         return str(e)
     return ''
 assert_eq("--note-file: empty-payload error names the --note-file flag", True,
           _nf_empty_msg().startswith('--note-file:'))
+
+
+# --- issue #2076: --note-file / --reflection-file are repeatable (one bullet per
+# payload) rather than dropping the earlier paths. ---
+print("issue #2076: repeatable --note-file / --reflection-file payloads")
+
+def _write_payloads(d, texts):
+    """Write each text to its own file under d; return the list of paths."""
+    paths = []
+    for i, t in enumerate(texts):
+        p = Path(d) / f'p{i}.txt'
+        p.write_bytes(t.encode('utf-8'))
+        paths.append(str(p))
+    return paths
+
+# AC1 (reproduction): three --note-file payloads render THREE ## Progress bullets,
+# in command-line order, AFTER an inline --note bullet. Against the pre-fix argparse
+# `store` this rendered a single bullet — the drop this issue reports.
+with tempfile.TemporaryDirectory() as _d:
+    _paths = _write_payloads(_d, ['note one', 'note two', 'note three'])
+    _prog = apply_mut(WORKPAD_V2, make_args(
+        status='Implementing', note=['inline first'], note_file=_paths)
+        ).split('## Plan', 1)[0]
+assert_eq("#2076 AC1: three --note-file payloads render three bullets", 3,
+          sum(_prog.count('— ' + t) for t in ('note one', 'note two', 'note three')))
+assert_eq("#2076 AC1: --note-file bullets keep command-line order", True,
+          _prog.index('— note one') < _prog.index('— note two') < _prog.index('— note three'))
+assert_eq("#2076 AC1: file bullets append AFTER the inline --note bullet", True,
+          _prog.index('— inline first') < _prog.index('— note one'))
+
+# AC2: repeated --reflection-file payloads each render a Reflection bullet, in order,
+# after an inline --reflection bullet, under the call's single --reflection-kind.
+with tempfile.TemporaryDirectory() as _d:
+    _rpaths = _write_payloads(_d, ['refl one', 'refl two', 'refl three'])
+    _refl = apply_mut(WORKPAD_V2, make_args(
+        reflection=['inline refl'], reflection_kind='deferred', reflection_file=_rpaths)
+        ).split('## Devflow Reflection', 1)[1]
+assert_eq("#2076 AC2: three --reflection-file payloads render three bullets", 3,
+          sum(_refl.count('- ⏭️ **Deferred:** ' + t)
+              for t in ('refl one', 'refl two', 'refl three')))
+assert_eq("#2076 AC2: --reflection-file bullets keep command-line order", True,
+          _refl.index('refl one') < _refl.index('refl two') < _refl.index('refl three'))
+assert_eq("#2076 AC2: file bullets append AFTER the inline --reflection bullet, same kind", True,
+          _refl.index('- ⏭️ **Deferred:** inline refl') < _refl.index('- ⏭️ **Deferred:** refl one'))
+
+# AC6: a single --note-file path (a one-element list) still renders EXACTLY one
+# bullet — the single-flag call is unchanged by this change.
+with tempfile.TemporaryDirectory() as _d:
+    _one = _write_payloads(_d, ['solo note'])
+    _prog1 = apply_mut(WORKPAD_V2, make_args(
+        status='Implementing', note_file=_one)).split('## Plan', 1)[0]
+assert_eq("#2076 AC6: a single --note-file path renders exactly one bullet", 1,
+          _prog1.count('— solo note'))
+
+# Adversarial: several payloads carrying backticks/$()/quotes round-trip
+# byte-identical when passed at once (the whole reason this channel exists).
+with tempfile.TemporaryDirectory() as _d:
+    _hostile = ['a `git` $(x) "q"', 'b `y` $(z) "r"']
+    _hpaths = _write_payloads(_d, _hostile)
+    _hprog = apply_mut(WORKPAD_V2, make_args(
+        status='Implementing', note_file=_hpaths)).split('## Plan', 1)[0]
+assert_eq("#2076: adversarial multi-payload notes round-trip byte-identical", True,
+          all(('— ' + t) in _hprog for t in _hostile))
+
+# AC7: when one payload among several is unreadable, the WHOLE call aborts with
+# _UpdateError and no body is produced — no partial write.
+def _one_bad_among_several():
+    with tempfile.TemporaryDirectory() as _d:
+        _paths = _write_payloads(_d, ['good one', 'good two'])
+        _paths.insert(1, '/nonexistent/definitely/missing/mid.txt')
+        apply_mut(WORKPAD_V2, make_args(status='Implementing', note_file=_paths))
+assert_raises("#2076 AC7: one bad payload among several aborts the whole call",
+              workpad._UpdateError, _one_bad_among_several)
+
+# AC4: passing the stdin form '-' more than once for one flag is refused with a
+# message naming the flag and the at-most-once rule, before any read.
+def _dup_stdin_note():
+    apply_mut(WORKPAD_V2, make_args(status='Implementing', note_file=['-', '-']))
+assert_raises("#2076 AC4: repeated --note-file '-' raises _UpdateError",
+              workpad._UpdateError, _dup_stdin_note)
+def _dup_stdin_msg():
+    try:
+        apply_mut(WORKPAD_V2, make_args(status='Implementing', note_file=['-', '-']))
+    except workpad._UpdateError as e:
+        return str(e)
+    return ''
+_dsm = _dup_stdin_msg()
+assert_eq("#2076 AC4: the repeated-'-' refusal names the flag and the at-most-once rule", True,
+          _dsm.startswith('--note-file:') and 'at most once' in _dsm)
+
+# AC5: '-' once ALONGSIDE file paths for the same flag is legal — the stdin payload
+# becomes one bullet like any other, in position.
+def _stdin_plus_files():
+    with tempfile.TemporaryDirectory() as _d:
+        _paths = _write_payloads(_d, ['file a'])
+        saved = sys.stdin
+        sys.stdin = _FakeStdin(b'from stdin')
+        try:
+            return apply_mut(WORKPAD_V2, make_args(
+                status='Implementing', note_file=['-'] + _paths)).split('## Plan', 1)[0]
+        finally:
+            sys.stdin = saved
+_spf = _stdin_plus_files()
+assert_eq("#2076 AC5: '-' once alongside file paths is accepted (both bullets present)", True,
+          ('— from stdin' in _spf) and ('— file a' in _spf))
+assert_eq("#2076 AC5: the stdin bullet keeps its command-line position (before the file)", True,
+          _spf.index('— from stdin') < _spf.index('— file a'))
+
+# AC3 (multi-payload budget, per-payload): three within-budget --note-file payloads
+# in one cmd_update call are accepted, while one over-budget payload is refused —
+# each payload is measured on its own, not combined.
+with tempfile.TemporaryDirectory() as _d:
+    _three = _write_payloads(_d, ['n' * 1000, 'o' * 1000, 'p' * 1000])
+    _c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note_file=_three)
+    assert_eq("#2076 AC3: three 1000-byte --note-file payloads are accepted", True, _p is not None)
+    assert_eq("#2076 AC3: all three payloads render as bullets", True,
+              _p is not None and all(('— ' + t) in _p for t in ('n' * 1000, 'o' * 1000, 'p' * 1000)))
+    _one_big = _write_payloads(_d, ['q' * 3000])
+    _c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note_file=_one_big)
+    assert_eq("#2076 AC3: one 3000-byte --note-file payload is refused", 1, _c)
+    assert_eq("#2076 AC3: the oversize single payload makes NO PATCH", None, _p)
+
+# AC8: when the PATCH fails, EVERY payload of the call is handed to the failed-write
+# buffer for replay, not only the last one.
+with tempfile.TemporaryDirectory() as _d:
+    _bpaths = _write_payloads(_d, ['buffered one', 'buffered two', 'buffered three'])
+    _saved_buf = workpad._buffer_failed_change
+    _captured = {'notes': None}
+    def _capture_buf(comment_id, notes, reflections, kind):
+        _captured['notes'] = list(notes)
+    workpad._buffer_failed_change = _capture_buf
+    try:
+        _c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note_file=_bpaths, patch_fails=True)
+    finally:
+        workpad._buffer_failed_change = _saved_buf
+assert_eq("#2076 AC8: a failed PATCH buffers every payload for replay, not just the last", True,
+          _captured['notes'] is not None
+          and all(t in _captured['notes'] for t in ('buffered one', 'buffered two', 'buffered three')))
 
 
 print("workpad size limits (issue #2024): per-note budget + comment cap")
@@ -3040,12 +3178,12 @@ assert_eq("#2024 AC3: multiple within-budget notes are accepted (per-note, not p
 with tempfile.TemporaryDirectory() as _d:
     _bigf = Path(_d) / 'big.txt'
     _bigf.write_bytes(b'z' * 2049)
-    _c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note_file=str(_bigf))
+    _c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note_file=[str(_bigf)])
     assert_eq("#2024 AC3: an oversize --note-file payload is refused too", 1, _c)
     assert_eq("#2024 AC3: the oversize --note-file makes NO PATCH", None, _p)
     _okf = Path(_d) / 'ok.txt'
     _okf.write_bytes(b'w' * 2048)
-    _c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note_file=str(_okf))
+    _c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note_file=[str(_okf)])
     assert_eq("#2024 AC3: a 2048-byte --note-file payload is accepted", True, _p is not None)
 
 # AC11 (note side): byte counts are UTF-8 bytes, never characters. 700 euro signs
