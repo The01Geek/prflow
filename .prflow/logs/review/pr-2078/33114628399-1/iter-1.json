@@ -1,0 +1,128 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T21:10:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "parse_and_compare",
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "dispatch_mode": null,
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "reflection-file side directly covered only for ordering (AC2); its budget/refusal/one-bad-abort/buffer-replay exercised via the shared _multi_file_payloads through the note-file tests",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          3092,
+          3143
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "cross-flag stdin '-' (--note-file - --reflection-file -) drains stdin twice; pre-existing, out of issue #2076's per-flag scope, fails closed with a clear error",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          3157,
+          3172
+        ],
+        "kind": "preexisting_cross_flag_stdin"
+      },
+      "corroboration_count": 4,
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": "2026-08-27T21:15:00Z",
+    "reviewed_sha": "e9a4dff4bdef2a016d96aba07b1ea41b0c8c833b",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "extension-only",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": "skipped",
+    "phase3_findings": [
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Suggestion",
+        "description": "cross-flag stdin '-' unguarded; pre-existing, out of scope",
+        "defect_signature": {
+          "file": "scripts/workpad.py",
+          "line_range": [
+            3157,
+            3172
+          ],
+          "kind": "preexisting_cross_flag_stdin"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 1,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
