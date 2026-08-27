@@ -24,7 +24,7 @@ Usage:
     workpad.py acs       ISSUE [--exclude-post-merge] [--neutralize-boxes]
                                [--emit-source-token]
     workpad.py acs-resolve ISSUE [--pr N]
-    workpad.py body      COMMENT_ID
+    workpad.py body      COMMENT_ID | --issue ISSUE [--marker M]
     workpad.py patch     COMMENT_ID BODY_FILE
     workpad.py create    ISSUE BODY_FILE
     workpad.py new-body  ISSUE [--run-link V] [--branch V] [--marker M]
@@ -33,7 +33,7 @@ Usage:
     workpad.py handoff-state FILE --issue N --run-id ID --run-attempt ATTEMPT
 
 Subcommands that locate the workpad by its marker comment (`id`, `new-body`,
-`update`) accept `--marker` to target a non-default marker — /devflow:review
+`update`, and `body --issue`) accept `--marker` to target a non-default marker — /devflow:review
 uses it to drive its own `<!-- prflow:review-progress -->` comment. The flag
 is preferred over the `DEVFLOW_WORKPAD_MARKER` env var: a leading
 env-assignment makes the command un-matchable against the cloud allow-list.
@@ -464,8 +464,9 @@ def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1):
     """Scan an issue's comments (paginated) and return the first whose body
     starts with `marker`, or None when the scan completed and none matched.
 
-    Single source for the marker-scan that `cmd_id`, `cmd_status` and the acs
-    surfaces (`_acs_read_workpad`, and so `cmd_acs`/`cmd_acs_resolve` through
+    Single source for the marker-scan that `cmd_id`, `cmd_status`, `cmd_body`'s
+    `--issue` arm and the acs surfaces (`_acs_read_workpad`, and so
+    `cmd_acs`/`cmd_acs_resolve` through
     it) share — the `per_page=100`/`< 100` pagination boundary and the API/parse
     error handling live here once. A `gh api` or JSON-parse failure exits via
     `_fail(cmd, …)` with `api_fail_code` (default 1, so the caller's error prefix
