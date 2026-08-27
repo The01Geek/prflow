@@ -2088,8 +2088,21 @@ devflow_python_suite_pool_open() {
   _pp_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || return 1
   devflow_pool_open \
     "test_module_runner.py" "$_pp_dir/test_module_runner.py" single-verdict \
-    "test_python_scripts.py" "$_pp_dir/test_python_scripts.py" self-tally
+    "test_python_scripts.py" "$_pp_dir/test_python_scripts.py" self-tally \
+    "test_python_scripts_part2.py" "$_pp_dir/test_python_scripts_part2.py" self-tally \
+    "test_python_scripts_part3.py" "$_pp_dir/test_python_scripts_part3.py" self-tally \
+    "test_python_scripts_part4.py" "$_pp_dir/test_python_scripts_part4.py" self-tally
 }
+
+# The four self-tally parts test_python_scripts.py was split into (issue #2007), the
+# member set devflow_python_suite_pool_join reconciles. Sourced by run.sh's
+# _pps_reconcile_probe too, so it is a shared definition rather than a second literal.
+DEVFLOW_PYTHON_SELFTALLY_MEMBERS=(
+  "test_python_scripts.py"
+  "test_python_scripts_part2.py"
+  "test_python_scripts_part3.py"
+  "test_python_scripts_part4.py"
+)
 
 # Join the production pool and reconcile the self-tally contribution (issue #720):
 # test_python_scripts.py's contribution to RESULTS_FILE must equal the assertion count
@@ -2102,23 +2115,28 @@ devflow_python_suite_pool_open() {
 # record_fail contract; the name resolves at call time.
 devflow_python_suite_pool_join() {
   devflow_python_pool_enabled || return 0
-  local _ps_lines _ps_summary _ps_total
+  local _ps_member _ps_lines _ps_summary _ps_total
   devflow_pool_join
-  _ps_lines="${_DEVFLOW_POOL_SELFTALLY_LINES[test_python_scripts.py]:-}"
-  _ps_summary="${_DEVFLOW_POOL_SELFTALLY_SUMMARY[test_python_scripts.py]:-}"
-  if [ -n "$_ps_summary" ]; then
-    # Positional parse with bash word-splitting (not awk — a value feeding an assertion,
-    # kept off non-preflight PATH tools per guard-class 2): "N passed, M failed".
-    # shellcheck disable=SC2086
-    set -- $_ps_summary
-    _ps_total=$(( ${1:-0} + ${3:-0} ))
-    assert_eq "#720 test_python_scripts.py: RESULTS_FILE contribution equals its summary passed+failed" \
-      "$_ps_total" "${_ps_lines:-unestablished}"
-  else
-    # Summary not captured (e.g. a rendezvous-retry emptied the captured output): record
-    # a FAIL rather than silently skipping the coverage check.
-    echo FAIL >> "$RESULTS_FILE"
-    record_fail "#720 test_python_scripts.py: summary line not captured"
-    printf '  FAIL  #720 test_python_scripts.py: could not capture its summary line to verify RESULTS_FILE contribution\n' >&2
-  fi
+  # Reconcile every split part's self-tally contribution (issue #2007 generalized the
+  # single-member #720 check to the four parts) — each part's RESULTS_FILE contribution
+  # must equal the passed+failed it reports on its own summary line.
+  for _ps_member in "${DEVFLOW_PYTHON_SELFTALLY_MEMBERS[@]}"; do
+    _ps_lines="${_DEVFLOW_POOL_SELFTALLY_LINES[$_ps_member]:-}"
+    _ps_summary="${_DEVFLOW_POOL_SELFTALLY_SUMMARY[$_ps_member]:-}"
+    if [ -n "$_ps_summary" ]; then
+      # Positional parse with bash word-splitting (not awk — a value feeding an assertion,
+      # kept off non-preflight PATH tools per guard-class 2): "N passed, M failed".
+      # shellcheck disable=SC2086
+      set -- $_ps_summary
+      _ps_total=$(( ${1:-0} + ${3:-0} ))
+      assert_eq "#720 $_ps_member: RESULTS_FILE contribution equals its summary passed+failed" \
+        "$_ps_total" "${_ps_lines:-unestablished}"
+    else
+      # Summary not captured (e.g. a rendezvous-retry emptied the captured output): record
+      # a FAIL rather than silently skipping the coverage check.
+      echo FAIL >> "$RESULTS_FILE"
+      record_fail "#720 $_ps_member: summary line not captured"
+      printf '  FAIL  #720 %s: could not capture its summary line to verify RESULTS_FILE contribution\n' "$_ps_member" >&2
+    fi
+  done
 }
