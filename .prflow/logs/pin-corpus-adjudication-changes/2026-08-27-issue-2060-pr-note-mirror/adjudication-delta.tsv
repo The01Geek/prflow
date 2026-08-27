@@ -1,0 +1,3 @@
+adjudication_key	base_state	current_state
+literal:6b11a02eb8b17bea37f88a6457561c369d10dfe006732935d13dd28af04fa560	"[""boundary"",""Retain routing/state-transition contract: #493 resume: cloud-only guard skips the refresh on a local-tier resume (AC4).""]"	null
+literal:e405d6162d01375a15bffb30a2b0182b9ea44df4feead6b1015601d0e6b2563c	null	"[""boundary"",""maintainer adjudication: #2060 routing/dispatch contract — the gate adopt arm invokes refresh-pr-on-resume.sh, making the gate the single owner of the PR run-link refresh + note strip; a workflow-YAML wiring seam AC1/AC4 depend on that no unit test can observe.""]"

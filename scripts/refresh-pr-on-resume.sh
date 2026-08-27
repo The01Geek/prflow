@@ -17,6 +17,7 @@
 #
 # CONTRACT — one token line on stdout with a matching exit code; a stderr breadcrumb too:
 #   REFRESHED <n>     exit 0   resolved the open PR and PATCHed its body
+#   NOOP <n>          exit 0   resolved the PR but the transform left the body unchanged (no PATCH)
 #   NO_PR             exit 2   the query ran cleanly and no open PR closes the issue
 #   REFUSED <reason>  exit 3   the PR set, body read, transform, or PATCH could not be done
 set -uo pipefail
@@ -79,6 +80,15 @@ if [ -z "$NEW_BODY" ]; then
   echo "REFUSED transform"
   echo "prflow: PR #$PR_NUMBER body transform produced no output; PATCH skipped to avoid blanking the PR body" >&2
   exit 3
+fi
+
+# Skip the write when the transform changed nothing (no note block to strip and the [View run]
+# line already current) — the common resume case — so an idempotent resume spends no GitHub
+# write nor its rate-limit budget.
+if [ "$NEW_BODY" = "$PR_BODY" ]; then
+  echo "NOOP $PR_NUMBER"
+  echo "prflow: PR #$PR_NUMBER body already current (no stopped-run note, [View run] unchanged); no PATCH needed" >&2
+  exit 0
 fi
 
 if printf '%s' "$NEW_BODY" | "$DEVFLOW_GH" api --method PATCH "repos/{owner}/{repo}/pulls/$PR_NUMBER" -F body=@- >/dev/null 2>&1; then

@@ -3,13 +3,16 @@
 # SPDX-License-Identifier: MIT
 """Resolve the open PR that closes a given issue (newest by createdAt).
 
-The single source of the "which PR" selection every agent-less writer uses — the
-gate job's PR-body maintenance (via the CLI) and ``scripts/workpad.py``'s
-stopped-run note mirror (via ``resolve_issue_pr`` imported in-process) — because
-neither holds the feature branch, only the issue number. It mirrors the branch-
-setup resume pre-check's body-reference selection: an OPEN PR whose
-``closingIssuesReferences`` contains this issue, newest by ``createdAt``. A PR
-that merely mentions the number (``see #<n>``) is not selected.
+The CLI the gate job's PR-body maintenance (``scripts/refresh-pr-on-resume.sh``)
+uses to pick the target PR, because it holds only the issue number, not the
+feature branch. ``scripts/workpad.py``'s stopped-run note mirror needs the same
+selection but CANNOT import this module — its repo-owned import edges are locked
+to ``section_parse.py`` for the Stop-hook closure hardening (issues #458/#583) —
+so it carries a byte-identical pinned copy (``lib/test/run.sh`` pins the shared
+markers; the selection is a parallel copy). It mirrors the branch-setup resume
+pre-check's body-reference selection: an OPEN PR whose ``closingIssuesReferences``
+contains this issue, newest by ``createdAt``. A PR that merely mentions the
+number (``see #<n>``) is not selected.
 
 CLI: ``resolve-issue-pr.py --issue <n>`` prints one line and exits:
 
@@ -82,17 +85,6 @@ def _select(prs, issue):
         return None
     closing.sort(key=lambda p: p.get("createdAt") or "")
     return closing[-1].get("number")
-
-
-def resolve_issue_pr(issue, gh=None):
-    """Return the newest open PR number closing *issue*, or None (none-or-unresolvable).
-
-    Best-effort for the in-process mirror caller: a transport failure and a genuine
-    "no such PR" both return None — the caller only ever skips on either."""
-    prs = _query_open_prs(issue, gh)
-    if prs is None:
-        return None
-    return _select(prs, issue)
 
 
 def main(argv):

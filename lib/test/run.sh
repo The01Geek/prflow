@@ -5564,6 +5564,22 @@ chmod +x "$P2060_TMP/gh-full"
 assert_eq "#2060 refresh-pr-on-resume: resolves + PATCHes -> REFRESHED, exit 0 (AC1/AC4)" \
   "REFRESHED 7 0" \
   "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-full" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+# Efficiency: a body already current (no note block, [View run] already this run) is NOT re-PATCHed.
+cat > "$P2060_TMP/gh-noop" <<'SH'
+#!/usr/bin/env bash
+args="$*"
+case "$args" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"2026-02-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *"--method PATCH"*) cat >/dev/null; echo "PATCH-SHOULD-NOT-HAPPEN" >&2; printf '7\n' ;;
+  *"pulls/7"*) printf '%s\n' 'Resolves #2060
+[View run](https://x/runs/NEW)' ;;
+  *) echo "unhandled gh: $args" >&2; exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-noop"
+assert_eq "#2060 refresh-pr-on-resume: body already current -> NOOP, exit 0, no PATCH" \
+  "NOOP 7 0" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-noop" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
 assert_eq "#2060 refresh-pr-on-resume: no open PR -> NO_PR, exit 2" \
   "NO_PR 2" \
   "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-none" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"

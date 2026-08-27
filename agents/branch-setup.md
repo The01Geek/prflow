@@ -100,12 +100,14 @@ if [ "$LANDED" = yes ]; then
       # `$` never traverse shell quoting). The output is CAPTURED and guarded non-empty before
       # the PATCH so a crashed transform cannot blank the description.
       NEW_BODY=$(printf '%s' "$PR_BODY" | python3 "$SCRIPTS"/pr-note-block.py strip) || NEW_BODY=""
-      if [ -n "$NEW_BODY" ]; then
+      if [ -z "$NEW_BODY" ]; then
+        echo "::warning::prflow resume: PR-body note-strip transform produced no output; PATCH skipped to avoid blanking PR #$PR_NUMBER body" >&2
+      elif [ "$NEW_BODY" = "$PR_BODY" ]; then
+        : # no stopped-run note block present — the common resume case; nothing to strip, so no PATCH (avoids a redundant write, and on a cloud resume the gate already stripped)
+      else
         printf '%s' "$NEW_BODY" \
           | gh api --method PATCH "repos/{owner}/{repo}/pulls/$PR_NUMBER" -F body=@- 2>/dev/null \
           || echo "::warning::prflow resume: PR-body note-strip PATCH failed for PR #$PR_NUMBER; continuing" >&2
-      else
-        echo "::warning::prflow resume: PR-body note-strip transform produced no output; PATCH skipped to avoid blanking PR #$PR_NUMBER body" >&2
       fi
     else
       echo "::warning::prflow resume: PR #$PR_NUMBER body is empty; note strip skipped" >&2
