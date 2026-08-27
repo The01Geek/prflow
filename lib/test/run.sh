@@ -55414,15 +55414,87 @@ assert_eq "#1745 the real-tree audit covered a positive number of files" "yes" \
 m = re.search(r"audited (\d+) of", sys.stdin.read())
 print("yes" if m and int(m.group(1)) > 0 else "no")')"
 
+# ── issue #2050: ruff family-preferring selection helpers ────────────────────
+# Keep these ABOVE the #1621 gate that consumes them, and do not re-declare them
+# in the #2009 block below, which reuses these definitions.
+devflow_ruff_family() {  # prints major.minor of a version or spec (0.16.4 / 0.16.* -> 0.16)
+  local v="$1" major rest minor
+  major="${v%%.*}"; rest="${v#*.}"; minor="${rest%%.*}"
+  printf '%s.%s' "$major" "$minor"
+}
+devflow_ruff_manifest_version() {  # $1 = manifest path; prints the pinned version or a sentinel
+  local _v
+  [ -s "$1" ] || { printf 'unreadable'; return; }
+  _v="$(python3 -c 'import json,sys
+d=json.load(open(sys.argv[1]))
+v=d["tools"]["ruff"]["version"]
+sys.stdout.write(v if isinstance(v,str) else "")' "$1" 2>/dev/null)" || { printf 'parse-failed'; return; }
+  [ -n "$_v" ] || { printf 'absent'; return; }
+  printf '%s' "$_v"
+}
+_devflow_ruff_probe_ver() {  # $1 = candidate command (word-split intentionally); prints the reported version token, empty when unrunnable
+  # Both the rc-0 check and the version token are load-bearing: dropping the rc lets a
+  # candidate that errors but still prints two stdout tokens read as runnable and, under a
+  # manifest sentinel, be SELECTED over a healthy one.
+  local out rc; local -a _parts
+  out="$($1 --version 2>/dev/null)"; rc=$?
+  [ "$rc" -eq 0 ] || return 0
+  [ -n "$out" ] || return 0
+  read -r -a _parts <<<"$out"
+  printf '%s' "${_parts[1]:-}"
+}
+devflow_ruff_select_cmd() {
+  # $1 = manifest ruff version or sentinel; $2 = candidate 1 cmd; $3 = candidate 2 cmd.
+  # Emits "<outcome>|<token>|<detail>" (pipe-separated so an empty token field survives read).
+  # Prefers the candidate whose major.minor family equals the manifest family (candidate 1
+  # first); a manifest sentinel (non-numeric) selects the first RUNNABLE candidate in order.
+  # outcome: selected | family-mismatch | none.
+  local manifest_ver="$1" c1="$2" c2="$3"
+  local manifest_fam="" v1="" v2="" f1="" f2="" detail=""
+  case "$manifest_ver" in [0-9]*) manifest_fam="$(devflow_ruff_family "$manifest_ver")" ;; esac
+  v1="$(_devflow_ruff_probe_ver "$c1")"
+  v2="$(_devflow_ruff_probe_ver "$c2")"
+  [ -n "$v1" ] && f1="$(devflow_ruff_family "$v1")"
+  [ -n "$v2" ] && f2="$(devflow_ruff_family "$v2")"
+  if [ -z "$manifest_fam" ]; then
+    if [ -n "$v1" ]; then printf '%s|%s|%s' selected "$c1" "$v1"; return; fi
+    if [ -n "$v2" ]; then printf '%s|%s|%s' selected "$c2" "$v2"; return; fi
+    printf '%s||' none; return
+  fi
+  if [ -n "$v1" ] && [ "$f1" = "$manifest_fam" ]; then printf '%s|%s|%s' selected "$c1" "$v1"; return; fi
+  if [ -n "$v2" ] && [ "$f2" = "$manifest_fam" ]; then printf '%s|%s|%s' selected "$c2" "$v2"; return; fi
+  if [ -z "$v1" ] && [ -z "$v2" ]; then printf '%s||' none; return; fi
+  [ -n "$v1" ] && detail="$c1 $v1"
+  [ -n "$v2" ] && detail="${detail:+$detail / }$c2 $v2"
+  printf '%s||%s' family-mismatch "$detail"
+}
+devflow_ruff_gate_skip_reason() {
+  # $1 = selection outcome, $2 = manifest family, $3 = resolved-candidate detail.
+  # The gate routes its self-skip through this, so the outcome->reason mapping is
+  # exercised on a host where the live gate takes neither branch.
+  case "$1" in
+    family-mismatch)
+      printf 'no ruff candidate matches the manifest family %s (resolved: %s) — refusing to lint under a wrong-family rule set (issue #2050); install a ruff in the %s family so a candidate matches' \
+        "$2" "${3:-none}" "$2" ;;
+    *)
+      printf "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.16.*' arms it at the desk" ;;
+  esac
+}
+RUFF_MANIFEST_VER="$(devflow_ruff_manifest_version "$LIB/../.prflow/lint-manifest.json")"
+case "$RUFF_MANIFEST_VER" in [0-9]*) RUFF_MANIFEST_FAM="$(devflow_ruff_family "$RUFF_MANIFEST_VER")" ;; *) RUFF_MANIFEST_FAM="$RUFF_MANIFEST_VER" ;; esac
+
 # ── issue #1621: ruff Python-lint gate (monolith-shard-resident) ─────────────
-# Rationale and scope: docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, the #1621 paragraph.
-# Do not swap this execution probe for `command -v`: a present-but-unrunnable ruff
-# would then FAIL the suite instead of routing to the skip() below.
+# Select the candidate whose family matches the manifest pin (issue #2050), so a
+# stale off-family ruff first on PATH no longer decides the lint. Do not swap the
+# probe inside devflow_ruff_select_cmd for `command -v`: a present-but-unrunnable
+# ruff would then FAIL instead of routing to the skip() below.
 RUFF_CMD=()
-if ruff --version >/dev/null 2>&1; then
-  RUFF_CMD=(ruff)
-elif python3 -m ruff --version >/dev/null 2>&1; then
-  RUFF_CMD=(python3 -m ruff)
+RUFF_SELECT="$(devflow_ruff_select_cmd "$RUFF_MANIFEST_VER" "ruff" "python3 -m ruff")"
+IFS='|' read -r RUFF_SEL_OUTCOME RUFF_SEL_TOKEN RUFF_SEL_DETAIL <<<"$RUFF_SELECT"
+if [ "$RUFF_SEL_OUTCOME" = "selected" ]; then
+  IFS=' ' read -r -a RUFF_CMD <<<"$RUFF_SEL_TOKEN"
+  # AC1: print the selected candidate + version on the pass path as well as on failure.
+  printf '#1621 ruff gate: selected %s (reports %s); manifest family %s\n' "$RUFF_SEL_TOKEN" "$RUFF_SEL_DETAIL" "$RUFF_MANIFEST_FAM"
 fi
 if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
   # Do not swap git ls-files for a recursive walk (it would scan sibling
@@ -55460,8 +55532,125 @@ if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
   if [ "$RUFF_FIX_RC" -eq 1 ] && printf '%s\n' "$RUFF_FIX_OUT" | grep -q 'F401'; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
   assert_eq "#1621 ruff Python-lint gate fires on a known F401 violation (non-vacuity)" yes "$RUFF_FIX_FIRES"
 else
-  skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.16.*' arms it at the desk"
+  # Both self-skip arms take their reason from devflow_ruff_gate_skip_reason, whose
+  # outcome->reason routing the #2050 matrix asserts; inlining a reason here would put
+  # the family-mismatch wording back beyond the reach of any check.
+  skip "#1621 ruff Python-lint gate" blocking-gate \
+    "$(devflow_ruff_gate_skip_reason "$RUFF_SEL_OUTCOME" "$RUFF_MANIFEST_FAM" "$RUFF_SEL_DETAIL")"
 fi
+
+# ── #2050: adversarial matrix over devflow_ruff_select_cmd (family-preferring selection) ──
+# Hermetic shims report a fixed --version; the helper sees them as opaque candidate commands,
+# so the family-selection logic is proved without a real off-family ruff on the runner.
+mkdir -p .prflow/tmp
+RUFF_SEL_MTX="$(mktemp -d .prflow/tmp/ruff-select-matrix.XXXXXX)"
+[ -n "$RUFF_SEL_MTX" ] && [ -d "$RUFF_SEL_MTX" ] || { printf 'FATAL: mktemp -d failed for the #2050 ruff-select matrix\n' >&2; exit 1; }
+_ruff_sel_shim() {  # $1 = path, $2 = version it reports for `--version`
+  { printf '#!/usr/bin/env bash\n'; printf "printf 'ruff %s\\\\n'\n" "$2"; } > "$1"
+  chmod +x "$1"
+}
+_ruff_sel_shim "$RUFF_SEL_MTX/off"    0.6.9
+_ruff_sel_shim "$RUFF_SEL_MTX/off2"   0.15.0
+_ruff_sel_shim "$RUFF_SEL_MTX/infam"  0.16.4
+_ruff_sel_shim "$RUFF_SEL_MTX/infam2" 0.16.3
+RUFF_SEL_MISSING="$RUFF_SEL_MTX/does-not-exist"
+
+# AC1 (the RED repro): off-family candidate 1 first, in-family candidate 2 reachable → the
+# in-family candidate 2 is selected, NOT the off-family shim first in order.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/infam")"
+assert_eq "#2050 select: off-family cand1 + in-family cand2 -> selects the in-family cand2 (AC1)" "selected $RUFF_SEL_MTX/infam 0.16.4" "$RS_O $RS_T $RS_D"
+
+# Preference: candidate 1 in-family wins over an in-family candidate 2 (PATH ruff preferred).
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/infam" "$RUFF_SEL_MTX/infam2")"
+assert_eq "#2050 select: both in-family -> candidate 1 (PATH ruff) is preferred" "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
+
+# In-family candidate 1 + off-family candidate 2 -> candidate 1 selected (family match wins).
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/infam" "$RUFF_SEL_MTX/off")"
+assert_eq "#2050 select: in-family cand1 + off-family cand2 -> selects the in-family cand1" "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
+
+# AC2: both candidates off-family -> family-mismatch, no candidate selected.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/off2")"
+assert_eq "#2050 select: both off-family -> family-mismatch (AC2)" "family-mismatch" "$RS_O"
+assert_eq "#2050 select: family-mismatch detail names the resolved versions (AC2)" yes \
+  "$(case "$RS_D" in *0.6.9*0.15.0*) echo yes ;; *) echo no ;; esac)"
+
+# AC2: only candidate 1 runnable and off-family (candidate 2 absent) -> still family-mismatch.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MISSING")"
+assert_eq "#2050 select: sole runnable candidate off-family -> family-mismatch (AC2)" "family-mismatch" "$RS_O"
+
+# The MIRROR of the row above: candidate 1 absent, candidate 2 runnable off-family. Do not drop
+# the detail join's `${detail:+…/ }` guard for a bare `$detail / ` — every other row here leaves
+# v1 non-empty, so only this shape shows the leading " / " an unguarded join would emit.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MTX/off2")"
+assert_eq "#2050 select: sole runnable candidate 2 off-family -> family-mismatch, detail unprefixed (AC2)" \
+  "family-mismatch $RUFF_SEL_MTX/off2 0.15.0" "$RS_O $RS_D"
+
+# AC3: a manifest sentinel -> first RUNNABLE candidate in given order (today's behavior),
+# even when that first candidate is off-family.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd unreadable "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/infam")"
+assert_eq "#2050 select: manifest sentinel -> first runnable candidate in order (AC3)" "selected $RUFF_SEL_MTX/off 0.6.9" "$RS_O $RS_T $RS_D"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd parse-failed "$RUFF_SEL_MISSING" "$RUFF_SEL_MTX/infam")"
+assert_eq "#2050 select: sentinel skips an unrunnable candidate 1 to the runnable candidate 2 (AC3)" "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
+
+# Neither candidate runnable -> none (the today's-skip path, family arm).
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MISSING")"
+assert_eq "#2050 select: neither candidate runnable -> none" "none" "$RS_O"
+# ...and the SENTINEL arm has its own `none` return, which the row above (family arm) never
+# reaches: without this row a sentinel manifest with no runnable candidate could return a
+# selected-shaped outcome and the gate would lint under a candidate it never resolved.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd unreadable "$RUFF_SEL_MISSING" "$RUFF_SEL_MISSING")"
+assert_eq "#2050 select: sentinel manifest + neither candidate runnable -> none, empty token and detail" \
+  "none||" "$RS_O|$RS_T|$RS_D"
+
+# A MULTI-WORD candidate is what production passes as candidate 2 (`python3 -m ruff`), and
+# no single-path shim exercises it: quoting "$1" in the probe would leave every row above
+# green while the live gate resolved no candidate at all and self-skipped the Python lint.
+RUFF_SEL_MW="bash $RUFF_SEL_MTX/infam"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MW")"
+assert_eq "#2050 select: a multi-word candidate is probed word-split (python3 -m ruff shape)" \
+  "selected $RUFF_SEL_MW 0.16.4" "$RS_O $RS_T $RS_D"
+# ...and the gate's reconstruction of that token round-trips to the same argv the probe ran.
+RUFF_MW_CMD=(); IFS=' ' read -r -a RUFF_MW_CMD <<<"$RS_T"
+# Keep the :- defaults: run.sh runs under `set -u`, so indexing an empty RUFF_MW_CMD would
+# abort the whole monolith shard instead of emitting the FAIL this row exists to show.
+assert_eq "#2050 select: the gate's IFS=' ' reconstruction round-trips a multi-word token" \
+  "2 bash $RUFF_SEL_MTX/infam" "${#RUFF_MW_CMD[@]} ${RUFF_MW_CMD[0]:-} ${RUFF_MW_CMD[1]:-}"
+
+# rc guard: a candidate that PRINTS a well-formed version line but exits non-zero is not
+# runnable. Without the probe's rc check this shim reads as runnable and, under a sentinel
+# manifest, is selected over the healthy in-family candidate 2.
+{ printf '#!/usr/bin/env bash\n'; printf "printf 'ruff 0.16.4\\\\n'\nexit 3\n"; } > "$RUFF_SEL_MTX/chatty-rc3"
+chmod +x "$RUFF_SEL_MTX/chatty-rc3"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd unreadable "$RUFF_SEL_MTX/chatty-rc3" "$RUFF_SEL_MTX/infam")"
+assert_eq "#2050 select: a chatty non-zero-rc candidate is NOT runnable (sentinel path)" \
+  "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/chatty-rc3" "$RUFF_SEL_MISSING")"
+assert_eq "#2050 select: a chatty non-zero-rc candidate cannot satisfy the family match" "none" "$RS_O"
+
+# devflow_ruff_family degenerate inputs. `rest="${v#*.}"` returns a dotless token unchanged, so
+# such a token comes back as that token repeated — pin the shape before someone relaxes the
+# caller's `[0-9]*` guard and a degenerate version report starts deciding the selection.
+assert_eq "#2050 family: a dotless numeric token repeats as major.minor (0 -> 0.0)" "0.0" "$(devflow_ruff_family 0)"
+assert_eq "#2050 family: a non-numeric token yields a family that matches no numeric pin" "nightly.nightly" "$(devflow_ruff_family nightly)"
+assert_eq "#2050 family: a three-part version truncates to major.minor" "0.16" "$(devflow_ruff_family 0.16.4)"
+assert_eq "#2050 family: a wildcard spec truncates to major.minor" "0.16" "$(devflow_ruff_family '0.16.*')"
+
+# Gate routing: the two self-skip reasons are selected by OUTCOME, and on a host whose live
+# gate takes neither branch nothing else exercises that mapping — an inverted elif/else would
+# otherwise stay green. Assert each arm is selected and that the arms are distinguishable.
+RUFF_SKIP_FM="$(devflow_ruff_gate_skip_reason family-mismatch 0.16 "cand 0.6.9")"
+RUFF_SKIP_NONE="$(devflow_ruff_gate_skip_reason none 0.16 "")"
+assert_eq "#2050 gate: family-mismatch routes to the wrong-family-rule-set reason" yes \
+  "$(case "$RUFF_SKIP_FM" in *"no ruff candidate matches the manifest family 0.16"*"cand 0.6.9"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2050 gate: outcome none routes to the not-runnable reason" yes \
+  "$(case "$RUFF_SKIP_NONE" in *"ruff not runnable on PATH"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2050 gate: the two skip reasons are distinct (an inverted elif/else is visible)" no \
+  "$([ "$RUFF_SKIP_FM" = "$RUFF_SKIP_NONE" ] && echo yes || echo no)"
+assert_eq "#2050 gate: an empty resolved detail renders as 'none', never as an empty clause" yes \
+  "$(case "$(devflow_ruff_gate_skip_reason family-mismatch 0.16 "")" in *"(resolved: none)"*) echo yes ;; *) echo no ;; esac)"
+
+rm -rf "$RUFF_SEL_MTX"
+unset -f _ruff_sel_shim
 
 # ── #1621: ci.yml's two ruff pins are a coupled pair; reconcile them mechanically ──
 # Assert BOTH halves individually as well as their equality: two `absent` reads would
@@ -55554,22 +55743,8 @@ rm -rf "$RUFF_MTX_DIR"
 # ── #2009: the lint manifest's ruff pin must stay within ci.yml's ruff== family ──
 # Reconcile the two pins mechanically by minor family so a bump to one alone cannot silently
 # disagree with the other and redden the #1621 gate on rule-set skew rather than on findings.
-devflow_ruff_family() {  # prints major.minor of a version or spec (0.16.4 / 0.16.* -> 0.16)
-  local v="$1" major rest minor
-  major="${v%%.*}"; rest="${v#*.}"; minor="${rest%%.*}"
-  printf '%s.%s' "$major" "$minor"
-}
-devflow_ruff_manifest_version() {  # $1 = manifest path; prints the pinned version or a sentinel
-  local _v
-  [ -s "$1" ] || { printf 'unreadable'; return; }
-  _v="$(python3 -c 'import json,sys
-d=json.load(open(sys.argv[1]))
-v=d["tools"]["ruff"]["version"]
-sys.stdout.write(v if isinstance(v,str) else "")' "$1" 2>/dev/null)" || { printf 'parse-failed'; return; }
-  [ -n "$_v" ] || { printf 'absent'; return; }
-  printf '%s' "$_v"
-}
-RUFF_MANIFEST_VER="$(devflow_ruff_manifest_version "$LIB/../.prflow/lint-manifest.json")"
+# devflow_ruff_family, devflow_ruff_manifest_version, and RUFF_MANIFEST_VER are defined once
+# above the #1621 gate (issue #2050) and REUSED here — do not re-declare them.
 case "$RUFF_MANIFEST_VER" in [0-9]*) RUFF_MANIFEST_VER_OK=yes ;; *) RUFF_MANIFEST_VER_OK=no ;; esac
 # structural-pin-ok: cross-file-phase-contract -- positive control: a sentinel version here would make the family reconciliation below vacuous
 assert_eq "#2009 lint-manifest declares a concrete ruff version (arms the reconciliation)" yes "$RUFF_MANIFEST_VER_OK"
@@ -55602,7 +55777,24 @@ printf '%s' '{"tools":{"ruff":{"version":"0.16.4"}}}' > "$RUFF_MAN_MTX/good.json
 assert_eq "#2009 manifest reader: a valid manifest reads its version" 0.16.4 "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/good.json")"
 rm -rf "$RUFF_MAN_MTX"
 
+# ── #2050: devflow-implement.yml's ruff== install spec must stay within the manifest family ──
+# Do not fork a second reader for the `claude` job's install spec: reuse devflow_ruff_pin,
+# whose own #1621 matrix already pins the sentinel arms — a hand-rolled reader would
+# re-derive those arms untested and let a manifest family bump leave this spec behind.
+RUFF_IMPL_SPEC="$(devflow_ruff_pin claude "$LIB/../.github/workflows/devflow-implement.yml")"
+case "$RUFF_IMPL_SPEC" in [0-9]*) RUFF_IMPL_SPEC_OK=yes ;; *) RUFF_IMPL_SPEC_OK=no ;; esac
+# structural-pin-ok: cross-file-phase-contract -- positive control: a sentinel spec here would make the family assertion below pass vacuously, so a workflow that stopped installing ruff (or renamed the claude job) would go unnoticed
+assert_eq "#2050 devflow-implement.yml declares a concrete ruff== install spec (arms the assertion)" yes "$RUFF_IMPL_SPEC_OK"
+# structural-pin-ok: cross-file-phase-contract -- the implement workflow's ruff install and the lint manifest pin must share a family, or a manifest bump leaves the in-env gate installing a wrong-family ruff; editing either alone flips this
+assert_eq "#2050 devflow-implement.yml ruff install spec is within the manifest ruff family" yes "$(_ruff_fam_agree "$RUFF_IMPL_SPEC" "$RUFF_MANIFEST_VER")"
+
+# Discrimination: a family bump applied to only one side reads as disagreement (RED).
+assert_eq "#2050 impl-spec reconciliation: matching families agree" yes "$(_ruff_fam_agree "0.16.*" 0.16.4)"
+assert_eq "#2050 impl-spec reconciliation: implement-spec bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree "0.17.*" 0.16.4)"
+assert_eq "#2050 impl-spec reconciliation: manifest bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree "0.16.*" 0.17.0)"
+
 unset -f devflow_ruff_pin devflow_ruff_family devflow_ruff_manifest_version _ruff_fam_agree
+unset -f _devflow_ruff_probe_ver devflow_ruff_select_cmd devflow_ruff_gate_skip_reason
 
 # ── internal-docs structure lint (lib/test/lint-internal-docs.py) ──
 # Baseline-tolerant by design: it fails only on a violation absent from

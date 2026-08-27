@@ -533,25 +533,49 @@ print("issue #169 (review): cmd_update CLI contract + structural-abort completen
 # ran. stdout is CAPTURED and returned (issue #814) so the default-suppression and
 # --print-body arms of `update`'s echo are assertable at the unit level — the only
 # level that drives the `_NoOpReplay` checkpoint-replay arm.
+_LAST_GH_CALLS = []   # joined gh command lines from the most recent _drive_cmd_update
+_UPDATE_ISSUE_URL = 'https://api.github.com/repos/owner/repo/issues/999'
+
+
 def _drive_cmd_update(body, patch_fails=False, patch_response=None,
-                      id_response=None, fail_at=None, **arg_overrides):
+                      id_response=None, fail_at=None,
+                      seed_cache_id=None, verify_fails=False, verify_response=None,
+                      cache_dir=None, **arg_overrides):
+    global _LAST_GH_CALLS
+    _LAST_GH_CALLS = []
     marker = '<!-- devflow:workpad -->'
-    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker)
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
+             workpad._workpad_id_cache_path, workpad._workpad_buffer_path)
+    # Retained for compatibility though the update path no longer calls it: a stub
+    # that still answered `gh repo view` would let a regression re-introducing the
+    # call pass silently, so we DON'T stub _run to answer it (a repo-view call now
+    # surfaces as an unhandled shape / assertion failure instead).
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: marker
+    # Hermetic id cache: a fresh temp dir per call, so a real-tree cache never leaks
+    # in and this call's write never leaks out. A caller may pass `cache_dir` to SHARE
+    # one dir across sequential calls (the cold-write → warm-read round-trip test) —
+    # the caller then owns that dir's lifetime and this driver does not remove it.
+    _owns_cache_dir = cache_dir is None
+    _cache_dir = cache_dir if cache_dir is not None else tempfile.mkdtemp(prefix='wp-idcache-')
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cache_dir) / f'{issue}.json'
+    # Anchor the failed-write buffer under the same temp dir, so the buffer-replay
+    # path never resolves _repo_root() (which would issue a `git rev-parse` through
+    # _run and pollute the gh call log the two-call cache-hit assertion counts).
+    workpad._workpad_buffer_path = lambda cid: Path(_cache_dir) / f'buf-{cid}.json'
+    if seed_cache_id is not None:
+        (Path(_cache_dir) / '999.json').write_text(
+            _json.dumps({'comment_id': seed_cache_id, 'issue': 999,
+                         'marker': marker, 'repo': 'owner/repo'}), encoding='utf-8')
+
+    def _obj(cid=7):
+        return {'id': cid, 'body': body, 'issue_url': _UPDATE_ISSUE_URL}
+
     state = {'patched': None}
+
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
-        if '/comments?' in joined or joined.endswith('/comments'):
-            # `fail_at`/`id_response` (issue #1562) drive cmd_update's two id-lookup
-            # terminating paths and its no-workpad-found path, which the default stub
-            # can never reach: keep both defaulting to None or every pre-#1562 caller
-            # of this harness changes behaviour.
-            if fail_at == 'id-lookup':
-                raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 500 id-lookup')
-            if id_response is not None:
-                return _FakeRun(id_response)
-            return _FakeRun(_json.dumps([{'id': 7, 'body': marker + '\n'}]))
+        _LAST_GH_CALLS.append(joined)
         if '-X' in cmd and 'PATCH' in cmd:
             if patch_fails:  # simulate a gh-api PATCH failure (network/auth/5xx)
                 raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 503 Service Unavailable')
@@ -567,9 +591,24 @@ def _drive_cmd_update(body, patch_fails=False, patch_response=None,
             if patch_response is not None:
                 return _FakeRun(patch_response)
             return _FakeRun(state['patched'] or '')
-        if fail_at == 'body-fetch':
-            raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 500 body-fetch')
-        return _FakeRun(body)   # the body fetch
+        if '/comments?' in joined or joined.endswith('/comments'):
+            # comments-list scan (id-lookup). `fail_at`/`id_response` (issue #1562)
+            # drive cmd_update's id-lookup terminating paths and its
+            # no-workpad-found path, which the default stub can never reach.
+            if fail_at == 'id-lookup':
+                raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 500 id-lookup')
+            if id_response is not None:
+                return _FakeRun(id_response)
+            return _FakeRun(_json.dumps([_obj()]))
+        # A single-comment fetch: the issue-#2042 cache-verify GET. `verify_fails`
+        # models a dead cached id (404); `verify_response` injects a custom body.
+        if fail_at == 'verify' or verify_fails:
+            raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 404 Not Found')
+        if verify_response is not None:
+            return _FakeRun(verify_response)
+        _m = re.search(r'/issues/comments/(\d+)', joined)
+        _cid = int(_m.group(1)) if _m else 7
+        return _FakeRun(_json.dumps(_obj(_cid)))
     workpad._run = _run
     out = io.StringIO()
     err = io.StringIO()
@@ -580,7 +619,10 @@ def _drive_cmd_update(body, patch_fails=False, patch_response=None,
     except SystemExit as e:
         code = e.code
     finally:
-        workpad._run, workpad._repo_full, workpad._workpad_marker = saved
+        (workpad._run, workpad._repo_full, workpad._workpad_marker,
+         workpad._workpad_id_cache_path, workpad._workpad_buffer_path) = saved
+        if _owns_cache_dir:
+            shutil.rmtree(_cache_dir, ignore_errors=True)
     return code, out.getvalue(), err.getvalue(), state['patched']
 
 
@@ -759,16 +801,20 @@ class _BrokenPipeStdout(io.StringIO):
 
 
 def _drive_post_patch_crash():
-    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker)
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
+             workpad._workpad_id_cache_path)
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
+    _cd = tempfile.mkdtemp(prefix='wp1562-idcache-')
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cd) / f'{issue}.json'
 
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
+        # Issue #2042: the scan resolves id AND body together, so the comments-list
+        # returns the full workpad object; there is no separate body fetch.
         if '/comments?' in joined or joined.endswith('/comments'):
-            return _FakeRun(_json.dumps([{'id': 7, 'body': '<!-- devflow:workpad -->\n'}]))
-        if '-X' in cmd and 'PATCH' in cmd:
-            return _FakeRun(OC_BODY)
+            return _FakeRun(_json.dumps([{'id': 7, 'body': OC_BODY,
+                'issue_url': 'https://api.github.com/repos/owner/repo/issues/999'}]))
         return _FakeRun(OC_BODY)
 
     workpad._run = _run
@@ -782,7 +828,9 @@ def _drive_post_patch_crash():
     except BaseException as e:
         raised = type(e).__name__
     finally:
-        (workpad._run, workpad._repo_full, workpad._workpad_marker) = saved
+        (workpad._run, workpad._repo_full, workpad._workpad_marker,
+         workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_cd, ignore_errors=True)
     return raised, err.getvalue()
 
 
@@ -793,14 +841,21 @@ _OC_CASES.append(("a post-PATCH crash", _err))
 # The `finally` temp-file unlink is itself a raising statement between the observed
 # PATCH and the wrapper, so it is driven separately from the stdout-echo crash above.
 def _drive_patch_cleanup_failure():
-    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path)
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path,
+             workpad._workpad_id_cache_path)
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
+    _cd = tempfile.mkdtemp(prefix='wp1562b-idcache-')
+    # Set the cache path BEFORE workpad.Path is faked below — the fake Path only
+    # denies the PATCH temp file, and this lambda builds its own real Paths.
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cd) / f'{issue}.json'
 
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
+        # Issue #2042: the scan resolves id AND body together (full workpad object).
         if '/comments?' in joined or joined.endswith('/comments'):
-            return _FakeRun(_json.dumps([{'id': 7, 'body': '<!-- devflow:workpad -->\n'}]))
+            return _FakeRun(_json.dumps([{'id': 7, 'body': OC_BODY,
+                'issue_url': 'https://api.github.com/repos/owner/repo/issues/999'}]))
         return _FakeRun(OC_BODY)
 
     class _UnlinkDenied:
@@ -830,7 +885,9 @@ def _drive_patch_cleanup_failure():
     except BaseException as e:
         raised = type(e).__name__
     finally:
-        (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path) = saved
+        (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path,
+         workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_cd, ignore_errors=True)
     return raised, err.getvalue()
 
 
@@ -841,10 +898,15 @@ _OC_CASES.append(("a post-PATCH cleanup failure", _err))
 # parsing module was not deployed) is the second transitive path the wrapper covers.
 def _drive_section_parse_missing():
     saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
-             workpad._SECTION_PARSE_IMPORT_ERROR)
+             workpad._SECTION_PARSE_IMPORT_ERROR, workpad._workpad_id_cache_path)
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
     workpad._SECTION_PARSE_IMPORT_ERROR = 'No module named section_parse'
+    # Hermetic id cache. Unstubbed, _workpad_id_cache_path resolves its root through
+    # the stubbed _run, which returns the workpad BODY — creating a repo-root
+    # directory named after that body text on every run of this test.
+    _cd = tempfile.mkdtemp(prefix='wp1562-sec-idcache-')
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cd) / f'{issue}.json'
 
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
@@ -863,7 +925,8 @@ def _drive_section_parse_missing():
         code = e.code
     finally:
         (workpad._run, workpad._repo_full, workpad._workpad_marker,
-         workpad._SECTION_PARSE_IMPORT_ERROR) = saved
+         workpad._SECTION_PARSE_IMPORT_ERROR, workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_cd, ignore_errors=True)
     return code, err.getvalue()
 
 
@@ -3642,30 +3705,35 @@ def _update_args(**kw):
 
 
 def _run_cmd_update(args, *, live_body, patch_fails, buffer_dir):
-    """Run cmd_update with a stateful gh stub: call 1 = id-lookup, call 2 =
-    body-fetch, call 3 = PATCH (captures the written body, or raises when
-    patch_fails). Returns (exit_code, captured_patch_body, calls)."""
+    """Run cmd_update with a stateful gh stub. Since issue #2042 the update path
+    resolves the comment id AND its body in ONE comments-list scan (no separate
+    body fetch), so the stub branches on the request SHAPE: a comments-list scan
+    returns the full comment object (id + body + issue_url), and a PATCH captures
+    the written body (or raises when patch_fails). Hermetic id cache (a temp dir),
+    so the scan path always runs. Returns (exit_code, captured_patch_body, calls)."""
     saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
-             workpad._workpad_buffer_path)
+             workpad._workpad_buffer_path, workpad._workpad_id_cache_path)
     workpad._repo_full = lambda *a, **kw: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: _MARK1214
     workpad._workpad_buffer_path = lambda cid: Path(buffer_dir) / f'{cid}.json'
+    _idcache = tempfile.mkdtemp(prefix='wp1214-idcache-')
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_idcache) / f'{issue}.json'
     state = {'n': 0, 'patch_body': None}
+    _obj = _json.dumps([{"id": 55512, "body": live_body,
+                         "issue_url": "https://api.github.com/repos/owner/repo/issues/1214"}])
 
     def _run(cmd, **kw):
         state['n'] += 1
-        n = state['n']
-        if n == 1:
-            return _FakeRun(_json.dumps([{"id": 55512, "body": _MARK1214 + "\nx"}]))
-        if n == 2:
-            return _FakeRun(live_body)
-        # PATCH: capture the written body from the -F body=@<path> argument.
-        for a in cmd:
-            if isinstance(a, str) and a.startswith('body=@'):
-                state['patch_body'] = Path(a[len('body=@'):]).read_text(encoding='utf-8')
-        if patch_fails:
-            raise _subprocess.CalledProcessError(1, cmd, stderr='gh: HTTP 503')
-        return _FakeRun(state['patch_body'] or '')
+        if '-X' in cmd and 'PATCH' in cmd:
+            # PATCH: capture the written body from the -F body=@<path> argument.
+            for a in cmd:
+                if isinstance(a, str) and a.startswith('body=@'):
+                    state['patch_body'] = Path(a[len('body=@'):]).read_text(encoding='utf-8')
+            if patch_fails:
+                raise _subprocess.CalledProcessError(1, cmd, stderr='gh: HTTP 503')
+            return _FakeRun(state['patch_body'] or '')
+        # The comments-list scan resolves id + body together (issue #2042).
+        return _FakeRun(_obj)
 
     workpad._run = _run
     code = 0
@@ -3676,7 +3744,8 @@ def _run_cmd_update(args, *, live_body, patch_fails, buffer_dir):
         code = e.code if e.code is not None else 0
     finally:
         (workpad._run, workpad._repo_full, workpad._workpad_marker,
-         workpad._workpad_buffer_path) = saved
+         workpad._workpad_buffer_path, workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_idcache, ignore_errors=True)
     return code, state['patch_body'], state['n']
 
 
@@ -6135,6 +6204,139 @@ try:
             assert_eq("#1388 helper: unwritable target named", True, "unwritable target" in _out)
         finally:
             _ro.chmod(0o755)
+
+    # ── issue #2050: the unsupported-platform degrade arm purges a stale off-version
+    #    cache-restored binary from DEST_BIN before it is appended to GITHUB_PATH ──
+    def _plant_bin_2050(dest, name, version_report):
+        dest.mkdir(parents=True, exist_ok=True)
+        exe = dest / name
+        exe.write_text(f"#!/bin/sh\necho '{name} {version_report}'\n", encoding="utf-8")
+        exe.chmod(0o755)
+        return exe
+
+    # (a) A stale off-version ruff in DEST_BIN on the degrade arm is deleted + named; the arm
+    #     still warns and continues (rc 0). The manifest pins ruff 1.0.0; the stale reports 0.0.1.
+    _db_stale = _d1388b / "degrade-stale-bin"
+    _stale2050 = _plant_bin_2050(_db_stale, "ruff", "0.0.1")
+    _rc, _out = _run_helper_1388(_repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_stale)
+    assert_eq("#2050 degrade arm: rc 0 (warn-and-continue preserved)", 0, _rc)
+    assert_eq("#2050 degrade arm: stale off-version binary deleted from DEST_BIN", False, _stale2050.exists())
+    assert_eq("#2050 degrade arm: output names the deleted binary", True,
+              "deleted stale off-version binary" in _out and str(_stale2050) in _out)
+    assert_eq("#2050 degrade arm: still emits the unsupported-platform warning", True, "::warning::" in _out)
+
+    # (b) A version-MATCHING binary in DEST_BIN on the degrade arm is a legitimate reuse and
+    #     survives (delete only the FAILING binaries). Manifest pins ruff 1.0.0.
+    _db_ok = _d1388b / "degrade-ok-bin"
+    _okbin2050 = _plant_bin_2050(_db_ok, "ruff", "1.0.0")
+    _rc, _out = _run_helper_1388(_repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_ok)
+    assert_eq("#2050 degrade arm: version-matching binary survives the purge", True, _okbin2050.exists())
+    assert_eq("#2050 degrade arm: no deletion line for a version-matching binary", False,
+              "deleted stale off-version binary" in _out)
+
+    # (b2) A MULTI-member tool. Do not turn the purge loop's version-match `continue` into a
+    #      `break`: every other fixture plants one member, so only a manifest whose artifacts
+    #      contribute two members shows a matching member ending the loop before a stale one.
+    #      Iteration order is `sorted()`, so "ruff" (matching) is visited before "ruff.exe" (stale).
+    _mm_manifest = _mk_manifest_1388(_dig)
+    _mm_manifest["tools"]["ruff"]["artifacts"].append(
+        {"os": "windows", "arch": "x86_64", "digest": "sha256:" + "c" * 64,
+         "archive_type": "zip", "member": "ruff.exe", "strategy": "extract-zip"})
+    _repo_mm = _mk_repo_1388(_d1388b / "mm2050-repo", _mm_manifest)
+    _db_mm = _d1388b / "degrade-multimember-bin"
+    _mm_ok = _plant_bin_2050(_db_mm, "ruff", "1.0.0")
+    _mm_stale = _plant_bin_2050(_db_mm, "ruff.exe", "0.0.1")
+    _rc, _out = _run_helper_1388(_repo_mm, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_mm)
+    assert_eq("#2050 degrade arm: multi-member purge keeps rc 0", 0, _rc)
+    assert_eq("#2050 degrade arm: multi-member purge deletes the stale member past a matching one",
+              False, _mm_stale.exists())
+    assert_eq("#2050 degrade arm: multi-member purge keeps the version-matching member", True,
+              _mm_ok.exists())
+    assert_eq("#2050 degrade arm: multi-member purge names only the stale member it deleted", True,
+              str(_mm_stale) in _out and f"binary {_mm_ok} " not in _out)
+
+    # (c) Control — the SUPPORTED path never runs the purge: a stale shellcheck in DEST_BIN is
+    #     re-installed (overwritten) to the pinned version, not routed through the degrade delete.
+    #     Build a FRESH archive+repo (the shared _arc file is overwritten by later fixtures above).
+    _ctrl_dir = _d1388b / "ctrl2050"
+    _ctrl_dir.mkdir(exist_ok=True)
+    _ctrl_arc, _ctrl_dig = _mk_archive_1388(_ctrl_dir, "shellcheck", "9.9.9")
+    _repo_ctrl = _mk_repo_1388(_d1388b / "ctrl2050-repo", _mk_manifest_1388(_ctrl_dig))
+    _db_ctrl = _d1388b / "supported-ctrl-bin"
+    _plant_bin_2050(_db_ctrl, "shellcheck", "0.0.1")
+    _rc, _out = _run_helper_1388(_repo_ctrl, tools="shellcheck", archive=_ctrl_arc, dest_bin=_db_ctrl)
+    assert_eq("#2050 control: supported-path install succeeds (rc 0)", 0, _rc)
+    assert_eq("#2050 control: supported path installs the pinned shellcheck", True, (_db_ctrl / "shellcheck").exists())
+    assert_eq("#2050 control: supported path never runs the degrade purge", False,
+              "deleted stale off-version binary" in _out)
+
+    # ── The purge's three defensive arms. Do not drive the two unreadable arms with a
+    #    malformed manifest: lint_manifest rejects a missing `version` and an empty
+    #    `artifacts`, so such a fixture never reaches the degrade arm at all.
+    def _fault_py_2050(path, marker):
+        """A python3 shim that exits 1 for the one -c program containing `marker`
+        and execs the real interpreter for every other call."""
+        path.write_text(
+            "#!/bin/sh\n"
+            "for a in \"$@\"; do\n"
+            f"  case \"$a\" in *'{marker}'*) exit 1;; esac\n"
+            "done\n"
+            f"exec {sys.executable} \"$@\"\n", encoding="utf-8")
+        path.chmod(0o755)
+        return path
+
+    # (d) Unreadable manifest version -> purge skipped, breadcrumbed, binary KEPT.
+    _db_nover = _d1388b / "degrade-nover-bin"
+    _nover2050 = _plant_bin_2050(_db_nover, "ruff", "0.0.1")
+    _rc, _out = _run_helper_1388(
+        _repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_nover,
+        extra_env={"LINTPROV_PYTHON": str(_fault_py_2050(_d1388b / "py-nover.sh", '["version"]'))})
+    assert_eq("#2050 degrade arm: unreadable manifest version keeps rc 0", 0, _rc)
+    assert_eq("#2050 degrade arm: unreadable manifest version breadcrumbs the skipped purge", True,
+              "could not read the manifest version; stale-binary purge skipped" in _out)
+    assert_eq("#2050 degrade arm: unreadable manifest version does NOT delete the binary", True,
+              _nover2050.exists())
+
+    # (e) Readable version but unreadable artifact members -> same skip-and-breadcrumb.
+    _db_nomem = _d1388b / "degrade-nomem-bin"
+    _nomem2050 = _plant_bin_2050(_db_nomem, "ruff", "0.0.1")
+    _rc, _out = _run_helper_1388(
+        _repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_nomem,
+        extra_env={"LINTPROV_PYTHON": str(_fault_py_2050(_d1388b / "py-nomem.sh", 'a["member"]'))})
+    assert_eq("#2050 degrade arm: unreadable artifact members keeps rc 0", 0, _rc)
+    assert_eq("#2050 degrade arm: unreadable artifact members breadcrumbs the skipped purge", True,
+              "could not read artifact members; stale-binary purge skipped" in _out)
+    assert_eq("#2050 degrade arm: unreadable artifact members does NOT delete the binary", True,
+              _nomem2050.exists())
+    assert_eq("#2050 degrade arm: the members arm still read the version (no version breadcrumb)", False,
+              "could not read the manifest version" in _out)
+
+    # (f) The delete itself fails (read-only DEST_BIN) -> warn that the binary may still
+    #     shadow PATH, and still continue. Under a privileged uid the rm succeeds, so the
+    #     correct behaviour there is the deletion arm — assert whichever the uid permits.
+    _db_ro = _d1388b / "degrade-ro-bin"
+    _ro2050 = _plant_bin_2050(_db_ro, "ruff", "0.0.1")
+    _db_ro.chmod(0o555)
+    try:
+        try:
+            (_db_ro / "probe").write_text("x", encoding="utf-8")
+            _ro_enforced = False
+            (_db_ro / "probe").unlink()
+        except OSError:
+            _ro_enforced = True
+        _rc, _out = _run_helper_1388(_repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_ro)
+        assert_eq("#2050 degrade arm: undeletable stale binary keeps rc 0", 0, _rc)
+        if _ro_enforced:
+            assert_eq("#2050 degrade arm: undeletable stale binary warns it may still shadow PATH", True,
+                      "could not delete stale off-version binary" in _out and "may still shadow PATH" in _out)
+            assert_eq("#2050 degrade arm: undeletable stale binary names the path it warns about", True,
+                      str(_ro2050) in _out)
+            assert_eq("#2050 degrade arm: undeletable stale binary is still present", True, _ro2050.exists())
+        else:
+            assert_eq("#2050 degrade arm: privileged uid takes the deletion arm instead", True,
+                      "deleted stale off-version binary" in _out)
+    finally:
+        _db_ro.chmod(0o755)
 finally:
     shutil.rmtree(_d1388b, ignore_errors=True)
 
