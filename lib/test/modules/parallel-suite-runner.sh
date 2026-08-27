@@ -1405,11 +1405,8 @@ assert_eq "cheap-lint gate real: the real brand finding is attributed, not incon
   "$(case "$PSR_RH_OUT" in *"was inconclusive"*) echo no ;; *"reported findings"*) echo yes ;; *) echo no ;; esac)"
 
 # ── ruff-version cheap-lint gate (issue #2009) ───────────────────────────────
-# The gate refuses a launch only on a positively-attributed version skew (the ruff on PATH
-# reports a minor family that differs from the family the lint manifest pins) and fails open
-# when the probe cannot run (ruff absent or non-executing). The DEVFLOW_RUFF_VERSION_PROBE
-# seam drives those arms from a fixture tree carrying its own manifest + the real helper, so
-# the comparand is read from the manifest and not from a copy in the coordinator.
+# Drives the gate's skew/absent/non-exec arms via the DEVFLOW_RUFF_VERSION_PROBE seam over a
+# fixture tree carrying its own manifest + the real helper, so the comparand is manifest-read.
 PSR_RV_TREE="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_RV_TREE"
 mkdir -p "$PSR_RV_TREE/.prflow" "$PSR_RV_TREE/scripts"
 cp "$LIB/../scripts/ruff-version-skew.py" "$PSR_RV_TREE/scripts/ruff-version-skew.py"

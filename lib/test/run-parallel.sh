@@ -252,13 +252,12 @@ _cheap_lint_run() { # <label> <sentinel-prefix> <command string>
 }
 
 # ── ruff-version cheap-lint check (issue #2009) ──────────────────────────────
-# Refuse the launch ONLY when a ruff on PATH positively reports a version whose minor family
-# skews from the family the lint manifest pins — the skew that reddens the in-suite #1621 ruff
-# gate on rule-set drift, not on real findings. Fail OPEN (a WARNING, then proceed) whenever the
-# check cannot run: ruff absent, ruff non-executing, no readable manifest, or an unparseable
-# version — so an absent/non-executing ruff stays the #1621 skip's case, never a pre-launch
-# refusal. The expected family is read from the manifest at run time (no second copy lives here).
-# DEVFLOW_RUFF_VERSION_PROBE is the test seam — a command behaving like `ruff --version`; an
+# Refuse the launch ONLY on a positively-attributed version skew: a ruff on PATH reports a minor
+# family differing from the family the lint manifest pins (the skew that reddens the #1621 gate
+# on rule-set drift, not real findings). The expected family is read from the manifest at run
+# time (no second copy here). Fail OPEN otherwise — warn-and-proceed when ruff is absent,
+# non-executing, or reports an unparseable version; skip SILENTLY (no warning) when this checkout
+# lacks the manifest or the helper. DEVFLOW_RUFF_VERSION_PROBE is the test seam; an
 # explicitly-empty value disables the gate, as the `-` (never `:-`) siblings above.
 _ruff_version_preflight() {
   local probe="${DEVFLOW_RUFF_VERSION_PROBE-ruff --version}"
@@ -269,7 +268,9 @@ _ruff_version_preflight() {
   # Nothing to compare when this checkout lacks the manifest pin or the helper: skip silently.
   { [ -s "$manifest" ] && [ -r "$helper" ]; } || return 0
   # shellcheck disable=SC2086  # deliberate word-split: a probe command plus its argument(s)
-  out="$($probe 2>&1)"
+  # Parse stdout only: rc is checked separately below, and folding stderr in could feed a
+  # stray version-ish token to the helper's first-match parse and misattribute the family.
+  out="$($probe 2>/dev/null)"
   rc=$?
   if [ "$rc" -ne 0 ]; then
     printf 'run-parallel: WARNING: the ruff-version cheap-lint check could not run ruff (absent or non-executing, exit %s); proceeding\n' "$rc" >&2

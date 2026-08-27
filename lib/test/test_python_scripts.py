@@ -38687,6 +38687,34 @@ assert_eq("#2009 manifest_ruff_family: missing version -> None", None,
 assert_eq("#2009 manifest_ruff_family: non-string version -> None", None,
           _rs_manifest_family('{"tools":{"ruff":{"version":123}}}'))
 
+
+# main()'s exit-code + STDOUT-sentinel contract, in-language — previously exercised only
+# end-to-end through the shell coordinator, so a shell-glue refactor could silently drop it.
+def _rs_main(manifest_text, reported):
+    _fd, _p = tempfile.mkstemp(suffix=".json")
+    _out, _err = io.StringIO(), io.StringIO()
+    try:
+        with os.fdopen(_fd, "w", encoding="utf-8") as _f:
+            _f.write(manifest_text)
+        with contextlib.redirect_stdout(_out), contextlib.redirect_stderr(_err):
+            _rc = _ruff_skew.main(["--manifest", _p, "--reported", reported])
+        return _rc, _out.getvalue(), _err.getvalue()
+    finally:
+        os.unlink(_p)
+
+
+_rs_m_match = _rs_main('{"tools":{"ruff":{"version":"0.16.4"}}}', "ruff 0.16.7")
+assert_eq("#2009 main: a matching family exits 0 and is silent", (0, "", ""), _rs_m_match)
+_rs_m_skew = _rs_main('{"tools":{"ruff":{"version":"0.16.4"}}}', "ruff 0.6.9")
+assert_eq("#2009 main: a skew exits 1", 1, _rs_m_skew[0])
+assert_eq("#2009 main: the SKEW sentinel begins the stdout line", True,
+          _rs_m_skew[1].startswith("ruff-version-skew: SKEW"))
+assert_eq("#2009 main: the skew message carries the pinned-family pip remedy", True,
+          "'ruff==0.16.*'" in _rs_m_skew[1])
+_rs_m_inconc = _rs_main('not json{', "ruff 0.16.4")
+assert_eq("#2009 main: an unreadable manifest exits 2 with NO SKEW sentinel on stdout",
+          (2, ""), (_rs_m_inconc[0], _rs_m_inconc[1]))
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
