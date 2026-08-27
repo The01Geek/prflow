@@ -17934,6 +17934,17 @@ if ! devflow_run_full_suite_module "$LIB/test/modules/review-trigger-helpers.sh"
   exit 1
 fi
 # ────────────────────────────────────────────────────────────────────────────
+echo "review-evidence gate (#2075 — scripts/review-evidence-gate.py + the flip evidence-gate arm)"
+# ────────────────────────────────────────────────────────────────────────────
+# The floor literal below is equality-checked against this module's
+# `minimum_assertions` in scripts/workflow-flight-recorder-registry.json — change both
+# together, or test_module_runner.py's tranche test goes RED.
+if ! devflow_run_full_suite_module "$LIB/test/modules/review-evidence-gate.sh" \
+  "review-evidence-gate" 10; then
+  printf 'ERROR: review-evidence-gate boundary could not record its result\n'
+  exit 1
+fi
+# ────────────────────────────────────────────────────────────────────────────
 echo "react-to-trigger.sh"
 # ────────────────────────────────────────────────────────────────────────────
 # Early-ack reaction. Picks the reactions endpoint by event type, defaults the
