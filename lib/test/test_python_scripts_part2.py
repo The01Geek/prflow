@@ -803,16 +803,20 @@ class _BrokenPipeStdout(io.StringIO):
 
 
 def _drive_post_patch_crash():
-    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker)
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
+             workpad._workpad_id_cache_path)
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
+    _cd = tempfile.mkdtemp(prefix='wp1562-idcache-')
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cd) / f'{issue}.json'
 
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
+        # Issue #2042: the scan resolves id AND body together, so the comments-list
+        # returns the full workpad object; there is no separate body fetch.
         if '/comments?' in joined or joined.endswith('/comments'):
-            return _FakeRun(_json.dumps([{'id': 7, 'body': '<!-- devflow:workpad -->\n'}]))
-        if '-X' in cmd and 'PATCH' in cmd:
-            return _FakeRun(OC_BODY)
+            return _FakeRun(_json.dumps([{'id': 7, 'body': OC_BODY,
+                'issue_url': 'https://api.github.com/repos/owner/repo/issues/999'}]))
         return _FakeRun(OC_BODY)
 
     workpad._run = _run
@@ -826,7 +830,9 @@ def _drive_post_patch_crash():
     except BaseException as e:
         raised = type(e).__name__
     finally:
-        (workpad._run, workpad._repo_full, workpad._workpad_marker) = saved
+        (workpad._run, workpad._repo_full, workpad._workpad_marker,
+         workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_cd, ignore_errors=True)
     return raised, err.getvalue()
 
 
@@ -837,14 +843,21 @@ _OC_CASES.append(("a post-PATCH crash", _err))
 # The `finally` temp-file unlink is itself a raising statement between the observed
 # PATCH and the wrapper, so it is driven separately from the stdout-echo crash above.
 def _drive_patch_cleanup_failure():
-    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path)
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path,
+             workpad._workpad_id_cache_path)
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
+    _cd = tempfile.mkdtemp(prefix='wp1562b-idcache-')
+    # Set the cache path BEFORE workpad.Path is faked below — the fake Path only
+    # denies the PATCH temp file, and this lambda builds its own real Paths.
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cd) / f'{issue}.json'
 
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
+        # Issue #2042: the scan resolves id AND body together (full workpad object).
         if '/comments?' in joined or joined.endswith('/comments'):
-            return _FakeRun(_json.dumps([{'id': 7, 'body': '<!-- devflow:workpad -->\n'}]))
+            return _FakeRun(_json.dumps([{'id': 7, 'body': OC_BODY,
+                'issue_url': 'https://api.github.com/repos/owner/repo/issues/999'}]))
         return _FakeRun(OC_BODY)
 
     class _UnlinkDenied:
@@ -874,7 +887,9 @@ def _drive_patch_cleanup_failure():
     except BaseException as e:
         raised = type(e).__name__
     finally:
-        (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path) = saved
+        (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path,
+         workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_cd, ignore_errors=True)
     return raised, err.getvalue()
 
 
@@ -885,10 +900,15 @@ _OC_CASES.append(("a post-PATCH cleanup failure", _err))
 # parsing module was not deployed) is the second transitive path the wrapper covers.
 def _drive_section_parse_missing():
     saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
-             workpad._SECTION_PARSE_IMPORT_ERROR)
+             workpad._SECTION_PARSE_IMPORT_ERROR, workpad._workpad_id_cache_path)
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
     workpad._SECTION_PARSE_IMPORT_ERROR = 'No module named section_parse'
+    # Hermetic id cache. Unstubbed, _workpad_id_cache_path resolves its root through
+    # the stubbed _run, which returns the workpad BODY — creating a repo-root
+    # directory named after that body text on every run of this test.
+    _cd = tempfile.mkdtemp(prefix='wp1562-sec-idcache-')
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cd) / f'{issue}.json'
 
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
@@ -907,7 +927,8 @@ def _drive_section_parse_missing():
         code = e.code
     finally:
         (workpad._run, workpad._repo_full, workpad._workpad_marker,
-         workpad._SECTION_PARSE_IMPORT_ERROR) = saved
+         workpad._SECTION_PARSE_IMPORT_ERROR, workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_cd, ignore_errors=True)
     return code, err.getvalue()
 
 
