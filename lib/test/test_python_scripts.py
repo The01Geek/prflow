@@ -38870,6 +38870,124 @@ _rs_m_inconc = _rs_main('not json{', "ruff 0.16.4")
 assert_eq("#2009 main: an unreadable manifest exits 2 with NO SKEW sentinel on stdout",
           (2, ""), (_rs_m_inconc[0], _rs_m_inconc[1]))
 
+# ── issue #2029: verify every declared lint-manifest artifact digest ──────────
+import hashlib as _hashlib_2029
+
+_VLM = _load('verify_lint_manifest_digests', SCRIPTS / 'verify_lint_manifest_digests.py')
+_VLM_BASE = json.loads(
+    (SCRIPTS.parent / '.prflow' / 'lint-manifest.json').read_text(encoding='utf-8'))
+
+
+def _vlm_write(manifest):
+    _fd, _p = tempfile.mkstemp(suffix='.json')
+    with os.fdopen(_fd, 'w', encoding='utf-8') as _f:
+        json.dump(manifest, _f)
+    return _p
+
+
+def _vlm_seed_digests(manifest):
+    """Rewrite every artifact's digest to the sha256 of the bytes a fetch keyed on
+    that artifact's resolved URL would return, and return the url->bytes map — so a
+    fetch that returns the seeded bytes verifies clean."""
+    content = {}
+    for tool, tool_obj in manifest['tools'].items():
+        version = tool_obj['version']
+        for art in tool_obj['artifacts']:
+            url = _VLM.lint_provision.artifact_url(
+                tool, version, art['os'], art['arch'], art['archive_type'])
+            if url is None:
+                continue  # a declared artifact with no URL template stays unresolvable
+            data = url.encode('utf-8')
+            content[url] = data
+            art['digest'] = 'sha256:' + _hashlib_2029.sha256(data).hexdigest()
+    return content
+
+
+# Enumeration is derived from the manifest itself, so the verifier can never silently
+# narrow the set it checks.
+assert_eq('#2029 iter: no tools -> empty', [], _VLM.iter_declared_artifacts({}))
+assert_eq('#2029 iter: empty artifacts -> empty', [],
+          _VLM.iter_declared_artifacts({'tools': {'ruff': {'artifacts': []}}}))
+assert_eq('#2029 iter: shipped manifest enumerates all 10 declared artifacts', 10,
+          len(_VLM.iter_declared_artifacts(_VLM_BASE)))
+
+# Happy path — every declared artifact fetched with the seeded bytes verifies clean.
+_vlm_ok_manifest = json.loads(json.dumps(_VLM_BASE))
+_vlm_ok_content = _vlm_seed_digests(_vlm_ok_manifest)
+_vlm_ok_path = _vlm_write(_vlm_ok_manifest)
+try:
+    _vlm_ok = _VLM.verify_manifest_digests(_vlm_ok_path, fetch=lambda u: _vlm_ok_content[u])
+finally:
+    os.unlink(_vlm_ok_path)
+assert_eq('#2029 verify: every declared artifact verifies -> ok', True, _vlm_ok.ok)
+assert_eq('#2029 verify: one result per declared artifact (never narrows)', 10,
+          len(_vlm_ok.results))
+assert_eq('#2029 verify: every result is verified', True,
+          all(r.status == 'verified' for r in _vlm_ok.results))
+
+# A wrong digest on one declared artifact fails the whole check, and names that artifact.
+_vlm_bad_manifest = json.loads(json.dumps(_VLM_BASE))
+_vlm_bad_content = _vlm_seed_digests(_vlm_bad_manifest)
+_vlm_bad_manifest['tools']['ruff']['artifacts'][0]['digest'] = 'sha256:' + '0' * 64
+_vlm_bad_path = _vlm_write(_vlm_bad_manifest)
+try:
+    _vlm_bad = _VLM.verify_manifest_digests(_vlm_bad_path, fetch=lambda u: _vlm_bad_content[u])
+finally:
+    os.unlink(_vlm_bad_path)
+assert_eq('#2029 verify: a digest mismatch fails the check', False, _vlm_bad.ok)
+assert_eq('#2029 verify: the mismatched artifact is flagged, not skipped', 1,
+          sum(1 for r in _vlm_bad.results if r.status == 'digest-mismatch'))
+
+# A declared artifact with no trusted URL template (windows/arm64) fails closed as
+# unresolved rather than being silently skipped.
+# ruff has no windows/arm64 upstream target triple, so build_plan cannot resolve a URL for
+# it (unlike shellcheck's windows zip, which is arch-agnostic) — the true "no template" case.
+_vlm_unres_manifest = json.loads(json.dumps(_VLM_BASE))
+_vlm_unres_manifest['tools']['ruff']['artifacts'].append({
+    'os': 'windows', 'arch': 'arm64',
+    'digest': 'sha256:' + 'a' * 64, 'archive_type': 'zip',
+    'member': 'ruff.exe', 'strategy': 'extract-zip'})
+_vlm_unres_content = _vlm_seed_digests(_vlm_unres_manifest)
+_vlm_unres_path = _vlm_write(_vlm_unres_manifest)
+try:
+    _vlm_unres = _VLM.verify_manifest_digests(
+        _vlm_unres_path, fetch=lambda u: _vlm_unres_content[u])
+finally:
+    os.unlink(_vlm_unres_path)
+assert_eq('#2029 verify: a declared artifact with no URL template fails closed', False,
+          _vlm_unres.ok)
+assert_eq('#2029 verify: the unresolvable declared artifact is flagged unresolved', 1,
+          sum(1 for r in _vlm_unres.results if r.status == 'unresolved'))
+
+# A fetch failure fails closed with a breadcrumb, never a silent pass.
+def _vlm_raise(_u):
+    raise OSError('network down')
+
+
+_vlm_fe_manifest = json.loads(json.dumps(_VLM_BASE))
+_vlm_seed_digests(_vlm_fe_manifest)
+_vlm_fe_path = _vlm_write(_vlm_fe_manifest)
+try:
+    _vlm_fe = _VLM.verify_manifest_digests(_vlm_fe_path, fetch=_vlm_raise)
+finally:
+    os.unlink(_vlm_fe_path)
+assert_eq('#2029 verify: a fetch failure fails the check', False, _vlm_fe.ok)
+assert_eq('#2029 verify: every declared artifact recorded as fetch-error', 10,
+          sum(1 for r in _vlm_fe.results if r.status == 'fetch-error'))
+
+# An unestablished manifest is never a clean pass.
+_vlm_missing = _VLM.verify_manifest_digests(str(SCRIPTS / 'no-such-manifest-2029.json'),
+                                            fetch=lambda u: b'')
+assert_eq('#2029 verify: unestablished manifest -> not ok', False, _vlm_missing.ok)
+assert_eq('#2029 verify: unestablished manifest carries a reason', True,
+          _vlm_missing.reason.startswith('unestablished manifest'))
+assert_eq('#2029 verify: unestablished manifest verifies nothing', [], _vlm_missing.results)
+
+# main() exit-code contract over the shipped manifest is not exercised here (it would
+# hit the network); the injected-fetch tests above are the behavioral coverage.
+_vlm_main_missing = _VLM.main([str(SCRIPTS / 'no-such-manifest-2029.json')])
+assert_eq('#2029 main: unestablished manifest exits 1', 1, _vlm_main_missing)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

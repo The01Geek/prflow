@@ -107,6 +107,14 @@ jobs:
         run: |
           "$RUNNER_TEMP"/lint-exercise-bin/shellcheck --version
           "$RUNNER_TEMP"/lint-exercise-bin/ruff --version
+      # The exercise step above provisions linux-x86_64 only, so the manifest's other
+      # per-os/arch digests are hash-verified nowhere. This step downloads EVERY declared
+      # (tool, os, arch) artifact and sha256-compares it against its pinned digest, without
+      # needing a runner of each platform; a skipped declared artifact fails the check
+      # (issue #2029). It runs in this same no-write-creds job because the manifest is
+      # untrusted PR-head input.
+      - name: Verify every declared artifact digest (all platforms, download + sha256)
+        run: python3 scripts/verify_lint_manifest_digests.py .prflow/lint-manifest.json
 
   # The suite is split across concurrent SHARD jobs (issue #877) so wall-clock is
   # bounded by the slowest shard rather than the sum. Each shard runs a subset via

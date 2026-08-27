@@ -857,6 +857,11 @@
       "note": "issue #527 verification-launch baseline analyzer; driven by lib/test/test_verification_baseline.py + its block in the harness-python-guards module",
       "owner": "harness-python-guards"
     },
+    "scripts/verify_lint_manifest_digests.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #2029 download-and-sha256-verify every declared lint-manifest artifact digest (CI lint-manifest job, no write creds)",
+      "owner": "unmodularized"
+    },
     "scripts/version_pins.py": {
       "note": "issue #953 derived pinned-release-tag sites; driven from the #953 block in lib/test/run.sh",
       "owner": "unmodularized"
