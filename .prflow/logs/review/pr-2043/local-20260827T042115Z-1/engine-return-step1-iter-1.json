@@ -1,0 +1,50 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE with notes",
+  "phase3_findings": [
+    {
+      "agent": "code-reviewer",
+      "severity": "Suggestion",
+      "description": "Local-arm routing clause 'a refused or no-output local-arm redirect fetch is an unestablished measurement routed to the stop path' reuses 'no-output' as a term-of-art for a matcher refusal (consistent with the precondition's identical wording), but a SUCCESSFUL local redirect also produces empty tool-result stdout by design. Read in isolation this could be misheard as routing a healthy local run to STOP. It does not misroute in practice: the same paragraph frames empty conversation output as the success signature, and the whole-file read-back (non-empty, not '{') plus exit status is the authoritative arbiter. AC-sanctioned phrasing (the AC uses this exact wording) and fails closed. Wording could be sharpened.",
+      "defect_signature": {"file": "skills/implement/phases/phase-1-setup.md", "line": 30, "kind": "clarity"},
+      "fix_decision": "no-fix (advisory; AC-sanctioned wording, fails closed via read-back)"
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Same local-arm 'no-output -> STOP' discriminator observation. Fails CLOSED (worst case a false STOP on a healthy local run, backstopped by the line-36 read-back); no integrity or data-loss risk. Clarity gap only.",
+      "defect_signature": {"file": "skills/implement/phases/phase-1-setup.md", "line": 30, "kind": "policy-without-mechanism"},
+      "fix_decision": "no-fix (advisory)"
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The internal-doc sentence widened to 'on both arms the body is materialized in the orchestrator's context exactly once — by the cache read' overlaps terminologically with the changeset's 'two redundant copies ... in conversation' for the cloud arm. Under the pre-existing convention (materialization = the durable downstream cache read; transient fetch-stdout/Write plumbing is token cost, not 'materialization') the claim is true on both arms and is exactly what AC8 requires ('the closing claim ... stays true on both arms, the single cache read remaining the one materialization'). Behavior-inert internal-doc prose; could scope 'exactly once' to downstream materialization to remove the apparent overlap.",
+      "defect_signature": {"file": "docs/internal/implement-skill.md", "line": 143, "kind": "documentation-clarity"},
+      "fix_decision": "no-fix (advisory; AC-sanctioned counting convention)"
+    },
+    {
+      "agent": "requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Final-pass: all 8 ACs satisfied; both shape and reference-size lints pass, no IR6 finding, cloud arm unchanged, mirror consistent. The convergent 'no-output' concern is resolved by the exit-status + whole-file read-back backstop; residual clarity risk only, no change required to ship.",
+      "defect_signature": {"file": "skills/implement/phases/phase-1-setup.md", "line": 30, "kind": "clarity"},
+      "fix_decision": "no-fix"
+    }
+  ],
+  "phase3_dispatched": ["code-reviewer", "silent-failure-hunter", "comment-analyzer", "requesting-code-review"],
+  "expected_reviewers": ["code-reviewer", "silent-failure-hunter", "comment-analyzer", "requesting-code-review"],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 4,
+    "by_category": {"clarity": 3, "documentation-clarity": 1}
+  },
+  "report": "# Review Report — PR #2043 (issue #2019)\n\n## Diff profile\nPROSE-ONLY change, 3 files (+19/-11): `skills/implement/phases/phase-1-setup.md` (§1.1 tier-branch of the issue-body-cache authoring step), `docs/internal/implement-skill.md` (coupled mirror + probe rows 19/20 rationale), `.changeset/issue-2019-tier-branch-issue-body-cache.md`. No code, no new types, no tests. Small diff; not config-only; not engine-self-modifying (edits the implement engine surface, not the review engine).\n\n## Executable boundary (all VERIFIED GREEN in this checkout)\n- `lib/test/lint-worktree-fence-shapes.py` — rc 0; the local arm appends only a plain stdout redirect `> <absolute-cache-path>`, no command substitution / `$?` / same-fence-bound variable (AC5).\n- `lib/test/extract-command-shapes.py --profile implement skills/implement/phases/phase-1-setup.md` — rc 0, no IR6 finding; the redirect target is a placeholder, not a literal `.prflow/tmp/` spelling (AC6).\n- `lib/test/lint-reference-size.py` — rc 0, no finding for `phase-1-setup.md` (AC7).\nNo pinned prose wording in `lib/test/modules/implement-contract.sh` guards the changed text.\n\n## Acceptance criteria\nAll 8 ACs satisfied against the shipped diff:\n1. Local tier authors via stdout redirect to the printed absolute cache path; body enters no conversation. ✓\n2. Local arm fails closed: non-zero fetch retries once; refused/no-output = unestablished -> existing STOP path; exit-0 empty not retried; whole-file read-back (non-empty, not `{`) unchanged and remains the single in-context materialization. ✓\n3. Cloud arm unchanged (Write tool, no redirect, read-back). ✓\n4. Tier keyed on `GITHUB_ACTIONS`; can't-establish -> Write-tool default arm. ✓\n5–7. Three named lints green (above). ✓\n8. Internal-doc mirror, probe-row-19/20 rationale, and the 'materialized exactly once (on both arms)' claim updated and consistent under the established counting convention. ✓\n\n## Phase 3 findings\nFour reviewers dispatched (type-design-analyzer and pr-test-analyzer gated off: no new types, no test-relevant surface). They converge on ONE observation — the local-arm clause 'a refused or no-output local-arm redirect fetch is an unestablished measurement routed to the stop path' reuses 'no-output' as a term-of-art for a matcher refusal, while a successful local redirect is also silent by design. Adjudication: this does not misroute — the paragraph frames empty output as the success signature and the exit-status + whole-file read-back is the authoritative arbiter; the wording is AC-sanctioned and fails closed. A second Suggestion notes the 'exactly once on both arms' phrasing overlaps with the changeset's 'two redundant copies' cost language, reconciled by the pre-existing convention (materialization = durable cache read). Both are behavior-inert prose whose sole reader is the runtime agent; under Phase 4.1.5 they cap to Suggestion/advisory.\n\n## Verdict\nAPPROVE with notes. All acceptance criteria met, all three executable guards green, coupled mirror consistent. No blocking findings. The two advisory clarity notes are optional wording refinements, not merge blockers."
+}

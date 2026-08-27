@@ -1,0 +1,46 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE with notes",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": true
+  },
+  "expected_reviewers": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "requesting-code-review"
+  ],
+  "reviewers_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "requesting-code-review"
+  ],
+  "per_reviewer_assessment": [
+    {"agent": "code-reviewer", "returned": true},
+    {"agent": "silent-failure-hunter", "returned": true},
+    {"agent": "comment-analyzer", "returned": true},
+    {"agent": "requesting-code-review", "returned": true}
+  ],
+  "phase3_findings": [
+    {
+      "agent": "code-reviewer",
+      "severity": "Suggestion",
+      "description": "The 'body is materialized in the orchestrator's context exactly once — by the cache read' claim, now extended to 'both arms', is not literally true on the cloud/default arm, where the raw body still enters context twice before the cache read (fetch tool-result stdout + Write payload). The PR's own changeset says the local arm 'stop[s] spending two redundant copies (the fetch output and the Write payload)', which collides with the 'exactly once ... on both arms' framing. Behavior-inert prose; pre-existing framing extended to both arms. Under Phase 4.1.5 limbs it caps at Suggestion. Recommend scoping 'exactly once' to the local arm or rewording to 'durably materialized once, via the cache read'.",
+      "defect_signature": {"file": "docs/internal/implement-skill.md", "line": 144, "kind": "internal_inconsistency"}
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Same finding, independently raised: the added 'on both arms ... materialized ... exactly once — by the cache read' clause is exact for the local redirect arm but imprecise for the cloud Write arm (body appears via fetch tool-result stdout and Write payload before the read-back), which the changeset itself calls two redundant copies. Defensible pre-existing framing (durable/handed-off copy); PR only extends it. Suggested tightening to scope 'exactly once' to the local arm.",
+      "defect_signature": {"file": "docs/internal/implement-skill.md", "line": 144, "kind": "imprecise_claim"}
+    }
+  ],
+  "phase2_fails": [],
+  "report": "# Shadow re-review — PR #2043 (issue #2019: Phase 1.1 tier-branch issue-body cache)\n\n## Verdict: APPROVE with notes\n\nStructurally-independent blinded re-review of a prose-only diff (3 files): `skills/implement/phases/phase-1-setup.md` (§1.1 tier-branch of the issue-body-cache authoring step), `docs/internal/implement-skill.md` (mirror + probe-row-19/20 rationale), and a new changeset. No code, no new types, no tests.\n\n## Diff profile\nsmall_diff, prose-only, not config-only, no new types, not engine-self-modifying (touches the implement skill, not the review engine), checklist skipped (small prose-only diff). Phase-3 roster: the four always-on floor agents dispatched; type-design-analyzer gated off (no new types); pr-test-analyzer gated off (test-irrelevant prose diff).\n\n## Executable-boundary verification (the ACs' stated verification contract)\nAll passed in this local checkout:\n- `lint-worktree-fence-shapes.py` — exit 0 (AC5: new fence carries no worktree-refused construct).\n- `extract-command-shapes.py --profile implement skills/implement/phases/phase-1-setup.md` — exit 0, no findings (AC6: redirect rule IR6 not tripped; absolute-path placeholder, not a literal `.prflow/tmp/`).\n- `lint-reference-size.py` — exit 0 (AC7: file under the 61,750-byte ceiling).\n- `lint-issue-body-refetch.py` — exit 0 (allow-list still covers the producer line).\n\n## AC coverage (reading)\n- AC1 (local redirect, no double-emit): §1.1 local arm appends ` > <absolute-cache-path>`; stdout goes straight to the cache, entering no conversation and needing no Write. Satisfied.\n- AC2 (local fail-closed): non-zero fetch retries once; refused/no-output redirect fetch routed to the existing stop path, never degraded/failed-fetch; whole-file read-back (non-empty, not `{`) preserved and now explicitly covers 'the local arm's redirect'. `rm -f` before the fetch guarantees an absent/zero-byte file on refusal, caught by the read-back. Satisfied (silent-failure-hunter confirmed no fail-open path).\n- AC3 (cloud unchanged): Write-tool arm and fence byte-unchanged. Satisfied.\n- AC4 (tier discriminator): `GITHUB_ACTIONS` set = cloud; any run not positively local takes the Write-tool proven-safe default. Consistent in both files. Satisfied.\n- AC5/AC6/AC7: confirmed by the lints above.\n- AC8 (docs mirror + 'materialized once' claim): docs updated symmetrically; probe-row-19/20 rationale accurate (row 20 absolute redirect DENIED explains cloud stays on Write; local 'which no matcher governs' redirects). See finding below on the 'exactly once on both arms' phrasing.\n\n## Findings\nOne behavior-inert consistency Suggestion, independently raised by two reviewers (code-reviewer, comment-analyzer): the docs clause asserting the body is 'materialized in the orchestrator's context exactly once — by the cache read' on **both** arms is exact for the local redirect arm but imprecise for the cloud Write arm, where the body surfaces via the fetch tool-result stdout and the Write payload before the read-back — the very 'two redundant copies' the PR's own changeset names. Framing is pre-existing (defensible as 'the durable/handed-off materialization'); the PR extends it to both arms and does not worsen the cloud arm's behavior. Under Phase 4.1.5 limbs this caps at Suggestion (behavior-inert prose). Optional tightening: scope 'exactly once' to the local arm, or reword to 'durably materialized once, via the cache read'.\n\nsilent-failure-hunter: no findings. requesting-code-review (final pass): no findings, APPROVE.\n\n## Disposition\nNo blocking defects. Tier branch, fail-closed routing, fence-shape safety, and skill/docs mirror are internally consistent and match the resolved ACs; the executable boundary is green. The single Suggestion is non-demotable-to-nothing but non-blocking prose precision, left to the orchestrator's discretion."
+}
