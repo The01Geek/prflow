@@ -1,0 +1,63 @@
+{
+  "iter": 2,
+  "reviewed_head": "d63a867c0e669c04bc67a0176778717152b0ae9d",
+  "head_override": "local",
+  "run_id": "33098414624-1",
+  "root_completeness": {
+    "engine_dir": "/home/runner/work/prflow/prflow/skills/review",
+    "skill_md_read_full": true,
+    "eof_confirmed": true,
+    "phase_refs_present": true,
+    "identity": "verified-by-read"
+  },
+  "verdict": "APPROVE",
+  "verdict_note": "APPROVE with notes: 0 Critical, 0 Important, 3 Suggestions. All 7 acceptance criteria satisfied. All iteration-1 findings verified resolved at HEAD.",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "checklist_skipped": null,
+    "profile": "engine_self_modifying -> full checklist; Phase 3 roster gated by Phase 3.1 applicability"
+  },
+  "cache_note": "The caller-supplied cached diff.patch was STALE (predated HEAD d63a867 iter-2 fix commit): it lacked the DEVFLOW_GH export, the --limit 100 additions, the new adjudication-delta log, and ~76 lines of new tests. Per Phase 0.2 fail-closed cache contract the diff was republished from `git diff --merge-base origin/main` before Phase 3 dispatch, preventing false re-raises of the already-resolved F-1/F-13.",
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:pr-test-analyzer", "prflow:comment-analyzer", "requesting-code-review (general-purpose final pass)"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:pr-test-analyzer", "prflow:comment-analyzer", "requesting-code-review"],
+  "phase3_failed_agents": [],
+  "cap_drops": {"count": 0, "by_category": {}},
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "refresh-pr-on-resume.sh 'REFUSED empty-body' arm (resolver+read succeed but PR body empty -> exit 3) has no assertion; a distinct fail-closed guard that refuses rather than PATCHing an empty description. REFUSED resolve/transform arms likewise unasserted.",
+      "defect_signature": {"file": "scripts/refresh-pr-on-resume.sh", "line_range": [69, 73], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "suggestion-noted"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "_stopped_note_text_for_mirror empty-payload branch unasserted: a Failed/Cancelled status (or blocked reflection) whose collected notes/reflections are all empty falls through 'text or None' to return None (no empty block mirrored). Selector test never exercises stop-status-with-empty-notes.",
+      "defect_signature": {"file": "scripts/workpad.py", "line_range": [832, 845], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "suggestion-noted"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The coupled-invariant block comment above workpad.py's stopped-run-note markers is ~6 physical lines (identity + coupling + #458/#583 provenance + pin location), over the ~3-line comment-discipline cap; the #458/#583 derivation is provenance that could move to internal docs. Borderline: it is a genuine coupled-site warning preventing a wrong change (importing/diverging the copy), so its load-bearing status is defensible and it may stay.",
+      "defect_signature": {"file": "scripts/workpad.py", "line_range": [3626, 3632], "kind": "style"},
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "suggestion-noted"
+    }
+  ],
+  "prior_iteration_findings_status": {
+    "resolved": true,
+    "detail": "All 11 iteration-1 'applied' findings verified present at HEAD d63a867: F-1 (export DEVFLOW_GH) at refresh-pr-on-resume.sh:35; F-13 (--limit 100) at resolve-issue-pr.py:57 and workpad.py:3675; F-2..F-5 workpad/refresh behavioral tests present in lib/test/run.sh #2060 block; F-6 gate rc-capture (RPOR_RC>=3 warns, silent on NO_PR=2); F-8/F-9 over-length comments trimmed; F-10/F-11 unparseable-JSON + unterminated-start-marker tests present. The 2 iteration-1 pushed-back findings (F-7 strip+refresh single pipeline is fail-closed; F-12 mirror junction trivially-correct one-liner) re-verified as sound and not re-raised."
+  },
+  "report": "Iteration 2 review of PR #2063 (issue #2060). Change: cloud implement runs mirror a stopped-run note (Blocked/Failed/Cancelled) into the open PR body inside an HTML-comment-marked block and refresh the PR [View run] link at the resume gate (new single owner). New helpers scripts/pr-note-block.py, scripts/resolve-issue-pr.py, scripts/refresh-pr-on-resume.sh; workpad.py inline mirror (pinned deliberate duplication, import edges locked to section_parse.py #458/#583); branch-setup link-rewrite retired and its resume pre-check now strip-only; skills/pr-description strips the block on regeneration. Phase 3 roster (code-reviewer, silent-failure-hunter, pr-test-analyzer, comment-analyzer, final-pass) returned 0 Critical, 0 Important, 3 Suggestions. Final-pass verified all 7 ACs satisfied and merge-ready. All iteration-1 findings resolved at HEAD. VERDICT: APPROVE."
+}

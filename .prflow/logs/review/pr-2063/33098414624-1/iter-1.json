@@ -1,0 +1,356 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "71dc8861645d08c3b2b3cd48573d3e7495131749",
+  "fix_files": [
+    "scripts/refresh-pr-on-resume.sh",
+    "scripts/resolve-issue-pr.py",
+    "scripts/workpad.py",
+    ".github/workflows/devflow-implement.yml",
+    "lib/test/run.sh",
+    ".prflow/install-state.json"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "DEVFLOW_GH assigned but not exported; child resolve-issue-pr.py falls back to bare gh",
+      "defect_signature": {
+        "file": "scripts/refresh-pr-on-resume.sh",
+        "line_range": [
+          55,
+          60
+        ],
+        "kind": "api_misuse"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "workpad.py inline note-block add/strip untested",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          736,
+          762
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "workpad.py _resolve_open_pr_for_issue untested",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          765,
+          792
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "_mirror_stopped_note_to_pr happy path untested",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          795,
+          829
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "refresh-pr-on-resume.sh REFUSED read/patch arms untested",
+      "defect_signature": {
+        "file": "scripts/refresh-pr-on-resume.sh",
+        "line_range": [
+          594,
+          600
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "gate warns on benign NO_PR (exit 2)",
+      "defect_signature": {
+        "file": ".github/workflows/devflow-implement.yml",
+        "line_range": [
+          489,
+          503
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "strip+refresh share one pipeline; a failing refresh discards the strip",
+      "defect_signature": {
+        "file": "scripts/refresh-pr-on-resume.sh",
+        "line_range": [
+          78,
+          83
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "over-length gate comment",
+      "defect_signature": {
+        "file": ".github/workflows/devflow-implement.yml",
+        "line_range": [
+          489,
+          495
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "over-length run.sh re-anchor comment",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          5460,
+          5466
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "resolve-issue-pr unparseable-JSON exit-3 untested",
+      "defect_signature": {
+        "file": "scripts/resolve-issue-pr.py",
+        "line_range": [
+          50,
+          60
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "pr-note-block unterminated-start-marker untested",
+      "defect_signature": {
+        "file": "scripts/pr-note-block.py",
+        "line_range": [
+          38,
+          42
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "_cmd_update_inner mirror junction not integration-tested",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          858,
+          860
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "gh pr list without --limit caps at 30",
+      "defect_signature": {
+        "file": "scripts/resolve-issue-pr.py",
+        "line_range": [
+          42,
+          46
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "71dc886"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "71dc886"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "71dc886"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "71dc886"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "71dc886"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "71dc886"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "pushed_back",
+      "source_file": "scripts/refresh-pr-on-resume.sh",
+      "claim_text": "strip+refresh share one pipeline",
+      "skip_category": "claim-quality",
+      "evidence": "the pipeline fails closed: refresh-pr-run-link.py only exits non-zero on empty stdin/missing arg, both impossible here (strip output non-empty, RUN_URL provided); a failed transform yields empty NEW_BODY -> REFUSED transform -> no PATCH -> no blanking, and the next resume/agent-strip cleans the note",
+      "parking_evidence": {
+        "basis": "fail-closed by design; the theoretical failure cannot occur given the guarded inputs and is safe if it did",
+        "failing_input": "refresh-pr-run-link.py exiting non-zero mid-pipeline",
+        "source": "scripts/refresh-pr-on-resume.sh strip|refresh pipeline + guard",
+        "finding_ref": {
+          "iter": 1,
+          "index": 6
+        }
+      }
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "applied",
+      "commit": "71dc886"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "applied",
+      "commit": "71dc886"
+    },
+    {
+      "finding_id": "F-10",
+      "decision": "applied",
+      "commit": "71dc886"
+    },
+    {
+      "finding_id": "F-11",
+      "decision": "applied",
+      "commit": "71dc886"
+    },
+    {
+      "finding_id": "F-12",
+      "decision": "pushed_back",
+      "source_file": "scripts/workpad.py",
+      "claim_text": "mirror junction not integration-tested",
+      "skip_category": "claim-quality",
+      "evidence": "both halves are now behaviorally tested (the _stopped_note_text_for_mirror selector test and the new _mirror_stopped_note_to_pr happy-path test); the junction is a one-line `if _mirror_text: _mirror_stopped_note_to_pr(...)` whose correctness is evident and whose failure mode (best-effort absorber) is covered by the swallow test",
+      "parking_evidence": {
+        "basis": "the one-line junction is trivially correct and both operands are behaviorally covered",
+        "failing_input": "the if-guard mis-routing",
+        "source": "scripts/workpad.py _cmd_update_inner mirror call site",
+        "finding_ref": {
+          "iter": 1,
+          "index": 11
+        }
+      }
+    },
+    {
+      "finding_id": "F-13",
+      "decision": "applied",
+      "commit": "71dc886"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 11,
+    "fix_diff_lines": 90,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

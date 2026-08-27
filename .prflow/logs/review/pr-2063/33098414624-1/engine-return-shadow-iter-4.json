@@ -1,0 +1,34 @@
+{
+  "root_completeness": "complete",
+  "verdict": "APPROVE",
+  "coverage": "full",
+  "reviewers_dispatched": 5,
+  "expected_reviewers": ["code-reviewer", "silent-failure-hunter", "comment-analyzer", "pr-test-analyzer", "requesting-code-review"],
+  "per_reviewer_assessment": [
+    {"agent": "code-reviewer", "returned": true},
+    {"agent": "silent-failure-hunter", "returned": true},
+    {"agent": "comment-analyzer", "returned": true},
+    {"agent": "pr-test-analyzer", "returned": true},
+    {"agent": "requesting-code-review", "returned": true}
+  ],
+  "phase3_findings": [
+    {"agent": "code-reviewer", "severity": "Suggestion", "description": "workpad.py carries a pinned COUPLED copy of pr-note-block.py's strip/add transform bodies, but the coupling test pins only the four marker literals byte-identical; the transform bodies are pinned only by each side's independent behavioral test, so a divergent edit to one transform could pass both.", "defect_signature": "coupled-transform-not-pinned:workpad-vs-pr-note-block", "corroboration_count": 1},
+    {"agent": "code-reviewer", "severity": "Suggestion", "description": "resolve-issue-pr.py / workpad.py _resolve_open_pr_for_issue sort by createdAt then take last; an exact createdAt tie is broken arbitrarily (no secondary tiebreak on number). Practically inert.", "defect_signature": "createdAt-tie-nondeterministic-pr-select", "corroboration_count": 1},
+    {"agent": "silent-failure-hunter", "severity": "Suggestion", "description": "gh api --jq '.body' on a PR whose body is JSON null emits the literal string 'null', which passes the non-empty guards and would be treated as body text. Latent edge, not reachable in this flow (mirror only fires for flow-created PRs with real bodies); mirrors pre-existing refresh-pr-run-link pattern.", "defect_signature": "jq-null-string-treated-as-body", "corroboration_count": 1},
+    {"agent": "comment-analyzer", "severity": "none", "description": "No comment rot or docstring/code mismatch found; the retired link-rewrite is consistently re-described as a note-strip across all sites.", "defect_signature": "none", "corroboration_count": 0},
+    {"agent": "pr-test-analyzer", "severity": "Suggestion", "description": "No negative assertion that branch-setup no longer rewrites the [View run] link; a reintroduced refresh-pr-run-link.py call alongside the strip would not turn the suite RED. Retirement asserted only positively.", "defect_signature": "missing-negative-pin-branch-setup-link-rewrite", "corroboration_count": 1},
+    {"agent": "pr-test-analyzer", "severity": "Suggestion", "description": "The selector->executor wiring inside _cmd_update_inner (workpad.py:~3979) is untested end-to-end; _stopped_note_text_for_mirror and _mirror_stopped_note_to_pr are tested in isolation but no test drives a real --status Failed/--reflection-kind blocked update through _cmd_update_inner to confirm the mirror fires after the PATCH (AC6 ordering).", "defect_signature": "untested-inline-wiring-mirror-dispatch", "corroboration_count": 1},
+    {"agent": "pr-test-analyzer", "severity": "Suggestion", "description": "_mirror_stopped_note_to_pr's empty-body early-return branch (workpad.py:~3707) is not exercised (the gate helper's equivalent path is).", "defect_signature": "untested-mirror-empty-body-guard", "corroboration_count": 1},
+    {"agent": "requesting-code-review", "severity": "none", "description": "APPROVE; all 9 ACs verified satisfied; no findings at or above Suggestion.", "defect_signature": "none", "corroboration_count": 0}
+  ],
+  "phase2_fails": [],
+  "diff_profile": {
+    "files_changed": 15,
+    "adds_tests": true,
+    "adds_new_types": false,
+    "surfaces": ["python-helpers", "shell-helper", "workpad.py", "workflow-yaml", "skill-prose", "agent-prose", "internal-docs", "suite-tests", "coverage-map", "changeset", "pin-corpus"],
+    "classification": "code+tests+prose"
+  },
+  "checklist_skipped": false,
+  "report": "Blinded shadow review (iteration 4) of PR 2063 @ f313b37, issue #2060 scope only (git diff --merge-base origin/main). Full roster of 5 dispatched from fresh contexts (type-design-analyzer correctly gated out: no new types; pr-test-analyzer included: diff adds tests). All 5 returned real assessments -> coverage full. No Critical or Important findings from any reviewer. Six Suggestion-level notes total, all advisory coverage-gap or latent-edge observations where the shipped code is correct today. ACs 1-9 all verified satisfied against the shipped tree at HEAD by the final-pass reviewer and corroborated by code-reviewer/pr-test-analyzer. The change mirrors a stopped-run note block into an open PR body (Blocked/Failed/Cancelled terminals only; Complete writes none), moves the [View run] refresh to the gate job as its single owner, retires the branch-setup link rewrite in favor of a note strip, and strips the block at completion-time regeneration. Fail-closed empty-body guards, -->-sanitization marker-injection defense, best-effort AFTER-PATCH mirror absorber (AC6), and REST {owner}/{repo} gh api usage all verified. Verdict: APPROVE."
+}

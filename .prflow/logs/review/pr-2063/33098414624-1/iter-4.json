@@ -1,0 +1,249 @@
+{
+  "iter": 4,
+  "fix_commit_sha": "f313b37213756ecefa76f40712f8a2d333f8647a",
+  "fix_files": [
+    "lib/test/run.sh",
+    ".github/workflows/devflow-implement.yml",
+    ".prflow/install-state.json"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "4.5",
+  "dispatch_mode": null,
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "glyph-prefixed status selector coverage gap (promoted from iter-3 shadow)",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          5586,
+          5605
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "gate comment 4 lines over the 3-line cap (promoted from iter-3 shadow)",
+      "defect_signature": {
+        "file": ".github/workflows/devflow-implement.yml",
+        "line_range": [
+          489,
+          492
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F4-1",
+      "decision": "applied",
+      "commit": "f313b37"
+    },
+    {
+      "finding_id": "F4-2",
+      "decision": "applied",
+      "commit": "f313b37"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "reviewed_sha": "f313b37213756ecefa76f40712f8a2d333f8647a",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "coupled transform bodies pinned by markers + independent behavioral tests, not byte-identical bodies",
+        "defect_signature": {
+          "file": "scripts/workpad.py",
+          "line_range": [
+            3628,
+            3660
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "createdAt tie in PR selection broken arbitrarily (no secondary number tiebreak)",
+        "defect_signature": {
+          "file": "scripts/resolve-issue-pr.py",
+          "line_range": [
+            86,
+            86
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "gh api --jq .body returns literal null for a null body (latent, unreachable in flow)",
+        "defect_signature": {
+          "file": "scripts/workpad.py",
+          "line_range": [
+            3707,
+            3707
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "no negative pin that branch-setup no longer rewrites the [View run] link",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            5463,
+            5463
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "selector->executor mirror wiring in _cmd_update_inner untested e2e",
+        "defect_signature": {
+          "file": "scripts/workpad.py",
+          "line_range": [
+            3979,
+            3979
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "_mirror_stopped_note_to_pr empty-body early-return not exercised",
+        "defect_signature": {
+          "file": "scripts/workpad.py",
+          "line_range": [
+            3707,
+            3707
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 6,
+      "overlap_with_iter_N": 2,
+      "new": 4,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 3,
+          "index": 5
+        },
+        "parked_finding_id": "F3-6",
+        "shadow_finding_index": 0,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the coupled-transform-body coverage point at Suggestion (== parked severity) with no new failing input; the transform is behaviorally tested on both copies",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

@@ -1,0 +1,370 @@
+{
+  "iter": 3,
+  "fix_commit_sha": "f4959bdf0743b64f256557f78728c3944df04ecc",
+  "fix_files": [
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "scripts/workpad.py",
+    "lib/test/run.sh",
+    "skills/implement/phases/phase-1-setup.md"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "4.5",
+  "dispatch_mode": null,
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "AC9 unmet: DEVFLOW_SYSTEM_OVERVIEW.md stale run-link statement (promoted from iter-2 shadow)",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          353,
+          353
+        ],
+        "kind": "doc_accuracy"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "phase-1-setup.md:299 coupled-mirror drift (promoted from iter-2 shadow)",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-1-setup.md",
+        "line_range": [
+          299,
+          299
+        ],
+        "kind": "doc_accuracy"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Minor",
+      "description": "REFRESHED-arm test did not exercise strip on a noted body nor assert PATCH body content",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          5560,
+          5560
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "_stopped_note_text_for_mirror docstring 'statuses' wording nit",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          3706,
+          3710
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Minor",
+      "description": "refresh-pr-on-resume.sh masks the resolve-gh.sh source-failure cause as a generic REFUSED on partial deploy",
+      "defect_signature": {
+        "file": "scripts/refresh-pr-on-resume.sh",
+        "line_range": [
+          31,
+          31
+        ],
+        "kind": "silent_failure"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "coupling pin covers marker literals but not the transform logic bodies",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          5619,
+          5619
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F3-1",
+      "decision": "applied",
+      "commit": "cebca96"
+    },
+    {
+      "finding_id": "F3-2",
+      "decision": "applied",
+      "commit": "f4959bd"
+    },
+    {
+      "finding_id": "F3-3",
+      "decision": "applied",
+      "commit": "cebca96"
+    },
+    {
+      "finding_id": "F3-4",
+      "decision": "applied",
+      "commit": "cebca96"
+    },
+    {
+      "finding_id": "F3-5",
+      "decision": "pushed_back",
+      "source_file": "scripts/refresh-pr-on-resume.sh",
+      "claim_text": "generic REFUSED on resolve-gh.sh source failure",
+      "skip_category": "claim-quality",
+      "evidence": "the source failure already emits a specific stderr breadcrumb ('could not source ../lib/resolve-gh.sh (a partial deployment carrying scripts/ without lib/?)') at line 31 before any REFUSED; the terminal token is a coarse machine signal while the human-readable cause is on stderr — the same best-effort pattern resolve-existing-pr.sh uses",
+      "parking_evidence": {
+        "basis": "a specific stderr breadcrumb already names the partial-deploy cause; the REFUSED token is the coarse machine channel by design",
+        "failing_input": "a scripts/-without-lib partial deployment",
+        "source": "scripts/refresh-pr-on-resume.sh:31 breadcrumb",
+        "finding_ref": {
+          "iter": 3,
+          "index": 4
+        }
+      }
+    },
+    {
+      "finding_id": "F3-6",
+      "decision": "pushed_back",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "coupling pin covers markers not transform bodies",
+      "skip_category": "claim-quality",
+      "evidence": "the transform logic (add/strip) is behaviorally tested in BOTH scripts/pr-note-block.py (round-trip, dup, sanitize, unterminated) and the workpad.py inline mirror integration test (round-trip); the coupling pin's job is to guard the shared MARKER literals, which is where drift would silently break exact strip — the transform behavior itself is covered",
+      "parking_evidence": {
+        "basis": "transform behavior is behaviorally tested on both copies; the pin guards the coupled marker literals which is its purpose",
+        "failing_input": "a transform-logic drift between the two copies",
+        "source": "lib/test/run.sh #2060 pr-note-block + workpad mirror tests",
+        "finding_ref": {
+          "iter": 3,
+          "index": 5
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "reviewed_sha": "f4959bdf0743b64f256557f78728c3944df04ecc",
+    "verdict": "APPROVE with notes",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Important",
+        "description": "status selector tested only with bare-word Failed/Cancelled, not the glyph-prefixed 💥/🛑 forms _strip_status_glyph handles",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            5586,
+            5603
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "gate comment devflow-implement.yml:489-492 is 4 lines, over the 3-line cap",
+        "defect_signature": {
+          "file": ".github/workflows/devflow-implement.yml",
+          "line_range": [
+            489,
+            492
+          ],
+          "kind": "style"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "strip/link-refresh pipeline coupling (confirmed non-reachable)",
+        "defect_signature": {
+          "file": "scripts/refresh-pr-on-resume.sh",
+          "line_range": [
+            78,
+            83
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "mirror call-site not e2e tested",
+        "defect_signature": {
+          "file": "scripts/workpad.py",
+          "line_range": [
+            988,
+            993
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "gate rc-threshold branch untested (adjudicated unobservable)",
+        "defect_signature": {
+          "file": ".github/workflows/devflow-implement.yml",
+          "line_range": [
+            497,
+            500
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Suggestion",
+        "description": "unreachable shift 2 arg-parse edge",
+        "defect_signature": {
+          "file": "scripts/refresh-pr-on-resume.sh",
+          "line_range": [
+            37,
+            43
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "JSON-null body edge shared with pre-existing helpers",
+        "defect_signature": {
+          "file": "scripts/refresh-pr-on-resume.sh",
+          "line_range": [
+            66,
+            75
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "DEVFLOW_GH degradation cosmetics",
+        "defect_signature": {
+          "file": "scripts/refresh-pr-on-resume.sh",
+          "line_range": [
+            29,
+            35
+          ],
+          "kind": "style"
+        },
+        "corroboration_count": 1
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 8,
+      "overlap_with_iter_N": 2,
+      "new": 6,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

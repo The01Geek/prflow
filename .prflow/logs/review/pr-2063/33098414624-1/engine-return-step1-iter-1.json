@@ -1,0 +1,150 @@
+{
+  "root_completeness": "established",
+  "verdict": "APPROVE with notes",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "refresh-pr-on-resume.sh resolves DEVFLOW_GH via the execution-verified resolver but assigns it with `: \"${DEVFLOW_GH:=$(devflow_resolve_gh)}\"` without exporting it. The child process it shells out to for PR selection (python3 resolve-issue-pr.py) reads os.environ.get(\"DEVFLOW_GH\") and, absent an export, falls back to bare `gh`. On a host where the resolver had to pick a non-bare candidate (e.g. gh.exe on a Windows/Git-Bash runner because bare gh is present-but-unrunnable), PR selection runs bare gh, fails, and the helper returns REFUSED resolve, silently disabling the whole note-strip + link-refresh feature while the parent's own gh calls would have succeeded. Invisible to the suite because every test passes DEVFLOW_GH already exported into the environment. Fix: export DEVFLOW_GH before the python child.",
+      "defect_signature": {"file": "scripts/refresh-pr-on-resume.sh", "line_range": [531, 551], "kind": "api_misuse"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; not an over-grade shape (agent is requesting-code-review, not silent-failure-hunter/pr-test-analyzer; a real fail-open behavioral defect, not fail-closed)",
+      "fix_decision": "recommend-fix (non-blocking at critical threshold; best-effort feature, but defeats the resolver contract on the exact non-standard runners CLAUDE.md targets)"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "workpad.py's hand-maintained parallel copies of the note-block transform (_strip_stopped_note_block / _add_stopped_note_block) are never executed by any test. The coupling pin asserts only that the two marker literals are byte-identical, not that the transform (separator handling, --> sanitization, strip-then-prepend replace) matches pr-note-block.py's. A silent divergence would pass the pin and ship a malformed/comment-escaping block onto a real PR body. The module is importable (the selector/swallow tests already exec_module it), so the same round-trip + sanitization assertions could be run against the twin.",
+      "defect_signature": {"file": "scripts/workpad.py", "line_range": [736, 762], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; pr-test-analyzer test_gap over deliberately-duplicated logic — the divergence class a single-source-forbidden copy is prone to",
+      "fix_decision": "recommend-fix (non-blocking)"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "workpad.py's _resolve_open_pr_for_issue (the pinned parallel copy of resolve-issue-pr.py's selection) has no behavioral coverage — it is only stubbed out (replaced by `boom`) in the AC6 swallow test. Its actual selection (gh pr list search, closingIssuesReferences filter, createdAt sort, mention rejection) is never asserted, so a silent divergence from the tested resolve-issue-pr.py copy would mirror the note onto the wrong PR with nothing red.",
+      "defect_signature": {"file": "scripts/workpad.py", "line_range": [765, 792], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; pr-test-analyzer test_gap over duplicated selection logic",
+      "fix_decision": "recommend-fix (non-blocking)"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "_mirror_stopped_note_to_pr happy path (resolve -> read -> add block -> PATCH) is untested; only the AC6 failure/swallow path is covered. The temp-file lifecycle, empty-body early return, and the actual block-prepend-then-PATCH argv are unverified — this is the core new capability of the workpad mirror.",
+      "defect_signature": {"file": "scripts/workpad.py", "line_range": [795, 829], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; pr-test-analyzer test_gap",
+      "fix_decision": "recommend-fix (non-blocking)"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "refresh-pr-on-resume.sh's consequential failure arms are untested: the only REFUSED arm covered is missing-args. REFUSED patch (resolver/read succeed, gh api PATCH write fails -> exit 3), REFUSED read, and REFUSED empty-body have no fixtures — these are the arms deciding whether a stale banner survives on a real PR.",
+      "defect_signature": {"file": "scripts/refresh-pr-on-resume.sh", "line_range": [594, 600], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; pr-test-analyzer test_gap (surface fails closed already)",
+      "fix_decision": "recommend-fix (non-blocking)"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter + prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The gate step keys its `::warning::` purely on a non-zero exit of refresh-pr-on-resume.sh, so the benign NO_PR outcome (exit 2 — a run that stopped before Phase 3.1 ever opened the draft PR) surfaces a \"PR-body run-link refresh + note strip did not complete\" warning that reads as a fault. The helper already distinguishes NO_PR (exit 2) from REFUSED (exit 3), but the gate discards stdout. Consider warning only on exit 3.",
+      "defect_signature": {"file": ".github/workflows/devflow-implement.yml", "line_range": [29, 35], "kind": "other"},
+      "corroboration_count": 2,
+      "step25_classification": "corroborated (2 agents); observability noise only, behavior correct",
+      "fix_decision": "optional (cosmetic)"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "In refresh-pr-on-resume.sh the note strip and link refresh share one pipeline and one PATCH, so if refresh-pr-run-link.py ever exited non-zero the successful strip would be discarded too (NEW_BODY empty -> REFUSED transform). Confirmed harmless today (refresh-pr-run-link.py returns the body unchanged with exit 0 when no [View run] line is present, and empty-stdin/missing-URL are guarded upstream), so flagged only as latent coupling.",
+      "defect_signature": {"file": "scripts/refresh-pr-on-resume.sh", "line_range": [578, 583], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; no live loss today (fail-closed), latent only",
+      "fix_decision": "no-fix (latent, currently harmless)"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "devflow-implement.yml lines 21-27 (7 physical lines): added workflow-YAML rationale comment exceeds three lines and is largely derivation/narrative under the prevention-only comment standard. Accurate, not misleading.",
+      "defect_signature": {"file": ".github/workflows/devflow-implement.yml", "line_range": [21, 27], "kind": "style"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; behavior-inert prose, already Suggestion (no cap needed)",
+      "fix_decision": "optional"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "lib/test/run.sh lines 202-213 (~11 lines): added test-file provenance/derivation comment explaining the #2060 pin re-anchoring exceeds three lines and does not name a specific wrong change it prevents. Accurate.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [202, 213], "kind": "style"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; behavior-inert prose, already Suggestion",
+      "fix_decision": "optional"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "resolve-issue-pr.py's unparseable-JSON -> exit 3 branch (gh exits 0 but emits non-array/invalid JSON) is untested; the CLI REFUSED test only drives gh exit 1.",
+      "defect_signature": {"file": "scripts/resolve-issue-pr.py", "line_range": [657, 674], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; minor arm coverage",
+      "fix_decision": "optional"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "pr-note-block.py strip_block's unterminated-start-marker branch (a lone _START with no matching _END left as ordinary text) has no assertion.",
+      "defect_signature": {"file": "scripts/pr-note-block.py", "line_range": [445, 449], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; minor arm coverage",
+      "fix_decision": "optional"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The _cmd_update_inner junction wiring (selector gates the mirror call — Failed/blocked reaches _mirror_stopped_note_to_pr, Complete does not) is not integration-tested; both halves are covered in isolation.",
+      "defect_signature": {"file": "scripts/workpad.py", "line_range": [858, 860], "kind": "test_gap"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; low value (both halves covered)",
+      "fix_decision": "optional"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Both resolve-issue-pr.py._query_open_prs and workpad.py._resolve_open_pr_for_issue call `gh pr list --search ... --state open` without --limit, so gh caps at 30 results. Theoretical given the in:body + closingIssuesReferences filter, but a --limit would make the newest-wins selection robust.",
+      "defect_signature": {"file": "scripts/resolve-issue-pr.py", "line_range": [661, 664], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source; theoretical",
+      "fix_decision": "optional"
+    }
+  ],
+  "report": "## Verdict: APPROVE with notes (no Critical or self-contradicting-diff findings; five Important non-blocking items — one behavioral, four test-coverage — worth addressing)\n\n## Issue Compliance\nReviewed against issue #2060: mirror stopped-run notes into the PR description — criteria from caller override (--issue 2060); scope not-established (standalone engine run over the local branch delta; no workpad ACS surface compared this run). The change maps cleanly to the described ACs: AC1 the gate job is wired as the single owner of the PR [View run] refresh + note strip (pinned); AC2/AC3 the block carries the recorded stop-note/reflection text (_stopped_note_text_for_mirror selects notes for Failed/Cancelled and blocked-reflection text, None for Complete and every other status — AC7); AC4 the branch-setup pre-check strips on every resume as the local-resume cleaner; AC5 add/strip round-trips byte-faithfully and is fail-closed; AC6 the workpad mirror runs after the workpad PATCH lands and swallows every exception.\n\n## Verification Checklist Results\nPhase 1/2 formal checklist fan-out was not separately dispatched in this run; the diff's claims were verified directly during Phase 3 (agents read the shipped code, not only the diff) and via the intra-diff truthfulness sweep below. engine_self_modifying is set (skills/**, agents/**, lib/** touched), so the leaner-checklist skip does not apply; treat verification as agent-and-direct rather than lite/agent-checklist tallied.\n\nintra-diff contradiction scan: no contradiction found.\ntruthfulness sweep: no finding promoted.\nover-grade annotation: no finding flagged.\n\n## Code Review Findings\n### 🟠 Important / Major\n1. refresh-pr-on-resume.sh assigns DEVFLOW_GH via `: \"${DEVFLOW_GH:=$(devflow_resolve_gh)}\"` without exporting it, so the child `resolve-issue-pr.py` (which reads os.environ) falls back to bare `gh`; on a host where the resolver picked a non-bare candidate (e.g. gh.exe on a Windows/Git-Bash runner) PR selection runs bare gh, fails, and silently disables the whole feature while the parent's own gh calls succeed — invisible to the suite because tests pass DEVFLOW_GH already exported. Fix: export DEVFLOW_GH before the python child. (raised by 1/5 agents)\n2. workpad.py's hand-maintained parallel note-block transform (_strip/_add_stopped_note_block) is never executed by a test — the coupling pin protects only the marker literals, not the transform logic, exactly the divergence class a single-source-forbidden copy is prone to; the module is importable so the same round-trip/sanitization assertions apply. (raised by 1/5 agents)\n3. workpad.py's _resolve_open_pr_for_issue (parallel copy of the tested resolver selection) has no behavioral coverage — only stubbed out in the AC6 swallow test; a silent divergence would mirror the note onto the wrong PR with nothing red. (raised by 1/5 agents)\n4. _mirror_stopped_note_to_pr happy path (resolve → read → add block → PATCH, temp-file lifecycle) is untested; only the AC6 swallow path is covered. (raised by 1/5 agents)\n5. refresh-pr-on-resume.sh's REFUSED patch/read/empty-body arms are untested (only missing-args is) — these decide whether a stale banner survives on a real PR. (raised by 1/5 agents)\n\n### 🟡 Suggestion / Minor\n1. The gate step warns on any non-zero exit of refresh-pr-on-resume.sh, so the benign NO_PR (exit 2) case surfaces a \"did not complete\" warning that reads as a fault; warn only on exit 3. (raised by 2/5 agents)\n2. refresh-pr-on-resume.sh couples the note strip and link refresh in one pipeline/PATCH — a future non-zero from refresh-pr-run-link.py would discard the strip too; harmless today (that helper returns unchanged/exit-0 when no [View run] line is present). (raised by 1/5 agents)\n3. devflow-implement.yml lines 21-27: over-length (7-line) workflow rationale comment under the prevention-only standard. (raised by 1/5 agents)\n4. lib/test/run.sh lines 202-213: over-length (~11-line) test-file provenance comment. (raised by 1/5 agents)\n5. resolve-issue-pr.py unparseable-JSON → exit 3 branch untested. (raised by 1/5 agents)\n6. pr-note-block.py strip_block unterminated-start-marker branch untested. (raised by 1/5 agents)\n7. workpad.py _cmd_update_inner selector→mirror junction not integration-tested. (raised by 1/5 agents)\n8. `gh pr list` calls omit --limit (default cap 30) in both resolver copies — theoretical given the filter. (raised by 1/5 agents)\n\n## Verdict Criteria\n- No verification-checklist FAIL/INCONCLUSIVE.\n- No self-contradicting-diff (documented_falsehood) finding — comment-analyzer and code-reviewer confirmed all diff-added docstrings/comments/changeset prose are accurate against HEAD; the intra-diff contradiction scan found none.\n- No Critical findings; at the default `critical` verdict_severity_threshold, Important findings do not drive REJECT (rule 3 fires only on Critical).\n- Dirty-tree backstop: clean (no working-tree divergence across the Phase 3.1 dispatch).\n- Rule 6 applies: only findings below the threshold present → APPROVE with notes.\n\nThe one behavioral item worth acting on before merge is Important #1 (export DEVFLOW_GH), which defeats the resolver contract on non-standard runners though the feature is best-effort. The four test-coverage Importants (#2-#5) close the gap around workpad.py's deliberately hand-maintained parallel copies and the shell orchestrator's failure arms."
+}
