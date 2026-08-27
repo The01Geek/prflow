@@ -37633,6 +37633,16 @@ assert_eq "#2064 an all-non-object permission_denials array is a measured 0" "ye
 assert_eq "#2064 a run on the neither-carrier file emits exactly one shape-drift warning" "1" \
   "$(_diag_run "$_D_NEITHER_2064" | grep -cF 'execution-file shape drift suspected')"
 
+# No result event (init-only) → unavailable but NO drift: the drift gate is result-present-gated,
+# and the no-result branch renders no "### Run summary", so _result_present stays 0. Pins the
+# complementary branch of the gate (result absent), which the neither-carrier fixtures above,
+# all result events, never exercise.
+_D_NORESULT_2064='[{"type":"system","subtype":"init","claude_code_version":"2.1.226"}]'
+assert_eq "#2064 a no-result-event file publishes permission_denials_count=unavailable" "yes" \
+  "$(_diag_run "$_D_NORESULT_2064" >/dev/null; grep -qxF 'permission_denials_count=unavailable' "$D363/out" && echo yes || echo no)"
+assert_eq "#2064 a no-result-event file raises NO shape-drift warning (drift is gated on result-present)" "no" \
+  "$(_diag_run "$_D_NORESULT_2064" | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+
 # ────────────────────────────────────────────────────────────────────────────
 echo "#1528 observability: claude_code_version published from the init record + read back"
 # ────────────────────────────────────────────────────────────────────────────
