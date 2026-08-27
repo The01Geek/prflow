@@ -24,7 +24,7 @@
     },
     "provision-helper": {
       "path": ".github/actions/setup-project-env/provision-lint-tools.sh",
-      "digest": "sha256:7451f2340a4372212d24c8f9c7d1b4ecd57bb4311e4718ab1c9fb64460905f38"
+      "digest": "sha256:facfac1900a69019debe41c71942821cef551fb8e1e25b4368fffabd3be4a7fd"
     },
     "implement-workflow": {
       "path": ".github/workflows/devflow-implement.yml",

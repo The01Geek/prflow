@@ -1941,10 +1941,15 @@ _OC_CASES.append(("a post-PATCH cleanup failure", _err))
 # parsing module was not deployed) is the second transitive path the wrapper covers.
 def _drive_section_parse_missing():
     saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
-             workpad._SECTION_PARSE_IMPORT_ERROR)
+             workpad._SECTION_PARSE_IMPORT_ERROR, workpad._workpad_id_cache_path)
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
     workpad._SECTION_PARSE_IMPORT_ERROR = 'No module named section_parse'
+    # Hermetic id cache. Unstubbed, _workpad_id_cache_path resolves its root through
+    # the stubbed _run, which returns the workpad BODY — creating a repo-root
+    # directory named after that body text on every run of this test.
+    _cd = tempfile.mkdtemp(prefix='wp1562-sec-idcache-')
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cd) / f'{issue}.json'
 
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
@@ -1963,7 +1968,8 @@ def _drive_section_parse_missing():
         code = e.code
     finally:
         (workpad._run, workpad._repo_full, workpad._workpad_marker,
-         workpad._SECTION_PARSE_IMPORT_ERROR) = saved
+         workpad._SECTION_PARSE_IMPORT_ERROR, workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_cd, ignore_errors=True)
     return code, err.getvalue()
 
 
