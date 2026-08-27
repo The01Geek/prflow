@@ -354,6 +354,19 @@ its shard attempts were silently denied. Only an unobservable *recombined* run t
 work, and it does so as the `execution-ceiling` Blocked terminal that Phase 4.3 names —
 distinguishable in the workpad from a run that observed a failing suite.
 
+**The same recombination primitive also backs a second path: the same-tree failed-shard-only
+relaunch (issue #2008).** After a RED coordinator pass whose fix changed no repository file, the
+clean shards' retained tallies are already a valid result for the identical tree, so the run may
+relaunch only the failed shards and recombine them with the RED run's retained clean-shard
+tallies through the same `shard-tally.py combine … --require-shards` reconciliation, rather than
+re-paying the whole coordinator. Eligibility is proven mechanically — each launch records
+`scripts/checkout-fingerprint.py`'s five-field fingerprint (`fingerprint.json` under its retained
+run root / tally dir), and the same-tree path is permitted only when a fresh fingerprint equals
+the RED run's recorded one on all five fields, an unestablished fingerprint on either side never
+counting as a match. The full eligibility rule and its mandatory-full-relaunch arm are stated once
+in `CLAUDE.md`'s completion-gate prose (its single home under the repository's placement rule);
+this paragraph only records that the recombination mechanism above is what the path reuses.
+
 **Retained logs, not truncated ones.** The aggregate is compact by design — bounded by the
 `DETAIL_CAP` constant `lib/test/run-parallel.sh` passes to `shard-tally.py combine`, per
 detail class, with the omitted count announced — because its other reader is a model's
