@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.64] — 2026-08-27
+
+### Changed
+Sweep brand-cased `DevFlow` prose to `PRFlow` across the in-scope Batch 5 area (issue #2020): `docs/**`, the tracked root files (`install.sh`, `CLAUDE.md`, `README.md`), `scripts/**`, and `lib/**` excluding `lib/test/**`. Semantically-frozen occurrences (two-spelling explainers, superseded-spelling references, the `DevFlow-Reviewer` App name, provenance-selector literals, test-pinned user-facing strings, and the deliberately-kept `DevFlow Weekly Report` heading) are reclassified into `lib/test/brand-devflow-buckets.json` frozen buckets rather than rewritten. No consumer-facing runtime behaviour changes.
+
 ## [2.34.63] — 2026-08-27
 
 ### Changed
