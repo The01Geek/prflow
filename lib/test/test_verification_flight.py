@@ -1944,6 +1944,8 @@ class TestSelfDocumentingHelp(unittest.TestCase):
     def test_claim_help_states_required_declaration_keys(self):
         # Anchor to the required-keys epilog section: a bare key like 'cwd' also appears in
         # the --state-dir default help text, so an unanchored search could match vacuously.
+        self.assertTrue(vf._PROFILE_REQUIRED and vf._CHECKOUT_REQUIRED,
+                        "the module must declare required declaration keys")
         marker = "required keys:"
         keys_section = self._help("claim").split(marker, 1)
         self.assertEqual(len(keys_section), 2, "claim --help must render a required-keys section")

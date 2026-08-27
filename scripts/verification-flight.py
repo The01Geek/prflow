@@ -98,8 +98,8 @@ EXIT_CAS_REJECT = 4
 EXIT_UNREADABLE = 5
 EXIT_WAIT_EXPIRED = 6
 
-# One-line meaning per exit code, rendered into the top-level `--help` epilog and
-# enumerated by the test so the documented meanings cannot drift from the codes.
+# One-line meaning per exit code; the test enumerates this so a code can never
+# ship without a documented meaning. Rendered by _exit_code_epilog() below.
 EXIT_CODE_MEANINGS = {
     EXIT_OK: "success; for status/wait the flight satisfies verification",
     EXIT_NON_PASS: "read succeeded but the flight does not satisfy verification",
