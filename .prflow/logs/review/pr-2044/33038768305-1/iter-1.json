@@ -1,0 +1,140 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T04:20:00Z",
+  "fix_commit_sha": "b7bc8d1d9",
+  "fix_files": [
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "checklist": [
+    {
+      "id": "VC-1",
+      "claim": "DRIVER_COMMAND literal registered == python3 lib/test/coverage-map-merge-driver.py %O %A %B",
+      "file": "lib/test/coverage-map-merge-driver.py",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "evidence": "coverage-map-merge-driver.py:54 DRIVER_COMMAND; monolith shard covmap-clean AC2 asserts equality"
+    },
+    {
+      "id": "VC-2",
+      "claim": "--register writes git config --local only (no global/system)",
+      "file": "lib/test/coverage-map-merge-driver.py",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "evidence": "coverage-map-merge-driver.py:265-269; covmap-clean AC6 asserts no global/system key"
+    },
+    {
+      "id": "VC-3",
+      "claim": "guard keyed on .gitattributes declaration, not driver-file existence",
+      "file": "scripts/update-branch-checkpoint.sh",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "evidence": "update-branch-checkpoint.sh block 6.5; covmap-declared-other exercises the parse reject path"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC3 only tested the no-.gitattributes branch; the declaration-parse loop (case-match, comment-skip, glob-avoidance) was entirely untested",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          41740,
+          41750
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "(6.5) block comment exceeds the 3-line cap; run.sh section header restates a setup fact",
+      "defect_signature": {
+        "file": "scripts/update-branch-checkpoint.sh",
+        "line_range": [
+          320,
+          324
+        ],
+        "kind": "comment_cap"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "b7bc8d1d9"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "advisory",
+      "source_file": "scripts/update-branch-checkpoint.sh",
+      "claim_text": "(6.5) comment exceeds 3-line cap",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold; Suggestion-level behavior-inert prose; editing post-shadow would be an unreviewed final edit"
+    }
+  ],
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": "2026-08-27T04:25:00Z",
+    "reviewed_sha": "b7bc8d1d9",
+    "verdict": "APPROVE WITH ADVISORY NOTES",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 1,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
