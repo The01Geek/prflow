@@ -538,5 +538,25 @@ assert_eq "#2024(S3): the over-cap comment body made NO PATCH" "yes" \
   "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
 assert_eq "#2024(S3): the refusal names the 65536 limit and that it is a byte count" "yes" \
   "$(grep -q '65536' "$S338/err" && grep -q 'byte count' "$S338/err" && echo yes || echo no)"
+# S4: the `patch` subcommand route enforces the comment cap too — covers the
+# cmd_patch `except _UpdateError -> sys.exit(1)` arm (and _patch_comment_body's
+# body_path branch through it), which AC10's direct _patch_comment_body test
+# bypasses. A `patch` on an over-cap body-file must abort non-zero with NO PATCH
+# and name the limit. The body carries the marker as line 1 so the live-body
+# establish-check degrades to patching-as-typed and reaches the size guard,
+# rather than refusing earlier on the no-marker arm.
+_s2024_patchbig="$S338/patch-big.md"
+printf '<!-- devflow:workpad -->\n' > "$_s2024_patchbig"
+printf '%*s\n' 66000 '' | tr ' ' x >> "$_s2024_patchbig"
+: > "$S338/patchlog"
+WP_BODY="$S338/base.md" WP_PATCHLOG="$S338/patchlog" DEVFLOW_GH="$S338/gh" \
+  python3 "$WP_PY" patch 7 "$_s2024_patchbig" >"$S338/out" 2>"$S338/err"
+_c=$?
+assert_eq "#2024(S4): the patch route refuses an over-cap body (non-zero)" "no" \
+  "$([ "$_c" = "0" ] && echo yes || echo no)"
+assert_eq "#2024(S4): the patch-route refusal made NO PATCH" "yes" \
+  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
+assert_eq "#2024(S4): the patch-route refusal names the 65536 limit" "yes" \
+  "$(grep -q '65536' "$S338/err" && echo yes || echo no)"
 
 rm -rf "$S338"
