@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2022",
+  "generated_at": "2026-08-27T02:13:54Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.59",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.56733605,
+    "tokens": {
+      "input_tokens": 70,
+      "output_tokens": 52044,
+      "cache_read_input_tokens": 6276350,
+      "cache_creation_input_tokens": 257876,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 119,
+        "outputTokens": 74479,
+        "cacheReadInputTokens": 7571132,
+        "cacheCreationInputTokens": 568977,
+        "webSearchRequests": 0,
+        "costUSD": 10.171277250000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 90,
+        "outputTokens": 11421,
+        "cacheReadInputTokens": 2100669,
+        "cacheCreationInputTokens": 344614,
+        "webSearchRequests": 0,
+        "costUSD": 1.3960588,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 71,
+    "duration_ms": 885784
+  },
+  "permission_denials": {
+    "count": 12,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNID---\"; echo \"run_id=${GITHUB_RUN_ID:-UNSET} attempt=${GITHUB_RUN_ATTEMPT:-UNSET}\"",
+      "git show 16750fb832ec88fe981c07cb06d7444eddd80573:agents/issue-claim-auditor.md > /tmp/audit.md; wc -l /tmp/audit.md",
+      "git show 16750fb832ec88fe981c07cb06d7444eddd80573:agents/issue-claim-auditor.md > /tmp/audit.md",
+      "git -C /home/runner/work/prflow/prflow show 16750fb832ec88fe981c07cb06d7444eddd80573:agents/issue-claim-auditor.md > /home/runner/work/prflow/prflow/.prflow/tmp/audit_verify.md 2>&1; wc -l /home/runner/work/prflow/prflow/.prflow/tmp/audit_verify.md",
+      "git -C /home/runner/work/prflow/prflow show 16750fb832ec88fe981c07cb06d7444eddd80573:agents/issue-claim-auditor.md | grep -n \"\" | wc -l",
+      "git -C /home/runner/work/prflow/prflow show 16750fb832ec88fe981c07cb06d7444eddd80573:agents/issue-claim-auditor.md",
+      "git -C /home/runner/work/prflow/prflow show 16750fb832ec88fe981c07cb06d7444eddd80573:agents/issue-claim-auditor.md",
+      "git -C /home/runner/work/prflow/prflow log --oneline -1 16750fb832ec88fe981c07cb06d7444eddd80573",
+      "git show 16750fb832ec88fe981c07cb06d7444eddd80573:agents/issue-claim-auditor.md > /tmp/head_ica.md\ngrep -c -- '--note \"issue-claim audit (count): no count or enumeration claims found' /tmp/head_ica.md\ngrep -c -- '--reflection-kind note' /tmp/head_ica.md\necho \"---diff---\"\ngit diff 39870bbef39e2ca254aefbadcbb6090b40396f1a 16750fb832ec88fe981c07cb06d7444eddd80573 -- agents/issue-claim-auditor.md",
+      "git show 16750fb832ec88fe981c07cb06d7444eddd80573:agents/issue-claim-auditor.md > /tmp/head_ica.md 2>&1; wc -l /tmp/head_ica.md",
+      "git show 16750fb832ec88fe981c07cb06d7444eddd80573:agents/issue-claim-auditor.md > /tmp/head_ica.md",
+      "git show 16750fb832ec88fe981c07cb06d7444eddd80573:agents/issue-claim-auditor.md > /home/runner/work/prflow/prflow/.prflow/tmp/head_ica.md"
+    ],
+    "total": 12,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
