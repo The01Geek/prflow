@@ -37550,6 +37550,50 @@ try:
             assert_eq("#1388 helper: unwritable target named", True, "unwritable target" in _out)
         finally:
             _ro.chmod(0o755)
+
+    # ── issue #2050: the unsupported-platform degrade arm purges a stale off-version
+    #    cache-restored binary from DEST_BIN before it is appended to GITHUB_PATH ──
+    def _plant_bin_2050(dest, name, version_report):
+        dest.mkdir(parents=True, exist_ok=True)
+        exe = dest / name
+        exe.write_text(f"#!/bin/sh\necho '{name} {version_report}'\n", encoding="utf-8")
+        exe.chmod(0o755)
+        return exe
+
+    # (a) A stale off-version ruff in DEST_BIN on the degrade arm is deleted + named; the arm
+    #     still warns and continues (rc 0). The manifest pins ruff 1.0.0; the stale reports 0.0.1.
+    _db_stale = _d1388b / "degrade-stale-bin"
+    _stale2050 = _plant_bin_2050(_db_stale, "ruff", "0.0.1")
+    _rc, _out = _run_helper_1388(_repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_stale)
+    assert_eq("#2050 degrade arm: rc 0 (warn-and-continue preserved)", 0, _rc)
+    assert_eq("#2050 degrade arm: stale off-version binary deleted from DEST_BIN", False, _stale2050.exists())
+    assert_eq("#2050 degrade arm: output names the deleted binary", True,
+              "deleted stale off-version binary" in _out and str(_stale2050) in _out)
+    assert_eq("#2050 degrade arm: still emits the unsupported-platform warning", True, "::warning::" in _out)
+
+    # (b) A version-MATCHING binary in DEST_BIN on the degrade arm is a legitimate reuse and
+    #     survives (delete only the FAILING binaries). Manifest pins ruff 1.0.0.
+    _db_ok = _d1388b / "degrade-ok-bin"
+    _okbin2050 = _plant_bin_2050(_db_ok, "ruff", "1.0.0")
+    _rc, _out = _run_helper_1388(_repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_ok)
+    assert_eq("#2050 degrade arm: version-matching binary survives the purge", True, _okbin2050.exists())
+    assert_eq("#2050 degrade arm: no deletion line for a version-matching binary", False,
+              "deleted stale off-version binary" in _out)
+
+    # (c) Control — the SUPPORTED path never runs the purge: a stale shellcheck in DEST_BIN is
+    #     re-installed (overwritten) to the pinned version, not routed through the degrade delete.
+    #     Build a FRESH archive+repo (the shared _arc file is overwritten by later fixtures above).
+    _ctrl_dir = _d1388b / "ctrl2050"
+    _ctrl_dir.mkdir(exist_ok=True)
+    _ctrl_arc, _ctrl_dig = _mk_archive_1388(_ctrl_dir, "shellcheck", "9.9.9")
+    _repo_ctrl = _mk_repo_1388(_d1388b / "ctrl2050-repo", _mk_manifest_1388(_ctrl_dig))
+    _db_ctrl = _d1388b / "supported-ctrl-bin"
+    _plant_bin_2050(_db_ctrl, "shellcheck", "0.0.1")
+    _rc, _out = _run_helper_1388(_repo_ctrl, tools="shellcheck", archive=_ctrl_arc, dest_bin=_db_ctrl)
+    assert_eq("#2050 control: supported-path install succeeds (rc 0)", 0, _rc)
+    assert_eq("#2050 control: supported path installs the pinned shellcheck", True, (_db_ctrl / "shellcheck").exists())
+    assert_eq("#2050 control: supported path never runs the degrade purge", False,
+              "deleted stale off-version binary" in _out)
 finally:
     shutil.rmtree(_d1388b, ignore_errors=True)
 

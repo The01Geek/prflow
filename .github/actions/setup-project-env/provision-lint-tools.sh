@@ -127,9 +127,37 @@ _provision_one() {
   plan_err="$(<"$plan_err_file")" || plan_err=""
   rm -f "$plan_err_file"
   if [ "$rc" -eq 3 ]; then
-    local unsupported_version sys_unsupported
+    local unsupported_version sys_unsupported members member stale_bin
     unsupported_version="$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["tools"][sys.argv[2]]["version"])' \
       "$LINT_MANIFEST" "$tool" 2>/dev/null || true)"
+    # Purge any stale cache-restored binary for this tool from DEST_BIN before it is appended
+    # to GITHUB_PATH (issue #2050): the degrade arm never re-verified one, and DEST_BIN is
+    # PREPENDED to later steps' PATH, so an off-version binary here would shadow the whole run.
+    # Delete only a binary that FAILS the manifest version check — a version-matching one is a
+    # legitimate reuse and stays; warn-and-continue is preserved (a purge failure never _die's).
+    if [ -n "$unsupported_version" ]; then
+      members="$("$PY" -c 'import json,sys
+d=json.load(open(sys.argv[1]))
+print("\n".join(sorted({a["member"] for a in d["tools"][sys.argv[2]]["artifacts"]})))' \
+        "$LINT_MANIFEST" "$tool" 2>/dev/null || true)"
+      while IFS= read -r member; do
+        [ -n "$member" ] || continue
+        stale_bin="$DEST_BIN/$member"
+        [ -e "$stale_bin" ] || continue
+        if _version_token_match "$("$stale_bin" --version 2>&1 || true)" "$unsupported_version"; then
+          continue
+        fi
+        if rm -f "$stale_bin"; then
+          printf 'provision-lint-tools: %s: deleted stale off-version binary %s from the lint-tool dir (unsupported-platform degrade; would otherwise shadow PATH)\n' \
+            "$tool" "$stale_bin" >&2
+        else
+          printf 'provision-lint-tools: %s: WARNING could not delete stale off-version binary %s (it may still shadow PATH)\n' \
+            "$tool" "$stale_bin" >&2
+        fi
+      done <<EOF
+$members
+EOF
+    fi
     sys_unsupported="$(command -v "$tool" 2>/dev/null || true)"
     if [ -n "$sys_unsupported" ] && [ -n "$unsupported_version" ] \
        && _version_token_match "$("$sys_unsupported" --version 2>&1 || true)" "$unsupported_version"; then
