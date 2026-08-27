@@ -1925,10 +1925,21 @@ class TestSelfDocumentingHelp(unittest.TestCase):
         help_text = self._help()
         self.assertTrue(vf.EXIT_CODE_MEANINGS, "the module must define exit-code meanings")
         for code, meaning in vf.EXIT_CODE_MEANINGS.items():
-            self.assertIn(str(code), help_text,
-                          f"exit code {code} not documented in --help")
-            self.assertIn(meaning, help_text,
-                          f"meaning of exit code {code} not in --help: {meaning!r}")
+            # Assert the number and its meaning as ONE rendered unit — a bare `str(code)`
+            # check passes vacuously off unrelated digits ("issue #528") in the help body.
+            self.assertIn(f"{code}  {meaning}", help_text,
+                          f"exit code {code} + meaning not rendered as a unit in --help")
+
+    def test_exit_code_meanings_cover_every_exit_constant(self):
+        # Completeness: EXIT_CODE_MEANINGS must document every EXIT_* code the module
+        # defines (the other tests only prove the dict is a SUBSET of the help text), so a
+        # new exit code added later cannot ship undocumented.
+        module_exit_codes = {
+            v for k, v in vars(vf).items()
+            if k.startswith("EXIT_") and isinstance(v, int) and not isinstance(v, bool)
+        }
+        self.assertEqual(set(vf.EXIT_CODE_MEANINGS), module_exit_codes,
+                         "EXIT_CODE_MEANINGS keys must match the module's EXIT_* constants")
 
     def test_claim_help_states_required_declaration_keys(self):
         help_text = self._help("claim")
