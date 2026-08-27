@@ -4,6 +4,160 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.3] — 2026-08-27
+
+### Fixed
+- **Close the stale `diff.patch` reuse hazard in re-entrant review-engine entries.** In the
+  `/prflow:review-and-fix` loop, every engine entry after the run's first — a Step 1 iteration
+  from iteration 2 on, and every Step 2.6 shadow entry, on both dispatch arms — now deletes the
+  run-scoped `diff.patch` and its Phase 1 batch slices immediately before dispatch and confirms
+  they are gone, so the
+  entry's own Phase 0.2 regenerates the diff at the current HEAD rather than reviewing a stale
+  cache produced at a previous HEAD. Each re-entrant entry's return record carries the HEAD sha
+  its Phase 0.2 produced the diff at, and the parent fails a missing or mismatched sha through
+  the entry's existing failure handling. The shadow dispatch now carries the held `run_id` and,
+  in PR mode, `head_override = local` as its Phase 0.2 caller inputs, and the Loop Exit
+  widens-surface guard fails closed when the cached diff is absent instead of reading it as an
+  empty diff. (#2057)
+
+## [2.35.2] — 2026-08-27
+
+### Changed
+Extend prompt-extension / skill-body arrival enforcement (issue #1446) beyond the cloud
+implement tier to the local/interactive tier and the cloud review/command tier.
+
+- `scripts/prompt-extension-arrival.py` gains a `classify-ladder-output` mode that
+  classifies from the delivery ladder's own emitted `PROMPT-EXTENSION-STATUS:` line
+  (stdin) by positive signal: `arrived` only on a produced `content-present` status,
+  `absent` only on a produced `present-empty` status, and `unestablished` whenever no
+  status line was produced at all — a helper denied when invoked by path emits no output,
+  so it never reads as arrival.
+- `.github/workflows/devflow.yml` gains the pre-agent classify / post-agent reconcile
+  job-level pair the implement workflow already carries, reading the extension root from
+  the trusted base-ref closure (`DEVFLOW_PROMPT_EXTENSION_ROOT`) rather than the PR-head
+  checkout. Because the read-only review/command tier has no implement-style positive-tick
+  arrival row, the post-agent step enforces only what it can establish at job level — it
+  fails closed on a successful run whose expectation is unestablished (no pre-agent token,
+  detector absent, no skill arm matching the command, an unreadable classification from a
+  present detector, an unrecognized expectation token, or an undeliverable extension file).
+  The classify step also classifies the second extension the two review commands deliver
+  (`receiving-code-review` / `requesting-code-review`), so a fault on it cannot hide behind
+  a deliverable primary.
+  On an arrived-expected (deliverable)
+  run it records that consumption cannot be independently confirmed on this read-only tier
+  and passes; the agent-side classify and forced durable record are the consumption catch.
+- The three workpad-less skill bodies (`skills/review`, `skills/review-and-fix`,
+  `skills/pr-description`) now force the non-arrival record to a durable surface in a fixed,
+  terminating order — workpad, then the pull request, then the run's own output naming the
+  record unrecordable.
+- The mechanized classifier's invocation contract is delivered whole: the skill bodies
+  instruct capturing the ladder's combined stdout+stderr (the status line is on stderr),
+  `skills/pr-description` carries the same `PROMPT-EXTENSION-STATUS` exit-0 contract as the
+  other two bodies, and `scripts/prompt-extension-arrival.py` carries the executable bit so
+  the by-path leading-token invocation the bodies name can actually run.
+- `scripts/prompt-extension-arrival.py` is granted in the `command` capability profile (the
+  five generated allowlist literals regenerated, `manifest_version` bumped); the read-only
+  `review` profile stays unwidened, so a review-tier invocation is denied and classified
+  `unestablished` rather than reported as arrival.
+
+## [2.35.1] — 2026-08-27
+
+### Changed
+- **`verification-flight.py --help` now answers the claim-schema and exit-code questions.** The
+  top-level help epilog states the meaning of each exit code, and `claim --help` states the
+  required keys of the claim declaration (rendered from the module's own `_PROFILE_REQUIRED` and
+  `_CHECKOUT_REQUIRED` constants so help cannot drift from the validator) plus the attach
+  semantics, so a run learns the interface in one help read instead of grepping the source. The
+  stale attach-path comment now names `skills/review-and-fix/references/fixing.md`. No tool grant
+  is added. (#2036)
+
+## [2.35.0] — 2026-08-27
+
+### Added
+- **Add `prflow_review_and_fix.fix_below_threshold_iterations` — a configurable damper for below-Important fix-loop findings.** When `fix_severity_threshold` is set to `suggestion`, the `/prflow:review-and-fix` loop now routes below-`important` findings to the fixer only during the first `fix_below_threshold_iterations` iterations (default 1). After that window, on an iteration whose findings include no Critical and no Important finding, each fresh below-`important` finding is parked as an advisory instead of starting a new fix iteration, so a small Critical/Important-clean change converges in about two review fan-outs instead of running to the iteration cap. Below-`important` findings still ride along whenever a Critical or Important finding routes, and REJECT-drivers always route. Set the key to `0` to park below-`important` findings from the first iteration, or at/above `max_iterations` to restore the previous behavior. Runs at the default `important` threshold are unaffected. Separately, every convergence evaluation now records its three condition operands (`fixes_applied`, `fix_diff_lines`, `new_corroborated_critical_count`) in the iteration record so the decision is auditable. (#2056)
+
+## [2.34.70] — 2026-08-27
+
+### Fixed
+- **The suite's `#1621` ruff Python-lint gate now selects a candidate whose `major.minor`
+  family matches the pinned `.prflow/lint-manifest.json` ruff version, instead of the first
+  runnable candidate.** With a readable manifest pin, a stale off-family `ruff` first on PATH
+  no longer decides the lint when an in-family one is reachable via `python3 -m ruff`; when
+  neither candidate matches the
+  family the gate self-skips (kind `blocking-gate`) rather than linting under the wrong rule
+  set, and an unreadable manifest pin keeps today's first-runnable selection. The suite also
+  reconciles the implement workflow's own `ruff==` install spec to the manifest family, and the
+  lint-tool provisioning script deletes a stale off-version binary from its install directory on
+  the unsupported-platform degrade path before that directory is added to `PATH`. (#2051)
+
+## [2.34.69] — 2026-08-27
+
+### Fixed
+- **`workpad.py update` now resolves the workpad comment through the shared scan and a
+  verified comment-id cache.** The update path no longer runs its own inlined comment scan
+  or a standalone `gh repo view`: it finds the comment through `_find_workpad_comment`
+  (which carries the not-a-JSON-array guard the inlined copy lacked — a rc-0 non-list
+  comments response now fails through the labeled `update id-lookup` breadcrumb instead of
+  crashing with a Python traceback), remembers the resolved id in a gitignored
+  `.prflow/tmp/` cache, and on later calls fetches that comment directly — trusting the
+  cached id only after verifying its marker and `issue_url`. Repository resolution rides
+  `gh api`'s `{owner}/{repo}` placeholders. A warm-cache call makes two `gh` requests
+  instead of four-plus, roughly halving an automation run's workpad API traffic. (#2048)
+
+## [2.34.68] — 2026-08-27
+
+### Fixed
+- **`update-branch-checkpoint.sh` now self-registers the coverage-map JSON-aware merge driver before its base merge.** When the checkout's `.gitattributes` declares `merge=coverage-map-json`, the checkpoint helper registers the driver in local git config so an adjacent-key `lib/test/modules/coverage-map.json` conflict is unioned rather than routed to `CONFLICT` and Blocking the run. The block is guarded on the declaration and fail-soft: a consumer checkout carrying no such declaration stays silent, and a missing driver or a failed registration warns once to stderr and falls back to git's line-based merge, leaving the helper's outcome token and exit status unchanged. (#2044)
+
+## [2.34.67] — 2026-08-27
+
+### Changed
+- **`/prflow:implement` Phase 1.1 now authors the issue-body cache by tier.** On the cloud tier — and any run that cannot establish the tier — it keeps consuming the fetch's stdout and writing the cache with the Write tool (a cloud sandbox denies an absolute-target redirect). On the local/interactive tier it redirects the fetch's stdout straight to the cache path, so local runs stop spending two redundant copies of the issue body (the fetch output and the Write payload) in conversation. (#2043)
+
+## [2.34.66] — 2026-08-27
+
+### Changed
+- **Consolidate Phase 2's workpad writes onto the durability-checkpoint boundaries.** `/prflow:implement` now accrues Phase 2's timing-insensitive workpad mutations — the per-step `--tick-plan` ticks, the mid-Phase-2 `--status Planning`/`--status Implementing` flips, and post-hoc evidence notes such as sweep-result notes — and delivers them as one combined `workpad.py update` per durability-checkpoint boundary, after that boundary's checkpoint push, re-deriving each tick from durable state so a context compaction loses none. Records whose timing a consumer reads (reflections, `--record-*`/`--checkpoint`, terminal `--status`, `--expect-*`-guarded calls, and the ledger/selection notes) keep their immediate call sites. The §2.0 resume arm now re-verifies each un-ticked Plan step against the fresh tree and ticks those already present rather than re-implementing already-committed work. (#2047)
+
+## [2.34.65] — 2026-08-27
+
+### Added
+- **Implement runs can now author tests in proportion to the change.** Phase 2 §2.3 gains a test-authoring proportionality waiver mirroring the production-code out-of-scope exit: when the full auxiliary test ceremony would balloon the test diff out of proportion to the change, the run ships one covering RED-first test per behavior change, skips exactly three waivable items (multi-element collection-cardinality cases, stub blind-spot enumeration, and per-criterion one-assertion accounting), and records the waiver in the workpad and the PR's Test Plan. The covering test, the mutation-check discipline, the pin-corpus boundary, the no-automated-test arm, and inline-shell extraction stay binding. The fix loop honors a recorded waiver rather than re-imposing the waived ceremony, and the coverage reviewer (`pr-test-analyzer`) caps matching sub-critical coverage findings at Suggestion while keeping its top band (rated 8-10) at full severity and treating waiver text as data. A fresh install's example config dispatches the coverage reviewer only on the first fix-loop iteration. (#2033)
+- **`workpad.py body --issue <n>` reads a workpad by issue number in one call.** The new arm resolves the workpad comment through the same marker scan `id`/`status` use and prints its body verbatim, exiting 0 on success, 2 when no workpad exists, and 3 on a read failure — so skill prose no longer spends a `workpad.py id` call plus a hand-carried comment id per read-back. Six two-call read-back sites collapse to the single call. The positional `body <comment-id>` form stays byte-compatible, and its failure now names the operand kind (a comment id) and points at `body --issue <n>`, so passing an issue number no longer fails with a bare, unexplained 404. (#2046)
+
+### Changed
+- **State the subagent-dispatch wait behaviorally at the three governed implement dispatch sites.** The §1.4 branch-setup, §1.6 issue-claim-auditor, and §4.0 deferral-drafter dispatches now say the dispatch is discharged only by the subagent's completed return (with `run_in_background: false` named as the mechanism, not the wait), and each carries the same Dispatch-barrier pointer as Phase 2.1 (with its collect-every-dispatch local arm), extended at these sites with a local-arm clause that routes a runner-backgrounded dispatch to collect the completed return before routing and keeps the inline fallback from firing beside a still-running subagent in the shared checkout. (#2037)
+
+## [2.34.64] — 2026-08-27
+
+### Changed
+Sweep brand-cased `DevFlow` prose to `PRFlow` across the in-scope Batch 5 area (issue #2020): `docs/**`, the tracked root files (`install.sh`, `CLAUDE.md`, `README.md`), `scripts/**`, and `lib/**` excluding `lib/test/**`. Semantically-frozen occurrences (two-spelling explainers, superseded-spelling references, the `DevFlow-Reviewer` App name, provenance-selector literals, test-pinned user-facing strings, and the deliberately-kept `DevFlow Weekly Report` heading) are reclassified into `lib/test/brand-devflow-buckets.json` frozen buckets rather than rewritten. No consumer-facing runtime behaviour changes.
+
+## [2.34.63] — 2026-08-27
+
+### Changed
+- **Self-authored-claim sweep traces an invoked helper's default invocation mode.** Step 2 of
+  the Phase 2 self-authored-claim reconciliation sweep (`skills/implement/phases/phase-2-sweeps-quality.md`)
+  now directs a claim about how an invoked helper runs by default to that helper's argument parsing
+  and environment-variable defaults, not only its documented purpose, so a claim that holds only
+  under a non-default flag is caught at commit time as a divergence. (#2032)
+
+## [2.34.62] — 2026-08-27
+
+### Fixed
+- **Pin ruff at 0.16.4 in the lint manifest and refuse a whole-suite launch on a ruff version skew.** `.prflow/lint-manifest.json` still pinned `ruff` at `0.6.9` after issue #742 advanced CI to `ruff==0.16.*`, so provisioning installed a 0.6.9 ruff into `prflow-lint-bin` that shadowed PATH and reddened the `#1621` in-suite ruff gate on rule-set skew rather than on real findings. The manifest now pins the newest 0.16.x release (0.16.4) with refreshed per-os/arch sha256 digests, and `lib/test/run-parallel.sh`'s cheap-lint pre-launch gate now refuses a launch — in under a second, before any shard — when the ruff on PATH positively reports a family that skews from the manifest pin, naming the `python3 -m pip install --user --force-reinstall 'ruff==0.16.*'` remedy; it fails open (proceeds) when the probe cannot run (ruff absent or non-executing) and reads its expected version from the manifest at run time. A suite assertion reconciles the manifest pin against CI's `ruff==` family so the two can no longer silently disagree. (#2021)
+
+## [2.34.61] — 2026-08-27
+
+### Changed
+- **Batch the issue-claim auditor's workpad writes into one update call.** The
+  `issue-claim-auditor` agent now composes each pass record as its pass completes and holds it,
+  delivering the accrued records in one batched `workpad.py update` invocation at audit end —
+  plus one further call per additional reflection kind, since one update applies a single
+  `--reflection-kind` — instead of one network round trip per pass; an audit that ends at a stop
+  arm folds its accrued records into the same terminating update. Note texts and reflection kinds are unchanged, so
+  workpad-reading consumers see identical content. (#2022)
+
 ## [2.34.60] — 2026-08-27
 
 ### Fixed

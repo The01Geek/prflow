@@ -66,6 +66,10 @@
 #                                 clean/drift/uncheckable arms; the DEFAULT binding and the
 #                                 verdict contract are driven end-to-end against the real
 #                                 helper from lib/test/modules/regenerate-artifacts.sh.
+#   DEVFLOW_RUFF_VERSION_PROBE    command behaving like `ruff --version` for the cheap-lint
+#                                 ruff-version check (issue #2009); defaults to `ruff
+#                                 --version`. Set empty to disable the check. Fixtures inject
+#                                 a stub here to drive the skew/absent/non-executing arms.
 #   TMPDIR                        parent of the per-shard scratch roots (always), and
 #                                 the fallback run-root parent when the checkout root is
 #                                 unusable (read-only, full, or name space exhausted).
@@ -102,32 +106,36 @@ DETAIL_CAP=20
 BUDGET_CEILING=8
 # The most slots the nested `python-pool` reservation may take (its own width cap).
 #
-# Two, because the pool has exactly TWO members: `devflow_python_suite_pool_open` in
-# lib/test/module-harness.sh registers `test_module_runner.py` and `test_python_scripts.py`
-# and nothing else, and this reservation is what the shard exports as `DEVFLOW_POOL_WIDTH`.
-# A cap above the membership therefore reserves slots the pool can never turn into a
-# concurrent member, while the launch loop below still charges them against the budget —
-# so the surplus is subtracted from the other shards and bought nothing.
+# Five, because the pool has exactly FIVE members: `devflow_python_suite_pool_open` in
+# lib/test/module-harness.sh registers `test_module_runner.py` and the four parts
+# `test_python_scripts.py` was split into (issue #2007) — `test_python_scripts.py` plus
+# `test_python_scripts_part2.py`, `_part3.py`, `_part4.py`. This reservation is what the
+# shard exports as `DEVFLOW_POOL_WIDTH`. A cap above the membership would reserve slots
+# the pool can never turn into a concurrent member, while the launch loop below still
+# charges them against the budget — so any surplus is subtracted from the other shards
+# and buys nothing.
 #
-# Measured, not inferred (issue #1180): the real scheduler was driven through its own two
-# documented seams — `DEVFLOW_SUITE_PROCESS_BUDGET=4` to force the runner's budget, and
-# `DEVFLOW_SHARD_DISPATCHER` pointed at a stub sleeping a time-scaled model of each shard's
-# measured duration — on the host shape this coordinator actually runs on in the cloud,
-# `ubuntu-latest` at 4 vCPU, i.e. `BUDGET = min(cpu_count, 8) = 4`. At ceiling 4 the
-# reservation resolves to 3, `monolith` + `python-pool` fill all four slots and the
-# remaining three shards serialize behind one freed slot: 11.4 min, over the tier's
-# then-10-minute per-command ceiling (raised to 20 min by devflow-implement.yml in
-# issue #1179; these figures are the #1180 measurement snapshot against the 10-min
-# ceiling of the time, left unrewritten). At ceiling 2 a third shard launches at t=0 and the rest
-# pipeline: 7.9 min. The packing change is what the focused module asserts; the minutes are
-# a stub model that sleeps rather than consuming CPU, so they understate real contention and
-# are recorded here as the measurement that justified the constant, not as a prediction.
+# The #1180 measurement snapshot below was taken against the former TWO-member pool, when
+# this cap was 2. The real scheduler was driven through its own two documented seams —
+# `DEVFLOW_SUITE_PROCESS_BUDGET=4` to force the runner's budget, and `DEVFLOW_SHARD_DISPATCHER`
+# pointed at a stub sleeping a time-scaled model of each shard's measured duration — on the
+# host shape this coordinator runs on in the cloud, `ubuntu-latest` at 4 vCPU, i.e.
+# `BUDGET = min(cpu_count, 8) = 4`. On such a host the reservation resolves to
+# `min(BUDGET - 1, ceiling) = min(3, 5) = 3`, so the split does change the 4-vCPU reservation
+# from 2 (under the old ceiling of 2) to 3. That is not the regression the #1180 snapshot
+# recorded: that snapshot measured reservation 3 as slower *because the two-member pool left
+# the third reserved slot empty* — a wasted slot subtracted from the other shards. With five
+# members the pool fills all three reserved slots with real, concurrent parts, so the extra
+# slot is now productive rather than wasted, and the #1180 reservation-3 figure does not carry
+# to the five-member pool. Re-measuring the five-member packing is tracked separately; the
+# constant follows the AC (five members) and the reservation stays `BUDGET - 1`-bounded on
+# 4 vCPU.
 #
 # It is a global cap, so it also binds a host with more cores, where `BUDGET - 1` would
-# otherwise have selected 3 or more. That is the same over-reservation argument, not a
-# regression: the pool cannot run a third member on any host, and every slot the cap
-# releases goes to a shard that can use it.
-POOL_RESERVATION_CEILING=2
+# otherwise have selected more than the membership. That is the same over-reservation
+# argument, not a regression: the pool cannot run more than its member count on any host,
+# and every slot the cap releases goes to a shard that can use it.
+POOL_RESERVATION_CEILING=5  # == the five python-pool members registered in module-harness.sh
 
 die() { # message
   printf 'run-parallel: %s\n' "$1" >&2
@@ -247,6 +255,52 @@ _cheap_lint_run() { # <label> <sentinel-prefix> <command string>
   return 0
 }
 
+# ── ruff-version cheap-lint check (issue #2009) ──────────────────────────────
+# Refuse the launch ONLY on a positively-attributed version skew: a ruff on PATH reports a minor
+# family differing from the family the lint manifest pins (the skew that reddens the #1621 gate
+# on rule-set drift, not real findings). The expected family is read from the manifest at run
+# time (no second copy here). Fail OPEN otherwise — warn-and-proceed when ruff is absent,
+# non-executing, or reports an unparseable version; skip SILENTLY (no warning) when this checkout
+# lacks the manifest or the helper. DEVFLOW_RUFF_VERSION_PROBE is the test seam; an
+# explicitly-empty value disables the gate, as the `-` (never `:-`) siblings above.
+_ruff_version_preflight() {
+  local probe="${DEVFLOW_RUFF_VERSION_PROBE-ruff --version}"
+  local manifest="$REPO_ROOT/.prflow/lint-manifest.json"
+  local helper="$REPO_ROOT/scripts/ruff-version-skew.py"
+  local out rc verdict
+  [ -n "$probe" ] || return 0
+  # Nothing to compare when this checkout lacks the manifest pin or the helper: skip silently.
+  { [ -s "$manifest" ] && [ -r "$helper" ]; } || return 0
+  # shellcheck disable=SC2086  # deliberate word-split: a probe command plus its argument(s)
+  # Parse stdout only: rc is checked separately below, and folding stderr in could feed a
+  # stray version-ish token to the helper's first-match parse and misattribute the family.
+  out="$($probe 2>/dev/null)"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf 'run-parallel: WARNING: the ruff-version cheap-lint check could not run ruff (absent or non-executing, exit %s); proceeding\n' "$rc" >&2
+    return 0
+  fi
+  verdict="$(python3 "$helper" --manifest "$manifest" --reported "$out" 2>&1)"
+  # Do NOT key the refusal on the helper's exit code — an uncaught traceback exits 1 exactly
+  # as a skew does — so key on the helper's own `ruff-version-skew: SKEW` sentinel matched at
+  # a line START instead (a crash prints none and fails open).
+  local skew=0 line
+  while IFS= read -r line; do
+    case "$line" in
+      'ruff-version-skew: SKEW'*) skew=1; break ;;
+    esac
+  done <<< "$verdict"
+  if [ "$skew" -eq 1 ]; then
+    printf '%s\n' "$verdict" >&2
+    printf 'run-parallel: the ruff-version cheap-lint gate found a version skew (see above); launching no shard — install the pinned ruff and re-run\n' >&2
+    return 1
+  fi
+  # No SKEW sentinel: a clean match is silent, an inconclusive/crash result fails open with
+  # whatever the helper reported (never a refusal).
+  [ -z "$verdict" ] || printf 'run-parallel: WARNING: the ruff-version cheap-lint check was inconclusive; proceeding\n%s\n' "$verdict" >&2
+  return 0
+}
+
 # Returns 0 to PROCEED, 1 on the first positively-attributed finding; a refusal
 # short-circuits so a second gate's output cannot bury the one that fired.
 # Keep `-` (never `:-`) below, or an explicitly-empty override stops disabling its gate.
@@ -255,6 +309,7 @@ _cheap_lint_preflight() {
     "${DEVFLOW_REFERENCE_SIZE_PREFLIGHT-python3 $SCRIPT_DIR/lint-reference-size.py}" || return 1
   _cheap_lint_run 'brand-sweep' 'lint-brand-devflow-sweep: audited ' \
     "${DEVFLOW_BRAND_SWEEP_PREFLIGHT-python3 $SCRIPT_DIR/lint-brand-devflow-sweep.py}" || return 1
+  _ruff_version_preflight || return 1
   return 0
 }
 

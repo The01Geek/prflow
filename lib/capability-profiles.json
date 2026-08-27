@@ -1,7 +1,7 @@
 {
-  "manifest_version": 28,
+  "manifest_version": 29,
   "readme": [
-    "This manifest is the single source of truth for DevFlow's cloud capability policy:",
+    "This manifest is the single source of truth for PRFlow's cloud capability policy:",
     "which tools/commands each execution tier (review, implement, command) may run.",
     "",
     "EDIT WORKFLOW: change a grant here (add/remove a token in a group or a profile's",
@@ -350,6 +350,7 @@
       "Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*)",
+      "Bash(.prflow/vendor/prflow/scripts/prompt-extension-arrival.py:*)",
       "Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*)",
       "Bash(pip install:*)",
       "Bash(pip:*)",

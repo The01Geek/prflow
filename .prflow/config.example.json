@@ -37,6 +37,7 @@
   "prflow_review_and_fix": {
     "fix_severity_threshold": "important",
     "max_iterations": 5,
+    "fix_below_threshold_iterations": 1,
     "efficiency_telemetry_enabled": true,
     "efficiency_cut_candidate_min_dispatch": 3
   },
@@ -64,6 +65,9 @@
       "prflow:code-reviewer": {
         "model": "opus",
         "effort": "low",
+        "iterations": "first-only"
+      },
+      "prflow:pr-test-analyzer": {
         "iterations": "first-only"
       }
     }

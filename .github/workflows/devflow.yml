@@ -1091,8 +1091,8 @@ jobs:
           EXTRA: ${{ needs.config.outputs.allowed_tools_extra }}
         run: |
           set -euo pipefail
-          # devflow-capability-manifest: region=command manifest_version=28 sha256=c55283c8344af58b05fad8e48460d747ced7d86490b0b066a73b491c8f7c26ef
-          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git checkout:*), Bash(git cat-file:*), Bash(git hash-object:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh pr checkout:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(mktemp:*), Bash(cmp:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(*/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(tee:*)'
+          # devflow-capability-manifest: region=command manifest_version=29 sha256=0951b3264d052eccd916e510e763da68317e532778244e37ce951541a3422f2f
+          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git checkout:*), Bash(git cat-file:*), Bash(git hash-object:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh pr checkout:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-extension-arrival.py:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(mktemp:*), Bash(cmp:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(*/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(tee:*)'
           printf 'tools=%s\n' "${TOOLS}${EXTRA}" >> "$GITHUB_OUTPUT"
 
       # Ground EVERY command this tier dispatches in the same facts the automated
@@ -1731,6 +1731,77 @@ jobs:
           # failed writer job over an advisory read.
           bash "$HELPER" --login "$SENDER_LOGIN" --config-file "$CFG" >> "$GITHUB_ENV" \
             || echo "::warning::devflow commit attribution: the identity helper exited non-zero; continuing with current authorship (attribution never gates the run)."
+
+      # Classify prompt-extension arrival (issue #1971). Read the extension root from the
+      # trusted base-ref closure (DEVFLOW_PROMPT_EXTENSION_ROOT), never the PR-head checkout —
+      # the closure exists so the reviewing agent's prompt is not read from attacker content.
+      - name: Classify prompt-extension arrival
+        id: extarrival
+        env:
+          CMD: ${{ needs.gate.outputs.command }}
+        run: |
+          set -euo pipefail
+          # Select the workpad-less skill this command runs, so classify reads the right
+          # <skill>.md from the closure. review-and-fix outranks review (substring), same
+          # most-specific-first ordering the rest of this file uses.
+          case "$CMD" in
+            *"/prflow:review-and-fix"*|*"/devflow:review-and-fix"*) SKILL=review-and-fix ;;
+            *"/prflow:pr-description"*|*"/devflow:pr-description"*) SKILL=pr-description ;;
+            *"/prflow:review"*|*"/devflow:review"*) SKILL=review ;;
+            *) SKILL="" ;;
+          esac
+          if [ -z "$SKILL" ]; then
+            # Never reuse detector-absent here: its reconcile arm diagnoses an older
+            # prflow_version, so a command added to resolve-command-trigger.sh's allowlist
+            # without an arm above would fail closed pointing at the wrong remedy.
+            echo "::warning::prompt-extension-arrival: no skill arm above matches command '$CMD' (add one); recording skill-unresolved"
+            echo "state=skill-unresolved" >> "$GITHUB_OUTPUT"
+            echo "skill=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          H=.prflow/vendor/prflow/scripts/prompt-extension-arrival.py
+          [ -f "$H" ] || H=scripts/prompt-extension-arrival.py
+          if [ ! -f "$H" ]; then
+            # Record detector-absent rather than exiting clean: an exit-clean here would
+            # silently drop this arrival check on an older vendored prflow_version.
+            echo "::warning::prompt-extension-arrival.py absent from both .prflow/vendor/prflow/scripts/ and scripts/ (older prflow_version); recording detector-absent"
+            echo "state=detector-absent" >> "$GITHUB_OUTPUT"
+            echo "skill=$SKILL" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # classify resolves DEVFLOW_PROMPT_EXTENSION_ROOT itself. `|| true` is required:
+          # classify exits 3 on a present-but-undeliverable fault and -e would abort before
+          # the state is published.
+          classify_one() {
+            local out state
+            out="$(python3 "$H" classify --skill "$1")" || true
+            echo "$out" >&2
+            state=""
+            case "$out" in state=*) state="${out#state=}"; state="${state%% *}" ;; esac
+            # classify-unreadable, never detector-absent: the detector file IS present
+            # (statted above), so empty/unparsable classify output is a run fault whose
+            # remedy is a re-run — not the bump-prflow_version remedy detector-absent names.
+            echo "${state:-classify-unreadable}"
+          }
+          STATE="$(classify_one "$SKILL")"
+          # The two review commands deliver a SECOND extension on this tier; a fault on it
+          # must not hide behind a deliverable primary, so a faulted second state wins.
+          # Promote FAULTS only: promoting a deliverable second state would overwrite a
+          # faulted primary with a clean terminal.
+          SKILL2=""
+          case "$SKILL" in
+            review-and-fix) SKILL2=receiving-code-review ;;
+            review) SKILL2=requesting-code-review ;;
+          esac
+          if [ -n "$SKILL2" ]; then
+            STATE2="$(classify_one "$SKILL2")"
+            case "$STATE2" in
+              undeliverable-*|classify-unreadable) STATE="$STATE2"; SKILL="$SKILL2" ;;
+            esac
+          fi
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
+          echo "skill=$SKILL" >> "$GITHUB_OUTPUT"
+          echo "prompt-extension-arrival: classified state=$STATE (skill=$SKILL)"
 
       - name: Run Claude Code
         id: claude
@@ -2590,6 +2661,104 @@ jobs:
           DEVFLOW_ENGINE_OUTCOME="${DEVFLOW_ENGINE_OUTCOME:-}" \
             bash "$HELPER" --persist
           exit 0
+
+      # Reconcile prompt-extension arrival (issue #1971). The read-only review/command tier
+      # has no positive-tick arrival row, so this backstop enforces only what it can establish
+      # at job level: fail closed on an unestablished expectation on a successful agent run.
+      - name: Reconcile prompt-extension arrival
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CMD: ${{ needs.gate.outputs.command }}
+          EXPECTED: ${{ steps.extarrival.outputs.state }}
+          SKILL: ${{ steps.extarrival.outputs.skill }}
+          AGENT_OUTCOME: ${{ steps.claude.outcome }}
+          REPO: ${{ github.repository }}
+        run: |
+          set +e
+          # Every ::error:: restates that permission_denials_count is blind to a lost
+          # skill-body load, or a reader treats a low count as evidence it loaded.
+          fail_closed() {
+            echo "::error::prompt-extension-arrival: $1 — cannot establish that the '${SKILL:-unknown}' skill body / consumer extension arrived on this review/command-tier run, so a clean terminal is unverified. NOTE: permission_denials_count does NOT cover a lost skill-body load (the refused Skill-tool load surfaces as a Skill tool result, not a permission_denied event), so a low denial count is not evidence the body loaded."
+          }
+          # Pure-bash PR number from the resolved '/prflow:<class> <n>' command (the gate
+          # appends the number as the trailing token); grep/head are not preflight-guaranteed
+          # and must not decide which PR this step reads or writes.
+          PR_NUM="${CMD##* }"
+          case "$PR_NUM" in ''|*[!0-9]*) PR_NUM="" ;; esac
+          # Fixed AC3 durable-surface order for this tier: no issue workpad exists, so the
+          # PR is the durable surface; when even that is unresolvable the ::error:: and the
+          # non-zero job conclusion are the only record (record unrecordable).
+          record_non_arrival() {
+            if [ -n "$PR_NUM" ]; then
+              # REST (a PR is an issue), never `gh pr comment` porcelain, which resolves the
+              # repo via org-scoped GraphQL and fails under a repo-scoped token.
+              gh api --method POST "repos/$REPO/issues/$PR_NUM/comments" -f body="⛔ ${1:-prompt-extension arrival unestablished — the skill body / consumer extension did not reach the agent on this run.}" >/dev/null \
+                || echo "::warning::prompt-extension-arrival: could not write the durable non-arrival record to PR #$PR_NUM (record unrecordable)"
+            else
+              echo "::warning::prompt-extension-arrival: no PR number resolvable from command '$CMD' to record non-arrival (record unrecordable); the ::error:: and non-zero job conclusion are the only record"
+            fi
+          }
+          if [ -z "${EXPECTED:-}" ]; then
+            # Fail closed on a successful agent run: a missing expectation disabled the
+            # whole check, and exiting clean would report an unverified run as verified.
+            if [ "$AGENT_OUTCOME" = "success" ]; then
+              fail_closed "the pre-agent classify step recorded no expectation, so the post-agent arrival check could not run on a run the agent reported successful"
+              record_non_arrival "prompt-extension arrival unestablished — the pre-agent classify step recorded no expectation, so arrival could not be checked"
+              exit 1
+            fi
+            echo "prompt-extension-arrival: no pre-agent expectation and claude outcome '${AGENT_OUTCOME:-unknown}' (already non-green); nothing to reconcile"
+            exit 0
+          fi
+          if [ "$EXPECTED" = "absent" ]; then
+            echo "prompt-extension-arrival: $SKILL extension absent (a clean consumer state); terminal permitted"
+            exit 0
+          fi
+          # Enforce only on a successful agent step from here on: a failed/cancelled job is
+          # already non-green, so re-failing it here would add no signal.
+          if [ "$AGENT_OUTCOME" != "success" ]; then
+            echo "prompt-extension-arrival: expectation '$EXPECTED' and claude outcome '${AGENT_OUTCOME:-unknown}' (already non-green); no enforcement needed"
+            exit 0
+          fi
+          if [ "$EXPECTED" = "detector-absent" ]; then
+            fail_closed "the arrival detector is absent (older prflow_version)"
+            record_non_arrival "prompt-extension arrival unestablished — the arrival detector is absent (older prflow_version)"
+            exit 1
+          fi
+          # Enforcing, not a pass-through: an unclassified command has no arrival evidence
+          # at all, and exiting clean here would be the declare-arrival-by-absence the
+          # positive-signal rule exists to forbid.
+          if [ "$EXPECTED" = "skill-unresolved" ]; then
+            fail_closed "the pre-agent classify step matched no skill arm for command '$CMD', so no extension could be classified"
+            record_non_arrival "prompt-extension arrival unestablished — the pre-agent classify step matched no skill arm for this command; add one to that step's case"
+            exit 1
+          fi
+          if [ "$EXPECTED" = "classify-unreadable" ]; then
+            fail_closed "the pre-agent classify step could not read a classification from the present arrival detector (empty or unparsable output — a run fault, not a version skew; re-run the command)"
+            record_non_arrival "prompt-extension arrival unestablished — the pre-agent classify step could not read a classification from the arrival detector; re-run the command"
+            exit 1
+          fi
+          case "$EXPECTED" in
+            undeliverable-*)
+              fail_closed "the extension file was present but undeliverable ($EXPECTED)"
+              record_non_arrival "prompt-extension arrival unestablished — present-but-undeliverable extension file: $EXPECTED"
+              exit 1
+              ;;
+            arrived-expected)
+              # arrived-expected + success: deliverable at the trusted closure, but this
+              # read-only tier has no positive-tick artifact, so consumption is confirmed
+              # only by the agent-side forced record — not at job level (documented residual).
+              echo "prompt-extension-arrival: $SKILL extension deliverable at the trusted closure; job-level cannot independently confirm consumption on this read-only tier — the agent-side forced record is the catch (documented residual)"
+              exit 0
+              ;;
+            *)
+              # Fail closed on a token this step does not recognize: passing it through
+              # would be the declare-arrival-by-absence the positive-signal rule forbids.
+              fail_closed "the pre-agent classify step published an unrecognized expectation token '$EXPECTED'"
+              record_non_arrival "prompt-extension arrival unestablished — unrecognized expectation token '$EXPECTED' from the pre-agent classify step"
+              exit 1
+              ;;
+          esac
 
   # ── Out-of-job review finalizer (issue #1174). ──────────────────────────────
   # Every review post-run handler used to be an `always()` step INSIDE the

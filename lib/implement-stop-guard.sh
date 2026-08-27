@@ -254,7 +254,7 @@ for marker in ${MARKERS[@]+"${MARKERS[@]}"}; do
           "$issue" "$status_word"
         printf 'devflow: implement-stop-guard: If you are the /devflow:implement run for issue #%s, return to the phase that owns the remaining work and drive the workpad Status to a terminal value before ending your turn.\n' \
           "$issue"
-        printf 'devflow: implement-stop-guard: If you are any other session, state that the DevFlow terminal-status guard blocked this stop and simply end your turn again — the sentinel admits the second stop.\n'
+        printf 'devflow: implement-stop-guard: If you are any other session, state that the PRFlow terminal-status guard blocked this stop and simply end your turn again — the sentinel admits the second stop.\n'
       } >&2
       exit 2
       ;;

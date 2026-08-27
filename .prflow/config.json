@@ -23,7 +23,8 @@
     "execution_diagnostics_enabled": true,
     "execution_transcript_artifact_enabled": true,
     "execution_denial_commands_enabled": true,
-    "attribute_commits_to_triggerer": false
+    "attribute_commits_to_triggerer": true,
+    "publish_model_effort": true
   },
   "prflow_implement": {
     "effort": "low",
@@ -36,6 +37,9 @@
       "Bash(lib/test/shard-tally.py:*)",
       "Bash(lib/test/regenerate-artifacts.py:*)",
       "Bash(lib/test/test_python_scripts.py:*)",
+      "Bash(lib/test/test_python_scripts_part2.py:*)",
+      "Bash(lib/test/test_python_scripts_part3.py:*)",
+      "Bash(lib/test/test_python_scripts_part4.py:*)",
       "Bash(lib/test/test_workflow_flight_recorder.py:*)",
       "Bash(lib/test/test_derive_run_profile.py:*)",
       "Bash(lib/test/test_implement_timeline.py:*)",
@@ -117,6 +121,10 @@
     "stall_backstop": {
       "enabled": true,
       "max_resume_attempts": 2
+    },
+    "stall_observer": {
+      "enabled": true,
+      "advisory_threshold_minutes": 90
     }
   },
   "prflow_runner": {
@@ -127,6 +135,7 @@
   "prflow_review_and_fix": {
     "fix_severity_threshold": "suggestion",
     "max_iterations": 5,
+    "fix_below_threshold_iterations": 2,
     "efficiency_telemetry_enabled": true,
     "efficiency_cut_candidate_min_dispatch": 3
   },
@@ -154,6 +163,9 @@
       "prflow:code-reviewer": {
         "model": "opus",
         "effort": "low",
+        "iterations": "first-only"
+      },
+      "prflow:pr-test-analyzer": {
         "iterations": "first-only"
       }
     }

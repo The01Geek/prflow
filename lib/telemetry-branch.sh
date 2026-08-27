@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# telemetry-branch.sh — persist DevFlow observability artifacts to a dedicated,
+# telemetry-branch.sh — persist PRFlow observability artifacts to a dedicated,
 # long-lived ORPHAN branch (default `prflow-telemetry`, name from the
 # `telemetry.branch` config key) WITHOUT ever touching the current branch, HEAD,
 # the default branch, or the TRACKED working tree. Writes go entirely through git
@@ -664,7 +664,7 @@ devflow_telemetry_persist_tree() {
     # That is sound only because the LOCAL ref has exactly one writer class — this
     # helper — and every write it makes is a `.prflow/logs/`-shaped tree (the staged-
     # path guard above enforces that by construction), so a tip that appears mid-loop
-    # is necessarily another DevFlow persist's. The REMOTE tip has no such guarantee
+    # is necessarily another PRFlow persist's. The REMOTE tip has no such guarantee
     # (a consumer may have created a same-named branch), which is exactly why the push
     # path DOES re-verify the fetched tip before re-parenting. If a second local writer
     # class is ever added, re-verify here too.
