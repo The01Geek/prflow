@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2062",
+  "generated_at": "2026-08-27T19:33:47Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.35.4",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.091404499999996,
+    "tokens": {
+      "input_tokens": 46,
+      "output_tokens": 30272,
+      "cache_read_input_tokens": 3805175,
+      "cache_creation_input_tokens": 228411,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 108,
+        "outputTokens": 48616,
+        "cacheReadInputTokens": 5488584,
+        "cacheCreationInputTokens": 547263,
+        "webSearchRequests": 0,
+        "costUSD": 8.237166999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 38,
+        "outputTokens": 3792,
+        "cacheReadInputTokens": 734245,
+        "cacheCreationInputTokens": 267757,
+        "webSearchRequests": 0,
+        "costUSD": 0.8542375000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 43,
+    "duration_ms": 517900
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"",
+      "mkdir -p .prflow/tmp && rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled && git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "for p in agents/branch-setup.md skills/implement/phases/phase-3-review.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md docs/internal/implement-skill.md; do echo \"=== $p ===\"; git show 264f5e4bdceb04cde6d53aad5d9e9735c85eb7ba:$p | grep -n \"resume-precheck\" | grep -i \"reflection\"; done"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  },
+  "run_profile": {
+    "phase_durations_ms": "unestablished",
+    "final_status": "unestablished",
+    "prior_record_count": 1,
+    "issue_number": null,
+    "engine_outcome": "success"
+  }
+}
