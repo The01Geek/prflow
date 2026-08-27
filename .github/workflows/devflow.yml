@@ -2323,9 +2323,11 @@ jobs:
               # helper's evidence-gate arm, taken even when the run wrote a terminal Status.
               FLIP=.prflow/vendor/prflow/scripts/flip-review-progress-failed.sh
               [ -f "$FLIP" ] || FLIP=scripts/flip-review-progress-failed.sh
-              FLIP_MARKER="<!-- prflow:review-progress run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} -->"
+              # The run-keyed progress marker (a distinct variable name from the dead-run
+              # flip step's FLIP_MARKER, so the #1054 single-producer pin still finds one).
+              PROGRESS_MARKER="<!-- prflow:review-progress run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} -->"
               if [ -f "$FLIP" ]; then
-                bash "$FLIP" "$PR_NUMBER" "$FLIP_MARKER" "review evidence gate failed: $TOKEN" --evidence-gate-fail || true
+                bash "$FLIP" "$PR_NUMBER" "$PROGRESS_MARKER" "review evidence gate failed: $TOKEN" --evidence-gate-fail || true
               else
                 echo "::warning::review evidence gate: flip-review-progress-failed.sh absent; progress comment not flipped"
               fi
