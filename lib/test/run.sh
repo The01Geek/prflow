@@ -8565,7 +8565,7 @@ fi
 # scripts/workpad.py CLI contract coverage (issue #1934: the #338 --rewrite-ac retag
 # block extracted from this file into a focused module).
 if ! devflow_run_full_suite_module "$LIB/test/modules/workpad-cli.sh" \
-  "workpad-cli" 94; then
+  "workpad-cli" 105; then
   printf 'ERROR: workpad-cli boundary could not record its result\n'
   exit 1
 fi
@@ -55328,7 +55328,59 @@ case "$RUFF_MTX_DIRREAD" in awk-failed|unreadable|absent) RUFF_MTX_DIRCLOSED=yes
 assert_eq "#1621 ruff-pin matrix: a directory operand fails closed to a sentinel, never a spec" yes "$RUFF_MTX_DIRCLOSED"
 
 rm -rf "$RUFF_MTX_DIR"
-unset -f devflow_ruff_pin
+
+# ── #2009: the lint manifest's ruff pin must stay within ci.yml's ruff== family ──
+# Reconcile the two pins mechanically by minor family so a bump to one alone cannot silently
+# disagree with the other and redden the #1621 gate on rule-set skew rather than on findings.
+devflow_ruff_family() {  # prints major.minor of a version or spec (0.16.4 / 0.16.* -> 0.16)
+  local v="$1" major rest minor
+  major="${v%%.*}"; rest="${v#*.}"; minor="${rest%%.*}"
+  printf '%s.%s' "$major" "$minor"
+}
+devflow_ruff_manifest_version() {  # $1 = manifest path; prints the pinned version or a sentinel
+  local _v
+  [ -s "$1" ] || { printf 'unreadable'; return; }
+  _v="$(python3 -c 'import json,sys
+d=json.load(open(sys.argv[1]))
+v=d["tools"]["ruff"]["version"]
+sys.stdout.write(v if isinstance(v,str) else "")' "$1" 2>/dev/null)" || { printf 'parse-failed'; return; }
+  [ -n "$_v" ] || { printf 'absent'; return; }
+  printf '%s' "$_v"
+}
+RUFF_MANIFEST_VER="$(devflow_ruff_manifest_version "$LIB/../.prflow/lint-manifest.json")"
+case "$RUFF_MANIFEST_VER" in [0-9]*) RUFF_MANIFEST_VER_OK=yes ;; *) RUFF_MANIFEST_VER_OK=no ;; esac
+# structural-pin-ok: cross-file-phase-contract -- positive control: a sentinel version here would make the family reconciliation below vacuous
+assert_eq "#2009 lint-manifest declares a concrete ruff version (arms the reconciliation)" yes "$RUFF_MANIFEST_VER_OK"
+# Agreement holds iff the two pins share a minor family; the same predicate drives the live
+# check and the discrimination matrix below, so one definition owns the comparison.
+_ruff_fam_agree() { if [ "$(devflow_ruff_family "$1")" = "$(devflow_ruff_family "$2")" ]; then printf yes; else printf no; fi; }
+# structural-pin-ok: cross-file-phase-contract -- the manifest pin (installed into prflow-lint-bin) and ci.yml's ruff== family must agree, or the #1621 gate reddens on version skew; editing either pin alone flips this
+assert_eq "#2009 lint-manifest ruff version is within ci.yml's ruff== pin family" yes "$(_ruff_fam_agree "$RUFF_MANIFEST_VER" "$RUFF_PIN_LINT")"
+
+# Discrimination: editing either pin alone across the minor family flips agreement to RED.
+assert_eq "#2009 reconciliation: matching families agree" yes "$(_ruff_fam_agree 0.16.4 "0.16.*")"
+assert_eq "#2009 reconciliation: manifest bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree 0.17.0 "0.16.*")"
+assert_eq "#2009 reconciliation: ci pin bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree 0.16.4 "0.17.*")"
+
+# Adversarial input-shape matrix over the manifest reader: each malformed shape fails closed
+# to a sentinel, never a spurious version that would satisfy the reconciliation vacuously.
+mkdir -p .prflow/tmp
+RUFF_MAN_MTX="$(mktemp -d .prflow/tmp/ruff-manifest-matrix.XXXXXX)"
+[ -n "$RUFF_MAN_MTX" ] && [ -d "$RUFF_MAN_MTX" ] || { printf 'FATAL: mktemp -d failed for the #2009 ruff-manifest matrix\n' >&2; exit 1; }
+assert_eq "#2009 manifest reader: a missing file reads 'unreadable'" unreadable "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/nope.json")"
+: > "$RUFF_MAN_MTX/empty.json"
+assert_eq "#2009 manifest reader: an empty file reads 'unreadable'" unreadable "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/empty.json")"
+printf '%s' 'not json{' > "$RUFF_MAN_MTX/bad.json"
+assert_eq "#2009 manifest reader: malformed JSON reads 'parse-failed'" parse-failed "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/bad.json")"
+printf '%s' '{"tools":{"ruff":{}}}' > "$RUFF_MAN_MTX/noversion.json"
+assert_eq "#2009 manifest reader: a missing version reads 'parse-failed'" parse-failed "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/noversion.json")"
+printf '%s' '{"tools":{"ruff":{"version":123}}}' > "$RUFF_MAN_MTX/numver.json"
+assert_eq "#2009 manifest reader: a non-string version reads 'absent'" absent "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/numver.json")"
+printf '%s' '{"tools":{"ruff":{"version":"0.16.4"}}}' > "$RUFF_MAN_MTX/good.json"
+assert_eq "#2009 manifest reader: a valid manifest reads its version" 0.16.4 "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/good.json")"
+rm -rf "$RUFF_MAN_MTX"
+
+unset -f devflow_ruff_pin devflow_ruff_family devflow_ruff_manifest_version _ruff_fam_agree
 
 # ── internal-docs structure lint (lib/test/lint-internal-docs.py) ──
 # Baseline-tolerant by design: it fails only on a violation absent from

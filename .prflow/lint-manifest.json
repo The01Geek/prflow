@@ -48,13 +48,13 @@
       ]
     },
     "ruff": {
-      "version": "0.6.9",
+      "version": "0.16.4",
       "timeout_seconds": 600,
       "artifacts": [
         {
           "os": "linux",
           "arch": "x86_64",
-          "digest": "sha256:ed8ba4cac0c6dfc1c0e9c6c720daa5ea404a3bff0497a95d6e25293a7910e903",
+          "digest": "sha256:9cb1234804ddb0f7f57cef3f81623ce5acb990e40af7cce08dc7778c9d7ee96c",
           "archive_type": "tar.gz",
           "member": "ruff",
           "strategy": "extract-tar"
@@ -62,7 +62,7 @@
         {
           "os": "linux",
           "arch": "arm64",
-          "digest": "sha256:c61828a103c4de113620b5469b9612efdcf71557dd60006f70615f33c75b2546",
+          "digest": "sha256:08eb65c07016f1b6d2a874777492a230c7d5822bdf34030af217825b57911b0a",
           "archive_type": "tar.gz",
           "member": "ruff",
           "strategy": "extract-tar"
@@ -70,7 +70,7 @@
         {
           "os": "macos",
           "arch": "x86_64",
-          "digest": "sha256:34aa37643e30dcb81a3c0e011c3a8df552465ea7580ba92ca727a3b7c6de25d1",
+          "digest": "sha256:233b7368e00b25064abd0db19f7cb1b43117fef41d7106170e6ffec50a0201ca",
           "archive_type": "tar.gz",
           "member": "ruff",
           "strategy": "extract-tar"
@@ -78,7 +78,7 @@
         {
           "os": "macos",
           "arch": "arm64",
-          "digest": "sha256:b94562393a4bf23f1a48521f5495a8e48de885b7c173bd7ea8206d6d09921633",
+          "digest": "sha256:b4ad832b7734592aa1c6710dbc15277ed9d3d54c8bd44bb25bb7b14ae9098b88",
           "archive_type": "tar.gz",
           "member": "ruff",
           "strategy": "extract-tar"
@@ -86,7 +86,7 @@
         {
           "os": "windows",
           "arch": "x86_64",
-          "digest": "sha256:9d10e1282c5f695b2130cf593d55e37266513fc6d497edc4a30a6ed6d8ba4067",
+          "digest": "sha256:5e3a9521e568fd925d554abd606f40bb51e59327c28db716eb3faf2c5b6ce123",
           "archive_type": "zip",
           "member": "ruff.exe",
           "strategy": "extract-zip"
