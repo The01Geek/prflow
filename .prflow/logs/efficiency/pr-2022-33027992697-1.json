@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2022",
+  "generated_at": "2026-08-27T01:01:26Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.58",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.5097082,
+    "tokens": {
+      "input_tokens": 54,
+      "output_tokens": 44593,
+      "cache_read_input_tokens": 4249336,
+      "cache_creation_input_tokens": 223272,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 106,
+        "outputTokens": 61855,
+        "cacheReadInputTokens": 5623745,
+        "cacheCreationInputTokens": 529452,
+        "webSearchRequests": 0,
+        "costUSD": 8.5051225,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 50,
+        "outputTokens": 6284,
+        "cacheReadInputTokens": 1067041,
+        "cacheCreationInputTokens": 291295,
+        "webSearchRequests": 0,
+        "costUSD": 1.0045856999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 43,
+    "duration_ms": 750756
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"; echo \"---HEAD---\"; git rev-parse HEAD",
+      "mkdir -p .prflow/tmp/review/pr-2022/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; gh pr diff 2022 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-2022/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}/diff.patch | grep -c '^diff --git'",
+      "mkdir -p .prflow/tmp; rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "git show 4488ef76a2e2e95b220b916576ded47adb6e3f46:agents/issue-claim-auditor.md > /tmp/head_agent.md; wc -l /tmp/head_agent.md",
+      "git show 4488ef76a2e2e95b220b916576ded47adb6e3f46:agents/issue-claim-auditor.md > /tmp/head_agent.md && wc -l /tmp/head_agent.md",
+      "git show 4488ef76a2e2e95b220b916576ded47adb6e3f46:agents/issue-claim-auditor.md > /tmp/head_agent.md; wc -l /tmp/head_agent.md",
+      "git show 4488ef76a2e2e95b220b916576ded47adb6e3f46:agents/issue-claim-auditor.md > /tmp/head_agent.md",
+      "git show 4488ef76a2e2e95b220b916576ded47adb6e3f46:agents/issue-claim-auditor.md > /home/runner/work/prflow/prflow/.prflow/tmp/head_agent.md"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
