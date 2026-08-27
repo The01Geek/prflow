@@ -276,8 +276,7 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" '
         ($denials | length) as $dcount
         | (if $r.permission_denials_count != null then
              (if $dcount > $r.permission_denials_count then $dcount else $r.permission_denials_count end)
-           elif $dcount > 0 then $dcount
-           elif $has_pd_array then $dcount
+           elif ($dcount > 0 or $has_pd_array) then $dcount
            else null end) as $count
         | $header, "",
           "### Run summary",

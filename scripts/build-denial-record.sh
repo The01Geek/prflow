@@ -123,8 +123,7 @@ if ! COUNT_TOOLS=$("$DEVFLOW_JQ" -rs '
              | if type == "string" then (tonumber? // null) else . end) end) as $rc
     | (if $rc != null
        then (if $dcount > $rc then $dcount else $rc end)
-       elif $dcount > 0 then $dcount
-       elif $has_pd_array then $dcount
+       elif ($dcount > 0 or $has_pd_array) then $dcount
        else null end) as $count
     | ([$denials[] | (.tool_name? // empty) | select(type == "string")] | unique) as $tools
     # NO-RESULT-EVENT FALLBACK (issue #1064 B2). extract-execution-shape.sh gates EVERY
@@ -170,8 +169,11 @@ fi
 # next execution-file shape change announces itself. Distinct wording from surface-execution-
 # diagnostics.sh so the two extractors' warnings are asserted independently. (jq is a preflight-
 # guaranteed tool, so deriving these two operands through it is safe.)
-_bdr_count="$(printf '%s' "$COUNT_TOOLS" | "$DEVFLOW_JQ" -r '.count' 2>/dev/null)" || _bdr_count=""
-_bdr_result_present="$(printf '%s' "$COUNT_TOOLS" | "$DEVFLOW_JQ" -r '.result_present // false' 2>/dev/null)" || _bdr_result_present=false
+_bdr_count=""
+_bdr_result_present=false
+# One jq pass over $COUNT_TOOLS for both drift operands. A jq failure yields empty output, so
+# read leaves _bdr_count empty and the warning stays suppressed (the safe direction).
+IFS=$'\t' read -r _bdr_count _bdr_result_present < <(printf '%s' "$COUNT_TOOLS" | "$DEVFLOW_JQ" -r '[.count, (.result_present // false)] | @tsv' 2>/dev/null)
 if [ "$_bdr_count" = unavailable ] && [ "$_bdr_result_present" = true ]; then
   echo "devflow: build-denial-record.sh: execution-file shape drift suspected — a result event was present but permission_denials_count could not be established (no count field, no permission_denials array); the execution-file shape may have changed" >&2
 fi
