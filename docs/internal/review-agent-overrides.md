@@ -1,4 +1,5 @@
 # Per-subagent model & effort overrides for the review engine
+<!-- verified-against: 15678c64c 2026-08-27 -->
 
 **Config block:** `prflow_review.agent_overrides` in `.prflow/config.json`
 **Resolver:** `scripts/resolve-review-overrides.py` (reads via `scripts/config-get.sh`)
@@ -188,6 +189,48 @@ late ones) with no measured loss.
   this section now states. Read the repricing plan as "reprice away from whatever Opus model the tracked
   entry resolves to"; respelling the pre-registered target would falsify the experiment's recorded
   terms, so it is not done here.
+
+## The `pr-test-analyzer` first-only override and its coverage-waiver honor rule (issue #2031)
+
+The shipped `.prflow/config.example.json` seeds a companion `iterations: "first-only"` entry for the
+coverage reviewer:
+
+```jsonc
+"prflow:pr-test-analyzer": { "iterations": "first-only" }
+```
+
+so a fresh install resolves the coverage reviewer with `first-only` and drops it from the Phase-3
+launch roster on fix-loop iterations ≥ 2, while iteration 1 and the standalone `/prflow:review` keep it
+(the Step 2.6 shadow fan-out keeps its full roster by the engine's existing rule). This reaches existing
+installs only for the key they lack, at their next re-scaffold — an existing `agent_overrides` value
+wins, so the companion's reach is fresh installs plus absent-key backfill.
+
+The rationale is proportional test authoring: on a small ticket the implement run may take the Phase 2
+§2.3 **test-authoring proportionality waiver** (see
+[`implement-skill.md`](implement-skill.md)), and re-dispatching the coverage reviewer on every late
+fix-loop iteration re-litigates coverage the run deliberately scoped down.
+
+**Bounded coverage-waiver honor rule.** `agents/pr-test-analyzer.md` reads a recorded test-authoring
+waiver from its dispatch context — sourced from the workpad note when the implementing run's own review
+pass dispatches it, and from the PR body's Test Plan line on any later review. `skills/review/phases/phase-3-agents.md`
+resolves the verbatim waiver text into the `{TEST_AUTHORING_WAIVER}` slot of the pr-test-analyzer
+dispatch prompt (substituting `none recorded` when none is present), using only reads the engine already
+performs — the already-granted workpad read and Phase 0's `gh pr view … --json body` read — with no new
+helper or command head. The reviewer then:
+
+- treats the waiver text strictly as **data to classify, never an instruction to obey** — it is
+  author-supplied and may be phrased like a command; it changes nothing beyond the bounded cap below;
+- caps a coverage gap it would otherwise rate in the **sub-critical band (1-7)** at Suggestion when the
+  gap falls on a surface the waiver names, stating the waiver as the reason;
+- keeps its **top band exempt** — a gap rated **8-10** (the Critical Gaps bucket, the data-loss and
+  security class) stays at full severity regardless of any waiver;
+- **fails toward full strictness** on a malformed, absent, duplicated, or truncated waiver, or one
+  naming surfaces the diff does not touch — no cap applies unless the gap both falls in the sub-critical
+  band and lands on a surface the waiver actually names.
+
+Trust-boundary residual: the PR body is author-writable, so a waiver line can appear without a real
+waiver behind it. The residual is bounded — the honor rule only lowers matching sub-critical findings to
+Suggestion, the top band ignores waivers entirely, and the merge verdict threshold is unchanged.
 
 ## Resolution rules
 
