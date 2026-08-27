@@ -298,6 +298,16 @@ class GateEndToEnd(unittest.TestCase):
                         self._marked(head, state='CHANGES_REQUESTED'))
         self.assertIn('review_state=CHANGES_REQUESTED', self._token(out))
 
+    def test_commented_state_reported(self):
+        # A suffixed-approve verdict posts a marker-bearing review in COMMENTED state; the
+        # gate surfaces review_state=COMMENTED so the workflow leaves it to the durable
+        # comment (not merge-gating, never dismissed).
+        d, head, base, eng = self._sandbox('code')
+        out = self._run(d, head, base, eng, {'run_roots': [], 'review_ids': []},
+                        self._marked(head, state='COMMENTED'))
+        self.assertTrue(self._token(out).startswith('fail'))
+        self.assertIn('review_state=COMMENTED', self._token(out))
+
     def test_unresolvable_diff_unestablished(self):
         d, _head, base, eng = self._sandbox('code')
         out = self._run(d, 'b' * 40, base, eng, {'run_roots': [], 'review_ids': []},
