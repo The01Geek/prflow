@@ -18116,6 +18116,41 @@ assert_eq "denial record: genuine zero → count 0, commands_state zero (not una
 assert_eq "denial record: digit-string count carrier normalized to number (not unavailable)" \
   "3" "$(bash "$BDR" "$DEN_TMP/strcount.json" true | "$DEN_JQ" -r '.count')"
 
+# ── #2064: an empty permission_denials array (new shape, NO count field) is a MEASURED
+# zero here too, and a result event with neither carrier raises the shape-drift breadcrumb
+# (mirrors surface-execution-diagnostics.sh).
+"$DEN_JQ" -n '{type:"result",is_error:false,permission_denials:[]}' > "$DEN_TMP/2064-empty.json"
+assert_eq "#2064 denial record: empty permission_denials array (no count field) → count 0, not unavailable" \
+  "0" "$(bash "$BDR" "$DEN_TMP/2064-empty.json" true 2>/dev/null | "$DEN_JQ" -r '.count')"
+assert_eq "#2064 denial record: empty-array run emits NO shape-drift warning (count is measured)" \
+  "no" "$(bash "$BDR" "$DEN_TMP/2064-empty.json" true 2>&1 >/dev/null | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+
+"$DEN_JQ" -n '{type:"result",is_error:false,permission_denials:[{tool_name:"Bash",tool_input:{command:"a"}},{tool_name:"Write",tool_input:{command:"b"}},{tool_name:"Edit",tool_input:{command:"c"}}]}' > "$DEN_TMP/2064-three.json"
+assert_eq "#2064 denial record: three-denial new-shape array (no count field) → count 3" \
+  "3" "$(bash "$BDR" "$DEN_TMP/2064-three.json" true 2>/dev/null | "$DEN_JQ" -r '.count')"
+assert_eq "#2064 denial record: three-denial new-shape array emits NO shape-drift warning" \
+  "no" "$(bash "$BDR" "$DEN_TMP/2064-three.json" true 2>&1 >/dev/null | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+
+"$DEN_JQ" -n '{type:"result",is_error:false,num_turns:3}' > "$DEN_TMP/2064-neither.json"
+assert_eq "#2064 denial record: neither carrier (result present) → count unavailable" \
+  "unavailable" "$(bash "$BDR" "$DEN_TMP/2064-neither.json" true 2>/dev/null | "$DEN_JQ" -r '.count')"
+assert_eq "#2064 denial record: neither carrier with a result event raises the shape-drift warning" \
+  "yes" "$(bash "$BDR" "$DEN_TMP/2064-neither.json" true 2>&1 >/dev/null | grep -qF 'execution-file shape drift suspected' && echo yes || echo no)"
+assert_eq "#2064 denial record: the emitted record carries NO result_present key (inert helper signal)" \
+  "null" "$(bash "$BDR" "$DEN_TMP/2064-neither.json" true 2>/dev/null | "$DEN_JQ" -c '.result_present')"
+
+# Adversarial: a non-array permission_denials value → unavailable + drift; the [1,2,3] fixture
+# resolves to a measured 0 (its scalar entries drop out, array presence counts).
+"$DEN_JQ" -n '{type:"result",is_error:false,permission_denials:"nope"}' > "$DEN_TMP/2064-notarr.json"
+assert_eq "#2064 denial record: non-array permission_denials value → count unavailable + drift warning" \
+  "unavailable|yes" \
+  "$(_c=$(bash "$BDR" "$DEN_TMP/2064-notarr.json" true 2>/dev/null | "$DEN_JQ" -r '.count'); bash "$BDR" "$DEN_TMP/2064-notarr.json" true 2>&1 >/dev/null | grep -qF 'execution-file shape drift' && _d=yes || _d=no; echo "${_c}|${_d}")"
+"$DEN_JQ" -n '{type:"result",is_error:false,permission_denials:[1,2,3]}' > "$DEN_TMP/2064-nonobj.json"
+assert_eq "#2064 denial record: all-non-object permission_denials array is a measured 0" \
+  "0" "$(bash "$BDR" "$DEN_TMP/2064-nonobj.json" true 2>/dev/null | "$DEN_JQ" -r '.count')"
+assert_eq "#2064 denial record: old-shape count-0 field still resolves to 0 (unchanged)" \
+  "0" "$(bash "$BDR" "$DEN_TMP/zero.json" true 2>/dev/null | "$DEN_JQ" -r '.count')"
+
 # ── #1064 B2: the NO-RESULT-EVENT shape. Every fixture above is a {type:"result"} event,
 # which is exactly why this gap shipped green. extract-execution-shape.sh gates every
 # field on a result event being present (a deliberate contract, pinned by #438 and NOT
@@ -37536,6 +37571,61 @@ assert_eq "#363 diagnostics exits 0 with no GITHUB_OUTPUT set (standalone run)" 
   "$(printf '%s' "$_D_HOT" > "$D363/exec.json"; ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" >/dev/null 2>&1 ); echo $?)"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "#2064: an empty permission_denials array is a MEASURED zero, not 'unavailable'"
+# ────────────────────────────────────────────────────────────────────────────
+# New shape (claude-code CLI 2.1.247): the result event carries a `permission_denials`
+# array and NO `permission_denials_count` field. An empty array is a measurement of 0, not
+# an unestablished count — the whole point of this issue.
+_D_EMPTY_ARR='{"type":"result","is_error":false,"num_turns":3,"permission_denials":[]}'
+assert_eq "#2064 empty permission_denials array renders count 0 (measured), not n/a" "yes" \
+  "$(_diag_run "$_D_EMPTY_ARR" | grep -qxF -e '- permission_denials_count: 0' && echo yes || echo no)"
+assert_eq "#2064 empty permission_denials array renders 'No permission denials.'" "yes" \
+  "$(_diag_run "$_D_EMPTY_ARR" | grep -qxF 'No permission denials.' && echo yes || echo no)"
+assert_eq "#2064 empty permission_denials array publishes permission_denials_count=0" "yes" \
+  "$(_diag_run "$_D_EMPTY_ARR" >/dev/null; grep -qxF 'permission_denials_count=0' "$D363/out" && echo yes || echo no)"
+assert_eq "#2064 empty permission_denials array raises NO shape-drift warning (count is measured)" "no" \
+  "$(_diag_run "$_D_EMPTY_ARR" | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+
+# New shape with three denial objects and no count field → count 3, detail, output 3.
+_D_THREE_ARR='{"type":"result","is_error":false,"num_turns":9,"permission_denials":[{"tool_name":"Bash","tool_input":{"command":"aaa"}},{"tool_name":"Write","tool_input":{"command":"bbb"}},{"tool_name":"Edit","tool_input":{"command":"ccc"}}]}'
+assert_eq "#2064 three-denial new-shape array renders count 3 with per-denial detail" "yes" \
+  "$(_o=$(_diag_run "$_D_THREE_ARR"); printf '%s' "$_o" | grep -qxF -e '- permission_denials_count: 3' && printf '%s' "$_o" | grep -qF '3 permission denial(s) with detail:' && echo yes || echo no)"
+assert_eq "#2064 three-denial new-shape array publishes permission_denials_count=3" "yes" \
+  "$(_diag_run "$_D_THREE_ARR" >/dev/null; grep -qxF 'permission_denials_count=3' "$D363/out" && echo yes || echo no)"
+assert_eq "#2064 three-denial new-shape array raises NO shape-drift warning" "no" \
+  "$(_diag_run "$_D_THREE_ARR" | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+
+# Neither carrier (result event present, no count field AND no permission_denials array
+# anywhere) → still `unavailable`, PLUS the shape-drift warning. The warning does NOT reuse
+# the '::warning::DevFlow: this run recorded' prefix, so the positive-denial signal above and
+# the no-warning-on-unknown assertions stay unambiguous.
+_D_NEITHER_2064='{"type":"result","is_error":false,"num_turns":3}'
+assert_eq "#2064 neither-carrier file still publishes permission_denials_count=unavailable" "yes" \
+  "$(_diag_run "$_D_NEITHER_2064" >/dev/null; grep -qxF 'permission_denials_count=unavailable' "$D363/out" && echo yes || echo no)"
+assert_eq "#2064 neither-carrier file with a result event raises the shape-drift warning" "yes" \
+  "$(_diag_run "$_D_NEITHER_2064" | grep -qF 'execution-file shape drift suspected' && echo yes || echo no)"
+assert_eq "#2064 the shape-drift warning does NOT use the 'this run recorded' positive-denial prefix" "no" \
+  "$(_diag_run "$_D_NEITHER_2064" | grep -qF '::warning::DevFlow: this run recorded' && echo yes || echo no)"
+# The shape-drift warning is gated on count==unknown: NOT on a measured 0, NOT on a positive count.
+assert_eq "#2064 shape-drift warning does NOT fire on a measured 0" "no" \
+  "$(_diag_run "$_D_COLD" | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+assert_eq "#2064 shape-drift warning does NOT fire on a positive count" "no" \
+  "$(_diag_run "$_D_HOT" | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+
+# Adversarial shapes: a non-array permission_denials value resolves to unavailable + drift;
+# the [1,2,3] fixture resolves to a measured 0 (its scalar entries drop out, array presence counts).
+_D_PD_NOTARR='{"type":"result","is_error":false,"permission_denials":"nope"}'
+assert_eq "#2064 non-array permission_denials value publishes unavailable and warns drift" "unavailable-drift" \
+  "$(_o=$(_diag_run "$_D_PD_NOTARR"); _diag_run "$_D_PD_NOTARR" >/dev/null; _c=$(sed -n 's/^permission_denials_count=//p' "$D363/out"); printf '%s' "$_o" | grep -qF 'execution-file shape drift' && _d=drift || _d=nodrift; echo "${_c}-${_d}")"
+_D_PD_NONOBJ='{"type":"result","is_error":false,"permission_denials":[1,2,3]}'
+assert_eq "#2064 an all-non-object permission_denials array is a measured 0" "yes" \
+  "$(_diag_run "$_D_PD_NONOBJ" >/dev/null; grep -qxF 'permission_denials_count=0' "$D363/out" && echo yes || echo no)"
+
+# Idempotency: one run emits exactly one shape-drift warning line.
+assert_eq "#2064 a run on the neither-carrier file emits exactly one shape-drift warning" "1" \
+  "$(_diag_run "$_D_NEITHER_2064" | grep -cF 'execution-file shape drift suspected')"
+
+# ────────────────────────────────────────────────────────────────────────────
 echo "#1528 observability: claude_code_version published from the init record + read back"
 # ────────────────────────────────────────────────────────────────────────────
 # The execution file's system/init record carries claude_code_version; surface-
@@ -37679,8 +37769,8 @@ assert_pin_unique "#363 devflow-runner.yml names the diagnostics step so its out
   "id: diagnostics" "$RUNNER_YML"
 # The default is the `unavailable` sentinel, NOT 0: a consumer must distinguish
 # "the engine refused no commands" from "the count could not be established".
-assert_pin_unique "#363 devflow-runner.yml defaults permission_denials_count to the 'unavailable' sentinel, never 0" \
-  "permission_denials_count: \${{ steps.diagnostics.outputs.permission_denials_count || 'unavailable' }}" "$RUNNER_YML"
+assert_pin_unique "#363/#2064 devflow-runner.yml resolves permission_denials_count to 'unavailable' only on an empty publish (string-equality form), passing a measured 0 through" \
+  "permission_denials_count: \${{ steps.diagnostics.outputs.permission_denials_count == '' && 'unavailable' || steps.diagnostics.outputs.permission_denials_count }}" "$RUNNER_YML"
 assert_eq "#363 devflow-runner.yml never defaults the denial count to a literal 0" "0" \
   "$(pin_count "permission_denials_count || '0'" "$RUNNER_YML")"
 assert_pin_unique "#363 devflow-runner.yml exposes permission_denials_count as a workflow_call output" \

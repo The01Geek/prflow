@@ -106,6 +106,11 @@ if ! COUNT_TOOLS=$("$DEVFLOW_JQ" -rs '
     | ($denials_all | unique) as $denials
     | (last(.. | objects | select(.type? == "result"))) as $r
     | ($denials | length) as $dcount
+    # Array-presence signal (issue #2064), read BEFORE the object filter above: any
+    # permission_denials value that is an array is a MEASUREMENT even when empty or
+    # all-non-object, so its gathered length (0 for those) is the count. Without it an
+    # empty-array new-shape run fell to "unavailable" instead of a measured 0.
+    | ([.. | objects | .permission_denials? | select(type == "array")] | length > 0) as $has_pd_array
     # CLAUDE.md records that permission_denials_count "publishes a digit string", so the
     # count carrier can be a NUMBER or a digit STRING. Normalize a digit string to a number
     # before the reconciliation (a non-digit string — the literal "unavailable" — or a null
@@ -119,6 +124,7 @@ if ! COUNT_TOOLS=$("$DEVFLOW_JQ" -rs '
     | (if $rc != null
        then (if $dcount > $rc then $dcount else $rc end)
        elif $dcount > 0 then $dcount
+       elif $has_pd_array then $dcount
        else null end) as $count
     | ([$denials[] | (.tool_name? // empty) | select(type == "string")] | unique) as $tools
     # NO-RESULT-EVENT FALLBACK (issue #1064 B2). extract-execution-shape.sh gates EVERY
@@ -142,8 +148,11 @@ if ! COUNT_TOOLS=$("$DEVFLOW_JQ" -rs '
     | (if ($fbcmds | length) == 0 then null
        else {commands: ($fbcmds[0:40]), total: ($fbcmds | length),
              truncated: (($fbcmds | length) > 40)} end) as $fb
+    # result_present drives the issue-#2064 shape-drift warning in the caller; the final
+    # record assembled below reads only .count/.tool_names/.fallback_commands, so this extra
+    # key is inert there.
     | {count: (if $count == null then "unavailable" else $count end), tool_names: $tools,
-       fallback_commands: $fb}
+       fallback_commands: $fb, result_present: ($r != null)}
     | tojson
   ' "$EXEC_FILE" 2>/dev/null); then
   COUNT_TOOLS=""
@@ -154,6 +163,17 @@ if [ -z "$COUNT_TOOLS" ]; then
   # than nothing, so a downstream reader can tell "unparseable" from "denied nothing".
   COUNT_TOOLS='{"count":"unavailable","tool_names":[],"fallback_commands":null}'
   echo "devflow: build-denial-record.sh: could not parse execution file for count/tool_names ('$EXEC_FILE') — recording count as unavailable" >&2
+fi
+
+# Shape-drift warning (issue #2064): a result event was present yet the count still resolved
+# to unavailable — no count field and no permission_denials array. Emit one breadcrumb so the
+# next execution-file shape change announces itself. Distinct wording from surface-execution-
+# diagnostics.sh so the two extractors' warnings are asserted independently. (jq is a preflight-
+# guaranteed tool, so deriving these two operands through it is safe.)
+_bdr_count="$(printf '%s' "$COUNT_TOOLS" | "$DEVFLOW_JQ" -r '.count' 2>/dev/null)" || _bdr_count=""
+_bdr_result_present="$(printf '%s' "$COUNT_TOOLS" | "$DEVFLOW_JQ" -r '.result_present // false' 2>/dev/null)" || _bdr_result_present=false
+if [ "$_bdr_count" = unavailable ] && [ "$_bdr_result_present" = true ]; then
+  echo "devflow: build-denial-record.sh: execution-file shape drift suspected — a result event was present but permission_denials_count could not be established (no count field, no permission_denials array); the execution-file shape may have changed" >&2
 fi
 
 # ── command text three-state, reusing extract-execution-shape.sh (un-stranding it) ──
