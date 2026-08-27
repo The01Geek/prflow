@@ -4783,11 +4783,20 @@ case "$*" in
     [ "${PCRT_POST_RC:-0}" = 0 ] || { echo "HTTP 403" >&2; exit 1; }
     printf '{"id":1}\n'; exit 0 ;;
   *"pulls/"*)
-    # Serves the POST-jq state verbatim ($PCRT_PR_STATE), so the helper's own jq
-    # (`if .merged then "merged" else (.state // "") end`) runs server-side on real
-    # gh and is NOT exercised here — the merged-vs-closed disambiguation is a
-    # disclosed, accepted stub boundary; these arms test the case-word routing.
+    # Record each state read so a test can assert exactly one is made (issue #2067).
+    # With $PCRT_PR_JSON set, run the helper's REAL --jq against the fixture (the
+    # auto_merge branch lives inside that jq); else serve $PCRT_PR_STATE verbatim
+    # (the disclosed #1236 boundary that tests only the case-word routing).
+    [ -n "${PCRT_STATE_REC-}" ] && printf '%s\n' "$*" >> "$PCRT_STATE_REC"
     [ "${PCRT_STATE_RC:-0}" = 0 ] || { echo "HTTP 500" >&2; exit 1; }
+    if [ -n "${PCRT_PR_JSON-}" ]; then
+      _jqprog=""; _wantjq=0
+      for _arg in "$@"; do
+        [ "$_wantjq" = 1 ] && { _jqprog="$_arg"; break; }
+        [ "$_arg" = "--jq" ] && _wantjq=1
+      done
+      printf '%s' "$PCRT_PR_JSON" | jq -r "$_jqprog"; exit 0
+    fi
     printf '%s' "${PCRT_PR_STATE-open}"; exit 0 ;;
 esac
 [ "${PCRT_LIST_RC:-0}" = 0 ] || { echo "HTTP 500" >&2; exit 1; }
@@ -4804,9 +4813,12 @@ chmod +x "$PCRT_SB/gh"
 # marker-bearing comment: its author login, or the __prflow_no_author__ sentinel.
 pcrt_run() {  # $@ = extra command-prefix env assignments (override EXPECTED_AUTHOR/etc last)
   : > "$PCRT_SB/rec"
-  PCRT_OUT="$(env PCRT_REC="$PCRT_SB/rec" DEVFLOW_GH="$PCRT_SB/gh" \
+  : > "$PCRT_SB/state_rec"
+  PCRT_OUT="$(env PCRT_REC="$PCRT_SB/rec" PCRT_STATE_REC="$PCRT_SB/state_rec" DEVFLOW_GH="$PCRT_SB/gh" \
                   PR=7 HEAD_SHA="$PCRT_SHA" EXPECTED_AUTHOR=prflow-app "$@" bash "$PCRT" 2>/dev/null)"
+  PCRT_RC=$?
   PCRT_POSTS="$(grep -c . "$PCRT_SB/rec")"
+  PCRT_STATE_READS="$(grep -c . "$PCRT_SB/state_rec")"
 }
 
 pcrt_run PCRT_LIST_OUT=""
@@ -4865,6 +4877,57 @@ assert_eq "pcrt #1236-state-empty: an empty (unestablished) PR state fails CLOSE
   "0" "$PCRT_POSTS"
 assert_eq "pcrt #1236-state-empty: the unestablished-state arm warns with its OWN distinct annotation" \
   "1" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::ci auto-review trigger: PR #7 state could not be established')"
+
+# --- auto-merge guard, arm by arm (issue #2067) -----------------------------
+# The #1236 arms above serve the post-jq state WORD verbatim; the auto_merge
+# decision lives INSIDE the helper's jq, so these arms drive a full JSON fixture
+# through the helper's REAL --jq program (jq is preflight-guaranteed) via $PCRT_PR_JSON.
+PCRT_AM='{"state":"open","merged":false,"auto_merge":{"enabled_by":{"login":"octocat"},"merge_method":"squash"}}'
+
+# RED-first: against the pre-fix jq this open+armed fixture maps to `open` and POSTs
+# (the reported defect); the fix maps it to `automerge` and skips.
+pcrt_run PCRT_LIST_OUT="" PCRT_PR_JSON="$PCRT_AM"
+assert_eq "pcrt #2067-automerge: an OPEN auto-merge-armed PR posts nothing (it would race the auto-merge onto a merged target)" \
+  "0" "$PCRT_POSTS"
+assert_eq "pcrt #2067-automerge: the helper still exits 0 on the auto-merge arm" \
+  "0" "$PCRT_RC"
+assert_eq "pcrt #2067-automerge: the auto-merge arm warns with its OWN distinct annotation naming enabled auto-merge" \
+  "1" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::ci auto-review trigger: PR #7 has GitHub auto-merge enabled')"
+assert_eq "pcrt #2067-automerge: the auto-merge arm made exactly ONE PR-state read" \
+  "1" "$PCRT_STATE_READS"
+
+# A second post-mode run against the same armed fixture again posts nothing (idempotent).
+pcrt_run PCRT_LIST_OUT="" PCRT_PR_JSON="$PCRT_AM"
+assert_eq "pcrt #2067-automerge-idempotent: a second run against the same armed fixture again posts nothing" \
+  "0" "$PCRT_POSTS"
+
+# An OPEN PR with auto_merge null still posts, reading state exactly once.
+pcrt_run PCRT_LIST_OUT="" PCRT_PR_JSON='{"state":"open","merged":false,"auto_merge":null}'
+assert_eq "pcrt #2067-open-null: an OPEN PR with auto_merge null still posts the trigger (unchanged)" \
+  "1" "$PCRT_POSTS"
+assert_eq "pcrt #2067-open-null: the posting arm made exactly ONE PR-state read" \
+  "1" "$PCRT_STATE_READS"
+
+# Absence shape: a response with NO auto_merge key behaves as null and still posts.
+pcrt_run PCRT_LIST_OUT="" PCRT_PR_JSON='{"state":"open","merged":false}'
+assert_eq "pcrt #2067-open-absent: a response with no auto_merge key behaves as null and still posts" \
+  "1" "$PCRT_POSTS"
+
+# Ordering — a MERGED PR still carrying an auto_merge record (the PR #2059 shape)
+# takes the merged arm; reordering the case arms would break this.
+pcrt_run PCRT_PR_JSON='{"state":"closed","merged":true,"auto_merge":{"enabled_by":{"login":"octocat"},"merge_method":"squash"}}'
+assert_eq "pcrt #2067-merged-armed: a MERGED PR still carrying an auto_merge record posts nothing" \
+  "0" "$PCRT_POSTS"
+assert_eq "pcrt #2067-merged-armed: it takes the MERGED annotation, not the auto-merge one (merged decided first)" \
+  "1" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::ci auto-review trigger: PR #7 is already merged; NOT posting')"
+
+# Ordering — a CLOSED-unmerged PR carrying an auto_merge record takes the closed
+# arm; the new state word is emitted only for an OPEN PR.
+pcrt_run PCRT_PR_JSON='{"state":"closed","merged":false,"auto_merge":{"enabled_by":{"login":"octocat"},"merge_method":"squash"}}'
+assert_eq "pcrt #2067-closed-armed: a CLOSED-unmerged PR still carrying an auto_merge record posts nothing" \
+  "0" "$PCRT_POSTS"
+assert_eq "pcrt #2067-closed-armed: it takes the CLOSED annotation, not the auto-merge one (new word is OPEN-only)" \
+  "1" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::ci auto-review trigger: PR #7 is closed without merging; NOT posting')"
 
 # --- ci.yml supersession concurrency static check (issue #1236, Half A / AC2) --
 # ci.yml's workflow-level `concurrency:` behavior lives on GitHub's scheduler and

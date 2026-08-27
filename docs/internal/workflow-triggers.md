@@ -157,18 +157,40 @@ atomic; and when a dependency (`test` or `lint`) concludes anything other than
 withheld the request — `lint` is **not** a required status check, so such a pull
 request is mergeable, and without the announcement its missing review would be silent.
 
-**It never posts to a dead target.** Because the trigger fires unconditionally once
-CI is green, a pull request that was merged or closed while CI was still running would
-otherwise receive an automatic review request whose run lands on a target nobody can
-act on — a full cloud agent run and its model tokens spent on output no one reads. So
-`scripts/post-ci-review-trigger.sh` (`MODE=post`) reads the pull request's state
-read-only and posts **only while it is still open**: a merged or closed target, or a
-state it cannot establish, each declines to post and emits its own distinct
-`::warning::` naming the condition. That decision is **fail-closed** — the same
-asymmetry as the helper's idempotency read (a missed notification is recoverable by
-hand; review spend on an already-merged target is not). The guard lives inside the
-helper, not in the job's `if:`, so the consumer snippet below is unchanged and a
-consumer inherits the behavior at its next vendor bump.
+**It posts to no dead — or about-to-die — target, as seen at post time.** Because the
+trigger fires unconditionally once CI is green, a pull request that was merged or closed
+while CI was still running would otherwise receive an automatic review request whose run
+lands on a target nobody can act on — a full cloud agent run and its model tokens spent
+on output no one reads. So `scripts/post-ci-review-trigger.sh` (`MODE=post`) reads the
+pull request's state read-only and posts **only while it is still open**: a merged or
+closed target, or a state it cannot establish, each declines to post and emits its own
+distinct `::warning::` naming the condition.
+
+**An open target already set to auto-merge is treated the same (issue #2067).** GitHub
+auto-merge merges a pull request the instant its required checks pass — the same instant
+this trigger fires — so a pull request armed with auto-merge is about to die even though
+it reads `open`. From the *same* state response it already fetches (a non-null
+`auto_merge` field), the helper detects that and declines to post, with its own distinct
+`::warning::` naming enabled auto-merge; it still makes a single state request. `.merged`
+is tested first and the auto-merge word is emitted only for an open pull request, so a
+merged or closed pull request still carrying an `auto_merge` record takes its own arm.
+
+This is exactly right in a repository whose **only** required merge conditions are the CI
+checks this trigger fires on — the configuration in which the race was observed (PR #2059:
+a $6.38 review ran on a pull request that auto-merged twelve seconds after the comment).
+The **trade-off**: auto-merge waits on *every* required condition, so in a repository that
+*also* requires an approving review, an armed pull request does **not** merge at CI-green
+— and this arm then withholds the automatic request the merge is waiting on. The
+annotation lets an affected maintainer see why no review was requested and comment
+`/prflow:review` by hand — the pre-existing supported path.
+
+This protection is **post-time only** — a merge the helper cannot see when it posts
+(auto-merge armed *after* the comment, a manual merge in the window) stays unguarded, an
+accepted residual; nothing later in the pipeline re-checks the pull request's state. Each
+decision above is **fail-closed** — the same asymmetry as the helper's idempotency read (a
+missed notification is recoverable by hand; review spend on an already-merged target is
+not). The guard lives inside the helper, not in the job's `if:`, so the consumer snippet
+below is unchanged and a consumer inherits the behavior at its next vendor bump.
 
 **Interaction with `/prflow:review-and-fix --push-each-iteration`.** When the fix loop
 runs with `--push-each-iteration`, each iteration pushes the fix commit to the PR head,
