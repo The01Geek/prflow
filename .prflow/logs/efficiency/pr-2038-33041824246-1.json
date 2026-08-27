@@ -140,5 +140,82 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.64",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.263453149999998,
+    "tokens": {
+      "input_tokens": 102,
+      "output_tokens": 55206,
+      "cache_read_input_tokens": 9887416,
+      "cache_creation_input_tokens": 270149,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 163,
+        "outputTokens": 83279,
+        "cacheReadInputTokens": 11394489,
+        "cacheCreationInputTokens": 696252,
+        "webSearchRequests": 0,
+        "costUSD": 13.14466825,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 128,
+        "outputTokens": 18714,
+        "cacheReadInputTokens": 2858332,
+        "cacheCreationInputTokens": 543889,
+        "webSearchRequests": 0,
+        "costUSD": 2.1187849,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 77,
+    "duration_ms": 898364
+  },
+  "permission_denials": {
+    "count": 15,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-2038/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"dir-rc=$?\"",
+      "/home/runner/work/prflow/prflow/scripts/compose-run-url.sh",
+      "/home/runner/work/prflow/prflow/scripts/workpad.py acs-resolve \"2029\" --pr \"2038\" ; echo \"acs-rc=$?\"",
+      "mkdir -p .prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1; : > .prflow/tmp/displaced-paths.txt; echo \"setup-rc=$? head=1a4d9f0cbd22fafd9373fe2ea7e4165503c1392d base=1d4e7c30c1efd18b1e358713775055fe6b814820\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1/VC-1-n7x2a.json << 'EOF'\n{\"id\":\"VC-1\",\"verdict\":\"PASS\",\"evidence\":\"scripts/verify_lint_manifest_digests.py:verify_manifest_digests (as of head 1a4d9f0cb) enumerates declared=iter_declared_artifacts(manifest) over every (tool,os,arch) in the manifest, resolves each via lint_provision.build_plan (keyed on cl …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1/VC-2-k4p9m.json << 'EOF'\n{\"id\":\"VC-2\",\"verdict\":\"PASS\",\"evidence\":\"In .github/workflows/ci.yml at HEAD 1a4d9f0c, workflow-level `permissions: contents: read` is set at line 24 with no job-level `permissions:` block in the `lint-manifest` job (lines 58-114), so the job inherits contents:read only, matching  …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1/VC-3-q2w8e.json << 'EOF'\n{\"id\":\"VC-3\",\"verdict\":\"PASS\",\"evidence\":\"In .github/workflows/ci.yml (head 1a4d9f0), the pre-existing 'Exercise a real provisioning pass (linux-x86_64, real downloads + digest verify)' step (line 96) and 'Assert the provisioned binaries run' step (line 106) are both retained. A new step 'Verify every declared artifact digest (all platforms, do …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1/VC-5-b8n3c.json << 'EOF'\n{\"id\":\"VC-5\",\"verdict\":\"PASS\",\"evidence\":\"scripts/verify_lint_manifest_digests.py:47 loads lint_provision as a sibling module and sets load_manifest = lint_provision.lint_provision.lint_manifest.load_manifest (line 48). scripts/lint_provision.py:50 sets lint_manifest = _load_lint_m …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1/VC-7-m1v4b.json << 'EOF'\n{\"id\":\"VC-7\",\"verdict\":\"PASS\",\"evidence\":\"scripts/lint_provision.py:112-125 (head 1a4d9f0cbd22fafd9373fe2ea7e4165503c1392d) defines iter_declared_artifacts(manifest) -> list[tuple[str,str,str]] which iterates manifest['tools'] and for each tool's 'artifacts' list appends (tool, art['os'], art['arch']) tuples, matching the claim exactly.\",\"file_ …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1/VC-8-t9c2x.json << 'EOF'\n{\"id\":\"VC-8\",\"verdict\":\"PASS\",\"evidence\":\"sha256sum of PR-head scripts/lint_provision.py (git show 1a4d9f0cbd22fafd9373fe2ea7e4165503c1392d:scripts/lint_provision.py | sha256sum) yields 8fed3bd3265ca273507f41bde24e914fabfcb4f55de67169d93c453507c50bd6, which exactly equals the digest recorded in the lint-provision entry of .prflow/install-state. …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1/VC-11-a2s5d.json << 'EOF'\n{\"id\":\"VC-11\",\"verdict\":\"PASS\",\"evidence\":\"ci.yml:114 runs `python3 scripts/verify_lint_manifest_digests.py .prflow/lint-manifest.json`. main() in verify_lint_manifest_digests.py returns 0 when result.ok else returns 1 (printed to stderr as FAIL), and `raise SystemExit(main(...))` propagates that as the process exit code, so CI fails on a bad  …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1/VC-10-w6y2q.json << 'EOF'\n{\"id\":\"VC-10\",\"verdict\":\"PASS\",\"evidence\":\"scripts/lint_provision.py (git show 1a4d9f0c...) defines _RUFF_TARGET as a dict with entries for (linux,x86_64),(linux,arm64),(macos,x86_64),(macos,arm64),(windows,x86_64) only — no (windows,arm64) key — so artifact_url()'s ruff branch do …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2038/33041824246-1/verdicts/iter-1/VC-12-f8g1h.json << 'EOF'\n{\"id\":\"VC-12\",\"verdict\":\"PASS\",\"evidence\":\"lib/test/modules/coverage-map.json:860-864 (at head 1a4d9f0c) has entry scripts/verify_lint_manifest_digests.py with focused_test=lib/test/test_python_scripts.py, owner=unmodularized, note citing issue #2029. That file contains a matching …[per-command-truncated]",
+      "git show 1a4d9f0cbd22fafd9373fe2ea7e4165503c1392d:scripts/lint_provision.py > /tmp/lp.py && python3 -c \"import hashlib; print('sha256:'+hashlib.sha256(open('/tmp/lp.py','rb').read()).hexdigest())\"",
+      "git show 1a4d9f0cbd22fafd9373fe2ea7e4165503c1392d:scripts/lint_provision.py > .prflow/tmp/lp.py && python3 -c \"import hashlib; print('sha256:'+hashlib.sha256(open('.prflow/tmp/lp.py','rb').read()).hexdigest())\"; rm -f .prflow/tmp/lp.py"
+    ],
+    "total": 15,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
