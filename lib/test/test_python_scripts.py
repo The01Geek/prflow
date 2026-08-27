@@ -26485,7 +26485,7 @@ def _drive_cmd_body(payload):
     out = io.StringIO()
     try:
         with contextlib.redirect_stdout(out):
-            workpad.cmd_body(argparse.Namespace(comment_id=7))
+            workpad.cmd_body(argparse.Namespace(comment_id=7, issue=None, marker=None))
     finally:
         workpad._run = saved
     return out.getvalue()

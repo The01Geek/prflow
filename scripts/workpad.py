@@ -559,8 +559,7 @@ def _comment_body_established(repo, comment_id):
 
 
 def cmd_body(args):
-    # getattr defaults: the #814 driver calls cmd_body with only `comment_id`.
-    issue = getattr(args, 'issue', None)
+    issue = args.issue
     comment_id = args.comment_id
     # Operand validation runs BEFORE any network call and exits 1 from here, so a
     # malformed/missing/ambiguous operand never reaches argparse's usage-error
@@ -584,7 +583,7 @@ def cmd_body(args):
         # Same marker scan `id`/`status` run; the scan result already carries the
         # full body, so no second fetch. Adopt status's exit vocabulary via
         # api_fail_code=3: exit 3 on a read failure, exit 2 on a clean-absent scan.
-        marker = _workpad_marker(getattr(args, 'marker', None))
+        marker = _workpad_marker(args.marker)
         c = _find_workpad_comment(
             'body', _repo_full(api_fail_code=3), issue, marker, api_fail_code=3)
         if c is None:
