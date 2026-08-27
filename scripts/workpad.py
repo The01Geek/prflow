@@ -3731,10 +3731,10 @@ def _mirror_stopped_note_to_pr(issue, note_text):
 def _stopped_note_text_for_mirror(args, own_notes, own_reflections):
     """Return the note text to mirror onto the PR for a terminal stop, else None (issue #2060).
 
-    Exactly three stop statuses write the block: a ``--status Failed`` / ``Cancelled`` update
-    (the stall backstop's run-died ``--note``) and a ``--reflection-kind blocked`` write (the
-    Blocked reflection text). A ``Complete`` terminal — and every other status/kind — writes
-    none."""
+    Exactly three terminal-stop signals write the block: a ``--status Failed`` and a ``--status
+    Cancelled`` update (the stall backstop's run-died ``--note``), and a ``--reflection-kind
+    blocked`` write (the Blocked reflection text — a reflection kind, not a status). A
+    ``Complete`` terminal — and every other status/kind, or an empty payload — writes none."""
     if args.status and _strip_status_glyph(args.status).strip().lower() in ("failed", "cancelled"):
         text = "\n".join(n for n in own_notes if n).strip()
         return text or None

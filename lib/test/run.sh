@@ -5626,6 +5626,30 @@ chmod +x "$P2060_TMP/gh-emptybody"
 assert_eq "#2060 refresh-pr-on-resume: empty PR body -> REFUSED empty-body, exit 3" \
   "REFUSED empty-body 3" \
   "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-emptybody" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+# End-to-end body assertion: a body carrying a note block is PATCHed with the block STRIPPED and
+# the [View run] link REFRESHED — the strip and refresh stages both run and the write lands.
+P2060_PATCHOUT="$P2060_TMP/patchout"
+export P2060_PATCHOUT
+cat > "$P2060_TMP/gh-noted" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *"--method PATCH"*) cat > "$P2060_PATCHOUT"; printf '7\n' ;;
+  *"pulls/7"*) printf '%s\n' '<!-- prflow:stopped-run-note-start -->
+run died: boom
+<!-- prflow:stopped-run-note-end -->
+
+Resolves #2060
+[View run](https://x/runs/OLD)' ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-noted"
+DEVFLOW_GH="$P2060_TMP/gh-noted" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW >/dev/null 2>&1
+assert_eq "#2060 refresh-pr-on-resume: PATCHed body strips the note block and refreshes the link" \
+  "0 1" \
+  "$(printf '%s %s' "$(grep -cF 'stopped-run-note-start' "$P2060_PATCHOUT")" "$(grep -cF '[View run](https://x/runs/NEW)' "$P2060_PATCHOUT")")"
+unset P2060_PATCHOUT
 # resolve-issue-pr CLI: gh exits 0 but emits non-array/invalid JSON -> REFUSED, exit 3.
 printf '#!/usr/bin/env bash\nprintf %%s %s\n' "'not valid json'" > "$P2060_TMP/gh-badjson"
 chmod +x "$P2060_TMP/gh-badjson"
