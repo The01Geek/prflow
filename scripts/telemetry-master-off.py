@@ -4,10 +4,12 @@
 """PRFlow's telemetry master-switch predicate, as a standalone script (issue #2035).
 
 `scripts/collect-staged-telemetry.sh` is the caller that execs this file.
-`scripts/config-get.sh` and `lib/efficiency-trace.sh` carry byte-equivalent
-inline `python3 -c` copies of the same JSON-type test instead of exec-ing it:
-both are hardened Stop-hook closure members, where a new source/exec edge would
-break the issue-#458 drift guard. Change one, change all three.
+`scripts/config-get.sh` and `lib/efficiency-trace.sh` carry inline `python3 -c`
+copies of the same JSON-type test instead of exec-ing it — equivalent in what
+they decide, differing only in the env var each passes the config path through
+(`PRFLOW_TEL_CFG` and `DEVFLOW_TEL_CFG` respectively). Both are hardened
+Stop-hook closure members, where a new source/exec edge would break the
+issue-#458 drift guard. Change the decision here, change it in all three.
 
 Exit 0 (telemetry OFF) ONLY when ``telemetry.enabled`` is the JSON boolean
 ``false`` in the config file named by argv[1]. Exit 1 (telemetry ON /

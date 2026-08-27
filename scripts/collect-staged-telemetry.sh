@@ -55,6 +55,10 @@ elif ! command -v python3 >/dev/null 2>&1; then
 elif python3 "$_CST_DIR/telemetry-master-off.py" "$_CST_CFG" >/dev/null 2>&1; then
   echo "::warning::collect-staged-telemetry: telemetry.enabled is false — collecting nothing this run (issue #2035)" >&2
   exit 0
+elif [ -e "$_CST_CFG" ] && [ ! -r "$_CST_CFG" ]; then
+  # The predicate folds "config unreadable" into the same exit 1 as "master is on",
+  # so without this arm an unreadable config uploads looking like a deliberate opt-in.
+  echo "::warning::collect-staged-telemetry: config '$_CST_CFG' exists but is not readable — the telemetry.enabled master switch was NOT consulted; collecting as if telemetry were on (issue #2035)" >&2
 fi
 
 rm -rf "$DEST" 2>/dev/null || true

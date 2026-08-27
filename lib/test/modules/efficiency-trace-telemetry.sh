@@ -7013,4 +7013,21 @@ bash "$T2035_CST" "$T2035_CR_DEVFLOW" "$T2035_CR_DEVFLOW/upload" >/dev/null 2>"$
 assert_eq "#2035 collect-staged honors a superseded .devflow/ config for the master switch" "yes" \
   "$(grep -qF 'telemetry.enabled is false' "$T2035_CR_DEVFLOW/err.txt" && echo yes || echo no)"
 
+# A sub-key present as JSON null reaches the resolver's miss path exactly as an
+# absent one does, so it inherits too — the schema and docs say so, and this pins it.
+printf '%s' '{"telemetry":{"enabled":false},"prflow":{"execution_diagnostics_enabled":null}}' > "$T2035_ROOT/m-subnull.json"
+assert_eq "#2035 a sub-key set to JSON null inherits the master-off resolution" "false" \
+  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-subnull.json")"
+
+# An unreadable config is indistinguishable from master-on at the predicate's exit
+# code, so the collector announces it rather than uploading as a silent opt-in.
+T2035_CR_UNREAD="$T2035_ROOT/collect-unreadable"
+mkdir -p "$T2035_CR_UNREAD/.prflow"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_UNREAD/.prflow/config.json"
+chmod 000 "$T2035_CR_UNREAD/.prflow/config.json"
+bash "$T2035_CST" "$T2035_CR_UNREAD" "$T2035_CR_UNREAD/upload" >/dev/null 2>"$T2035_CR_UNREAD/err.txt"
+assert_eq "#2035 collect-staged announces an unreadable config instead of uploading silently" "yes" \
+  "$(grep -qF 'is not readable' "$T2035_CR_UNREAD/err.txt" && echo yes || echo no)"
+chmod 644 "$T2035_CR_UNREAD/.prflow/config.json"
+
 rm -rf "$T2035_ROOT"
