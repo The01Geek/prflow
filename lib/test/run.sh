@@ -41832,7 +41832,21 @@ assert_eq "#2025 covmap-tab-declared: tab-separated declaration registers the dr
   "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
 assert_eq "#2025 covmap-tab-declared: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
 
-unset UBC_CM_DEPS UBC_REALPY UBC_RF_OUT UBC_RF_RC UBC_RF_ERR
+# ── covmap-subdir → the declaration is resolved with `git -C <repo root>`, so a run whose CWD
+# is a SUBDIRECTORY still registers. Dropping that -C makes check-attr resolve the relative
+# pathspec against the subdirectory, read as undeclared, and silently revert to line-based. ─
+D="$(git_sandbox 'ubc-covmap-subdir')"
+ubc_covmap_make "$D"
+ubc_covmap_advance "$D" sd
+UBC_SD_OUT="$( cd "$D/work/lib/test" && "$UBC" 2>"$D/sd-err" )"; UBC_SD_RC=$?
+assert_eq "#2025 covmap-subdir: run from a subdirectory still registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-subdir: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_SD_OUT"
+assert_eq "#2025 covmap-subdir: exit 0" "0" "$UBC_SD_RC"
+git -C "$D/work" merge --abort 2>/dev/null || true
+
+unset UBC_CM_DEPS UBC_REALPY UBC_RF_OUT UBC_RF_RC UBC_RF_ERR UBC_SD_OUT UBC_SD_RC
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "extract-execution-shape.sh (#437 execution-file shape probe: redaction + present/absent/unavailable + encoding)"
