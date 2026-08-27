@@ -7,15 +7,15 @@
 # link's single owner; it calls this once on every adopt (resume) trigger, before the agent
 # starts, mirroring its existing workpad Run-line refresh. Best-effort.
 #
-# Why a helper and not inline gate YAML: this is the selection + read + transform + PATCH the
-# suite must drive each arm of (CLAUDE.md's extract-inline-shell rule; resolve-existing-pr.sh
-# is the reference). The "which PR" selection lives in resolve-issue-pr.py (shared with the
-# workpad.py mirror); the note-block transform in pr-note-block.py; the link rewrite in
-# refresh-pr-run-link.py — this helper only orchestrates them and does the two gh REST calls.
+# A helper, not inline gate YAML, so the suite can drive this selection + read + transform +
+# PATCH (CLAUDE.md's extract-inline-shell rule; resolve-existing-pr.sh is the reference). The
+# "which PR" selection lives in resolve-issue-pr.py (shared with the workpad.py mirror); the
+# note-block transform in pr-note-block.py; the link rewrite in refresh-pr-run-link.py — this
+# helper only orchestrates them and does the two gh REST calls.
 #
 # Usage: refresh-pr-on-resume.sh --issue <n> --run-url <url>
 #
-# CONTRACT — one token line on stdout with a matching exit code (no silent path):
+# CONTRACT — one token line on stdout with a matching exit code; a stderr breadcrumb too:
 #   REFRESHED <n>     exit 0   resolved the open PR and PATCHed its body
 #   NO_PR             exit 2   the query ran cleanly and no open PR closes the issue
 #   REFUSED <reason>  exit 3   the PR set, body read, transform, or PATCH could not be done

@@ -26,7 +26,7 @@ The orchestrator's dispatch prompt provides, and you use verbatim:
 
 - `ISSUE_NUMBER` — the GitHub issue this run implements (`$ISSUE_NUMBER` below).
 - `WORKPAD` — the exact `workpad.py` helper path to invoke as a **leading token** for every workpad write (the vendored literal `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier; the resolved bundled path on the local tier). Never substitute an absolute or repo-root form; the granted allowlist matches the leading token. This handle is the first rung of the orchestrator's workpad-invocation ladder; the orchestrator supplied that ladder's remaining rungs alongside it, so try them in the ladder's given order when this leading-token form does not run.
-- `SCRIPTS` — the directory prefix for the other bundled helpers you invoke: `config-get.sh`, `branch-for-issue.py`, `preflight.py`, `run-jq.sh`, `refresh-pr-run-link.py`.
+- `SCRIPTS` — the directory prefix for the other bundled helpers you invoke: `config-get.sh`, `branch-for-issue.py`, `preflight.py`, `run-jq.sh`, `pr-note-block.py`.
 - `BASE` — the base branch (`$BASE`), read by the orchestrator from `.prflow/config.json`; `origin/$BASE` is the fetch/read target. It is passed to you, but you re-derive it below with the same fail-closed guard so a stale value cannot silently mistarget.
 - `WORKPAD_BODY` — the live workpad body the orchestrator read in §1.3/§1.4 (or a path to it). You read its `**Branch:**` line from this; do not re-fetch it.
 - `HANDOFF` — the cloud handoff provenance value (`created-current-run` / `adopted-existing` / `unknown`) the orchestrator resolved in §1.3, which decides `provenance_established` for Verdict B.
