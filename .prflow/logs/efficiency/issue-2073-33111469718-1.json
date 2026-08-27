@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "slug": "issue-2073",
+  "generated_at": "2026-08-27T20:13:44Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "issue_number": 2073,
+  "no_pr_reason": "no-closing-pr-found",
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.35.4",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 5.124075,
+    "tokens": {
+      "input_tokens": 58,
+      "output_tokens": 24200,
+      "cache_read_input_tokens": 4446820,
+      "cache_creation_input_tokens": 156563,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 58,
+        "outputTokens": 24200,
+        "cacheReadInputTokens": 4446820,
+        "cacheCreationInputTokens": 156563,
+        "webSearchRequests": 0,
+        "costUSD": 4.39433,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 40,
+        "outputTokens": 12061,
+        "cacheReadInputTokens": 1187050,
+        "cacheCreationInputTokens": 148658,
+        "webSearchRequests": 0,
+        "costUSD": 0.729745,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 47,
+    "duration_ms": 492685
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS BASE=$GITHUB_BASE_REF RUN_ID=$GITHUB_RUN_ID\"; git rev-parse --show-toplevel; git branch --show-current",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 2073 --branch \"$(git branch --show-current)\"",
+      ".prflow/vendor/prflow/scripts/run-jq.sh -r '.comment.id // empty' \"$GITHUB_EVENT_PATH\" 2>/dev/null || true"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  },
+  "run_profile": {
+    "phase_durations_ms": {
+      "Documentation": "unestablished",
+      "Implement": "unestablished",
+      "PR marked ready": "unestablished",
+      "Review": "unestablished",
+      "Setup": 514000
+    },
+    "final_status": "Blocked",
+    "prior_record_count": 0,
+    "issue_number": 2073,
+    "engine_outcome": "success"
+  }
+}
