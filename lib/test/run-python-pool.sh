@@ -5,8 +5,9 @@
 # Driver for the `python-pool` CI shard.
 #
 # WHY THIS SHARD EXISTS
-#   lib/test/run.sh opens a bounded concurrent pool (issue #720) over the two heavy
-#   focused Python suites — test_module_runner.py and test_python_scripts.py — early in
+#   lib/test/run.sh opens a bounded concurrent pool (issue #720) over the heavy
+#   focused Python suites — test_module_runner.py and the four parts test_python_scripts.py
+#   was split into (issue #2007) — early in
 #   the file, and joins it at the tail so the Python work overlaps the shell assertions.
 #   The overlap is not enough: profiling the `monolith` shard (lib/test/profile-suite.py)
 #   measured the shell sitting IDLE at the join, waiting for Python work the shell had

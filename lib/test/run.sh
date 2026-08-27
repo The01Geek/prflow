@@ -118,7 +118,7 @@ esac
 export -n DEVFLOW_SKIP_SUITE_MODULES 2>/dev/null || true
 # Python-pool selector, the sibling of the module-tier selector above. The monolith CI
 # shard invokes this suite as `DEVFLOW_SKIP_PYTHON_POOL=1 bash lib/test/run.sh` so the
-# two heavy pooled Python suites (test_module_runner.py, test_python_scripts.py) run in
+# heavy pooled Python suites (test_module_runner.py + the four test_python_scripts parts) run in
 # their own `python-pool` shard instead — the monolith no longer sits idle at the join
 # waiting for them. `export -n` for exactly the reason above, and with more force here:
 # the pooled suites and the module meta-tests spawn nested run.sh/run-module.sh
@@ -5745,20 +5745,31 @@ assert_eq "#169: workpad.py routes volatile misses through _report_failed_ticks 
 S258="$(mktemp -d)"
 cat > "$S258/gh" <<'STUB'
 #!/usr/bin/env bash
-# Minimal gh stub for workpad.py update: repo view, comments list (marker match),
-# body fetch, and PATCH (records that a PATCH happened + echoes the patched body).
+# Minimal gh stub for workpad.py update (issue #2042 unified resolution): the
+# comments-list scan AND the single-comment verify fetch both return the full
+# workpad object (body + issue_url) — the scan resolves id AND body together, so
+# there is no separate `--jq .body` body fetch and no `gh repo view`. PATCH records
+# that a PATCH happened + echoes the patched body.
 j="$*"
-if [[ "$j" == *"repo view"* ]]; then echo "owner/repo"; exit 0; fi
 if [[ "$j" == *"-X PATCH"* ]]; then
   echo p >> "$WP_PATCHLOG"
   for a in "$@"; do case "$a" in body=@*) cat "${a#body=@}";; esac; done
   exit 0
 fi
-if [[ "$j" == *"issues/comments/7"* ]]; then cat "$WP_BODY"; exit 0; fi
-if [[ "$j" == *"issues/999/comments"* ]]; then echo '[{"id":7,"body":"<!-- devflow:workpad -->"}]'; exit 0; fi
+if [[ "$j" == *"issues/comments/7"* ]]; then
+  printf '{"id":7,"body":%s,"issue_url":"https://api.github.com/repos/owner/repo/issues/999"}' "$(jq -Rs . < "$WP_BODY")"; exit 0
+fi
+if [[ "$j" == *"issues/999/comments"* ]]; then
+  printf '[{"id":7,"body":%s,"issue_url":"https://api.github.com/repos/owner/repo/issues/999"}]' "$(jq -Rs . < "$WP_BODY")"; exit 0
+fi
 echo '[]'
 STUB
 chmod +x "$S258/gh"
+# Issue #2042: workpad.py update now records a resolved comment id under the
+# repo-root .prflow/tmp/workpad-id-cache/. Clear it so this block always exercises
+# the scan path first (the cache self-heals via the verify fetch, but a clean start
+# keeps the fixtures deterministic across suite runs).
+rm -rf "$LIB/../.prflow/tmp/workpad-id-cache"
 
 # issue #1087: the terminal gate also requires a validated completion
 # verification-flight marker. Stand up a passing flight record under a temp
@@ -6518,19 +6529,27 @@ PY
 S781U="$(mktemp -d)"
 cat > "$S781U/gh" <<'STUB'
 #!/usr/bin/env bash
-# gh stub for workpad.py update: repo view, comment lookup, body fetch, PATCH
-# (echoes the patched body so the test can read the written record back).
+# gh stub for workpad.py update (issue #2042 unified resolution): the comments-list
+# scan AND the single-comment verify fetch both return the full workpad object
+# (body + issue_url), so the scan resolves id AND body together — no separate body
+# fetch, no `gh repo view`. PATCH echoes the patched body so the test can read the
+# written record back.
 j="$*"
-if [[ "$j" == *"repo view"* ]]; then echo "owner/repo"; exit 0; fi
 if [[ "$j" == *"-X PATCH"* ]]; then
   for a in "$@"; do case "$a" in body=@*) cat "${a#body=@}";; esac; done
   exit 0
 fi
-if [[ "$j" == *"issues/comments/7"* ]]; then cat "$WP_BODY"; exit 0; fi
-if [[ "$j" == *"issues/999/comments"* ]]; then echo '[{"id":7,"body":"<!-- devflow:workpad -->"}]'; exit 0; fi
+if [[ "$j" == *"issues/comments/7"* ]]; then
+  printf '{"id":7,"body":%s,"issue_url":"https://api.github.com/repos/owner/repo/issues/999"}' "$(jq -Rs . < "$WP_BODY")"; exit 0
+fi
+if [[ "$j" == *"issues/999/comments"* ]]; then
+  printf '[{"id":7,"body":%s,"issue_url":"https://api.github.com/repos/owner/repo/issues/999"}]' "$(jq -Rs . < "$WP_BODY")"; exit 0
+fi
 echo '[]'
 STUB
 chmod +x "$S781U/gh"
+# Issue #2042: clear the resolved-id cache so this block exercises the scan path.
+rm -rf "$LIB/../.prflow/tmp/workpad-id-cache"
 cat > "$S781U/base.md" <<'WPMD'
 <!-- devflow:workpad -->
 # DevFlow Workpad — Issue #999
@@ -41673,6 +41692,181 @@ done
 assert_eq "#779 ubc-token-arms: every helper token is named in a checkpoint-4 arm (none falls through to publish)" \
   "" "${UBC_UNMAPPED# }"
 unset _t UBC_TOKENS UBC_TOKENS_ONELINE UBC_P4_BODY UBC_UNMAPPED
+
+# ── #2025 covmap-driver → update-branch-checkpoint.sh registers the coverage-map JSON-aware
+# merge driver itself before its base merge. Stage the real driver + its guard/population
+# deps in each scratch repo, or `--register` has nothing to register. ──────────────────────
+UBC_CM_DEPS="coverage-map-merge-driver.py coverage_map_guard.py lint_population.py"
+
+# Build a scratch repo (bare origin + work on `feat`) whose .gitattributes routes
+# lib/test/modules/coverage-map.json through merge=coverage-map-json, with the driver deps
+# staged under lib/test/; `feat` inserts an adjacent key. stage_driver=0 omits the driver
+# file itself (the AC4 declared-but-missing-driver arm).
+ubc_covmap_make() {  # root [stage_driver]
+  local root="$1" stage_driver="${2:-1}" dep
+  git init -q --bare "$root/bare.git"
+  git init -q -b main "$root/work"
+  git -C "$root/work" config user.email t@t
+  git -C "$root/work" config user.name t
+  mkdir -p "$root/work/lib/test/modules"
+  printf 'lib/test/modules/coverage-map.json merge=coverage-map-json\n' > "$root/work/.gitattributes"
+  for dep in $UBC_CM_DEPS; do
+    [ "$dep" = "coverage-map-merge-driver.py" ] && [ "$stage_driver" = "0" ] && continue
+    cp "$LIB/test/$dep" "$root/work/lib/test/$dep"
+  done
+  printf '{\n  "aaa": {"owner": "x"},\n  "zzz": {"owner": "x"}\n}\n' > "$root/work/lib/test/modules/coverage-map.json"
+  git -C "$root/work" add .gitattributes lib/test
+  git -C "$root/work" commit -qm init
+  git -C "$root/work" remote add origin "$root/bare.git"
+  git -C "$root/work" push -q -u origin main
+  git -C "$root/work" checkout -q -b feat
+  printf '{\n  "aaa": {"owner": "x"},\n  "mmm": {"owner": "feat"},\n  "zzz": {"owner": "x"}\n}\n' \
+    > "$root/work/lib/test/modules/coverage-map.json"
+  git -C "$root/work" add lib/test/modules/coverage-map.json
+  git -C "$root/work" commit -qm feat-key
+  git -C "$root/work" push -q -u origin feat
+}
+
+# Advance origin/main with the map carrying a DISTINCT adjacent key — a textual conflict
+# without the driver, a clean union with it.
+ubc_covmap_advance() {  # root tag
+  ubc_advance_base "$1" "$2" lib/test/modules/coverage-map.json \
+    "$(printf '{\n  "aaa": {"owner": "x"},\n  "nnn": {"owner": "base"},\n  "zzz": {"owner": "x"}\n}')"
+}
+
+# ── covmap-clean → AC1 (adjacent-key conflict resolves cleanly), AC2 (driver registered to
+# exactly DRIVER_COMMAND, local), AC6 (no global/system key). ──────────────────────────────
+D="$(git_sandbox 'ubc-covmap-clean')"
+ubc_covmap_make "$D"
+ubc_covmap_advance "$D" cm
+ubc_run "$D"
+assert_eq "#2025 covmap-clean: adjacent-key conflict resolves → 'UPDATED 1' (AC1)" "UPDATED 1" "$UBC_OUT"
+assert_eq "#2025 covmap-clean: exit 0 (AC1)" "0" "$UBC_RC"
+assert_eq "#2025 covmap-clean: merged map unions all four keys (AC1)" "4" \
+  "$(git -C "$D/work" show HEAD:lib/test/modules/coverage-map.json 2>/dev/null | grep -oE '"(aaa|mmm|nnn|zzz)"' | wc -l | tr -d ' ')"
+assert_eq "#2025 covmap-clean: driver registered locally to DRIVER_COMMAND (AC2)" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-clean: no GLOBAL git config key written by the helper (AC6)" "" \
+  "$(git config --global --get merge.coverage-map-json.driver 2>/dev/null || true)"
+assert_eq "#2025 covmap-clean: no SYSTEM git config key written by the helper (AC6)" "" \
+  "$(git config --system --get merge.coverage-map-json.driver 2>/dev/null || true)"
+
+# ── covmap-undeclared → AC3: a checkout with no merge=coverage-map-json assignment writes no
+# config, invokes no registration, and emits no registration output on any stream. ──────────
+D="$(git_sandbox 'ubc-covmap-undeclared')"
+ubc_make "$D"
+ubc_advance_base "$D" ud
+ubc_run "$D"
+assert_eq "#2025 covmap-undeclared: normal update is unaffected → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
+assert_eq "#2025 covmap-undeclared: no merge.coverage-map-json.driver config written (AC3)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+assert_eq "#2025 covmap-undeclared: no registration output on stderr (AC3)" "no" \
+  "$(printf '%s' "$UBC_ERR" | grep -qF 'coverage-map merge driver' && echo yes || echo no)"
+
+# ── covmap-declared-other → AC3 reject path: .gitattributes EXISTS but resolves the map to a
+# near-miss superstring. Keep this row beside covmap-undeclared: a no-file repo never exercises
+# the resolve-then-reject arm at all. ──────────────────────────────────────────────────────
+D="$(git_sandbox 'ubc-covmap-declared-other')"
+ubc_make "$D"
+printf '# comment the parser must skip\n*.sh merge=text\nlib/test/modules/coverage-map.json merge=coverage-map-json-other\n' > "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm gitattributes-no-covmap-decl
+ubc_advance_base "$D" 'do'
+ubc_run "$D"
+assert_eq "#2025 covmap-declared-other: normal update unaffected → 'UPDATED 1' (AC3 parse reject)" "UPDATED 1" "$UBC_OUT"
+assert_eq "#2025 covmap-declared-other: no merge.coverage-map-json.driver config written (AC3 parse reject)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+assert_eq "#2025 covmap-declared-other: no registration output on stderr (AC3 parse reject)" "no" \
+  "$(printf '%s' "$UBC_ERR" | grep -qF 'coverage-map merge driver' && echo yes || echo no)"
+
+# ── covmap-nodriver → AC4: declaration present but the driver file absent → exactly one stderr
+# warning naming the missing driver path, then the merge falls back line-based (outcome
+# unchanged: an adjacent-key covmap conflict is still CONFLICT/exit 2). ─────────────────────
+D="$(git_sandbox 'ubc-covmap-nodriver')"
+ubc_covmap_make "$D" 0
+ubc_covmap_advance "$D" nd
+ubc_run "$D"
+assert_eq "#2025 covmap-nodriver: missing driver → line-based fallback → CONFLICT (AC4 outcome unchanged)" "CONFLICT" "$UBC_OUT"
+assert_eq "#2025 covmap-nodriver: exit 2 (AC4)" "2" "$UBC_RC"
+assert_eq "#2025 covmap-nodriver: exactly one stderr warning naming the missing driver path (AC4)" "1" \
+  "$(printf '%s\n' "$UBC_ERR" | grep -cF 'coverage-map-merge-driver.py is missing')"
+assert_eq "#2025 covmap-nodriver: no driver config written when the driver is absent (AC4)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+git -C "$D/work" merge --abort 2>/dev/null || true
+
+# ── covmap-regfail → AC5: the registration command exits non-zero (a python3 stub that fails
+# only on `--register`, passing every other call through to the real interpreter) → exactly one
+# stderr warning, the base merge still runs (later guards intact), outcome unchanged. ───────
+D="$(git_sandbox 'ubc-covmap-regfail')"
+ubc_covmap_make "$D"
+ubc_covmap_advance "$D" rf
+UBC_REALPY="$(command -v python3)"
+mkdir -p "$D/stubbin"
+cat > "$D/stubbin/python3" <<EOF
+#!/usr/bin/env bash
+for _a in "\$@"; do [ "\$_a" = "--register" ] && exit 1; done
+exec "$UBC_REALPY" "\$@"
+EOF
+chmod +x "$D/stubbin/python3"
+UBC_RF_OUT="$( cd "$D/work" && PATH="$D/stubbin:$PATH" "$UBC" 2>"$D/rf-err" )"; UBC_RF_RC=$?
+UBC_RF_ERR="$(cat "$D/rf-err" 2>/dev/null)"
+assert_eq "#2025 covmap-regfail: failed registration → line-based fallback → CONFLICT (AC5 outcome unchanged)" "CONFLICT" "$UBC_RF_OUT"
+assert_eq "#2025 covmap-regfail: exit 2 (AC5)" "2" "$UBC_RF_RC"
+assert_eq "#2025 covmap-regfail: exactly one stderr warning on registration failure (AC5)" "1" \
+  "$(printf '%s\n' "$UBC_RF_ERR" | grep -cF 'registration')"
+assert_eq "#2025 covmap-regfail: the base merge still ran after the fail-soft fallback (later guards intact, AC5)" "yes" \
+  "$(printf '%s' "$UBC_RF_ERR" | grep -qF 'coverage-map.json' && echo yes || echo no)"
+assert_eq "#2025 covmap-regfail: no driver config written after a failed registration (AC5)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+git -C "$D/work" merge --abort 2>/dev/null || true
+
+# ── covmap-real-gitattributes → pins the guard to THIS repo's checked-in .gitattributes, not
+# the synthetic line the rows above stage. Reformatting the real declaration into a shape the
+# guard misses goes RED here instead of silently reverting every merge to line-based. ──────
+D="$(git_sandbox 'ubc-covmap-real-ga')"
+ubc_covmap_make "$D"
+cp "$LIB/../.gitattributes" "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm real-gitattributes
+ubc_covmap_advance "$D" rg
+ubc_run "$D"
+assert_eq "#2025 covmap-real-gitattributes: the repo's own declaration registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-real-gitattributes: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
+
+# ── covmap-tab-declared → git splits a .gitattributes line on ANY whitespace, so a
+# tab-separated declaration is a real declaration. The guard must resolve it through git
+# rather than re-deriving the separator set, which silently under-accepts. ─────────────────
+D="$(git_sandbox 'ubc-covmap-tab')"
+ubc_covmap_make "$D"
+printf 'lib/test/modules/coverage-map.json\tmerge=coverage-map-json\n' > "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm tab-separated-declaration
+ubc_covmap_advance "$D" tb
+ubc_run "$D"
+assert_eq "#2025 covmap-tab-declared: tab-separated declaration registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-tab-declared: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
+
+# ── covmap-subdir → the declaration is resolved with `git -C <repo root>`, so a run whose CWD
+# is a SUBDIRECTORY still registers. Dropping that -C makes check-attr resolve the relative
+# pathspec against the subdirectory, read as undeclared, and silently revert to line-based. ─
+D="$(git_sandbox 'ubc-covmap-subdir')"
+ubc_covmap_make "$D"
+ubc_covmap_advance "$D" sd
+UBC_SD_OUT="$( cd "$D/work/lib/test" && "$UBC" 2>"$D/sd-err" )"; UBC_SD_RC=$?
+assert_eq "#2025 covmap-subdir: run from a subdirectory still registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-subdir: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_SD_OUT"
+assert_eq "#2025 covmap-subdir: exit 0" "0" "$UBC_SD_RC"
+git -C "$D/work" merge --abort 2>/dev/null || true
+
+unset UBC_CM_DEPS UBC_REALPY UBC_RF_OUT UBC_RF_RC UBC_RF_ERR UBC_SD_OUT UBC_SD_RC
+
 # ────────────────────────────────────────────────────────────────────────────
 echo "extract-execution-shape.sh (#437 execution-file shape probe: redaction + present/absent/unavailable + encoding)"
 # ────────────────────────────────────────────────────────────────────────────
@@ -49930,10 +50124,14 @@ assert_eq "python-pool: run-python-pool.sh exists and is executable" "yes" \
 # ── The DEVFLOW_SKIP_PYTHON_POOL selector, driven at BOTH entry points ──
 # devflow_pool_open/join are shadowed inside a subshell, so the real 275s of Python
 # never runs: the probe observes only the DECISION. `open=` is the number of pool
-# membership modes handed to devflow_pool_open (2 when the pool ran, 0 when gated);
-# `join=` is the number of verdict lines the join wrote to its private RESULTS_FILE
-# (the enabled arm reaches the reconciliation, which — with no summary captured from a
-# stubbed pool — records exactly one FAIL, so a non-zero join= is proof the body ran).
+# membership modes handed to devflow_pool_open (5 when the pool ran — one single-verdict
+# test_module_runner.py plus the four self-tally test_python_scripts parts (issue #2007);
+# 0 when gated); `join=` is the number of verdict lines the join wrote to its private
+# RESULTS_FILE (the enabled arm reaches the reconciliation, which — with no summary
+# captured from a stubbed pool — records one FAIL per self-tally member, i.e. 4, so a
+# non-zero join= is proof the body ran). The 5/4 pins couple to the pool membership; the
+# self-tally-member coupling assertion below fails RED in lockstep if a part is added or
+# dropped, forcing both to be updated together.
 _pps_selector_probe() {  # selector-value ('' = unset) -> "open=N join=N"
   (
     # Explicit templates, the convention this file and run-python-pool.sh already use:
@@ -49956,20 +50154,41 @@ _pps_selector_probe() {  # selector-value ('' = unset) -> "open=N join=N"
   ) 2>/dev/null | tail -1
 }
 assert_eq "python-pool selector: with DEVFLOW_SKIP_PYTHON_POOL unset the pool opens and the join body runs" \
-  "open=2 join=1" "$(_pps_selector_probe '')"
+  "open=5 join=4" "$(_pps_selector_probe '')"
 assert_eq "python-pool selector: DEVFLOW_SKIP_PYTHON_POOL=1 opens nothing and writes NO verdict (no double-count)" \
   "open=0 join=0" "$(_pps_selector_probe 1)"
 # Only the exact value 1 disables — the DEVFLOW_SKIP_SUITE_MODULES contract. A
 # half-set variable must not silently drop both suites from a run.
 assert_eq "python-pool selector: DEVFLOW_SKIP_PYTHON_POOL=0 still runs the pool (only the exact 1 disables)" \
-  "open=2 join=1" "$(_pps_selector_probe 0)"
+  "open=5 join=4" "$(_pps_selector_probe 0)"
 assert_eq "python-pool selector: a non-empty non-1 value still runs the pool" \
-  "open=2 join=1" "$(_pps_selector_probe yes)"
+  "open=5 join=4" "$(_pps_selector_probe yes)"
 assert_eq "python-pool selector: the predicate reports enabled when unset" "enabled" \
   "$( ( unset DEVFLOW_SKIP_PYTHON_POOL; devflow_python_pool_enabled && echo enabled || echo disabled ) )"
 assert_eq "python-pool selector: the predicate reports disabled at exactly 1" "disabled" \
   "$( ( DEVFLOW_SKIP_PYTHON_POOL=1; devflow_python_pool_enabled && echo enabled || echo disabled ) )"
 unset -f _pps_selector_probe
+
+# ── DEVFLOW_PYTHON_SELFTALLY_MEMBERS must equal the pool's self-tally registrations ──
+# The #720/#2007 reconciliation loops DEVFLOW_PYTHON_SELFTALLY_MEMBERS, a hand-maintained
+# literal decoupled from the `self-tally` triples devflow_python_suite_pool_open registers.
+# Without this pin a part added to the pool as self-tally but forgotten in the array would
+# run, contribute verdicts, and NEVER be reconciled — a silent coverage gap that fails open
+# exactly where the check claims to fail closed. Stub devflow_pool_open to emit its triples
+# as "name<TAB>mode", keep the self-tally names, and assert set-equality (both sides sorted).
+_pps_selftally_registered() {  # -> newline-sorted self-tally member names the pool registers
+  (
+    # devflow_python_suite_pool_open early-returns via devflow_python_pool_enabled when
+    # DEVFLOW_SKIP_PYTHON_POOL=1 (the monolith shard sets it), so clear it here — as the
+    # sibling probes do — or this assertion emits an empty RHS and goes RED on that shard.
+    unset DEVFLOW_SKIP_PYTHON_POOL
+    devflow_pool_open() { while [ "$#" -ge 3 ]; do printf '%s\t%s\n' "$1" "$3"; shift 3; done; }
+    devflow_python_suite_pool_open | grep '	self-tally$' | sed 's/	self-tally$//' | sort
+  ) 2>/dev/null
+}
+assert_eq "python-pool: DEVFLOW_PYTHON_SELFTALLY_MEMBERS equals the pool's registered self-tally members" \
+  "$(printf '%s\n' "${DEVFLOW_PYTHON_SELFTALLY_MEMBERS[@]}" | sort)" "$(_pps_selftally_registered)"
+unset -f _pps_selftally_registered
 
 # ── The join's POSITIVE reconciliation branch, in isolation ──
 # The selector probe above reaches only the else arm (no summary captured). The branch
@@ -49977,12 +50196,15 @@ unset -f _pps_selector_probe
 # `N passed, M failed` line, compared against the verdict lines it contributed — is the
 # one that regresses on a summary-format change, and it is otherwise exercised only end
 # to end inside a 3-minute pooled run. Drive it directly by seeding the two reap-time
-# captures and stubbing devflow_pool_join.
+# captures and stubbing devflow_pool_join. Scope DEVFLOW_PYTHON_SELFTALLY_MEMBERS to the one
+# seeded member so this probe isolates the arithmetic — the multi-member fan-out (one else-arm
+# FAIL per unseeded member) is covered by the selector probe's join=4 above, not re-tested here.
 _pps_reconcile_probe() {  # summary  lines -> "pass=N fail=N"
   (
     _pps_res="$(mktemp "${TMPDIR:-/tmp}/devflow-pps-reconcile.XXXXXX")"; : > "$_pps_res"
     RESULTS_FILE="$_pps_res"
     unset DEVFLOW_SKIP_PYTHON_POOL
+    DEVFLOW_PYTHON_SELFTALLY_MEMBERS=("test_python_scripts.py")
     devflow_pool_join() { :; }
     # Subscripts quoted: an unquoted associative-array subscript is read as a variable
     # reference in an assignment context (SC2154), unlike the read sites above.
