@@ -409,7 +409,20 @@ def _decide(args):
         'checklist phase entries: ', ', '.join(missing), '.')
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the entry path (issue #1762). The detail lines
+    carry em-dashes, so a non-UTF-8 runner would otherwise raise on print. Never called at
+    import — that would mutate an importing test's streams. Tolerates a stream with no
+    usable reconfigure."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv=None):
+    _force_utf8_streams()
     parser = argparse.ArgumentParser(
         description='Fail a cloud review run whose posted verdict lacks phase-execution '
                     'evidence (issue #2075). Always exits 0; the caller reads stdout '
