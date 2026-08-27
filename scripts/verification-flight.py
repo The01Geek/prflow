@@ -97,6 +97,17 @@ EXIT_CAS_REJECT = 4   # ownership / transition compare-and-swap rejected
 EXIT_UNREADABLE = 5   # state file missing, empty, truncated, or malformed
 EXIT_WAIT_EXPIRED = 6  # wait bound elapsed with the flight still active
 
+# One-line meaning per exit code, rendered into the top-level `--help` epilog and
+# enumerated by the test so the documented meanings cannot drift from the codes.
+EXIT_CODE_MEANINGS = {
+    EXIT_OK: "success; for status/wait the flight satisfies verification",
+    EXIT_NON_PASS: "read succeeded but the flight does not satisfy verification",
+    EXIT_INVALID: "invalid or incomplete declaration or arguments",
+    EXIT_CAS_REJECT: "ownership or transition compare-and-swap rejected",
+    EXIT_UNREADABLE: "state file missing, empty, truncated, or malformed",
+    EXIT_WAIT_EXPIRED: "wait bound elapsed with the flight still active",
+}
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Time (test-overridable) and canonicalization
@@ -855,7 +866,7 @@ def cmd_claim(args) -> int:
     ci_mismatch = declared_ci is not None and declared_ci != stored_ci
     # Attach never supplies a current checkout, so it cannot verify the tree —
     # checkout_verified is always False here; a consume must re-anchor via
-    # status/wait with --current-checkout-file (see phase-3-fix-loop.md).
+    # status/wait with --current-checkout-file (see skills/review-and-fix/references/fixing.md).
     if ci_mismatch:
         _print_public(
             flight, role="attacher", checkout_verified=False,
@@ -1249,11 +1260,39 @@ class _FlightArgumentParser(argparse.ArgumentParser):
         self.exit(EXIT_INVALID)
 
 
+def _exit_code_epilog() -> str:
+    """Render EXIT_CODE_MEANINGS into the top-level help epilog so an agent reading
+    `--help` learns each code's meaning without grepping the source."""
+    lines = ["exit codes:"]
+    for code, meaning in EXIT_CODE_MEANINGS.items():
+        lines.append(f"  {code}  {meaning}")
+    return "\n".join(lines)
+
+
+def _claim_epilog() -> str:
+    """Render the claim declaration's required keys from the same in-module constants
+    the validator reads, plus the attach semantics, so `claim --help` answers what the
+    declaration file must contain and how an already-claimed key behaves."""
+    return (
+        "declaration file (--input-file) required keys:\n"
+        f"  profile object: {', '.join(_PROFILE_REQUIRED)}\n"
+        f"  checkout fingerprint object: {', '.join(_CHECKOUT_REQUIRED)}\n"
+        "\n"
+        "attach semantics:\n"
+        "  Claiming an already-claimed key ATTACHES to the existing flight, exits 0,\n"
+        "  and reports the caller's role in the JSON output. Decide reuse from the JSON\n"
+        "  fields (role, state, reuse_ready/satisfies_verification), never from the\n"
+        "  exit code."
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = _FlightArgumentParser(
         prog="verification-flight.py",
         description="Single-flight verification coordination ledger (issue #528). "
         "Data-only: launches no subprocess and accepts no executable argv.",
+        epilog=_exit_code_epilog(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", required=True, parser_class=_FlightArgumentParser)
 
@@ -1284,7 +1323,11 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(p_desc)
     p_desc.set_defaults(func=cmd_descriptor)
 
-    p_claim = sub.add_parser("claim", help="Atomically claim a flight or attach to a matching active one.")
+    p_claim = sub.add_parser(
+        "claim", help="Atomically claim a flight or attach to a matching active one.",
+        epilog=_claim_epilog(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p_claim.add_argument("--input-file", required=True)
     p_claim.add_argument("--lease-seconds", type=int, default=None)
     add_common(p_claim)
