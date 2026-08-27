@@ -533,25 +533,49 @@ print("issue #169 (review): cmd_update CLI contract + structural-abort completen
 # ran. stdout is CAPTURED and returned (issue #814) so the default-suppression and
 # --print-body arms of `update`'s echo are assertable at the unit level — the only
 # level that drives the `_NoOpReplay` checkpoint-replay arm.
+_LAST_GH_CALLS = []   # joined gh command lines from the most recent _drive_cmd_update
+_UPDATE_ISSUE_URL = 'https://api.github.com/repos/owner/repo/issues/999'
+
+
 def _drive_cmd_update(body, patch_fails=False, patch_response=None,
-                      id_response=None, fail_at=None, **arg_overrides):
+                      id_response=None, fail_at=None,
+                      seed_cache_id=None, verify_fails=False, verify_response=None,
+                      cache_dir=None, **arg_overrides):
+    global _LAST_GH_CALLS
+    _LAST_GH_CALLS = []
     marker = '<!-- devflow:workpad -->'
-    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker)
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
+             workpad._workpad_id_cache_path, workpad._workpad_buffer_path)
+    # Retained for compatibility though the update path no longer calls it: a stub
+    # that still answered `gh repo view` would let a regression re-introducing the
+    # call pass silently, so we DON'T stub _run to answer it (a repo-view call now
+    # surfaces as an unhandled shape / assertion failure instead).
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: marker
+    # Hermetic id cache: a fresh temp dir per call, so a real-tree cache never leaks
+    # in and this call's write never leaks out. A caller may pass `cache_dir` to SHARE
+    # one dir across sequential calls (the cold-write → warm-read round-trip test) —
+    # the caller then owns that dir's lifetime and this driver does not remove it.
+    _owns_cache_dir = cache_dir is None
+    _cache_dir = cache_dir if cache_dir is not None else tempfile.mkdtemp(prefix='wp-idcache-')
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cache_dir) / f'{issue}.json'
+    # Anchor the failed-write buffer under the same temp dir, so the buffer-replay
+    # path never resolves _repo_root() (which would issue a `git rev-parse` through
+    # _run and pollute the gh call log the two-call cache-hit assertion counts).
+    workpad._workpad_buffer_path = lambda cid: Path(_cache_dir) / f'buf-{cid}.json'
+    if seed_cache_id is not None:
+        (Path(_cache_dir) / '999.json').write_text(
+            _json.dumps({'comment_id': seed_cache_id, 'issue': 999,
+                         'marker': marker, 'repo': 'owner/repo'}), encoding='utf-8')
+
+    def _obj(cid=7):
+        return {'id': cid, 'body': body, 'issue_url': _UPDATE_ISSUE_URL}
+
     state = {'patched': None}
+
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
-        if '/comments?' in joined or joined.endswith('/comments'):
-            # `fail_at`/`id_response` (issue #1562) drive cmd_update's two id-lookup
-            # terminating paths and its no-workpad-found path, which the default stub
-            # can never reach: keep both defaulting to None or every pre-#1562 caller
-            # of this harness changes behaviour.
-            if fail_at == 'id-lookup':
-                raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 500 id-lookup')
-            if id_response is not None:
-                return _FakeRun(id_response)
-            return _FakeRun(_json.dumps([{'id': 7, 'body': marker + '\n'}]))
+        _LAST_GH_CALLS.append(joined)
         if '-X' in cmd and 'PATCH' in cmd:
             if patch_fails:  # simulate a gh-api PATCH failure (network/auth/5xx)
                 raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 503 Service Unavailable')
@@ -567,9 +591,24 @@ def _drive_cmd_update(body, patch_fails=False, patch_response=None,
             if patch_response is not None:
                 return _FakeRun(patch_response)
             return _FakeRun(state['patched'] or '')
-        if fail_at == 'body-fetch':
-            raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 500 body-fetch')
-        return _FakeRun(body)   # the body fetch
+        if '/comments?' in joined or joined.endswith('/comments'):
+            # comments-list scan (id-lookup). `fail_at`/`id_response` (issue #1562)
+            # drive cmd_update's id-lookup terminating paths and its
+            # no-workpad-found path, which the default stub can never reach.
+            if fail_at == 'id-lookup':
+                raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 500 id-lookup')
+            if id_response is not None:
+                return _FakeRun(id_response)
+            return _FakeRun(_json.dumps([_obj()]))
+        # A single-comment fetch: the issue-#2042 cache-verify GET. `verify_fails`
+        # models a dead cached id (404); `verify_response` injects a custom body.
+        if fail_at == 'verify' or verify_fails:
+            raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 404 Not Found')
+        if verify_response is not None:
+            return _FakeRun(verify_response)
+        _m = re.search(r'/issues/comments/(\d+)', joined)
+        _cid = int(_m.group(1)) if _m else 7
+        return _FakeRun(_json.dumps(_obj(_cid)))
     workpad._run = _run
     out = io.StringIO()
     err = io.StringIO()
@@ -580,7 +619,10 @@ def _drive_cmd_update(body, patch_fails=False, patch_response=None,
     except SystemExit as e:
         code = e.code
     finally:
-        workpad._run, workpad._repo_full, workpad._workpad_marker = saved
+        (workpad._run, workpad._repo_full, workpad._workpad_marker,
+         workpad._workpad_id_cache_path, workpad._workpad_buffer_path) = saved
+        if _owns_cache_dir:
+            shutil.rmtree(_cache_dir, ignore_errors=True)
     return code, out.getvalue(), err.getvalue(), state['patched']
 
 
@@ -759,16 +801,20 @@ class _BrokenPipeStdout(io.StringIO):
 
 
 def _drive_post_patch_crash():
-    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker)
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
+             workpad._workpad_id_cache_path)
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
+    _cd = tempfile.mkdtemp(prefix='wp1562-idcache-')
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cd) / f'{issue}.json'
 
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
+        # Issue #2042: the scan resolves id AND body together, so the comments-list
+        # returns the full workpad object; there is no separate body fetch.
         if '/comments?' in joined or joined.endswith('/comments'):
-            return _FakeRun(_json.dumps([{'id': 7, 'body': '<!-- devflow:workpad -->\n'}]))
-        if '-X' in cmd and 'PATCH' in cmd:
-            return _FakeRun(OC_BODY)
+            return _FakeRun(_json.dumps([{'id': 7, 'body': OC_BODY,
+                'issue_url': 'https://api.github.com/repos/owner/repo/issues/999'}]))
         return _FakeRun(OC_BODY)
 
     workpad._run = _run
@@ -782,7 +828,9 @@ def _drive_post_patch_crash():
     except BaseException as e:
         raised = type(e).__name__
     finally:
-        (workpad._run, workpad._repo_full, workpad._workpad_marker) = saved
+        (workpad._run, workpad._repo_full, workpad._workpad_marker,
+         workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_cd, ignore_errors=True)
     return raised, err.getvalue()
 
 
@@ -793,14 +841,21 @@ _OC_CASES.append(("a post-PATCH crash", _err))
 # The `finally` temp-file unlink is itself a raising statement between the observed
 # PATCH and the wrapper, so it is driven separately from the stdout-echo crash above.
 def _drive_patch_cleanup_failure():
-    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path)
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path,
+             workpad._workpad_id_cache_path)
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
+    _cd = tempfile.mkdtemp(prefix='wp1562b-idcache-')
+    # Set the cache path BEFORE workpad.Path is faked below — the fake Path only
+    # denies the PATCH temp file, and this lambda builds its own real Paths.
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cd) / f'{issue}.json'
 
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
+        # Issue #2042: the scan resolves id AND body together (full workpad object).
         if '/comments?' in joined or joined.endswith('/comments'):
-            return _FakeRun(_json.dumps([{'id': 7, 'body': '<!-- devflow:workpad -->\n'}]))
+            return _FakeRun(_json.dumps([{'id': 7, 'body': OC_BODY,
+                'issue_url': 'https://api.github.com/repos/owner/repo/issues/999'}]))
         return _FakeRun(OC_BODY)
 
     class _UnlinkDenied:
@@ -830,7 +885,9 @@ def _drive_patch_cleanup_failure():
     except BaseException as e:
         raised = type(e).__name__
     finally:
-        (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path) = saved
+        (workpad._run, workpad._repo_full, workpad._workpad_marker, workpad.Path,
+         workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_cd, ignore_errors=True)
     return raised, err.getvalue()
 
 
@@ -841,10 +898,15 @@ _OC_CASES.append(("a post-PATCH cleanup failure", _err))
 # parsing module was not deployed) is the second transitive path the wrapper covers.
 def _drive_section_parse_missing():
     saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
-             workpad._SECTION_PARSE_IMPORT_ERROR)
+             workpad._SECTION_PARSE_IMPORT_ERROR, workpad._workpad_id_cache_path)
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
     workpad._SECTION_PARSE_IMPORT_ERROR = 'No module named section_parse'
+    # Hermetic id cache. Unstubbed, _workpad_id_cache_path resolves its root through
+    # the stubbed _run, which returns the workpad BODY — creating a repo-root
+    # directory named after that body text on every run of this test.
+    _cd = tempfile.mkdtemp(prefix='wp1562-sec-idcache-')
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_cd) / f'{issue}.json'
 
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
@@ -863,7 +925,8 @@ def _drive_section_parse_missing():
         code = e.code
     finally:
         (workpad._run, workpad._repo_full, workpad._workpad_marker,
-         workpad._SECTION_PARSE_IMPORT_ERROR) = saved
+         workpad._SECTION_PARSE_IMPORT_ERROR, workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_cd, ignore_errors=True)
     return code, err.getvalue()
 
 
@@ -3642,30 +3705,35 @@ def _update_args(**kw):
 
 
 def _run_cmd_update(args, *, live_body, patch_fails, buffer_dir):
-    """Run cmd_update with a stateful gh stub: call 1 = id-lookup, call 2 =
-    body-fetch, call 3 = PATCH (captures the written body, or raises when
-    patch_fails). Returns (exit_code, captured_patch_body, calls)."""
+    """Run cmd_update with a stateful gh stub. Since issue #2042 the update path
+    resolves the comment id AND its body in ONE comments-list scan (no separate
+    body fetch), so the stub branches on the request SHAPE: a comments-list scan
+    returns the full comment object (id + body + issue_url), and a PATCH captures
+    the written body (or raises when patch_fails). Hermetic id cache (a temp dir),
+    so the scan path always runs. Returns (exit_code, captured_patch_body, calls)."""
     saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
-             workpad._workpad_buffer_path)
+             workpad._workpad_buffer_path, workpad._workpad_id_cache_path)
     workpad._repo_full = lambda *a, **kw: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: _MARK1214
     workpad._workpad_buffer_path = lambda cid: Path(buffer_dir) / f'{cid}.json'
+    _idcache = tempfile.mkdtemp(prefix='wp1214-idcache-')
+    workpad._workpad_id_cache_path = lambda issue, mk: Path(_idcache) / f'{issue}.json'
     state = {'n': 0, 'patch_body': None}
+    _obj = _json.dumps([{"id": 55512, "body": live_body,
+                         "issue_url": "https://api.github.com/repos/owner/repo/issues/1214"}])
 
     def _run(cmd, **kw):
         state['n'] += 1
-        n = state['n']
-        if n == 1:
-            return _FakeRun(_json.dumps([{"id": 55512, "body": _MARK1214 + "\nx"}]))
-        if n == 2:
-            return _FakeRun(live_body)
-        # PATCH: capture the written body from the -F body=@<path> argument.
-        for a in cmd:
-            if isinstance(a, str) and a.startswith('body=@'):
-                state['patch_body'] = Path(a[len('body=@'):]).read_text(encoding='utf-8')
-        if patch_fails:
-            raise _subprocess.CalledProcessError(1, cmd, stderr='gh: HTTP 503')
-        return _FakeRun(state['patch_body'] or '')
+        if '-X' in cmd and 'PATCH' in cmd:
+            # PATCH: capture the written body from the -F body=@<path> argument.
+            for a in cmd:
+                if isinstance(a, str) and a.startswith('body=@'):
+                    state['patch_body'] = Path(a[len('body=@'):]).read_text(encoding='utf-8')
+            if patch_fails:
+                raise _subprocess.CalledProcessError(1, cmd, stderr='gh: HTTP 503')
+            return _FakeRun(state['patch_body'] or '')
+        # The comments-list scan resolves id + body together (issue #2042).
+        return _FakeRun(_obj)
 
     workpad._run = _run
     code = 0
@@ -3676,7 +3744,8 @@ def _run_cmd_update(args, *, live_body, patch_fails, buffer_dir):
         code = e.code if e.code is not None else 0
     finally:
         (workpad._run, workpad._repo_full, workpad._workpad_marker,
-         workpad._workpad_buffer_path) = saved
+         workpad._workpad_buffer_path, workpad._workpad_id_cache_path) = saved
+        shutil.rmtree(_idcache, ignore_errors=True)
     return code, state['patch_body'], state['n']
 
 
