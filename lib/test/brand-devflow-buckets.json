@@ -441,9 +441,6 @@
       "path": ".github/workflows/matcher-probe.yml"
     },
     {
-      "path": ".github/workflows/stall-observer.yml"
-    },
-    {
       "path": ".github/workflows/telemetry-push.yml"
     },
     {

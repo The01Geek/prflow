@@ -18,5 +18,10 @@
     "half": "files",
     "key": "scripts/import-review-verdict-handoff.py",
     "reason": "importer deleted by PR #1864 (issue #1860): orphaned review-verdict handoff after #1385 was closed"
+  },
+  {
+    "half": "files",
+    "key": "scripts/stall-observer-scan.py",
+    "reason": "helper deleted by issue #2065: the report-only stall-observer workflow and its scan helper were removed (never installed into any consumer; flagged conditions it never actually detected)"
   }
 ]

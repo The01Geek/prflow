@@ -20886,26 +20886,6 @@ for _n in ast.walk(_u8_wp_tree):
         _u8_rsf_flags.add(_n.args[1].value)
 
 
-
-stall_observer = _load('stall_observer', SCRIPTS / 'stall-observer-scan.py')
-
-
-def _wp1027(status="\U0001F680 Setup", updated="2026-08-19 07:28 UTC",
-            checkpoint="gha:1:1:phase1-hydrated", extra=""):
-    cp = f"\n  - 07:28:11 — note <!-- prflow:checkpoint {checkpoint} -->" if checkpoint else ""
-    return (
-        "<!-- prflow:workpad -->\n# PRFlow Workpad — Issue #1027\n\n"
-        f"**Status:** {status}\n**Branch:** x\n**Last updated:** {updated}\n\n"
-        f"## Progress{cp}\n{extra}\n"
-    )
-
-# Adversarial markdown matrix — every malformed shape degrades, never raises.
-_bad = _wp1027().replace("**Last updated:** 2026-08-19 07:28 UTC\n", "")
-
-_fm = stall_observer.parse_workpad(_wp1027(updated="not a date"))
-
-_fe = stall_observer.parse_workpad("")
-
 # ── issue #1811: cleanup-create-issue-run.sh — per-run create-issue scratch reaper ──
 print()
 print("cleanup-create-issue-run.sh: per-run create-issue scratch cleanup (issue #1811)")
