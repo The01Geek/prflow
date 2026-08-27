@@ -486,7 +486,7 @@ Caches the diff to a run-scoped path. **Phase 0.5** classifies the diff with fiv
 - `small_diff` (<100 changed lines AND ≤3 files)
 - `config_only` (all changed files are config/docs extensions)
 - `has_new_types` (added code defines classes/interfaces/types/enums/structs/traits)
-- `engine_self_modifying` (a three-arm engine-surface path set: DevFlow's own source `skills/**`/`agents/**`/`lib/**` — repository-relative to this repository — **plus**, at any depth and matching on a consumer too, a prompt extension under the `.prflow/`/`.devflow/` state directory whose filename ends in `.md`, **or** a file whose basename is `CLAUDE.md`). A prompt-extension diff and a `CLAUDE.md` diff therefore reach the full checklist rather than the lean config-only path; how a prompt-extension diff is classified is stated authoritatively in `skills/review/phases/phase-0-setup.md` §0.5.
+- `engine_self_modifying` (a three-arm engine-surface path set: PRFlow's own source `skills/**`/`agents/**`/`lib/**` — repository-relative to this repository — **plus**, at any depth and matching on a consumer too, a prompt extension under the `.prflow/`/`.devflow/` state directory whose filename ends in `.md`, **or** a file whose basename is `CLAUDE.md`). A prompt-extension diff and a `CLAUDE.md` diff therefore reach the full checklist rather than the lean config-only path; how a prompt-extension diff is classified is stated authoritatively in `skills/review/phases/phase-0-setup.md` §0.5.
 - `detect_all_audit` (the diff adds/changes a "detect-all" scanner/audit/coverage-invariant — code that *enumerates a population* AND *asserts a completeness property* over it)
 
 **Phase 0.4 — issue discovery and acceptance-criteria resolution (runs before 0.5).** Two independent resolutions happen here: *which* issue this PR is about, and *which* set of acceptance criteria the engine judges against.
@@ -735,7 +735,7 @@ that cost moves rather than vanishes. The behavioral instrument `scripts/review-
 grant — only its focused test is granted, as for #767/#1209) measures, per run, how many times
 each engine file (`skills/review/**`, `skills/review-and-fix/**`) was read, attributes every
 read to the context that made it — distinguishing a main-thread read from a subagent read — and
-gives the peak accumulated context of each context that read one. It is the third of DevFlow's
+gives the peak accumulated context of each context that read one. It is the third of PRFlow's
 transcript-walking context instruments (§7, §11) and gates nothing. The details live in
 [`docs/internal/review-context.md`](review-context.md), the single source of truth for this
 axis; it is not paraphrased here.
