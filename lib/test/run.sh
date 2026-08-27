@@ -55356,6 +55356,13 @@ assert_eq "#2050 select: family-mismatch detail names the resolved versions (AC2
 IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MISSING")"
 assert_eq "#2050 select: sole runnable candidate off-family -> family-mismatch (AC2)" "family-mismatch" "$RS_O"
 
+# The MIRROR of the row above: candidate 1 absent, candidate 2 runnable off-family. Do not drop
+# the detail join's `${detail:+…/ }` guard for a bare `$detail / ` — every other row here leaves
+# v1 non-empty, so only this shape shows the leading " / " an unguarded join would emit.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MTX/off2")"
+assert_eq "#2050 select: sole runnable candidate 2 off-family -> family-mismatch, detail unprefixed (AC2)" \
+  "family-mismatch $RUFF_SEL_MTX/off2 0.15.0" "$RS_O $RS_D"
+
 # AC3: a manifest sentinel -> first RUNNABLE candidate in given order (today's behavior),
 # even when that first candidate is off-family.
 IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd unreadable "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/infam")"
@@ -55366,6 +55373,12 @@ assert_eq "#2050 select: sentinel skips an unrunnable candidate 1 to the runnabl
 # Neither candidate runnable -> none (the today's-skip path, family arm).
 IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MISSING")"
 assert_eq "#2050 select: neither candidate runnable -> none" "none" "$RS_O"
+# ...and the SENTINEL arm has its own `none` return, which the row above (family arm) never
+# reaches: without this row a sentinel manifest with no runnable candidate could return a
+# selected-shaped outcome and the gate would lint under a candidate it never resolved.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd unreadable "$RUFF_SEL_MISSING" "$RUFF_SEL_MISSING")"
+assert_eq "#2050 select: sentinel manifest + neither candidate runnable -> none, empty token and detail" \
+  "none||" "$RS_O|$RS_T|$RS_D"
 
 # A MULTI-WORD candidate is what production passes as candidate 2 (`python3 -m ruff`), and
 # no single-path shim exercises it: quoting "$1" in the probe would leave every row above
@@ -55392,10 +55405,10 @@ assert_eq "#2050 select: a chatty non-zero-rc candidate is NOT runnable (sentine
 IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/chatty-rc3" "$RUFF_SEL_MISSING")"
 assert_eq "#2050 select: a chatty non-zero-rc candidate cannot satisfy the family match" "none" "$RS_O"
 
-# devflow_ruff_family degenerate inputs. `rest="${v#*.}"` returns a dotless token unchanged,
-# so the contract is that such a token yields a family that can never equal a numeric
-# manifest family — assert it before someone relaxes the caller's `[0-9]*` guard.
-assert_eq "#2050 family: a dotless numeric token yields a non-numeric-family sentinel" "0.0" "$(devflow_ruff_family 0)"
+# devflow_ruff_family degenerate inputs. `rest="${v#*.}"` returns a dotless token unchanged, so
+# such a token comes back as that token repeated — pin the shape before someone relaxes the
+# caller's `[0-9]*` guard and a degenerate version report starts deciding the selection.
+assert_eq "#2050 family: a dotless numeric token repeats as major.minor (0 -> 0.0)" "0.0" "$(devflow_ruff_family 0)"
 assert_eq "#2050 family: a non-numeric token yields a family that matches no numeric pin" "nightly.nightly" "$(devflow_ruff_family nightly)"
 assert_eq "#2050 family: a three-part version truncates to major.minor" "0.16" "$(devflow_ruff_family 0.16.4)"
 assert_eq "#2050 family: a wildcard spec truncates to major.minor" "0.16" "$(devflow_ruff_family '0.16.*')"
@@ -55543,10 +55556,9 @@ assert_eq "#2009 manifest reader: a valid manifest reads its version" 0.16.4 "$(
 rm -rf "$RUFF_MAN_MTX"
 
 # ── #2050: devflow-implement.yml's ruff== install spec must stay within the manifest family ──
-# The implement workflow installs its own ruff (in its `claude` job) to arm the #1621 gate for
-# in-env verification; that install spec sat outside every #1621/#2009 reconciliation, so a
-# manifest family bump could silently leave it behind. Reuse devflow_ruff_pin (its own #1621
-# matrix already pins the sentinel arms) rather than forking a second reader.
+# Do not fork a second reader for the `claude` job's install spec: reuse devflow_ruff_pin,
+# whose own #1621 matrix already pins the sentinel arms — a hand-rolled reader would
+# re-derive those arms untested and let a manifest family bump leave this spec behind.
 RUFF_IMPL_SPEC="$(devflow_ruff_pin claude "$LIB/../.github/workflows/devflow-implement.yml")"
 case "$RUFF_IMPL_SPEC" in [0-9]*) RUFF_IMPL_SPEC_OK=yes ;; *) RUFF_IMPL_SPEC_OK=no ;; esac
 # structural-pin-ok: cross-file-phase-contract -- positive control: a sentinel spec here would make the family assertion below pass vacuously, so a workflow that stopped installing ruff (or renamed the claude job) would go unnoticed
@@ -55560,7 +55572,7 @@ assert_eq "#2050 impl-spec reconciliation: implement-spec bumped alone across fa
 assert_eq "#2050 impl-spec reconciliation: manifest bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree "0.16.*" 0.17.0)"
 
 unset -f devflow_ruff_pin devflow_ruff_family devflow_ruff_manifest_version _ruff_fam_agree
-unset -f _devflow_ruff_probe_ver devflow_ruff_select_cmd
+unset -f _devflow_ruff_probe_ver devflow_ruff_select_cmd devflow_ruff_gate_skip_reason
 
 # ── internal-docs structure lint (lib/test/lint-internal-docs.py) ──
 # Baseline-tolerant by design: it fails only on a violation absent from

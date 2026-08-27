@@ -37580,6 +37580,27 @@ try:
     assert_eq("#2050 degrade arm: no deletion line for a version-matching binary", False,
               "deleted stale off-version binary" in _out)
 
+    # (b2) A MULTI-member tool. Do not turn the purge loop's version-match `continue` into a
+    #      `break`: every other fixture plants one member, so only a manifest whose artifacts
+    #      contribute two members shows a matching member ending the loop before a stale one.
+    #      Iteration order is `sorted()`, so "ruff" (matching) is visited before "ruff.exe" (stale).
+    _mm_manifest = _mk_manifest_1388(_dig)
+    _mm_manifest["tools"]["ruff"]["artifacts"].append(
+        {"os": "windows", "arch": "x86_64", "digest": "sha256:" + "c" * 64,
+         "archive_type": "zip", "member": "ruff.exe", "strategy": "extract-zip"})
+    _repo_mm = _mk_repo_1388(_d1388b / "mm2050-repo", _mm_manifest)
+    _db_mm = _d1388b / "degrade-multimember-bin"
+    _mm_ok = _plant_bin_2050(_db_mm, "ruff", "1.0.0")
+    _mm_stale = _plant_bin_2050(_db_mm, "ruff.exe", "0.0.1")
+    _rc, _out = _run_helper_1388(_repo_mm, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_mm)
+    assert_eq("#2050 degrade arm: multi-member purge keeps rc 0", 0, _rc)
+    assert_eq("#2050 degrade arm: multi-member purge deletes the stale member past a matching one",
+              False, _mm_stale.exists())
+    assert_eq("#2050 degrade arm: multi-member purge keeps the version-matching member", True,
+              _mm_ok.exists())
+    assert_eq("#2050 degrade arm: multi-member purge names only the stale member it deleted", True,
+              str(_mm_stale) in _out and f"binary {_mm_ok} " not in _out)
+
     # (c) Control — the SUPPORTED path never runs the purge: a stale shellcheck in DEST_BIN is
     #     re-installed (overwritten) to the pinned version, not routed through the degrade delete.
     #     Build a FRESH archive+repo (the shared _arc file is overwritten by later fixtures above).
