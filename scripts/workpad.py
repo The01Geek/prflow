@@ -3508,7 +3508,7 @@ def _read_workpad_id_cache(issue, marker):
 def _write_workpad_id_cache(issue, marker, comment_id, repo) -> None:
     """Record the resolved comment id for (issue, marker), atomically. Best-effort:
     a write failure is swallowed and never changes the update's exit code — the id
-    is re-derived by scanning next time. `repo` (from the verified response's
+    is re-derived by scanning next time. `repo` (from the resolved comment's
     issue_url) is stored for diagnostics only; read-side scoping is done by the
     verification fetch, never by this value."""
     path = _workpad_id_cache_path(issue, marker)

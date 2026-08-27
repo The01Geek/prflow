@@ -74,6 +74,9 @@ workpad = _load('workpad', SCRIPTS / 'workpad.py')
 # hermetic temp dir for the whole test process (per-driver monkeypatches still override
 # and restore to THIS default), so no cmd_update test can pollute the real tree.
 _ID_CACHE_TESTROOT = tempfile.mkdtemp(prefix='wp-idcache-default-')
+# Keep a handle on the REAL implementation before the default rebind below, so the
+# #2042 G1 unit test can drive the un-stubbed marker-keying/path derivation.
+_ORIG_workpad_id_cache_path = workpad._workpad_id_cache_path
 workpad._workpad_id_cache_path = (
     lambda issue, mk: Path(_ID_CACHE_TESTROOT) / f'{issue}.json')
 # issue #1087: the terminal `--status Complete` gate now also requires a completion
@@ -1580,6 +1583,45 @@ assert_eq("#2042 parity: _comment_body_channel returns the object's exact stored
           _parity_body, workpad._comment_body_channel({'body': _parity_body}))
 assert_eq("#2042 parity: a missing/null body renders as the empty string",
           '', workpad._comment_body_channel({}))
+
+# The un-stubbed `_workpad_id_cache_path` keys the cache on issue AND a hash of the
+# effective marker, so two markers against one issue never collide (the docstring
+# invariant). Every driver above monkeypatches this helper to a marker-agnostic temp
+# path, so drive the REAL implementation (saved as _ORIG_ before the default rebind)
+# here — a regression keying by issue alone would otherwise pass the whole suite.
+_p_a = _ORIG_workpad_id_cache_path(999, '<!-- devflow:workpad -->')
+_p_b = _ORIG_workpad_id_cache_path(999, '<!-- prflow:review-progress -->')
+assert_eq("#2042 G1: two markers on one issue yield DIFFERENT cache paths (no collision)",
+          True, str(_p_a) != str(_p_b))
+assert_eq("#2042 G1: the cache path lands under .prflow/tmp/workpad-id-cache/",
+          True, '/.prflow/tmp/workpad-id-cache/' in str(_p_a) and str(_p_a).endswith('.json'))
+assert_eq("#2042 G1: the same (issue, marker) is stable (keyed, not random)",
+          str(_p_a), str(_ORIG_workpad_id_cache_path(999, '<!-- devflow:workpad -->')))
+assert_eq("#2042 G1: a different issue with the same marker also differs",
+          True, str(_p_a) != str(_ORIG_workpad_id_cache_path(1000, '<!-- devflow:workpad -->')))
+
+# `_repo_from_issue_url` parses the owner/repo slug (diagnostics only) and fails
+# closed to None on a non-string / unparseable value.
+assert_eq("#2042 G2: _repo_from_issue_url parses the owner/repo slug",
+          'owner/repo',
+          workpad._repo_from_issue_url('https://api.github.com/repos/owner/repo/issues/999'))
+assert_eq("#2042 G2: _repo_from_issue_url returns None on a non-string",
+          None, workpad._repo_from_issue_url(12345))
+assert_eq("#2042 G2: _repo_from_issue_url returns None on an unparseable string",
+          None, workpad._repo_from_issue_url('not a url'))
+
+# The cache-verify path accepts the SUPERSEDED-namespace twin marker (the dual-spelling
+# contract is load-bearing): a cached comment whose body starts with the twin of the
+# effective marker verifies, so a warm-cache hit still resolves and PATCHes.
+_twin_body = ('<!-- prflow:workpad -->\n# W\n\n**Status:** \U0001f680 Setup\n'
+              '**Last updated:** 2026-05-15T00:00:00Z\n\n## Progress\n- [ ] **Setup**\n\n'
+              '## Plan\n- [ ] plan one\n\n## Acceptance Criteria\n- [ ] AC one\n')
+_twin_resp = _json.dumps({'id': 7, 'body': _twin_body,
+                          'issue_url': 'https://api.github.com/repos/owner/repo/issues/999'})
+_code, _out, _err, _patched = _drive_cmd_update(
+    OC_BODY, seed_cache_id=7, verify_response=_twin_resp, note=['n'])
+assert_eq("#2042 G5: the cache-verify path accepts the twin-namespace marker (no scan fallback)",
+          True, _patched is not None and len(_gh_calls_of('comments-list')) == 0)
 
 # A crash in the tail AFTER the PATCH landed must not report not-persisted, whose
 # remedy re-sends the call and double-writes the append-only notes.
