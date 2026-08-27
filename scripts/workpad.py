@@ -3485,7 +3485,9 @@ def _read_workpad_id_cache(issue, marker):
     never changes an update's outcome), so the caller falls back to a full scan."""
     try:
         raw = _workpad_id_cache_path(issue, marker).read_text(encoding='utf-8')
-    except OSError:
+    # ValueError covers UnicodeDecodeError from an invalid-UTF-8 cache file; without
+    # it a corrupted cache crashes `update` instead of missing to a scan.
+    except (OSError, ValueError):
         return None
     try:
         data = json.loads(raw)

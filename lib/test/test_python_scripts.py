@@ -1536,12 +1536,14 @@ for _label, _vresp in [
 # fallback. A failed cache WRITE also leaves the exit code unchanged — the write is
 # best-effort — verified by the helper-level matrix below.)
 _MK2042 = '<!-- devflow:workpad -->'
-def _read_cache_with(raw_or_none):
+def _read_cache_with(raw_or_none, raw_bytes=None):
     _d = tempfile.mkdtemp(prefix='wp2042-idcache-')
     _saved = workpad._workpad_id_cache_path
     workpad._workpad_id_cache_path = lambda issue, mk: Path(_d) / f'{issue}.json'
     try:
-        if raw_or_none is not None:
+        if raw_bytes is not None:
+            (Path(_d) / '999.json').write_bytes(raw_bytes)
+        elif raw_or_none is not None:
             (Path(_d) / '999.json').write_text(raw_or_none, encoding='utf-8')
         return workpad._read_workpad_id_cache(999, _MK2042)
     finally:
@@ -1553,6 +1555,8 @@ assert_eq("#2042 AC7: an empty cache reads as None", None, _read_cache_with(""))
 assert_eq("#2042 AC7: a truncated cache reads as None", None, _read_cache_with('{"comment_id":'))
 assert_eq("#2042 AC7: a non-JSON cache reads as None", None, _read_cache_with('not json at all'))
 assert_eq("#2042 AC7: a non-object (list) cache reads as None", None, _read_cache_with('[7]'))
+assert_eq("#2042 AC7: an invalid-UTF-8 cache reads as None", None,
+          _read_cache_with(None, raw_bytes=b'\xff\xfe\x00{"comment_id": 7}'))
 assert_eq("#2042 AC7: a wrong-typed comment_id (string non-digit) reads as None", None,
           _read_cache_with(_json.dumps({"comment_id": "abc"})))
 assert_eq("#2042 AC7: a wrong-typed comment_id (bool) reads as None", None,
