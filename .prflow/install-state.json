@@ -4,7 +4,7 @@
   "components": {
     "manifest": {
       "path": ".prflow/lint-manifest.json",
-      "digest": "sha256:b6bc3d678a1517156c4ed9c4bd0b75fe8ee3ca342410088da14435eee945028f"
+      "digest": "sha256:de88ef01ff25c62f1ae6b978595b98383978f9d506ec1bb0e17c375486714e69"
     },
     "manifest-reader": {
       "path": "scripts/lint_manifest.py",

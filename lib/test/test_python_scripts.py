@@ -37047,7 +37047,7 @@ assert_eq("#1388 plan: windows shellcheck single-zip URL",
           _lint_provision.build_plan(_MANIFEST_1388, 'shellcheck', 'windows', 'x86_64').url)
 # ruff target-triple mapping.
 assert_eq("#1388 plan: ruff macos/arm64 target triple",
-          "https://github.com/astral-sh/ruff/releases/download/0.6.9/ruff-aarch64-apple-darwin.tar.gz",
+          "https://github.com/astral-sh/ruff/releases/download/0.16.4/ruff-aarch64-apple-darwin.tar.gz",
           _lint_provision.build_plan(_MANIFEST_1388, 'ruff', 'macos', 'arm64').url)
 
 # unsupported-lint-platform — a VALID manifest declaring no artifact for the tuple.
@@ -38800,6 +38800,75 @@ with tempfile.TemporaryDirectory() as _d1388:
               (2, False),
               (_r3.returncode, os.path.isdir(os.path.join(_d1388, 'out'))))
 
+
+# ── issue #2009: scripts/ruff-version-skew.py — family extraction + fail-open manifest read ──
+# Grounds the helper's defensive isinstance ladder (each malformed manifest shape -> None ->
+# the caller's fail-open arm) directly in the language it lives in, rather than only through
+# the shell coordinator's skew/match/absent arms.
+_ruff_skew = _load('ruff_version_skew', SCRIPTS / 'ruff-version-skew.py')
+assert_eq("#2009 minor_family: major.minor from a ruff --version line", "0.16",
+          _ruff_skew.minor_family("ruff 0.16.4"))
+assert_eq("#2009 minor_family: major.minor from a pin spec", "0.16",
+          _ruff_skew.minor_family("0.16.*"))
+assert_eq("#2009 minor_family: an unparseable string -> None", None,
+          _ruff_skew.minor_family("ruff (broken)"))
+assert_eq("#2009 minor_family: None input -> None", None, _ruff_skew.minor_family(None))
+
+
+def _rs_manifest_family(text):
+    _fd, _p = tempfile.mkstemp(suffix=".json")
+    try:
+        with os.fdopen(_fd, "w", encoding="utf-8") as _f:
+            _f.write(text)
+        return _ruff_skew.manifest_ruff_family(_p)
+    finally:
+        os.unlink(_p)
+
+
+assert_eq("#2009 manifest_ruff_family: reads the pinned family", "0.16",
+          _rs_manifest_family('{"tools":{"ruff":{"version":"0.16.4"}}}'))
+assert_eq("#2009 manifest_ruff_family: missing file -> None (fail open)", None,
+          _ruff_skew.manifest_ruff_family("/no/such/ruff-manifest-2009.json"))
+assert_eq("#2009 manifest_ruff_family: malformed JSON -> None", None,
+          _rs_manifest_family('not json{'))
+assert_eq("#2009 manifest_ruff_family: top-level array -> None", None,
+          _rs_manifest_family('[]'))
+assert_eq("#2009 manifest_ruff_family: non-object tools -> None", None,
+          _rs_manifest_family('{"tools":[]}'))
+assert_eq("#2009 manifest_ruff_family: non-object ruff -> None", None,
+          _rs_manifest_family('{"tools":{"ruff":"x"}}'))
+assert_eq("#2009 manifest_ruff_family: missing version -> None", None,
+          _rs_manifest_family('{"tools":{"ruff":{}}}'))
+assert_eq("#2009 manifest_ruff_family: non-string version -> None", None,
+          _rs_manifest_family('{"tools":{"ruff":{"version":123}}}'))
+
+
+# main()'s exit-code + STDOUT-sentinel contract, in-language — previously exercised only
+# end-to-end through the shell coordinator, so a shell-glue refactor could silently drop it.
+def _rs_main(manifest_text, reported):
+    _fd, _p = tempfile.mkstemp(suffix=".json")
+    _out, _err = io.StringIO(), io.StringIO()
+    try:
+        with os.fdopen(_fd, "w", encoding="utf-8") as _f:
+            _f.write(manifest_text)
+        with contextlib.redirect_stdout(_out), contextlib.redirect_stderr(_err):
+            _rc = _ruff_skew.main(["--manifest", _p, "--reported", reported])
+        return _rc, _out.getvalue(), _err.getvalue()
+    finally:
+        os.unlink(_p)
+
+
+_rs_m_match = _rs_main('{"tools":{"ruff":{"version":"0.16.4"}}}', "ruff 0.16.7")
+assert_eq("#2009 main: a matching family exits 0 and is silent", (0, "", ""), _rs_m_match)
+_rs_m_skew = _rs_main('{"tools":{"ruff":{"version":"0.16.4"}}}', "ruff 0.6.9")
+assert_eq("#2009 main: a skew exits 1", 1, _rs_m_skew[0])
+assert_eq("#2009 main: the SKEW sentinel begins the stdout line", True,
+          _rs_m_skew[1].startswith("ruff-version-skew: SKEW"))
+assert_eq("#2009 main: the skew message carries the pinned-family pip remedy", True,
+          "'ruff==0.16.*'" in _rs_m_skew[1])
+_rs_m_inconc = _rs_main('not json{', "ruff 0.16.4")
+assert_eq("#2009 main: an unreadable manifest exits 2 with NO SKEW sentinel on stdout",
+          (2, ""), (_rs_m_inconc[0], _rs_m_inconc[1]))
 
 print()
 print(f"{PASS} passed, {FAIL} failed")
