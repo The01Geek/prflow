@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2021",
+  "generated_at": "2026-08-27T02:17:52Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.59",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 13.221208950000001,
+    "tokens": {
+      "input_tokens": 84,
+      "output_tokens": 53289,
+      "cache_read_input_tokens": 7591612,
+      "cache_creation_input_tokens": 254423,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 123,
+        "outputTokens": 80207,
+        "cacheReadInputTokens": 8521620,
+        "cacheCreationInputTokens": 652000,
+        "webSearchRequests": 0,
+        "costUSD": 11.295686249999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 100,
+        "outputTokens": 15613,
+        "cacheReadInputTokens": 2123976,
+        "cacheCreationInputTokens": 537759,
+        "webSearchRequests": 0,
+        "costUSD": 1.9255227000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 75,
+    "duration_ms": 966992
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; echo \"RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"; echo \"GH_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"",
+      "mkdir -p .prflow/tmp/review/pr-2021/33031897386-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2021/33031897386-1/verdicts/iter-1/VC-3-c5a91f2b.json << 'EOF'\n{\"id\": \"VC-3\", \"verdict\": \"PASS\", \"evidence\": \"lib/test/run-parallel.sh:262-296 (at head 31ef8bc8) _ruff_version_preflight: when probe rc!=0 (absent/non-executing) it prints a WARNING and 'return 0' (line ~276), i.e. proceeds without refusing. When rc=0 but no SKEW sentinel found in helper output, it also returns 0 (warning printed if verdic …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-2021/33031897386-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2021/33031897386-1/verdicts/iter-1/VC-7-0b4d6e7f.json << 'EOF'\n{\"id\": \"VC-7\", \"verdict\": \"PASS\", \"evidence\": \"lib/test/run-parallel.sh:280-290 (_ruff_version_preflight) reads verdict from python3 helper, loops lines matching 'ruff-version-skew: SKEW'* at line start to set skew=1, and refuses only when skew==1 -- never checking $? of the python3 call. scripts/ruff-version-skew.py main() prints the SKEW-p …[per-command-truncated]"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
