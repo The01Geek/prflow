@@ -1305,6 +1305,15 @@ assert_eq "fix_below_threshold_iterations: non-integer value passed through to c
 printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":-2}}' > "$FBI_CFG"
 assert_eq "fix_below_threshold_iterations: negative value passed through to clamp (-2)" "-2" \
   "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+# Object and array shapes complete the six-shape matrix: config-get.sh coerces an object to
+# "[object Object]" and an array to its comma-joined members; both are non-integer, so the
+# clamp below falls back to the default 1 (the clamp's object/array assertions cover that leg).
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":{"a":1}}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: object value coerced (config-get)" "[object Object]" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":[1,2]}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: array value coerced (config-get)" "1,2" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
 rm -f "$FBI_CFG"
 
 # The review-and-fix inline clamp for the damper window, applied to the resolver output above.
@@ -1326,6 +1335,8 @@ assert_eq "fix_below_threshold_iterations clamp: 0 honored (off-switch)"       "
 assert_eq "fix_below_threshold_iterations clamp: large value honored (no cap)" "42" "$(fbi_clamp 42)"
 assert_eq "fix_below_threshold_iterations clamp: negative → default 1"         "1"  "$(fbi_clamp -2)"
 assert_eq "fix_below_threshold_iterations clamp: non-integer → default 1"      "1"  "$(fbi_clamp abc)"
+assert_eq "fix_below_threshold_iterations clamp: object-coerced → default 1"   "1"  "$(fbi_clamp '[object Object]')"
+assert_eq "fix_below_threshold_iterations clamp: array-coerced → default 1"    "1"  "$(fbi_clamp '1,2')"
 assert_eq "fix_below_threshold_iterations clamp: float → default 1"            "1"  "$(fbi_clamp 2.5)"
 assert_eq "fix_below_threshold_iterations clamp: empty → default 1"            "1"  "$(fbi_clamp '')"
 assert_eq "fix_below_threshold_iterations clamp: resolver failure (rc≠0) → 1"  "1"  "$(fbi_clamp '' 2)"

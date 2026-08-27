@@ -196,6 +196,14 @@ assert_eq "raf fix_below_threshold_iterations: missing key resolves to default" 
 printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":0}}' > "$RAF_FBI_CFG"
 assert_eq "raf fix_below_threshold_iterations: resolver preserves valid-falsy 0" "0" \
   "$("$RAF_CONFIG_GET" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$RAF_FBI_CFG")"
+# Object and array shapes complete the six-shape matrix: config-get.sh coerces them to a
+# non-integer string, which the clamp below falls back to the default 1.
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":{"a":1}}}' > "$RAF_FBI_CFG"
+assert_eq "raf fix_below_threshold_iterations: object value coerced" "[object Object]" \
+  "$("$RAF_CONFIG_GET" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$RAF_FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":[1,2]}}' > "$RAF_FBI_CFG"
+assert_eq "raf fix_below_threshold_iterations: array value coerced" "1,2" \
+  "$("$RAF_CONFIG_GET" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$RAF_FBI_CFG")"
 _raf_fbi_clamp() {
   local v="$1" rc="${2:-0}"
   if [ "$rc" -ne 0 ] || ! printf '%s' "$v" | grep -Eq '^-?[0-9]+$'; then
@@ -211,6 +219,8 @@ assert_eq "raf fix_below_threshold_iterations clamp: zero is honored (off-switch
 assert_eq "raf fix_below_threshold_iterations clamp: no upper cap" "42" "$(_raf_fbi_clamp 42)"
 assert_eq "raf fix_below_threshold_iterations clamp: negative falls back to one" "1" "$(_raf_fbi_clamp -2)"
 assert_eq "raf fix_below_threshold_iterations clamp: non-integer falls back" "1" "$(_raf_fbi_clamp abc)"
+assert_eq "raf fix_below_threshold_iterations clamp: object-coerced falls back" "1" "$(_raf_fbi_clamp '[object Object]')"
+assert_eq "raf fix_below_threshold_iterations clamp: array-coerced falls back" "1" "$(_raf_fbi_clamp '1,2')"
 assert_eq "raf fix_below_threshold_iterations clamp: empty falls back" "1" "$(_raf_fbi_clamp '')"
 assert_eq "raf fix_below_threshold_iterations clamp: resolver failure falls back" "1" "$(_raf_fbi_clamp '' 2)"
 
