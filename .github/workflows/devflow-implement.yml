@@ -486,10 +486,9 @@ jobs:
             if ! python3 "$WP" update "$NUMBER" --checkpoint "gha:${RUN_ID}:${RUN_ATTEMPT}:gate-adopted" "trigger accepted; existing workpad adopted"; then
               echo "::warning::gate-adopted checkpoint failed for #$NUMBER (a duplicated ## Progress, an empty body, or a transient error — a merely absent ## Progress is repaired since issue #1347, so it is no longer a cause); the Run-link refresh above still landed." >&2
             fi
-            # PR-body maintenance on resume (issue #2060): the gate is the single owner of the PR
-            # body's [View run] refresh + stopped-run-note strip. Best-effort; the agent-side strip
-            # is the safety net for an old workflow beside a new vendor tree, so a missing/failing
-            # helper is never fatal.
+            # PR-body maintenance on resume (issue #2060): the gate is the single owner of the PR body's
+            # [View run] refresh + stopped-run-note strip. Best-effort; the agent-side strip is the safety
+            # net for an old workflow beside a new vendor tree, so a missing/failing helper is never fatal.
             RPOR=.prflow/vendor/prflow/scripts/refresh-pr-on-resume.sh
             if [ -f "$RPOR" ]; then
               # Capture the helper's OWN rc (before any negation, which would invert it): rc 2 =

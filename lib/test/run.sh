@@ -5666,7 +5666,7 @@ tail' | python3 "$P2060_PNB" strip)"
 # workpad.py terminal-stop text selector: EXACTLY Failed/Cancelled(note) + blocked(reflection)
 # mirror; Complete and every other status/kind write NONE (AC3, AC7 untouched-surface).
 assert_eq "#2060 workpad mirror text: Failed/Cancelled/blocked select text; Complete/other/empty-payload None (AC3)" \
-  "run died: x|run cancelled — u|cannot reproduce: y|None|None|None|None" \
+  "run died: x|run cancelled — u|cannot reproduce: y|None|None|None|None|run died: z|cancelled: w" \
   "$(python3 - "$P2060_WP" <<'PY'
 import importlib.util, sys
 from types import SimpleNamespace
@@ -5680,6 +5680,8 @@ print("|".join(str(x) for x in [
   t("Implementing", "note", ["progress"], []),
   t("Failed", None, [], []),          # stop status but empty notes -> no block
   t("Blocked", "blocked", [], []),    # blocked kind but empty reflection -> no block
+  t("💥 Failed", None, ["run died: z"], []),      # glyph-prefixed status still selects (strip works)
+  t("🛑 Cancelled", None, ["cancelled: w"], []),  # glyph-prefixed status still selects
 ]))
 PY
 )"
