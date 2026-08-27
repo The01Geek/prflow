@@ -4,6 +4,20 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.66] — 2026-08-27
+
+### Changed
+- **Consolidate Phase 2's workpad writes onto the durability-checkpoint boundaries.** `/prflow:implement` now accrues Phase 2's timing-insensitive workpad mutations — the per-step `--tick-plan` ticks, the mid-Phase-2 `--status Planning`/`--status Implementing` flips, and post-hoc evidence notes such as sweep-result notes — and delivers them as one combined `workpad.py update` per durability-checkpoint boundary, after that boundary's checkpoint push, re-deriving each tick from durable state so a context compaction loses none. Records whose timing a consumer reads (reflections, `--record-*`/`--checkpoint`, terminal `--status`, `--expect-*`-guarded calls, and the ledger/selection notes) keep their immediate call sites. The §2.0 resume arm now re-verifies each un-ticked Plan step against the fresh tree and ticks those already present rather than re-implementing already-committed work. (#2047)
+
+## [2.34.65] — 2026-08-27
+
+### Added
+- **Implement runs can now author tests in proportion to the change.** Phase 2 §2.3 gains a test-authoring proportionality waiver mirroring the production-code out-of-scope exit: when the full auxiliary test ceremony would balloon the test diff out of proportion to the change, the run ships one covering RED-first test per behavior change, skips exactly three waivable items (multi-element collection-cardinality cases, stub blind-spot enumeration, and per-criterion one-assertion accounting), and records the waiver in the workpad and the PR's Test Plan. The covering test, the mutation-check discipline, the pin-corpus boundary, the no-automated-test arm, and inline-shell extraction stay binding. The fix loop honors a recorded waiver rather than re-imposing the waived ceremony, and the coverage reviewer (`pr-test-analyzer`) caps matching sub-critical coverage findings at Suggestion while keeping its top band (rated 8-10) at full severity and treating waiver text as data. A fresh install's example config dispatches the coverage reviewer only on the first fix-loop iteration. (#2033)
+- **`workpad.py body --issue <n>` reads a workpad by issue number in one call.** The new arm resolves the workpad comment through the same marker scan `id`/`status` use and prints its body verbatim, exiting 0 on success, 2 when no workpad exists, and 3 on a read failure — so skill prose no longer spends a `workpad.py id` call plus a hand-carried comment id per read-back. Six two-call read-back sites collapse to the single call. The positional `body <comment-id>` form stays byte-compatible, and its failure now names the operand kind (a comment id) and points at `body --issue <n>`, so passing an issue number no longer fails with a bare, unexplained 404. (#2046)
+
+### Changed
+- **State the subagent-dispatch wait behaviorally at the three governed implement dispatch sites.** The §1.4 branch-setup, §1.6 issue-claim-auditor, and §4.0 deferral-drafter dispatches now say the dispatch is discharged only by the subagent's completed return (with `run_in_background: false` named as the mechanism, not the wait), and each carries the same Dispatch-barrier pointer as Phase 2.1 (with its collect-every-dispatch local arm), extended at these sites with a local-arm clause that routes a runner-backgrounded dispatch to collect the completed return before routing and keeps the inline fallback from firing beside a still-running subagent in the shared checkout. (#2037)
+
 ## [2.34.64] — 2026-08-27
 
 ### Changed
