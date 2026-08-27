@@ -37,14 +37,12 @@ import argparse
 import ast
 import contextlib
 import importlib.util
-import inspect
 import io
 import os
 import re
 import shutil
 import sys
 import tempfile
-import textwrap
 import types
 from pathlib import Path
 
@@ -302,7 +300,6 @@ _saved = _os.environ.pop('DEVFLOW_WORKPAD_MARKER', None)
 # from a subdir) actually hit. Asserts the returned VALUE, so it is symlink-robust
 # (macOS /tmp → /private/tmp) without comparing resolved paths.
 import subprocess as _sp295
-
 
 print("workpad.cmd_id exit-code contract (issue #55 live-comment seeding)")
 
@@ -1171,6 +1168,7 @@ _tick_md = [(_p, _p.read_text(encoding='utf-8'))
 # the phase files invoke; a dropped `help=` for an invoked one fails RED here.
 # ---------------------------------------------------------------------------
 import subprocess as _sp1550
+
 # Strip double-quoted operand spans before scanning a `workpad.py update` slice for
 # flags: else a `--reflection`/`--note` operand's prose naming another flag is captured
 # as a bogus update-flag that `update --help` does not list.
@@ -1591,7 +1589,6 @@ _pb, _ = _rro.resolve_overrides(_both_b, ["prflow:code-reviewer"])
 
 # main() CLI contract the engine depends on: pure JSON to stdout, warnings to
 # stderr (never stdout), exit 0 on config shape, and an unknown-agent warning.
-import json
 
 _out, _err = io.StringIO(), io.StringIO()
 with contextlib.redirect_stdout(_out), contextlib.redirect_stderr(_err):
@@ -2440,7 +2437,6 @@ workpad._extension_row_verdict = lambda prog_content: None
 #    positive control, mirroring the record-return reject-path precedent above).
 print()
 print("issue-audit-state: record-adjudication reject paths (issue #548)")
-import json
 
 _LIBTEST = Path(__file__).resolve().parent
 cwc = _load('cloud_writer_contract', _LIBTEST / 'cloud_writer_contract.py')
@@ -4605,6 +4601,7 @@ _c, _o = _run_cce_1898([
 # ─────────────────────────────────────────────────────────────────────────────
 focused_selection = _load('focused_selection', SCRIPTS / 'focused_selection.py')
 import json as _json1229
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # focused_selection's CLI surface (issue #1229) — `main` / `_build_parser` /
