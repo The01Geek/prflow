@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2000",
+  "generated_at": "2026-08-27T17:19:54Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.70",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 28.589680400000006,
+    "tokens": {
+      "input_tokens": 120,
+      "output_tokens": 111641,
+      "cache_read_input_tokens": 15867877,
+      "cache_creation_input_tokens": 389586,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 190,
+        "outputTokens": 163691,
+        "cacheReadInputTokens": 18093630,
+        "cacheCreationInputTokens": 1007854,
+        "webSearchRequests": 0,
+        "costUSD": 20.900074999999994,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 484,
+        "outputTokens": 93783,
+        "cacheReadInputTokens": 11915937,
+        "cacheCreationInputTokens": 1747048,
+        "webSearchRequests": 0,
+        "costUSD": 7.6896054,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 104,
+    "duration_ms": 2111673
+  },
+  "permission_denials": {
+    "count": 53,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run_id=${GITHUB_RUN_ID:-unset} attempt=${GITHUB_RUN_ATTEMPT:-unset} actions=${GITHUB_ACTIONS:-unset}\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main",
+      "/home/runner/work/prflow/prflow/skills/review/../../scripts/compose-run-url.sh",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2000/33094663571-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2000/33094663571-1/verdicts/iter-1/VC-2-n8b2d1.json <<'EOF'\n{\n  \"id\": \"VC-2\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"In .github/workflows/devflow.yml at head d871585, the 'Classify prompt-extension arrival' step (lines ~1735-1802) checks for the detector helper at .prflow/vendor/prflow/scripts/prompt-extension-arrival.py (fallback scripts/); w …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae8:lib/capability-profiles.json > /tmp/head_profiles.json 2>&1\ngit show f0021ef94e4277a66927a41908c874a442c5eceb:lib/capability-profiles.json > /tmp/base_profiles.json 2>&1\necho \"---diff---\"\ndiff /tmp/base_profiles.json /tmp/head_profiles.json\necho \"---review profile tokens diff---\"\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae8:lib/review-profile.tokens > /tmp/head_tokens.txt 2>&1\ngit show f0021ef94e4277a66927a …[per-command-truncated]",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:lib/capability-profiles.json > /tmp/head_profiles.json 2>&1; echo EXIT:$?",
+      "for f in .github/workflows/devflow.yml .github/workflows/devflow-implement.yml .github/workflows/devflow-runner.yml .github/workflows/matcher-probe.yml; do echo \"== $f ==\"; git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:$f | grep -n \"manifest_version=\\|region=\\|sha256=\"; done",
+      "git show f0021ef94e4277a66927a41908c874a442c5eceb:lib/capability-profiles.json | grep -m1 manifest_version\necho \"---\"\ngit show f0021ef94e4277a66927a41908c874a442c5eceb:lib/capability-profiles.json | grep -c \"prompt-extension-arrival\"\necho \"---review tokens base---\"\ngit show f0021ef94e4277a66927a41908c874a442c5eceb:lib/review-profile.tokens > /tmp/base_tok.txt\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae8:lib/review-profile.tokens > /tmp/head_tok.txt\ndiff /tmp/base_tok.txt /tmp/head_tok.txt & …[per-command-truncated]",
+      "git show f0021ef94e4277a66927a41908c874a442c5eceb:lib/review-profile.tokens > /tmp/base_tok.txt\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae8:lib/review-profile.tokens > /tmp/head_tok.txt\ndiff /tmp/base_tok.txt /tmp/head_tok.txt\necho \"diffdone-$?\"",
+      "git show f0021ef94e4277a66927a41908c874a442c5eceb:lib/review-profile.tokens > /tmp/base_tok.txt",
+      "for f in devflow.yml devflow-implement.yml devflow-runner.yml matcher-probe.yml; do\necho \"=== $f ===\"\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae8:.github/workflows/$f | grep -n \"devflow-capability-manifest:\"\ndone",
+      "for f in devflow.yml devflow-implement.yml devflow-runner.yml matcher-probe.yml; do\necho \"=== $f ===\"\ngit show f0021ef94e4277a66927a41908c874a442c5eceb:.github/workflows/$f 2>/dev/null | grep -n \"devflow-capability-manifest:\" || echo \"N/A base\"\ndone",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2000/33094663571-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2000/33094663571-1/verdicts/iter-1/VC-11-nc4e8d.json << 'EOF'\n{\n  \"id\": \"VC-11\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"devflow.yml's Reconcile step (git show d8715856f:.github/workflows/devflow.yml lines 2664-2719) handles EXPECTED tokens: empty (2664), 'absent' (2675), 'detector-absent' (2685), 'skill-unresolved' (2692), 'classify-unreadable …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2000/33094663571-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2000/33094663571-1/verdicts/iter-1/VC-14-nf7b2a.json << 'EOF'\n{\n  \"id\": \"VC-14\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"In .github/workflows/devflow.yml at PR head d8715856ff0b317d12bff2931ff8af4b8e591ae8, the 'Reconcile prompt-extension arrival' step (line 2630) reads EXPECTED: ${{ steps.extarrival.outputs.state }} (line 2635), SKILL: ${{ ste …[per-command-truncated]",
+      "for f in skills/review/SKILL.md skills/review-and-fix/SKILL.md skills/pr-description/SKILL.md; do\necho \"=== $f ===\"\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae8:$f 2>&1 | grep -n \"classify-ladder-output\" \ndone",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:lib/test/run.sh | sed -n '1,120p' | grep -n \"devflow_run_full_suite_module\\|^devflow_run_full_suite_module\" \ngrep -rn \"devflow_run_full_suite_module()\" -- $(git -C /home/runner/work/prflow/prflow ls-files 'lib/*.sh' 'lib/test/*.sh') 2>/dev/null",
+      "git worktree add /tmp/pr2000-head d8715856ff0b317d12bff2931ff8af4b8e591ae8 2>&1 | tail -5",
+      "git worktree add /tmp/pr2000-head d8715856ff0b317d12bff2931ff8af4b8e591ae8",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:lib/test/modules/prompt-extension-reader.sh > /tmp/pearead.sh\nwc -l /tmp/pearead.sh\ngrep -n \"^for \\|^done$\" /tmp/pearead.sh",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:lib/test/modules/prompt-extension-reader.sh > /tmp/pearead.sh",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae8:lib/test/modules/prompt-extension-reader.sh > /home/runner/work/prflow/prflow/.prflow/tmp/review/pearead.sh\nwc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pearead.sh",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review/SKILL.md > /tmp/review.md\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review-and-fix/SKILL.md > /tmp/raf.md\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/pr-description/SKILL.md > /tmp/prd.md\ngrep -n -i \"unrecordable\\|durable\\|fallback\\|never skip\" /tmp/review.md",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review/SKILL.md > /tmp/review.md; git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review-and-fix/SKILL.md > /tmp/raf.md; git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/pr-description/SKILL.md > /tmp/prd.md",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review/SKILL.md > /tmp/review.md",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review-and-fix/SKILL.md > /tmp/raf.md",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/pr-description/SKILL.md > /tmp/prd.md",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2000/33094663571-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2000/33094663571-1/verdicts/iter-1/VC-27-na1b8c.json << 'EOF'\n{\n  \"id\": \"VC-27\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/review/SKILL.md:71 states 'a denied helper's silence never reads as arrived' and line 69-71 describe no-status-line output as unestablished. This is a true reflection of scripts/prompt-extension-arrival.py's _scan_ladd …[per-command-truncated]",
+      "for f in skills/review/SKILL.md skills/review-and-fix/SKILL.md skills/pr-description/SKILL.md; do echo \"=== $f ===\"; git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:$f 2>&1 | grep -n -i \"unestablished\\|workpad.*PR\\|durable order\\|terminal\" ; done",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review/SKILL.md > /tmp/review.md 2>&1\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review-and-fix/SKILL.md > /tmp/reviewfix.md 2>&1\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/pr-description/SKILL.md > /tmp/prdesc.md 2>&1\ngrep -n -i \"unestablished\" /tmp/review.md /tmp/reviewfix.md /tmp/prdesc.md",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review/SKILL.md > /tmp/review.md 2>&1; git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review-and-fix/SKILL.md > /tmp/reviewfix.md 2>&1; git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/pr-description/SKILL.md > /tmp/prdesc.md 2>&1; grep -n -i \"unestablished\" /tmp/review.md /tmp/reviewfix.md /tmp/prdesc.md",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review/SKILL.md > /tmp/review.md",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review-and-fix/SKILL.md > /tmp/reviewfix.md",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/pr-description/SKILL.md > /tmp/prdesc.md",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review/SKILL.md > .prflow/tmp/review.md; git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review-and-fix/SKILL.md > .prflow/tmp/reviewfix.md; git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/pr-description/SKILL.md > .prflow/tmp/prdesc.md; grep -n -i \"unestablished\" .prflow/tmp/review.md .prflow/tmp/reviewfix.md .prflow/tmp/prdesc.md",
+      "git show d8715856ff0b317d12bff2931ff8af4b8e591ae8:skills/review/SKILL.md > .prflow/tmp/review.md",
+      "git show f0021ef94e4277a66927a41908c874a442c5ece:lib/test/internal-docs-baseline.json > /tmp/base.json 2>&1; git show d8715856ff0b317d12bff2931ff8af4b8e591ae:lib/test/internal-docs-baseline.json > /tmp/head.json 2>&1; diff /tmp/base.json /tmp/head.json",
+      "git show f0021ef94e4277a66927a41908c874a442c5ece:lib/test/internal-docs-baseline.json > /tmp/base.json 2>&1\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae:lib/test/internal-docs-baseline.json > /tmp/head.json 2>&1\ndiff /tmp/base.json /tmp/head.json",
+      "git show f0021ef94e4277a66927a41908c874a442c5ece:lib/test/internal-docs-baseline.json > /tmp/base.json 2>&1; echo done",
+      "mkdir -p .prflow/tmp/review/pr-2000/33094663571-1/verdicts/iter-1\ngit show f0021ef94e4277a66927a41908c874a442c5ece:lib/test/internal-docs-baseline.json > .prflow/tmp/base.json 2>&1\ngit show d8715856ff0b317d12bff2931ff8af4b8e591ae:lib/test/internal-docs-baseline.json > .prflow/tmp/head.json 2>&1\ndiff .prflow/tmp/base.json .prflow/tmp/head.json",
+      "git show f0021ef94e4277a66927a41908c874a442c5ece:lib/test/internal-docs-baseline.json > .prflow/tmp/base.json",
+      "for f in docs/internal/cutovers/internal-documentation-implementation-plan.md docs/internal/claude-md-relocated-rationale.md docs/internal/create-issue-prehunt-valid-na-evidence.md docs/internal/incomplete-edit-cost-analysis.md docs/internal/universal-criteria-grading-spike.md docs/internal/architecture/internal-documentation-implementation-plan.md; do\n  echo \"== $f ==\"\n  git cat-file -e d8715856ff0b317d12bff2931ff8af4b8e591ae:\"$f\" 2>&1 && echo EXISTS || echo MISSING\ndone"
+    ],
+    "total": 53,
+    "truncated": true,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
