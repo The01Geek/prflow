@@ -3107,10 +3107,6 @@ print()
 print("issue-audit-state: reproducible per-finding evidence (issue #704)")
 
 
-def _reason(res):
-    """The `steering_reason` token, from a `_steer_row` result or a raw CompletedProcess."""
-    text = res['ret'] if isinstance(res, dict) else res.stdout
-    return text.strip().split('steering_reason=', 1)[1].split()[0]
 issue_audit_state._validate(
     dict(_GOOD, rounds=[_round709(instructions=dict(_GOOD_INSTR,
                                                     dispatch_regeneration='diverged'))]), 's')
