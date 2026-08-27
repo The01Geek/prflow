@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2017",
+  "generated_at": "2026-08-27T02:38:40Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.60",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 37.504883649999954,
+    "tokens": {
+      "input_tokens": 94,
+      "output_tokens": 91072,
+      "cache_read_input_tokens": 10645310,
+      "cache_creation_input_tokens": 335604,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 296,
+        "outputTokens": 163549,
+        "cacheReadInputTokens": 20473260,
+        "cacheCreationInputTokens": 1395483,
+        "webSearchRequests": 0,
+        "costUSD": 24.30711875,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 858,
+        "outputTokens": 149384,
+        "cacheReadInputTokens": 20883957,
+        "cacheCreationInputTokens": 3010167,
+        "webSearchRequests": 0,
+        "costUSD": 13.197764900000017,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 126,
+    "duration_ms": 1744981
+  },
+  "permission_denials": {
+    "count": 120,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<empty>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>} ACTIONS=${GITHUB_ACTIONS:-<empty>}\"; echo \"HEAD=$(git rev-parse HEAD)\"; mkdir -p .prflow/tmp/review/pr-2017/run; gh pr diff 2017 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-2017/run/diff.patch | grep -c '^diff --git'",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1; : > .prflow/tmp/displaced-paths.txt; echo \"ready\"",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:.prflow/config.json | grep -n \"test_derive_run_profile\\|test_implement_timeline\\|test_implement_run_report\\|test_implement_benchmark\"\necho \"---\"\nfor f in test_derive_run_profile.py test_implement_timeline.py test_implement_run_report.py test_implement_benchmark.py; do\n  git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:lib/test/$f >/dev/null 2>&1 && echo \"$f EXISTS\" || echo \"$f MISSING\"\ndone",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-2.json << 'EOF'\n{\"id\":\"VC-2\",\"verdict\":\"INCONCLUSIVE\",\"evidence\":\"The dispatched head SHA 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45 cannot be resolved in this checkout: `git cat-file -e 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45` fails with 'bad object', and `git show <sha>:<path>` fails for both .github/workflows/matcher-probe.yml and .prflow/config.json with 'exists on disk, but not in  …[per-command-truncated]",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:lib/efficiency-trace.sh > /tmp/eff.sh\nsed -n '1220,1300p' /tmp/eff.sh\necho ---\nsed -n '1420,1520p' /tmp/eff.sh\necho ---\nsed -n '1640,1720p' /tmp/eff.sh\necho ---\nsed -n '1770,1850p' /tmp/eff.sh",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-3.json << 'EOF'\n{\"id\":\"VC-3\",\"verdict\":\"PASS\",\"evidence\":\"At head 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45, .prflow/config.json lines 40-43 grant Bash(lib/test/test_derive_run_profile.py:*), test_implement_timeline.py, test_implement_run_report.py, test_implement_benchmark.py. All four files exist at head: git show 87ed980c...:lib/test/test_derive_run_profile.py, lib/test/test_implemen …[per-command-truncated]",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:lib/efficiency-trace.sh > /tmp/eff.sh; wc -l /tmp/eff.sh",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:lib/efficiency-trace.sh > /tmp/eff.sh",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:lib/efficiency-trace.sh > /home/runner/work/prflow/prflow/.prflow/tmp/eff.sh 2>&1; wc -l /home/runner/work/prflow/prflow/.prflow/tmp/eff.sh",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:.github/workflows/devflow.yml > /tmp/devflow.yml\ngit show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:.github/workflows/devflow-implement.yml > /tmp/devflow-implement.yml\ngrep -n -i \"floor\\|filter-runner-tools\\|baseprovision\" /tmp/devflow.yml\necho ---\ngrep -n -i \"floor\\|filter-runner-tools\\|baseprovision\" /tmp/devflow-implement.yml",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-5.json << 'EOF'\n{\n  \"id\": \"VC-5\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/prepare-harness-floor.sh's _emit() function (lines ~91-104 at head 87ed980) prints four eval-able env assignments via printf \\\"NAME='%s'\\\\n\\\" for DEVFLOW_EXECUTION_PR, DEVFLOW_COMMAND_CLASS, DEVFLOW_ISSUE_NUMBER, and DEVFLOW_NO_PR_REASON. Only th …[per-command-truncated]",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:.github/workflows/devflow.yml > /tmp/devflow.yml",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:.github/workflows/devflow-implement.yml > /tmp/devflow-implement.yml",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1 && git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:.github/workflows/devflow.yml > .prflow/tmp/devflow.yml && git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:.github/workflows/devflow-implement.yml > .prflow/tmp/devflow-implement.yml && grep -n -i \"floor\\|filter-runner-tools\\|baseprovision\" .prflow/tmp/devflow.yml",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:.github/workflows/devflow.yml > .prflow/tmp/devflow.yml",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:.github/workflows/devflow-implement.yml > .prflow/tmp/devflow-implement.yml",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-8.json << 'EOF'\n{\n  \"id\": \"VC-8\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"lib/efficiency-trace.sh:1690-1691 (jq): '{phase_durations_ms: (.phase_durations_ms // \\\"unestablished\\\"), final_status: (.final_status // \\\"unestablished\\\"), ...}' reads from $profile (the DEVFLOW_RUN_PROFILE JSON, line 1657). scripts/derive-run-profile.py emits exactly these keys: line 172 'return {\\\"phase_durations …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-6.json << 'EOF'\n{\n  \"id\": \"VC-6\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"devflow-implement.yml:1913-1922 invokes `bash \\\"$PROFILE_GLUE\\\" \\\"$DEVFLOW_ISSUE_NUMBER\\\" \\\"$PROFILE_FILE\\\"` — exactly two args (issue number, output path). scripts/prepare-run-profile.sh reads $1 as ISSUE and $2 as OUT, and on success runs `python3 \\\"$D …[per-command-truncated]",
+      "diff <(git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:.github/workflows/devflow.yml | sed -n '2563,2589p') <(git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:.github/workflows/devflow-implement.yml | sed -n '1909,1935p')",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-9.json << 'EOF'\n{\n  \"id\": \"VC-9\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/build-experiment-records.py at head 87ed980c line 631: `_efficiency_entry` includes `\\\"run_profile\\\": record.get(\\\"run_profile\\\"),` — a single line passing the top-level run_profile object through verbatim, matching the accompanying comment (lines 626-630) describing it as passing through VERBATIM like the ha …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfor f in lib/test/test_derive_run_profile.py lib/test/test_implement_benchmark.py lib/test/test_implement_context_eval.py lib/test/test_implement_run_report.py lib/test/test_implement_timeline.py; do\n  git cat-file -e 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:$f && echo \"OK $f\" || echo \"MISSING $f\"\ndone\ngit show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:scripts/workflow-flight-recorder-registry.json | grep -n \"efficiency-trace-telemetry\" ",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-11.json << 'EOF'\n{\n  \"id\": \"VC-11\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"lib/efficiency-trace.sh:1580-1636 (_prior_implement_record_count) classifies candidate records using only .harness_cost.command and .run_profile.issue_number, never .slug or .source. The code even carries an explicit comment at line ~1619 stating 'Do NOT add a `.slug` or `.source` signal here: measured against the  …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-12.json << 'EOF'\n{\n  \"id\": \"VC-12\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"lib/efficiency-trace.sh line ~1798 sets slug=\\\"issue-${issue}\\\" for the PR-less floor record, writing ${slug}-${ident}.json e.g. issue-<N>-<run-id>.json (line 1822). Contrast the PR-keyed floors (cost skeleton line 1344, denial skeleton line 1504, run-profile skeleton line 1747) which set slug=\\\"pr-${DEVFLOW_EXECUT …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-10.json << 'EOF'\n{\n  \"id\": \"VC-10\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"At head 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45, lib/test/modules/coverage-map.json line 634-637 routes scripts/prepare-run-profile.sh to owner 'efficiency-trace-telemetry', and line 1706-1709 routes issue key '2006' to owner 'efficiency-trace-telemet …[per-command-truncated]",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:scripts/build-experiment-records.py > /tmp/bex.py\ngrep -n \"run_profile\\|no_pr_reason\\|_efficiency_entry\\|def _\" /tmp/bex.py | head -80",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:scripts/build-experiment-records.py > /tmp/bex.py",
+      "git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:scripts/build-experiment-records.py > /home/runner/work/prflow/prflow/.prflow/tmp/bex.py 2>&1\ngrep -n \"run_profile\\|no_pr_reason\\|_efficiency_entry\\|def _\" /home/runner/work/prflow/prflow/.prflow/tmp/bex.py",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-13.json <<'EOF'\n{\n  \"id\": \"VC-13\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"lib/efficiency-trace.sh (PR head 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45): _DEVFLOW_TELEMETRY_FETCH_STATUS defaults to 'unattempted' (line 1858) and is only set to 'ok' on the three paths where absence of the telemetry ref is a genuine established empty: no remote branch yet (line 1880), a successful fetch+verify+r …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review && git show 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45:scripts/build-experiment-records.py > tmpbex.py; grep -n \"run_profile\\|no_pr_reason\\|_efficiency_entry\\|def _\" tmpbex.py",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-15.json << 'EOF'\n{\n  \"id\": \"VC-15\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/implement-run-report.py (head 87ed980) confirms all elements. argparse defines `count` as nargs='?' but main() enforces it as required in per-run mode via `if not args.retro and args.count is None: parser.error(...)` (lines ~232-233), matching 'N a required argument' for per-run mode. render_runs() emits on …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-16.json << 'EOF'\n{\n  \"id\": \"VC-16\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/implement-run-report.py (head 87ed980c) defines REGRESSION_THRESHOLD_PCT = 25 (line ~40) and TRAILING_WEEKS = 4 as named constants. render_retro() computes trailing-4-week mean duration and cost via weekly_means()/mean_or_unestablished (lines ~ …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-14.json << 'EOF'\n{\n  \"id\": \"VC-14\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/build-experiment-records.py:594-634 (_efficiency_entry) at head 87ed980c uses record.get(\\\"run_profile\\\") and record.get(\\\"no_pr_reason\\\") (lines 631, 634), which yield JSON null when the source efficiency record predates the field (dict.get on a missing key returns None, serialized as null). lib/actionable …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-2017/run/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2017/run/verdicts/iter-1/VC-17.json << 'EOF'\n{\n  \"id\": \"VC-17\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/implement-benchmark.py (head 87ed980) confirms all claimed behaviors: select_cohort() groups runs by config_fingerprint prefix match; describe() computes count, established_durations, mean/median/stdev for duration and cost via mean_or_unestablished/median_or_unestablished/stdev_or_unestablished; MIN_COHORT …[per-command-truncated]",
+      "git ls-tree -r 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45 -- lib/test/ | grep -i \"test_implement_timeline\\|\\.py$\" | grep test_ ",
+      "git ls-tree -r 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45 -- lib/test/ | grep test_",
+      "git ls-tree -r 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45 lib/test/ 2>&1 | grep test_",
+      "git ls-tree -r 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45 lib/test/",
+      "git ls-tree -r 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45 -- lib",
+      "git fetch origin pull/2017/head 2>&1 | tail -5; git worktree add /tmp/wt-2017 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45 2>&1 | tail -10",
+      "git ls-tree -r 87ed980c7ccfe8dddc5138f46fc9d3d8b6bb1d45 -- lib"
+    ],
+    "total": 120,
+    "truncated": true,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
