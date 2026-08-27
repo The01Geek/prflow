@@ -1,0 +1,41 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "diff_fresh": true,
+  "verdict": "APPROVE",
+  "report": "Shadow independent (blinded) review of PR #2041 (issue #2035: telemetry.enabled master config switch). The change is functionally correct and meets every acceptance criterion. scripts/telemetry-master-off.py reads the JSON TYPE (`is False`, not `== False`) so only the JSON boolean false disables — string \"false\", number 0, null, wrong-typed telemetry, corrupt/missing config, missing python3/helper all fail safe to ON, matching the existing per-key gates. config-get.sh's telemetry_master_disables_for gates exactly the five enrolled default-true keys and runs AFTER probe_superseded_key inside emit_default_or_fail, keeping the non-enrolled miss path byte-identical (stdout + superseded-key stderr breadcrumb, both asserted). Explicit sub-keys resolve before the miss path so they win both directions. Push-path guards in lib/efficiency-trace.sh (do_persist) and scripts/collect-staged-telemetry.sh skip on master-off, fail-safe to ON. All operands trace to producers (_CONFIG_GET_DIR line 63, config_file lines 92-119, _DEVFLOW_CONFIG via config-source.sh line 37, HERE line 61). execution_transcript_artifact_enabled correctly NOT enrolled (defaults false). Zero-prose-delta confirmed: no skills/** or .github/workflows/** changes. Comprehensive tests (seven-shape predicate matrix, AC1-AC6, exit-code contract, ordering, idempotency, real bare-remote git persist with positive/negative controls); assertion-floor bookkeeping consistent (994->1047 in run.sh and registry). Two Important advisory findings (both fail-safe-direction / robustness, non-merge-blocking) and one minor comment finding, detailed below. No Critical defects and no shipped correctness or security defect; verdict APPROVE.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "scripts/collect-staged-telemetry.sh hardcodes the master-switch config path as \"$ROOT/.prflow/config.json\", while sibling guards resolve the state directory with the .prflow->.devflow superseded-name fallback (config-get.sh via resolve-state-dir; efficiency-trace.sh via config-source.sh's _DEVFLOW_CONFIG). A consumer not yet migrated (only .devflow/config.json) that sets telemetry.enabled:false there: collect-staged opens the non-existent .prflow/config.json, the predicate hits the open exception, returns ON, and collection proceeds — silently ignoring the explicit master-OFF and breaking the two-guard symmetry the PR advertises. Fail direction is toward ON (no data loss, no wrong disable), so it is a robustness/consistency defect, not a correctness one. Fix: resolve the state dir instead of hardcoding .prflow.",
+      "defect_signature": "collect-staged-telemetry-hardcoded-prflow-path-ignores-devflow-master-off"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The new master key telemetry.enabled has no schema/example shape assertion. The #2035 test block is purely behavioral and never asserts .prflow/config.schema.json declares telemetry.enabled type=boolean default=true, nor that .prflow/config.example.json carries it as true. Sibling precedent (review-trigger-helpers.sh #329 AC8) pins exactly this for enrolled sub-keys. Both artifacts were changed here yet neither is covered, so a schema-vocabulary regression to the master key could ship green. Borderline: the schema default is documentation/tooling rather than runtime-load-bearing (config-get uses the caller-supplied default), and the ACs themselves are met by the shipped code; this is a schema-config-vocabulary pin gap, not a shipped defect.",
+      "defect_signature": "new-config-key-schema-and-example-shape-unpinned-despite-sibling-precedent"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "minor",
+      "description": "lib/test/modules/efficiency-trace-telemetry.sh: the new header comment names a self-referential '(172 lines)' count of the block it heads. Per PRFlow comment discipline this self-referential ordinal rots on the author's next edit and is already imprecise against the diff (hunk adds 175 lines). Drop the parenthetical or use count-free wording. Capped at Suggestion.",
+      "defect_signature": "efficiency-trace-telemetry-self-referential-line-count-comment"
+    }
+  ],
+  "reviewers_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "final-pass-reviewer (requesting-code-review lens via general-purpose)"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "phase3_failed_agents": [],
+  "per_reviewer_assessment": [
+    {"agent": "prflow:code-reviewer", "returned": true},
+    {"agent": "prflow:silent-failure-hunter", "returned": true},
+    {"agent": "prflow:comment-analyzer", "returned": true},
+    {"agent": "prflow:pr-test-analyzer", "returned": true},
+    {"agent": "prflow:requesting-code-review", "returned": true}
+  ],
+  "diff_profile": "config-resolver + telemetry-helper change with new predicate script, schema/example additions, and comprehensive focused test module; scripts/lib + tests surface, no skills/** or workflows/** touched",
+  "phase2_fails": [],
+  "cap_drops": [],
+  "notes": "type-design-analyzer gated OFF: no new types introduced (telemetry-master-off.py adds a module-level predicate function, not a type). prflow:requesting-code-review is a skill not an Agent type; the engine dispatches the final-pass reviewer as a general-purpose Task, which is how it was run here — counted as returned."
+}

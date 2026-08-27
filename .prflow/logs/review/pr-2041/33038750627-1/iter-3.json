@@ -1,0 +1,140 @@
+{
+  "iter": 3,
+  "loop_role": "fix",
+  "fix_commit_sha": "d00fe7e96",
+  "fix_files": [
+    "lib/test/modules/efficiency-trace-telemetry.sh",
+    "lib/test/run.sh",
+    "scripts/workflow-flight-recorder-registry.json"
+  ],
+  "current_step": "3.5",
+  "current_substep": "fix_delta_gate_done",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Important",
+      "original_severity": "Important",
+      "calibrated_severity": "Suggestion",
+      "description": "enrolled-key + no-default call under master-off untested (emit_default_or_fail ordering)",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [
+          6863,
+          6871
+        ],
+        "kind": "test-coverage"
+      },
+      "fix_decision": "severity-calibrated"
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "collect-staged lacks corrupt-config fail-safe-ON assertion (asymmetric with --persist)",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [
+          6907,
+          6924
+        ],
+        "kind": "test-coverage"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "collect-staged master-off guard fires before $DEST reset, leaving a stale prior-run tree uncleared (harmless — nothing uploaded)",
+      "defect_signature": {
+        "file": "scripts/collect-staged-telemetry.sh",
+        "line_range": [
+          33,
+          40
+        ],
+        "kind": "cleanup-ordering"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-8",
+      "decision": "severity-calibrated",
+      "original_severity": "Important",
+      "calibrated_severity": "Suggestion",
+      "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+      "claim_text": "enrolled no-default under master-off untested",
+      "evidence": "over-grade gate: the emit_default_or_fail ordering is CORRECT and already works (verified); the finding is a missing test assertion for already-correct behavior, which is test-coverage (Suggestion), not a correctness defect (Important). Recorded technical evaluation, did not auto-demote. Fixed anyway: added enrolled-no-default ordering assertions (commit ec40477a5)."
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "applied",
+      "commit": "ec40477a5",
+      "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+      "claim_text": "collect-staged corrupt-config fail-safe symmetry"
+    },
+    {
+      "finding_id": "F-10",
+      "decision": "advisory",
+      "source_file": "scripts/collect-staged-telemetry.sh",
+      "claim_text": "master-off guard before $DEST reset leaves stale tree",
+      "skip_category": "advisory-parked",
+      "evidence": "harmless by design: the early-exit-before-side-effects pattern is the correct fail-safe (do nothing when off); the caller keys upload on stdout '1' which master-off never prints, so the stale $DEST is never uploaded; moving the reset before the guard would add a side effect to the off path",
+      "parking_evidence": {
+        "basis": "harmless-by-design early-exit; the stale $DEST is never uploaded because master-off prints no upload signal",
+        "failing_input": "a $DEST holding a prior run's tree, with master-off — the tree is left but never read/uploaded",
+        "source": "scripts/collect-staged-telemetry.sh:33-40; caller keys on stdout '1'",
+        "finding_ref": {
+          "iter": 3,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 16,
+    "new_corroborated_critical_count": 0
+  },
+  "carried_advisory": [
+    "F-1 docs (deferred Phase 4.1)",
+    "F-2 collect-staged path (advisory)",
+    "F-3 no breadcrumb couldn't-evaluate (advisory)",
+    "F-5 AC4 ref-unmoved variant (advisory)"
+  ],
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

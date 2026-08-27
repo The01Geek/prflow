@@ -1,0 +1,45 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE WITH ADVISORY NOTES",
+  "report": "Blinded independent shadow review of PR #2041 (issue #2035: add a telemetry.enabled master config key). Ran the /prflow:review engine Phases 0-4.3. Diff profile: mixed code+config+test (scripts/, lib/, .prflow schema+example, test module, changeset, registry). Not engine_self_modifying (no skills/** or .github/workflows/** touched). has_new_types=false (new Python module telemetry-master-off.py has functions, no new class/type/dataclass) -> type-design-analyzer correctly gated OFF. pr-test-analyzer gated IN (diff modifies test module efficiency-trace-telemetry.sh). Roster: code-reviewer, silent-failure-hunter, comment-analyzer, pr-test-analyzer, and the requesting-code-review final pass -- all 5 dispatched and all 5 returned.\n\nThe change is correct and unusually well-tested. The config-parser adversarial matrix comes out clean: telemetry-master-off.py returns True (OFF, exit 0) ONLY for the JSON boolean false; every other shape -- key absent, telemetry as array/scalar, enabled as string \"false\"/number 0/null, corrupt/missing config, non-dict top-level, bad argv -- returns False (ON, exit 1). The `is False` (not `== False`) test correctly keeps JSON number 0 as ON. All three consumers place the python3 predicate call in an `if`/`&&` conditional context, so `set -euo pipefail` cannot trip and abort the resolver/persist -- every failure direction fails safe to telemetry ON, matching the existing per-key gates. All three config-path bindings match what callers actually pass (config-get.sh $config_file, efficiency-trace.sh $_DEVFLOW_CONFIG via config-source.sh, collect-staged-telemetry.sh $ROOT/.prflow/config.json = $GITHUB_WORKSPACE from devflow-runner.yml). The master check runs AFTER probe_superseded_key so the migration breadcrumb still fires; non-enrolled keys hit `case *) return 1` before any python3 call, so their miss path is byte-identical. Schema declares telemetry.enabled boolean default true; example carries it; the five schema inheritance clauses name exactly the five enrolled keys in config-get.sh's telemetry_master_disables_for case list. No skills/** or .github/workflows/** file differs. All comment/docstring claims verified true against HEAD (no documented_falsehood).\n\nAll acceptance criteria are met behaviorally with genuine (non-vacuous) positive controls in the test module -- the --persist and collect-staged tests use a real bare-remote git repo, and the master-absent controls genuinely create the telemetry branch / collect the payload. The single Important finding (AC6 stderr byte-identity is asserted only on stdout, and the chosen non-enrolled key base_branch has no superseded counterpart, so the 'incl superseded breadcrumb' sub-clause is not exercised) is a real faithfulness-to-AC test gap, but it is currently behavior-inert: telemetry_master_disables_for structurally returns 1 for non-enrolled keys before emitting any output, so non-enrolled stderr cannot change under master-off. It is a test_gap, not a code defect, and does not block merge -- surfaced as an advisory note to strengthen the AC6 assertion (pick a non-enrolled key whose superseded spelling is present, capture stderr to files under both master-false and master-absent, assert_eq byte-for-byte). Two Suggestions (collect-staged 'stages nothing' proven via empty stdout rather than inspecting the dest tree; the skipped-cooperation residual only implicitly covered; and the $ROOT-relative config read being a per-caller contract the other two consumers don't rely on) are non-blocking hardening ideas. No Critical or blocking Important defects.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC6's stderr byte-identity claim is not asserted -- the two #2035 AC6 assertions capture output via $(...) which discards stderr, so only stdout is compared. Additionally the chosen non-enrolled key `base_branch` has no superseded counterpart, so the 'incl superseded breadcrumb' sub-clause of AC6 is not exercised on the non-enrolled path. Currently behavior-inert (telemetry_master_disables_for returns 1 for non-enrolled keys before any output), but the AC explicitly demanded the stderr assertion and the guard against a future breadcrumb-ordering regression is absent.",
+      "defect_signature": {"file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": null, "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "collect-staged-telemetry.sh reads the master config from caller-supplied $ROOT/.prflow/config.json, whereas the other two consumers anchor to the git repo root (config-get.sh via git rev-parse --show-toplevel; efficiency-trace.sh via $_DEVFLOW_CONFIG owned by config-source.sh). Fail direction is still safe (a non-repo-root $ROOT hits a nonexistent file -> predicate throws -> fails ON, never wrongly OFF), but the master switch's effectiveness for this one consumer depends on a caller contract the others don't rely on, with no breadcrumb if it silently stops working. Today's caller (devflow-runner.yml) passes $GITHUB_WORKSPACE = repo root, so the three agree.",
+      "defect_signature": {"file": "scripts/collect-staged-telemetry.sh", "line_range": [33, 35], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC4 'collect-staged stages nothing' is asserted only via empty stdout, relying on the positive control's '1' to imply 0 collected, rather than directly inspecting that $dest is empty/absent. A regression that staged a payload while suppressing the count print would slip through. Adding an assert_eq that the $dest tree is empty/absent under master-off would close it.",
+      "defect_signature": {"file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": null, "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The issue's named 'guarantee-class skipped-cooperation push-path case' residual is only implicitly covered (subsumed by the two push-path skip-breadcrumb assertions firing under master-off). No assertion is labeled for it; an explicit paired assertion would make the coverage legible rather than inferred.",
+      "defect_signature": {"file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": null, "kind": "test_gap"}
+    }
+  ],
+  "reviewers_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "phase3_failed_agents": [],
+  "per_reviewer_assessment": [
+    {"agent": "prflow:code-reviewer", "returned": true},
+    {"agent": "prflow:silent-failure-hunter", "returned": true},
+    {"agent": "prflow:comment-analyzer", "returned": true},
+    {"agent": "prflow:pr-test-analyzer", "returned": true},
+    {"agent": "prflow:requesting-code-review", "returned": true}
+  ],
+  "diff_profile": "mixed code+config+test; not engine_self_modifying; has_new_types=false (type-design-analyzer gated off); pr-test-analyzer gated in (test file modified)",
+  "phase2_fails": [],
+  "cap_drops": []
+}

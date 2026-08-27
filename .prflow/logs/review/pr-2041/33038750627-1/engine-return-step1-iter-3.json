@@ -1,0 +1,47 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE with notes",
+  "report": "## Verdict: APPROVE with notes (telemetry.enabled master switch — correct, well-covered; two modest new test-coverage suggestions, none merge-gating)\n\n## Issue Compliance\nReviewed against issue #2035: Add a telemetry.enabled master config key — criteria from issue body; scope not-established (no workpad compared this run). Requirement-based checklist items are included in the verification results below.\nThis PR has no workpad criteria to use, so the issue body's `## Acceptance Criteria` section supplied them.\n\nAgainst the shipped code, every acceptance criterion is satisfied:\n- AC1 (each of five enrolled sub-keys inherits `false` on the miss path) — assertions present.\n- AC2 (explicit sub-key wins in both directions) — structurally guaranteed (an explicit boolean yields non-empty stdout and never reaches `emit_default_or_fail`) and tested.\n- AC3 (seven master-key shapes; only JSON boolean `false` disables via a JSON-type read, `is False` not `== False`) — `scripts/telemetry-master-off.py` reads the JSON type; number `0`/string `\"false\"`/`null`/wrong-typed/corrupt all stay ON; tested.\n- AC4 (`--persist` and `collect-staged-telemetry.sh` skip under master-off) — real bare-remote git fixtures with positive controls.\n- AC5 (master-absent / unreadable behaves as before, fail-safe to ON, never aborts) — corrupt-config positive control on `--persist`.\n- AC6 (non-enrolled key byte-identical, superseded breadcrumb preserved) — master check runs after `probe_superseded_key`, only for the enrolled `case`; tested.\n- AC7 (schema `telemetry.enabled` boolean default true, runtime-read, only-JSON-false, each sub-key description names inheritance; example carries key) — present.\n- AC8 (no `skills/**` or `.github/workflows/**` differs) — confirmed absent from the diff.\n\n## Verification Checklist Results\nChecklist not separately generated this run (fix-loop iteration 3, focused on new-defect variance recovery over an already-verified change); Phase-3 agents verified the load-bearing claims against HEAD directly. No FAIL, no INCONCLUSIVE.\n\n## Code Review Findings\n\n### 🟠 Important / Major\n1. Enrolled-key + no-default call under master-off is untested. In `scripts/config-get.sh`, `emit_default_or_fail` runs `telemetry_master_disables_for` before the `has_default` check, so an enrolled key on the miss path with `telemetry.enabled=false` prints `false` and exits 0 even with no caller default — while a non-enrolled no-default miss exits 1. The exit-code residual block exercises this branch only with the non-enrolled `nonexistent.key`; no assertion pins the enrolled-key-no-default-under-master-off shape, so a refactor moving the master block below `has_default` would regress it silently (every existing enrolled assertion passes a `true` default and would still pass). One assertion (enrolled key, no default, `m-false.json`, expect stdout `false` + exit 0) locks it. (raised by 1/5 agents) [suspected over-grade: shape 3 — single-source from pr-test-analyzer, no corroboration and no Phase-2 FAIL; observable impact is a missing test, milder than the Important label]\n\n### 🟡 Suggestion / Minor\n1. `scripts/collect-staged-telemetry.sh` has no corrupt/unreadable-config fail-safe-ON assertion, asymmetric with the `--persist` path (which has `m-corrupt.json` coverage). The guard wiring is a separate call site; a symmetric corrupt-config case would prove its `&&`-chain fails safe to ON. Low cost. (raised by 1/5 agents)\n2. `scripts/collect-staged-telemetry.sh` master-off guard fires before the `rm -rf \"$DEST\"` / `mkdir -p \"$DEST\"` reset, so under master-off a `$DEST` left populated by a prior run is neither cleared nor refreshed. Harmless: the function prints nothing on this path, so the caller's \"something to upload\" signal is empty and the stale tree is never uploaded. Noted for completeness. (raised by 1/5 agents)\n\nover-grade annotation: finding flagged (Important test-gap, shape 3 advisory).\ntruthfulness sweep: no finding promoted.\nintra-diff contradiction scan: no contradiction found.\n\n## Verdict Criteria\nDefault `verdict_severity_threshold` = `critical`. No verification FAIL/INCONCLUSIVE; no self-contradicting-diff finding (all diff-added prose and comments verified truthful against HEAD); no finding at or above `critical`. Only findings below the threshold present → APPROVE with notes. The three new findings are non-gating test-coverage / cosmetic suggestions a fix-loop may optionally address; none blocks merge.\n\nNote: `requesting-code-review` reported `EXTENSION-STATUS: loaded-empty resolved-root=unset` (no consumer review extension content) — expected on this repo.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Enrolled-key + no-default call under master-off is untested: emit_default_or_fail runs telemetry_master_disables_for before the has_default check, so an enrolled key on the miss path with telemetry.enabled=false prints false and exits 0 with no default, while a non-enrolled no-default miss exits 1. The exit-code residual block tests only the non-enrolled key, so a refactor moving the master block below has_default would regress the ordering silently. Add an assertion (enrolled key, no default, m-false.json, expect stdout false + exit 0).",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "over_grade_flag": "shape-3-advisory",
+      "defect_signature": {"file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": [225, 235], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "collect-staged-telemetry.sh has no corrupt/unreadable-config fail-safe-ON assertion, asymmetric with the --persist path which has m-corrupt.json coverage. The guard wiring is a separate call site; a symmetric corrupt-config assertion would prove its &&-chain fails safe to ON.",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "defect_signature": {"file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": [299, 303], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "collect-staged-telemetry.sh master-off guard fires before the rm -rf $DEST / mkdir -p $DEST reset, so under master-off a $DEST left populated by a prior run is not cleared or refreshed. Harmless: the function prints nothing on this path so the caller's upload signal is empty and the stale tree is never uploaded. Noted for completeness.",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "defect_signature": {"file": "scripts/collect-staged-telemetry.sh", "line_range": [30, 38], "kind": "other"}
+    }
+  ],
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "docs_only": false,
+    "engine_self_modifying": false,
+    "has_new_types": false,
+    "detect_all_audit": false,
+    "test_files_touched": true,
+    "surfaces": ["scripts/telemetry-master-off.py", "scripts/config-get.sh", "lib/efficiency-trace.sh", "scripts/collect-staged-telemetry.sh", ".prflow/config.schema.json", ".prflow/config.example.json", "lib/test/modules/efficiency-trace-telemetry.sh", "lib/test/modules/coverage-map.json", "scripts/workflow-flight-recorder-registry.json", "lib/test/run.sh", ".changeset/issue-2035-telemetry-master-key.md"]
+  },
+  "cap_drops": []
+}

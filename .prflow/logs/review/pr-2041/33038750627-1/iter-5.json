@@ -1,0 +1,231 @@
+{
+  "iter": 5,
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "fix_commit_sha": "dad045c31",
+  "fix_files": [
+    "lib/test/modules/efficiency-trace-telemetry.sh",
+    "lib/test/run.sh",
+    "scripts/workflow-flight-recorder-registry.json"
+  ],
+  "current_step": "loop-exit",
+  "current_substep": "converged",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC6 stderr/superseded-breadcrumb byte-identity untested (promoted from iter-4 shadow)",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [
+          6860,
+          6861
+        ],
+        "kind": "test-fidelity"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "applied",
+      "commit": "dad045c31",
+      "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+      "claim_text": "AC6 stderr/superseded-breadcrumb byte-identity pinned"
+    },
+    {
+      "finding_id": "SH5-1",
+      "decision": "severity-calibrated",
+      "original_severity": "Important",
+      "calibrated_severity": "suggestion",
+      "source_file": "scripts/collect-staged-telemetry.sh",
+      "claim_text": "hardcodes $ROOT/.prflow/config.json vs state-dir fallback",
+      "evidence": "over-grade gate shape (fail-safe, no observable wrong outcome): the guard fails safe to telemetry-ON, and do_persist (state-dir-aware via config-source.sh / _DEVFLOW_CONFIG) gates staging UPSTREAM — so for a .devflow-transitional consumer with telemetry off, do_persist stages nothing and collect-staged collects nothing regardless of its own config-path. No failing input produces a wrong result; the telemetry-relay tier is #936-withheld. Robustness/symmetry nit = Suggestion, not a correctness Important. Recorded evaluation; did not auto-demote."
+    },
+    {
+      "finding_id": "SH5-2",
+      "decision": "severity-calibrated",
+      "original_severity": "Important",
+      "calibrated_severity": "suggestion",
+      "source_file": ".prflow/config.schema.json",
+      "claim_text": "no schema/example SHAPE test-pin for telemetry.enabled",
+      "evidence": "over-grade gate: AC7's content requirement (schema declares boolean default true; runtime-read; JSON-false-only; each enrolled sub-key inheritance clause; example carries the key) is MET and verified by direct inspection across all shadow passes. A missing regression test-PIN for correct, verified schema content is test-coverage (Suggestion), not a correctness Important. Recorded evaluation; did not auto-demote."
+    },
+    {
+      "finding_id": "SH5-3",
+      "decision": "advisory",
+      "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+      "claim_text": "self-referential (172 lines) count comment (Minor)",
+      "skip_category": "advisory-parked",
+      "evidence": "FALSE POSITIVE — no '(N lines)' self-referential count comment exists in the #2035 test block (grep confirms zero occurrences); likely a diff-confusion artifact from the earlier stale-diff shadow. No action.",
+      "parking_evidence": {
+        "basis": "false positive; the flagged comment does not exist in the module",
+        "failing_input": "none — grep '([0-9]* lines)' returns zero matches in the file",
+        "source": "lib/test/modules/efficiency-trace-telemetry.sh (grep)",
+        "finding_ref": {
+          "iter": 5,
+          "index": 0
+        }
+      }
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 15,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-27T04:20:00Z",
+    "reviewed_sha": "dad045c31",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "diff_fresh": true,
+    "phase3_findings": [
+      {
+        "agent": "silent-failure-hunter",
+        "severity": "Important",
+        "calibrated_severity": "suggestion",
+        "description": "collect-staged hardcodes .prflow config path (fails safe; upstream do_persist gates staging)",
+        "defect_signature": {
+          "file": "scripts/collect-staged-telemetry.sh",
+          "line_range": [
+            33,
+            35
+          ],
+          "kind": "consistency"
+        }
+      },
+      {
+        "agent": "pr-test-analyzer",
+        "severity": "Important",
+        "calibrated_severity": "suggestion",
+        "description": "no schema/example shape test-pin for telemetry.enabled (content verified)",
+        "defect_signature": {
+          "file": ".prflow/config.schema.json",
+          "line_range": [
+            0,
+            0
+          ],
+          "kind": "test-coverage"
+        }
+      },
+      {
+        "agent": "comment-analyzer",
+        "severity": "Minor",
+        "description": "self-referential (172 lines) count comment — FALSE POSITIVE (does not exist)",
+        "defect_signature": {
+          "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+          "line_range": [
+            0,
+            0
+          ],
+          "kind": "comment-discipline"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 0,
+      "new": 3,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 4,
+          "index": 1
+        },
+        "parked_finding_id": "F-2",
+        "shadow_finding_index": 0,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the collect-staged config-path robustness nit on the same evidentiary basis (fails safe, defended by upstream do_persist gating), adding no new failing input; re-raise severity calibrated to Suggestion = parked severity",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "over_grade_calibration": "2 flagged Important shadow findings both calibrated to Suggestion with recorded evidence (SH5-1, SH5-2); no surviving Important -> outcome 1 convergence",
+  "park_calibration_sentinel": "park-calibration gate: 1 parking(s) preserved on evidence equivalence",
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

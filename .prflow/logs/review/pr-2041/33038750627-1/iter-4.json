@@ -1,0 +1,223 @@
+{
+  "iter": 4,
+  "loop_role": "fix",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "current_step": "2.6",
+  "current_substep": "shadow_done_promoted",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "severity-calibrated",
+      "original_severity": "Important",
+      "calibrated_severity": "Important",
+      "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+      "claim_text": "AC6 stderr byte-identity incl superseded breadcrumb not exercised",
+      "evidence": "over-grade gate: re-affirmed at Important because AC6 is a checkbox acceptance criterion whose stderr+superseded-breadcrumb sub-clause was genuinely untested (behavior correct — non-enrolled keys short-circuit before the master hook — but the AC-fidelity test was missing). Promoted to iteration 5 and fixed (commit dad045c31)."
+    }
+  ],
+  "engine_verdict": "APPROVE",
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "carried_advisory": [
+    "F-1 docs (deferred Phase 4.1)",
+    "F-2 collect-staged path (advisory)",
+    "F-3 no breadcrumb couldn't-evaluate (advisory)",
+    "F-5 AC4 ref-unmoved variant (advisory)",
+    "F-10 collect-staged $DEST reset ordering (advisory)"
+  ],
+  "parked_class_sweep": {
+    "classes": [
+      {
+        "source_finding_ids": [
+          "F-1"
+        ],
+        "kind_literal": "docs-gap",
+        "sites_examined": [
+          "diff (whole)"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F-2",
+          "F-10"
+        ],
+        "kind_literal": "consistency/cleanup-ordering",
+        "sites_examined": [
+          "scripts/collect-staged-telemetry.sh",
+          "lib/efficiency-trace.sh",
+          "scripts/config-get.sh"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F-3"
+        ],
+        "kind_literal": "debuggability",
+        "sites_examined": [
+          "all 3 guard sites (config-get, efficiency-trace, collect-staged)"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F-5"
+        ],
+        "kind_literal": "test-coverage",
+        "sites_examined": [
+          "lib/test/modules/efficiency-trace-telemetry.sh #2035 block"
+        ],
+        "new_siblings": []
+      }
+    ],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-27T04:00:00Z",
+    "reviewed_sha": "d00fe7e96",
+    "verdict": "APPROVE WITH ADVISORY NOTES",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "pr-test-analyzer",
+        "severity": "Important",
+        "description": "AC6 stderr byte-identity asserted only on stdout; non-enrolled base_branch has no superseded counterpart so the superseded-breadcrumb sub-clause is never exercised (behavior-inert test gap)",
+        "defect_signature": {
+          "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+          "line_range": [
+            6860,
+            6861
+          ],
+          "kind": "test-fidelity"
+        }
+      },
+      {
+        "agent": "silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "collect-staged reads config from caller $ROOT rather than a repo-root anchor like the other two consumers",
+        "defect_signature": {
+          "file": "scripts/collect-staged-telemetry.sh",
+          "line_range": [
+            33,
+            35
+          ],
+          "kind": "consistency"
+        }
+      },
+      {
+        "agent": "pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "stages nothing proven via empty stdout not a dest-tree check",
+        "defect_signature": {
+          "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+          "line_range": [
+            6920,
+            6924
+          ],
+          "kind": "test-coverage"
+        }
+      },
+      {
+        "agent": "pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "skipped-cooperation residual only implicitly covered",
+        "defect_signature": {
+          "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+          "line_range": [
+            6875,
+            6905
+          ],
+          "kind": "test-coverage"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 4,
+      "overlap_with_iter_N": 0,
+      "new": 4,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": true
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

@@ -1,0 +1,54 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE with notes",
+  "report": "# PRFlow Review — PR #2041 (issue #2035)\n\n**Verdict: APPROVE with notes** — merge-ready. No Critical or Important findings; all findings are Suggestion-level and non-blocking.\n\n## What the change does\nAdds a `telemetry.enabled` master config key. When set to the JSON boolean `false`, it disables the five enrolled default-true optional-telemetry sub-keys on the resolver miss path (`prflow_review_and_fix.efficiency_telemetry_enabled`, `prflow.execution_diagnostics_enabled`, `prflow.execution_denial_commands_enabled`, `prflow_review.live_progress_comment_enabled`, `create_issue.investigation_record_enabled`) and skips the two telemetry-branch push-path helpers (`lib/efficiency-trace.sh --persist`, `scripts/collect-staged-telemetry.sh`). New predicate `scripts/telemetry-master-off.py` is the single JSON-boolean-false source.\n\n## Acceptance criteria — all checkbox ACs satisfied (empirically verified)\nI ran the actual resolver against hand-built fixtures:\n- AC1: master-false + each of the 5 enrolled sub-keys absent -> `config-get.sh <key> true` prints `false`. Verified for all five.\n- AC2: explicit sub-key wins both directions (explicit true beats master-false -> `true`; explicit false with master absent -> `false`). Verified.\n- AC3: seven master shapes {missing, array, scalar, enabled=true, enabled=\"false\" string, enabled=0, enabled=null} all leave telemetry ON; only JSON boolean false disables. Verified — the resolver reads the JSON type (`is False`, not `== False`), so number 0 and string \"false\" both stay ON.\n- AC4/AC5: `--persist` under master-off exits 0 and appends no commit to the telemetry branch; collect-staged stages nothing; master-absent and corrupt-config fail safe to ON. Verified in the test module against a REAL bare-remote git repo with positive controls (not mocked plumbing).\n- AC6: non-enrolled key miss-path stdout byte-identical under master-false vs master-absent. Verified (`base_branch` -> `mydef` in both).\n- AC7: schema declares `telemetry.enabled` boolean default true, runtime-read, JSON-false-only semantics; each enrolled sub-key description carries the inheritance clause; example config carries the key. Verified.\n- AC8: no file under `skills/` or `.github/workflows/` differs. Verified — diff touches neither.\n\n## Fail-safe direction — correct at all three guard sites\nEvery failure direction (missing helper, missing python3, unreadable/corrupt config, wrong-typed value, bad argc) leaves telemetry ON. The guards use the short-circuit `[ -f helper ] && command -v python3 && python3 helper \"$cfg\"` conjunction; `telemetry-master-off.py` returns exit 1 (ON) for every exceptional path. No path wrongly disables telemetry on error. Variable definedness confirmed: `$config_file`/`$_CONFIG_GET_DIR` (config-get.sh), `$HERE`/`$_DEVFLOW_CONFIG` (efficiency-trace.sh), `$ROOT` (collect-staged). Master check correctly runs AFTER `probe_superseded_key` (preserving the migration breadcrumb) and only for the enrolled set (non-enrolled miss path byte-identical). Selection decided solely by python3 (preflight-guaranteed) + bash builtins — no non-preflight PATH-tool dependence.\n\n## Test coverage\nStrong. 43 added assertions, exactly matching the floor bump 994 -> 1037 in both `lib/test/run.sh` and the flight-recorder registry. Full predicate matrix (JSON false/true/string-false/0/null/array/scalar/missing/corrupt/missing-file/no-arg), all AC groups, exit-code contract, idempotency, and real-git push-path tests with genuine positive controls.\n\n## Findings (all Suggestion-level, non-blocking)\n1. **Docs not updated (deferrable).** The issue's \"Documentation Needed\" section lists `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` (config-key table) and `docs/external/docs/configuration/observability-and-privacy.md`; the diff touches neither. These are NOT checkbox ACs. The schema description is thorough and self-documenting and the changeset describes the feature. Recommend a follow-up docs pass so the external observability/privacy page advertises the one-switch quiet mode.\n2. **collect-staged-telemetry.sh:35 hardcodes `$ROOT/.prflow/config.json`** without the shared state-dir (`.devflow` transitional) resolution the other two consumers use. Harmless: it fails safe to ON, and in the real relay flow `do_persist` (which uses the state-dir-aware path) already gates staging, so the collector never sees a divergent config state. Consistency nit only.\n3. **No breadcrumb on the couldn't-evaluate path.** When a user set `telemetry.enabled: false` but the predicate cannot run (unreadable/corrupt config, python3 absent), telemetry stays ON silently — the skip breadcrumbs fire only on the OFF branch. This is the intended fail-safe direction; the gap is only debuggability (a maintainer cannot distinguish \"left on\" from \"asked off but couldn't evaluate\"). Non-blocking.\n4. **telemetry-master-off.py:16-21 docstring tail** restates failure states already given as the spec (mirror-fact) plus a consumer inventory (provenance) duplicated in the schema/changeset. Per §2.3 comment discipline, consider trimming the \"Never raises: ...\" sentence and relocating the consumer list. The load-bearing spec (lines 6-12) and the `is False` trap comment are correctly kept.\n5. **Test module (AC4 \"ref unmoved\")** proves ref-unmoved only via the branch-uncreated proxy on a fresh repo; a pre-existing-branch variant capturing `rev-parse` before/after, and a direct `$DEST`-absence assertion for \"stages nothing\", would more literally pin the AC wording. Behaviorally covered today by the early `return 0`. Non-blocking.\n\n## Conclusion\nCorrect, well-tested, fail-safe in every direction, and consistent across coupled sites. APPROVE with notes; the docs pass is the only item worth a follow-up.",
+  "phase3_findings": [
+    {
+      "agent": "requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Docs listed under the issue's 'Documentation Needed' (docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md config-key table; docs/external/docs/configuration/observability-and-privacy.md) are not updated by this diff. Not checkbox ACs; schema + changeset self-document. Recommend a follow-up docs pass advertising the one-switch quiet mode.",
+      "defect_signature": {"file": "docs/external/docs/configuration/observability-and-privacy.md", "line_range": "n/a", "kind": "docs-gap"},
+      "fix_decision": "defer"
+    },
+    {
+      "agent": "code-reviewer",
+      "severity": "Suggestion",
+      "description": "collect-staged-telemetry.sh guard hardcodes $ROOT/.prflow/config.json instead of the shared state-dir resolution (with .devflow transitional fallback) used by config-get.sh and efficiency-trace.sh. Fails safe to ON and the real relay flow already gates staging upstream, so it is a consistency nit, not a correctness defect.",
+      "defect_signature": {"file": "scripts/collect-staged-telemetry.sh", "line_range": "34-38", "kind": "consistency"},
+      "fix_decision": "defer"
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "No breadcrumb on the couldn't-evaluate path: when telemetry.enabled=false is set but the predicate cannot run (unreadable/corrupt config, python3/helper absent), telemetry stays ON silently; skip breadcrumbs fire only on the OFF branch. Intended fail-safe direction; only a debuggability gap distinguishing 'left on' from 'asked off but uncomputable'.",
+      "defect_signature": {"file": "lib/efficiency-trace.sh", "line_range": "1537-1541", "kind": "debuggability"},
+      "fix_decision": "defer"
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "telemetry-master-off.py docstring lines 16-21 restate failure states already stated as spec (mirror-fact) plus a consumer inventory (provenance) duplicated in schema/changeset. Per §2.3 comment discipline, trim the 'Never raises: ...' sentence and relocate the consumer list. The spec paragraph and the 'is False vs == False' trap comment are correctly kept.",
+      "defect_signature": {"file": "scripts/telemetry-master-off.py", "line_range": "16-21", "kind": "comment-discipline"},
+      "fix_decision": "defer"
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC4 'ref unmoved' is asserted only via a branch-uncreated proxy on a fresh repo; a pre-existing-branch variant capturing rev-parse before/after, plus a direct $DEST-absence assertion for 'stages nothing', would more literally pin the AC wording. Behaviorally covered today by the guard's early return 0.",
+      "defect_signature": {"file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": "6875-6924", "kind": "test-coverage"},
+      "fix_decision": "defer"
+    }
+  ],
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "cap_drops": {"count": 0, "by_category": {}}
+}

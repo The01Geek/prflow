@@ -1,0 +1,39 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE with notes",
+  "report": "# PRFlow Review — PR #2041 (iteration 2)\n\n**Issue:** #2035 — add a `telemetry.enabled` master config key.\n**Reviewed HEAD:** `issue-2035-add-a-telemetry-enabled-master-config-key-that` vs `origin/main`.\n**Diff profile:** small, config-derivation + shell/python resolver change with a dedicated focused test module (11 files, +246/-11).\n\n## Verdict: APPROVE with notes\n\nThe change is correct and merge-ready. It adds `telemetry.enabled` as a master switch that disables the five default-true enrolled telemetry sub-keys on `scripts/config-get.sh`'s resolver-miss path and skips the two push-path helpers (`lib/efficiency-trace.sh --persist`, `scripts/collect-staged-telemetry.sh`), driven by the new single-source predicate `scripts/telemetry-master-off.py`.\n\n### What was verified\n- **Fail-safe direction preserved on every path.** The predicate returns OFF only for `tel.get(\"enabled\") is False` (JSON boolean), correctly using `is False` (not `== False`, which would wrongly disable on JSON number `0`). Every other state — key absent, `telemetry` object present but `enabled` absent, non-object `telemetry`, string `\"false\"`, `0`, `null`, corrupt/unreadable/missing config, bad argc, missing python3, missing helper — resolves to ON. All three consumers fail toward telemetry-ON.\n- **Guard operands are well-founded.** `_DEVFLOW_CONFIG` is sourced from `lib/config-source.sh` (honoring `DEVFLOW_CONFIG_FILE`) before `do_persist`; `_CONFIG_GET_DIR`, `config_file`, `$HERE/../scripts`, `_CST_DIR` all resolve.\n- **Explicit-sub-key-wins holds by construction** — the master check lives only inside `emit_default_or_fail` (the miss path), so any explicit value short-circuits first (AC2 both directions).\n- **AC6 byte-identity** — non-enrolled keys hit the `*) return 1` arm with no python spawn / no stderr, and the master check runs AFTER `probe_superseded_key`, preserving the migration breadcrumb.\n- **AC8 confirmed** — no `skills/` or `.github/workflows/` file is touched; workflow/skill gates inherit the master automatically via runtime `config-get.sh` reads compared against literal `false` (zero-prose-delta design).\n- **Test/floor bookkeeping** — 43 new `assert_eq` lines; floor bumped 994→1037 in `lib/test/run.sh` and `workflow-flight-recorder-registry.json` in lockstep (`exact` policy); coverage-map + registry updated, new `2035` module id registered.\n- **Comments** — within §2.3 (fail-safe consequence and ordering-prohibition named); the `is False` comment names a concrete wrong change; contract-header docstrings are carve-outs.\n\n### Notes (Suggestion severity, non-blocking)\n1. The seven-shape master-key matrix does not assert the *`telemetry` object present but `enabled` absent* shape (e.g. `{\"telemetry\":{\"branch\":\"prflow-telemetry\"}}`) — the actual upgrade-state config. It exercises a distinct `tel.get(\"enabled\") -> None` branch that currently resolves ON but is unguarded by a test. Recommend adding one predicate + one AC1-style assertion.\n2. The deliberately-commented `probe_superseded_key`-before-master ordering (so the migration breadcrumb still fires for an absent enrolled key under master-off) has no covering stderr assertion; a reorder would drop the breadcrumb undetected.\n\nBoth are coverage enhancements, not correctness defects; they do not block merge. Advisory observation (below threshold): an enrolled key called with *no* default under master-off now prints `false`/exit 0 where it previously exited 1 — semantically correct and all real callers pass a `true` default, so no behavioral risk.\n\nDocs (internal config-key table, external observability page) remain deferred to the implement Phase 4.1 docs owner, as dispositioned in iteration 1.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The master-key shape matrix omits the 'telemetry object present but enabled sub-key absent' state (e.g. {\"telemetry\":{\"branch\":\"prflow-telemetry\"}}) — the actual upgrade-state config a pre-#2035 consumer carries. It exercises a distinct branch (tel.get(\"enabled\") -> None, None is False -> False -> ON) that no assertion covers; every tested shape either lacks the telemetry key, makes telemetry a non-object, or sets enabled to an explicit value.",
+      "defect_signature": "A regression changing enabled handling (e.g. tel.get(\"enabled\", False) or a truthiness test) would silently disable telemetry for every upgrading consumer whose config has a telemetry object without enabled, with no assertion going RED.",
+      "fix_decision": "Non-blocking Suggestion. Recommend adding one telemetry-master-off.py predicate assertion and one config-get AC1-style assertion for {\"telemetry\":{\"branch\":\"x\"}} expecting ON / caller-default. Defer to a follow-up or fold into implement if cheap."
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The config-get inheritance is deliberately ordered probe_superseded_key BEFORE telemetry_master_disables_for, with an inline comment asserting this preserves the migration breadcrumb for an absent enrolled key. No test asserts that ordering: there is no stderr assertion that an absent enrolled key under master-off, whose superseded counterpart is present, still emits the migration breadcrumb.",
+      "defect_signature": "Moving the telemetry_master_disables_for early-return above probe_superseded_key drops the config-migration breadcrumb for enrolled keys under master-off, with no failing assertion.",
+      "fix_decision": "Non-blocking Suggestion. Recommend a stderr assertion combining an absent enrolled key + present superseded spelling + telemetry.enabled:false, asserting both false on stdout and the migration breadcrumb on stderr. Low likelihood; sole guard of a commented deliberate ordering."
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": "small config-derivation + resolver change (11 files, +246/-11); new python predicate scripts/telemetry-master-off.py, config-get.sh miss-path hook, two push-path helper gates, schema/example, dedicated focused test module (efficiency-trace-telemetry.sh #2035 block, +128 lines), coverage-map + flight-recorder-registry + run.sh floor bump. type-design-analyzer gated off (no new types).",
+  "cap_drops": []
+}

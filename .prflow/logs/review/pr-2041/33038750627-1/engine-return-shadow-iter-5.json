@@ -1,0 +1,46 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE with notes",
+  "report": "Blinded independent shadow review of PR #2041 (issue #2035: telemetry.enabled master config key). The change adds scripts/telemetry-master-off.py (a JSON-type `enabled is False` predicate, fail-safe to ON on every error/wrong-type path), wires it into config-get.sh's miss path (telemetry_master_disables_for, ordered after probe_superseded_key, enrolled-set-only so non-enrolled miss paths stay byte-identical), and into the two push helpers (lib/efficiency-trace.sh do_persist and scripts/collect-staged-telemetry.sh) inside their never-abort contracts. Schema + example carry telemetry.enabled (boolean, default true); no skills/** or .github/workflows/** file differs. The test module is comprehensive: seven-shape master matrix, 11-case predicate matrix, all five enrolled sub-keys, explicit-wins both directions, superseded-breadcrumb ordering, idempotency, exit-code contract, and real bare-remote git persist tests with master-absent positive controls plus corrupt-config fail-safe. The AC6 stderr byte-identity clause IS covered on disk (efficiency-trace-telemetry.sh:6862-6874) though absent from the cached diff, which stops at the AC6 stdout assertions (the cached diff is stale relative to HEAD). Assertion floor bumped 994->1045 in lockstep in run.sh and workflow-flight-recorder-registry.json. No Critical or Important findings; no documented_falsehood — all added schema clauses and code comments verified accurate against HEAD. Three below-threshold notes: (1) collect-staged-telemetry.sh reads $ROOT/.prflow/config.json literally, bypassing the .devflow state-dir read-through the other two consumers use — fails in the SAFE direction (telemetry stays ON), low real-world impact since telemetry.enabled is a brand-new key an un-migrated consumer is unlikely to have set; (2) a 6-line descriptive banner comment in the test module exceeds the three-line prevention-only cap; (3) the three-line python3/helper guard is spelled inline at three call sites rather than shared (the predicate itself is correctly single-sourced). All three are Suggestion/LOW and below the default `critical` verdict threshold, so none drives REJECT.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "collect-staged-telemetry.sh:41-46 reads $ROOT/.prflow/config.json literally, bypassing the state-dir .devflow read-through the other two consumers resolve through; on an un-migrated consumer whose config lives under .devflow/ the master switch would not apply here. Fails in the safe direction (telemetry stays ON, never wrongly disabled).",
+      "defect_signature": {"file": "scripts/collect-staged-telemetry.sh", "line_range": [41, 46], "kind": "logic_error"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "efficiency-trace-telemetry.sh:162-167 adds a 6-line descriptive section banner restating overall switch behavior rather than naming a specific wrong change it prevents, exceeding the three-physical-line prevention-only comment cap.",
+      "defect_signature": {"file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": [162, 167], "kind": "style"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The `command -v python3 && [ -f telemetry-master-off.py ] && python3 …` guard is spelled inline at three call sites (config-get.sh, efficiency-trace.sh:1537-1540, collect-staged-telemetry.sh:31-38) rather than a shared wrapper; the Python predicate is correctly single-sourced. Correct today; a future edit to one arm could diverge the fail-safe direction at another.",
+      "defect_signature": {"file": "scripts/config-get.sh", "line_range": [194, 209], "kind": "style"}
+    }
+  ],
+  "reviewers_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "phase3_failed_agents": [],
+  "per_reviewer_assessment": [
+    {"agent": "prflow:code-reviewer", "returned": true},
+    {"agent": "prflow:silent-failure-hunter", "returned": true},
+    {"agent": "prflow:comment-analyzer", "returned": true},
+    {"agent": "prflow:pr-test-analyzer", "returned": true},
+    {"agent": "prflow:requesting-code-review", "returned": true}
+  ],
+  "diff_profile": {
+    "engine_self_modifying": false,
+    "config_only": false,
+    "small_diff": false,
+    "has_new_types": false,
+    "detect_all_audit": false,
+    "note": "scripts/lib source + schema/example + test module; type-design-analyzer gated OFF (no new types); pr-test-analyzer ON (test file modified)"
+  },
+  "phase2_fails": [],
+  "cap_drops": []
+}

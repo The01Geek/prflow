@@ -1,0 +1,105 @@
+{
+  "iter": 2,
+  "loop_role": "fix",
+  "fix_commit_sha": "05fdd70e0",
+  "fix_files": [
+    "lib/test/modules/efficiency-trace-telemetry.sh",
+    "lib/test/run.sh",
+    "scripts/workflow-flight-recorder-registry.json"
+  ],
+  "current_step": "3.5",
+  "current_substep": "fix_delta_gate_done",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "shape matrix omits telemetry object present but enabled absent",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [
+          6847,
+          6856
+        ],
+        "kind": "test-coverage"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "probe-before-master ordering has no covering stderr breadcrumb assertion",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [
+          6211,
+          6216
+        ],
+        "kind": "test-coverage"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "05fdd70e0",
+      "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+      "claim_text": "telemetry object present but enabled absent matrix cell untested"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "05fdd70e0",
+      "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+      "claim_text": "probe-before-master ordering breadcrumb untested"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 19,
+    "new_corroborated_critical_count": 0
+  },
+  "carried_advisory": [
+    "F-1 docs (deferred Phase 4.1)",
+    "F-2 collect-staged path (advisory)",
+    "F-3 no breadcrumb couldn't-evaluate (advisory)",
+    "F-5 AC4 ref-unmoved variant (advisory)"
+  ],
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
