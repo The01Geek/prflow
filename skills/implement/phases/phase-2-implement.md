@@ -15,21 +15,15 @@ Update the workpad: `workpad.py update $ISSUE_NUMBER --status Discovering --note
 
 A stalled cloud run that `prflow_implement.stall_backstop` auto-resumes re-enters Phase 1, adopts the branch/PR (§1.4), hydrates the workpad, then walks linearly into this phase. The Phase 2 subagents produce ephemeral, read-only, in-context output and the restored §2.1/§2.2 procedure carries no dispatch-idempotency directive, so without this gate a resumed run re-runs the full discovery/architecture pass over work a prior attempt already committed — wasted budget, and a divergence risk if the fresh re-plan drifts from already-shipped work.
 
-Read the two durable inputs first. Both live in the workpad body; read it through the same already-granted shape §1.3/`SKILL.md` use for re-run context. Resolve the workpad comment ID first, as a single-statement helper invocation:
+Read the durable inputs first. Both live in the workpad body; read it in one call:
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py id $ISSUE_NUMBER
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py body --issue $ISSUE_NUMBER
 ```
 
-Read the printed comment ID and the exit status from the tool result — as `phase-4-documentation.md` §4.0 does — never a captured shell variable and never a command substitution nesting one call inside another. Then read the body in a second single-statement invocation, substituting that comment ID as a decimal literal where `<comment-id>` appears:
+`workpad.py body` is `python3` (a preflight-guaranteed tool); read the printed body yourself and decide the two conjuncts from it — never derive the decisive value through a non-preflight PATH tool (`tr`/`sed`/`grep`/`wc`), which fails open to an empty value and mis-selects.
 
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py body <comment-id>
-```
-
-`workpad.py body`/`id` are `python3` (a preflight-guaranteed tool); read the printed body yourself and decide the two conjuncts from it — never derive the decisive value through a non-preflight PATH tool (`tr`/`sed`/`grep`/`wc`), which fails open to an empty value and mis-selects.
-
-The read fails closed, and an unestablished measurement is distinguishable from a decided no-fire. The identity read's outcome is judged from the `id` tool result — a refused or no-output invocation, a non-zero exit, or an empty printed comment ID is an **unestablished** measurement, never a decided answer: route it to the gate-does-not-fire path so full §2.1/§2.2 discovery runs, and never substitute an empty or absent comment ID into the `body` call. Likewise treat any unusable body read — a failed or empty `body`, a body carrying no `## Plan` section, or a duplicated `## Plan` — as the gate does not fire: full §2.1/§2.2 discovery runs. Judge each body conjunct from the printed body itself. Record a `--note` naming the failed read, so an operator can tell an *unreadable workpad* from a *decided* no-fire:
+The read fails closed. A refused or no-output invocation, a non-zero exit, exit 2 (scanned clean, no workpad present), exit 3 (read failure), or any unusable body — a body carrying no `## Plan` section or a duplicated `## Plan` — routes to the gate-does-not-fire path so full §2.1/§2.2 discovery runs. Judge each body conjunct from the printed body itself. Record a `--note` naming the failed read, so an operator can tell an *unreadable workpad* from a *decided* no-fire:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --note "Phase 2 §2.0: workpad read unusable ({which read failed}); gate not fired, running full §2.1/§2.2 discovery"
