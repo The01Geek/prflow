@@ -1992,6 +1992,15 @@ if [ -f "$AP_SH" ]; then
   ER_PRE_LINE='{"schema_version":1,"pr":1,"issue":11,"branch":"b1","merged_at":"2026-07-01T00:00:00Z","verdict":"APPROVE","config_fingerprint":null,"efficiency_runs":[{"slug":"pr-1","run_id":"r1","cost":{"calls":1,"tokens":10,"wall_clock_s":1},"iterations":1}],"retrospective":null,"important_finding_count":0,"permission_denials_count":0,"provenance":{}}'
   ER_POST_LINE='{"schema_version":1,"pr":2,"issue":12,"branch":"b2","merged_at":"2026-07-02T00:00:00Z","verdict":"APPROVE","config_fingerprint":null,"efficiency_runs":[{"slug":"pr-2","run_id":"r2","cost":{"calls":1,"tokens":10,"wall_clock_s":1},"iterations":1,"run_profile":{"phase_durations_ms":{"Setup":1000},"final_status":"Complete","prior_record_count":0,"issue_number":12,"engine_outcome":"success"},"no_pr_reason":null}]}'
   ER_RETRO_LINE='{"pr":1,"issue":11,"branch":"b1","merged_at":"2026-07-01T00:00:00Z","verdict":"APPROVE","findings":[{"tag":"convention-violation","summary":"s"}]}'
+  # actionable-patterns.sh looks up open issues for the cooldown check. That shells to
+  # gh, which succeeds on an authenticated desk and fails on CI — aborting the script
+  # under its `set -euo pipefail` and making BOTH compared runs fail identically, which
+  # is precisely the vacuity the positive controls below exist to catch. Stub gh through
+  # the documented DEVFLOW_GH override so the comparison is host-independent.
+  ER_AP_GH="$(mktemp -d)/gh"
+  printf '#!/usr/bin/env bash\nprintf %%s "[]"\n' > "$ER_AP_GH"
+  chmod +x "$ER_AP_GH"
+
   er_ap_warnings() {
     # $1 = the experiment-records.jsonl content. Returns the ::warning:: count.
     local d
@@ -1999,7 +2008,8 @@ if [ -f "$AP_SH" ]; then
     printf '%s\n' "$ER_RETRO_LINE" > "$d/retrospectives.jsonl"
     printf '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$d/overrides.json"
     printf '%s' "$1" > "$d/experiment-records.jsonl"
-    bash "$AP_SH" "$d/retrospectives.jsonl" "$d/overrides.json" --full 2>&1 >/dev/null \
+    DEVFLOW_GH="$ER_AP_GH" GITHUB_REPOSITORY=owner/repo \
+      bash "$AP_SH" "$d/retrospectives.jsonl" "$d/overrides.json" --full 2>&1 >/dev/null \
       | grep -c '::warning::actionable-patterns' || true
     rm -rf "$d"
   }
@@ -2020,7 +2030,8 @@ $ER_POST_LINE
     printf '%s\n' "$ER_RETRO_LINE" > "$d/retrospectives.jsonl"
     printf '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$d/overrides.json"
     printf '%s' "$1" > "$d/experiment-records.jsonl"
-    bash "$AP_SH" "$d/retrospectives.jsonl" "$d/overrides.json" --full >/dev/null 2>&1 || rc=$?
+    DEVFLOW_GH="$ER_AP_GH" GITHUB_REPOSITORY=owner/repo \
+      bash "$AP_SH" "$d/retrospectives.jsonl" "$d/overrides.json" --full >/dev/null 2>&1 || rc=$?
     rm -rf "$d"
     printf '%s' "$rc"
   }
