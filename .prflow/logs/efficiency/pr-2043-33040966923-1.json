@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2043",
+  "generated_at": "2026-08-27T05:06:28Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.64",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.49497475,
+    "tokens": {
+      "input_tokens": 38,
+      "output_tokens": 20666,
+      "cache_read_input_tokens": 2460013,
+      "cache_creation_input_tokens": 144981,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 52,
+        "outputTokens": 38546,
+        "cacheReadInputTokens": 2747697,
+        "cacheCreationInputTokens": 258166,
+        "webSearchRequests": 0,
+        "costUSD": 4.49497475,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 29,
+    "duration_ms": 454248
+  },
+  "permission_denials": {
+    "count": 1,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/compose-run-url.sh; echo \"---rows---\"; grep -n \"_REVIEW_PROGRESS_ROWS\" -A 20 .prflow/vendor/prflow/scripts/workpad.py | head -30; echo \"---runid---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-UNSET} ATTEMPT=${GITHUB_RUN_ATTEMPT:-UNSET}\""
+    ],
+    "total": 1,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
