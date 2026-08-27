@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2014",
+  "generated_at": "2026-08-27T00:35:42Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.58",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.354770250000002,
+    "tokens": {
+      "input_tokens": 40,
+      "output_tokens": 20165,
+      "cache_read_input_tokens": 2690841,
+      "cache_creation_input_tokens": 181599,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 94,
+        "outputTokens": 31884,
+        "cacheReadInputTokens": 3961833,
+        "cacheCreationInputTokens": 463246,
+        "webSearchRequests": 0,
+        "costUSD": 6.354770250000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 33,
+    "duration_ms": 332946
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p .prflow/tmp/review/pr-2014/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"runid=${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "git show 8f24ee03a43a937c4310d20d4149663aa6703d7b:lib/test/run-shard.sh > /tmp/rs.sh\nfor s in monolith python-pool modules-pin modules-large modules-rest; do bash /tmp/rs.sh --modules-of \"$s\"; done | sort > /tmp/union.txt\necho \"raw count: $(for s in monolith python-pool modules-pin modules-large modules-rest; do bash /tmp/rs.sh --modules-of \"$s\"; done | grep -c .)\"\necho \"unique count: $(sort -u /tmp/union.txt | grep -c .)\"\necho \"dupes:\"; sort /tmp/union.txt | uniq -d",
+      "git show 8f24ee03a43a937c4310d20d4149663aa6703d7b:lib/test/run-shard.sh > /tmp/rs.sh\nfor s in monolith python-pool modules-pin modules-large modules-rest; do bash /tmp/rs.sh --modules-of \"$s\"; done | sort -o /tmp/union.txt\nprintf 'raw: '; for s in monolith python-pool modules-pin modules-large modules-rest; do bash /tmp/rs.sh --modules-of \"$s\"; done | grep -c .\nprintf 'uniq: '; sort -u /tmp/union.txt | grep -c .\nprintf 'dupes: '; uniq -d /tmp/union.txt | tr '\\n' ' '; echo",
+      "git show 8f24ee03a43a937c4310d20d4149663aa6703d7b:lib/test/run-shard.sh > /tmp/rs.sh\nfor s in monolith python-pool modules-pin modules-large modules-rest; do bash /tmp/rs.sh --modules-of $s; done | sort -o /tmp/union.txt\ngrep -c . /tmp/union.txt\nsort -u /tmp/union.txt | grep -c .\nuniq -d /tmp/union.txt",
+      "git show 8f24ee03a43a937c4310d20d4149663aa6703d7b:lib/test/run-shard.sh > /tmp/rs.sh\nbash /tmp/rs.sh --modules-of modules-pin > /tmp/u.txt\nbash /tmp/rs.sh --modules-of modules-large >> /tmp/u.txt\nbash /tmp/rs.sh --modules-of modules-rest >> /tmp/u.txt\nsort -o /tmp/u.txt /tmp/u.txt\ngrep -c . /tmp/u.txt\nsort -u /tmp/u.txt | grep -c .\nuniq -d /tmp/u.txt",
+      "git show 8f24ee03a43a937c4310d20d4149663aa6703d7b:lib/test/run-shard.sh > /tmp/rs.sh",
+      "git show 8f24ee03a43a937c4310d20d4149663aa6703d7b:lib/test/run-shard.sh > /home/runner/work/prflow/prflow/.prflow/tmp/rs.sh",
+      "bash /home/runner/work/prflow/prflow/lib/test/run-shard.sh --modules-of modules-pin; bash /home/runner/work/prflow/prflow/lib/test/run-shard.sh --modules-of modules-large; bash /home/runner/work/prflow/prflow/lib/test/run-shard.sh --modules-of modules-rest",
+      "bash /home/runner/work/prflow/prflow/lib/test/run-shard.sh --list-shards | while read s; do bash /home/runner/work/prflow/prflow/lib/test/run-shard.sh --modules-of \"$s\"; done | sort | uniq -c | sort -rn | head"
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
