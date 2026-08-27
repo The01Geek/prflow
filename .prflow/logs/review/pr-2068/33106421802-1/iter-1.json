@@ -1,0 +1,181 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T19:30:00Z",
+  "fix_commit_sha": "26ccc0b",
+  "fix_files": [
+    "scripts/surface-execution-diagnostics.sh",
+    "scripts/build-denial-record.sh",
+    ".github/workflows/devflow-runner.yml",
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "checklist": [],
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "devflow-runner.yml pretooluse_guard_fired comment stale after the permission_denials_count line changed",
+      "defect_signature": {
+        "file": ".github/workflows/devflow-runner.yml",
+        "line_range": [
+          212,
+          213
+        ],
+        "kind": "stale_comment"
+      }
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "devflow-runner.yml:204 comment over-claimed the old || form definitely swallowed 0",
+      "defect_signature": {
+        "file": ".github/workflows/devflow-runner.yml",
+        "line_range": [
+          204,
+          208
+        ],
+        "kind": "comment_accuracy"
+      }
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "surface _result_present comment said 'iff a result event' (overstated)",
+      "defect_signature": {
+        "file": "scripts/surface-execution-diagnostics.sh",
+        "line_range": [
+          108,
+          110
+        ],
+        "kind": "comment_accuracy"
+      }
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "three-denial array fixture missing the '::warning:: this run recorded 3' assertion",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          37590,
+          37590
+        ],
+        "kind": "test_coverage"
+      }
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "build has_pd_array comment 'read BEFORE the object filter above' positionally inaccurate",
+      "defect_signature": {
+        "file": "scripts/build-denial-record.sh",
+        "line_range": [
+          109,
+          109
+        ],
+        "kind": "comment_accuracy"
+      }
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "BDR drift-warning idempotency not pinned",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          18137,
+          18137
+        ],
+        "kind": "test_coverage"
+      }
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "26ccc0b"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "26ccc0b"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "26ccc0b"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "26ccc0b"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "26ccc0b"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "26ccc0b"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 6,
+    "fix_diff_lines": 30,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "phase3_findings": [],
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
