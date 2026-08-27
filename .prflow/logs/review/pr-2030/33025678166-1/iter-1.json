@@ -1,0 +1,124 @@
+{
+  "iter": 1,
+  "started_at": "unrecoverable",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "pre-existing behavior-inert design property of the reconciliation lint (not introduced by this PR)",
+      "defect_signature": {
+        "file": "lib/test/lint-brand-devflow-sweep.py",
+        "line_range": [
+          270,
+          336
+        ],
+        "kind": "test_coverage_note"
+      }
+    }
+  ],
+  "fix_decisions": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "unrecoverable",
+    "reviewed_sha": "450cb01433ade9121ff150071a859c96397ea3a4",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Critical",
+        "description": "install.sh comment quotes 'carries no PRFlow signature' but the emitted literal is 'carries no DevFlow signature' — diff-introduced self-contradiction (Phase 4.2 self-contradicting-diff carve-out, non-demotable)",
+        "defect_signature": {
+          "file": "install.sh",
+          "line_range": [
+            1052,
+            1053
+          ],
+          "kind": "self_contradicting_comment"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 5,
+      "overlap_with_iter_N": 1,
+      "new": 1,
+      "new_critical": 1,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": true
+  },
+  "telemetry": {},
+  "synthesized": false
+}

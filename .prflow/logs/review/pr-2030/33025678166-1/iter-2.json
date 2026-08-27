@@ -1,0 +1,132 @@
+{
+  "iter": 2,
+  "started_at": "unrecoverable",
+  "fix_commit_sha": "1f70d8bbc93a6bb2ef23a57267f22c1b02daa9f8",
+  "fix_files": [
+    "install.sh",
+    "lib/test/brand-devflow-buckets.json"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "3.5",
+  "current_substep": null,
+  "dispatch_mode": null,
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [],
+  "expected_reviewers": [],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Critical",
+      "description": "install.sh self-contradicting comment (promoted from iter-1 shadow)",
+      "defect_signature": {
+        "file": "install.sh",
+        "line_range": [
+          1052,
+          1053
+        ],
+        "kind": "self_contradicting_comment"
+      }
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "SHADOW-1",
+      "decision": "applied",
+      "commit": "1f70d8bbc93a6bb2ef23a57267f22c1b02daa9f8"
+    }
+  ],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "unrecoverable",
+    "reviewed_sha": "1f70d8bbc93a6bb2ef23a57267f22c1b02daa9f8",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "frozen-occurrence context matching is line-substring-broad (pre-existing design property; no action for this PR)",
+        "defect_signature": {
+          "file": "lib/test/brand-devflow-buckets.json",
+          "line_range": [
+            40,
+            92
+          ],
+          "kind": "test_coverage_note"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "telemetry": {},
+  "synthesized": false
+}
