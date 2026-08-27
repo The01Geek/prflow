@@ -12,7 +12,7 @@
     },
     "lint-provision": {
       "path": "scripts/lint_provision.py",
-      "digest": "sha256:c3d9490573ca431266927746513afdb16abaa9122d26b8b5be29b07c4473845a"
+      "digest": "sha256:1c20e1be9b041c678c88708edc9980c76b992c56e7b69e8c32c0582f9414425d"
     },
     "install-state-reader": {
       "path": "scripts/install_state.py",

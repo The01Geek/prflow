@@ -4,6 +4,25 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.69] — 2026-08-27
+
+### Fixed
+- **`workpad.py update` now resolves the workpad comment through the shared scan and a
+  verified comment-id cache.** The update path no longer runs its own inlined comment scan
+  or a standalone `gh repo view`: it finds the comment through `_find_workpad_comment`
+  (which carries the not-a-JSON-array guard the inlined copy lacked — a rc-0 non-list
+  comments response now fails through the labeled `update id-lookup` breadcrumb instead of
+  crashing with a Python traceback), remembers the resolved id in a gitignored
+  `.prflow/tmp/` cache, and on later calls fetches that comment directly — trusting the
+  cached id only after verifying its marker and `issue_url`. Repository resolution rides
+  `gh api`'s `{owner}/{repo}` placeholders. A warm-cache call makes two `gh` requests
+  instead of four-plus, roughly halving an automation run's workpad API traffic. (#2048)
+
+## [2.34.68] — 2026-08-27
+
+### Fixed
+- **`update-branch-checkpoint.sh` now self-registers the coverage-map JSON-aware merge driver before its base merge.** When the checkout's `.gitattributes` declares `merge=coverage-map-json`, the checkpoint helper registers the driver in local git config so an adjacent-key `lib/test/modules/coverage-map.json` conflict is unioned rather than routed to `CONFLICT` and Blocking the run. The block is guarded on the declaration and fail-soft: a consumer checkout carrying no such declaration stays silent, and a missing driver or a failed registration warns once to stderr and falls back to git's line-based merge, leaving the helper's outcome token and exit status unchanged. (#2044)
+
 ## [2.34.67] — 2026-08-27
 
 ### Changed

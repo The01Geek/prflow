@@ -158,9 +158,10 @@ assert_eq "psr population: the aggregate sums every shard's tally" "yes" \
 # The nested Python pool's width is a RESERVATION out of the same total, exported to
 # the shard that owns it and to no other — a sibling that also read a width would
 # multiply the process count past the budget the scheduler thinks it is enforcing.
-# The value is 2 rather than `BUDGET - 1` = 7 because POOL_RESERVATION_CEILING caps it, so
-# this is also the assertion that the ceiling is applied at all.
-assert_eq "psr population: python-pool receives the nested-pool reservation" "2" \
+# The value is 5 rather than `BUDGET - 1` = 7 because POOL_RESERVATION_CEILING (5, the
+# five-member pool — issue #2007) caps it, so this is also the assertion that the ceiling is
+# applied at all: at budget 8 `BUDGET - 1` = 7 > 5, so the ceiling is what binds here.
+assert_eq "psr population: python-pool receives the nested-pool reservation" "5" \
   "$(psr_pool_width_of "$PSR_TRACE" python-pool)"
 assert_eq "psr population: a normal shard receives no pool reservation" "(absent)" \
   "$(psr_pool_width_of "$PSR_TRACE" alpha)"
@@ -203,7 +204,7 @@ assert_eq "psr population: each shard's TMPDIR is outside the checkout (a fixtur
      done < "$PSR_TRACE"
      case "$PSR_TA" in "$PSR_T1"/*) echo no ;; "") echo no ;; *) echo yes ;; esac)"
 assert_eq "psr population: the run announces the budget and the reservation it resolved" "yes" \
-  "$(case "$(cat "$PSR_T1/out-8")" in *"process budget 8 (python-pool reservation 2)"*) echo yes ;; *) echo no ;; esac)"
+  "$(case "$(cat "$PSR_T1/out-8")" in *"process budget 8 (python-pool reservation 5)"*) echo yes ;; *) echo no ;; esac)"
 
 PSR_TRACE2="$PSR_T1/trace-2"
 ( cd "$PSR_T1" && SYN_TRACE="$PSR_TRACE2" DEVFLOW_SHARD_DISPATCHER="$PSR_T1/dispatch.sh" \
@@ -223,15 +224,16 @@ assert_eq "psr population: budget 1 → still complete (every shard ran)" "3" \
 assert_eq "psr population: budget 1 → the aggregate is the same total as budget 8" "yes" \
   "$(case "$(cat "$PSR_T1/out-1")" in *"6 passed, 0 failed"*) echo yes ;; *) echo no ;; esac)"
 
-# ── the packing at the runner's own budget (issue #1180) ─────────────────────
+# ── the packing at the runner's own budget (issue #1180; #2007 five-member pool) ──
 # The cloud runner resolves BUDGET = min(cpu_count, BUDGET_CEILING) = 4, and at that budget
-# the nested-pool reservation decides how many shards fit at t=0: at a reservation of 3
-# `monolith` (1 slot) + `python-pool` (3) fill all four and every remaining shard queues
-# behind ONE freed slot; at 2 a third shard launches immediately and the rest pipeline. That
-# is the whole substance of POOL_RESERVATION_CEILING, so it is asserted as the PACKING the
-# real scheduler produces — driven here through the coordinator's documented dispatcher seam
-# over the real shard names in the real launch order — and never as the constant's value,
-# which a source pin could assert without exercising anything.
+# the nested-pool reservation is min(BUDGET - 1, POOL_RESERVATION_CEILING) = min(3, 5) = 3
+# (the five-member ceiling no longer caps here — it caps only at BUDGET >= 7, exercised by the
+# budget-8 reservation assertion above). At a reservation of 3, `monolith` (1 slot) +
+# `python-pool` (3) fill all four slots, so only those TWO shards are live at t=0 and every
+# remaining roster shard queues behind a freed slot. This is asserted as the PACKING the real
+# scheduler produces — driven through the coordinator's documented dispatcher seam over the
+# real shard names in the real launch order — never as the constant's value, which a source
+# pin could assert without exercising anything.
 PSR_T1B="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_T1B"
 PSR_TRACE4="$PSR_T1B/trace-4"
 ( cd "$PSR_T1B" && SYN_TRACE="$PSR_TRACE4" DEVFLOW_SHARD_DISPATCHER="$PSR_T1B/dispatch.sh" \
@@ -239,18 +241,21 @@ PSR_TRACE4="$PSR_T1B/trace-4"
     DEVFLOW_SUITE_PROCESS_BUDGET=4 bash lib/test/run-parallel.sh > "$PSR_T1B/out-4" 2>&1 )
 assert_eq "psr packing: budget 4 over the real roster → clean aggregate, exit 0" "0" "$?"
 PSR_PACK4="$(psr_starts_before_first_end "$PSR_TRACE4")"
-assert_eq "psr packing: budget 4 → THREE shards are live before any shard has finished" "3" \
+assert_eq "psr packing: budget 4 → TWO shards are live before any shard has finished" "2" \
   "$(PSR_N=0; for psr_s in $PSR_PACK4; do PSR_N=$((PSR_N + 1)); done; printf '%s\n' "$PSR_N")"
-assert_eq "psr packing: budget 4 → monolith, python-pool and the next roster shard are those three" "yes" \
+assert_eq "psr packing: budget 4 → monolith and python-pool are those two" "yes" \
   "$(PSR_HIT=0
      for psr_s in $PSR_PACK4; do
-       case "$psr_s" in monolith|python-pool|modules-pin) PSR_HIT=$((PSR_HIT + 1)) ;; esac
+       case "$psr_s" in monolith|python-pool) PSR_HIT=$((PSR_HIT + 1)) ;; esac
      done
-     [ "$PSR_HIT" -eq 3 ] && echo yes || echo no)"
-# Scope stated honestly: this one bounds the BUDGET, not the ceiling. Verified by mutation
-# — at a reservation of 3 the peak is also three (the pool's slots free together and the
-# last two shards join `modules-pin`), so only the two assertions above discriminate the
-# ceiling. It is kept because it is the assertion that a repacking never oversubscribes.
+     [ "$PSR_HIT" -eq 2 ] && echo yes || echo no)"
+# Scope stated honestly: this one bounds the BUDGET, not the ceiling. At budget 4 the
+# reservation is `BUDGET - 1` = 3 for any ceiling >= 3, so the two packing assertions above
+# now exercise the `BUDGET - 1` floor rather than the ceiling; the ceiling's own cap is
+# discriminated by the budget-8 reservation assertion (5, capped from 7) above. The peak
+# overlap is three at a reservation of 3 (the pool's three slots free together and the last
+# roster shards join), so this assertion is kept because it proves a repacking never
+# oversubscribes the budget.
 assert_eq "psr packing: budget 4 → no fourth shard is ever admitted (the budget still binds)" "3" \
   "$(psr_max_overlap "$PSR_TRACE4")"
 # Overlap is never bought with coverage: the repacking must still run the whole population.
