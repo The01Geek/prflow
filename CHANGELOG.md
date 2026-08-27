@@ -4,6 +4,17 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.1] — 2026-08-27
+
+### Changed
+- **`verification-flight.py --help` now answers the claim-schema and exit-code questions.** The
+  top-level help epilog states the meaning of each exit code, and `claim --help` states the
+  required keys of the claim declaration (rendered from the module's own `_PROFILE_REQUIRED` and
+  `_CHECKOUT_REQUIRED` constants so help cannot drift from the validator) plus the attach
+  semantics, so a run learns the interface in one help read instead of grepping the source. The
+  stale attach-path comment now names `skills/review-and-fix/references/fixing.md`. No tool grant
+  is added. (#2036)
+
 ## [2.35.0] — 2026-08-27
 
 ### Added
