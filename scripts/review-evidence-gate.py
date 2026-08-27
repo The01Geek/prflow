@@ -103,19 +103,21 @@ def _detail(*parts):
 
 def _load_workpad():
     """Import scripts/workpad.py as a module so its classification lives in one place
-    (AC4). Returns the module, or None when it cannot be loaded — the caller then routes
-    to the unestablished arm rather than crashing."""
+    (AC4). Returns (module, None) on success, or (None, reason) when it cannot be loaded —
+    the caller then routes to the unestablished arm rather than crashing. The reason names
+    the caught fault so a persistent import failure (a future defect in workpad.py) is
+    diagnosable in the annotation rather than an opaque, indefinitely-tolerated warning."""
     here = os.path.dirname(os.path.abspath(__file__))
     path = os.path.join(here, 'workpad.py')
     try:
         spec = importlib.util.spec_from_file_location('review_gate_workpad', path)
         if spec is None or spec.loader is None:
-            return None
+            return None, 'no import spec for workpad.py'
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        return module
-    except Exception:  # any import fault is the unestablished arm, never a crash
-        return None
+        return module, None
+    except Exception as e:  # any import fault is the unestablished arm, never a crash
+        return None, f'{type(e).__name__}: {e}'
 
 
 def _read_json(path):
@@ -320,12 +322,12 @@ def _decide(args):
 
     # The classification lives in scripts/workpad.py — import it now (not at entry), so a
     # no-verdict / older-engine / unestablished-baseline run never pays the import.
-    workpad = _load_workpad()
+    workpad, wp_err = _load_workpad()
     if workpad is None:
         return 'unestablished workpad-import-failed', _detail(
-            'review-evidence-gate: could not import scripts/workpad.py — the ',
-            'classification implementation is unavailable, so no checklist-',
-            'requirement decision could be made.')
+            'review-evidence-gate: could not import scripts/workpad.py (', wp_err or '',
+            ') — the classification implementation is unavailable, so no ',
+            'checklist-requirement decision could be made.')
 
     facts = workpad._recompute_diff_facts(
         reviewed_head, args.base_ref or None, args.repo_root)
@@ -429,7 +431,15 @@ def main(argv=None):
                         help='the checked-out review engine root (holds SKILL.md).')
     args = parser.parse_args(argv)
 
-    token, detail = _decide(args)
+    # Uphold the always-exit-0 / never-crash contract at the source: any unexpected fault
+    # in the decision routes to an unestablished arm (a warning), never a traceback that
+    # would end the step non-zero and fail the job on the gate's own bug.
+    try:
+        token, detail = _decide(args)
+    except Exception as e:  # the decision must never crash the step (always exit 0)
+        token = 'unestablished internal-error'
+        detail = _detail('review-evidence-gate: an unexpected internal error occurred (',
+                         f'{type(e).__name__}: {e}', '); reported unestablished.')
     print(token)
     for line in detail:
         print(line)

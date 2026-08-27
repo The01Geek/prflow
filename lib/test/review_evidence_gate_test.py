@@ -321,20 +321,57 @@ class GateEndToEnd(unittest.TestCase):
         second = self._token(self._run(d, head, base, eng, pre, self._marked(head)))
         self.assertEqual(first, second)
 
-    def test_reviews_payload_unreadable_unestablished(self):
-        d, _head, base, eng = self._sandbox('code')
+    def _run_raw(self, d, pre_obj, reviews_arg, eng, login='bot[bot]'):
+        """Drive the gate with an arbitrary reviews-payload argument and pre-inventory
+        object, for the safety arms the well-formed _run helper cannot reach."""
         pre_p = os.path.join(d, 'pre.json')
         with open(pre_p, 'w') as f:
-            json.dump({'run_roots': [], 'review_ids': []}, f)
+            json.dump(pre_obj, f)
         out = subprocess.run(
             [sys.executable, _GATE, '--pre-inventory', pre_p, '--post-tree-root', d,
-             '--reviews-payload', os.path.join(d, 'nope.json'),
-             '--base-ref', base, '--repo-root', d, '--reviewer-login', 'bot[bot]',
-             '--vendored-engine-root', eng],
+             '--reviews-payload', reviews_arg, '--base-ref', 'basebr', '--repo-root', d,
+             '--reviewer-login', login, '--vendored-engine-root', eng],
             capture_output=True, text=True)
-        self.assertEqual(out.returncode, 0)
-        self.assertTrue(out.stdout.splitlines()[0].startswith(
-            'unestablished reviews-payload-'))
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout.splitlines()[0] if out.stdout else '(no output)'
+
+    def test_reviews_payload_unreadable_unestablished(self):
+        d, _head, _base, eng = self._sandbox('code')
+        token = self._run_raw(d, {'run_roots': [], 'review_ids': []},
+                              os.path.join(d, 'nope.json'), eng)
+        self.assertTrue(token.startswith('unestablished reviews-payload-'))
+
+    def test_reviews_payload_unparseable_unestablished(self):
+        d, _head, _base, eng = self._sandbox('code')
+        bad = os.path.join(d, 'bad.json')
+        with open(bad, 'w') as f:
+            f.write('{not json')
+        token = self._run_raw(d, {'run_roots': [], 'review_ids': []}, bad, eng)
+        self.assertEqual(token, 'unestablished reviews-payload-unparseable')
+
+    def test_reviews_payload_not_an_array_unestablished(self):
+        d, _head, _base, eng = self._sandbox('code')
+        obj = os.path.join(d, 'obj.json')
+        with open(obj, 'w') as f:
+            json.dump({'message': 'Not Found'}, f)  # a valid-JSON error object
+        token = self._run_raw(d, {'run_roots': [], 'review_ids': []}, obj, eng)
+        self.assertEqual(token, 'unestablished reviews-payload-not-an-array')
+
+    def test_reviewer_login_absent_unestablished(self):
+        d, _head, _base, eng = self._sandbox('code')
+        rev = os.path.join(d, 'rev.json')
+        with open(rev, 'w') as f:
+            json.dump([], f)
+        token = self._run_raw(d, {'run_roots': [], 'review_ids': []}, rev, eng, login='')
+        self.assertEqual(token, 'unestablished reviewer-login-absent')
+
+    def test_pre_inventory_not_an_object_unestablished(self):
+        d, _head, _base, eng = self._sandbox('code')
+        rev = os.path.join(d, 'rev.json')
+        with open(rev, 'w') as f:
+            json.dump([], f)
+        token = self._run_raw(d, ['not', 'an', 'object'], rev, eng)
+        self.assertEqual(token, 'unestablished pre-inventory-unreadable')
 
 
 class ClassificationReuse(unittest.TestCase):
@@ -342,8 +379,9 @@ class ClassificationReuse(unittest.TestCase):
     re-copy. Prove the gate imports workpad's functions and does not redeclare its
     classification constants."""
     def test_gate_imports_workpad_classification(self):
-        wp = gate._load_workpad()
+        wp, err = gate._load_workpad()
         self.assertIsNotNone(wp)
+        self.assertIsNone(err)
         for name in ('_recompute_diff_facts', '_review_coverage_profile_disproof',
                      '_REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING'):
             self.assertTrue(hasattr(wp, name), name)

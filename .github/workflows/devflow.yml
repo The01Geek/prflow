@@ -1804,8 +1804,10 @@ jobs:
           echo "prompt-extension-arrival: classified state=$STATE (skill=$SKILL)"
 
       # Pre-engine review-evidence inventory (issue #2075). Snapshot the run-root tree
-      # under .prflow/tmp/review/ and the reviewed head's review IDs immediately BEFORE
-      # the engine step, so the post-engine gate can attribute the run root and the
+      # under .prflow/tmp/review/ and the PR's current review IDs (all of them, unscoped —
+      # head attribution happens later in the gate via each verdict marker's own head=)
+      # immediately BEFORE the engine step, so the post-engine gate can attribute the run
+      # root and the
       # verdict that appear DURING the engine step by set-difference — no run key from
       # the engine, no clock comparison. Scoped to the review commands the gate evaluates
       # (/prflow:review and /prflow:review-and-fix, and the /devflow: aliases); a
@@ -2242,8 +2244,11 @@ jobs:
       # arm to a durable comment, the progress-comment flip (the flip helper's new
       # --evidence-gate-fail arm, for a terminal Status), and the REST review dismissal.
       # Same command screen and PR-ness terms as the reach-record step, but WITHOUT the
-      # trailing-space form, so /prflow:review-and-fix is evaluated too (its verdict is
-      # identified by ID-set delta on the head, like /prflow:review's).
+      # trailing-space form, so a /prflow:review-and-fix run is evaluated too. The fix
+      # loop skips Phase 4.4 and normally posts NO marker-bearing GitHub review, so the
+      # gate finds no verdict for it and safely no-ops; it fires only when a run left a
+      # marker-bearing verdict on the head absent from the pre-engine inventory (the
+      # /prflow:review path, or a direct gh-api bypass a review-and-fix run could leave).
       - name: Review evidence gate
         if: ${{ always() && (startsWith(needs.gate.outputs.command, '/prflow:review') || startsWith(needs.gate.outputs.command, '/devflow:review')) && (github.event.issue.pull_request || github.event.pull_request.number) && (github.event.issue.number || github.event.pull_request.number) }}
         env:
