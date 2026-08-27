@@ -130,16 +130,17 @@ _provision_one() {
     local unsupported_version sys_unsupported members member stale_bin
     unsupported_version="$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["tools"][sys.argv[2]]["version"])' \
       "$LINT_MANIFEST" "$tool" 2>/dev/null || true)"
-    # Purge any stale cache-restored binary for this tool from DEST_BIN before it is appended
-    # to GITHUB_PATH (issue #2050): the degrade arm never re-verified one, and DEST_BIN is
-    # PREPENDED to later steps' PATH, so an off-version binary here would shadow the whole run.
-    # Delete only a binary that FAILS the manifest version check — a version-matching one is a
-    # legitimate reuse and stays; warn-and-continue is preserved (a purge failure never _die's).
+    # Purge a stale cache-restored binary for this tool from DEST_BIN before it is appended to
+    # GITHUB_PATH (issue #2050): delete ONLY a binary that FAILS the manifest version check (a
+    # matching one is legitimate reuse and stays), else it shadows PATH; warn-and-continue kept.
     if [ -n "$unsupported_version" ]; then
       members="$("$PY" -c 'import json,sys
 d=json.load(open(sys.argv[1]))
 print("\n".join(sorted({a["member"] for a in d["tools"][sys.argv[2]]["artifacts"]})))' \
         "$LINT_MANIFEST" "$tool" 2>/dev/null || true)"
+      # A readable version but unreadable artifacts (partial manifest) would silently skip the
+      # purge — the very fail-open being defended against — so breadcrumb it rather than no-op.
+      [ -n "$members" ] || printf 'provision-lint-tools: %s: WARNING could not read artifact members; stale-binary purge skipped\n' "$tool" >&2
       while IFS= read -r member; do
         [ -n "$member" ] || continue
         stale_bin="$DEST_BIN/$member"

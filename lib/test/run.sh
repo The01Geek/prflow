@@ -55220,12 +55220,10 @@ _devflow_ruff_probe_ver() {  # $1 = candidate command (word-split intentionally)
 }
 devflow_ruff_select_cmd() {
   # $1 = manifest ruff version or sentinel; $2 = candidate 1 cmd; $3 = candidate 2 cmd.
-  # Emits one line "<outcome>|<token>|<detail>" (pipe-separated, so an empty token field is
-  # preserved — consecutive tab/whitespace separators collapse under read). Prefers the
-  # candidate whose major.minor family equals the manifest family (candidate 1 first), so an
-  # off-family ruff first on PATH no longer shadows an in-family one reachable via
-  # python3 -m ruff. On a manifest sentinel (non-numeric reading) it selects the first RUNNABLE
-  # candidate in the given order — today's behavior. outcome: selected | family-mismatch | none.
+  # Emits "<outcome>|<token>|<detail>" (pipe-separated so an empty token field survives read).
+  # Prefers the candidate whose major.minor family equals the manifest family (candidate 1
+  # first); a manifest sentinel (non-numeric) selects the first RUNNABLE candidate in order.
+  # outcome: selected | family-mismatch | none.
   local manifest_ver="$1" c1="$2" c2="$3"
   local manifest_fam="" v1="" v2="" f1="" f2="" detail=""
   case "$manifest_ver" in [0-9]*) manifest_fam="$(devflow_ruff_family "$manifest_ver")" ;; esac
@@ -55258,8 +55256,7 @@ RUFF_SELECT="$(devflow_ruff_select_cmd "$RUFF_MANIFEST_VER" "ruff" "python3 -m r
 IFS='|' read -r RUFF_SEL_OUTCOME RUFF_SEL_TOKEN RUFF_SEL_DETAIL <<<"$RUFF_SELECT"
 if [ "$RUFF_SEL_OUTCOME" = "selected" ]; then
   IFS=' ' read -r -a RUFF_CMD <<<"$RUFF_SEL_TOKEN"
-  # One line naming the selected candidate + its reported version + the manifest family, on
-  # the pass path as well as on failure (AC1).
+  # AC1: print the selected candidate + version on the pass path as well as on failure.
   printf '#1621 ruff gate: selected %s (reports %s); manifest family %s\n' "$RUFF_SEL_TOKEN" "$RUFF_SEL_DETAIL" "$RUFF_MANIFEST_FAM"
 fi
 if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
@@ -55329,6 +55326,10 @@ assert_eq "#2050 select: off-family cand1 + in-family cand2 -> selects the in-fa
 # Preference: candidate 1 in-family wins over an in-family candidate 2 (PATH ruff preferred).
 IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/infam" "$RUFF_SEL_MTX/infam2")"
 assert_eq "#2050 select: both in-family -> candidate 1 (PATH ruff) is preferred" "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
+
+# In-family candidate 1 + off-family candidate 2 -> candidate 1 selected (family match wins).
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/infam" "$RUFF_SEL_MTX/off")"
+assert_eq "#2050 select: in-family cand1 + off-family cand2 -> selects the in-family cand1" "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
 
 # AC2: both candidates off-family -> family-mismatch, no candidate selected.
 IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/off2")"
