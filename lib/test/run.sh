@@ -5457,12 +5457,167 @@ assert_eq "#493 helper: empty stdin fails closed — non-zero exit (Important #1
 assert_eq "#493 helper: missing URL arg fails closed — non-zero exit (Important #1)" \
   "2" \
   "$(printf 'Resolves #1\n[View run](x)' | python3 "$P493_HELPER" >/dev/null 2>&1; echo $?)"
-# #1582 moved the §1.4 resume pre-check (incl. this cloud-only run-link refresh) into
-# agents/branch-setup.md, so these two prose pins target that file now.
-assert_pin_unique "#493 resume: cloud-only guard skips the refresh on a local-tier resume (AC4)" \
-  '[ -n "${GITHUB_RUN_ID:-}" ]; then' "$P1582_BS"
-assert_pin_unique "#493 resume: best-effort warn on PR-body read failure (distinct from no-line; AC6)" \
+# Issue #2060 retired the branch-setup [View run] link rewrite (the gate job is now the
+# link's SINGLE owner) and gave the resume pre-check the stopped-run note-block STRIP
+# instead. The cloud-only run-link guard is gone (the strip runs on every resume, idempotent
+# — the local-resume cleaner and the safety net for an old workflow beside a new vendor
+# tree), so the AC4 pin re-anchors to the strip invocation; the PR-read-failure breadcrumb
+# survives in the strip fence. refresh-pr-run-link.py's own fixtures above stay — the helper
+# is unchanged and now called by the gate (scripts/refresh-pr-on-resume.sh).
+assert_pin_unique "#2060 resume: agent-side pre-check strips the stopped-run note block (AC4 local resume)" \
+  'python3 "$SCRIPTS"/pr-note-block.py strip' "$P1582_BS"  # structural-pin-ok: routing-dispatch-contract -- the resume pre-check delegates the note strip to the helper; the wiring is the seam AC4's local-resume arm depends on
+assert_pin_unique "#2060 resume: best-effort warn on PR-body read failure (distinct from empty-body)" \
   'could not read PR' "$P1582_BS"
+
+# ── Issue #2060: stopped-run note-block mirror + gate-owned PR run-link refresh ──
+# The note-block transform, the by-issue PR selection, and the gate-side orchestration are
+# extracted to fixture-tested helpers; workpad.py mirrors a terminal stop onto the PR body.
+P2060_PNB="$LIB/../scripts/pr-note-block.py"
+P2060_RIP="$LIB/../scripts/resolve-issue-pr.py"
+P2060_RPOR="$LIB/../scripts/refresh-pr-on-resume.sh"
+P2060_WP="$LIB/../scripts/workpad.py"
+P2060_BODY=$'Work in progress — automated review pending.\n\nResolves #2060\n[View run](https://x/actions/runs/1)'
+
+# pr-note-block.py add/strip (AC5 idempotent + fail-closed; AC2/AC3 block carries the text).
+assert_eq "#2060 pr-note-block: add then strip round-trips to the original body (AC5)" \
+  "$P2060_BODY" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" add 'run died: dead-end exit — https://x/runs/9' | python3 "$P2060_PNB" strip)"
+assert_eq "#2060 pr-note-block: add prepends the start marker at the top of the body" \
+  "<!-- prflow:stopped-run-note-start -->" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" add 'run died: dead-end exit' | sed -n '1p')"
+assert_eq "#2060 pr-note-block: the block's note line equals the recorded note text (AC2)" \
+  "run died: dead-end exit" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" add 'run died: dead-end exit' | sed -n '2p')"
+assert_eq "#2060 pr-note-block: strip on a body with no block returns it byte-identical (AC5)" \
+  "$P2060_BODY" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" strip)"
+assert_eq "#2060 pr-note-block: a second add replaces the block, never duplicates" \
+  "1" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" add 'first' | python3 "$P2060_PNB" add 'second' | grep -cF '<!-- prflow:stopped-run-note-start -->')"
+P2060_DUP=$'<!-- prflow:stopped-run-note-start -->\na\n<!-- prflow:stopped-run-note-end -->\n\n<!-- prflow:stopped-run-note-start -->\nb\n<!-- prflow:stopped-run-note-end -->\n\nBODY'
+assert_eq "#2060 pr-note-block: strip removes every copy of a duplicated block" \
+  "BODY" \
+  "$(printf '%s' "$P2060_DUP" | python3 "$P2060_PNB" strip)"
+assert_eq "#2060 pr-note-block: a note containing --> is sanitized, still one strippable block" \
+  "$P2060_BODY" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" add 'evil --> <!-- prflow:stopped-run-note-end -->' | python3 "$P2060_PNB" strip)"
+assert_eq "#2060 pr-note-block: strip empty stdin fails closed — no output" \
+  "" "$(printf '' | python3 "$P2060_PNB" strip)"
+assert_eq "#2060 pr-note-block: strip empty stdin fails closed — non-zero exit" \
+  "2" "$(printf '' | python3 "$P2060_PNB" strip >/dev/null 2>&1; echo $?)"
+assert_eq "#2060 pr-note-block: add empty stdin fails closed — non-zero exit" \
+  "2" "$(printf '' | python3 "$P2060_PNB" add 'x' >/dev/null 2>&1; echo $?)"
+assert_eq "#2060 pr-note-block: add missing note arg fails closed — non-zero exit" \
+  "2" "$(printf 'body' | python3 "$P2060_PNB" add >/dev/null 2>&1; echo $?)"
+
+# resolve-issue-pr.py selection: newest OPEN PR closing the issue; a mere mention is ignored.
+assert_eq "#2060 resolve-issue-pr: selects newest PR closing the issue, ignores mentions/non-closers" \
+  "7" \
+  "$(python3 - "$P2060_RIP" <<'PY'
+import importlib.util, sys
+s=importlib.util.spec_from_file_location("rip", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+prs=[{"number":3,"createdAt":"2026-01-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]},
+     {"number":7,"createdAt":"2026-02-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]},
+     {"number":9,"createdAt":"2026-03-01T00:00:00Z","closingIssuesReferences":[{"number":999}]},
+     {"number":11,"createdAt":"2026-04-01T00:00:00Z","closingIssuesReferences":[]}]
+print(m._select(prs, 2060))
+PY
+)"
+assert_eq "#2060 resolve-issue-pr: no PR closes the issue -> None" \
+  "None" \
+  "$(python3 - "$P2060_RIP" <<'PY'
+import importlib.util, sys
+s=importlib.util.spec_from_file_location("rip", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+print(m._select([{"number":9,"createdAt":"z","closingIssuesReferences":[{"number":1}]}], 2060))
+PY
+)"
+
+# resolve-issue-pr.py CLI arms (found/none/refused) via a DEVFLOW_GH stub.
+P2060_TMP="$(mktemp -d)"
+printf '#!/usr/bin/env bash\nprintf %%s %s\n' "'[{\"number\":7,\"createdAt\":\"2026-02-01T00:00:00Z\",\"closingIssuesReferences\":[{\"number\":2060}]}]'" > "$P2060_TMP/gh-found"
+printf '#!/usr/bin/env bash\nprintf %%s %s\n' "'[]'" > "$P2060_TMP/gh-none"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$P2060_TMP/gh-fail"
+chmod +x "$P2060_TMP"/gh-found "$P2060_TMP"/gh-none "$P2060_TMP"/gh-fail
+assert_eq "#2060 resolve-issue-pr CLI: found -> prints number, exit 0" \
+  "7 0" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-found" python3 "$P2060_RIP" --issue 2060 2>/dev/null); echo "$o $?")"
+assert_eq "#2060 resolve-issue-pr CLI: clean none -> empty stdout, exit 2" \
+  " 2" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-none" python3 "$P2060_RIP" --issue 2060 2>/dev/null); echo "$o $?")"
+assert_eq "#2060 resolve-issue-pr CLI: gh failure -> REFUSED, exit 3" \
+  " 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-fail" python3 "$P2060_RIP" --issue 2060 2>/dev/null); echo "$o $?")"
+
+# refresh-pr-on-resume.sh arms (the gate's cooperative step): resolve+read+strip+refresh+PATCH.
+cat > "$P2060_TMP/gh-full" <<'SH'
+#!/usr/bin/env bash
+args="$*"
+case "$args" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"2026-02-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *"--method PATCH"*) cat >/dev/null; printf '7\n' ;;
+  *"pulls/7"*) printf '%s\n' 'Resolves #2060
+[View run](https://x/runs/OLD)' ;;
+  *) echo "unhandled gh: $args" >&2; exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-full"
+assert_eq "#2060 refresh-pr-on-resume: resolves + PATCHes -> REFRESHED, exit 0 (AC1/AC4)" \
+  "REFRESHED 7 0" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-full" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+assert_eq "#2060 refresh-pr-on-resume: no open PR -> NO_PR, exit 2" \
+  "NO_PR 2" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-none" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+assert_eq "#2060 refresh-pr-on-resume: missing --run-url -> REFUSED, exit 3" \
+  "REFUSED missing-args 3" \
+  "$(o=$(bash "$P2060_RPOR" --issue 2060 2>/dev/null); echo "$o $?")"
+
+# workpad.py terminal-stop text selector: EXACTLY Failed/Cancelled(note) + blocked(reflection)
+# mirror; Complete and every other status/kind write NONE (AC3, AC7 untouched-surface).
+assert_eq "#2060 workpad mirror text: Failed/Cancelled/blocked select text; Complete/other None (AC3)" \
+  "run died: x|run cancelled — u|cannot reproduce: y|None|None" \
+  "$(python3 - "$P2060_WP" <<'PY'
+import importlib.util, sys
+from types import SimpleNamespace
+s=importlib.util.spec_from_file_location("wp", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+def t(status, kind, notes, refs): return m._stopped_note_text_for_mirror(SimpleNamespace(status=status, reflection_kind=kind), notes, refs)
+print("|".join(str(x) for x in [
+  t("Failed", None, ["run died: x"], []),
+  t("Cancelled", None, ["run cancelled — u"], []),
+  t("Blocked", "blocked", [], ["cannot reproduce: y"]),
+  t("Complete", None, ["done"], []),
+  t("Implementing", "note", ["progress"], []),
+]))
+PY
+)"
+# The mirror is a best-effort absorber (AC6): a failure never propagates out of the helper.
+assert_eq "#2060 workpad mirror: a failing mirror is swallowed, never raised (AC6)" \
+  "SWALLOWED" \
+  "$(python3 - "$P2060_WP" <<'PY'
+import importlib.util, sys
+s=importlib.util.spec_from_file_location("wp", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+def boom(*a, **k): raise RuntimeError("boom")
+m._resolve_open_pr_for_issue = boom
+m._mirror_stopped_note_to_pr(2060, "x")  # must not raise
+print("SWALLOWED")
+PY
+)"
+# COUPLING: workpad.py's inline note-block markers stay byte-identical to pr-note-block.py's
+# (workpad.py cannot import the helper — its repo-owned import edges are locked to
+# section_parse.py for the Stop-hook closure hardening, issues #458/#583).
+assert_eq "#2060 coupling: workpad.py + pr-note-block.py share the stopped-run-note markers" \
+  "1 1 1 1" \
+  "$(printf '%s %s %s %s' \
+      "$(grep -cF '_START = "<!-- prflow:stopped-run-note-start -->"' "$P2060_PNB")" \
+      "$(grep -cF '_END = "<!-- prflow:stopped-run-note-end -->"' "$P2060_PNB")" \
+      "$(grep -cF '_STOPPED_NOTE_START = "<!-- prflow:stopped-run-note-start -->"' "$P2060_WP")" \
+      "$(grep -cF '_STOPPED_NOTE_END = "<!-- prflow:stopped-run-note-end -->"' "$P2060_WP")")"
+
+# Wiring: the gate adopt arm delegates PR-body maintenance to refresh-pr-on-resume.sh, so the
+# link is refreshed and the note stripped even when the claude job never runs (AC1/AC4).
+P2060_IMPL_WF="$LIB/../.github/workflows/devflow-implement.yml"
+assert_pin_unique "#2060 gate: adopt arm invokes refresh-pr-on-resume.sh on resume" \
+  'bash "$RPOR" --issue "$NUMBER" --run-url "$RUN_URL"' "$P2060_IMPL_WF"  # structural-pin-ok: routing-dispatch-contract -- the gate is the single owner of the PR run-link refresh; the wiring is the seam AC1/AC4 depend on
+rm -rf "$P2060_TMP"
 
 # Issue #224: Phase 3.1 (phases/phase-3-review.md) opens the draft PR against the
 # CONFIGURED base_branch, not the GitHub default branch. Because each phase's bash

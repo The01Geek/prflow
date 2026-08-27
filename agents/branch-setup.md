@@ -30,7 +30,7 @@ The orchestrator's dispatch prompt provides, and you use verbatim:
 - `BASE` — the base branch (`$BASE`), read by the orchestrator from `.prflow/config.json`; `origin/$BASE` is the fetch/read target. It is passed to you, but you re-derive it below with the same fail-closed guard so a stale value cannot silently mistarget.
 - `WORKPAD_BODY` — the live workpad body the orchestrator read in §1.3/§1.4 (or a path to it). You read its `**Branch:**` line from this; do not re-fetch it.
 - `HANDOFF` — the cloud handoff provenance value (`created-current-run` / `adopted-existing` / `unknown`) the orchestrator resolved in §1.3, which decides `provenance_established` for Verdict B.
-- `GITHUB_RUN_ID` / `GITHUB_SERVER_URL` / `GITHUB_REPOSITORY` — for the PR-body run-link refresh (empty on a local-tier run, which skips the refresh).
+- `GITHUB_RUN_ID` / `GITHUB_SERVER_URL` / `GITHUB_REPOSITORY` — passed for context; the PR-body `[View run]` refresh is retired from here (the gate job owns it), so these are not used for a link rewrite.
 - `ISSUE_TITLE` — the issue title, for branch-name derivation.
 
 Record each durable outcome **immediately** when it is decided (a compaction or a mid-run stop then never loses what was already decided). Every workpad write is `"$WORKPAD" update $ISSUE_NUMBER …` with the literals the dispatch prompt gave you.
@@ -81,38 +81,37 @@ CO_ERR=$( { git fetch origin "$HEAD_REF" && git checkout "$HEAD_REF"; } 2>&1 1>/
 LANDED=no; [ -n "$HEAD_REF" ] && [ "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" = "$HEAD_REF" ] && LANDED=yes
 ```
 
-**PR-body run-link refresh (best-effort, cloud resume only — runs when `LANDED` is `yes`).** The draft PR body's `[View run](...)` line is written once at PR creation (Phase 3.1) and never touched again, so a reviewer who arrives at the resumed run via the **PR** clicks a link to the original run's logs. This rewrites that one line to the resumed run. It runs only when the checkout landed and only on a cloud run (`$GITHUB_RUN_ID` non-empty); a local-tier resume has no run URL and leaves the body unchanged. Any failure emits a `::warning::` breadcrumb and continues; the refresh is idempotent (the `[View run](...)` line is *replaced in place*, not appended).
+**PR-body stopped-run note strip (best-effort — runs when `LANDED` is `yes`).** A prior stopped attempt may have left a stopped-run note block at the top of the PR body. This resume strips it so the PR no longer opens with a stale stop banner. The `[View run]` link refresh is **retired from here** — the gate job is its single owner — so this fence no longer rewrites the link and needs no run URL, and it runs on **every** resume (not cloud-only): on a cloud resume the gate already stripped, making this an idempotent no-op and the safety net for an old workflow beside a new vendor tree; on a local resume, where no gate runs, this is the note's only cleaner. Any failure emits a `::warning::` breadcrumb and continues; the strip is idempotent (a body with no block is returned unchanged).
 
 ```bash
-if [ "$LANDED" = yes ] && [ -n "${GITHUB_RUN_ID:-}" ]; then
-  RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+if [ "$LANDED" = yes ]; then
   # Derive PR_NUMBER from the SAME PR_JSON entry the pre-check selected (never `gh pr view`,
   # which resolves by the current branch). run-jq.sh is the preflight-guaranteed jq wrapper.
   PR_NUMBER=$(printf '%s' "$PR_JSON" | "$SCRIPTS"/run-jq.sh -r --arg h "$HEAD_REF" '[.[] | select(.headRefName == $h)] | sort_by(.createdAt) | last | .number // empty' 2>/dev/null) || PR_NUMBER=""
   if [ -n "$PR_NUMBER" ]; then
     # Read the PR body via REST `gh api` (repo-scope), symmetric with the PATCH below. The
     # `if !` reads gh api's OWN exit status, so a failed read gets its own breadcrumb rather
-    # than being misreported as "no [View run] line".
+    # than being misreported as "no note block".
     if ! PR_BODY=$(gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER" --jq '.body' 2>/dev/null); then
       PR_BODY=""
-      echo "::warning::prflow resume: could not read PR #$PR_NUMBER body (gh api read failed); PR-body run-link refresh skipped" >&2
-    elif [ -n "$PR_BODY" ] && [[ $PR_BODY == *"[View run]("* ]]; then
-      # The body is piped through the fixture-tested helper via stdin so its backticks and `$`
-      # never traverse shell quoting; RUN_URL passes as argv. The output is CAPTURED and guarded
-      # non-empty before the PATCH so a crashed transform cannot blank the description.
-      NEW_BODY=$(printf '%s' "$PR_BODY" | python3 "$SCRIPTS"/refresh-pr-run-link.py "$RUN_URL") || NEW_BODY=""
+      echo "::warning::prflow resume: could not read PR #$PR_NUMBER body (gh api read failed); PR-body note strip skipped" >&2
+    elif [ -n "$PR_BODY" ]; then
+      # Pipe the body through the fixture-tested note-block helper via stdin (its backticks and
+      # `$` never traverse shell quoting). The output is CAPTURED and guarded non-empty before
+      # the PATCH so a crashed transform cannot blank the description.
+      NEW_BODY=$(printf '%s' "$PR_BODY" | python3 "$SCRIPTS"/pr-note-block.py strip) || NEW_BODY=""
       if [ -n "$NEW_BODY" ]; then
         printf '%s' "$NEW_BODY" \
           | gh api --method PATCH "repos/{owner}/{repo}/pulls/$PR_NUMBER" -F body=@- 2>/dev/null \
-          || echo "::warning::prflow resume: PR-body run-link PATCH failed for PR #$PR_NUMBER; continuing" >&2
+          || echo "::warning::prflow resume: PR-body note-strip PATCH failed for PR #$PR_NUMBER; continuing" >&2
       else
-        echo "::warning::prflow resume: PR-body run-link transform produced no output; PATCH skipped to avoid blanking PR #$PR_NUMBER body" >&2
+        echo "::warning::prflow resume: PR-body note-strip transform produced no output; PATCH skipped to avoid blanking PR #$PR_NUMBER body" >&2
       fi
     else
-      echo "::warning::prflow resume: PR #$PR_NUMBER body has no Phase 3.1 [View run] line; run-link refresh is a no-op" >&2
+      echo "::warning::prflow resume: PR #$PR_NUMBER body is empty; note strip skipped" >&2
     fi
   else
-    echo "::warning::prflow resume: could not derive PR_NUMBER from PR_JSON; PR-body run-link refresh skipped" >&2
+    echo "::warning::prflow resume: could not derive PR_NUMBER from PR_JSON; PR-body note strip skipped" >&2
   fi
 fi
 ```
