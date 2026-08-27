@@ -2038,7 +2038,8 @@ devflow_pool_join() {
 # ── The suite's PRODUCTION Python-suite pool: membership + reconciliation ────
 # (Issue #720 opened the pool; the CI shard split moved where it is driven.)
 #
-# The two heavy focused Python suites the complete suite drives CONCURRENTLY. Their
+# The five heavy focused Python suites the complete suite drives CONCURRENTLY —
+# test_module_runner.py plus the four test_python_scripts parts (issue #2007). Their
 # membership, each one's tally mode, and the self-tally reconciliation live here — in
 # ONE place — because two callers drive them, and a second copy of the membership list
 # is the coupled-mirror hazard at its worst: a suite added to one caller and not the
