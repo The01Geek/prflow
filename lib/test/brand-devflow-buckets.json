@@ -36,6 +36,383 @@
         "file": "lib/rename-map.json",
         "detail": "identifiers[].superseded == \"DevFlow\""
       }
+    ],
+    "occurrences": [
+      {
+        "file": "lib/scan.sh",
+        "context": "reserved DevFlow label",
+        "reason": "comment naming the superseded provenance label the selector still matches"
+      },
+      {
+        "file": "lib/scan.sh",
+        "context": "DevFlow-label",
+        "reason": "comment naming the superseded provenance-label selector"
+      },
+      {
+        "file": "lib/scan.sh",
+        "context": "DevFlow spelling",
+        "reason": "comments on the superseded provenance spelling the selector accepts"
+      },
+      {
+        "file": "docs/internal/index.md",
+        "context": "DevFlow and PRFlow both appear",
+        "reason": "two-spelling explainer pointer to naming.md"
+      },
+      {
+        "file": "docs/internal/implement-skill.md",
+        "context": "superseded `DevFlow` spelling",
+        "reason": "superseded-spelling reference for the provenance label"
+      },
+      {
+        "file": "docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md",
+        "context": "`DevFlow` provenance",
+        "reason": "provenance-selector reference in a historical cutover note"
+      },
+      {
+        "file": "docs/internal/glossary.md",
+        "context": "superseded spelling `DevFlow`",
+        "reason": "glossary entry naming the superseded provenance spelling"
+      },
+      {
+        "file": "docs/internal/claude-md-relocated-rationale.md",
+        "context": "DevFlow-layout",
+        "reason": "example token in a token-matching explanation"
+      },
+      {
+        "file": "docs/external/docs/getting-started/updates.md",
+        "context": "Migrate from DevFlow",
+        "reason": "old-name reference: the migration-page link title"
+      },
+      {
+        "file": "docs/external/docs/getting-started/index.md",
+        "context": "Migrate from DevFlow",
+        "reason": "old-name reference: the migration-page card title"
+      },
+      {
+        "file": "docs/internal/naming.md",
+        "context": "one product, two spellings",
+        "reason": "two-spelling explainer: page title naming both spellings"
+      },
+      {
+        "file": "docs/internal/naming.md",
+        "context": "the earlier spelling",
+        "reason": "two-spelling explainer: states DevFlow is the earlier spelling"
+      },
+      {
+        "file": "docs/internal/naming.md",
+        "context": "superseded `DevFlow` spelling",
+        "reason": "superseded-spelling reference for the provenance label"
+      },
+      {
+        "file": "docs/internal/naming.md",
+        "context": "What stays DevFlow, deliberately",
+        "reason": "two-spelling explainer: heading naming what stays frozen"
+      },
+      {
+        "file": "docs/internal/naming.md",
+        "context": "sweep a frozen DevFlow name",
+        "reason": "explains that frozen DevFlow names must not be swept"
+      },
+      {
+        "file": "docs/external/docs/getting-started/migrate-from-devflow.md",
+        "context": "Migrate from DevFlow",
+        "reason": "old-name reference: migration-page title"
+      },
+      {
+        "file": "docs/external/docs/getting-started/migrate-from-devflow.md",
+        "context": "DevFlow-to-PRFlow rename",
+        "reason": "names the rename in the page description"
+      },
+      {
+        "file": "docs/external/docs/getting-started/migrate-from-devflow.md",
+        "context": "the DevFlow plugin",
+        "reason": "old-name reference: PRFlow is the new name for the DevFlow plugin"
+      },
+      {
+        "file": "docs/external/docs/getting-started/migrate-from-devflow.md",
+        "context": "No PRFlow or DevFlow state directory",
+        "reason": "two-spelling user-facing migration output string"
+      },
+      {
+        "file": "docs/external/docs/getting-started/migrate-from-devflow.md",
+        "context": "remaining `DevFlow` product-name",
+        "reason": "old-name reference: mentions users may still carry"
+      },
+      {
+        "file": "docs/external/docs/getting-started/migrate-from-devflow.md",
+        "context": "keep the DevFlow spelling on purpose",
+        "reason": "explains that several names keep the DevFlow spelling deliberately"
+      },
+      {
+        "file": "docs/external/docs/reference/glossary.md",
+        "context": "older `DevFlow` spelling",
+        "reason": "superseded-spelling reference for the provenance label"
+      },
+      {
+        "file": "lib/meta-issue.sh",
+        "context": "superseded DevFlow",
+        "reason": "comment naming the superseded provenance spelling the selector matches"
+      },
+      {
+        "file": "docs/internal/install.md",
+        "context": "DevFlow → PRFlow rename",
+        "reason": "names the rename; the listed names are frozen under that spelling"
+      },
+      {
+        "file": "docs/internal/install.md",
+        "context": "DevFlow-Reviewer",
+        "reason": "App-name reference (the separate review-identity App)"
+      },
+      {
+        "file": "docs/internal/install.md",
+        "context": "a `DevFlow` entry in `docs.labels`",
+        "reason": "old-value reference in a migration table row"
+      },
+      {
+        "file": "docs/internal/install.md",
+        "context": "label:PRFlow,DevFlow",
+        "reason": "provenance-selector literal (the OR search qualifier)"
+      },
+      {
+        "file": "docs/internal/install.md",
+        "context": "carry `DevFlow` as its written product name",
+        "reason": "old-name reference: a migrated repo may still carry DevFlow prose"
+      },
+      {
+        "file": "docs/internal/install.md",
+        "context": "A `DevFlow` occurrence changes to `PRFlow`",
+        "reason": "describes the semantic-sweep predicate over old-name occurrences"
+      },
+      {
+        "file": "docs/internal/install.md",
+        "context": "DevFlow-labeled issues",
+        "reason": "provenance-label reference"
+      },
+      {
+        "file": "docs/external/docs/getting-started/initialization.md",
+        "context": "Migrate from DevFlow",
+        "reason": "old-name reference: migration-page link title and product-name-mentions note"
+      },
+      {
+        "file": "docs/external/docs/getting-started/installation.md",
+        "context": "Migrate from DevFlow",
+        "reason": "old-name reference: migration-page link title"
+      },
+      {
+        "file": "docs/external/docs/workflows/retrospective-weekly.md",
+        "context": "DevFlow Weekly Report",
+        "reason": "user-facing report heading deliberately kept under the former name"
+      },
+      {
+        "file": "docs/external/docs/workflows/retrospective-weekly.md",
+        "context": "Migrate From DevFlow",
+        "reason": "old-name reference: migration-page link explaining the former-name heading"
+      },
+      {
+        "file": "lib/render-report.sh",
+        "context": "DevFlow Weekly Report",
+        "reason": "user-facing report heading deliberately kept under the former name"
+      },
+      {
+        "file": "lib/migrate-config-values.py",
+        "context": "`DevFlow` provenance label",
+        "reason": "old-value reference in the migration mapping docstring"
+      },
+      {
+        "file": "lib/migrate-config-values.py",
+        "context": "label:PRFlow,DevFlow",
+        "reason": "provenance-selector literal (the OR search qualifier)"
+      },
+      {
+        "file": "lib/migrate-config-values.py",
+        "context": "`DevFlow-legacy`",
+        "reason": "old-label example value in a comment"
+      },
+      {
+        "file": "lib/rename-map.json",
+        "context": "DevFlow-layout",
+        "reason": "example compound the token rename rule deliberately does not fire on"
+      },
+      {
+        "file": "lib/rename-map.json",
+        "context": "DevFlow-Reviewer App identity",
+        "reason": "App-name reference (the separate review-identity App)"
+      },
+      {
+        "file": "lib/rename-map.json",
+        "context": "The DevFlow label, the devflow-telemetry",
+        "reason": "historical provenance-label reference in the Tier-3 record comment"
+      },
+      {
+        "file": "install.sh",
+        "context": "DevFlow Runner",
+        "reason": "signature grep pattern matching the frozen workflow `name:` field"
+      },
+      {
+        "file": "install.sh",
+        "context": "superseded DevFlow registrations",
+        "reason": "superseded-identifier reference in a migration notice"
+      },
+      {
+        "file": "install.sh",
+        "context": "superseded DevFlow identifiers",
+        "reason": "superseded-identifier reference in a migration notice"
+      },
+      {
+        "file": "scripts/provision-python3-shim.sh",
+        "context": "Generated by DevFlow",
+        "reason": "SHIM_MARKER literal written into shims and grepped to recognize them"
+      },
+      {
+        "file": "lib/fetch-pr-context.sh",
+        "context": "superseded `DevFlow`",
+        "reason": "comment naming the superseded provenance spelling the selector matches"
+      },
+      {
+        "file": "lib/classify-pr-kind.jq",
+        "context": "DevFlow-labelled",
+        "reason": "superseded-label reference in a comment describing the both-spellings match"
+      },
+      {
+        "file": "CLAUDE.md",
+        "context": "green `DevFlow` runs",
+        "reason": "reference to the frozen DevFlow-named workflow check runs"
+      },
+      {
+        "file": "CLAUDE.md",
+        "context": "`DevFlow` is its superseded spelling",
+        "reason": "the canonical statement that DevFlow is the superseded spelling"
+      },
+      {
+        "file": "CLAUDE.md",
+        "context": "label:PRFlow,DevFlow",
+        "reason": "provenance-selector literal (the OR search qualifier)"
+      },
+      {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "context": "DevFlow→PRFlow layout migration",
+        "reason": "names the rename and the stale old-name prose it repairs"
+      },
+      {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "context": "superseded `DevFlow` spelling",
+        "reason": "superseded-spelling references and the OR selector on those lines"
+      },
+      {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "context": "DevFlow-Reviewer",
+        "reason": "App-name reference (the separate review-identity App)"
+      },
+      {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "context": "`DevFlow` | Light command listener",
+        "reason": "frozen workflow check-run name in the workflow table"
+      },
+      {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "context": "DevFlow (implement)",
+        "reason": "frozen workflow check-run name in the workflow table"
+      },
+      {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "context": "DevFlow Runner (reusable)",
+        "reason": "frozen workflow check-run name in the workflow table"
+      },
+      {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "context": "Brand-`DevFlow` bucket reconciliation",
+        "reason": "meta-references to the brand literal the sweep mechanism classifies"
+      },
+      {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "context": "occurrence-level** freeze",
+        "reason": "meta-references to the brand literal the occurrence-freeze mechanism classifies"
+      },
+      {
+        "file": "docs/internal/cloud-setup.md",
+        "context": "DevFlow → PRFlow",
+        "reason": "names the rename"
+      },
+      {
+        "file": "docs/internal/cloud-setup.md",
+        "context": "DevFlow-Reviewer",
+        "reason": "App-name reference (the separate review-identity App)"
+      },
+      {
+        "file": "install.sh",
+        "context": "locally modified since DevFlow wrote it",
+        "reason": "user-facing PRESERVED log string pinned by installer-wiring tests"
+      },
+      {
+        "file": "install.sh",
+        "context": "carries no DevFlow signature",
+        "reason": "user-facing signature-guard log string pinned by installer-wiring tests"
+      },
+      {
+        "file": "install.sh",
+        "context": "DevFlow signature\" states a conclusion",
+        "reason": "comment quoting the frozen 'carries no DevFlow signature' log literal; must match the emitted string"
+      },
+      {
+        "file": "install.sh",
+        "context": "the file is not DevFlow's",
+        "reason": "user-facing read-failure log string pinned by installer-wiring tests"
+      },
+      {
+        "file": "scripts/surface-execution-diagnostics.sh",
+        "context": "::warning::DevFlow:",
+        "reason": "user-facing ::warning:: annotation string pinned by diagnostics tests"
+      },
+      {
+        "file": "scripts/surface-execution-diagnostics.sh",
+        "context": "::notice::DevFlow:",
+        "reason": "user-facing ::notice:: annotation string pinned by diagnostics tests"
+      },
+      {
+        "file": "scripts/surface-execution-diagnostics.sh",
+        "context": "DevFlow execution diagnostics",
+        "reason": "user-facing diagnostics block header pinned by diagnostics tests"
+      },
+      {
+        "file": "scripts/post-review-backstop-comment.sh",
+        "context": "DevFlow review stall backstop",
+        "reason": "user-facing PR-comment header string pinned by review-stall-backstop tests"
+      },
+      {
+        "file": "lib/telemetry-branch.sh",
+        "context": "DevFlow telemetry store",
+        "reason": "user-facing telemetry-store validation warning pinned by efficiency-trace-telemetry tests"
+      },
+      {
+        "file": "lib/efficiency-trace.sh",
+        "context": "DevFlow telemetry store",
+        "reason": "user-facing telemetry-store validation warning pinned by efficiency-trace-telemetry tests"
+      },
+      {
+        "file": "lib/dispatch-disposition.jq",
+        "context": "no DevFlow provenance",
+        "reason": "emitted skip-reason string pinned by the #626 disposition test"
+      },
+      {
+        "file": "scripts/resolve-extra-plugins.sh",
+        "context": "accepted DevFlow plugin/marketplace identifier set",
+        "reason": "emitted warn() breadcrumb string pinned by the identity test"
+      },
+      {
+        "file": "scripts/scaffold-config.sh",
+        "context": "prompt-extension example for the",
+        "reason": "scaffolded content coupled to the frozen .prflow/prompt-extensions/*.example mirror (#443)"
+      },
+      {
+        "file": "scripts/scaffold-config.sh",
+        "context": "prompt extensions for DevFlow skills",
+        "reason": "scaffolded README content coupled to the frozen .prflow/prompt-extensions mirror (#443)"
+      },
+      {
+        "file": "scripts/lint_manifest.py",
+        "context": "provisions before a model run",
+        "reason": "digest-bound to the committed .prflow/install-state.json compatibility marker (#1388)"
+      }
     ]
   },
   "pending_sweep_baseline": [
@@ -148,106 +525,7 @@
       "path": ".prflow/prompt-extensions/review.md.example"
     },
     {
-      "path": "CLAUDE.md"
-    },
-    {
-      "path": "README.md"
-    },
-    {
       "path": "agents/deferral-drafter.md"
-    },
-    {
-      "path": "docs/external/docs/getting-started/index.md"
-    },
-    {
-      "path": "docs/external/docs/getting-started/initialization.md"
-    },
-    {
-      "path": "docs/external/docs/getting-started/installation.md"
-    },
-    {
-      "path": "docs/external/docs/getting-started/migrate-from-devflow.md"
-    },
-    {
-      "path": "docs/external/docs/getting-started/updates.md"
-    },
-    {
-      "path": "docs/external/docs/reference/glossary.md"
-    },
-    {
-      "path": "docs/external/docs/workflows/retrospective-weekly.md"
-    },
-    {
-      "path": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"
-    },
-    {
-      "path": "docs/internal/claude-md-extension-audit-coupled-sites.md"
-    },
-    {
-      "path": "docs/internal/claude-md-relocated-rationale.md"
-    },
-    {
-      "path": "docs/internal/cloud-setup.md"
-    },
-    {
-      "path": "docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md"
-    },
-    {
-      "path": "docs/internal/glossary.md"
-    },
-    {
-      "path": "docs/internal/implement-skill.md"
-    },
-    {
-      "path": "docs/internal/index.md"
-    },
-    {
-      "path": "docs/internal/install.md"
-    },
-    {
-      "path": "docs/internal/naming.md"
-    },
-    {
-      "path": "install.sh"
-    },
-    {
-      "path": "lib/capability-profiles.json"
-    },
-    {
-      "path": "lib/classify-pr-kind.jq"
-    },
-    {
-      "path": "lib/dispatch-disposition.jq"
-    },
-    {
-      "path": "lib/efficiency-trace.sh"
-    },
-    {
-      "path": "lib/fetch-pr-context.sh"
-    },
-    {
-      "path": "lib/implement-stop-guard.sh"
-    },
-    {
-      "path": "lib/meta-issue.sh"
-    },
-    {
-      "path": "lib/migrate-config-values.py"
-    },
-    {
-      "path": "lib/plugin-identity.json"
-    },
-    {
-      "path": "lib/rename-map.json"
-    },
-    {
-      "path": "lib/render-report.sh"
-    },
-    {
-      "path": "lib/scan.sh"
-    },
-    {
-      "path": "lib/telemetry-branch.sh"
     },
     {
       "path": "lib/test/fixtures/FAILED-prcomments.json"
@@ -323,33 +601,6 @@
     },
     {
       "path": "lib/test/test_workflow_flight_recorder.py"
-    },
-    {
-      "path": "scripts/lint_manifest.py"
-    },
-    {
-      "path": "scripts/post-review-backstop-comment.sh"
-    },
-    {
-      "path": "scripts/provision-python3-shim.sh"
-    },
-    {
-      "path": "scripts/publish-release.sh"
-    },
-    {
-      "path": "scripts/render-grounding-block.sh"
-    },
-    {
-      "path": "scripts/resolve-extra-plugins.sh"
-    },
-    {
-      "path": "scripts/scaffold-config.sh"
-    },
-    {
-      "path": "scripts/surface-execution-diagnostics.sh"
-    },
-    {
-      "path": "scripts/workflow-flight-recorder-registry.json"
     },
     {
       "path": "skills/create-issue/references/step-4-present-create.md"

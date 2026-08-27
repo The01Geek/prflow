@@ -66,6 +66,10 @@
 #                                 clean/drift/uncheckable arms; the DEFAULT binding and the
 #                                 verdict contract are driven end-to-end against the real
 #                                 helper from lib/test/modules/regenerate-artifacts.sh.
+#   DEVFLOW_RUFF_VERSION_PROBE    command behaving like `ruff --version` for the cheap-lint
+#                                 ruff-version check (issue #2009); defaults to `ruff
+#                                 --version`. Set empty to disable the check. Fixtures inject
+#                                 a stub here to drive the skew/absent/non-executing arms.
 #   TMPDIR                        parent of the per-shard scratch roots (always), and
 #                                 the fallback run-root parent when the checkout root is
 #                                 unusable (read-only, full, or name space exhausted).
@@ -245,6 +249,52 @@ _cheap_lint_run() { # <label> <sentinel-prefix> <command string>
   return 0
 }
 
+# ── ruff-version cheap-lint check (issue #2009) ──────────────────────────────
+# Refuse the launch ONLY on a positively-attributed version skew: a ruff on PATH reports a minor
+# family differing from the family the lint manifest pins (the skew that reddens the #1621 gate
+# on rule-set drift, not real findings). The expected family is read from the manifest at run
+# time (no second copy here). Fail OPEN otherwise — warn-and-proceed when ruff is absent,
+# non-executing, or reports an unparseable version; skip SILENTLY (no warning) when this checkout
+# lacks the manifest or the helper. DEVFLOW_RUFF_VERSION_PROBE is the test seam; an
+# explicitly-empty value disables the gate, as the `-` (never `:-`) siblings above.
+_ruff_version_preflight() {
+  local probe="${DEVFLOW_RUFF_VERSION_PROBE-ruff --version}"
+  local manifest="$REPO_ROOT/.prflow/lint-manifest.json"
+  local helper="$REPO_ROOT/scripts/ruff-version-skew.py"
+  local out rc verdict
+  [ -n "$probe" ] || return 0
+  # Nothing to compare when this checkout lacks the manifest pin or the helper: skip silently.
+  { [ -s "$manifest" ] && [ -r "$helper" ]; } || return 0
+  # shellcheck disable=SC2086  # deliberate word-split: a probe command plus its argument(s)
+  # Parse stdout only: rc is checked separately below, and folding stderr in could feed a
+  # stray version-ish token to the helper's first-match parse and misattribute the family.
+  out="$($probe 2>/dev/null)"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf 'run-parallel: WARNING: the ruff-version cheap-lint check could not run ruff (absent or non-executing, exit %s); proceeding\n' "$rc" >&2
+    return 0
+  fi
+  verdict="$(python3 "$helper" --manifest "$manifest" --reported "$out" 2>&1)"
+  # Do NOT key the refusal on the helper's exit code — an uncaught traceback exits 1 exactly
+  # as a skew does — so key on the helper's own `ruff-version-skew: SKEW` sentinel matched at
+  # a line START instead (a crash prints none and fails open).
+  local skew=0 line
+  while IFS= read -r line; do
+    case "$line" in
+      'ruff-version-skew: SKEW'*) skew=1; break ;;
+    esac
+  done <<< "$verdict"
+  if [ "$skew" -eq 1 ]; then
+    printf '%s\n' "$verdict" >&2
+    printf 'run-parallel: the ruff-version cheap-lint gate found a version skew (see above); launching no shard — install the pinned ruff and re-run\n' >&2
+    return 1
+  fi
+  # No SKEW sentinel: a clean match is silent, an inconclusive/crash result fails open with
+  # whatever the helper reported (never a refusal).
+  [ -z "$verdict" ] || printf 'run-parallel: WARNING: the ruff-version cheap-lint check was inconclusive; proceeding\n%s\n' "$verdict" >&2
+  return 0
+}
+
 # Returns 0 to PROCEED, 1 on the first positively-attributed finding; a refusal
 # short-circuits so a second gate's output cannot bury the one that fired.
 # Keep `-` (never `:-`) below, or an explicitly-empty override stops disabling its gate.
@@ -253,6 +303,7 @@ _cheap_lint_preflight() {
     "${DEVFLOW_REFERENCE_SIZE_PREFLIGHT-python3 $SCRIPT_DIR/lint-reference-size.py}" || return 1
   _cheap_lint_run 'brand-sweep' 'lint-brand-devflow-sweep: audited ' \
     "${DEVFLOW_BRAND_SWEEP_PREFLIGHT-python3 $SCRIPT_DIR/lint-brand-devflow-sweep.py}" || return 1
+  _ruff_version_preflight || return 1
   return 0
 }
 
@@ -379,6 +430,11 @@ if [ -z "$RUN_ROOT" ]; then
 fi
 mkdir -p "$RUN_ROOT/logs" "$RUN_ROOT/tally" 2>/dev/null || \
   die "could not create the run-root layout under $RUN_ROOT"
+
+# Record this launch's checkout fingerprint for the same-tree failed-shard-only relaunch gate
+# (issue #2008). Best-effort: the helper always writes the record and exits 0, so never let a
+# fingerprint failure block the launch.
+python3 "$TALLY_HELPER" record-fingerprint --out "$RUN_ROOT" || :
 
 # The per-shard TMPDIRs live OUTSIDE the checkout, deliberately, even when the run root
 # is inside it. A shard's own assertions build fixture trees with `mktemp -d`, and this

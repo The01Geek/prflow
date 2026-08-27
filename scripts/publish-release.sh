@@ -133,7 +133,7 @@ if [ "$_PROBE" = "0" ]; then
 else
   # Annotated (not lightweight): a release tag carries its own object, date and message,
   # and `git describe` prefers it.
-  git tag -a "$TAG" -m "DevFlow $TAG" "$COMMIT"
+  git tag -a "$TAG" -m "PRFlow $TAG" "$COMMIT"
   if git push "$REMOTE" "refs/tags/$TAG"; then
     printf '::notice::Created and pushed annotated tag %s.\n' "$TAG"
   else

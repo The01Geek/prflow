@@ -4,6 +4,69 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.64] — 2026-08-27
+
+### Changed
+Sweep brand-cased `DevFlow` prose to `PRFlow` across the in-scope Batch 5 area (issue #2020): `docs/**`, the tracked root files (`install.sh`, `CLAUDE.md`, `README.md`), `scripts/**`, and `lib/**` excluding `lib/test/**`. Semantically-frozen occurrences (two-spelling explainers, superseded-spelling references, the `DevFlow-Reviewer` App name, provenance-selector literals, test-pinned user-facing strings, and the deliberately-kept `DevFlow Weekly Report` heading) are reclassified into `lib/test/brand-devflow-buckets.json` frozen buckets rather than rewritten. No consumer-facing runtime behaviour changes.
+
+## [2.34.63] — 2026-08-27
+
+### Changed
+- **Self-authored-claim sweep traces an invoked helper's default invocation mode.** Step 2 of
+  the Phase 2 self-authored-claim reconciliation sweep (`skills/implement/phases/phase-2-sweeps-quality.md`)
+  now directs a claim about how an invoked helper runs by default to that helper's argument parsing
+  and environment-variable defaults, not only its documented purpose, so a claim that holds only
+  under a non-default flag is caught at commit time as a divergence. (#2032)
+
+## [2.34.62] — 2026-08-27
+
+### Fixed
+- **Pin ruff at 0.16.4 in the lint manifest and refuse a whole-suite launch on a ruff version skew.** `.prflow/lint-manifest.json` still pinned `ruff` at `0.6.9` after issue #742 advanced CI to `ruff==0.16.*`, so provisioning installed a 0.6.9 ruff into `prflow-lint-bin` that shadowed PATH and reddened the `#1621` in-suite ruff gate on rule-set skew rather than on real findings. The manifest now pins the newest 0.16.x release (0.16.4) with refreshed per-os/arch sha256 digests, and `lib/test/run-parallel.sh`'s cheap-lint pre-launch gate now refuses a launch — in under a second, before any shard — when the ruff on PATH positively reports a family that skews from the manifest pin, naming the `python3 -m pip install --user --force-reinstall 'ruff==0.16.*'` remedy; it fails open (proceeds) when the probe cannot run (ruff absent or non-executing) and reads its expected version from the manifest at run time. A suite assertion reconciles the manifest pin against CI's `ruff==` family so the two can no longer silently disagree. (#2021)
+
+## [2.34.61] — 2026-08-27
+
+### Changed
+- **Batch the issue-claim auditor's workpad writes into one update call.** The
+  `issue-claim-auditor` agent now composes each pass record as its pass completes and holds it,
+  delivering the accrued records in one batched `workpad.py update` invocation at audit end —
+  plus one further call per additional reflection kind, since one update applies a single
+  `--reflection-kind` — instead of one network round trip per pass; an audit that ends at a stop
+  arm folds its accrued records into the same terminating update. Note texts and reflection kinds are unchanged, so
+  workpad-reading consumers see identical content. (#2022)
+
+## [2.34.60] — 2026-08-27
+
+### Fixed
+- **Refuse an oversize workpad write before it reaches the GitHub comment cap.** `scripts/workpad.py`
+  now rejects a single caller-supplied Progress note over 2,048 UTF-8 bytes and any update whose
+  resulting comment body would exceed GitHub's 65,536-byte comment limit, each with a message naming
+  the measured byte count and the limit it broke. A size refusal is not buffered for replay, and
+  buffer-replayed and tool-composed rows stay exempt from the per-note budget, so a note that predated
+  this change can no longer wedge a workpad into being permanently unwritable. (#2026)
+
+## [2.34.59] — 2026-08-27
+
+### Changed
+Phase 1.3 no longer records a `resume-kind: fresh` workpad note. The Phase 2 §2.0 resume gate already reads an absent marker as not in-flight, so the fresh-run arm's note carried no signal and is dropped; the `in-flight` and `terminal-re-trigger` arms are unchanged.
+
+## [2.34.58] — 2026-08-27
+
+### Added
+- **Weekly retrospective loop now consumes test-suite runtime trend.** Two steps were added to
+  the `retrospective-weekly` skill: a suite-profiling pass that runs the existing profiler,
+  ranks the slowest sections, labels, and assertions, and files targeted retire/speed-up/extract
+  follow-up issues for the top offenders; and a ceiling tripwire that reads the coordinator's
+  latest `run-parallel: elapsed` figure from CI job logs and files (or annotates an already-open)
+  suite-runtime maintenance issue when it crosses 85% of `BASH_MAX_TIMEOUT_MS`. Both steps only
+  read figures and file issues — neither gates a run on suite duration. (#2015)
+
+## [2.34.57] — 2026-08-27
+
+### Changed
+Permit a fingerprint-gated failed-shard-only suite relaunch after a RED completion-gate pass whose fix changed no repository file (issue #2008, PR #2016).
+
+Each suite launch now records its five-field checkout fingerprint (from `scripts/checkout-fingerprint.py`) as `fingerprint.json` in its retained location — the run root for `lib/test/run-parallel.sh`, the tally dir for `lib/test/run-shard.sh` — written *unestablished* (never omitted) when it cannot be produced. Two new `lib/test/shard-tally.py` subcommands support the relaunch: `record-fingerprint` writes that record (best-effort, always exits 0) and `same-tree-eligible` exits 0 only when a fresh fingerprint equals the RED run's recorded one on all five fields. The completion-gate prose in `CLAUDE.md` states the eligibility rule: on a proven byte-identical tree, relaunch only the failed shards and recombine them with the RED run's retained clean-shard tallies through `shard-tally.py combine --require-shards`; on any field mismatch or unestablished fingerprint the full coordinator relaunch stays mandatory.
+
 ## [2.34.56] — 2026-08-26
 
 ### Changed

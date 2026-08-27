@@ -8565,7 +8565,7 @@ fi
 # scripts/workpad.py CLI contract coverage (issue #1934: the #338 --rewrite-ac retag
 # block extracted from this file into a focused module).
 if ! devflow_run_full_suite_module "$LIB/test/modules/workpad-cli.sh" \
-  "workpad-cli" 94; then
+  "workpad-cli" 105; then
   printf 'ERROR: workpad-cli boundary could not record its result\n'
   exit 1
 fi
@@ -55071,6 +55071,118 @@ assert_eq "#1745 a drained provenance file's frozen value stays green (no stale-
   "$(bds_has "lib/scan.sh: stale frozen-provenance entry" "$BDS_DRAIN")"
 printf "PROVENANCE_LABEL_SUPERSEDED='DevFlow'\n# the DevFlow label\n" > "$BDS_FX/lib/scan.sh"; bds_stage
 
+# ── issue #2003: occurrence-level frozen bucket (freeze ONE DevFlow in a MIXED file) ──
+# A mixed file's listed occurrence is subtracted from its renameable remainder, so the file
+# is swept of ordinary DevFlow while the explainer line stays frozen without a whole-file bucket.
+python3 - "$BDS_FX" <<'BDS_OCC_BUILD'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+(root / "docs" / "mixed.md").write_text(
+    "A two-spelling explainer line: DevFlow is the superseded name.\n"
+    "Ordinary prose that still says DevFlow here.\n", encoding="utf-8")
+bpath = root / "lib" / "test" / "brand-devflow-buckets.json"
+b = json.loads(bpath.read_text())
+b["frozen"]["occurrences"] = [
+    {"file": "docs/mixed.md", "context": "two-spelling explainer", "reason": "explainer line kept"}]
+b["pending_sweep_baseline"].append({"path": "docs/mixed.md"})
+b["pending_sweep_baseline"].sort(key=lambda r: r["path"])
+bpath.write_text(json.dumps(b, indent=2) + "\n", encoding="utf-8")
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_OCC_BUILD
+# The frozen explainer occurrence is subtracted: the renameable remainder is 1 (not 2) and the
+# reconciliation stays green (the file carries a baseline row for that one remaining occurrence).
+BDS_OCC="$(bds_run "$BDS_FX")"
+assert_eq "#2003 an occurrence-frozen mixed file reconciles green" "rc=0" "${BDS_OCC%%|*}"
+BDS_OCC_POP="$(python3 "$BDS_LINT" --root "$BDS_FX" --print-population 2>&1)"
+assert_eq "#2003 the mixed file's renameable remainder is 1 (one occurrence frozen, one pending)" "yes" \
+  "$(bds_has "$(printf 'pending\tdocs/mixed.md\t1')" "$BDS_OCC_POP")"
+assert_eq "#2003 the mixed file emits a frozen-occurrence line for the frozen occurrence" "yes" \
+  "$(bds_has "$(printf 'frozen-occurrence\tdocs/mixed.md\t1')" "$BDS_OCC_POP")"
+# Sweeping the ordinary occurrence (leaving only the frozen explainer) drains the remainder to
+# zero; while the baseline row still lists it that is a stale-baseline RED, and removing the row
+# leaves the file fully classified (its remaining DevFlow is frozen) with no baseline entry.
+python3 - "$BDS_FX" <<'BDS_OCC_SWEEP'
+import subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+(root / "docs" / "mixed.md").write_text(
+    "A two-spelling explainer line: DevFlow is the superseded name.\n"
+    "Ordinary prose that now says PRFlow here.\n", encoding="utf-8")
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_OCC_SWEEP
+BDS_OCC_DRAIN="$(bds_run "$BDS_FX")"
+assert_eq "#2003 a swept mixed file with a still-listed baseline row fires stale-baseline" "yes" \
+  "$(bds_has "docs/mixed.md: stale pending_sweep_baseline entry" "$BDS_OCC_DRAIN")"
+python3 - "$BDS_FX" <<'BDS_OCC_DEBASE'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+bpath = root / "lib" / "test" / "brand-devflow-buckets.json"
+b = json.loads(bpath.read_text())
+b["pending_sweep_baseline"] = [r for r in b["pending_sweep_baseline"] if r["path"] != "docs/mixed.md"]
+bpath.write_text(json.dumps(b, indent=2) + "\n", encoding="utf-8")
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_OCC_DEBASE
+assert_eq "#2003 a fully-frozen mixed file (occurrence frozen, remainder swept) needs no baseline row" "rc=0" \
+  "$(bds_run "$BDS_FX" | cut -d'|' -f1)"
+# A stale frozen-occurrence entry (its context matches no brand line) fails the suite closed.
+python3 - "$BDS_FX" <<'BDS_OCC_STALE'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+bpath = root / "lib" / "test" / "brand-devflow-buckets.json"
+b = json.loads(bpath.read_text())
+b["frozen"]["occurrences"] = [
+    {"file": "docs/mixed.md", "context": "NO SUCH LINE HERE", "reason": "stale on purpose"}]
+bpath.write_text(json.dumps(b, indent=2) + "\n", encoding="utf-8")
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_OCC_STALE
+BDS_OCC_STALE_OUT="$(bds_run "$BDS_FX")"
+assert_eq "#2003 a stale frozen-occurrence entry fails the suite closed" "rc=1" "${BDS_OCC_STALE_OUT%%|*}"
+assert_eq "#2003 the finding names the stale frozen-occurrence entry" "yes" \
+  "$(bds_has "docs/mixed.md: stale frozen-occurrence entry" "$BDS_OCC_STALE_OUT")"
+
+# A context that also matches a provenance file's quoted-value line must NOT be double-subtracted
+# (value + occ) and mask a renameable occurrence — the disjoint-count invariant. Without the
+# per-line value exclusion this pending remainder would clamp to 0 and the rename debt vanish.
+python3 - "$BDS_FX" <<'BDS_OCC_PROV'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+# lib/scan.sh is a provenance file; give it a value line that ALSO carries an occurrence
+# context, plus a separate renameable DevFlow on line 2 that must surface as pending 1.
+(root / "lib" / "scan.sh").write_text(
+    "PROVENANCE_LABEL_SUPERSEDED='DevFlow'  # reserved DevFlow label\n"
+    "# ordinary prose that still says DevFlow here\n", encoding="utf-8")
+bpath = root / "lib" / "test" / "brand-devflow-buckets.json"
+b = json.loads(bpath.read_text())
+b["frozen"]["occurrences"] = [
+    {"file": "lib/scan.sh", "context": "reserved DevFlow label", "reason": "value-line context"}]
+if not any(r["path"] == "lib/scan.sh" for r in b["pending_sweep_baseline"]):
+    b["pending_sweep_baseline"].append({"path": "lib/scan.sh"})
+    b["pending_sweep_baseline"].sort(key=lambda r: r["path"])
+bpath.write_text(json.dumps(b, indent=2) + "\n", encoding="utf-8")
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+BDS_OCC_PROV
+BDS_OCC_PROV_POP="$(python3 "$BDS_LINT" --root "$BDS_FX" --print-population 2>&1)"
+assert_eq "#2003 a provenance-value line that also matches an occurrence context does not mask the renameable remainder" "yes" \
+  "$(bds_has "$(printf 'pending\tlib/scan.sh\t1')" "$BDS_OCC_PROV_POP")"
+
+# Fail-closed shape validation of frozen.occurrences (mirrors the #1745 shape guards): a
+# scalar container, a row without a string 'file', and a row with a non-string 'context' each
+# exit 2 before the counter iterates them, never an uncaught KeyError/TypeError.
+printf '{"schema_version": 1, "frozen": {"provenance": [], "occurrences": 7}, "pending_sweep_baseline": []}' > "$BDS_FX/occ-scalar.json"
+BDS_OCC_SCALAR_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/occ-scalar.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#2003 a scalar frozen.occurrences fails closed with exit 2" "2" "$BDS_OCC_SCALAR_RC"
+printf '{"schema_version": 1, "frozen": {"provenance": [], "occurrences": [{"context": "x"}]}, "pending_sweep_baseline": []}' > "$BDS_FX/occ-nofile.json"
+BDS_OCC_NOFILE_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/occ-nofile.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#2003 a frozen.occurrences row missing 'file' fails closed with exit 2" "2" "$BDS_OCC_NOFILE_RC"
+printf '{"schema_version": 1, "frozen": {"provenance": [], "occurrences": [{"file": "docs/x.md", "context": 7}]}, "pending_sweep_baseline": []}' > "$BDS_FX/occ-badctx.json"
+BDS_OCC_BADCTX_RC="$(python3 "$BDS_LINT" --root "$BDS_FX" --buckets "$BDS_FX/occ-badctx.json" >/dev/null 2>&1; echo $?)"
+assert_eq "#2003 a frozen.occurrences row with a non-string 'context' fails closed with exit 2" "2" "$BDS_OCC_BADCTX_RC"
+rm -f "$BDS_FX/occ-scalar.json" "$BDS_FX/occ-nofile.json" "$BDS_FX/occ-badctx.json"
+
 # Real-tree gate: the tree stays fully classified as it stands.
 BDS_REAL="$(python3 "$BDS_LINT" 2>&1)"; BDS_REAL_RC=$?
 assert_eq "#1745 the real-tree bucket reconciliation is clean as the tree stands" "rc=0" \
@@ -55216,7 +55328,59 @@ case "$RUFF_MTX_DIRREAD" in awk-failed|unreadable|absent) RUFF_MTX_DIRCLOSED=yes
 assert_eq "#1621 ruff-pin matrix: a directory operand fails closed to a sentinel, never a spec" yes "$RUFF_MTX_DIRCLOSED"
 
 rm -rf "$RUFF_MTX_DIR"
-unset -f devflow_ruff_pin
+
+# ── #2009: the lint manifest's ruff pin must stay within ci.yml's ruff== family ──
+# Reconcile the two pins mechanically by minor family so a bump to one alone cannot silently
+# disagree with the other and redden the #1621 gate on rule-set skew rather than on findings.
+devflow_ruff_family() {  # prints major.minor of a version or spec (0.16.4 / 0.16.* -> 0.16)
+  local v="$1" major rest minor
+  major="${v%%.*}"; rest="${v#*.}"; minor="${rest%%.*}"
+  printf '%s.%s' "$major" "$minor"
+}
+devflow_ruff_manifest_version() {  # $1 = manifest path; prints the pinned version or a sentinel
+  local _v
+  [ -s "$1" ] || { printf 'unreadable'; return; }
+  _v="$(python3 -c 'import json,sys
+d=json.load(open(sys.argv[1]))
+v=d["tools"]["ruff"]["version"]
+sys.stdout.write(v if isinstance(v,str) else "")' "$1" 2>/dev/null)" || { printf 'parse-failed'; return; }
+  [ -n "$_v" ] || { printf 'absent'; return; }
+  printf '%s' "$_v"
+}
+RUFF_MANIFEST_VER="$(devflow_ruff_manifest_version "$LIB/../.prflow/lint-manifest.json")"
+case "$RUFF_MANIFEST_VER" in [0-9]*) RUFF_MANIFEST_VER_OK=yes ;; *) RUFF_MANIFEST_VER_OK=no ;; esac
+# structural-pin-ok: cross-file-phase-contract -- positive control: a sentinel version here would make the family reconciliation below vacuous
+assert_eq "#2009 lint-manifest declares a concrete ruff version (arms the reconciliation)" yes "$RUFF_MANIFEST_VER_OK"
+# Agreement holds iff the two pins share a minor family; the same predicate drives the live
+# check and the discrimination matrix below, so one definition owns the comparison.
+_ruff_fam_agree() { if [ "$(devflow_ruff_family "$1")" = "$(devflow_ruff_family "$2")" ]; then printf yes; else printf no; fi; }
+# structural-pin-ok: cross-file-phase-contract -- the manifest pin (installed into prflow-lint-bin) and ci.yml's ruff== family must agree, or the #1621 gate reddens on version skew; editing either pin alone flips this
+assert_eq "#2009 lint-manifest ruff version is within ci.yml's ruff== pin family" yes "$(_ruff_fam_agree "$RUFF_MANIFEST_VER" "$RUFF_PIN_LINT")"
+
+# Discrimination: editing either pin alone across the minor family flips agreement to RED.
+assert_eq "#2009 reconciliation: matching families agree" yes "$(_ruff_fam_agree 0.16.4 "0.16.*")"
+assert_eq "#2009 reconciliation: manifest bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree 0.17.0 "0.16.*")"
+assert_eq "#2009 reconciliation: ci pin bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree 0.16.4 "0.17.*")"
+
+# Adversarial input-shape matrix over the manifest reader: each malformed shape fails closed
+# to a sentinel, never a spurious version that would satisfy the reconciliation vacuously.
+mkdir -p .prflow/tmp
+RUFF_MAN_MTX="$(mktemp -d .prflow/tmp/ruff-manifest-matrix.XXXXXX)"
+[ -n "$RUFF_MAN_MTX" ] && [ -d "$RUFF_MAN_MTX" ] || { printf 'FATAL: mktemp -d failed for the #2009 ruff-manifest matrix\n' >&2; exit 1; }
+assert_eq "#2009 manifest reader: a missing file reads 'unreadable'" unreadable "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/nope.json")"
+: > "$RUFF_MAN_MTX/empty.json"
+assert_eq "#2009 manifest reader: an empty file reads 'unreadable'" unreadable "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/empty.json")"
+printf '%s' 'not json{' > "$RUFF_MAN_MTX/bad.json"
+assert_eq "#2009 manifest reader: malformed JSON reads 'parse-failed'" parse-failed "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/bad.json")"
+printf '%s' '{"tools":{"ruff":{}}}' > "$RUFF_MAN_MTX/noversion.json"
+assert_eq "#2009 manifest reader: a missing version reads 'parse-failed'" parse-failed "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/noversion.json")"
+printf '%s' '{"tools":{"ruff":{"version":123}}}' > "$RUFF_MAN_MTX/numver.json"
+assert_eq "#2009 manifest reader: a non-string version reads 'absent'" absent "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/numver.json")"
+printf '%s' '{"tools":{"ruff":{"version":"0.16.4"}}}' > "$RUFF_MAN_MTX/good.json"
+assert_eq "#2009 manifest reader: a valid manifest reads its version" 0.16.4 "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/good.json")"
+rm -rf "$RUFF_MAN_MTX"
+
+unset -f devflow_ruff_pin devflow_ruff_family devflow_ruff_manifest_version _ruff_fam_agree
 
 # ── internal-docs structure lint (lib/test/lint-internal-docs.py) ──
 # Baseline-tolerant by design: it fails only on a violation absent from

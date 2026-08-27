@@ -92,6 +92,10 @@ PRFlow aims to keep a single progress comment per issue and it identifies that c
   Do not treat the presence of exactly one workpad as proof that only one run touched the issue. If you see two, read both and check the `Run` links before deciding which one reflects the current branch.
 </Warning>
 
+## Workpad Size Limits
+
+Because the workpad is a single GitHub issue comment, and GitHub rejects a comment over its size limit, PRFlow refuses an oversize workpad write up front rather than letting the write fail and repeat forever. A single progress note over 2,048 bytes, and any update whose resulting comment would exceed GitHub's 65,536-byte comment limit, is refused before the write with a message naming the measured byte count and the limit it broke. A refused write is not retried, so an oversize note can no longer wedge a workpad into being permanently unwritable. If you see such a refusal, shorten what the run is recording.
+
 ## How Resume Finds Prior Work
 
 On a later implementation command, PRFlow reads the existing workpad before it plans anything. It also queries the open pull requests linked to the issue.

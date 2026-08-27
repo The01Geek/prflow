@@ -68,7 +68,7 @@ The thesis isn't code generation — it's **disciplined, auditable AI software d
 
 - **✓ Works on real codebases, not just pet projects.** Unlike a raw agent that drafts part of the change and stops, PRFlow delivers the full round — grounded in your architecture and patterns, with the tests the change needs — on production code.
 - **✓ Review that fixes what it finds.** It doesn't just hand you a list. The **review-and-fix loop** applies the fixes and re-reviews, iterating until it approves — backed by independent verification checklists, a panel of specialized reviewers, mechanical corroboration, and a **shadow pass** (a second, structurally-independent review that re-checks the approval before it stands). The shadow pass **narrows the gap to a standalone review; it never closes it.**
-- **✓ It learns.** Every run leaves a trail — a **DevFlow Reflection** logging assumptions and anything unverified, an **effectiveness trace** of which steps earned their keep, living docs, and a **weekly retrospective** that opens the smallest fix preventing the next recurring failure.
+- **✓ It learns.** Every run leaves a trail — a **PRFlow Reflection** logging assumptions and anything unverified, an **effectiveness trace** of which steps earned their keep, living docs, and a **weekly retrospective** that opens the smallest fix preventing the next recurring failure.
 
 PRFlow delivers a **review-ready** PR for your final human review and merge — it is **not auto-merged**.
 
