@@ -1,0 +1,249 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T20:05:00Z",
+  "fix_commit_sha": "a0398d340",
+  "fix_files": [
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "checklist": [],
+  "dispatched_effort": [],
+  "dispatch_mode": "unavailable",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "drift-warning parenthetical says 'no count field' but firing also covers a present non-numeric count field",
+      "defect_signature": {
+        "file": "scripts/build-denial-record.sh",
+        "line_range": [
+          168,
+          178
+        ],
+        "kind": "comment_imprecision"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "comment 'the final record assembled below reads only .count/.tool_names/.fallback_commands' slightly overstates where .fallback_commands is consumed",
+      "defect_signature": {
+        "file": "scripts/build-denial-record.sh",
+        "line_range": [
+          150,
+          152
+        ],
+        "kind": "comment_imprecision"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "no explicit no-result-event => no-drift fixture (fails safe)",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          37632,
+          37634
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Documentation Needed (execution-diagnostics.md, execution-file-shape.md) not updated in this diff",
+      "defect_signature": {
+        "file": "docs/internal/execution-diagnostics.md",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "docs_deferred"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "a0398d340"
+    },
+    {
+      "finding_id": "F-1",
+      "decision": "pushed_back",
+      "source_file": "scripts/build-denial-record.sh",
+      "claim_text": "drift-warning 'no count field' parenthetical imprecise",
+      "skip_category": "uncategorized",
+      "evidence": "reviewer explicitly rated not worth a change; behavior-inert diagnostic parenthetical, fails safe; the common case is exactly 'no count field'"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "pushed_back",
+      "source_file": "scripts/build-denial-record.sh",
+      "claim_text": "'final record assembled below' phrasing re .fallback_commands",
+      "skip_category": "uncategorized",
+      "evidence": "reviewer rated not worth a change on its own; statement is technically true (all three keys read below the comment); load-bearing inert-key claim is correct"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "deferred",
+      "source_file": "docs/internal/execution-diagnostics.md",
+      "claim_text": "Documentation Needed pages not updated",
+      "skip_category": "out-of-scope",
+      "evidence": "not one of the 7 ACs; docs are Phase 4.1's prflow:docs deliverable (Documentation-Needed channel)"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 10,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "unavailable",
+    "ran_at": "2026-08-27T20:10:00Z",
+    "reviewed_sha": "a0398d340246d88a5945fcea7c7aa45efa5d428f",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "build-denial-record.sh:169-170 'so the two extractors warnings are asserted independently' is a misleading causal claim (independence comes from invoking each script separately, not the wording)",
+        "defect_signature": {
+          "file": "scripts/build-denial-record.sh",
+          "line_range": [
+            169,
+            170
+          ],
+          "kind": "comment_imprecision"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "no-result-event drift-absence tested on diagnostics extractor only, not on build-denial-record.sh (BDR #2064 block has no init-only fixture)",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            69,
+            106
+          ],
+          "kind": "test_coverage_gap"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 4,
+      "overlap_with_iter_N": 2,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "telemetry": {
+    "phase_3": {
+      "calls": 5,
+      "tokens": 400000,
+      "wall_clock_s": 140
+    },
+    "step_2_6": {
+      "calls": 5,
+      "tokens": 400000,
+      "wall_clock_s": 170
+    }
+  },
+  "synthesized": false
+}
