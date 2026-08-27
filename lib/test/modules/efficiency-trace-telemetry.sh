@@ -6953,6 +6953,20 @@ assert_eq "#2035 AC5 --persist corrupt-config does not skip (fail-safe on)" "no"
 assert_eq "#2035 --persist announces the unconsulted master switch on a corrupt config" "yes" "$(printf '%s' "$T2035_PERSIST_CORRUPT" | cut -d'|' -f4)"
 assert_eq "#2035 --persist announces nothing when the switch WAS consulted (positive control)" "no" "$(printf '%s' "$T2035_PERSIST_OFF" | cut -d'|' -f4)"
 
+# The efficiency-trace.sh inline predicate is a hand-maintained copy, so the two
+# shapes its own comment calls load-bearing (number 0 and string "false" must stay
+# ON, via `is False` not `== False`) are driven through THIS copy too — pinning
+# them only against the predicate script would let a `== False` regression here
+# skip persistence on {"telemetry":{"enabled":0}} with the suite still green.
+T2035_PERSIST_ZERO="$(_t2035_persist "$T2035_ROOT/m-zero.json")"
+assert_eq "#2035 --persist number 0 stays ON (inline copy: is-False not ==False)" "no" "$(printf '%s' "$T2035_PERSIST_ZERO" | cut -d'|' -f3)"
+assert_eq "#2035 --persist number 0 creates the telemetry branch" "yes" "$(printf '%s' "$T2035_PERSIST_ZERO" | cut -d'|' -f2)"
+assert_eq "#2035 --persist number 0 exits 0" "0" "${T2035_PERSIST_ZERO%%|*}"
+T2035_PERSIST_STRFALSE="$(_t2035_persist "$T2035_ROOT/m-strfalse.json")"
+assert_eq "#2035 --persist string 'false' stays ON (inline copy: JSON type, not coerced)" "no" "$(printf '%s' "$T2035_PERSIST_STRFALSE" | cut -d'|' -f3)"
+assert_eq "#2035 --persist string 'false' creates the telemetry branch" "yes" "$(printf '%s' "$T2035_PERSIST_STRFALSE" | cut -d'|' -f2)"
+assert_eq "#2035 --persist string 'false' exits 0" "0" "${T2035_PERSIST_STRFALSE%%|*}"
+
 # AC4 — collect-staged-telemetry.sh stages no payload under master-off, and its
 # positive control (master-absent) collects the staged payload.
 _t2035_collect() { # $1=config-file → prints "<stdout>|<breadcrumb yes/no>"

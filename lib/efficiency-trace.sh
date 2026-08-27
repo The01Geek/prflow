@@ -1861,6 +1861,11 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
       return 0
     elif [ "$_tel_rc" -eq 2 ]; then
       echo "devflow: efficiency-trace.sh --persist: config '$_DEVFLOW_CONFIG' exists but could not be read or parsed — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
+    elif [ "$_tel_rc" -ne 1 ]; then
+      # Catch-all: an exit outside the predicate's {0,1,2} contract means the
+      # interpreter itself broke. Announcing it is what stops this gate failing
+      # open in silence, as the sibling collect-staged-telemetry.sh already does.
+      echo "devflow: efficiency-trace.sh --persist: the telemetry.enabled predicate exited $_tel_rc, outside its {0,1,2} contract — the master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
     fi
   fi
   root="$(devflow_repo_root)"

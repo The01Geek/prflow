@@ -3,14 +3,10 @@
 # SPDX-License-Identifier: MIT
 """PRFlow's telemetry master-switch predicate, as a standalone script (issue #2035).
 
-`scripts/collect-staged-telemetry.sh` is the caller that execs this file.
 `scripts/config-get.sh` and `lib/efficiency-trace.sh` carry inline `python3 -c`
-copies of the same JSON-type test instead of exec-ing it — same decision and the
-same exit contract, differing only in the env var each passes the config path
-through (`PRFLOW_TEL_CFG` and `DEVFLOW_TEL_CFG` respectively) and in which exit
-codes each caller acts on. Both are hardened Stop-hook closure members, where a
-new source/exec edge would break the issue-#458 drift guard. Change the decision
-or the exit contract here, change it in all three.
+copies of this decision instead of exec-ing this file: a new source/exec edge
+would break the issue-#458 Stop-hook drift guard. Change the decision or the
+exit contract here, change it in all three.
 
 Exit 0 (telemetry OFF) ONLY when ``telemetry.enabled`` is the JSON boolean
 ``false`` in the config file named by argv[1]. Exit 2 (INDETERMINATE) when that

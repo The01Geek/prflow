@@ -208,10 +208,9 @@ telemetry_master_disables_for() {
         *) return 1 ;;
     esac
     command -v python3 >/dev/null 2>&1 || return 1
-    # Inline python3 -c, NEVER an exec of scripts/telemetry-master-off.py (whose
-    # {0,1,2} contract this carries): a new exec edge breaks the issue-#458
-    # Stop-hook drift guard. This copy must stay SILENT on 2 — a breadcrumb here
-    # would break the AC6 byte-identical-stderr pin against the old resolver.
+    # Inline python3 -c, NEVER an exec of telemetry-master-off.py (whose {0,1,2}
+    # contract this carries): a new exec edge breaks the issue-#458 Stop-hook
+    # drift guard. Stay SILENT on 2 — a breadcrumb breaks the AC6 stderr pin.
     PRFLOW_TEL_CFG="$config_file" python3 -c '
 import json, os, sys
 try:
