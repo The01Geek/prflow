@@ -1,0 +1,4 @@
+[
+  {"file":"lib/test/run-parallel.sh","line_range":[138,138],"kind":"test_gap","description":"POOL_RESERVATION_CEILING=5 is a second hand-maintained mirror of the pool member count, not coupled to the pool registration by an assertion (unlike the array, which this PR now guards); adding a 6th part leaves it silently at 5 (perf/serialization regression).","severity":"Important","agent":"pr-test-analyzer"},
+  {"file":"lib/test/module-harness.sh","line_range":[136,157],"kind":"test_gap","description":"The generalized reconciliation checks each part's contribution against that part's own summary (per-part self-consistency); no pre/post-split grand-total conservation invariant, so a wholesale-deleted assertion during the split would reconcile cleanly.","severity":"Important","agent":"pr-test-analyzer"}
+]

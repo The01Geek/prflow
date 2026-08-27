@@ -1,0 +1,261 @@
+{
+  "pairs": [
+    {
+      "item": {
+        "id": "VC-1",
+        "category": "issue_acceptance",
+        "claim": "pool registers five members",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/module-harness.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-1-a7f31c.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-2",
+        "category": "issue_acceptance",
+        "claim": "recombined tallies equal baseline",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/module-harness.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-2-b8e42d.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-3",
+        "category": "issue_acceptance",
+        "claim": "slowest part runtime under baseline and 5min",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/module-harness.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-3-c1a955.json",
+      "response_text": "INCONCLUSIVE"
+    },
+    {
+      "item": {
+        "id": "VC-4",
+        "category": "issue_acceptance",
+        "claim": "POOL_RESERVATION_CEILING=5 with comment",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/run-parallel.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-4-d3f077.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-5",
+        "category": "issue_acceptance",
+        "claim": "all refs resolve post-split",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/modules/coverage-map.json"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-5-e5c188.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-6",
+        "category": "test_mock_alignment",
+        "claim": "selftally members match pool",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/module-harness.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-6-f7a2b0.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-7",
+        "category": "api_contract",
+        "claim": "config.json allowlist mirrors matcher-probe",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": ".prflow/config.json"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-7-091ac4.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-9",
+        "category": "data_format_assumption",
+        "claim": "coverage-map focused_test owns assertions",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/modules/coverage-map.json"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-9-1b3d7e.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-10",
+        "category": "test_mock_alignment",
+        "claim": "reservation/packing assertions match run-parallel",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/modules/parallel-suite-runner.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-10-2c4f8a.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-12",
+        "category": "absolute_claim",
+        "claim": "cap never exceeds membership",
+        "claim_provenance": "source_authored",
+        "source_excerpt": "the pool cannot run more than its member count on any host",
+        "source_file": "lib/test/run-parallel.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-12-3d5a9b.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-13",
+        "category": "absolute_claim",
+        "claim": "assertion count unchanged",
+        "claim_provenance": "source_authored",
+        "source_excerpt": "Neither the assertions nor their count change; only which shard counts them does.",
+        "source_file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-13-4e6b0c.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-14",
+        "category": "dependency_interaction",
+        "claim": "selftally map key names match",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/module-harness.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-14-5f7c1d.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-15",
+        "category": "issue_acceptance",
+        "claim": "tallies equal baseline (test_python_scripts.py)",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/test_python_scripts.py"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-15-60813e.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-16",
+        "category": "issue_acceptance",
+        "claim": "runtime under 5min",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/test_python_scripts_part2.py"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-16-71924f.json",
+      "response_text": "INCONCLUSIVE"
+    },
+    {
+      "item": {
+        "id": "VC-17",
+        "category": "issue_acceptance",
+        "claim": "POOL_RESERVATION_CEILING=5",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/run-parallel.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-17-82a35b.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-18",
+        "category": "issue_acceptance",
+        "claim": "refs resolve post-split (run.sh)",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/run.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-18-93b46c.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-19",
+        "category": "test_mock_alignment",
+        "claim": "set-equality assertion parses pool through grep for name<TAB>self-tally records",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/run.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-19-a4c7e1.json",
+      "response_text": "FAIL generated_claim_text"
+    },
+    {
+      "item": {
+        "id": "VC-20",
+        "category": "data_format_assumption",
+        "claim": "selftally members array contents",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/run.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-20-b5d8f2.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-21",
+        "category": "test_mock_alignment",
+        "claim": "stubbed-pool fail count 4",
+        "claim_provenance": "source_authored",
+        "source_excerpt": "records one FAIL per self-tally member, i.e. 4",
+        "source_file": "lib/test/run.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-21-c6e903.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-22",
+        "category": "test_mock_alignment",
+        "claim": "POOLED_SUITES match registration",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/test_module_runner.py"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-22-d7fa14.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-23",
+        "category": "data_format_assumption",
+        "claim": "selftally contract preserved",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/test_python_scripts_part2.py"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-23-e8ab25.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-24",
+        "category": "dependency_interaction",
+        "claim": "load imports cover assertions",
+        "claim_provenance": "generated_paraphrase",
+        "source_file": "lib/test/test_python_scripts_part2.py"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-24-f9bc36.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-25",
+        "category": "test_mock_alignment",
+        "claim": "reconcile probe member count",
+        "claim_provenance": "source_authored",
+        "source_excerpt": "the multi-member fan-out (one else-arm FAIL per unseeded member) is covered by the selector probe's join=4",
+        "source_file": "lib/test/run.sh"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-2045/33046246575-1/verdicts/iter-1/VC-25-0acd47.json",
+      "response_text": "PASS"
+    }
+  ]
+}
