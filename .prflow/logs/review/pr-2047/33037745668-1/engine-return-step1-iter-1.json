@@ -1,0 +1,56 @@
+{
+  "root_completeness": "established",
+  "verdict": "APPROVE WITH ADVISORY NOTES",
+  "report": "# PRFlow Review — PR #2047 (issue #2039)\n\n**Verdict: APPROVE WITH ADVISORY NOTES**\n\nReviewed HEAD: 913f49ec070d4418741f3e226f08da84bd0276fa (head_override=local, diff vs origin/main merge-base 1d4e7c30c).\n\n## Diff profile\nSmall, all-markdown prose change to /prflow:implement's Phase 2 prompt surface (skills/implement/SKILL.md, phase-2-implement.md, phase-2-sweeps-contract.md, phase-2-sweeps-quality.md), two internal-doc mirrors (DEVFLOW_SYSTEM_OVERVIEW.md, implement-skill.md), and a changeset. No code. engine_self_modifying=true (skills/** touched) -> full checklist; config_only=false; has_new_types=false. type-design-analyzer and pr-test-analyzer gated OFF (no code/types/tests).\n\n## Acceptance criteria (issue #2039, 8 ACs)\nAll 8 map cleanly to the diff and verify:\n- AC1 boundary-delivery prose: new §2.0.5 \"Workpad boundary delivery\" paragraph — one combined update per taken boundary after checkpoint push, ticks re-derived from durable state, empty no-op carries accruals forward, §2.5 always delivers. Satisfied.\n- AC2 immediate-record set named (reflections, --record-*/--checkpoint, terminal --status incl. Blocked, --expect-*, criterion-route/test-first/sweep-selection/§2.2.7-map/§2.3 operand ledger notes). Satisfied.\n- AC3 accruing population named (per-step --tick-plan, §2.2 Planning/§2.3 Implementing flips, post-hoc evidence notes); entry --status Discovering keeps immediate site. Satisfied.\n- AC4 §2.0 resume routing arm repaired (re-verify un-ticked step, tick-if-present with note, re-implement only if absent) across phase-2-implement.md, SYSTEM_OVERVIEW, implement-skill.md. Satisfied.\n- AC5 SKILL.md \"one moment, one call\" reconciled — accrual runs up to a boundary never across; phase-1-setup.md/phase-3-fix-loop.md untouched. Satisfied.\n- AC6 byte budget: measured deltas SKILL 162 + impl 1141 + contract 42 + quality 69 = 1414 <= 1500; each file under 61,750 ref-size ceiling (SKILL.md largest at 61,280). Satisfied.\n- AC7 untouched surfaces: workpad.py and phase2-durability-checkpoint.sh not in diff; `resume-kind: in-flight` present (count=1); consolidated sites still direct reading outcome line + retick remedy. Satisfied.\n- AC8 internal-docs mirrors updated (DEVFLOW_SYSTEM_OVERVIEW.md §7 Phase 2 rows, implement-skill.md interim-status bullet). Satisfied.\n\n## Repo prompt-extension gates\n- Prompt-surface edit routing evidence gate: TRIGGERED (skills/implement/phases/*.md + skills/implement/SKILL.md touched); DISCHARGED. Issue #2039 workpad carries `Writing-skills evidence:` marker with all four slots: skill-loaded=yes, guidance-applied=yes, pressure-scenario=no (reason: consolidates existing cadence, authors no new rule), micro-tests=no (reason: verbatim-mandated directive prose; verified by two adversarial dry-traces + AC6 byte measurement). All four dispositions present -> discharged (a recorded `no` fully discharges).\n- Verification-evidence marker advisory: PRESENT (workpad Verification-evidence note + monolith-shard result; cloud tier via prflow:checkpoint gha: rows) -> advisory silent.\n- Shipped-prose cost audit: net +1414 bytes to Phase 2 skill files, within the AC6 budget; added prose is instruction-bearing (boundary-delivery mechanism, accrual rule, resume-tick repair). No wasteful word beyond the advisory notes below.\n\n## Phase 3 findings (all Suggestion, non-blocking)\n1. (code-reviewer + comment-analyzer, corroborated x2) DEVFLOW_SYSTEM_OVERVIEW.md / changeset enumerate two accruing categories (--tick-plan ticks, Planning/Implementing flips) while canonical §2.0.5 lists a third — post-hoc sweep-result notes. Non-authoritative summary under-states the canonical set; overview also lists sweep-selection among immediate notes which a reader could conflate with sweep-result notes.\n2. (silent-failure-hunter) Accrued post-hoc sweep-result notes lost to compaction before boundary delivery are dropped — explicitly disclosed and accepted like crash loss; narrower durability than the immediate-delivered ledger notes beside them.\n3. (silent-failure-hunter) A terminal Blocked/Failed or ceiling-kill mid-§2.3 leaves the interval's accrued ticks undelivered; recoverable via §2.0 re-derivation on re-trigger. Worth a confirming sentence.\n4. (comment-analyzer) §2.0 resume-tick instruction does not state whether the tick-with-note is immediate or accrued; reader must infer. Clarity nitpick.\n5. (code-reviewer) Phase 2 entry --status Discovering stays immediate while sibling flips accrue; defensible (fall-through immediate rule + one-Progress-phase mapping), noted only.\n\nfinal-pass reviewer (requesting-code-review): APPROVE, no findings.\n\nNo Critical or Important findings. Repo gates discharged, all ACs satisfied. Advisory suggestions do not block; verdict is APPROVE WITH ADVISORY NOTES.",
+  "phase3_findings": [
+    {
+      "agent": "code-reviewer+comment-analyzer",
+      "severity": "Suggestion",
+      "description": "DEVFLOW_SYSTEM_OVERVIEW.md/changeset enumerate 2 accruing categories; canonical §2.0.5 lists a 3rd (post-hoc sweep-result notes). Non-authoritative summary under-states canonical set.",
+      "defect_signature": "overview-mirror-understates-accruing-set",
+      "corroboration_count": 2
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Accrued sweep-result notes lost to compaction before delivery are dropped; disclosed and accepted like crash loss, narrower durability than immediate ledger notes.",
+      "defect_signature": "accrued-sweep-note-compaction-loss-disclosed",
+      "corroboration_count": 1
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Terminal Blocked/Failed or ceiling-kill mid-§2.3 leaves interval's accrued ticks undelivered; recoverable via §2.0 re-derivation on re-trigger.",
+      "defect_signature": "terminal-stop-mid-interval-undelivered-ticks-recoverable",
+      "corroboration_count": 1
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "§2.0 resume-tick instruction does not state whether tick-with-note is immediate or accrued; reader must infer delivery timing.",
+      "defect_signature": "resume-tick-delivery-timing-ambiguous",
+      "corroboration_count": 1
+    },
+    {
+      "agent": "code-reviewer",
+      "severity": "Suggestion",
+      "description": "Phase 2 entry --status Discovering stays immediate while sibling Planning/Implementing flips accrue; defensible, noted only.",
+      "defect_signature": "discovering-entry-status-immediate-asymmetry",
+      "corroboration_count": 1
+    }
+  ],
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  }
+}
