@@ -3616,8 +3616,11 @@ def _cmd_update_inner(args):
     body = _comment_body_channel(comment)
     # Record the resolved id so the next call for this (issue, marker) can fetch it
     # directly. Best-effort: a cache-write failure never changes this call's outcome.
-    _write_workpad_id_cache(
-        args.issue, marker, comment_id, _repo_from_issue_url(comment.get('issue_url')))
+    # Skip the write on a verified cache hit (the id is unchanged) so this hot path —
+    # called dozens of times per run — does not re-mkdir/re-write a byte-identical file.
+    if cached_id is None or comment_id != cached_id:
+        _write_workpad_id_cache(
+            args.issue, marker, comment_id, _repo_from_issue_url(comment.get('issue_url')))
 
     # Hydration-race preconditions (issue #537, AC24). Phase 1 snapshots the workpad
     # comment ID and the exact stripped Status word BEFORE resetting Status, then
