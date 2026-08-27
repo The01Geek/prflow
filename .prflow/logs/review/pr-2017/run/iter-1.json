@@ -1,0 +1,34 @@
+{
+  "iter": 1,
+  "source": "review",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "detect_all_audit": true
+  },
+  "checklist": [
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "comment-analyzer",
+      "corroboration_count": 2,
+      "contributed_to_verdict": false
+    }
+  ],
+  "telemetry": "unavailable",
+  "synthesized": false
+}
