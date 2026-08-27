@@ -118,7 +118,7 @@ esac
 export -n DEVFLOW_SKIP_SUITE_MODULES 2>/dev/null || true
 # Python-pool selector, the sibling of the module-tier selector above. The monolith CI
 # shard invokes this suite as `DEVFLOW_SKIP_PYTHON_POOL=1 bash lib/test/run.sh` so the
-# two heavy pooled Python suites (test_module_runner.py, test_python_scripts.py) run in
+# heavy pooled Python suites (test_module_runner.py + the four test_python_scripts parts) run in
 # their own `python-pool` shard instead — the monolith no longer sits idle at the join
 # waiting for them. `export -n` for exactly the reason above, and with more force here:
 # the pooled suites and the module meta-tests spawn nested run.sh/run-module.sh
