@@ -23,7 +23,7 @@
     "execution_diagnostics_enabled": true,
     "execution_transcript_artifact_enabled": true,
     "execution_denial_commands_enabled": true,
-    "attribute_commits_to_triggerer": false,
+    "attribute_commits_to_triggerer": true,
     "publish_model_effort": true
   },
   "prflow_implement": {
@@ -131,7 +131,7 @@
   "prflow_review_and_fix": {
     "fix_severity_threshold": "suggestion",
     "max_iterations": 5,
-    "fix_below_threshold_iterations": 1,
+    "fix_below_threshold_iterations": 2,
     "efficiency_telemetry_enabled": true,
     "efficiency_cut_candidate_min_dispatch": 3
   },
