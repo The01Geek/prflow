@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2045",
+  "generated_at": "2026-08-27T07:10:03Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.67",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 19.808071699999992,
+    "tokens": {
+      "input_tokens": 62,
+      "output_tokens": 59920,
+      "cache_read_input_tokens": 5158703,
+      "cache_creation_input_tokens": 265491,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 252,
+        "outputTokens": 119547,
+        "cacheReadInputTokens": 11405887,
+        "cacheCreationInputTokens": 857671,
+        "webSearchRequests": 0,
+        "costUSD": 15.048913500000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 329,
+        "outputTokens": 51076,
+        "cacheReadInputTokens": 7776576,
+        "cacheCreationInputTokens": 1076970,
+        "webSearchRequests": 0,
+        "costUSD": 4.759158200000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 65,
+    "duration_ms": 1265618
+  },
+  "permission_denials": {
+    "count": 40,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "H=aebf1d70364fbd0860e67fb87ddd0ff340852018\necho \"=== VC-6 config.json @head ===\"; git show $H:.prflow/config.json | grep -nF \"test_python_scripts_part\"\necho \"=== VC-7 matcher-probe.yml @head ===\"; git show $H:.github/workflows/matcher-probe.yml | grep -oE \"test_python_scripts_part[234]\\.py\" | sort -u",
+      "git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts.py | wc -l\ngit ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 -- lib/test/ | grep -i test_python_scripts",
+      "git ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 -- lib/test/ | grep -i test_python_scripts",
+      "git ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 lib/test/ 2>&1 | grep test_python",
+      "for f in lib/test/test_python_scripts.py lib/test/test_python_scripts_part2.py lib/test/test_python_scripts_part3.py lib/test/test_python_scripts_part4.py; do\necho \"== $f ==\"\ngit show aebf1d70364fbd0860e67fb87ddd0ff340852018:$f 2>&1 | head -3\ndone",
+      "for f in lib/test/test_python_scripts.py lib/test/test_python_scripts_part2.py lib/test/test_python_scripts_part3.py lib/test/test_python_scripts_part4.py; do git cat-file -e aebf1d70364fbd0860e67fb87ddd0ff340852018:$f && echo \"OK $f\" || echo \"MISSING $f\"; done",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2045/run-local/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2045/run-local/verdicts/iter-1/VC-10-n10j.json << 'EOF'\n{\n  \"id\": \"VC-10\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"lib/test/module-harness.sh:2101 declares the array DEVFLOW_PYTHON_SELFTALLY_MEMBERS=(...). lib/test/run.sh:178 sources module-harness.sh (`. \\\"$LIB/test/module-harness.sh\\\"`) before any use. _pps_reconcile_probe (run.sh:50008-50013) re …[per-command-truncated]",
+      "echo \"--- part4 generate-install-state ---\"\ngit show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts_part4.py | grep -n \"generate-install-state\" | head -5\necho \"--- part3 apply-issue-dependencies ---\"\ngit show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts_part3.py | grep -n \"apply-issue-dependencies\" | head -5\necho \"--- part2 check-verified-premises ---\"\ngit show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts_part2.py | grep -n …[per-command-truncated]",
+      "for f in lib/test/test_python_scripts.py lib/test/test_python_scripts_part2.py lib/test/test_python_scripts_part3.py lib/test/test_python_scripts_part4.py; do\necho \"=== $f ===\"\ngit show aebf1d70364fbd0860e67fb87ddd0ff340852018:$f | grep -n -e argv -e argparse -e 'sys.argv'\ndone",
+      "for f in lib/test/test_python_scripts_part2.py lib/test/test_python_scripts_part3.py lib/test/test_python_scripts_part4.py; do\necho \"=== $f tail ===\"\ngit show aebf1d70364fbd0860e67fb87ddd0ff340852018:$f | tail -15\ndone",
+      "git show aebf1d70364fbd0860e67fb87ddd0ff340852018 -- lib/test/ 2>&1 | grep \"^diff --git\" \necho \"---list files---\"\ngit ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 -- lib/test/ | grep test_python_scripts",
+      "for f in lib/test/test_python_scripts_part1.py lib/test/test_python_scripts_part2.py lib/test/test_python_scripts_part3.py lib/test/test_python_scripts_part4.py; do echo -n \"$f: \"; git cat-file -e aebf1d70364fbd0860e67fb87ddd0ff340852018:$f && echo exists || echo missing; done",
+      "git ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 -- lib/test/ | grep test_python_scripts",
+      "git ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 lib/test/ 2>&1 | grep test_python_scripts",
+      "git ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 lib/test/ > /tmp/filelist.txt; cat /tmp/filelist.txt",
+      "git ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 -- lib/test/ | grep -i \"test_python_scripts\"",
+      "git ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 lib/test/",
+      "git ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 lib/test | grep -i test_python_scripts",
+      "git cat-file -e aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts.py && echo EXISTS\ngit ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 -- lib/test | grep -i test_python_scripts",
+      "git ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 -- lib/test | grep -i test_python_scripts",
+      "git ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 lib/test 2>&1 | grep -i test_python_scripts",
+      "git ls-tree -r --name-only aebf1d70364fbd0860e67fb87ddd0ff340852018 lib/test",
+      "for f in lib/test/test_python_scripts.py lib/test/test_python_scripts_part2.py lib/test/test_python_scripts_part3.py lib/test/test_python_scripts_part4.py; do\n  git show aebf1d70364fbd0860e67fb87ddd0ff340852018:\"$f\" > /tmp/pf_$(basename \"$f\") 2>/tmp/err_$(basename \"$f\")\n  echo \"== $f ==\"; python3 -c \"import ast,sys; ast.parse(open('/tmp/pf_$(basename $f)').read())\" && echo \"parse OK\" || echo \"parse FAIL\"\ndone",
+      "git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts.py > /tmp/pf1.py\ngit show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts_part2.py > /tmp/pf2.py\ngit show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts_part3.py > /tmp/pf3.py\ngit show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts_part4.py > /tmp/pf4.py\npython3 -c \"\nimport ast\nfor p in ['/tmp/pf1.py','/tmp/pf2.py','/tmp/pf3.py','/tmp/pf4.py']:\n    sr …[per-command-truncated]",
+      "git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts.py > /tmp/pf1.py",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/vc17 && git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts.py > /home/runner/work/prflow/prflow/.prflow/tmp/vc17/pf1.py",
+      "git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts.py > .prflow/tmp/vc17/pf1.py",
+      "git show 64ea000fd:lib/test/test_python_scripts.py > /tmp/base.py\ngrep -cE \"^\\s*assert_eq\\(|[^.]assert_eq\\(\" /tmp/base.py\ngrep -c \"assert_eq(\" /tmp/base.py\ngrep -c \"assert_raises(\" /tmp/base.py",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before",
+      "h=aebf1d70364fbd0860e67fb87ddd0ff340852018\nfor m in \"#1811\" \"#1740\" \"#1882\" \"#1388\" \"reconcile-ac-verifiers\\|#1575\" \"#1027\" \"render-pr-provenance\"; do\n  echo \"=== $m ===\"\n  echo \"part2: $(git show $h:lib/test/test_python_scripts_part2.py | grep -c \"$m\")  part3: $(git show $h:lib/test/test_python_scripts_part3.py | grep -c \"$m\")  part4: $(git show $h:lib/test/test_python_scripts_part4.py | grep -c \"$m\")  part1: $(git show $h:lib/test/test_python_scripts.py | grep -c \"$m\")\"\ndone",
+      "for p in test_python_scripts test_python_scripts_part2 test_python_scripts_part3 test_python_scripts_part4; do\n  echo \"=== $p ===\"\n  git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/$p.py | grep -oE '#(1811|1740|1882|1388|1575|1027|1655|1229|1276|1350|805|868)\\b' | sort | uniq -c\ndone",
+      "for p in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do echo \"=== $p ===\"; git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/$p 2>&1 | grep -nE 'argv|argparse|def main|__main__|sys\\.exit' | head; done",
+      "for p in test_python_scripts test_python_scripts_part2 test_python_scripts_part3 test_python_scripts_part4; do\necho \"=== $p ===\"\ngit show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/$p.py | grep -n \"_pool_tally\\|_pool_name_record\\|DEVFLOW_POOL_TALLY_FILE\\|passed, .*failed\\|def main\\|print(\" | head -30\ndone",
+      "for p in test_python_scripts test_python_scripts_part2 test_python_scripts_part3 test_python_scripts_part4; do echo \"=== $p ===\"; git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/$p.py | grep -n \"POOL_TALLY\\|passed, \\|def _pool\\|def main\\|failed\" | head -25; done",
+      "for f in test_python_scripts_part2 test_python_scripts_part3 test_python_scripts_part4; do\n  echo \"=== $f (head) ===\"\n  git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/$f.py 2>/dev/null | head -20\ndone 2>&1 | head -80",
+      "for f in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\necho \"=== $f (tail) ===\"\ngit show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/$f | grep -n \"passed.*failed\\|__main__\\|def main\\|sys.exit\\|print(\" | tail -15\ndone",
+      "for f in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\necho \"=== $f (tail) ===\"\ngit show \"aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/$f\" | grep -nE \"passed|failed|__main__|def main|sys.exit|run_all|print\\(\" | tail -12\ndone",
+      "for f in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do echo \"===== $f (HEAD) =====\"; git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/$f 2>/dev/null | head -60; done",
+      "git grep -In 'test_python_scripts\\.py' aebf1d70364fbd0860e67fb87ddd0ff340852018 -- ':!lib/test/test_python_scripts*.py' | grep -v 'part[234]' | head -80",
+      "for f in test_python_scripts test_python_scripts_part3 test_python_scripts_part4; do :; done\necho \"=== part1 tail ===\"; git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts.py | tail -3\necho \"=== part3 tail ===\"; git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts_part3.py | tail -3\necho \"=== part4 tail ===\"; git show aebf1d70364fbd0860e67fb87ddd0ff340852018:lib/test/test_python_scripts_part4.py | tail -3\necho \"=== part3/4 head PASS/FAIL init  …[per-command-truncated]"
+    ],
+    "total": 40,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
