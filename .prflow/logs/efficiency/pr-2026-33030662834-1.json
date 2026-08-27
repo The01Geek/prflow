@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2026",
+  "generated_at": "2026-08-27T01:55:10Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.58",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.9206816,
+    "tokens": {
+      "input_tokens": 72,
+      "output_tokens": 56675,
+      "cache_read_input_tokens": 6882525,
+      "cache_creation_input_tokens": 285921,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 118,
+        "outputTokens": 89707,
+        "cacheReadInputTokens": 7973704,
+        "cacheCreationInputTokens": 762913,
+        "webSearchRequests": 0,
+        "costUSD": 12.070527,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 219,
+        "outputTokens": 32317,
+        "cacheReadInputTokens": 4934308,
+        "cacheCreationInputTokens": 1015874,
+        "webSearchRequests": 0,
+        "costUSD": 3.8501546,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 76,
+    "duration_ms": 991431
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"",
+      "/home/runner/work/prflow/prflow/scripts/compose-run-url.sh",
+      "/home/runner/work/prflow/prflow/scripts/config-get.sh .prflow_review.live_progress_comment_enabled true",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2026/33022159314-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2026/33022159314-1/verdicts/iter-1/VC-8-n8a.json << 'EOF'\n{\"id\":\"VC-8\",\"verdict\":\"PASS\",\"evidence\":\"scripts/workpad.py's _note_already_rendered (post-image, git show 5bbffc4:scripts/workpad.py lines ~3342-3358) is a pure read-only comparison function: it splits the note into lines, scans progress_content for a rendered bullet whose captured …[per-command-truncated]",
+      "git show 5bbffc426d7ec0e7e9f07e82f62deb1d290866ae:lib/test/modules/workpad-cli.sh > /tmp/wc.sh 2>&1; grep -oE 'assert_[a-z_]+' /tmp/wc.sh | wc -l\ngrep -n \"assert\" /tmp/wc.sh | wc -l\ngrep -n \"workpad-cli\" lib/test/run.sh 2>/dev/null\ngit show 5bbffc426d7ec0e7e9f07e82f62deb1d290866ae:lib/test/run.sh | grep -n -i \"workpad-cli\" \ngit show 5bbffc426d7ec0e7e9f07e82f62deb1d290866ae:scripts/workflow-flight-recorder-registry.json | grep -n -A5 \"workpad-cli\"",
+      "git show 5bbffc426d7ec0e7e9f07e82f62deb1d290866ae:lib/test/modules/workpad-cli.sh > /tmp/wc.sh 2>&1",
+      "git show 5bbffc426d7ec0e7e9f07e82f62deb1d290866ae:lib/test/modules/workpad-cli.sh > /home/runner/work/prflow/prflow/.prflow/tmp/wc.sh",
+      "git show 5bbffc426d7ec0e7e9f07e82f62deb1d290866ae:lib/test/modules/workpad-cli.sh > .prflow/tmp/wc.sh && wc -l .prflow/tmp/wc.sh",
+      "git worktree add /tmp/wt-verify 5bbffc426d7ec0e7e9f07e82f62deb1d290866ae 2>&1 | tail -5",
+      "git worktree add /tmp/wt-verify 5bbffc426d7ec0e7e9f07e82f62deb1d290866ae",
+      "mkdir -p \".prflow/tmp/review/pr-2026/33022159314-1/verdicts/iter-1\"\ncat > \".prflow/tmp/review/pr-2026/33022159314-1/verdicts/iter-1/VC-21-n21a.json\" <<'EOF'\n{\"id\":\"VC-21\",\"verdict\":\"PASS\",\"evidence\":\"skills/implement/references/sweep-2-3-0c-operand-trace.md (post-image at 5bbffc4) uses 'four-field note' consistently: 'commit one --note per comparand... Each comparand's note carries these four fields' and the sweep-completion sentence reads 'every comparand has a completed four-field note'. It ex …[per-command-truncated]"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
