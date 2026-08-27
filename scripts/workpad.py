@@ -1263,7 +1263,6 @@ def _patch_comment_body(repo, comment_id, text=None, *, body_path=None):
     if body_path is None:
         if text is None:
             raise ValueError('_patch_comment_body: pass text= or body_path=')
-        # Comment-size limit (issue #2024): measure the in-memory text.
         _check_body_within_limit(_byte_len(text))
         tf = tempfile.NamedTemporaryFile(
             'w', suffix='.md', delete=False, encoding='utf-8')
@@ -1276,9 +1275,9 @@ def _patch_comment_body(repo, comment_id, text=None, *, body_path=None):
             raise
         body_path = staged
     else:
-        # Comment-size limit (issue #2024): the file `cmd_patch` PATCHes directly
-        # is never staged from `text`, so measuring `text` alone would let this
-        # branch issue an oversize PATCH. Its on-disk byte size is the UTF-8 count.
+        # Measure the file `cmd_patch` PATCHes directly (never staged from
+        # `text`): checking `text` alone here would let this branch issue an
+        # oversize PATCH. st_size is the byte count GitHub receives.
         _check_body_within_limit(Path(body_path).stat().st_size)
     try:
         return _run([
@@ -1360,8 +1359,8 @@ def cmd_patch(args):
         else:
             out = _patch_comment_body(repo, args.comment_id, body_path=body_path)
     except _UpdateError as e:
-        # A size refusal (issue #2024) is a structural pre-PATCH failure, not a
-        # transport error — report it and exit 1 with no PATCH.
+        # A size refusal is pre-PATCH, not a transport error — so it is handled
+        # here rather than by the CalledProcessError/OSError arm below.
         sys.stderr.write(f"workpad.py patch: {e}\n")
         sys.exit(1)
     except (subprocess.CalledProcessError, OSError) as e:
@@ -3860,8 +3859,7 @@ _COMMENT_BYTE_LIMIT = 65536
 
 
 def _byte_len(text: str) -> int:
-    """UTF-8 byte length of `text`. The one measurement both size guards use, so
-    a note and a whole body are counted the same way (issue #2024)."""
+    """UTF-8 byte length of `text` (issue #2024)."""
     return len(text.encode('utf-8'))
 
 
@@ -3870,9 +3868,8 @@ def _check_note_within_budget(note: str) -> None:
     UTF-8 bytes, raising `_UpdateError` before any PATCH (issue #2024). Applied
     only to `--note`/`--note-file` text — never a tool-composed Progress row or a
     buffer-replayed note, which the caller cannot shorten — because the caller
-    checks it against the pre-replay caller-note list, not at the shared renderer.
-    Mirrors the sibling `_is_single_line` guards' `_UpdateError`/"No PATCH was
-    made." convention."""
+    checks it against the pre-replay caller-note list, not at the shared
+    renderer."""
     n = _byte_len(note)
     if n > _NOTE_BYTE_BUDGET:
         raise _UpdateError(
