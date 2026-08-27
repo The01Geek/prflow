@@ -138,6 +138,20 @@ reviewer, given the run URL, reaches the same verdict by downloading the same ar
 Cost is carried **directly**, which the issue did not even ask for: `costUSD`,
 `total_cost_usd`, and a per-model `modelUsage` breakdown.
 
+**Dated shape note — the denial carrier changed on claude-code CLI 2.1.247 (issue #2064).**
+On CLI **2.1.247** the `result` event carries a `permission_denials` **array** (empty on a
+clean run, one object per denial otherwise) and **no** `permission_denials_count` scalar field
+— established from the captured execution transcripts of Actions runs 33100335193 and
+33096600606 (zero case, empty array) and 33099893321 (one denial object). Earlier shapes
+carried the `permission_denials_count` field directly (as a number or a digit string). The
+`execution_file` schema is not a public contract, so both shapes stay supported: the
+denial-count extractors (`scripts/surface-execution-diagnostics.sh`,
+`scripts/build-denial-record.sh`) reconcile a reported count field with the gathered
+denial-object length and treat an array's *presence* as a measurement — an empty or
+all-non-object array is a measured `0`, and `unavailable` remains only for a file carrying
+neither carrier. See [`execution-diagnostics.md`](execution-diagnostics.md)'s **Count
+resolution** section.
+
 - **Probe run:** `29201071531` (the `execfile-shape-probe` job in `matcher-probe.yml`)
 - **Committed evidence:** [`lib/test/fixtures/execution-file-shape.observed.txt`](../../lib/test/fixtures/execution-file-shape.observed.txt)
   — the probe artifact's machine-produced output (with a short provenance header prepended;
