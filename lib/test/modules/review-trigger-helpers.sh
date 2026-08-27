@@ -4892,6 +4892,8 @@ assert_eq "pcrt #2067-automerge: the auto-merge arm warns with its OWN distinct 
   "1" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::ci auto-review trigger: PR #7 has GitHub auto-merge enabled')"
 assert_eq "pcrt #2067-automerge: the auto-merge arm made exactly ONE PR-state read" \
   "1" "$PCRT_STATE_READS"
+assert_eq "pcrt #2067-automerge: the auto-merge annotation is the ONLY warning (no fall-through to a sibling arm's)" \
+  "1" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::')"
 
 # A second post-mode run against the same armed fixture again posts nothing (idempotent).
 pcrt_run PCRT_LIST_OUT="" PCRT_PR_JSON="$PCRT_AM"
@@ -4917,6 +4919,10 @@ assert_eq "pcrt #2067-merged-armed: a MERGED PR still carrying an auto_merge rec
   "0" "$PCRT_POSTS"
 assert_eq "pcrt #2067-merged-armed: it takes the MERGED annotation, not the auto-merge one (merged decided first)" \
   "1" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::ci auto-review trigger: PR #7 is already merged; NOT posting')"
+assert_eq "pcrt #2067-merged-armed: the auto-merge annotation is NOT emitted (merged decided before auto-merge)" \
+  "0" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::ci auto-review trigger: PR #7 has GitHub auto-merge enabled')"
+assert_eq "pcrt #2067-merged-armed: made exactly ONE PR-state read" \
+  "1" "$PCRT_STATE_READS"
 
 # Ordering — a CLOSED-unmerged PR carrying an auto_merge record takes the closed
 # arm; the new state word is emitted only for an OPEN PR.
@@ -4925,6 +4931,10 @@ assert_eq "pcrt #2067-closed-armed: a CLOSED-unmerged PR still carrying an auto_
   "0" "$PCRT_POSTS"
 assert_eq "pcrt #2067-closed-armed: it takes the CLOSED annotation, not the auto-merge one (new word is OPEN-only)" \
   "1" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::ci auto-review trigger: PR #7 is closed without merging; NOT posting')"
+assert_eq "pcrt #2067-closed-armed: the auto-merge annotation is NOT emitted (new word is OPEN-only)" \
+  "0" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::ci auto-review trigger: PR #7 has GitHub auto-merge enabled')"
+assert_eq "pcrt #2067-closed-armed: made exactly ONE PR-state read" \
+  "1" "$PCRT_STATE_READS"
 
 # --- ci.yml supersession concurrency static check (issue #1236, Half A / AC2) --
 # ci.yml's workflow-level `concurrency:` behavior lives on GitHub's scheduler and
