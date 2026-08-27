@@ -289,6 +289,35 @@ assert_eq "#338(T4g): a whitespace-only --note-file payload does not permit the 
 assert_eq "#338(T4g): the whitespace-payload refusal made NO PATCH" "yes" \
   "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
 
+# --- issue #2076: --note-file / --reflection-file are repeatable, as a real CLI
+# subprocess against the same gh stub — the exit codes and stderr a caller sees. ---
+# S2076-1: two --note-file payloads render TWO ## Progress bullets (subprocess-level
+# reproduction of the drop). Against the pre-fix `store` this PATCHed one bullet.
+printf 'first file note\n' > "$S338/nf-a.txt"
+printf 'second file note\n' > "$S338/nf-b.txt"
+_c="$(run338 "$S338/base.md" --note-file "$S338/nf-a.txt" --note-file "$S338/nf-b.txt")"
+assert_eq "#2076(S1): two --note-file payloads succeed (exit 0)" "0" "$_c"
+assert_eq "#2076(S1): both --note-file payloads render as bullets" "yes" \
+  "$(grep -q 'first file note' "$S338/out" && grep -q 'second file note' "$S338/out" && echo yes || echo no)"
+
+# S2076-2: passing the stdin form '-' more than once for one flag is refused
+# non-zero, makes NO PATCH, and the stderr names the flag and the at-most-once rule.
+_c="$(run338 "$S338/base.md" --note-file - --note-file -)"
+assert_eq "#2076(S2): repeated --note-file '-' aborts non-zero" "no" \
+  "$([ "$_c" = "0" ] && echo yes || echo no)"
+assert_eq "#2076(S2): the repeated-'-' refusal made NO PATCH" "yes" \
+  "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
+assert_eq "#2076(S2): the refusal names --note-file and the at-most-once rule" "yes" \
+  "$(grep -q '\-\-note-file' "$S338/err" && grep -q 'at most once' "$S338/err" && echo yes || echo no)"
+
+# S2076-3 (AC9): `update --help` states, for each of the two flags, that it may be
+# passed more than once and that the stdin form may be used at most once per flag.
+_h2076="$(python3 "$WP_PY" update --help 2>&1 | tr -s '[:space:]' ' ')"
+assert_eq "#2076(S3): --help states --note-file/--reflection-file may be passed more than once" "yes" \
+  "$([ "$(printf '%s' "$_h2076" | grep -io 'may be passed more than once' | wc -l)" -ge 2 ] && echo yes || echo no)"
+assert_eq "#2076(S3): --help states the stdin form may be used at most once per flag" "yes" \
+  "$([ "$(printf '%s' "$_h2076" | grep -io 'may be used at most once per flag' | wc -l)" -ge 2 ] && echo yes || echo no)"
+
 # T7 (state-based multi-pair backstop, issue #338 hardening): a crafted two-pair call whose
 # pairs each individually dodge the per-pair guard — pair 1 places the marker non-terminally
 # (NEW doesn't end in the tag), pair 2 makes it terminal (OLD ends in the tag) — net-adds a

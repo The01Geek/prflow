@@ -203,8 +203,8 @@ def make_args(**overrides):
         'tick_progress': [], 'tick_plan': [], 'tick_plan_n': [], 'tick_ac': [], 'tick_ac_n': [],
         'rewrite_ac': [],
         'replace_plan_file': None, 'replace_acs_file': None, 'set_reproduction_file': None,
-        'note': [], 'reflection': [], 'reflection_kind': None, 'reflection_file': None,
-        'note_file': None,
+        'note': [], 'reflection': [], 'reflection_kind': None, 'reflection_file': [],
+        'note_file': [],
         'marker': None,
         'reconcile_reproduction': None, 'record_classification': None,
         'checkpoint': [], 'expect_comment_id': None, 'expect_status': None,
@@ -3687,8 +3687,8 @@ def _update_args(**kw):
     base = {
         'issue': 1214, 'marker': None, 'status': None, 'branch': None, 'run_link': None,
         'pr_link': None, 'tick_progress': [], 'tick_plan': [], 'tick_plan_n': [], 'tick_ac': [],
-        'tick_ac_n': [], 'rewrite_ac': [], 'note': [], 'reflection': [], 'reflection_file': None,
-        'note_file': None,
+        'tick_ac_n': [], 'rewrite_ac': [], 'note': [], 'reflection': [], 'reflection_file': [],
+        'note_file': [],
         'reflection_kind': None, 'replace_plan_file': None, 'replace_acs_file': None,
         'set_reproduction_file': None, 'checkpoint': None, 'record_completion_evidence': None,
         'record_classification': None, 'reconcile_reproduction': None, 'mark_deferred_filed': None,
@@ -3799,7 +3799,7 @@ _code, _pb, _n = _run_cmd_update(
 _bufdir4 = tempfile.mkdtemp(prefix='wp1214-buf4-')
 _rfl_file = Path(_bufdir4) / 'payload.md'
 _code, _pb, _n = _run_cmd_update(
-    _update_args(reflection_file=str(_rfl_file), reflection_kind='blocked'),
+    _update_args(reflection_file=[str(_rfl_file)], reflection_kind='blocked'),
     live_body=_WP1214, patch_fails=True, buffer_dir=_bufdir4)
 # ...and replays into the Devflow Reflection section on the next successful call,
 # under the kind the *replaying* call carries (the documented degraded-path rule).
@@ -3813,7 +3813,7 @@ _code, _pb, _n = _run_cmd_update(
 _bufdir5 = tempfile.mkdtemp(prefix='wp1813-buf5-')
 _nf_file = Path(_bufdir5) / 'payload.md'
 _code, _pb, _n = _run_cmd_update(
-    _update_args(note_file=str(_nf_file)),
+    _update_args(note_file=[str(_nf_file)]),
     live_body=_WP1214, patch_fails=True, buffer_dir=_bufdir5)
 # ...and replays into ## Progress on the next successful call (a note, not a reflection).
 _code, _pb, _n = _run_cmd_update(
@@ -3827,7 +3827,7 @@ _bufdir6 = tempfile.mkdtemp(prefix='wp1813-buf6-')
 _saved_stdin = sys.stdin
 try:
     _code, _pb, _n = _run_cmd_update(
-        _update_args(note_file='-'),
+        _update_args(note_file=['-']),
         live_body=_WP1214, patch_fails=False, buffer_dir=_bufdir6)
 finally:
     sys.stdin = _saved_stdin
