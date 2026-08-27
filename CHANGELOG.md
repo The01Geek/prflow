@@ -4,6 +4,32 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.61] — 2026-08-27
+
+### Changed
+- **Batch the issue-claim auditor's workpad writes into one update call.** The
+  `issue-claim-auditor` agent now composes each pass record as its pass completes and holds it,
+  delivering the accrued records in one batched `workpad.py update` invocation at audit end —
+  plus one further call per additional reflection kind, since one update applies a single
+  `--reflection-kind` — instead of one network round trip per pass; an audit that ends at a stop
+  arm folds its accrued records into the same terminating update. Note texts and reflection kinds are unchanged, so
+  workpad-reading consumers see identical content. (#2022)
+
+## [2.34.60] — 2026-08-27
+
+### Fixed
+- **Refuse an oversize workpad write before it reaches the GitHub comment cap.** `scripts/workpad.py`
+  now rejects a single caller-supplied Progress note over 2,048 UTF-8 bytes and any update whose
+  resulting comment body would exceed GitHub's 65,536-byte comment limit, each with a message naming
+  the measured byte count and the limit it broke. A size refusal is not buffered for replay, and
+  buffer-replayed and tool-composed rows stay exempt from the per-note budget, so a note that predated
+  this change can no longer wedge a workpad into being permanently unwritable. (#2026)
+
+## [2.34.59] — 2026-08-27
+
+### Changed
+Phase 1.3 no longer records a `resume-kind: fresh` workpad note. The Phase 2 §2.0 resume gate already reads an absent marker as not in-flight, so the fresh-run arm's note carried no signal and is dropped; the `in-flight` and `terminal-re-trigger` arms are unchanged.
+
 ## [2.34.58] — 2026-08-27
 
 ### Added

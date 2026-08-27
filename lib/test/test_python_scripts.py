@@ -2526,6 +2526,161 @@ assert_eq("--note-file: empty-payload error names the --note-file flag", True,
           _nf_empty_msg().startswith('--note-file:'))
 
 
+print("workpad size limits (issue #2024): per-note budget + comment cap")
+
+# The per-note budget lives in _cmd_update_inner (before the buffer-replay fold),
+# so it is exercised through _drive_cmd_update (cmd_update -> _cmd_update_inner),
+# NOT through apply_mut (which calls _apply_mutations directly).
+
+# AC1: a single --note over 2,048 bytes is refused — exit non-zero, NO PATCH, and
+# the message names the measured byte count and the 2,048-byte budget.
+_over = 'x' * 2049
+_c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note=[_over])
+assert_eq("#2024 AC1: an oversize --note exits non-zero", 1, _c)
+assert_eq("#2024 AC1: an oversize --note makes NO PATCH", None, _p)
+assert_eq("#2024 AC1: the refusal names the byte count and the budget", True,
+          '2049 bytes' in _e and '2048-byte' in _e)
+
+# AC2: a note of EXACTLY 2,048 bytes is accepted and rendered.
+_exact = 'y' * 2048
+_c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note=[_exact])
+assert_eq("#2024 AC2: a 2048-byte note is accepted (PATCH landed)", True, _p is not None)
+assert_eq("#2024 AC2: the 2048-byte note is rendered into the body", True,
+          _p is not None and ('— ' + _exact) in _p)
+
+# AC1 boundary: 2,049 refused (above) vs 2,048 accepted (above) — the off-by-one.
+
+# AC3: the budget is per-NOTE, not per-invocation — several within-budget notes in
+# one call are accepted even though their TOTAL exceeds the budget.
+_c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note=['a' * 1500, 'b' * 1500])
+assert_eq("#2024 AC3: multiple within-budget notes are accepted (per-note, not per-call)",
+          True, _p is not None and ('— ' + 'a' * 1500) in _p and ('— ' + 'b' * 1500) in _p)
+
+# AC3: --note and --note-file are measured identically. A --note-file payload over
+# the budget is refused exactly like an inline --note.
+with tempfile.TemporaryDirectory() as _d:
+    _bigf = Path(_d) / 'big.txt'
+    _bigf.write_bytes(b'z' * 2049)
+    _c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note_file=str(_bigf))
+    assert_eq("#2024 AC3: an oversize --note-file payload is refused too", 1, _c)
+    assert_eq("#2024 AC3: the oversize --note-file makes NO PATCH", None, _p)
+    _okf = Path(_d) / 'ok.txt'
+    _okf.write_bytes(b'w' * 2048)
+    _c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note_file=str(_okf))
+    assert_eq("#2024 AC3: a 2048-byte --note-file payload is accepted", True, _p is not None)
+
+# AC11 (note side): byte counts are UTF-8 bytes, never characters. 700 euro signs
+# is 700 chars but 2,100 bytes — refused, and the message reports 2100, not 700.
+_mb_note = '€' * 700  # 700 chars, 2100 UTF-8 bytes
+_c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note=[_mb_note])
+assert_eq("#2024 AC11: a multi-byte note is measured in bytes (refused)", 1, _c)
+assert_eq("#2024 AC11: the note refusal reports the BYTE count (2100), not chars (700)",
+          True, '2100 bytes' in _e and '700' not in _e)
+
+# Residual: an empty inline --note (size 0) is within budget and accepted (this
+# change adds no emptiness guard to --note; only a SIZE ceiling).
+_c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note=[''])
+assert_eq("#2024: an empty inline --note is within budget (accepted)", True, _p is not None)
+
+# AC4 + AC5: a resulting comment body over 65,536 bytes is refused WITHOUT the
+# PATCH, the message names the byte count + the 65,536 limit + that it is a byte
+# count, and NOTHING is buffered for replay (the refusal precedes the buffer).
+_filler = 'q' * 66000  # pushes the assembled body well past the 65,536-byte cap
+_BIG_BODY = WORKPAD_BODY.replace('- [ ] Step alpha', '- [ ] Step alpha\n- [ ] ' + _filler)
+_saved_buf = workpad._buffer_failed_change
+_buf_calls = {'n': 0}
+workpad._buffer_failed_change = lambda *a, **k: (_buf_calls.__setitem__('n', _buf_calls['n'] + 1), None)[1]
+try:
+    _c, _o, _e, _p = _drive_cmd_update(_BIG_BODY, note=['tiny'], patch_fails=True)
+    assert_eq("#2024 AC4: an over-cap comment body exits non-zero", 1, _c)
+    assert_eq("#2024 AC4: an over-cap comment body makes NO PATCH", None, _p)
+    assert_eq("#2024 AC4: the refusal names the 65536 limit and that it is a byte count",
+              True, '65536' in _e and 'byte count' in _e)
+    assert_eq("#2024 AC5: a size-refused write buffers NOTHING for replay", 0, _buf_calls['n'])
+finally:
+    workpad._buffer_failed_change = _saved_buf
+
+# AC11 (comment side): the comment cap is measured in bytes. A body whose CHARACTER
+# count is under 65,536 but whose UTF-8 byte count is over it is still refused —
+# a character-count check would have let it through.
+_mb_filler = '€' * 30000  # 30000 chars, 90000 bytes; whole body chars < 65536
+_MB_BODY = WORKPAD_BODY.replace('- [ ] Step alpha', '- [ ] Step alpha\n- [ ] ' + _mb_filler)
+assert_eq("#2024 AC11: the padded body is under 65536 CHARS but over 65536 BYTES", True,
+          len(_MB_BODY) < 65536 and len(_MB_BODY.encode('utf-8')) > 65536)
+_c, _o, _e, _p = _drive_cmd_update(_MB_BODY, note=['tiny'])
+assert_eq("#2024 AC11: a multi-byte over-cap body is refused (bytes, not chars)", 1, _c)
+assert_eq("#2024 AC11: the multi-byte body refusal makes NO PATCH", None, _p)
+
+# AC7: the per-note budget is scoped to caller --note/--note-file text only. A
+# tool-composed Progress row (here a --checkpoint text) over 2,048 bytes is exempt
+# and the update is accepted.
+_big_cp = 'c' * 2500  # single line, over the per-note budget
+_c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, checkpoint=[['gha:2024:1:tool-row', _big_cp]])
+assert_eq("#2024 AC7: an oversize tool-composed checkpoint row is exempt (accepted)",
+          True, _p is not None and _big_cp in _p)
+
+# AC6: a note replayed from the failed-write buffer is EXEMPT from the per-note
+# budget — an update whose buffer holds an oversize note still PATCHes and still
+# clears the buffer. (A buffered note predating this change can never wedge the
+# workpad.) The per-note check runs on THIS call's own notes, before the fold.
+_buf_note = 'r' * 5000  # far over the per-note budget, but replayed, so exempt
+_saved_read = workpad._read_workpad_buffer
+_saved_clear = workpad._clear_workpad_buffer
+_clear_calls = {'n': 0}
+workpad._read_workpad_buffer = lambda cid: [
+    {'notes': [_buf_note], 'reflections': [], 'reflection_kind': 'note'}]
+workpad._clear_workpad_buffer = lambda cid: _clear_calls.__setitem__('n', _clear_calls['n'] + 1)
+try:
+    _c, _o, _e, _p = _drive_cmd_update(WORKPAD_BODY, note=['small own note'])
+    assert_eq("#2024 AC6: a replayed oversize note is exempt — the update PATCHes",
+              True, _p is not None)
+    assert_eq("#2024 AC6: the replayed oversize note is rendered (not refused)", True,
+              _p is not None and ('— ' + _buf_note) in _p)
+    assert_eq("#2024 AC6: the buffer is cleared on the successful replay", True,
+              _clear_calls['n'] >= 1)
+finally:
+    workpad._read_workpad_buffer = _saved_read
+    workpad._clear_workpad_buffer = _saved_clear
+
+# AC8: a note already stored in a workpad is neither re-measured nor rewritten by
+# this change — the replay-dedup comparison (_note_already_rendered) still matches
+# a stored MULTI-LINE note verbatim.
+_stored_prog = "- [ ] **Implement**\n  - 12:00:00 — alpha\nbeta\ngamma"
+assert_eq("#2024 AC8: a stored multi-line note still matches replay-dedup verbatim",
+          True, workpad._note_already_rendered(_stored_prog, "alpha\nbeta\ngamma"))
+assert_eq("#2024 AC8: a differing stored multi-line note does NOT falsely match",
+          False, workpad._note_already_rendered(_stored_prog, "alpha\nbeta\nDIFFERENT"))
+
+# AC10: the comment cap is enforced on the cmd_patch route too — _patch_comment_body
+# measures the in-memory `text` AND the file it PATCHes directly, so neither branch
+# can issue an oversize PATCH.
+_saved_pcb_run = workpad._run
+_pcb_run_calls = {'n': 0}
+def _pcb_fake_run(cmd, **kw):
+    _pcb_run_calls['n'] += 1
+    return _FakeRun('ok')
+workpad._run = _pcb_fake_run
+try:
+    assert_raises("#2024 AC10: _patch_comment_body refuses oversize in-memory text",
+                  workpad._UpdateError,
+                  lambda: workpad._patch_comment_body('o/r', 7, 'x' * (65536 + 1)))
+    with tempfile.TemporaryDirectory() as _d:
+        _big_body = Path(_d) / 'big.md'
+        _big_body.write_bytes(b'x' * (65536 + 1))
+        assert_raises("#2024 AC10: _patch_comment_body refuses an oversize body-path file",
+                      workpad._UpdateError,
+                      lambda: workpad._patch_comment_body('o/r', 7, body_path=_big_body))
+        assert_eq("#2024 AC10: neither oversize refusal reached the PATCH call", 0,
+                  _pcb_run_calls['n'])
+        _ok_body = Path(_d) / 'ok.md'
+        _ok_body.write_bytes(b'x' * 65536)
+        workpad._patch_comment_body('o/r', 7, body_path=_ok_body)
+        assert_eq("#2024 AC10: a 65536-byte body-path file PATCHes (at the limit)", 1,
+                  _pcb_run_calls['n'])
+finally:
+    workpad._run = _saved_pcb_run
+
+
 print("workpad new-body: lean initial skeleton")
 
 _buf = io.StringIO()
@@ -12477,13 +12632,13 @@ _mm_p13 = apply_mut(_CP_BODY, make_args(
     reconcile_reproduction="non-bug",
     reconcile_extension_rows=True,
     tick_progress=[_MM_EXT[2]],
-    note=["resume-kind: fresh"]), _mm_p13_ticks)
+    note=["resume-kind: terminal-re-trigger"]), _mm_p13_ticks)
 assert_eq("#1722: the shipped Phase 1.3 five-flag fold ticks the row it just repaired",
           (True, []), (f"- [x] {_MM_EXT[1]}" in _mm_p13, _mm_p13_ticks))
 assert_eq("#1722: ...carrying the rationale-bearing classification and the resume-kind note",
           (True, True),
           ("classification: non-bug — prose-only change; no malfunction described" in _mm_p13,
-           "resume-kind: fresh" in _mm_p13))
+           "resume-kind: terminal-re-trigger" in _mm_p13))
 
 # ---------------------------------------------------------------------------
 # issue #1501: guard the remaining fixed-arity argument unpacks. Every flag with a
