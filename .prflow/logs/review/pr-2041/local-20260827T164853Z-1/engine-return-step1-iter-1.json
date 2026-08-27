@@ -1,0 +1,181 @@
+{
+  "root_completeness": "established",
+  "engine_dir": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/skills/review",
+  "verdict": "REJECT",
+  "verdict_threshold": "critical",
+  "reviewed_head": "51638aa9b494151a17db7b5f5875bc37a8a9e3ce",
+  "base": "1f4e06ea459c6cefedd6a5675c9bea310e30eca9",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "changed_files": 13,
+    "profile_announced": "engine_self_modifying (overrides other flags' checklist) -> running full checklist. Phase 3 roster gated by Phase 3.1 applicability."
+  },
+  "cap_drops": {"count": 0, "by_category": {}},
+  "checklist_skipped": null,
+  "checklist_summary": {
+    "total": 39,
+    "passed": 36,
+    "failed": 3,
+    "inconclusive": 0,
+    "lite": 0,
+    "agent": 39,
+    "normalized": 0,
+    "normalizer_note": "scripts/normalize-verdicts.py was NOT invoked. All three FAILs carry inaccuracy_scope=source_authored_text, which the helper never normalizes (it normalizes only raw FAIL + generated_paraphrase + generated_claim_text), so the normalized count is 0 either way. Recorded as a disclosed deviation, not an inferred normalization.",
+    "failed_items": [
+      {"id": "VC-21", "claim": "Schema + external docs universal: an explicit sub-key ALWAYS wins over telemetry.enabled, in both directions, for every mechanism.", "evidence": "Falsified empirically. With {\"telemetry\":{\"enabled\":false},\"prflow_review_and_fix\":{\"efficiency_telemetry_enabled\":true}}, lib/efficiency-trace.sh --persist still skips: do_persist's new guard reads telemetry.enabled directly and consults no sub-key, while --persist is already gated by efficiency_telemetry_enabled. Observed: skip breadcrumb emitted, refs/heads/prflow-telemetry never created, rc 0.", "inaccuracy_scope": "source_authored_text", "source_file": ".prflow/config.schema.json + docs/external/docs/configuration/observability-and-privacy.md"},
+      {"id": "VC-24", "claim": "Changeset + external docs universal: telemetry.enabled=false turns off EVERY optional telemetry mechanism in one switch.", "evidence": "prflow.execution_transcript_artifact_enabled is deliberately not enrolled, so a consumer who set it true keeps that optional telemetry mechanism on under a false master.", "inaccuracy_scope": "source_authored_text", "source_file": ".changeset/issue-2035-telemetry-master-key.md"},
+      {"id": "VC-30", "claim": "scripts/telemetry-master-off.py docstring: 'Single source of PRFlow's telemetry master-switch predicate (issue #2035).'", "evidence": "Three independent implementations ship: this script (called only by scripts/collect-staged-telemetry.sh), the inline python3 -c in scripts/config-get.sh's telemetry_master_disables_for, and the inline python3 -c in lib/efficiency-trace.sh's do_persist. The two inline copies carry comments explaining why they do NOT call it. No test pins the three equivalent.", "inaccuracy_scope": "source_authored_text", "source_file": "scripts/telemetry-master-off.py"}
+    ]
+  },
+  "issue_compliance": {
+    "issue": 2035,
+    "acceptance_criteria_source": "workpad",
+    "acceptance_criteria_divergence": "none",
+    "scope": "unchanged",
+    "criteria_total": 8,
+    "ac_status": {
+      "AC1": "satisfied", "AC2": "satisfied (resolver path only; see finding 2)", "AC3": "satisfied",
+      "AC4": "satisfied", "AC5": "satisfied", "AC6": "satisfied", "AC7": "satisfied", "AC8": "satisfied"
+    }
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "gated_out_agents": ["prflow:type-design-analyzer (has_new_types false)"],
+  "phase3_findings": [
+    {
+      "id": "F1",
+      "severity": "Important",
+      "agent": "prflow:comment-analyzer, prflow:silent-failure-hunter, prflow:code-reviewer, prflow:requesting-code-review",
+      "corroboration_count": 4,
+      "contributed_to_verdict": true,
+      "self_contradicting_diff_carveout": true,
+      "description": "scripts/telemetry-master-off.py's docstring line 'Single source of PRFlow's telemetry master-switch predicate (issue #2035).' is false against HEAD: the same diff ships three independent implementations of the predicate (this script, the inline python3 -c in scripts/config-get.sh's telemetry_master_disables_for, and the inline python3 -c in lib/efficiency-trace.sh's do_persist), and only scripts/collect-staged-telemetry.sh execs the .py. The two inline copies carry comments explaining why they deliberately do NOT call it (the issue-#458 Stop-hook closure drift-guard), so the diff contradicts itself. Nothing mechanically couples the three, so a later semantics fix applied to one leaves the other two stale and the suite stays green. The same misdescription recurs in .prflow/config.schema.json ('Read at RUNTIME through scripts/config-get.sh (and scripts/telemetry-master-off.py)') and docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md line 1144, both of which read as though config-get.sh delegates to the script. Remedy: restate the docstring as the exec-able form of the predicate, name the two inline mirrors as coupled sites in all three places, and optionally pin the three arms against one fixture matrix.",
+      "defect_signature": {"file": "scripts/telemetry-master-off.py", "line_range": [4, 4], "kind": "documented_falsehood"},
+      "cap_analysis": "Behavior-inert prose cap NOT applied. Limb one holds (no tool parses the docstring to decide behavior). Limb two does NOT hold: scripts/ ships verbatim into consumer repos through the vendor-fetch channel, so the docstring reaches readers outside this repository and the fail-closed rule applies. Not inert -> Phase 4.2 self-contradicting-diff carve-out."
+    },
+    {
+      "id": "F2",
+      "severity": "Important",
+      "agent": "prflow:silent-failure-hunter, Phase-2 VC-21, Phase 4.1.6 sweep",
+      "corroboration_count": 2,
+      "contributed_to_verdict": true,
+      "self_contradicting_diff_carveout": true,
+      "description": "The shipped claim that an explicitly-set sub-key always wins over the master 'in both directions' is false for the efficiency-trace mechanism. docs/external/docs/configuration/observability-and-privacy.md says 'An explicit key always wins... it overrides the master, in both directions - so you can turn the master off but keep one mechanism on', and .prflow/config.schema.json says 'A sub-key a consumer has set explicitly ALWAYS wins over this master, in both directions'. Verified empirically on HEAD: with telemetry.enabled=false and an explicit prflow_review_and_fix.efficiency_telemetry_enabled=true, lib/efficiency-trace.sh --persist still emits its skip breadcrumb, never creates refs/heads/prflow-telemetry, and returns 0 - because do_persist's new guard reads telemetry.enabled directly while --persist is itself already gated by efficiency_telemetry_enabled. A second, narrower counterexample: an enrolled sub-key explicitly set to JSON null or the empty string falls to emit_default_or_fail and therefore inherits the master's false rather than the caller default. Remedy: either consult the sub-key in the two push-path guards, or qualify both sentences to the resolver path and the absent/unset-key case.",
+      "defect_signature": {"file": "docs/external/docs/configuration/observability-and-privacy.md", "line_range": [119, 119], "kind": "documented_falsehood"},
+      "cap_analysis": "Behavior-inert prose cap NOT applied. Limb two fails outright: this is a published external documentation page (and the config schema description) read by consumers outside this repository. Not inert -> Phase 4.2 self-contradicting-diff carve-out."
+    },
+    {
+      "id": "F3",
+      "severity": "Important",
+      "agent": "Phase-2 VC-24",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true,
+      "self_contradicting_diff_carveout": true,
+      "description": "The changeset ('turn off PRFlow's optional telemetry in one switch') and the external docs ('every optional telemetry mechanism turns off in one place') assert a universal the enrolled set does not deliver: prflow.execution_transcript_artifact_enabled is an optional telemetry mechanism that is deliberately not enrolled, so a consumer who set it to true keeps the scrubbed transcript artifact uploading under a false master. The exclusion is defensible (it defaults to false), but the shipped sentences state 'every', and the changeset text lands in the published CHANGELOG. Remedy: name the enrolled set, or say 'every default-on optional telemetry mechanism'.",
+      "defect_signature": {"file": ".changeset/issue-2035-telemetry-master-key.md", "line_range": [12, 12], "kind": "documented_falsehood"},
+      "cap_analysis": "Behavior-inert prose cap NOT applied. Limb two fails: the changeset text becomes the published CHANGELOG entry and the docs page is consumer-facing. Not inert -> Phase 4.2 self-contradicting-diff carve-out."
+    },
+    {
+      "id": "F4",
+      "severity": "Important",
+      "agent": "prflow:silent-failure-hunter, prflow:code-reviewer, prflow:pr-test-analyzer, prflow:requesting-code-review, Phase-2 VC-10",
+      "corroboration_count": 4,
+      "contributed_to_verdict": false,
+      "self_contradicting_diff_carveout": false,
+      "description": "scripts/collect-staged-telemetry.sh's new gate reads the config at the literal path \"$ROOT/.prflow/config.json\", bypassing both the state-directory read-through (lib/resolve-state-dir.sh / prflow_state_dir, which scripts/config-get.sh uses) and DEVFLOW_CONFIG_FILE (which lib/config-source.sh honours and which the sibling lib/efficiency-trace.sh guard therefore does honour via $_DEVFLOW_CONFIG). A consumer mid-migration whose config still lives at .devflow/config.json and who set telemetry.enabled=false has the predicate read a nonexistent file, exit 1, and the collector stages and pushes telemetry anyway - the exact deployment shape the transitional read-through exists for. The two push-path guards in this one PR therefore disagree about which file the master lives in. Fail-safe in direction, but it contradicts the 'one switch / every mechanism' claim for that population and no test covers it.",
+      "defect_signature": {"file": "scripts/collect-staged-telemetry.sh", "line_range": [36, 37], "kind": "api_misuse"},
+      "cap_analysis": "Functional-coverage gap, not prose - graded on its functional severity, never capped. Below the critical verdict threshold, so it drives no REJECT on its own."
+    },
+    {
+      "id": "F5",
+      "severity": "Important",
+      "agent": "prflow:silent-failure-hunter",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "self_contradicting_diff_carveout": false,
+      "over_grade_annotation": "[suspected over-grade: shape 3 - uncorroborated single-source Important from silent-failure-hunter, with no other Phase-3 agent and no Phase-2 FAIL covering the same defect; advisory only, verdict unchanged]",
+      "description": "Both new gates fail open silently on every non-config reason. scripts/collect-staged-telemetry.sh's guard is a three-term && chain (helper present, python3 present, predicate exits 0); a missing helper, an absent or broken python3, or an unreadable config falls through to collect-and-upload with no output at all, while every other failure arm in that same file breadcrumbs. lib/efficiency-trace.sh's do_persist guard has the same shape and the same missing arm. The generic fail-safe-to-ON rationale is imported from the per-key observability gates, but this one is the consumer's privacy switch: a repository that set telemetry.enabled=false and lost python3 from a self-hosted runner's PATH keeps pushing to a long-lived branch and is never told the switch was not evaluated. Remedy: split the chain so an unevaluable predicate emits its own ::warning:: naming what could not be evaluated.",
+      "defect_signature": {"file": "scripts/collect-staged-telemetry.sh", "line_range": [35, 40], "kind": "logic_error"}
+    },
+    {
+      "id": "F6",
+      "severity": "Suggestion",
+      "agent": "prflow:code-reviewer, prflow:comment-analyzer, prflow:silent-failure-hunter",
+      "corroboration_count": 3,
+      "contributed_to_verdict": false,
+      "self_contradicting_diff_carveout": false,
+      "description": "scripts/collect-staged-telemetry.sh's _CST_DIR=\"$(cd \"${BASH_SOURCE[0]%/*}\" && pwd)\" leaves the string unchanged when BASH_SOURCE[0] carries no slash (a bare-name PATH invocation); cd then fails, _CST_DIR is empty, the [ -f \"$_CST_DIR/telemetry-master-off.py\" ] test is false, and the gate silently no-ops into finding F5's fail-open. The comment directly above names that hazard as the reason for the dirname-free form without guarding it. The only in-tree call site passes a slash-bearing path, so this is latent rather than live. Remedy: case \"${BASH_SOURCE[0]}\" in */*) ... ;; *) _CST_DIR=. ;; esac, or breadcrumb when the anchor cannot be resolved.",
+      "defect_signature": {"file": "scripts/collect-staged-telemetry.sh", "line_range": [35, 35], "kind": "logic_error"}
+    },
+    {
+      "id": "F7",
+      "severity": "Suggestion",
+      "agent": "prflow:comment-analyzer, prflow:code-reviewer, prflow:requesting-code-review",
+      "corroboration_count": 3,
+      "contributed_to_verdict": false,
+      "self_contradicting_diff_carveout": false,
+      "description": "docs/external/docs/configuration/observability-and-privacy.md states telemetry-off 'saves only a small amount of run time (measured at roughly 1-3% of a run)'. Under the prefer-generated-evidence convention (issue #656) a figure a reader treats as current must be rendered live or registered as an exempt literal with a rationale; this is neither an enforcement constant, a dated past-time snapshot, nor a future target, so it rots invisibly in consumer-facing docs. The figure does trace to the issue's own text, so it is not fabricated. Remedy: drop the parenthetical (the sentence's point survives) or attribute it as a dated measurement.",
+      "defect_signature": {"file": "docs/external/docs/configuration/observability-and-privacy.md", "line_range": [120, 120], "kind": "comment_drift"}
+    },
+    {
+      "id": "F8",
+      "severity": "Suggestion",
+      "agent": "prflow:comment-analyzer, prflow:code-reviewer",
+      "corroboration_count": 2,
+      "contributed_to_verdict": false,
+      "self_contradicting_diff_carveout": false,
+      "description": "Three added inline comment blocks exceed the prevention-only standard's three-physical-line cap: lib/efficiency-trace.sh do_persist (6 lines), scripts/config-get.sh telemetry_master_disables_for (3 + 4 lines), scripts/collect-staged-telemetry.sh (5 lines). Their substance is right - each names a wrong change it prevents (adding a source/exec edge that would break the issue-#458 drift-guard; using == False, which would let the JSON number 0 disable telemetry) - but the surrounding derivation and provenance belong in internal docs. The #458 rationale is additionally restated verbatim across two files, which the restatement rule prohibits. Remedy: keep the prohibition-and-consequence sentence in each, capped at three lines, and move the derivation to docs/internal/.",
+      "defect_signature": {"file": "lib/efficiency-trace.sh", "line_range": [1534, 1539], "kind": "style"}
+    },
+    {
+      "id": "F9",
+      "severity": "Informational",
+      "agent": "review prompt extension (verification-evidence advisory clause)",
+      "corroboration_count": 1,
+      "contributed_to_verdict": false,
+      "self_contradicting_diff_carveout": false,
+      "description": "ADVISORY, NON-BLOCKING. Neither the issue-2035 workpad nor the PR description carries a 'Verification evidence:' marker. Tier classification: cloud (the workpad's ## Progress section carries prflow:checkpoint gha: rows). This never raises the verdict on its own; it records that a completion or PR-ready claim would be made with no captured verification run.",
+      "defect_signature": {"file": ".prflow/prompt-extensions/review.md", "line_range": null, "kind": "other"}
+    }
+  ],
+  "phase_4_1_5": {
+    "behavior_inert_prose_cap_applied_to": [],
+    "advisory_over_grade_flags": ["F5 (shape 3)"],
+    "note": "F1/F2/F3 were each evaluated against the two inertness limbs and NOT capped: limb two fails for all three (vendored scripts/ docstring, published external docs page, published CHANGELOG changeset text). Mechanism enumeration recorded per finding in cap_analysis."
+  },
+  "phase_4_1_6": {
+    "truthfulness_sweep": "3 findings promoted/confirmed as demonstrated falsehoods against HEAD (F1, F2, F3); each verified by reading the named code path, and F2 additionally by executing lib/efficiency-trace.sh --persist against a scratch fixture.",
+    "intra_diff_contradiction_scan": "2 contradicting pairs found. (a) telemetry-master-off.py's 'Single source' universal vs. the two inline copies' own added comments stating why they do not call it. (b) the schema/docs 'explicit sub-key ALWAYS wins in both directions' universal vs. the push-path guards that read telemetry.enabled directly and consult no sub-key. Both routed into the Phase 4.2 self-contradicting-diff carve-out."
+  },
+  "phase_4_1_7": "not run (prflow_review.stale_prose.enabled resolves to false, so Phase 0.6 did not run and there are no STALE rows to adjudicate)",
+  "phase_3_1_5": "not run (detect_all_audit is false)",
+  "phase_4_0_deferrals": "block_present: false - the PR body carries no Scope-Acknowledged Findings block; all findings flow through undemoted",
+  "dirty_tree_backstop": "clean - before/after NUL snapshots identical (cmp rc 0); no agent mutated the working tree",
+  "writing_skills_gate": "not triggered - the reviewed diff touches no prompt-surface trigger glob (no skills/**, no .prflow/prompt-extensions/*.md)",
+  "extension_status": {
+    "review": "PROMPT-EXTENSION-STATUS: content-present",
+    "requesting-code-review": "EXTENSION-STATUS: loaded-empty resolved-root=unset (success token; orchestrator resolved no trusted root either, so the resolved-root cross-check writes nothing)"
+  },
+  "supporting_evidence": {
+    "focused_module_run": "lib/test/run-module.sh efficiency-trace-telemetry -> 1047 passed, 0 failed (matches the raised floor in both coupled literals)",
+    "empirical_probe": "explicit efficiency_telemetry_enabled=true + telemetry.enabled=false -> --persist skipped, telemetry branch never created, rc 0"
+  },
+  "report_path": "inline (see phase3_findings, checklist_summary, issue_compliance)"
+}

@@ -1,0 +1,214 @@
+{
+ "pairs": [
+  {
+   "item": {
+    "id": "VC-1",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/collect-staged-telemetry.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-1.json",
+   "response_text": "```json\n{\"id\": \"VC-1\", \"verdict\": \"PASS\", \"evidence\": \"scripts/collect-staged-telemetry.sh:35 anchors via _CST_DIR=\\\"$(cd \\\"${BASH_SOURCE[0]%/*}\\\" && pwd)\\\" (script itself), which relies on BASH_SOURCE[0] containing a '/'. Checked every real caller: .github/workflows/devflow-runner.yml:3069-3072 sets _collect_helper=.prflow/vendor/prflow/scripts/collect-staged-telemetry.sh (falling back to scripts/collect-staged-telemetry.sh) and invokes it as \\\"$_collect_helper\\\" ... \\u2014 always a slash-containing path, never a bare name resolved via PATH. lib/test/modules/efficiency-trace-telemetry.sh's invocations (lines 6318-6319, 6993) likewise call `bash \\\"$_489_SC/collect-staged-telemetry.sh\\\" ...` / `bash \\\"$T2035_HELPERLESS/collect-staged-telemetry.sh\\\" ...`, always with a directory component. No caller in the repo invokes the script as a bare PATH-resolved name. The claim accurately describes the theoretical mechanism (bare-name invocation -> ${BASH_SOURCE[0]%/*} yields the script name itself -> cd fails -> _CST_DIR empty -> gate degrades to the not-consulted warning) and explicitly frames it as a question of reachability given real callers -- verification confirms the failure mode is not reachable via any current call site.\", \"file_checked\": \"scripts/collect-staged-telemetry.sh:35; .github/workflows/devflow-runner.yml:3069-3072; lib/test/modules/efficiency-trace-telemetry.sh:6318-6319,6993\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-11",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/efficiency-trace.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-11.json",
+   "response_text": "```json\n{\"id\": \"VC-11\", \"verdict\": \"PASS\", \"evidence\": \"lib/efficiency-trace.sh:1532-1555 do_persist(). The guard is: `if command -v python3 ... && DEVFLOW_TEL_CFG=... python3 -c '...' >/dev/null 2>&1; then <skip>; fi`. The inline python3 script (lines 1543-1551) wraps the config open+json.load in try/except Exception: sys.exit(1) on ANY read/parse failure (missing file, unreadable file, directory path, malformed JSON), and only sys.exit(0) when telemetry.enabled is the JSON boolean False. Verified empirically in a scratch repo (/tmp) with a chmod-000 (unreadable) config: `python3 -c` raised PermissionError, was caught, exited 1, so the outer `if` was false and do_persist fell through to normal (telemetry-on) behavior \\u2014 confirmed end-to-end by running `lib/efficiency-trace.sh --persist` against a chmod-000 DEVFLOW_CONFIG_FILE: exit 0, prflow-telemetry branch WAS created (i.e. persisted as if telemetry were on), matching the comment's claim exactly. The `command -v python3` miss path (lines 1540-1542) also falls through without skipping. Because the whole probe sits in an `if` condition, `set -euo pipefail` (line 52) does not abort on a nonzero python3/command exit, so the guard never aborts the helper \\u2014 it only ever returns 0 early (the skip branch) or falls through; both are non-aborting. No path was found where a read/probe error causes an abort or an unintended skip.\", \"file_checked\": \"lib/efficiency-trace.sh:1532-1555\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-13",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/efficiency-trace.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-13.json",
+   "response_text": "```json\n{\"id\": \"VC-13\", \"verdict\": \"FAIL\", \"evidence\": \"Behavior half of the AC holds: verified empirically that `lib/efficiency-trace.sh --persist` against a chmod-000 (unreadable) DEVFLOW_CONFIG_FILE exits 0, creates the prflow-telemetry branch, and emits no 'telemetry.enabled is false' skip breadcrumb \\u2014 i.e. it behaves exactly as before (telemetry-on), matching the guard logic at lib/efficiency-trace.sh:1543-1551 (PermissionError is caught by `except Exception: sys.exit(1)`). HOWEVER the claim also asks whether any assertion covers the unreadable case on the --persist side, and none does: lib/test/modules/efficiency-trace-telemetry.sh's #2035 block only tests the corrupt-config case on --persist (`T2035_PERSIST_CORRUPT` at ~line 6957, using m-corrupt.json, a malformed-JSON string, not chmod-000-unreadable) and tests the UNREADABLE (chmod 000) case only against the separate collect-staged-telemetry.sh path (T2035_CR_UNREAD block, ~lines 7024-7030), which asserts a DIFFERENT ('is not readable' announcement) and in fact opposite-styled behavior (fail-closed announcement, not fail-open persistence) for a different script. So the --persist side of the unreadable-config case is unasserted in the module, so the acceptance criterion as phrased -- claiming coverage/verification of the unreadable case on the --persist side -- is not met by the test suite even though the runtime behavior itself is correct.\", \"file_checked\": \"lib/test/modules/efficiency-trace-telemetry.sh:6941-6961,7020-7030\", \"property_proven\": false, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-12",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/config-get.sh, lib/test/modules/efficiency-trace-telemetry.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-12.json",
+   "response_text": "```json\n{\"id\": \"VC-12\", \"verdict\": \"PASS\", \"evidence\": \"Ran BOTH resolvers directly: extracted the pre-change scripts/config-get.sh at merge-base 9fecd69e50aac432e280adbe9dca84770a104c2e (plus its lib/resolve-state-dir.sh, lib/rename-map.json, lib/resolve-jq.sh, lib/normalize-path.sh dependencies) into /tmp/pre-repo and diffed its output against the current scripts/config-get.sh over four fixtures: (1) non-enrolled key with superseded counterpart present + telemetry.enabled:false, (2) same with master absent, (3) non-enrolled key entirely absent with no default, (4) no-default miss. All four: stdout, stderr (including the '...superseded counterpart...' migration breadcrumb), and exit code were byte-identical between pre- and post-change resolvers. The only source diff between the two scripts (confirmed via `diff`) is the added telemetry_master_disables_for() function and its case-gated call inside emit_default_or_fail(), which only fires for one of the five enrolled keys -- a non-enrolled key falls through unchanged to the pre-existing logic, matching the claim. Second part of the claim: grepped lib/test/modules/efficiency-trace-telemetry.sh for any reference to a pre-change/extracted resolver copy -- none exists. The module's #2035 AC6 assertions (lines 6860-6874) compare the CURRENT resolver's output under telemetry master-false against the CURRENT resolver's output under master-absent (T2035_NE_ERR_OFF vs T2035_NE_ERR_ABSENT) -- i.e. only self-consistency across two fixture states of the post-change binary, never against the pre-change resolver. So the claim is correct on both counts: the byte-identical behavior for non-enrolled keys does hold (verified by direct execution), and the suite's own #2035 assertions do NOT independently verify that fact against the pre-change resolver -- they only prove master-off equals master-absent on the CURRENT script.\", \"file_checked\": \"scripts/config-get.sh, lib/test/modules/efficiency-trace-telemetry.sh:6860-6874\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-14",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": ".prflow/config.example.json",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-14.json",
+   "response_text": "```json\n{\"id\": \"VC-14\", \"verdict\": \"PASS\", \"evidence\": \"Confirmed .prflow/config.example.json:103-106 carries `\\\"telemetry\\\": {\\\"enabled\\\": true, \\\"branch\\\": \\\"prflow-telemetry\\\"}`. config.schema.json:1144-1147 declares telemetry.enabled as type boolean with default:true. Ran lib/test/run.sh's actual 'config.example.json superset invariant' jq program (lines 12822-12839+ region, reconstructed verbatim) against the real files: both extra_in_example and missing_default_in_example returned empty arrays -- i.e. the added enabled:true key satisfies check 2 (every schema-defaulted key present in example) without violating check 1 (every example key is schema-declared). scripts/scaffold-config.sh's fresh-install path copies config.example.json verbatim to a new config.json (no per-key reconciliation needed there), so adding the key only affects the freshness/superset checks already verified clean. No drift introduced.\", \"file_checked\": \".prflow/config.example.json:103-106, .prflow/config.schema.json:1140-1147, lib/test/run.sh:12822-12839\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-15",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/config-get.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-15.json",
+   "response_text": "```json\n{\"id\": \"VC-15\", \"verdict\": \"PASS\", \"evidence\": \"Empirically confirmed in scripts/config-get.sh: when telemetry.enabled is JSON false and an enrolled sub-key (e.g. prflow_review_and_fix.efficiency_telemetry_enabled) is explicitly present but coerces to empty stdout via the Python coerce() (JSON null -> '', or JSON empty string \\\"\\\" -> ''), the shell `[ -z \\\"$value\\\" ]` guard fires exactly as for an absent key, routing into emit_default_or_fail() -> telemetry_master_disables_for() (config-get.sh lines ~276-307), which prints 'false' and exit 0 for both shapes (tested: null case -> 'false'/rc=0; \\\"\\\" case -> 'false'/rc=0). Documentation cross-check: .prflow/config.schema.json lines 117/128/288/315/1124 (the five enrolled sub-key descriptions) state inheritance applies 'when this key is absent OR set to JSON null' -- accurate for the null case but silent about the empirically-confirmed empty-string case. The telemetry.enabled master description (schema.json line 1147) says only 'wherever their own key is absent' and that the master 'can only DISABLE a mechanism whose own key is absent' -- omitting the null (and empty-string) cases the code demonstrably also honors. docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md line 1146 mirrors the same narrower 'only when their own key is absent' wording. So all three source-authored statements are incomplete/inaccurate against the shipped resolver: the sub-key docs under-describe by omitting the empty-string shape, and the master-switch docs (both schema.json and the overview doc) under-describe by omitting both null and empty-string shapes, describing only 'absent'.\", \"file_checked\": \"scripts/config-get.sh:276-307; .prflow/config.schema.json:117,1147; docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:1146\", \"property_proven\": true, \"inaccuracy_scope\": \"source_authored_text\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-16",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/config-get.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-16.json",
+   "response_text": "```json\n{\"id\": \"VC-16\", \"verdict\": \"PASS\", \"evidence\": \"Confirmed empirically: with .prflow/config.json = {telemetry:{enabled:false}} (enrolled key .prflow_review_and_fix.efficiency_telemetry_enabled absent) and config-get.sh invoked with NO default arg, the resolver prints 'false' and exits 0 (verified: rc=0). By contrast, with telemetry.enabled=true (or absent), the same absent-key/no-default invocation exits 1 with no stdout, matching the still-unedited header comment 'Exit codes: 1 key not found and no default given' (scripts/config-get.sh:44-47). That header text was not updated for the new master-switch branch, so it is now inaccurate for an enrolled key when the master is JSON false. Grepped every config-get.sh call site across scripts/, lib/, .github/workflows/, and lib/test/ for each of the five enrolled key names: every real (non-test-assertion) caller supplies an explicit default argument (e.g. `.prflow.execution_diagnostics_enabled true`, `.create_issue.investigation_record_enabled true`) -- devflow-implement.yml:1751, devflow.yml:1937/2531, devflow-runner.yml:2753, lib/efficiency-trace.sh:138, scripts/build-denial-record.sh callers, etc. No production caller invokes an enrolled key with no default relying on rc 1 to mean 'unset'; the only no-default invocation found (lib/test/modules/efficiency-trace-telemetry.sh:6889, `T2035_ENROLLED_NODEF`) is itself a test asserting the new resolver behavior, not a caller depending on the stale exit-1 semantics.\", \"file_checked\": \"scripts/config-get.sh:44-47,276-307\", \"property_proven\": true, \"inaccuracy_scope\": \"source_authored_text\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-17",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/config-get.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-17.json",
+   "response_text": "```json\n{\"id\": \"VC-17\", \"verdict\": \"PASS\", \"evidence\": \"scripts/config-get.sh:198-203 case arm lists the five spellings exactly as claimed, matched against `${key#.}`. All five are used byte-identically at real call sites: `.prflow_review_and_fix.efficiency_telemetry_enabled` (lib/efficiency-trace.sh:138, skills/review-and-fix/references/loop-exit.md:197), `.prflow.execution_diagnostics_enabled` (.github/workflows/devflow.yml:1937), `.prflow.execution_denial_commands_enabled` (scripts/build-denial-record.sh:15), `.prflow_review.live_progress_comment_enabled` (skills/review/phases/phase-0-setup.md:241), `.create_issue.investigation_record_enabled` (skills/create-issue/references/step-4-present-create.md:151). Each caller passes the leading dot, which config-get.sh strips via `${key#.}` before the case, so the byte-for-byte match holds after that strip as claimed.\", \"file_checked\": \"scripts/config-get.sh:197-221\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-18",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/config-get.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-18.json",
+   "response_text": "```json\n{\"id\": \"VC-18\", \"verdict\": \"PASS\", \"evidence\": \"scripts/config-get.sh:239-246: `if [ ! -f \\\"$config_file\\\" ]; then` emits the caller default (or errors with exit 1 if no default) and returns/exits before `emit_default_or_fail` (line 223, which calls `telemetry_master_disables_for` at line 228) is ever reached \\u2014 confirming the master-switch branch is unreachable when the config file is absent. `telemetry_master_disables_for` itself also independently returns 1 (telemetry on) on any file-read error via its inline python3's try/except at lines 213-217, reinforcing that a missing/unreadable file cannot trigger a master-off suppression. No grep of lib/test/modules/efficiency-trace-telemetry.sh or lib/test/run.sh assertions for this PR's #2035 test IDs surfaced a missing-config-file master-off assertion; the AC/tests found (e.g. lib/test/modules/efficiency-trace-telemetry.sh:6835) pass an explicit config file path (T2035_ROOT/m-false.json), consistent with the claim that the enrolled inheritance is only exercised when a config file exists.\", \"file_checked\": \"scripts/config-get.sh:223-246\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-2",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/resolve-state-dir.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-2.json",
+   "response_text": "```json\n{\"id\": \"VC-2\", \"verdict\": \"PASS\", \"evidence\": \"scripts/collect-staged-telemetry.sh:40-47 sources lib/resolve-state-dir.sh and then checks `command -v prflow_state_dir`. lib/resolve-state-dir.sh:46 defines `prflow_state_dir() { local root=\\\"${1:-}\\\"; ... }` taking exactly one argument (repo root) and printing the resolved state dir path on stdout. Sourcing the file only defines two functions (prflow_state_dir, prflow_state_dir_breadcrumb) and two variables (PRFLOW_STATE_DIR_CURRENT, PRFLOW_STATE_DIR_SUPERSEDED); the breadcrumb output the resolver may emit is explicitly written to stderr via `>&2` (lib/resolve-state-dir.sh:69), so sourcing has no stdout side effects that would pollute the collector's stdout contract.\", \"file_checked\": \"lib/resolve-state-dir.sh:46-70\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-20",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/harden-stop-hooks.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-20.json",
+   "response_text": "```json\n{\"id\": \"VC-20\", \"verdict\": \"PASS\", \"evidence\": \"scripts/config-get.sh:207-209 comment states it is a hardened Stop-hook closure member and that adding a source/exec edge would break the #458 drift-guard. Confirmed: scripts/harden-stop-hooks.sh:152 lists 'scripts/config-get.sh' in HOOK_TARGETS, and line 37 documents it as a leaf ('inline python3 -c, git, no repo files'), matching the comment's claim it is not exec-ing a repo .py. lib/test/run.sh:20512-20515 tests the drift-guard walker (scripts/detect-hook-closure-edges.py) that turns the suite RED if a closure member's source/exec edge escapes HOOK_TARGETS. The twin comment in lib/efficiency-trace.sh:1537-1538 makes the identical claim about itself, and efficiency-trace.sh is itself the first HOOK_TARGETS entry (line 152), so the twin claim is also true.\", \"file_checked\": \"scripts/harden-stop-hooks.sh:152, lib/test/run.sh:20512-20515\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-3",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/config-source.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-3.json",
+   "response_text": "```json\n{\"id\": \"VC-3\", \"verdict\": \"PASS\", \"evidence\": \"lib/efficiency-trace.sh sources lib/config-source.sh at top-level (line ~40) before any function including do_persist can be invoked from the arg dispatcher at line 1964. lib/config-source.sh:37 unconditionally sets `_DEVFLOW_CONFIG=\\\"${DEVFLOW_CONFIG_FILE:-$(prflow_state_dir \\\"${_DEVFLOW_REPO_ROOT}\\\")/config.json}\\\"`, which populates it with a sensible default even when DEVFLOW_CONFIG_FILE is unset. do_persist (line 1532) reads $_DEVFLOW_CONFIG at line 1543 inside the inline python3 probe (`DEVFLOW_TEL_CFG=\\\"$_DEVFLOW_CONFIG\\\" python3 -c '...'`). Since sourcing happens once at script load and do_persist is only reachable after that point (via the persist)  do_persist; exit 0 ;; dispatch at line 1964), the variable is populated on every invocation path.\", \"file_checked\": \"lib/config-source.sh:37\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-5",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-5.json",
+   "response_text": "```json\n{\"id\": \"VC-5\", \"verdict\": \"PASS\", \"evidence\": \"lib/test/modules/efficiency-trace-telemetry.sh:7020-7030 seeds the #2035 fixture with `chmod 000 \\\"$T2035_CR_UNREAD/.prflow/config.json\\\"` and directly asserts `grep -qF 'is not readable' ... err.txt` with no root/permissive-filesystem guard and no SKIP fallback. This confirms the claim: under a root test process (common in containerized CI, per the repo's own comments), chmod 000 does not deny reads, the config stays readable, `is not readable` never fires, and the assertion fails outright (or silently passes for the wrong reason if the collector's other paths still emit compatible text) rather than being neutralized as a skip. By contrast, other lib/test/ modules handle the identical mock defensively: lib/test/run.sh:24375-24390 chmod-000s a file then explicitly checks readability and calls `skip ... 'chmod 000 did not make the file unreadable (running as root, or a permissive filesystem)'` before asserting; lib/test/run.sh:25564-25568 and :26882 similarly gate; lib/test/modules/retrospective-lifecycle.sh:3074-3083 checks `[ -r ... ]` and skips with an explicit root/permissive-filesystem message; lib/test/modules/review-stall-backstop.sh:420-431, 580-587, 1313-1316 all gate the same way; lib/test/modules/prompt-extension-reader.sh:78-86 comments that 'Root bypasses the permission bits' and gates accordingly. The #2035 assertion at line 7029-7030 has none of this guard logic \\u2014 it is the outlier in this codebase's own established pattern for the same mock.\", \"file_checked\": \"lib/test/modules/efficiency-trace-telemetry.sh:7020-7030\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-6",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/efficiency-trace.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-6.json",
+   "response_text": "```json\n{\"id\": \"VC-6\", \"verdict\": \"PASS\", \"evidence\": \"lib/test/modules/efficiency-trace-telemetry.sh:6916-6931 (_t2035_persist) builds a bare remote (git init --bare) plus a real work repo, pushes main, writes a single .prflow/tmp/review/pr-2035/run-1/iter-1.json with the {iter,fix_commit_sha,loop_role} shape, then invokes `bash lib/efficiency-trace.sh --persist --workpad-dir \\\"$wd\\\" --slug pr-2035`. This matches lib/efficiency-trace.sh's own documented usage (lib/efficiency-trace.sh:11-27): `--persist [--workpad-dir DIR --slug SLUG]` where --workpad-dir is 'directory holding the run's iter-<N>.json workpads' and --slug is 'the run slug'. The master-absent positive control (T2035_PERSIST_ON, using m-missing.json) is asserted to create the telemetry branch (refs/heads/prflow-telemetry) and emit no skip breadcrumb, contrasted with the master-off negative control (m-false.json) which leaves the branch uncreated and emits the skip breadcrumb \\u2014 proving the guard is not vacuous and that the fixture's real git plumbing genuinely exercises branch creation for the intended reason.\", \"file_checked\": \"lib/efficiency-trace.sh:11-27\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-7",
+    "category": "test_mock_alignment",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-7.json",
+   "response_text": "```json\n{\"id\": \"VC-7\", \"verdict\": \"FAIL\", \"evidence\": \"scripts/collect-staged-telemetry.sh:18-19 documents its own contract explicitly: 'stdout: prints `1` when at least one staged tree was collected (the caller's \\\"something to upload\\\" signal), otherwise nothing.' Line 84 emits `printf '1\\\\n'` only as 'the caller's \\\"something to upload\\\" signal' -- it is a boolean presence flag, not a count of collected payloads (the helper can merge multiple staged trees into one collected `found=1` and still print a single `1`, never a numeric count). The real consumer, .github/workflows/devflow-runner.yml:3072 (`_collect_out=\\\"$(\\\"$_collect_helper\\\" ...)\\\"`), only branches on `[ -n \\\"$_collect_out\\\" ]` (line 3074) -- a non-empty-string presence check, not a parse of `1` as a count value. So the claim's characterization that 'scripts/collect-staged-telemetry.sh's stdout contract is a count of collected payloads and its real consumer parses that value' is false; the fixture's own assertion (`assert_eq ... \\\"1\\\" \\\"...\\\"`) matches the helper's actual literal output, but the claim mischaracterizes what that `1` means and how the consumer uses it. The master-off empty-stdout case IS a safe value for the consumer, since the workflow's `elif [ -n \\\"$_collect_out\\\" ]` / final `else` branch treats empty stdout as the no-upload no-op path exactly as intended.\", \"file_checked\": \".github/workflows/devflow-runner.yml:3072-3079\", \"property_proven\": false, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-8",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/test/run.sh",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-8.json",
+   "response_text": "```json\n{\"id\": \"VC-8\", \"verdict\": \"PASS\", \"evidence\": \"lib/test/run.sh:19566-19567 calls devflow_run_full_suite_module with the module path and the literal floor 1053 for 'efficiency-trace-telemetry'. scripts/workflow-flight-recorder-registry.json:88-91 carries the coupled registry entry with matching id, minimum_assertions=1053, and assertion_floor_policy='exact'. Both literals are identical (1053).\", \"file_checked\": \"lib/test/run.sh:19566-19567\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-19",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/workflow-flight-recorder-registry.json",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-19.json",
+   "response_text": "```json\n{\"id\": \"VC-19\", \"verdict\": \"PASS\", \"evidence\": \"scripts/workflow-flight-recorder-registry.json:88-92 declares minimum_assertions=1053 and assertion_floor_policy='exact' for efficiency-trace-telemetry. lib/test/run-module.sh:277-286 shows the runner enforces assertion_floor_policy=='exact' as a validity requirement (only 'exact' is accepted when the key is present), and per the provided evidence `lib/test/run-module.sh efficiency-trace-telemetry` reported '1053 passed, 0 failed' at this HEAD, so the module's live assertion count equals the registry's minimum_assertions exactly, satisfying the exact-floor policy.\", \"file_checked\": \"scripts/workflow-flight-recorder-registry.json:88-92\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-9",
+    "category": "data_format_assumption",
+    "claim_provenance": "source_authored",
+    "source_file": "docs/external/docs/configuration/observability-and-privacy.md",
+    "claim": "see checklist",
+    "source_excerpt": "measured at roughly 1-3% of a run"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-9.json",
+   "response_text": "```json\n{\"id\": \"VC-9\", \"verdict\": \"FAIL\", \"evidence\": \"No measurement backs the '1-3%' figure anywhere in the repository. It traces only to issue #2035's own User Impact section (.prflow/tmp/issue-body/issue-2035.md:13: 'Execution savings are small (measured at roughly 1-3% of a run)'), which is itself an unsourced assertion with no benchmark, workpad measurement, or CI timing data behind it anywhere in .prflow/tmp/ or docs/internal/. The figure is not registered as an exempt literal under CLAUDE.md's issue-#656 convention (past-time snapshot / enforcement constant / future target, each with a one-line rationale) -- no entry for it exists in any exempt-literal registry (checked docs/internal/skill-body-load-delivery.md's registry pattern; no match). It is a checked-in precise-sounding figure ('roughly 1-3%') presented as current fact with no live-generation and no registration, violating the convention. This exact finding was already surfaced by a prior review pass on this same PR (.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/engine-return-step1-iter-1.json:134 and iter-2's Suggestion/Minor #4), confirming the doc line itself -- not the checklist claim -- is the defective artifact.\", \"file_checked\": \"docs/external/docs/configuration/observability-and-privacy.md:70\", \"property_proven\": true, \"inaccuracy_scope\": \"source_authored_text\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-10",
+    "category": "dependency_interaction",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "scripts/config-get.sh (merge-base 9fecd69e50aac432e280adbe9dca84770a104c2e), .prflow/config.schema.json",
+    "claim": "see checklist"
+   },
+   "verdict_path": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/.prflow/tmp/review/pr-2041/local-20260827T164853Z-1/verdicts/iter-3-split/VC-10.json",
+   "response_text": "```json\n{\"id\": \"VC-10\", \"verdict\": \"PASS\", \"evidence\": \"At merge base 9fecd69e50aac432e280adbe9dca84770a104c2e, the config schema's top-level 'additionalProperties' is true (git show 9fecd69e50aac432e280adbe9dca84770a104c2e:.prflow/config.schema.json line 7), so a JSON schema-style validation pass (if any existed) would not reject an unknown 'telemetry.enabled' key -- and no such validation pass exists in the pre-change tree: 'scripts/config-get.sh' at that commit (258 lines) contains no 'telemetry', 'unknown', 'schema', or 'validate' logic at all; 'install.sh' and 'lib/test/run.sh' at that commit contain no unknown-key rejection/warning logic either (only unrelated 'additionalProperties:false' assertions for other schema subtrees, e.g. providers/stall_backstop, and an unrelated #266/#1770 pin). A pre-change repository's config reader therefore reads the JSON object without inspecting or acting on an unrecognized 'telemetry.enabled' key -- it neither rejects, warns on, nor rewrites it -- so the old code path simply never consults it and telemetry stays on by the pre-existing default, matching the claim.\", \"file_checked\": \"scripts/config-get.sh (merge-base 9fecd69e50aac432e280adbe9dca84770a104c2e), .prflow/config.schema.json:7 (merge-base)\", \"property_proven\": true, \"inaccuracy_scope\": \"none\"}\n```"
+  }
+ ]
+}
