@@ -199,15 +199,19 @@ jobs:
       DEVFLOW_PROTECTED_PROMPT_EXTENSIONS: "review requesting-code-review"
     outputs:
       engine_is_error: ${{ steps.engine.outputs.is_error }}
-      # `|| 'unavailable'` is the load-bearing default: it covers EVERY path on which
-      # the diagnostics step publishes nothing (config-disabled, skipped, absent or
-      # unparseable execution file). The sentinel is deliberately NOT `0` — a
-      # consumer must be able to tell "the engine recorded no denials" from "the
-      # count could not be established", and collapsing both onto `0` makes the
-      # no-verdict ::error:: assert a denial count it never observed (issue #363).
-      permission_denials_count: ${{ steps.diagnostics.outputs.permission_denials_count || 'unavailable' }}
-      # Same `|| 'unavailable'` load-bearing default as permission_denials_count above,
-      # for the same reason: the `||` expression is what makes an empty
+      # String-equality default (issue #2064): resolve `unavailable` ONLY when the
+      # diagnostics step published nothing (empty string), and otherwise pass the
+      # published value through verbatim — so a measured `0` reaches consumers. This form
+      # depends only on emptiness; the older `|| 'unavailable'` form depended on GitHub
+      # Actions `||` truthiness, whose coercion of the string "0" the issue research found
+      # underdocumented, so AC6 moved off it rather than rely on that answer. The sentinel is
+      # deliberately NOT `0` — a consumer must tell "the engine recorded no denials" from
+      # "the count could not be established", and collapsing both onto `0` makes the
+      # no-verdict ::error:: assert a denial count it never observed (#363).
+      permission_denials_count: ${{ steps.diagnostics.outputs.permission_denials_count == '' && 'unavailable' || steps.diagnostics.outputs.permission_denials_count }}
+      # `|| 'unavailable'` load-bearing default (permission_denials_count above now uses the
+      # string-equality form instead; a boolean guard output carries no measured `0` to lose):
+      # the `||` expression is what makes an empty
       # steps.guard/steps.denied-commands output resolve to "unavailable" rather than a
       # false "0"/"false" — enforced by this expression, not by the steps themselves.
       pretooluse_guard_fired: ${{ steps.guard.outputs.fired || 'unavailable' }}
