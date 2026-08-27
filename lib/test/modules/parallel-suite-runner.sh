@@ -1165,4 +1165,600 @@ assert_eq "#1288 --preflight: an empty override emits no preflight output" "yes"
 assert_eq "#1288 --preflight: a second argument is refused by the arity guard" "yes" \
   "$(cd "$PSR_PT" && case "$(bash lib/test/run-parallel.sh --preflight extra 2>&1)" in *"at most one argument"*) echo yes ;; *) echo no ;; esac)"
 
+
+# ── Cheap-lint gate preflight (fail-fast before the coordinator) ─────────────
+# Contract under test: fail closed on an attributed finding, fail OPEN on anything that
+# leaves a lint unusable, with the completion sentinel — not the exit code — as the
+# comparand, matched at the start of a line. Keep the crash and quoted-sentinel controls:
+# without them a comparand keyed on the exit code alone would still pass.
+PSR_CL_CLEAN_RSZ="$(psr_plant_preflight cl-clean-rsz 0 \
+  "lint-reference-size: audited 41 of 41 files [whole-tree]")"
+PSR_CL_FIND_RSZ="$(psr_plant_preflight cl-find-rsz 1 \
+  "skills/review-and-fix/references/shadow-review.md: 62810 bytes exceeds the 61750-byte ceiling — trim the file to at most 61750 bytes" \
+  "lint-reference-size: audited 41 of 41 files [whole-tree]")"
+PSR_CL_CRASH_RSZ="$(psr_plant_preflight cl-crash-rsz 1 \
+  "Traceback (most recent call last):" \
+  "RuntimeError: boom")"
+PSR_CL_QUOTED_RSZ="$(psr_plant_preflight cl-quoted-rsz 1 \
+  "    output: lint-reference-size: audited 41 of 41 files [whole-tree]" \
+  "Traceback (most recent call last):")"
+PSR_CL_EXIT2_RSZ="$(psr_plant_preflight cl-exit2-rsz 2 \
+  "lint-reference-size: cannot read exemption record: boom")"
+PSR_CL_CLEAN_BDS="$(psr_plant_preflight cl-clean-bds 0 \
+  "lint-brand-devflow-sweep: audited 900 of 900 files")"
+PSR_CL_FIND_BDS="$(psr_plant_preflight cl-find-bds 1 \
+  "lint-brand-devflow-sweep: audited 900 of 900 files" \
+  "  docs/new.md: brand-cased prose in a file with no pending_sweep_baseline entry")"
+
+# A clean pair proceeds, launches the shards, and stays SILENT — the established contract.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a clean pair exits 0" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: a clean pair launches the shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a clean pair emits no gate output" "yes" \
+  "$(case "$PSR_CL_OUT" in *"cheap-lint gate"*) echo no ;; *) echo yes ;; esac)"
+
+# A reference-size finding refuses BEFORE any shard launches, names the gate, and echoes
+# the finding.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_FIND_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a reference-size finding exits non-zero" "yes" \
+  "$([ "$PSR_CL_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate: a reference-size finding launches NO shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+assert_eq "cheap-lint gate: a reference-size finding names the failing gate" "yes" \
+  "$(case "$PSR_CL_OUT" in *"reference-size"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a reference-size finding names the remedy" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launching no shard"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a reference-size finding echoes the finding line" "yes" \
+  "$(case "$PSR_CL_OUT" in *"exceeds the 61750-byte ceiling"*) echo yes ;; *) echo no ;; esac)"
+
+# The same contract on the second lint: the gate is a SET, not one hardcoded lint.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_FIND_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a brand-sweep finding exits non-zero" "yes" \
+  "$([ "$PSR_CL_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate: a brand-sweep finding launches NO shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+assert_eq "cheap-lint gate: a brand-sweep finding names its own gate" "yes" \
+  "$(case "$PSR_CL_OUT" in *"brand-sweep"*) echo yes ;; *) echo no ;; esac)"
+
+# A crashing lint (traceback, exit 1, NO completion sentinel) must NOT block the suite: an
+# unusable check fails OPEN, exactly as the artifact preflight does.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CRASH_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a crashing lint still exits 0 (decided by the shards)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: a crashing lint still launches the shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: a crashing lint is reported inconclusive, never a refusal" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launching no shard"*) echo no ;; *"was inconclusive (exit 1"*) echo yes ;; *) echo no ;; esac)"
+
+# The sentinel is matched at the START of a line: the same text quoted inside an indented
+# diagnostic is data, so a crash that happens to echo it must still fail OPEN.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_QUOTED_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: a sentinel quoted inside a diagnostic does NOT refuse (exit 0)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: a sentinel quoted inside a diagnostic refuses nothing by name" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launching no shard"*) echo no ;; *) echo yes ;; esac)"
+
+# An exit-2 record error carries no completion sentinel either — warn and proceed.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_EXIT2_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: an exit-2 record error proceeds (exit 0)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: an exit-2 record error warns rather than blocks" "yes" \
+  "$(case "$PSR_CL_OUT" in *"was inconclusive (exit 2"*) echo yes ;; *) echo no ;; esac)"
+
+# An empty override disables that gate entirely, the documented escape hatch the artifact
+# preflight also offers.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="" DEVFLOW_BRAND_SWEEP_PREFLIGHT="" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: an empty override disables the gate (exit 0)" "0" "$PSR_CL_RC"
+assert_eq "cheap-lint gate: an empty override emits no gate output" "yes" \
+  "$(case "$PSR_CL_OUT" in *"cheap-lint gate"*) echo no ;; *) echo yes ;; esac)"
+
+# The artifact preflight still decides FIRST: a drift refusal is reported even when a cheap
+# lint would also have fired, so the cheaper gate cannot mask the existing one.
+PSR_CL_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_DRIFT" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_FIND_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_CL_RC=$?
+assert_eq "cheap-lint gate: artifact drift still refuses first" "yes" \
+  "$(case "$PSR_CL_OUT" in *"generated-artifact preflight reported drift"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate: artifact drift refusal launches no shard" "yes" \
+  "$(case "$PSR_CL_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+
+# ── Cheap-lint gate on the standalone --preflight route ──────────────────────
+# The #1132 decomposition route must carry the SAME cheap gates, or a run that decomposes
+# into shards keeps paying the whole partition to discover a sub-second finding.
+PSR_CLO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_CLO_RC=$?
+assert_eq "cheap-lint gate --preflight: a clean pair exits 0" "0" "$PSR_CLO_RC"
+assert_eq "cheap-lint gate --preflight: a clean pair launches no shard" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+
+PSR_CLO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_FIND_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_CLO_RC=$?
+assert_eq "cheap-lint gate --preflight: a finding exits non-zero" "yes" \
+  "$([ "$PSR_CLO_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate --preflight: a finding refuses by name" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"launching no shard"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate --preflight: a finding echoes the finding line" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"exceeds the 61750-byte ceiling"*) echo yes ;; *) echo no ;; esac)"
+
+PSR_CLO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CRASH_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_CLO_RC=$?
+assert_eq "cheap-lint gate --preflight: a crashing lint proceeds (exit 0)" "0" "$PSR_CLO_RC"
+assert_eq "cheap-lint gate --preflight: a crashing lint is inconclusive, not a refusal" "yes" \
+  "$(case "$PSR_CLO_OUT" in *"launching no shard"*) echo no ;; *"was inconclusive (exit 1"*) echo yes ;; *) echo no ;; esac)"
+
+# ── Real-helper coupling pin + default resolution ───────────────────────────
+# The stub arms restate each sentinel themselves, so keep both real-helper arms: (a) pins
+# the bundled-default resolution branch every override-injecting arm bypasses, and (b) pins
+# the brand sentinel literal, which only a NON-ZERO exit reaches. Neither covers the other.
+PSR_RH="$PSR_ROOT/real-helper"; mkdir -p "$PSR_RH"
+
+# (a) Run this against the REAL checkout, never a synthetic tree: each lint loads sibling
+# modules by path, so a copied fixture's hand-maintained dependency closure drifts into an
+# inconclusive warning — a fail-OPEN result that would pass this arm for the wrong reason.
+PSR_RH_TREE="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_RH_TREE"
+PSR_RH_OUT="$(cd "$LIB/.." && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RH_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RH_RC=$?
+# Assert nothing that a real finding in the developer's own tree would flip: with the
+# overrides unset the real lints audit that tree, so an exit-0 or launched-shard assertion
+# would go RED for whoever is mid-fix on a reference-size or brand finding.
+# A default that did not resolve exits non-zero with NO sentinel, so it warns INCONCLUSIVE
+# and still exits 0; pinning that warning's absence is what discriminates resolution.
+assert_eq "cheap-lint gate real: the bundled default is not silently inconclusive" "yes" \
+  "$(case "$PSR_RH_OUT" in *"cheap-lint gate was inconclusive"*) echo no ;; *) echo yes ;; esac)"
+# Either outcome proves the default resolved and the gate reached a verdict.
+assert_eq "cheap-lint gate real: the bundled default launched the shard or refused by name" "yes" \
+  "$(case "$PSR_RH_OUT" in *"launched shard alpha"*|*"launching no shard"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "cheap-lint gate real: the bundled default exits 0 or the gate's refusal 2" "yes" \
+  "$(case "$PSR_RH_RC" in 0|2) echo yes ;; *) echo no ;; esac)"
+
+# The real coordinator allocates a real run root in this checkout; without this removal the
+# tree accumulates one PID-keyed directory per module invocation, which the by-PID
+# suite-process triage procedure then has to reason about.
+PSR_RH_ROOT=""
+while IFS= read -r PSR_RH_LINE; do
+  case "$PSR_RH_LINE" in
+    "run-parallel: retained logs: "*) PSR_RH_ROOT="${PSR_RH_LINE#run-parallel: retained logs: }" ;;
+  esac
+done <<< "$PSR_RH_OUT"
+# Never widen this pattern: it is the only thing keeping the rm inside the run-root parent.
+case "$PSR_RH_ROOT" in
+  */.prflow/tmp/parallel-suite/run-*/logs) rm -rf "${PSR_RH_ROOT%/logs}" ;;
+esac
+
+# (b) Keep the fixture a git repo — the lint enumerates via `git ls-files` — and keep the
+# brand literal assembled at run time: a verbatim occurrence here would itself become an
+# unclassified finding in the real tree.
+PSR_RH_BFX="$PSR_RH/brand-fixture"
+python3 - "$PSR_RH_BFX" <<'PSR_BRAND_BUILD'
+import json, subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+(root / "docs").mkdir(parents=True, exist_ok=True)
+(root / "lib" / "test").mkdir(parents=True, exist_ok=True)
+brand = "Dev" + "Flow"          # assembled: a literal here would red the real tree
+(root / "docs" / "unclassified.md").write_text(f"{brand} prose nobody classified\n", encoding="utf-8")
+buckets = {"schema_version": 1,
+           "frozen": {"transient_prefixes": [], "transient_exceptions": [],
+                      "record_prefixes": [], "historical_files": [],
+                      "tooling_files": [], "provenance": []},
+           "pending_sweep_baseline": []}
+(root / "lib" / "test" / "brand-devflow-buckets.json").write_text(
+    json.dumps(buckets, indent=2) + "\n", encoding="utf-8")
+subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+PSR_BRAND_BUILD
+
+# Control: the real lint really does find and really does emit its completion line here.
+# Without this, a fixture that silently stopped producing a finding would leave the arm
+# below passing for the wrong reason.
+PSR_RH_BRAW="$(python3 "$LIB/test/lint-brand-devflow-sweep.py" --root "$PSR_RH_BFX" 2>&1)"; PSR_RH_BRC=$?
+assert_eq "cheap-lint gate real: the brand fixture really produces a finding" "1" "$PSR_RH_BRC"
+assert_eq "cheap-lint gate real: the real brand lint emits its completion line" "yes" \
+  "$(case "$PSR_RH_BRAW" in "lint-brand-devflow-sweep: audited "*) echo yes ;; *) echo no ;; esac)"
+
+# The pin: driven through the coordinator, the real lint's real output must be read as an
+# attributed FINDING (refuse, launch nothing), never as inconclusive.
+PSR_RH_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="python3 $LIB/test/lint-brand-devflow-sweep.py --root $PSR_RH_BFX" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RH_RC=$?
+assert_eq "cheap-lint gate real: the real brand sentinel is matched, so the gate refuses" "yes" \
+  "$([ "$PSR_RH_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "cheap-lint gate real: the real brand finding launches NO shard" "yes" \
+  "$(case "$PSR_RH_OUT" in *"launched shard"*) echo no ;; *) echo yes ;; esac)"
+assert_eq "cheap-lint gate real: the real brand finding is attributed, not inconclusive" "yes" \
+  "$(case "$PSR_RH_OUT" in *"was inconclusive"*) echo no ;; *"reported findings"*) echo yes ;; *) echo no ;; esac)"
+
+# ── ruff-version cheap-lint gate (issue #2009) ───────────────────────────────
+# Drives the gate's skew/absent/non-exec arms via the DEVFLOW_RUFF_VERSION_PROBE seam over a
+# fixture tree carrying its own manifest + the real helper, so the comparand is manifest-read.
+PSR_RV_TREE="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_RV_TREE"
+mkdir -p "$PSR_RV_TREE/.prflow" "$PSR_RV_TREE/scripts"
+cp "$LIB/../scripts/ruff-version-skew.py" "$PSR_RV_TREE/scripts/ruff-version-skew.py"
+# A minimal manifest: the helper reads only tools.ruff.version. Pins the 0.16 family.
+printf '%s\n' '{"schema_version":1,"tools":{"ruff":{"version":"0.16.4"}}}' > "$PSR_RV_TREE/.prflow/lint-manifest.json"
+# Stubs behaving like `ruff --version`: a skewed reading, a matching reading, and a
+# non-executing binary (exit 126, no version). "Absent" is modelled by a probe path that
+# does not exist (exit 127), driven inline below.
+PSR_RV_SKEW="$(psr_plant_preflight ruff-skew 0 "ruff 0.6.9")"
+PSR_RV_MATCH="$(psr_plant_preflight ruff-match 0 "ruff 0.16.4")"
+PSR_RV_NONEXEC="$(psr_plant_preflight ruff-nonexec 126)"
+
+# (a) A skewed ruff refuses the coordinator launch and names the pip remedy (AC2).
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_SKEW" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: a skewed ruff exits non-zero" "yes" \
+  "$(case "$PSR_RV_RC" in 0) echo no ;; *) echo yes ;; esac)"
+assert_eq "#2009 ruff-version gate: a skewed ruff launches NO shard" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launched shard"*) echo no ;; *"launching no shard"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2009 ruff-version gate: the refusal names the pip remedy" "yes" \
+  "$(case "$PSR_RV_OUT" in *"python3 -m pip install --user --force-reinstall 'ruff==0.16."*) echo yes ;; *) echo no ;; esac)"
+
+# (b) The same skew via the standalone --preflight boundary the AC names explicitly (AC2).
+PSR_RVP_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_SKEW" \
+  bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_RVP_RC=$?
+assert_eq "#2009 ruff-version gate --preflight: a skewed ruff exits non-zero" "yes" \
+  "$(case "$PSR_RVP_RC" in 0) echo no ;; *) echo yes ;; esac)"
+assert_eq "#2009 ruff-version gate --preflight: the refusal names the pip remedy" "yes" \
+  "$(case "$PSR_RVP_OUT" in *"--force-reinstall 'ruff==0.16."*) echo yes ;; *) echo no ;; esac)"
+
+# (c) A matching ruff passes silently and the shard launches.
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_MATCH" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: a matching ruff exits 0" "0" "$PSR_RV_RC"
+assert_eq "#2009 ruff-version gate: a matching ruff launches the shard" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2009 ruff-version gate: a matching ruff emits no gate output" "yes" \
+  "$(case "$PSR_RV_OUT" in *"ruff-version cheap-lint"*) echo no ;; *) echo yes ;; esac)"
+
+# (d) An absent ruff (nonexistent probe path, exit 127) fails OPEN with a warning (AC3).
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_TREE/no-such-ruff --version" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: an absent ruff proceeds (exit 0)" "0" "$PSR_RV_RC"
+assert_eq "#2009 ruff-version gate: an absent ruff launches the shard" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2009 ruff-version gate: an absent ruff is inconclusive, not a refusal" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launching no shard"*) echo no ;; *"could not run ruff"*) echo yes ;; *) echo no ;; esac)"
+
+# (e) A non-executing ruff (exit 126, no version) also fails OPEN with a warning (AC3).
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_NONEXEC" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: a non-executing ruff proceeds (exit 0)" "0" "$PSR_RV_RC"
+assert_eq "#2009 ruff-version gate: a non-executing ruff launches the shard" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2009 ruff-version gate: a non-executing ruff is inconclusive, not a refusal" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launching no shard"*) echo no ;; *"could not run ruff"*) echo yes ;; *) echo no ;; esac)"
+
+# (f) The comparand is read from the manifest: bumping the pinned family alone turns the
+# formerly-matching ruff into a skew, with NO edit to run-parallel.sh (AC4).
+printf '%s\n' '{"schema_version":1,"tools":{"ruff":{"version":"0.17.0"}}}' > "$PSR_RV_TREE/.prflow/lint-manifest.json"
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_MATCH" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: bumping the manifest family alone turns a formerly-matching ruff into a skew" "yes" \
+  "$(case "$PSR_RV_RC" in 0) echo no ;; *) echo yes ;; esac)"
+assert_eq "#2009 ruff-version gate: the manifest-driven refusal names the new pinned family" "yes" \
+  "$(case "$PSR_RV_OUT" in *"'ruff==0.17."*) echo yes ;; *) echo no ;; esac)"
+
+# (g) A ruff that RUNS (exit 0) but reports an unparseable version leaves the helper with no
+# SKEW sentinel to emit — the gate must FAIL OPEN, never refuse. Do not re-key the gate on the
+# helper's exit code: the helper's inconclusive exit is 2 here, but arm (h) below covers exit 1.
+printf '%s\n' '{"schema_version":1,"tools":{"ruff":{"version":"0.16.4"}}}' > "$PSR_RV_TREE/.prflow/lint-manifest.json"
+PSR_RV_GARBLE="$(psr_plant_preflight ruff-garble 0 "ruff wat")"
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_GARBLE" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: an unparseable-but-executing ruff proceeds (exit 0)" "0" "$PSR_RV_RC"
+assert_eq "#2009 ruff-version gate: an unparseable-but-executing ruff launches the shard, not a refusal" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launching no shard"*) echo no ;; *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+
+# (h) The helper CRASHES: exit 1 with no sentinel (the shape an uncaught traceback takes, which
+# a real skew shares). Keying the gate on the exit code instead of the sentinel would turn every
+# helper crash into a whole-suite refusal, so this arm pins the fail-open direction (AC3).
+cp "$PSR_RV_TREE/scripts/ruff-version-skew.py" "$PSR_RV_TREE/scripts/ruff-version-skew.py.real"
+printf '%s\n' 'import sys' 'print("Traceback (most recent call last):", file=sys.stderr)' \
+  'print("RuntimeError: synthetic crash", file=sys.stderr)' 'sys.exit(1)' \
+  > "$PSR_RV_TREE/scripts/ruff-version-skew.py"
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_MATCH" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: a crashing helper (exit 1, no sentinel) proceeds (exit 0)" "0" "$PSR_RV_RC"
+assert_eq "#2009 ruff-version gate: a crashing helper still launches the shard, never a refusal" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launching no shard"*) echo no ;; *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2009 ruff-version gate: a crashing helper is reported as inconclusive, with its own output" "yes" \
+  "$(case "$PSR_RV_OUT" in *"ruff-version cheap-lint check was inconclusive"*"synthetic crash"*) echo yes ;; *) echo no ;; esac)"
+# Positive control on the same fixture: with the real helper restored the very same probe and
+# manifest launch cleanly, so arm (h)'s launch cannot be an unrelated precondition passing.
+mv "$PSR_RV_TREE/scripts/ruff-version-skew.py.real" "$PSR_RV_TREE/scripts/ruff-version-skew.py"
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_MATCH" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"
+assert_eq "#2009 ruff-version gate: positive control — the restored helper is silent on the same fixture" "yes" \
+  "$(case "$PSR_RV_OUT" in *"ruff-version cheap-lint"*) echo no ;; *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+
+# (i) The probe's STDOUT alone is parsed. This stub writes a SKEWED decoy version to stderr
+# before the matching one to stdout: folding stderr into the capture (`2>&1`) would hand the
+# helper's first-match parse the decoy and refuse a correctly-versioned ruff.
+PSR_RV_DECOY="$PSR_STUBS/ruff-stderr-decoy.sh"
+{ printf '#!/usr/bin/env bash\n'
+  printf 'printf "%%s\\n" "ruff 0.6.9" >&2\n'
+  printf 'printf "%%s\\n" "ruff 0.16.4"\n'
+  printf 'exit 0\n'; } > "$PSR_RV_DECOY"
+chmod +x "$PSR_RV_DECOY"
+PSR_RV_OUT="$(cd "$PSR_RV_TREE" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_REFERENCE_SIZE_PREFLIGHT="$PSR_CL_CLEAN_RSZ" \
+  DEVFLOW_BRAND_SWEEP_PREFLIGHT="$PSR_CL_CLEAN_BDS" \
+  DEVFLOW_RUFF_VERSION_PROBE="$PSR_RV_DECOY" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_RV_TREE/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>&1)"; PSR_RV_RC=$?
+assert_eq "#2009 ruff-version gate: a stderr decoy version does not reach the parse (exit 0)" "0" "$PSR_RV_RC"
+assert_eq "#2009 ruff-version gate: a stderr decoy version does not manufacture a skew" "yes" \
+  "$(case "$PSR_RV_OUT" in *"launching no shard"*) echo no ;; *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
+
+# ── issue #2008: launch-time checkout fingerprint + fingerprint-gated same-tree relaunch ──
+# A launch records the tree's checkout fingerprint so an environment-only fix can relaunch only
+# the failed shards against a proven-identical tree (issue #2008).
+PSR_FP="$PSR_ROOT/fingerprint"
+mkdir -p "$PSR_FP"
+# A stub fingerprint helper emitting a fixed, established five-field record. Equality is the
+# whole contract, so opaque non-empty strings suffice and the fixture needs no git checkout.
+PSR_FP_STUB="$PSR_FP/fp-ok.sh"
+cat > "$PSR_FP_STUB" <<'PSR_EOF'
+#!/usr/bin/env bash
+printf '{"checkout_id":"/fix/.git","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","index_digest":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","tracked_digest":"cccccccccccccccccccccccccccccccccccccccc","untracked_digest":"dddddddddddddddddddddddddddddddddddddddd"}\n'
+PSR_EOF
+chmod +x "$PSR_FP_STUB"
+# A stub whose fingerprint cannot be produced (the producer's fail-closed path).
+PSR_FP_FAIL="$PSR_FP/fp-fail.sh"
+cat > "$PSR_FP_FAIL" <<'PSR_EOF'
+#!/usr/bin/env bash
+printf 'checkout-fingerprint: simulated failure\n' >&2
+exit 1
+PSR_EOF
+chmod +x "$PSR_FP_FAIL"
+
+# AC1/AC2: record-fingerprint persists the established five-field record into a launch dir.
+PSR_FP_OK="$PSR_FP/rec-ok"
+DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_OK" >/dev/null 2>&1
+assert_eq "psr fp: record-fingerprint writes fingerprint.json into the launch dir" "yes" \
+  "$([ -f "$PSR_FP_OK/fingerprint.json" ] && echo yes || echo no)"
+assert_eq "psr fp: the established record carries the producer's fingerprint verbatim" "yes" \
+  "$(case "$(cat "$PSR_FP_OK/fingerprint.json" 2>/dev/null)" in *'"head":"aaaaaaaa'*'"untracked_digest":"dddddddd'*) echo yes ;; *) echo no ;; esac)"
+
+# AC3: a launch whose fingerprint cannot be produced records it UNESTABLISHED, never omits it.
+PSR_FP_UN="$PSR_FP/rec-un"
+DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_FAIL" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_UN" >/dev/null 2>&1
+assert_eq "psr fp: a failed producer still writes a fingerprint record (never omitted)" "yes" \
+  "$([ -f "$PSR_FP_UN/fingerprint.json" ] && echo yes || echo no)"
+assert_eq "psr fp: the record marks the fingerprint unestablished rather than inventing one" "yes" \
+  "$(case "$(cat "$PSR_FP_UN/fingerprint.json" 2>/dev/null)" in *'"unestablished": true'*) echo yes ;; *) echo no ;; esac)"
+
+# AC3 (rc-0-but-junk): a producer that exits 0 but prints non-established stdout (partial or
+# garbage) still records UNESTABLISHED, exit 0 — never a partial/invented fingerprint (issue #2008).
+PSR_FP_JUNK="$PSR_FP/fp-junk.sh"
+cat > "$PSR_FP_JUNK" <<'PSR_EOF'
+#!/usr/bin/env bash
+printf 'not json at all\n'
+exit 0
+PSR_EOF
+chmod +x "$PSR_FP_JUNK"
+PSR_FP_JU="$PSR_FP/rec-junk"
+assert_eq "psr fp: a producer exiting 0 with non-established stdout records unestablished (rc 0)" "0" \
+  "$(DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_JUNK" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_JU" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: the rc-0-but-junk producer's record is unestablished, not the junk verbatim" "yes" \
+  "$(case "$(cat "$PSR_FP_JU/fingerprint.json" 2>/dev/null)" in *'"unestablished": true'*) echo yes ;; *) echo no ;; esac)"
+
+# The subprocess-spawn-failure arm: a non-existent helper is caught (OSError), recorded
+# unestablished, exit 0 — never propagated so the launch is never blocked (issue #2008).
+PSR_FP_NX="$PSR_FP/rec-nx"
+assert_eq "psr fp: a non-existent fingerprint helper is caught and recorded unestablished (rc 0)" "0" \
+  "$(DEVFLOW_FINGERPRINT_HELPER="$PSR_FP/does-not-exist.sh" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_NX" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: the non-existent-helper record is unestablished" "yes" \
+  "$(case "$(cat "$PSR_FP_NX/fingerprint.json" 2>/dev/null)" in *'"unestablished": true'*) echo yes ;; *) echo no ;; esac)"
+
+# The rc!=0 conjunct: a producer printing a well-formed five-field fingerprint but EXITING
+# NON-ZERO must NOT be trusted — a failed producer's stale-but-valid output can never discharge
+# the gate (guards the `returncode == 0 and ...` conjunct against a fail-open weakening).
+PSR_FP_OKFAIL="$PSR_FP/fp-ok-but-fail.sh"
+cat > "$PSR_FP_OKFAIL" <<'PSR_EOF'
+#!/usr/bin/env bash
+printf '{"checkout_id":"/fix/.git","head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","index_digest":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","tracked_digest":"cccccccccccccccccccccccccccccccccccccccc","untracked_digest":"dddddddddddddddddddddddddddddddddddddddd"}\n'
+exit 1
+PSR_EOF
+chmod +x "$PSR_FP_OKFAIL"
+PSR_FP_OF="$PSR_FP/rec-okfail"
+assert_eq "psr fp: a well-formed fingerprint from a non-zero-exit producer records unestablished (rc 0)" "0" \
+  "$(DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_OKFAIL" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_OF" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: a non-zero-exit producer's well-formed output is NOT trusted (unestablished)" "yes" \
+  "$(case "$(cat "$PSR_FP_OF/fingerprint.json" 2>/dev/null)" in *'"unestablished": true'*) echo yes ;; *) echo no ;; esac)"
+
+# AC1 wiring: the coordinator records the fingerprint in its retained run root at launch.
+PSR_FPC="$(psr_make_tree)"; psr_plant_dispatcher "$PSR_FPC"
+( cd "$PSR_FPC" && SYN_SHARDS=alpha SYN_SLEEP=0.05 DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" \
+    DEVFLOW_SHARD_DISPATCHER="$PSR_FPC/dispatch.sh" bash lib/test/run-parallel.sh >/dev/null 2>&1 )
+PSR_FPC_FILE="$(find "$PSR_FPC/.prflow/tmp/parallel-suite" -name fingerprint.json 2>/dev/null | head -n 1)"
+assert_eq "psr fp: the coordinator records a fingerprint in its retained run root" "yes" \
+  "$([ -n "$PSR_FPC_FILE" ] && [ -f "$PSR_FPC_FILE" ] && echo yes || echo no)"
+assert_eq "psr fp: the coordinator's recorded fingerprint is the launch tree's" "yes" \
+  "$(case "$(cat "$PSR_FPC_FILE" 2>/dev/null)" in *'"head":"aaaaaaaa'*) echo yes ;; *) echo no ;; esac)"
+
+# AC2 wiring: run-shard.sh records the fingerprint in its retained tally dir at launch. Drive
+# the real run-shard.sh over a stub run.sh so the monolith shard is instant.
+PSR_SH="$PSR_FP/shard-tree"
+mkdir -p "$PSR_SH/lib/test"
+cp "$LIB/test/run-shard.sh" "$PSR_SH/lib/test/run-shard.sh"
+cp "$PSR_TALLY" "$PSR_SH/lib/test/shard-tally.py"
+cat > "$PSR_SH/lib/test/run.sh" <<'PSR_EOF'
+#!/usr/bin/env bash
+printf '1 passed, 0 failed\n'
+PSR_EOF
+chmod +x "$PSR_SH/lib/test/run.sh"
+PSR_SH_TALLY="$PSR_FP/shard-tally-out"
+( cd "$PSR_SH" && DEVFLOW_SHARD_TALLY_DIR="$PSR_SH_TALLY" DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" \
+    bash lib/test/run-shard.sh monolith >/dev/null 2>&1 )
+assert_eq "psr fp: run-shard.sh records a fingerprint in its retained tally dir" "yes" \
+  "$([ -f "$PSR_SH_TALLY/fingerprint.json" ] && echo yes || echo no)"
+assert_eq "psr fp: run-shard.sh's recorded fingerprint is the established launch tree's" "yes" \
+  "$(case "$(cat "$PSR_SH_TALLY/fingerprint.json" 2>/dev/null)" in *'"head":"aaaaaaaa'*) echo yes ;; *) echo no ;; esac)"
+
+# Default-helper + producer coupling (issue #2008): a sixth producer field silently ignored by
+# same-tree-eligible would judge two different trees ELIGIBLE (a false green at the gate), so pin
+# that checkout-fingerprint.py emits EXACTLY the five fields _FINGERPRINT_FIELDS compares.
+PSR_FP_DEFAULT="$PSR_FP/rec-default"
+python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_DEFAULT" >/dev/null 2>&1
+assert_eq "psr fp: record-fingerprint with the DEFAULT helper writes an established record from the real producer" "yes" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_FP_DEFAULT/fingerprint.json" --fresh "$PSR_FP_DEFAULT/fingerprint.json" >/dev/null 2>&1 && echo yes || echo no)"
+assert_eq "psr fp: checkout-fingerprint.py emits exactly the five coupled fields" \
+  "checkout_id head index_digest tracked_digest untracked_digest" \
+  "$(python3 "$LIB/../scripts/checkout-fingerprint.py" 2>/dev/null | python3 -c 'import json,sys; print(" ".join(sorted(json.load(sys.stdin))))' 2>/dev/null)"
+
+# AC7: same-tree-eligible — identical fingerprints are ELIGIBLE; a single differing field or an
+# absent/unestablished recorded fingerprint is refused (fail-closed).
+PSR_EL="$PSR_FP/elig"
+mkdir -p "$PSR_EL"
+cp "$PSR_FP_OK/fingerprint.json" "$PSR_EL/recorded.json"
+cp "$PSR_FP_OK/fingerprint.json" "$PSR_EL/fresh.json"
+assert_eq "psr fp: identical fingerprints are eligible for the same-tree relaunch (rc 0)" "0" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: an eligible comparison prints ELIGIBLE" "yes" \
+  "$(case "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh.json" 2>&1)" in *ELIGIBLE*) echo yes ;; *) echo no ;; esac)"
+sed 's/"head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"/"head":"9999999999999999999999999999999999999999"/' "$PSR_EL/fresh.json" > "$PSR_EL/fresh-drift.json"
+assert_eq "psr fp: one differing fingerprint field refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh-drift.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: the refusal names the differing field" "yes" \
+  "$(case "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh-drift.json" 2>&1)" in *"field 'head' differs"*) echo yes ;; *) echo no ;; esac)"
+# Reverse coupling: same-tree-eligible must compare ALL five fields, so drifting EACH one
+# individually refuses. A field dropped from _FINGERPRINT_FIELDS would let its own drift pass
+# ELIGIBLE (a false green), and only this per-field sweep — not a head-only drift — catches it.
+for psr_fld in checkout_id head index_digest tracked_digest untracked_digest; do
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); d[sys.argv[2]]="drifted-"+sys.argv[2]; json.dump(d,open(sys.argv[3],"w"))' \
+    "$PSR_EL/fresh.json" "$psr_fld" "$PSR_EL/fresh-$psr_fld.json"
+  assert_eq "psr fp: drifting fingerprint field '$psr_fld' refuses the same-tree relaunch (rc 1)" "1" \
+    "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/fresh-$psr_fld.json" >/dev/null 2>&1; echo $?)"
+done
+assert_eq "psr fp: an absent recorded fingerprint refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/does-not-exist.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: an unestablished recorded fingerprint is refused too (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_FP_UN/fingerprint.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+# The fresh side fails closed identically — an absent or unestablished FRESH fingerprint refuses.
+assert_eq "psr fp: an absent fresh fingerprint refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/does-not-exist.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: the fresh-side refusal names the fresh fingerprint" "yes" \
+  "$(case "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_FP_UN/fingerprint.json" 2>&1)" in *"fresh fingerprint"*) echo yes ;; *) echo no ;; esac)"
+# A syntactically malformed (non-JSON) fingerprint on either side fails closed (rc 1): the
+# best-effort writer can leave a truncated file, which must never be read as a match.
+printf 'this is not json' > "$PSR_EL/malformed.json"
+assert_eq "psr fp: a non-JSON recorded fingerprint refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/malformed.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: a non-JSON fresh fingerprint refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/malformed.json" >/dev/null 2>&1; echo $?)"
+# Invalid UTF-8 bytes raise UnicodeDecodeError (a ValueError, NOT an OSError), so a read
+# guard catching OSError alone escapes as a traceback instead of the INELIGIBLE breadcrumb.
+printf '\377\376\000bad' > "$PSR_EL/badutf8.json"
+assert_eq "psr fp: an invalid-UTF-8 recorded fingerprint refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/badutf8.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: the invalid-UTF-8 refusal breadcrumbs rather than tracebacks" "yes" \
+  "$(case "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/badutf8.json" --fresh "$PSR_EL/fresh.json" 2>&1)" in *Traceback*) echo no ;; *"INELIGIBLE: recorded fingerprint unreadable"*) echo yes ;; *) echo no ;; esac)"
+# The guarded write path: when the record file cannot be written (here fingerprint.json is a
+# pre-existing directory), record-fingerprint breadcrumbs and still exits 0 — never blocks a launch.
+PSR_FP_RO="$PSR_FP/rec-ro"
+mkdir -p "$PSR_FP_RO/fingerprint.json"
+assert_eq "psr fp: a record-write failure still exits 0 (launch never blocked)" "0" \
+  "$(DEVFLOW_FINGERPRINT_HELPER="$PSR_FP_STUB" python3 "$PSR_TALLY" record-fingerprint --out "$PSR_FP_RO" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: a same-tree comparison against an unwritten record fails closed (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_FP_RO/fingerprint.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+# Best-effort-parser matrix (issue #2008): a valid-JSON non-object, and a valid object missing
+# fields, each fail closed (rc 1) — a partial or wrong-shaped record the writer could leave must
+# never read as a match.
+printf '[]' > "$PSR_EL/not-object.json"
+assert_eq "psr fp: a valid-JSON non-object recorded fingerprint refuses the relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/not-object.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+printf '{"checkout_id":"x","head":"y"}' > "$PSR_EL/partial.json"
+assert_eq "psr fp: a fingerprint object missing fields refuses the relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/partial.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+
+# AC6: the same-tree recombination combines tallies from TWO different run roots and fails
+# closed, NAMING the shard, on a missing or a duplicated shard of the required partition.
+PSR_RRA="$PSR_FP/rootA/tally"; PSR_RRB="$PSR_FP/rootB/tally"
+psr_plant_named "$PSR_RRA/alpha" alpha
+psr_plant_named "$PSR_RRA/beta" beta
+psr_plant_named "$PSR_RRB/gamma" gamma
+assert_eq "psr fp: a same-tree recombination across two run roots is clean (rc 0)" "0" \
+  "$(python3 "$PSR_TALLY" combine "$PSR_RRA/alpha" "$PSR_RRA/beta" "$PSR_RRB/gamma" --expect 3 --require-shards "alpha beta gamma" >/dev/null 2>&1; echo $?)"
+PSR_RR_MISS="$(python3 "$PSR_TALLY" combine "$PSR_RRA/alpha" "$PSR_RRB/gamma" --expect 2 --require-shards "alpha beta gamma" 2>&1)"; PSR_RR_MISS_RC=$?
+assert_eq "psr fp: a missing shard across run roots fails closed (rc 1)" "1" "$PSR_RR_MISS_RC"
+assert_eq "psr fp: the missing shard is named across run roots" "yes" \
+  "$(case "$PSR_RR_MISS" in *"required shard(s) absent from the recombined tallies: beta"*) echo yes ;; *) echo no ;; esac)"
+psr_plant_named "$PSR_RRB/alpha" alpha
+PSR_RR_DUP="$(python3 "$PSR_TALLY" combine "$PSR_RRA/alpha" "$PSR_RRB/alpha" "$PSR_RRA/beta" --expect 3 --require-shards "alpha beta" 2>&1)"; PSR_RR_DUP_RC=$?
+assert_eq "psr fp: a shard appearing in two run roots fails closed (rc 1)" "1" "$PSR_RR_DUP_RC"
+assert_eq "psr fp: the duplicated shard is named across run roots" "yes" \
+  "$(case "$PSR_RR_DUP" in *"recombined more than once: alpha"*) echo yes ;; *) echo no ;; esac)"
+
 rm -rf "$PSR_ROOT"

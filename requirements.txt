@@ -1,4 +1,4 @@
-# Python runtime dependency for DevFlow's helper scripts. Config (JSON) is read by
+# Python runtime dependency for PRFlow's helper scripts. Config (JSON) is read by
 # a python3 resolver (config-get.sh / config-source.sh) using only the stdlib json
 # module — no PyYAML needed for config. PyYAML is required because match-deferrals.py
 # parses the YAML deferred-findings block in PR bodies. Python 3.11+ required.

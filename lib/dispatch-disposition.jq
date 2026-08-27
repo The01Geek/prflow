@@ -14,7 +14,7 @@
 # Inputs:
 #   stdin  — the context bundle emitted by fetch-pr-context.sh. Reads:
 #     .signals.workpad_final_status  <string|null> — the sentinel/status word
-#     .pr_devflow_provenance         <bool>        — true iff the DevFlow label
+#     .pr_devflow_provenance         <bool>        — true iff the PRFlow label
 #            is on the PR or the resolved issue (fail-closed: any non-`true`
 #            value, including a wrong type or an absent field, reads as false).
 #   --argjson gate — the cheap-gate.jq output object { clean, reason }. Reads

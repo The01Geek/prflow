@@ -262,7 +262,7 @@ EOF
 if [ "$REVIEWED_COMMIT" = yes ]; then
 cat <<EOF
 > **1. CI results already observed for the reviewed commit (\`${HEAD_SHA:-unknown}\`).**
-> DevFlow read these conclusions from the GitHub API for this exact commit and
+> PRFlow read these conclusions from the GitHub API for this exact commit and
 > wrote them here. Where the fence below names a check with a conclusion beside it,
 > that IS the authoritative test evidence for this commit: cite it directly as the
 > result of the check it names, and do not attempt to re-derive it by running

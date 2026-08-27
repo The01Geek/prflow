@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ============================================================================
-# DevFlow cloud-tier installer / updater
+# PRFlow cloud-tier installer / updater
 # ============================================================================
-# Installs (or updates) the DevFlow GitHub Actions "cloud tier" into the CURRENT
+# Installs (or updates) the PRFlow GitHub Actions "cloud tier" into the CURRENT
 # repository. Idempotent — re-run any time to pull the latest from the primary
 # repo. It writes:
 #   - .claude-plugin/marketplace.json local marketplace pointing at the plugin
@@ -42,7 +42,7 @@
 #
 # UPGRADING an existing installation (issue: consumer upgrade path)
 # ----------------------------------------------------------------
-# A repository that already carries a DevFlow installation is an UPGRADE, and an
+# A repository that already carries a PRFlow installation is an UPGRADE, and an
 # upgrade is DRY-RUN BY DEFAULT: the installer prints the full plan and a unified
 # diff of every byte it would change, and writes nothing until you re-run it with
 # `--apply`. This mirrors the consent-gated provisioners (`provision-auto-mode.sh`,
@@ -51,7 +51,7 @@
 # ungated and writes the project `.claude/settings.json` immediately when
 # `/prflow:init` invokes it; that write is diff-visible in a committed file, and the
 # script's breadcrumb ends "Review the change before committing.") This installer
-# itself writes nothing without an explicit opt-in. A FIRST-TIME install (nothing of DevFlow's present)
+# itself writes nothing without an explicit opt-in. A FIRST-TIME install (nothing of PRFlow's present)
 # still applies immediately, so the documented one-liner below is unchanged.
 #
 # Local modifications are never silently overwritten. Each artifact the installer
@@ -156,9 +156,9 @@ die() { printf 'devflow-install: %s\n' "$1" >&2; exit 1; }
 # fine: the realistic failure (a malformed config.json, a read-only .prflow/)
 # would defeat python3 too. Selection is execution-verified (issue #247): a
 # present-but-unrunnable Windows `jq` shim must not win this selection over a
-# working python3, so the jq arm requires `--version` to actually run. (python3 is a hard DevFlow prerequisite;
+# working python3, so the jq arm requires `--version` to actually run. (python3 is a hard PRFlow prerequisite;
 # `node` was dropped from this cascade — it is no longer required anywhere in
-# DevFlow's config path.)
+# PRFlow's config path.)
 # NEVER aborts the install: a missing tool OR a present-but-failing tool (e.g. a
 # pre-existing config.json that isn't valid JSON, a read-only .prflow/) both
 # degrade to a warning telling the user to set the key by hand. The success-path
@@ -196,7 +196,7 @@ set_config_version() {
   # runtime helpers honor DEVFLOW_JQ verbatim (never probed), so without this
   # breadcrumb the misconfiguration first detonates far from its cause.
   if [ -n "${DEVFLOW_JQ:-}" ] && ! "$jqbin" --version >/dev/null 2>&1; then
-    log "warning: DEVFLOW_JQ is set to '$jqbin' but it does not execute; falling back for this step — fix DEVFLOW_JQ before running DevFlow."
+    log "warning: DEVFLOW_JQ is set to '$jqbin' but it does not execute; falling back for this step — fix DEVFLOW_JQ before running PRFlow."
   fi
   if [ -n "$jqbin" ] && "$jqbin" --version >/dev/null 2>&1; then
     if "$jqbin" -e '(.prflow_version // "") as $cur | ($cur == "" or ($cur | test("^[0-9a-f]{7,40}$")))' \
@@ -250,12 +250,12 @@ sys.exit(3)' 2>/dev/null; then
   return 0
 }
 
-# Remove DevFlow's OWN superseded workflow files on upgrade. Left behind, the
+# Remove PRFlow's OWN superseded workflow files on upgrade. Left behind, the
 # old claude.yml keeps listening for @claude and double-fires alongside the new
-# devflow.yml. claude-runner.yml / claude-implement.yml are DevFlow-specific
+# devflow.yml. claude-runner.yml / claude-implement.yml are PRFlow-specific
 # names (Anthropic never generates them), so removing them is safe. claude.yml,
 # however, is SHARED with Anthropic's Claude GitHub App — so remove it ONLY when
-# it carries a DevFlow signature (the review_dedupe job / the old header line);
+# it carries a PRFlow signature (the review_dedupe job / the old header line);
 # otherwise it is Anthropic's and must be left untouched.
 prune_stale_devflow_workflows() {
   local wf=.github/workflows f
@@ -268,9 +268,9 @@ prune_stale_devflow_workflows() {
   if [ -f "$wf/claude.yml" ]; then
     if grep -qE 'review_dedupe:|Light @claude-mention listener for non-implementing' "$wf/claude.yml"; then
       rm -f "$wf/claude.yml"
-      log "removed DevFlow's old claude.yml (logic now in devflow.yml)"
+      log "removed PRFlow's old claude.yml (logic now in devflow.yml)"
     else
-      log "left existing claude.yml untouched — it is not DevFlow's (likely Anthropic's Claude GitHub App)."
+      log "left existing claude.yml untouched — it is not PRFlow's (likely Anthropic's Claude GitHub App)."
     fi
   fi
 }
@@ -280,7 +280,7 @@ prune_stale_devflow_workflows() {
 # The plugin now lives at .prflow/vendor/prflow because claude-code-action's
 # restore-from-base deletes .claude/ on PRs (it is a SENSITIVE_PATH), which wiped
 # a tree vendored there. Signature-guarded — only ever removes a directory that
-# is actually DevFlow's plugin (carries a devflow plugin.json) so an unrelated
+# is actually PRFlow's plugin (carries a devflow plugin.json) so an unrelated
 # .claude/plugins/devflow is never touched. Prunes now-empty parents best-effort,
 # never the user's wider .claude/ (which holds settings/skills/hooks).
 prune_stale_vendored_plugin() {
@@ -296,7 +296,7 @@ prune_stale_vendored_plugin() {
     rmdir .claude/plugins .claude 2>/dev/null || true
     log "removed stale committed plugin at $old (relocated to .prflow/vendor/prflow)"
   else
-    # The directory exists but is not a recognizable DevFlow plugin (no devflow
+    # The directory exists but is not a recognizable PRFlow plugin (no devflow
     # plugin.json — e.g. a partial/interrupted older install, or an unrelated
     # tree). Don't rm it blindly; warn so a genuinely-stale tree isn't left to be
     # silently wiped by claude-code-action's .claude/ restore on the next cloud PR.
@@ -345,7 +345,7 @@ manage_vendor_gitignore() {
 # Keep the preserved-artifact sidecars out of consumer commits (issue #970).
 #
 # When the upgrade path preserves a `modified` / `unverified` / `unreadable` artifact it
-# writes DevFlow's version beside it as `<path>.prflow-new` (see install_managed below).
+# writes PRFlow's version beside it as `<path>.prflow-new` (see install_managed below).
 # That sidecar is UNTRACKED and sits inside the consumer's own `.github/` or
 # `.claude-plugin/`, which the one ignore file this installer used to manage
 # (`.prflow/.gitignore`) cannot reach — so a later `git add -A`, including one inside a
@@ -437,7 +437,7 @@ manage_sidecar_gitignore() {
 }
 
 # On a host with no `python3` on PATH (a stock Windows / Git-Bash install, where Python is
-# reachable only as `python` / `py -3`), surface DevFlow's consent-gated Python shim
+# reachable only as `python` / `py -3`), surface PRFlow's consent-gated Python shim
 # provisioner so `install.sh` users hit it regardless of install method. It DELEGATES to the
 # one provisioner (scripts/provision-python3-shim.sh in the cloned source) — install.sh never
 # re-implements interpreter detection — and is a no-op when `python3` already resolves (native
@@ -458,7 +458,7 @@ offer_python3_shim() {
     log "no working 'python3' on PATH and the shim provisioner is unavailable in the source tree; see docs/internal/install.md to resolve a Python 3 interpreter."
     return 0
   fi
-  log "no working 'python3' on PATH — surfacing DevFlow's consent-gated Python interpreter resolver:"
+  log "no working 'python3' on PATH — surfacing PRFlow's consent-gated Python interpreter resolver:"
   # Default (no --apply) prints the plan + manual instructions and writes nothing; the user
   # opts into the write by re-running the provisioner with --apply. ANY non-zero exit — the
   # designed plan-mode refusals (rc 2: no >=3.11 interpreter / too-old) and genuine provisioner
@@ -483,7 +483,7 @@ offer_python3_shim() {
 # do not match its recorded digest is preserved and the new version is written
 # beside it for a human merge.
 #
-# The digests are computed with python3 (hashlib) — a hard DevFlow prerequisite,
+# The digests are computed with python3 (hashlib) — a hard PRFlow prerequisite,
 # and the same choice scripts/install-gh-wrapper.sh makes — never sha256sum/shasum,
 # which lib/preflight.sh does not guarantee: a value that decides whether a file is
 # overwritten must not be derived through a non-preflight PATH tool.
@@ -597,7 +597,7 @@ devflow_recorded_digest() {
 # `unverified` and `unreadable` are both fail-safe preserves and differ only in what
 # they tell the consumer, which is the whole point of splitting them: "no recorded
 # digest" is a remedy the consumer can act on (delete the file and re-run to adopt
-# DevFlow's copy), while "the digest could not be computed" points at the host —
+# PRFlow's copy), while "the digest could not be computed" points at the host —
 # usually a missing python3, which is a different fix entirely. Reporting the
 # python3-less host as "no recorded digest" would send every Windows/Git-Bash
 # consumer to the wrong remedy.
@@ -692,7 +692,7 @@ install_managed() {
           log "PRESERVED (locally modified since DevFlow wrote it): $rel — the new version is at $rel.prflow-new; merge it by hand."
           ;;
         unverified)
-          log "PRESERVED (provenance unverified — no recorded digest, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new; merge it by hand, or delete $rel and re-run to take DevFlow's copy."
+          log "PRESERVED (provenance unverified — no recorded digest, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new; merge it by hand, or delete $rel and re-run to take PRFlow's copy."
           ;;
         *)
           # TWO different causes reach `unreadable`, and they have DIFFERENT remedies, so
@@ -898,7 +898,7 @@ sys.stdout.write(" ".join(keys))
 # ordinary name for a workflow a consumer owns, and such a file mentioning the string
 # anywhere — a `.github/workflows/devflow*.yml` path filter, a comment, a step reading
 # the `workflows.prflow` key — would satisfy a substring test and be deleted
-# with a reassuring "removed withheld review-tier workflow" line. The opt-in flag is not consent to delete a file DevFlow
+# with a reassuring "removed withheld review-tier workflow" line. The opt-in flag is not consent to delete a file PRFlow
 # never wrote.
 #
 # Each arm carries TWO alternatives so a consumer who lightly edited their installed
@@ -1042,7 +1042,7 @@ devflow_remove_withheld_tier() {
   fi
   for _wt in $present; do
     # Signature-guarded in the same SPIRIT as prune_stale_devflow_workflows — a specific
-    # pattern this file's DevFlow copy carries — but with its own per-file patterns rather
+    # pattern this file's PRFlow copy carries — but with its own per-file patterns rather
     # than that function's claude.yml one. The empty-pattern precondition is not
     # decoration: `grep -Eq ""` matches ANY file, so an unrecognized name (or an emptied
     # arm) must not fall through into an unconditional delete.
@@ -1447,7 +1447,7 @@ devflow_apply_all() (
 {
   "\$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "$DEVFLOW_MARKETPLACE_CANONICAL",
-  "description": "Local marketplace for the vendored DevFlow plugin (.prflow/vendor/prflow). Installed by prflow/install.sh.",
+  "description": "Local marketplace for the vendored PRFlow plugin (.prflow/vendor/prflow). Installed by prflow/install.sh.",
   "owner": { "name": "Daniel Radman", "email": "daniel@radman.ai" },
   "allowCrossMarketplaceDependenciesOn": [],
   "plugins": [
@@ -1508,7 +1508,7 @@ JSON
     [ -f "$SRC/.github/workflows/$w.yml" ] && install_managed ".github/workflows/$w.yml" "$SRC/.github/workflows/$w.yml"
   done
   fi
-  # Drop DevFlow's superseded claude*.yml on upgrade (signature-guarded so an
+  # Drop PRFlow's superseded claude*.yml on upgrade (signature-guarded so an
   # Anthropic-owned claude.yml is never touched).
   prune_stale_devflow_workflows
   # The withheld auto-review tier: reported always, removed only on the opt-in.
