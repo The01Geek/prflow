@@ -12477,13 +12477,13 @@ _mm_p13 = apply_mut(_CP_BODY, make_args(
     reconcile_reproduction="non-bug",
     reconcile_extension_rows=True,
     tick_progress=[_MM_EXT[2]],
-    note=["resume-kind: fresh"]), _mm_p13_ticks)
+    note=["resume-kind: terminal-re-trigger"]), _mm_p13_ticks)
 assert_eq("#1722: the shipped Phase 1.3 five-flag fold ticks the row it just repaired",
           (True, []), (f"- [x] {_MM_EXT[1]}" in _mm_p13, _mm_p13_ticks))
 assert_eq("#1722: ...carrying the rationale-bearing classification and the resume-kind note",
           (True, True),
           ("classification: non-bug — prose-only change; no malfunction described" in _mm_p13,
-           "resume-kind: fresh" in _mm_p13))
+           "resume-kind: terminal-re-trigger" in _mm_p13))
 
 # ---------------------------------------------------------------------------
 # issue #1501: guard the remaining fixed-arity argument unpacks. Every flag with a
