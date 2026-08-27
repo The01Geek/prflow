@@ -5,7 +5,7 @@
 
 ### 2.3 Implement
 
-`workpad.py update $ISSUE_NUMBER --status Implementing`.
+Accrue `--status Implementing` for the next boundary delivery (phase-2-implement.md §2.0.5), not its own call.
 
 Now implement the feature yourself. You have full context:
 - The explorer's system understanding
@@ -59,7 +59,7 @@ When no automated test applies, there is nothing to assert against: a change who
 
 Record the call either way: `workpad.py update $ISSUE_NUMBER --note "test-first: {test path, fails→passes} | {no automated test: <reason>; dry-trace at 2.4}"`. This is an auditable commitment: a "no automated test" note on a change that plainly added a pure function, a new exit code, or a drivable end-to-end path is a visible error a reviewer or the weekly retrospective can catch, where a silent skip is not.
 
-Write the code. Follow the patterns and conventions described in `CLAUDE.md`. As plan steps complete, tick them off: `workpad.py update $ISSUE_NUMBER --tick-plan "{substring of completed step}"`.
+Write the code. Follow the patterns and conventions described in `CLAUDE.md`. Plan-step `--tick-plan` ticks accrue for boundary delivery (phase-2-implement.md §2.0.5), not per step.
 
 Comment discipline (authoring rule). A comment the change adds or modifies survives inline only if a competent agent would otherwise make a specific, nameable wrong change — at this line, or at a specific coupled site the clause names by file or symbol. Write it as the prohibition and its consequence, and route everything else — a derivation, a worked example, the provenance of a decision, design narrative — to the project's internal-documentation location or delete it. The forcing function: an author who cannot name the wrong change a clause prevents has established there is no wrong change, and the comment goes. The coupled arm is deliberate — a producer-side comment whose whole value is stopping a wrong edit in a consumer file is the class the coupled-invariant discipline depends on, and it survives only when the clause names that site, which widens what survives without weakening what must be named. This rule binds exactly four populations and nothing else, complete by construction: inline comments in library and script source; test files; module docstrings and contract headers; and workflow and YAML files. Every other commented surface — skill and agent prose bodies among them at minimum — is outside the bound set and is governed as before.
 
