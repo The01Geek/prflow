@@ -4783,10 +4783,9 @@ case "$*" in
     [ "${PCRT_POST_RC:-0}" = 0 ] || { echo "HTTP 403" >&2; exit 1; }
     printf '{"id":1}\n'; exit 0 ;;
   *"pulls/"*)
-    # Record each state read so a test can assert exactly one is made (issue #2067).
-    # With $PCRT_PR_JSON set, run the helper's REAL --jq against the fixture (the
-    # auto_merge branch lives inside that jq); else serve $PCRT_PR_STATE verbatim
-    # (the disclosed #1236 boundary that tests only the case-word routing).
+    # Record each state read so a test can assert exactly one (issue #2067). With
+    # $PCRT_PR_JSON set, run the helper's REAL --jq against the fixture (the auto_merge
+    # branch lives inside it); else serve $PCRT_PR_STATE verbatim (#1236 case-word boundary).
     [ -n "${PCRT_STATE_REC-}" ] && printf '%s\n' "$*" >> "$PCRT_STATE_REC"
     [ "${PCRT_STATE_RC:-0}" = 0 ] || { echo "HTTP 500" >&2; exit 1; }
     if [ -n "${PCRT_PR_JSON-}" ]; then
