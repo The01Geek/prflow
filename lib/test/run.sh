@@ -12922,7 +12922,7 @@ bash "$DPT" "$DT4" >/dev/null 2>&1
 assert_eq "detect: *.csproj glob matches dotnet" "yes" \
   "$(dpt_has .prflow.allowed_tools 'Bash(dotnet:*)' "$DT4/.prflow/config.json")"
 
-# 6. PHP (composer.json) → php tools in both remaining paths AND a composer install line.
+# 6. PHP (composer.json) → php tools land AND a composer install line is added.
 DT5="$(mktemp -d)"; mkdir -p "$DT5/.prflow"
 printf '{"require":{"php":">=8.2"}}' > "$DT5/composer.json"
 printf '{}' > "$DT5/.prflow/config.json"

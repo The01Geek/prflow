@@ -858,7 +858,7 @@ rm -f "$IU_MUT2"
 # ── Scenario 3: a hand-edited .prflow/config.json keeps every consumer value. The
 # config is not a fully managed artifact — the shared scaffolder only backfills keys,
 # and (issue #2071) the installer additionally deletes the withheld auto-review tier's
-# dead settings; it never rewrites any other consumer value.
+# dead settings; it never overwrites a value the consumer set.
 IU_C3="$(_iu_consumer configedit)"
 _iu_run "$IU_C3" >/dev/null
 python3 -c '
