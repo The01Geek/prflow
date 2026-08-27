@@ -1,0 +1,84 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-27T05:30:00Z",
+  "fix_commit_sha": "5babd00b3",
+  "fix_files": [
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "loop-exit",
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:pr-test-analyzer",
+    "prflow:silent-failure-hunter"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:pr-test-analyzer",
+    "prflow:silent-failure-hunter"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC7 failed-write assertion was cosmetically vacuous (True==True)",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "5babd00b3"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 30,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "dispatch_mode": "unavailable",
+  "shadow": {
+    "dispatch_mode": "unavailable",
+    "ran_at": "2026-08-27T05:45:00Z",
+    "reviewed_sha": "826930d30",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:pr-test-analyzer",
+      "prflow:silent-failure-hunter"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:pr-test-analyzer",
+      "prflow:silent-failure-hunter"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
