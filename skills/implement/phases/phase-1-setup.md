@@ -27,7 +27,7 @@ Read the exit code and printed token from the tool result — never a captured s
   rm -f <absolute-cache-path>
   gh issue view $ARGUMENTS --json body --jq '.body'
   ```
-  Author by tier. Cloud tier (`GITHUB_ACTIONS` set), and any run not positively local — the proven-safe default: leave the `gh issue view` line as shown, consume its stdout from the tool result, and Write those exact bare-body bytes to `<absolute-cache-path>` — a scratch-directory redirect is refused on the cloud tier. Local/interactive tier: append ` > <absolute-cache-path>` to that `gh issue view` line so its stdout writes straight to the cache, entering no conversation and needing no Write. If `gh` fails, retry that same command once; a refused or no-output local-arm redirect fetch is an unestablished measurement routed to the stop path below, never the degraded or failed-fetch case. Do not retry an exit-0 empty body; the cloud arm requires non-empty stdout before its Write. Carry that absolute path as the cache location every later consumer is handed.
+  Author by tier. Cloud tier (`GITHUB_ACTIONS` set), and any run not positively local: leave the `gh issue view` line as shown, consume its stdout from the tool result, and Write those exact bare-body bytes to `<absolute-cache-path>` — an absolute-target redirect is refused on the cloud tier. Local/interactive tier: append ` > <absolute-cache-path>` to that `gh issue view` line so its stdout writes straight to the cache, entering no conversation and needing no Write. If `gh` fails, retry that same command once; a refused or no-output local-arm redirect fetch is an unestablished measurement routed to the stop path below, never the degraded or failed-fetch case. Do not retry an exit-0 empty body; the cloud arm requires non-empty stdout before its Write. Carry that absolute path as the cache location every later consumer is handed.
 - `NOT_IGNORED <absolute-cache-path>` / exit 2 — a resolved "not ignored": `.prflow/tmp/` is not gitignored, so the issue-body cache is not written; take the degraded arm. The resolved absolute path is printed on this arm too.
 - `UNAVAILABLE` / exit 3, or a refused / no-output invocation — an *unestablished measurement*, never a decided "not ignored": take the run's existing STOP path. Absent output is never a decided answer, and a matcher refusal must not masquerade as the degraded arm.
 
@@ -39,7 +39,7 @@ On the non-satisfied `NOT_IGNORED` (exit 2) arm — a resolved answer (`UNAVAILA
 
 Whether the cache was written is orchestrator state that does not survive across Bash calls, so carry it in your context. When the cache was written, §1.2/§1.3.5/§1.6 read it and the §2.1/§2.2/§4.1 dispatches ship an `Issue body path:` line; on the degraded arm they revert to the earlier behavior. The cache is reached only by hand-off, never by filesystem discovery: the path reaches a consumer only as an explicit parameter of the orchestrator's own invocation, so no consumer can be induced to read a file the reviewed PR authored.
 
-Now fetch the remaining metadata — body dropped, so the body is materialized in your context exactly once (by the cache Read above):
+Now fetch the remaining metadata — body dropped, so this fetch adds no further copy of the body to your context:
 ```bash
 gh issue view $ARGUMENTS --json title,labels,number
 ```

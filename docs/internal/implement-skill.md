@@ -141,8 +141,10 @@ by explicit hand-off.
   Write tool (a cloud sandbox denies an absolute-target redirect, per the row-19/20 probe below),
   while the local/interactive tier (no `GITHUB_ACTIONS`) redirects the fetch's stdout straight to the
   absolute cache path so the body never enters the conversation. §1.1's own remaining metadata fetch
-  drops `body` (`--json title,labels,number`), so on both arms the body is materialized in the
-  orchestrator's context exactly once — by the cache read.
+  drops `body` (`--json title,labels,number`), so it adds no further copy on either arm: on the local
+  arm the cache read is the body's only materialization in the orchestrator's context, while the
+  cloud arm additionally carries the fetch's stdout and the Write payload — the two copies this tier
+  branch exists to spare local runs.
 - **Per-run-attempt lifecycle.** The write is an unconditional delete-then-fetch on every entry
   path, so a resumed, re-triggered, or stall-backstop-auto-resumed run always writes a freshly
   fetched cache rather than reading a prior attempt's file. When §1.4's resume pre-check moves the
