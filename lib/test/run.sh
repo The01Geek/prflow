@@ -55376,8 +55376,10 @@ assert_eq "#2050 select: a multi-word candidate is probed word-split (python3 -m
   "selected $RUFF_SEL_MW 0.16.4" "$RS_O $RS_T $RS_D"
 # ...and the gate's reconstruction of that token round-trips to the same argv the probe ran.
 RUFF_MW_CMD=(); IFS=' ' read -r -a RUFF_MW_CMD <<<"$RS_T"
+# Keep the :- defaults: run.sh runs under `set -u`, so indexing an empty RUFF_MW_CMD would
+# abort the whole monolith shard instead of emitting the FAIL this row exists to show.
 assert_eq "#2050 select: the gate's IFS=' ' reconstruction round-trips a multi-word token" \
-  "2 bash $RUFF_SEL_MTX/infam" "${#RUFF_MW_CMD[@]} ${RUFF_MW_CMD[0]} ${RUFF_MW_CMD[1]}"
+  "2 bash $RUFF_SEL_MTX/infam" "${#RUFF_MW_CMD[@]} ${RUFF_MW_CMD[0]:-} ${RUFF_MW_CMD[1]:-}"
 
 # rc guard: a candidate that PRINTS a well-formed version line but exits non-zero is not
 # runnable. Without the probe's rc check this shim reads as runnable and, under a sentinel
