@@ -11,6 +11,7 @@ Balance useful cloud-run diagnostics against the sensitivity of prompts, reposit
 | `prflow.execution_transcript_artifact_enabled` | Boolean | Runtime and scaffold: `false` | Cloud model jobs. When true, uploads a scrubbed transcript artifact with seven-day retention. Treat it as sensitive. | `"execution_transcript_artifact_enabled": false` |
 | `prflow.execution_denial_commands_enabled` | Boolean | `true` | Cloud model jobs. Controls durable scrubbed command text only. Denial count and tool names remain available when a record can be built. | `"execution_denial_commands_enabled": false` |
 | `prflow_review_and_fix.efficiency_telemetry_enabled` | Boolean | `true` | Local and cloud review-and-fix. False also prevents denied-command records from being persisted on the telemetry branch. | `"efficiency_telemetry_enabled": true` |
+| `telemetry.enabled` | Boolean | `true` | Master quiet switch. Set to the JSON boolean `false` to turn off every optional telemetry mechanism at once, including the workpad-copy push to the telemetry branch. Only the boolean `false` disables; every other value leaves telemetry on. A key you have set yourself always wins over this master. | `"enabled": false` |
 | `telemetry.branch` | String branch name | `prflow-telemetry` | Writable runs persist observability records to this long-lived orphan branch. Exclude it from broad push-triggered CI. | `"branch": "prflow-telemetry"` |
 
 ## Know What Persists
@@ -45,6 +46,27 @@ The record holds counts, flags, identifiers and settings. It does not hold your 
 </Warning>
 
 A run with no readable iterations writes no record at all rather than an empty one. Set `efficiency_telemetry_enabled` to false to stop writing records entirely.
+
+## One-Switch Quiet Mode
+
+If you want a private, low-noise setup without hunting down each individual key, set one master switch:
+
+```json
+{
+  "telemetry": {
+    "enabled": false
+  }
+}
+```
+
+With `telemetry.enabled` set to the JSON boolean `false`, every optional telemetry mechanism turns off in one place: the efficiency trace, execution diagnostics, durable scrubbed denied-command text, the live review progress comment and the created-issue investigation record all resolve to disabled wherever you have not set their own key, and the workpad-copy push to the `prflow-telemetry` branch is skipped — so quiet runs write nothing to that branch.
+
+A few things to know:
+
+- **Only the boolean `false` disables.** Every other value — the string `"false"`, `0`, `null`, a wrong type, a missing key or an unreadable config — leaves telemetry **on**. This fail-safe direction is deliberate: a malformed config never silently drops your observability.
+- **An explicit key always wins.** If you set an individual key (for example `prflow.execution_diagnostics_enabled`) it overrides the master, in both directions — so you can turn the master off but keep one mechanism on, or leave the master on and turn one mechanism off.
+- **The value is ergonomics and privacy, not cost.** Turning telemetry off saves only a small amount of run time (measured at roughly 1–3% of a run); the point is fewer GitHub writes, no telemetry branch and no stored records.
+- **Rollback is removing the key**, which restores every default. Mixed plugin versions are safe: a repository whose vendored PRFlow copy predates this key simply ignores it and keeps telemetry on until the next upgrade.
 
 ## Choose Your Settings
 
