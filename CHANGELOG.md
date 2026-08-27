@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.67] — 2026-08-27
+
+### Changed
+- **`/prflow:implement` Phase 1.1 now authors the issue-body cache by tier.** On the cloud tier — and any run that cannot establish the tier — it keeps consuming the fetch's stdout and writing the cache with the Write tool (a cloud sandbox denies an absolute-target redirect). On the local/interactive tier it redirects the fetch's stdout straight to the cache path, so local runs stop spending two redundant copies of the issue body (the fetch output and the Write payload) in conversation. (#2043)
+
+## [2.34.66] — 2026-08-27
+
+### Changed
+- **Consolidate Phase 2's workpad writes onto the durability-checkpoint boundaries.** `/prflow:implement` now accrues Phase 2's timing-insensitive workpad mutations — the per-step `--tick-plan` ticks, the mid-Phase-2 `--status Planning`/`--status Implementing` flips, and post-hoc evidence notes such as sweep-result notes — and delivers them as one combined `workpad.py update` per durability-checkpoint boundary, after that boundary's checkpoint push, re-deriving each tick from durable state so a context compaction loses none. Records whose timing a consumer reads (reflections, `--record-*`/`--checkpoint`, terminal `--status`, `--expect-*`-guarded calls, and the ledger/selection notes) keep their immediate call sites. The §2.0 resume arm now re-verifies each un-ticked Plan step against the fresh tree and ticks those already present rather than re-implementing already-committed work. (#2047)
+
 ## [2.34.65] — 2026-08-27
 
 ### Added
