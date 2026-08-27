@@ -856,7 +856,9 @@ assert_eq "installer-upgrade NEGATIVE CONTROL: an installer whose classifier alw
 rm -f "$IU_MUT2"
 
 # ── Scenario 3: a hand-edited .prflow/config.json keeps every consumer value. The
-# config is never a managed artifact — the shared scaffolder only backfills keys.
+# config is not a fully managed artifact — the shared scaffolder only backfills keys,
+# and (issue #2071) the installer additionally deletes the withheld auto-review tier's
+# dead settings; it never rewrites any other consumer value.
 IU_C3="$(_iu_consumer configedit)"
 _iu_run "$IU_C3" >/dev/null
 python3 -c '
@@ -2406,3 +2408,83 @@ IU_C1388C="$(_iu_consumer 1388-nocomponent)"
 IU_O1388C="$(IU_SRC_OVERRIDE="$IU_SRC_1388C" _iu_run "$IU_C1388C" --apply)"
 assert_eq "#1388 4b end-to-end: unreadable bound component -> 'could not publish' names the build failure and NO marker" "no yes yes" \
   "$([ -f "$IU_C1388C/.prflow/install-state.json" ] && echo yes || echo no) $(printf '%s' "$IU_O1388C" | grep -qF 'could not publish .prflow/install-state.json' && echo yes || echo no) $(printf '%s' "$IU_O1388C" | grep -qF 'cannot digest component' && echo yes || echo no)"
+
+# ── Scenario #2071: the withheld auto-review tier's dead config settings are STRIPPED
+# from a consumer's .prflow/config.json on EVERY apply run, whether or not the consumer
+# opts into removing the tier itself. This is the one installer step that DELETES a
+# config key rather than only backfilling. prflow_review.require_up_to_date,
+# prflow_review.require_ci_green and the whole prflow_runner section are read by nothing
+# a fresh install ships, so removing them leaves a consumer carrying only live settings.
+#
+# End-to-end (--apply): a config carrying the three settings plus a hand-edited value and
+# workflows.prflow-review loses exactly the three and keeps everything else.
+IU_C2071="$(_iu_consumer withheld-settings)"
+_iu_run "$IU_C2071" >/dev/null
+python3 -c '
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+d["prflow_runner"] = {"effort": "high", "provision_env": True, "allowed_tools": ["Bash(go:*)"]}
+d.setdefault("prflow_review", {})
+d["prflow_review"]["require_up_to_date"] = True
+d["prflow_review"]["require_ci_green"] = True
+d["prflow_review"]["verdict_severity_threshold"] = "critical"
+d.setdefault("workflows", {})["prflow-review"] = True
+d["watched_authors"] = ["keep-me"]
+json.dump(d, open(p, "w"), indent=2)
+' "$IU_C2071/.prflow/config.json"
+IU_O2071="$(_iu_run "$IU_C2071" --apply)"
+assert_eq "#2071: --apply strips require_up_to_date/require_ci_green/prflow_runner and keeps every other key (incl workflows.prflow-review and a hand-edited value)" "null null null true keep-me critical" \
+  "$(python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+pr = d.get("prflow_review", {})
+print(json.dumps(d.get("prflow_runner")), json.dumps(pr.get("require_up_to_date")),
+      json.dumps(pr.get("require_ci_green")), json.dumps(d.get("workflows", {}).get("prflow-review")),
+      d.get("watched_authors", [None])[0], pr.get("verdict_severity_threshold"))
+' "$IU_C2071/.prflow/config.json")"
+assert_eq "#2071: the apply run names the settings it removed" "yes" \
+  "$(_iu_out_has "$IU_O2071" 'removed the withheld review-tier settings')"
+# Idempotency: a second --apply over an already-stripped config writes nothing new.
+IU_D2071="$(_iu_digest "$IU_C2071/.prflow/config.json")"
+_iu_run "$IU_C2071" --apply >/dev/null
+assert_eq "#2071: a second --apply over an already-stripped config is byte-identical (idempotent — the step runs on every apply)" "yes" \
+  "$([ "$IU_D2071" = "$(_iu_digest "$IU_C2071/.prflow/config.json")" ] && echo yes || echo no)"
+
+# The remaining shapes exercise devflow_strip_withheld_review_settings directly (sourced
+# with DEVFLOW_SELFTEST=1, the same way the #247 no-python3 arms below drive the resolver),
+# so the strip contract is asserted in isolation from scaffold-config's backfill: an
+# adversarial input-shape matrix over the shapes the CLAUDE.md best-effort-parser rule
+# names, narrowed because the step only reads for presence and deletes.
+#
+# prflow_review holding ONLY the removed keys → an empty object, still valid JSON, rc 0.
+IU_C2071B="$_iw_tmp_root/strip-empties-review"; mkdir -p "$IU_C2071B/.prflow"
+printf '%s' '{"prflow_review":{"require_up_to_date":true,"require_ci_green":true},"workflows":{"prflow-review":true}}' > "$IU_C2071B/.prflow/config.json"
+# shellcheck disable=SC1090  # sources install.sh at runtime under DEVFLOW_SELFTEST
+IU_O2071B="$( cd "$IU_C2071B" && DEVFLOW_SELFTEST=1 . "$IU_INSTALL" >/dev/null 2>&1; if devflow_strip_withheld_review_settings 2>&1; then echo 'rc=0'; else echo "rc=$?"; fi )"
+assert_eq "#2071 strip: prflow_review left holding only removed keys becomes an empty object, stays valid JSON, keeps workflows.prflow-review, rc 0" "yes {} true rc=0" \
+  "$(python3 -c '
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    print("no"); raise SystemExit
+print("yes", json.dumps(d.get("prflow_review")), json.dumps(d.get("workflows", {}).get("prflow-review")))
+' "$IU_C2071B/.prflow/config.json") $(printf '%s' "$IU_O2071B" | grep -qF 'rc=0' && echo 'rc=0' || echo 'rc=?')"
+# Malformed (unparseable) config → left BYTE-unchanged and the failure reported (rc 1).
+# This is the shape that matters most, because the step edits a file the consumer owns.
+IU_C2071C="$_iw_tmp_root/strip-malformed"; mkdir -p "$IU_C2071C/.prflow"
+printf '%s' '{not valid json' > "$IU_C2071C/.prflow/config.json"
+IU_B2071C="$(_iu_digest "$IU_C2071C/.prflow/config.json")"
+# shellcheck disable=SC1090  # sources install.sh at runtime under DEVFLOW_SELFTEST
+IU_O2071C="$( cd "$IU_C2071C" && DEVFLOW_SELFTEST=1 . "$IU_INSTALL" >/dev/null 2>&1; if devflow_strip_withheld_review_settings 2>&1; then echo 'rc=0'; else echo "rc=$?"; fi )"
+assert_eq "#2071 strip: a malformed config is left byte-unchanged and the failure is reported (rc 1, no truncated write)" "yes yes yes" \
+  "$([ "$IU_B2071C" = "$(_iu_digest "$IU_C2071C/.prflow/config.json")" ] && echo yes || echo no) $(printf '%s' "$IU_O2071C" | grep -qF 'could not strip the withheld review-tier settings' && echo yes || echo no) $(printf '%s' "$IU_O2071C" | grep -qF 'rc=1' && echo yes || echo no)"
+# No working python3 → left untouched and reported (fail-closed, matching devflow_disable_review_key).
+IU_C2071D="$_iw_tmp_root/strip-nopy"; mkdir -p "$IU_C2071D/.prflow"
+printf '%s' '{"prflow_runner":{"effort":"low"},"prflow_review":{"require_ci_green":true}}' > "$IU_C2071D/.prflow/config.json"
+IU_B2071D="$(_iu_digest "$IU_C2071D/.prflow/config.json")"
+# shellcheck disable=SC1090  # sources install.sh at runtime under DEVFLOW_SELFTEST
+IU_O2071D="$( cd "$IU_C2071D" && export PATH="$IU_NOPY:$PATH" && DEVFLOW_SELFTEST=1 . "$IU_INSTALL" >/dev/null 2>&1; if devflow_strip_withheld_review_settings 2>&1; then echo 'rc=0'; else echo "rc=$?"; fi )"
+assert_eq "#2071 strip: no working python3 leaves the config untouched and reports the failure (rc 1)" "yes yes yes" \
+  "$([ "$IU_B2071D" = "$(_iu_digest "$IU_C2071D/.prflow/config.json")" ] && echo yes || echo no) $(printf '%s' "$IU_O2071D" | grep -qF 'no working python3' && echo yes || echo no) $(printf '%s' "$IU_O2071D" | grep -qF 'rc=1' && echo yes || echo no)"

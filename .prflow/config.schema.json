@@ -202,43 +202,6 @@
         }
       }
     },
-    "prflow_runner": {
-      "type": "object",
-      "description": "Settings for the reusable runner that backs the automated reviewer (devflow-review.yml \u2192 devflow-runner.yml). WITHHELD: the automatic pull-request-triggered review tier is not shipped in this release (see issues #930 and #920) \u2014 a fresh installation receives none of devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so this setting has no effect there; it remains live for a repository that already installed those three files, which stays exposed to those defects while workflows[\"prflow-review\"] (or workflows[\"devflow-review\"] on an unmigrated config) is true. Use /prflow:review by collaborator comment instead.",
-      "properties": {
-        "provider": {
-          "type": "string",
-          "description": "Optional: name of a `providers` entry to route the automated reviewer (devflow-runner.yml) through, instead of the Anthropic default. Requires the DEVFLOW_PROVIDER_API_KEY repo secret (carried into the runner via devflow-review.yml's `secrets: inherit`). Unset → Anthropic-OAuth default, so review stays on Claude (issue #313). WITHHELD: the automatic pull-request-triggered review tier is not shipped in this release (see issues #930 and #920) \u2014 a fresh installation receives none of devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so this setting has no effect there; it remains live for a repository that already installed those three files, which stays exposed to those defects while workflows[\"prflow-review\"] (or workflows[\"devflow-review\"] on an unmigrated config) is true. Use /prflow:review by collaborator comment instead."
-        },
-        "claude_model": {
-          "type": "string",
-          "description": "Optional per-section model override for the automated reviewer (devflow-runner.yml). Takes precedence over the global claude_model. Unset → global claude_model (issue #313). WITHHELD: the automatic pull-request-triggered review tier is not shipped in this release (see issues #930 and #920) \u2014 a fresh installation receives none of devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so this setting has no effect there; it remains live for a repository that already installed those three files, which stays exposed to those defects while workflows[\"prflow-review\"] (or workflows[\"devflow-review\"] on an unmigrated config) is true. Use /prflow:review by collaborator comment instead."
-        },
-        "effort": {
-          "type": "string",
-          "enum": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-          ]
-        },
-        "provision_env": {
-          "type": "boolean",
-          "description": "Opt the automated reviewer into provisioning a build environment. When true, devflow-runner.yml runs the setup-project-env action (Python/Node/PHP + service containers + `setup.install`) BEFORE Claude runs, and the read-only `review` tool profile gains the freeform build/verify tools you list in `prflow_runner.allowed_tools` (see that property) so the reviewer can actually build/test the PR instead of punting build-dependent claims; an empty/absent `allowed_tools` means no build tools are added (the runner warns). SECURITY: this flag, the `allowed_tools` list, AND the `setup` block are read from the TRUSTED base ref (your repo's base branch), never the PR head, so a PR cannot enable provisioning, grant itself tools, or inject install commands. The runner also strips a catastrophic-tier deny-list (file-mutation tools + raw-shell/eval/privilege Bash) from `allowed_tools` regardless of content. But the build tools still run the PR author's code (e.g. an npm package's postinstall) under devflow-review.yml's pull_request_target write token \u2014 enable only if you accept running untrusted PR build steps. Absent/false (the default) \u2192 the runner is unchanged: light, read-only, no build tools, no provisioning. WITHHELD: the automatic pull-request-triggered review tier is not shipped in this release (see issues #930 and #920) \u2014 a fresh installation receives none of devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so this setting has no effect there; it remains live for a repository that already installed those three files, which stays exposed to those defects while workflows[\"prflow-review\"] (or workflows[\"devflow-review\"] on an unmigrated config) is true. Use /prflow:review by collaborator comment instead.",
-          "default": false
-        },
-        "allowed_tools": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Freeform build/verify tools (claude-code-action syntax, e.g. \"Bash(go:*)\", \"Bash(cargo:*)\", \"Bash(npm:*)\") APPENDED to the automated reviewer's read-only `review` profile \u2014 but ONLY when `provision_env: true` above. Read from the TRUSTED base ref (your repo's base branch), never the PR head, so a PR cannot grant itself tools. This makes build-aware review language-agnostic: list your toolchain here, no PRFlow release needed. A deterministic deny-list floor is enforced by devflow-runner.yml when the list is consumed \u2014 file-mutation tools (Edit, Write, MultiEdit, NotebookEdit) and raw-shell/eval/privilege Bash (bash, sh, zsh, eval, exec, source, sudo) are stripped (with a warning) regardless of what is listed here, so the catastrophic tier can never reach a write-token job reviewing untrusted code. When `provision_env` is false the reviewer is byte-for-byte read-only regardless of this list. /prflow:init auto-populates this per detected language and enriches it from your repo's real build setup. WITHHELD: the automatic pull-request-triggered review tier is not shipped in this release (see issues #930 and #920) \u2014 a fresh installation receives none of devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so this setting has no effect there; it remains live for a repository that already installed those three files, which stays exposed to those defects while workflows[\"prflow-review\"] (or workflows[\"devflow-review\"] on an unmigrated config) is true. Use /prflow:review by collaborator comment instead.",
-          "default": []
-        }
-      }
-    },
     "prflow_review_and_fix": {
       "type": "object",
       "description": "Settings for /prflow:review-and-fix: the fix-loop iteration cap, the fix-severity routing threshold, and per-run subagent effectiveness telemetry.",
@@ -318,16 +281,6 @@
               "default": "important"
             }
           }
-        },
-        "require_up_to_date": {
-          "type": "boolean",
-          "description": "When true (the default), the devflow-review auto-trigger defers \u2014 posting a neutral 'waiting: branch behind base' Devflow Review check instead of running the engine \u2014 while the PR branch is behind its configured base_branch, so an LLM review that a forthcoming branch update would invalidate is not wasted. The review auto-re-triggers on the next reviewable event (synchronize, or other-CI completion). A neutral required check does NOT itself block merge: this precondition is a cost optimization, not a correctness gate \u2014 pair it with branch protection's 'require branches up to date' if staleness must block. When false, restores the unconditional auto-trigger for this precondition. Evaluated by scripts/derive-review-preconditions.sh; an unverifiable comparison fails closed (defer, recoverable via a later event or the check's Re-run button). WITHHELD: the automatic pull-request-triggered review tier is not shipped in this release (see issues #930 and #920) \u2014 a fresh installation receives none of devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so this setting has no effect there; it remains live for a repository that already installed those three files, which stays exposed to those defects while workflows[\"prflow-review\"] (or workflows[\"devflow-review\"] on an unmigrated config) is true. Use /prflow:review by collaborator comment instead.",
-          "default": true
-        },
-        "require_ci_green": {
-          "type": "boolean",
-          "description": "When true (the default), the devflow-review auto-trigger defers \u2014 posting a neutral 'waiting: other CI not green' Devflow Review check instead of running the engine \u2014 until every other signal on the PR head (GitHub Actions workflow runs excluding the Devflow Review workflow itself, legacy commit statuses, and non-Actions check runs) has completed without failing (success, skipped, and neutral conclusions all count as green, so a path-filtered or optional workflow never wedges the review), so a code-quality verdict is never produced for known-broken code. Generic: no CI job names are referenced. A head with NO other CI at all is treated as satisfied (nothing to wait on), so a CI-less repo is reviewed immediately and never wedged. The review auto-re-triggers when other CI completes \u2014 a workflow_run/check_suite completed event, or (since issue #310) a legacy commit-status `status` event with `state == 'success'` for repos whose CI reports only via the commit-status API (classic Jenkins, legacy CircleCI); the workflow_run trigger's `workflows:` list must name the repo's CI workflows, a GitHub platform requirement. When false, restores the unconditional auto-trigger for this precondition. Evaluated by scripts/derive-review-preconditions.sh; an unverifiable query fails closed (defer, recoverable via a later event or the check's Re-run button). WITHHELD: the automatic pull-request-triggered review tier is not shipped in this release (see issues #930 and #920) \u2014 a fresh installation receives none of devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so this setting has no effect there; it remains live for a repository that already installed those three files, which stays exposed to those defects while workflows[\"prflow-review\"] (or workflows[\"devflow-review\"] on an unmigrated config) is true. Use /prflow:review by collaborator comment instead.",
-          "default": true
         },
         "stall_backstop": {
           "type": "object",
