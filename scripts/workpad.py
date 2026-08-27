@@ -3713,7 +3713,8 @@ def _cmd_update_inner(args):
     _own_reflections = list(args.reflection or [])
     _own_kind = args.reflection_kind or _DEFAULT_REFLECTION_KIND
     if args.reflection_file:
-        # Each file-sourced reflection is buffered exactly like an inline one. This
+        # A file-sourced reflection is buffered like an inline one, and a repeated
+        # flag buffers its payloads (issue #2076), not just the last. This
         # is the case issue #1214 exists for: the mandated stop-path recipe delivers
         # the Blocked reflection in its OWN `--reflection-file` call carrying no
         # inline --note/--reflection, and that recipe's documented inline fallback
@@ -3733,8 +3734,8 @@ def _cmd_update_inner(args):
             sys.stderr.write(f"workpad.py update: {e}\n")
             sys.exit(1)
     if getattr(args, 'note_file', None):
-        # Each file-sourced note is buffered exactly like an inline --note, so a
-        # PATCH failure preserves every one of them (issue #2076) — the note twin of
+        # A file-sourced note is buffered like an inline --note, and a repeated flag
+        # preserves its payloads through a PATCH failure (issue #2076) — the twin of
         # the --reflection-file rescue above (issue #1813 mirrors #1214). The reads
         # are memoized, so `_apply_mutations` renders from the same text without
         # re-reading, which also keeps the `-`/stdin arm single-read.

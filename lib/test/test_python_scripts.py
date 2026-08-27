@@ -3006,7 +3006,7 @@ assert_eq("--note-file: empty-payload error names the --note-file flag", True,
 
 
 # --- issue #2076: --note-file / --reflection-file are repeatable (one bullet per
-# payload) instead of silently keeping only the last path. ---
+# payload) rather than dropping the earlier paths. ---
 print("issue #2076: repeatable --note-file / --reflection-file payloads")
 
 def _write_payloads(d, texts):
@@ -3020,7 +3020,7 @@ def _write_payloads(d, texts):
 
 # AC1 (reproduction): three --note-file payloads render THREE ## Progress bullets,
 # in command-line order, AFTER an inline --note bullet. Against the pre-fix argparse
-# `store` this rendered ONE bullet (only the last path survived) — the exact drop.
+# `store` this rendered a single bullet — the drop this issue reports.
 with tempfile.TemporaryDirectory() as _d:
     _paths = _write_payloads(_d, ['note one', 'note two', 'note three'])
     _prog = apply_mut(WORKPAD_V2, make_args(
@@ -3033,8 +3033,8 @@ assert_eq("#2076 AC1: --note-file bullets keep command-line order", True,
 assert_eq("#2076 AC1: file bullets append AFTER the inline --note bullet", True,
           _prog.index('— inline first') < _prog.index('— note one'))
 
-# AC2: three --reflection-file payloads render three Reflection bullets, in order,
-# after an inline --reflection bullet, each under the call's single --reflection-kind.
+# AC2: repeated --reflection-file payloads each render a Reflection bullet, in order,
+# after an inline --reflection bullet, under the call's single --reflection-kind.
 with tempfile.TemporaryDirectory() as _d:
     _rpaths = _write_payloads(_d, ['refl one', 'refl two', 'refl three'])
     _refl = apply_mut(WORKPAD_V2, make_args(
