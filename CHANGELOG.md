@@ -4,6 +4,31 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.63] — 2026-08-27
+
+### Changed
+- **Self-authored-claim sweep traces an invoked helper's default invocation mode.** Step 2 of
+  the Phase 2 self-authored-claim reconciliation sweep (`skills/implement/phases/phase-2-sweeps-quality.md`)
+  now directs a claim about how an invoked helper runs by default to that helper's argument parsing
+  and environment-variable defaults, not only its documented purpose, so a claim that holds only
+  under a non-default flag is caught at commit time as a divergence. (#2032)
+
+## [2.34.62] — 2026-08-27
+
+### Fixed
+- **Pin ruff at 0.16.4 in the lint manifest and refuse a whole-suite launch on a ruff version skew.** `.prflow/lint-manifest.json` still pinned `ruff` at `0.6.9` after issue #742 advanced CI to `ruff==0.16.*`, so provisioning installed a 0.6.9 ruff into `prflow-lint-bin` that shadowed PATH and reddened the `#1621` in-suite ruff gate on rule-set skew rather than on real findings. The manifest now pins the newest 0.16.x release (0.16.4) with refreshed per-os/arch sha256 digests, and `lib/test/run-parallel.sh`'s cheap-lint pre-launch gate now refuses a launch — in under a second, before any shard — when the ruff on PATH positively reports a family that skews from the manifest pin, naming the `python3 -m pip install --user --force-reinstall 'ruff==0.16.*'` remedy; it fails open (proceeds) when the probe cannot run (ruff absent or non-executing) and reads its expected version from the manifest at run time. A suite assertion reconciles the manifest pin against CI's `ruff==` family so the two can no longer silently disagree. (#2021)
+
+## [2.34.61] — 2026-08-27
+
+### Changed
+- **Batch the issue-claim auditor's workpad writes into one update call.** The
+  `issue-claim-auditor` agent now composes each pass record as its pass completes and holds it,
+  delivering the accrued records in one batched `workpad.py update` invocation at audit end —
+  plus one further call per additional reflection kind, since one update applies a single
+  `--reflection-kind` — instead of one network round trip per pass; an audit that ends at a stop
+  arm folds its accrued records into the same terminating update. Note texts and reflection kinds are unchanged, so
+  workpad-reading consumers see identical content. (#2022)
+
 ## [2.34.60] — 2026-08-27
 
 ### Fixed
