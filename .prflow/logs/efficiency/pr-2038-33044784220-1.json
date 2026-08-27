@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2038",
+  "generated_at": "2026-08-27T06:20:25Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.64",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.1054245,
+    "tokens": {
+      "input_tokens": 54,
+      "output_tokens": 31399,
+      "cache_read_input_tokens": 4254614,
+      "cache_creation_input_tokens": 219136,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 106,
+        "outputTokens": 62098,
+        "cacheReadInputTokens": 5459844,
+        "cacheCreationInputTokens": 640122,
+        "webSearchRequests": 0,
+        "costUSD": 9.1054245,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 43,
+    "duration_ms": 632870
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} ACTIONS=${GITHUB_ACTIONS:-unset}\"; git status --porcelain | head; echo \"---HEAD---\"; git rev-parse HEAD",
+      "printf 'RUN_ID=%s ATTEMPT=%s ACTIONS=%s\\n' \"${GITHUB_RUN_ID:-unset}\" \"${GITHUB_RUN_ATTEMPT:-unset}\" \"${GITHUB_ACTIONS:-unset}\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
