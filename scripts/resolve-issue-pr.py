@@ -54,7 +54,7 @@ def _query_open_prs(issue, gh=None):
     try:
         r = subprocess.run(
             [gh, "pr", "list", "--search", f"{issue} in:body", "--state", "open",
-             "--json", "number,closingIssuesReferences,createdAt"],
+             "--limit", "100", "--json", "number,closingIssuesReferences,createdAt"],
             capture_output=True, encoding="utf-8",
         )
     except OSError:

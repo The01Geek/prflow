@@ -5457,13 +5457,9 @@ assert_eq "#493 helper: empty stdin fails closed — non-zero exit (Important #1
 assert_eq "#493 helper: missing URL arg fails closed — non-zero exit (Important #1)" \
   "2" \
   "$(printf 'Resolves #1\n[View run](x)' | python3 "$P493_HELPER" >/dev/null 2>&1; echo $?)"
-# Issue #2060 retired the branch-setup [View run] link rewrite (the gate job is now the
-# link's SINGLE owner) and gave the resume pre-check the stopped-run note-block STRIP
-# instead. The cloud-only run-link guard is gone (the strip runs on every resume, idempotent
-# — the local-resume cleaner and the safety net for an old workflow beside a new vendor
-# tree), so the AC4 pin re-anchors to the strip invocation; the PR-read-failure breadcrumb
-# survives in the strip fence. refresh-pr-run-link.py's own fixtures above stay — the helper
-# is unchanged and now called by the gate (scripts/refresh-pr-on-resume.sh).
+# Issue #2060 retired the branch-setup [View run] link rewrite (gate is now the link's single
+# owner) and gave the resume pre-check the note-block STRIP; the #493 pins re-anchor to that
+# strip fence. refresh-pr-run-link.py's fixtures above stay — it is now called by the gate.
 assert_pin_unique "#2060 resume: agent-side pre-check strips the stopped-run note block (AC4 local resume)" \
   'python3 "$SCRIPTS"/pr-note-block.py strip' "$P1582_BS"  # structural-pin-ok: routing-dispatch-contract -- the resume pre-check delegates the note strip to the helper; the wiring is the seam AC4's local-resume arm depends on
 assert_pin_unique "#2060 resume: best-effort warn on PR-body read failure (distinct from empty-body)" \
@@ -5586,6 +5582,45 @@ assert_eq "#2060 refresh-pr-on-resume: no open PR -> NO_PR, exit 2" \
 assert_eq "#2060 refresh-pr-on-resume: missing --run-url -> REFUSED, exit 3" \
   "REFUSED missing-args 3" \
   "$(o=$(bash "$P2060_RPOR" --issue 2060 2>/dev/null); echo "$o $?")"
+# REFUSED read arm: resolver finds a PR but the gh body read fails.
+cat > "$P2060_TMP/gh-readfail" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-readfail"
+assert_eq "#2060 refresh-pr-on-resume: PR body read fails -> REFUSED read, exit 3" \
+  "REFUSED read 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-readfail" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+# REFUSED patch arm: resolver + read succeed but the gh PATCH write fails.
+cat > "$P2060_TMP/gh-patchfail" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *"--method PATCH"*) exit 1 ;;
+  *"pulls/7"*) printf '%s\n' 'Resolves #2060
+[View run](https://x/runs/OLD)' ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-patchfail"
+assert_eq "#2060 refresh-pr-on-resume: PATCH write fails -> REFUSED patch, exit 3" \
+  "REFUSED patch 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-patchfail" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+# resolve-issue-pr CLI: gh exits 0 but emits non-array/invalid JSON -> REFUSED, exit 3.
+printf '#!/usr/bin/env bash\nprintf %%s %s\n' "'not valid json'" > "$P2060_TMP/gh-badjson"
+chmod +x "$P2060_TMP/gh-badjson"
+assert_eq "#2060 resolve-issue-pr CLI: unparseable JSON -> REFUSED, exit 3" \
+  " 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-badjson" python3 "$P2060_RIP" --issue 2060 2>/dev/null); echo "$o $?")"
+# pr-note-block.py strip: an unterminated start marker (no matching end) is left as ordinary text.
+assert_eq "#2060 pr-note-block: strip leaves an unterminated start marker as ordinary text" \
+  '<!-- prflow:stopped-run-note-start -->
+tail' \
+  "$(printf '%s' '<!-- prflow:stopped-run-note-start -->
+tail' | python3 "$P2060_PNB" strip)"
 
 # workpad.py terminal-stop text selector: EXACTLY Failed/Cancelled(note) + blocked(reflection)
 # mirror; Complete and every other status/kind write NONE (AC3, AC7 untouched-surface).
@@ -5615,6 +5650,37 @@ def boom(*a, **k): raise RuntimeError("boom")
 m._resolve_open_pr_for_issue = boom
 m._mirror_stopped_note_to_pr(2060, "x")  # must not raise
 print("SWALLOWED")
+PY
+)"
+# Behavioral coverage of workpad.py's inline (pinned-parallel) mirror pieces: the note-block
+# add/strip round-trip, the newest-open-PR-closing-the-issue selection, and the mirror happy
+# path (resolve -> read -> add block -> PATCH lands the note text on the PR body).
+assert_eq "#2060 workpad mirror: add/strip round-trip + selection + happy-path PATCH lands the note" \
+  "roundtrip=ok resolve=7 mirror=ok" \
+  "$(python3 - "$P2060_WP" <<'PY'
+import importlib.util, json, sys
+from types import SimpleNamespace
+s=importlib.util.spec_from_file_location("wp", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+rt = "ok" if m._strip_stopped_note_block(m._add_stopped_note_block("BODY", "note --> x")) == "BODY" else "BAD"
+m._run = lambda cmd, **k: SimpleNamespace(stdout=json.dumps([
+  {"number":3,"createdAt":"2026-01-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]},
+  {"number":7,"createdAt":"2026-02-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]},
+  {"number":9,"createdAt":"2026-03-01T00:00:00Z","closingIssuesReferences":[{"number":999}]}]))
+sel = m._resolve_open_pr_for_issue(2060)
+captured = {}
+def fake_run(cmd, **k):
+    if "-X" in cmd and "PATCH" in cmd:
+        for a in cmd:
+            if a.startswith("body=@"):
+                captured["body"] = open(a[6:]).read()
+        return SimpleNamespace(stdout="7")
+    return SimpleNamespace(stdout="Resolves #2060\n[View run](x)")
+m._resolve_open_pr_for_issue = lambda issue: 7
+m._run = fake_run
+m._mirror_stopped_note_to_pr(2060, "run died: boom")
+b = captured.get("body", "")
+mirror = "ok" if ("prflow:stopped-run-note-start" in b and "run died: boom" in b) else "BAD:" + repr(b)[:60]
+print(f"roundtrip={rt} resolve={sel} mirror={mirror}")
 PY
 )"
 # COUPLING: workpad.py's inline note-block markers stay byte-identical to pr-note-block.py's

@@ -486,17 +486,18 @@ jobs:
             if ! python3 "$WP" update "$NUMBER" --checkpoint "gha:${RUN_ID}:${RUN_ATTEMPT}:gate-adopted" "trigger accepted; existing workpad adopted"; then
               echo "::warning::gate-adopted checkpoint failed for #$NUMBER (a duplicated ## Progress, an empty body, or a transient error — a merely absent ## Progress is repaired since issue #1347, so it is no longer a cause); the Run-link refresh above still landed." >&2
             fi
-            # PR-body maintenance on resume (issue #2060): the gate is the SINGLE owner of the
-            # PR body's [View run] refresh — point it at THIS run and strip any stopped-run note
-            # block, so a reviewer arriving via the PR reaches the live run and sees no stale
-            # stopped-run banner even if the claude job never starts. Best-effort, mirroring the
-            # workpad Run-link refresh above: the helper warns internally, and here we warn on a
-            # non-zero exit and continue. The agent-side strip is the safety net for an old
-            # workflow beside a new vendor tree, so a missing helper is not fatal.
+            # PR-body maintenance on resume (issue #2060): the gate is the single owner of the PR
+            # body's [View run] refresh + stopped-run-note strip. Best-effort; the agent-side strip
+            # is the safety net for an old workflow beside a new vendor tree, so a missing/failing
+            # helper is never fatal.
             RPOR=.prflow/vendor/prflow/scripts/refresh-pr-on-resume.sh
             if [ -f "$RPOR" ]; then
               if ! bash "$RPOR" --issue "$NUMBER" --run-url "$RUN_URL" >/dev/null; then
-                echo "::warning::gate: PR-body run-link refresh + note strip did not complete for #$NUMBER (best-effort; the agent-side strip cleans notes on the next resume)." >&2
+                # rc 2 = NO_PR (no draft PR yet — benign on an early resume) warns nothing; rc 3 = REFUSED failure.
+                RPOR_RC=$?
+                if [ "$RPOR_RC" -ge 3 ]; then
+                  echo "::warning::gate: PR-body run-link refresh + note strip failed for #$NUMBER (best-effort; the agent-side strip cleans notes on the next resume)." >&2
+                fi
               fi
             else
               echo "::warning::gate: refresh-pr-on-resume.sh not vendored at $RPOR; PR-body maintenance skipped (an upgraded vendor tree cleans notes via the agent-side strip on the next resume)." >&2

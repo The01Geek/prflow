@@ -28,7 +28,11 @@ _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/resolve-gh.sh
 . "$_DIR/../lib/resolve-gh.sh" \
   || echo "prflow: refresh-pr-on-resume.sh could not source ../lib/resolve-gh.sh (a partial deployment carrying scripts/ without lib/?)" >&2
+# Export so the child resolve-issue-pr.py (which reads os.environ["DEVFLOW_GH"]) inherits the
+# resolved binary; without export it would fall back to bare `gh` and mis-resolve on a runner
+# whose gh is gh.exe.
 : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
+export DEVFLOW_GH
 
 ISSUE=""
 RUN_URL=""

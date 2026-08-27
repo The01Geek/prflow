@@ -3672,7 +3672,7 @@ def _resolve_open_pr_for_issue(issue):
     contains the issue, never a workpad Branch-line parse."""
     try:
         r = _run([GH, 'pr', 'list', '--search', f'{issue} in:body', '--state', 'open',
-                  '--json', 'number,closingIssuesReferences,createdAt'])
+                  '--limit', '100', '--json', 'number,closingIssuesReferences,createdAt'])
     except (subprocess.CalledProcessError, OSError):
         return None
     try:
