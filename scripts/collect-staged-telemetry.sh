@@ -28,9 +28,8 @@ if [ -z "$ROOT" ] || [ -z "$DEST" ]; then
 fi
 
 # Telemetry master switch (issue #2035): a JSON-false telemetry.enabled collects
-# nothing — no payload is staged for the relay. Fail-safe to ON: a missing helper/
-# python3 or unreadable config collects as before (the JSON-type read lives in
-# telemetry-master-off.py, beside this script).
+# nothing — no payload staged for the relay. Fail-safe to ON: a missing helper/python3
+# or unreadable config collects as before (JSON-type read in telemetry-master-off.py).
 _CST_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ -f "$_CST_DIR/telemetry-master-off.py" ] && command -v python3 >/dev/null 2>&1 \
    && python3 "$_CST_DIR/telemetry-master-off.py" "$ROOT/.prflow/config.json" >/dev/null 2>&1; then

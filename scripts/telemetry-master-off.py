@@ -16,7 +16,9 @@ JSON boolean ``false`` and the string ``"false"`` onto identical stdout
 ("false"), so a caller comparing that coerced string could not tell them apart.
 The three consumers — config-get.sh's enrolled-sub-key miss path,
 lib/efficiency-trace.sh --persist, and scripts/collect-staged-telemetry.sh —
-invoke this and branch on the exit code. Never raises: every error path exits 1.
+invoke this and branch on the exit code. Never raises: a bad argument count, an
+unreadable/corrupt config, a non-object config, a non-object telemetry value, and
+any non-false enabled value each return 1 (telemetry on).
 """
 import json
 import sys
