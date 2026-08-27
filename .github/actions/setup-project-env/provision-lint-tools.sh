@@ -133,6 +133,11 @@ _provision_one() {
     # Purge a stale cache-restored binary for this tool from DEST_BIN before it is appended to
     # GITHUB_PATH (issue #2050): delete ONLY a binary that FAILS the manifest version check (a
     # matching one is legitimate reuse and stays), else it shadows PATH; warn-and-continue kept.
+    if [ -z "$unsupported_version" ]; then
+      # No manifest version to check against: skip the purge (blind deletion could remove a
+      # legitimate matching binary) but breadcrumb it, symmetric with the unreadable-members arm.
+      printf 'provision-lint-tools: %s: WARNING could not read the manifest version; stale-binary purge skipped\n' "$tool" >&2
+    fi
     if [ -n "$unsupported_version" ]; then
       members="$("$PY" -c 'import json,sys
 d=json.load(open(sys.argv[1]))
