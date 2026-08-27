@@ -109,6 +109,28 @@ def resolve_artifact(manifest: dict, tool: str, os_name: str, arch: str) -> dict
     return None
 
 
+def iter_declared_artifacts(manifest: dict) -> list[tuple[str, str, str]]:
+    """Every declared ``(tool, os, arch)`` tuple in the manifest, in declaration
+    order. Derived from the manifest's own ``artifacts`` lists — kept here, beside
+    ``resolve_artifact``, so this module stays the single owner of the manifest's
+    artifact-shape layout and a caller enumerating the declared set does not
+    re-derive it. ``manifest`` must be an already-validated manifest dict; a shape
+    that is not raises ``ValueError`` naming the offending row."""
+    out: list[tuple[str, str, str]] = []
+    for tool, tool_obj in manifest.get("tools", {}).items():
+        # Raise rather than skip a malformed row: the caller's `verified ==
+        # declared` gate is computed from this list, so silently excluding a
+        # declared artifact would turn a skip into a clean pass.
+        if not isinstance(tool_obj, dict):
+            raise ValueError(f"malformed manifest: tool {tool!r} is not an object")
+        for idx, art in enumerate(tool_obj.get("artifacts", [])):
+            if not isinstance(art, dict) or "os" not in art or "arch" not in art:
+                raise ValueError(
+                    f"malformed manifest: tool {tool!r} artifact #{idx} lacks os/arch")
+            out.append((tool, art["os"], art["arch"]))
+    return out
+
+
 def cache_key(os_name: str, arch: str, tool: str, version: str, digest: str,
               installer_version: str) -> str:
     """The run-local cache key `{OS, arch, tool, version, digest, installer version}`.

@@ -4,6 +4,55 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.1] — 2026-08-27
+
+### Changed
+- **`verification-flight.py --help` now answers the claim-schema and exit-code questions.** The
+  top-level help epilog states the meaning of each exit code, and `claim --help` states the
+  required keys of the claim declaration (rendered from the module's own `_PROFILE_REQUIRED` and
+  `_CHECKOUT_REQUIRED` constants so help cannot drift from the validator) plus the attach
+  semantics, so a run learns the interface in one help read instead of grepping the source. The
+  stale attach-path comment now names `skills/review-and-fix/references/fixing.md`. No tool grant
+  is added. (#2036)
+
+## [2.35.0] — 2026-08-27
+
+### Added
+- **Add `prflow_review_and_fix.fix_below_threshold_iterations` — a configurable damper for below-Important fix-loop findings.** When `fix_severity_threshold` is set to `suggestion`, the `/prflow:review-and-fix` loop now routes below-`important` findings to the fixer only during the first `fix_below_threshold_iterations` iterations (default 1). After that window, on an iteration whose findings include no Critical and no Important finding, each fresh below-`important` finding is parked as an advisory instead of starting a new fix iteration, so a small Critical/Important-clean change converges in about two review fan-outs instead of running to the iteration cap. Below-`important` findings still ride along whenever a Critical or Important finding routes, and REJECT-drivers always route. Set the key to `0` to park below-`important` findings from the first iteration, or at/above `max_iterations` to restore the previous behavior. Runs at the default `important` threshold are unaffected. Separately, every convergence evaluation now records its three condition operands (`fixes_applied`, `fix_diff_lines`, `new_corroborated_critical_count`) in the iteration record so the decision is auditable. (#2056)
+
+## [2.34.70] — 2026-08-27
+
+### Fixed
+- **The suite's `#1621` ruff Python-lint gate now selects a candidate whose `major.minor`
+  family matches the pinned `.prflow/lint-manifest.json` ruff version, instead of the first
+  runnable candidate.** With a readable manifest pin, a stale off-family `ruff` first on PATH
+  no longer decides the lint when an in-family one is reachable via `python3 -m ruff`; when
+  neither candidate matches the
+  family the gate self-skips (kind `blocking-gate`) rather than linting under the wrong rule
+  set, and an unreadable manifest pin keeps today's first-runnable selection. The suite also
+  reconciles the implement workflow's own `ruff==` install spec to the manifest family, and the
+  lint-tool provisioning script deletes a stale off-version binary from its install directory on
+  the unsupported-platform degrade path before that directory is added to `PATH`. (#2051)
+
+## [2.34.69] — 2026-08-27
+
+### Fixed
+- **`workpad.py update` now resolves the workpad comment through the shared scan and a
+  verified comment-id cache.** The update path no longer runs its own inlined comment scan
+  or a standalone `gh repo view`: it finds the comment through `_find_workpad_comment`
+  (which carries the not-a-JSON-array guard the inlined copy lacked — a rc-0 non-list
+  comments response now fails through the labeled `update id-lookup` breadcrumb instead of
+  crashing with a Python traceback), remembers the resolved id in a gitignored
+  `.prflow/tmp/` cache, and on later calls fetches that comment directly — trusting the
+  cached id only after verifying its marker and `issue_url`. Repository resolution rides
+  `gh api`'s `{owner}/{repo}` placeholders. A warm-cache call makes two `gh` requests
+  instead of four-plus, roughly halving an automation run's workpad API traffic. (#2048)
+
+## [2.34.68] — 2026-08-27
+
+### Fixed
+- **`update-branch-checkpoint.sh` now self-registers the coverage-map JSON-aware merge driver before its base merge.** When the checkout's `.gitattributes` declares `merge=coverage-map-json`, the checkpoint helper registers the driver in local git config so an adjacent-key `lib/test/modules/coverage-map.json` conflict is unioned rather than routed to `CONFLICT` and Blocking the run. The block is guarded on the declaration and fail-soft: a consumer checkout carrying no such declaration stays silent, and a missing driver or a failed registration warns once to stderr and falls back to git's line-based merge, leaving the helper's outcome token and exit status unchanged. (#2044)
+
 ## [2.34.67] — 2026-08-27
 
 ### Changed

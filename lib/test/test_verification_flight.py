@@ -1906,5 +1906,70 @@ class TestPhaseEventAppend(Harness):
         self.assertEqual(rec["note"], "")
 
 
+class TestSelfDocumentingHelp(unittest.TestCase):
+    """issue #2034: `--help` answers the claim-schema and exit-code questions an
+    implement run otherwise greps the source for. The assertions enumerate the
+    module's OWN constants so a code/key added later is covered without a test edit."""
+
+    _SCRIPT = str(ROOT / "scripts" / "verification-flight.py")
+
+    def _help(self, *argv) -> str:
+        proc = subprocess.run(
+            [sys.executable, self._SCRIPT, *argv, "--help"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return proc.stdout
+
+    def test_top_level_help_states_each_exit_code_meaning(self):
+        help_text = self._help()
+        self.assertTrue(vf.EXIT_CODE_MEANINGS, "the module must define exit-code meanings")
+        for code, meaning in vf.EXIT_CODE_MEANINGS.items():
+            # Assert the number and its meaning as ONE rendered unit — a bare `str(code)`
+            # check passes vacuously off unrelated digits ("issue #528") in the help body.
+            self.assertIn(f"{code}  {meaning}", help_text,
+                          f"exit code {code} + meaning not rendered as a unit in --help")
+
+    def test_exit_code_meanings_cover_every_exit_constant(self):
+        # Completeness: EXIT_CODE_MEANINGS must document every EXIT_* code the module
+        # defines (the other tests only prove the dict is a SUBSET of the help text), so a
+        # new exit code added later cannot ship undocumented.
+        module_exit_codes = {
+            v for k, v in vars(vf).items()
+            if k.startswith("EXIT_") and isinstance(v, int) and not isinstance(v, bool)
+        }
+        self.assertEqual(set(vf.EXIT_CODE_MEANINGS), module_exit_codes,
+                         "EXIT_CODE_MEANINGS keys must match the module's EXIT_* constants")
+
+    def test_claim_help_states_required_declaration_keys(self):
+        # Anchor to the required-keys epilog section: a bare key like 'cwd' also appears in
+        # the --state-dir default help text, so an unanchored search could match vacuously.
+        self.assertTrue(vf._PROFILE_REQUIRED and vf._CHECKOUT_REQUIRED,
+                        "the module must declare required declaration keys")
+        marker = "required keys:"
+        keys_section = self._help("claim").split(marker, 1)
+        self.assertEqual(len(keys_section), 2, "claim --help must render a required-keys section")
+        for key in (*vf._PROFILE_REQUIRED, *vf._CHECKOUT_REQUIRED):
+            self.assertIn(key, keys_section[1],
+                          f"required declaration key {key!r} not in the required-keys section of `claim --help`")
+
+    def test_claim_help_states_attach_semantics(self):
+        # Collapse whitespace so a phrase split across a help line-wrap still matches.
+        help_text = " ".join(self._help("claim").lower().split())
+        for phrase in ("attaches", "exits 0", "role", "json fields", "exit code"):
+            self.assertIn(phrase, help_text,
+                          f"attach statement missing {phrase!r} in `claim --help`")
+
+    def test_malformed_invocation_still_exits_invalid(self):
+        # The deliberate _FlightArgumentParser contract: a usage error exits
+        # EXIT_INVALID (not argparse's default 2, which collides with EXIT_NON_PASS).
+        # Guards the parser class while its epilog text is being edited.
+        proc = subprocess.run(
+            [sys.executable, self._SCRIPT, "no-such-subcommand"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(proc.returncode, vf.EXIT_INVALID, proc.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

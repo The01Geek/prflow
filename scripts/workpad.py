@@ -64,6 +64,7 @@ sections are mutated in place rather than rewritten. See `workpad.py update
 import argparse
 import base64
 import datetime
+import hashlib
 import json
 import os
 import re
@@ -3498,34 +3499,149 @@ def _clear_workpad_buffer(comment_id) -> None:
         pass
 
 
+_WORKPAD_ID_CACHE_DIRNAME = 'workpad-id-cache'
+
+
+def _workpad_id_cache_path(issue, marker) -> Path:
+    """Cache file for one (issue, effective marker)'s resolved workpad comment id.
+
+    Mirrors `_workpad_buffer_path`: anchored under the repo-root `.prflow/tmp/`
+    (gitignored here and in every install.sh-scaffolded consumer), so it never
+    lands as a tracked file. Keyed by issue AND a hash of the effective marker so
+    two markers against one issue (e.g. the workpad vs a review-progress comment)
+    never collide.
+    """
+    root = _repo_root() or str(Path.cwd())
+    key = f'{issue}-{hashlib.sha1(marker.encode("utf-8")).hexdigest()[:16]}'
+    return (Path(root) / '.prflow' / 'tmp' / _WORKPAD_ID_CACHE_DIRNAME
+            / f'{key}.json')
+
+
+def _read_workpad_id_cache(issue, marker):
+    """Return the cached comment id for (issue, marker), or None on any degraded
+    shape — absent/empty/truncated/non-JSON/wrong-typed. Best-effort: a read
+    failure never raises and never changes the update's outcome (AC: cache trouble
+    never changes an update's outcome), so the caller falls back to a full scan."""
+    try:
+        raw = _workpad_id_cache_path(issue, marker).read_text(encoding='utf-8')
+    # ValueError covers UnicodeDecodeError from an invalid-UTF-8 cache file; without
+    # it a corrupted cache crashes `update` instead of missing to a scan.
+    except (OSError, ValueError):
+        return None
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    cid = data.get('comment_id')
+    # Accept only an int (or an int-valued string) comment id; anything else is a
+    # wrong-typed cache and misses to a scan.
+    if isinstance(cid, bool):
+        return None
+    if isinstance(cid, int):
+        return cid
+    if isinstance(cid, str) and cid.strip().isdigit():
+        return int(cid.strip())
+    return None
+
+
+def _write_workpad_id_cache(issue, marker, comment_id, repo) -> None:
+    """Record the resolved comment id for (issue, marker), atomically. Best-effort:
+    a write failure is swallowed and never changes the update's exit code — the id
+    is re-derived by scanning next time. `repo` (from the resolved comment's
+    issue_url) is stored for diagnostics only; read-side scoping is done by the
+    verification fetch, never by this value."""
+    path = _workpad_id_cache_path(issue, marker)
+    record = {'comment_id': comment_id, 'issue': issue,
+              'marker': marker, 'repo': repo}
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f'{path.name}.tmp')
+        tmp.write_text(json.dumps(record, ensure_ascii=False), encoding='utf-8')
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def _comment_body_channel(comment) -> str:
+    """The comment body from a JSON-decoded comment object — the single seam the
+    scan-object and cache-verify paths funnel their body through.
+
+    The object's `body` field is the exact stored body. The former separate
+    `gh api --jq .body` body fetch appended one trailing newline (jq's raw-output
+    newline), which this unification drops in favour of the true stored body, so a
+    round-trip PATCH is idempotent (no per-update trailing-newline drift). Both
+    resolution paths therefore hand `_apply_mutations` byte-identical input."""
+    return comment.get('body') or ''
+
+
+def _issue_url_names_issue(issue_url, issue) -> bool:
+    """True when `issue_url`'s trailing path segment is exactly `issue`. Fails
+    closed on a non-string / absent / null / wrong-typed value, so only a real
+    match trusts a cached id."""
+    if not isinstance(issue_url, str):
+        return False
+    return issue_url.rstrip('/').rsplit('/', 1)[-1] == str(issue)
+
+
+def _verify_cached_comment(comment_id, issue, marker):
+    """Fetch the cached comment directly and return its full object only when it is
+    trustworthy, else None (a miss → the caller scans).
+
+    Trust condition (the sole accept shape): the direct fetch succeeds, its body
+    starts with one of `_marker_variants(marker)`, and its `issue_url` names the
+    targeted issue. Every other outcome — a failed request such as a 404, a body
+    without the marker, an issue_url that does not name the issue (absent/null/
+    wrong-typed included), an unparseable or non-object response — is a miss.
+    Uses `{owner}/{repo}` placeholders (gh fills them from the checkout), so no
+    `gh repo view` call is made."""
+    try:
+        r = _run([
+            GH, 'api',
+            f'repos/{{owner}}/{{repo}}/issues/comments/{comment_id}',
+        ])
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    try:
+        comment = json.loads(r.stdout)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(comment, dict):
+        return None
+    if not (comment.get('body') or '').startswith(_marker_variants(marker)):
+        return None
+    if not _issue_url_names_issue(comment.get('issue_url'), issue):
+        return None
+    return comment
+
+
+def _repo_from_issue_url(issue_url):
+    """The `owner/repo` slug parsed from a comment's issue_url, for cache
+    diagnostics only; None when it cannot be parsed."""
+    if not isinstance(issue_url, str):
+        return None
+    m = re.search(r'/repos/([^/]+/[^/]+)/issues/', issue_url)
+    return m.group(1) if m else None
+
+
 def _cmd_update_inner(args):
-    # Resolve comment ID from the issue. update is stateless for callers.
-    # cmd_id prints + sys.exits; we inline the lookup to capture the ID.
+    # Resolve the workpad comment id AND its live body together. A cached id is
+    # trusted only after a direct fetch verifies it; every miss falls back to the
+    # shared paginated scan. Repository resolution rides `gh api`'s {owner}/{repo}
+    # placeholders (gh fills them from the checkout at no API cost), so no
+    # `gh repo view` call is made — and the scan reuses `_find_workpad_comment`,
+    # which returns the whole comment object, so the id and body arrive in one
+    # request and carry that helper's not-a-JSON-array guard.
     marker = _workpad_marker(args.marker)
-    repo = _repo_full()
-    comment_id = None
-    page = 1
-    while True:
-        try:
-            r = _run([
-                GH, 'api',
-                (f'/repos/{repo}/issues/{args.issue}/comments'
-                f'?page={page}&per_page=100'),
-            ])
-        except (subprocess.CalledProcessError, OSError) as e:
-            _fail('update id-lookup', e)
-        try:
-            items = json.loads(r.stdout)
-        except json.JSONDecodeError as e:
-            _fail('update id-lookup', f"could not parse gh comments response: {e}")
-        for c in items:
-            if (c.get('body') or '').startswith(_marker_variants(marker)):
-                comment_id = c['id']
-                break
-        if comment_id is not None or len(items) < 100:
-            break
-        page += 1
-    if comment_id is None:
+    comment = None
+    cached_id = _read_workpad_id_cache(args.issue, marker)
+    if cached_id is not None:
+        comment = _verify_cached_comment(cached_id, args.issue, marker)
+    if comment is None:
+        comment = _find_workpad_comment(
+            'update id-lookup', '{owner}/{repo}', args.issue, marker)
+    if comment is None:
         # Deliberately exit 1 (not cmd_id's exit-2 "scanned-clean-absent"): unlike
         # `id`, `update` has no create-fallback to disambiguate toward, so "absent"
         # here is a caller error (update before create), not a benign first-run
@@ -3537,22 +3653,20 @@ def _cmd_update_inner(args):
             f"call `workpad.py create` first\n"
         )
         sys.exit(1)
-
-    # Fetch live body (re-fetch invariant).
-    try:
-        r = _run([
-            GH, 'api',
-            f'/repos/{repo}/issues/comments/{comment_id}',
-            '--jq', '.body',
-        ])
-    except (subprocess.CalledProcessError, OSError) as e:
-        _fail('update body-fetch', e)
-    body = r.stdout
+    comment_id = comment['id']
+    body = _comment_body_channel(comment)
+    # Record the resolved id so the next call for this (issue, marker) can fetch it
+    # directly. Best-effort: a cache-write failure never changes this call's outcome.
+    # Skip the write on a verified cache hit (the id is unchanged) so this hot path —
+    # called dozens of times per run — does not re-mkdir/re-write a byte-identical file.
+    if cached_id is None or comment_id != cached_id:
+        _write_workpad_id_cache(
+            args.issue, marker, comment_id, _repo_from_issue_url(comment.get('issue_url')))
 
     # Hydration-race preconditions (issue #537, AC24). Phase 1 snapshots the workpad
     # comment ID and the exact stripped Status word BEFORE resetting Status, then
-    # passes them here. We re-resolved the marker comment (above) and re-fetched its
-    # body — if the LIVE comment ID or Status word no longer matches the snapshot,
+    # passes them here. We just resolved the live comment id and body (above) — if the
+    # LIVE comment ID or Status word no longer matches the snapshot,
     # the workpad was concurrently changed (a terminal backstop flip, a delete +
     # recreate, an operator edit), so ABORT before any mutation/PATCH rather than
     # overwrite the current state with a stale reset. Exit 4 = precondition mismatch
@@ -3696,7 +3810,7 @@ def _cmd_update_inner(args):
     try:
         r = _run([
             GH, 'api', '-X', 'PATCH',
-            f'/repos/{repo}/issues/comments/{comment_id}',
+            f'repos/{{owner}}/{{repo}}/issues/comments/{comment_id}',
             '-F', f'body=@{tmp_path}',
             '--jq', '.body',
         ])

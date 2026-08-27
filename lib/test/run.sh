@@ -118,7 +118,7 @@ esac
 export -n DEVFLOW_SKIP_SUITE_MODULES 2>/dev/null || true
 # Python-pool selector, the sibling of the module-tier selector above. The monolith CI
 # shard invokes this suite as `DEVFLOW_SKIP_PYTHON_POOL=1 bash lib/test/run.sh` so the
-# two heavy pooled Python suites (test_module_runner.py, test_python_scripts.py) run in
+# heavy pooled Python suites (test_module_runner.py + the four test_python_scripts parts) run in
 # their own `python-pool` shard instead — the monolith no longer sits idle at the join
 # waiting for them. `export -n` for exactly the reason above, and with more force here:
 # the pooled suites and the module meta-tests spawn nested run.sh/run-module.sh
@@ -1254,6 +1254,93 @@ _build_skill_bundle "review-and-fix" "$MAXI_BUNDLE" "${_maxi_members[@]}"
 assert_eq "#530/#539 review-and-fix bundle assembled all 9 members (thin root + 8 references)" "9" \
   "${#_maxi_members[@]}"
 MAXI_SKILL="$MAXI_BUNDLE"
+
+# ────────────────────────────────────────────────────────────────────────────
+echo "prflow_review_and_fix.fix_below_threshold_iterations (schema + resolution) (#2053)"
+# ────────────────────────────────────────────────────────────────────────────
+# The below-Important fix-loop damper window is read from config via config-get.sh
+# (default 1) and clamped INLINE in skills/review-and-fix/references/loop-control.md:
+# a non-integer/negative/empty/unparseable value (or a resolver failure) → default 1,
+# and a configured 0 is HONORED (the documented off-switch — a default-coalescing read
+# would silently replace it, the bug class #312/#304). Same three-part model as
+# max_iterations above: (a) schema/example contract, (b) resolver read behavior,
+# (c) the clamp via a function kept byte-aligned with the SKILL block (floor 0, not 1).
+FBI_SCHEMA="$LIB/../.prflow/config.schema.json"
+FBI_EXAMPLE="$LIB/../.prflow/config.example.json"
+FBI_PROP='.properties.prflow_review_and_fix.properties.fix_below_threshold_iterations'
+assert_eq "fix_below_threshold_iterations: schema type is integer" "integer" \
+  "$(jq -r "$FBI_PROP.type" "$FBI_SCHEMA")"
+assert_eq "fix_below_threshold_iterations: schema minimum is 0" "0" \
+  "$(jq -r "$FBI_PROP.minimum" "$FBI_SCHEMA")"
+assert_eq "fix_below_threshold_iterations: schema default is 1" "1" \
+  "$(jq -r "$FBI_PROP.default" "$FBI_SCHEMA")"
+assert_eq "fix_below_threshold_iterations: schema has a non-empty description" "yes" \
+  "$(jq -e "$FBI_PROP.description | type == \"string\" and (length > 0)" "$FBI_SCHEMA" >/dev/null && echo yes || echo no)"
+# Default-equality: schema default == example value (the third leg — the SKILL fallback
+# literal 1 — is pinned as the config-get.sh default arg in the resolver reads below).
+assert_eq "fix_below_threshold_iterations: example value matches schema default" \
+  "$(jq -r "$FBI_PROP.default" "$FBI_SCHEMA")" \
+  "$(jq -r '.prflow_review_and_fix.fix_below_threshold_iterations' "$FBI_EXAMPLE")"
+
+# Resolver-read behavior — the six-shape adversarial matrix for a config-JSON consumer
+# (object / array / non-integer scalar / valid-falsy 0 / missing / wrong-type-negative).
+# config-get.sh passes the value through verbatim; the inline clamp downstream validates.
+FBI_CFG="$(probe_tmp 'fix_below_threshold_iterations resolver fixture temp')"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":3}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: configured integer read back verbatim" "3" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: unset key → resolver default 1" "1" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+assert_eq "fix_below_threshold_iterations: missing config file → resolver default 1" "1" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 /no/such/config.json)"
+# Valid-falsy 0 — the load-bearing off-switch row: the resolver passes 0 through, and the
+# clamp below HONORS it (does not coalesce to the default).
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":0}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: valid-falsy 0 passed through to clamp" "0" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":"abc"}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: non-integer value passed through to clamp (abc)" "abc" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":-2}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: negative value passed through to clamp (-2)" "-2" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+# Object and array shapes complete the six-shape matrix: config-get.sh coerces an object to
+# "[object Object]" and an array to its comma-joined members; both are non-integer, so the
+# clamp below falls back to the default 1 (the clamp's object/array assertions cover that leg).
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":{"a":1}}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: object value coerced (config-get)" "[object Object]" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":[1,2]}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: array value coerced (config-get)" "1,2" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+rm -f "$FBI_CFG"
+
+# The review-and-fix inline clamp for the damper window — a hand-maintained mirror of the shipped
+# clamp in skills/review-and-fix/references/loop-control.md (floor 0, NOT 1 — a configured 0 is the
+# honored off-switch). Keep byte-aligned with that block. Like maxi_clamp above, this mirror cannot
+# catch the SHIPPED clamp being edited; its wording is review-covered (#885/#946 retired the drift
+# pins), so do not re-add a source pin here.
+fbi_clamp() {
+  local v="$1" rc="${2:-0}"
+  if [ "$rc" -ne 0 ] || ! printf '%s' "$v" | grep -Eq '^-?[0-9]+$'; then
+    printf '1\n'
+  elif [ "$v" -lt 0 ]; then
+    printf '1\n'
+  else
+    printf '%s\n' "$v"
+  fi
+}
+assert_eq "fix_below_threshold_iterations clamp: valid value honored"          "3"  "$(fbi_clamp 3)"
+assert_eq "fix_below_threshold_iterations clamp: 0 honored (off-switch)"       "0"  "$(fbi_clamp 0)"
+assert_eq "fix_below_threshold_iterations clamp: large value honored (no cap)" "42" "$(fbi_clamp 42)"
+assert_eq "fix_below_threshold_iterations clamp: negative → default 1"         "1"  "$(fbi_clamp -2)"
+assert_eq "fix_below_threshold_iterations clamp: non-integer → default 1"      "1"  "$(fbi_clamp abc)"
+assert_eq "fix_below_threshold_iterations clamp: object-coerced → default 1"   "1"  "$(fbi_clamp '[object Object]')"
+assert_eq "fix_below_threshold_iterations clamp: array-coerced → default 1"    "1"  "$(fbi_clamp '1,2')"
+assert_eq "fix_below_threshold_iterations clamp: float → default 1"            "1"  "$(fbi_clamp 2.5)"
+assert_eq "fix_below_threshold_iterations clamp: empty → default 1"            "1"  "$(fbi_clamp '')"
+assert_eq "fix_below_threshold_iterations clamp: resolver failure (rc≠0) → 1"  "1"  "$(fbi_clamp '' 2)"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "severity thresholds (schema + example + config-get resolution + SKILL pins) (#251)"
@@ -5745,20 +5832,31 @@ assert_eq "#169: workpad.py routes volatile misses through _report_failed_ticks 
 S258="$(mktemp -d)"
 cat > "$S258/gh" <<'STUB'
 #!/usr/bin/env bash
-# Minimal gh stub for workpad.py update: repo view, comments list (marker match),
-# body fetch, and PATCH (records that a PATCH happened + echoes the patched body).
+# Minimal gh stub for workpad.py update (issue #2042 unified resolution): the
+# comments-list scan AND the single-comment verify fetch both return the full
+# workpad object (body + issue_url) — the scan resolves id AND body together, so
+# there is no separate `--jq .body` body fetch and no `gh repo view`. PATCH records
+# that a PATCH happened + echoes the patched body.
 j="$*"
-if [[ "$j" == *"repo view"* ]]; then echo "owner/repo"; exit 0; fi
 if [[ "$j" == *"-X PATCH"* ]]; then
   echo p >> "$WP_PATCHLOG"
   for a in "$@"; do case "$a" in body=@*) cat "${a#body=@}";; esac; done
   exit 0
 fi
-if [[ "$j" == *"issues/comments/7"* ]]; then cat "$WP_BODY"; exit 0; fi
-if [[ "$j" == *"issues/999/comments"* ]]; then echo '[{"id":7,"body":"<!-- devflow:workpad -->"}]'; exit 0; fi
+if [[ "$j" == *"issues/comments/7"* ]]; then
+  printf '{"id":7,"body":%s,"issue_url":"https://api.github.com/repos/owner/repo/issues/999"}' "$(jq -Rs . < "$WP_BODY")"; exit 0
+fi
+if [[ "$j" == *"issues/999/comments"* ]]; then
+  printf '[{"id":7,"body":%s,"issue_url":"https://api.github.com/repos/owner/repo/issues/999"}]' "$(jq -Rs . < "$WP_BODY")"; exit 0
+fi
 echo '[]'
 STUB
 chmod +x "$S258/gh"
+# Issue #2042: workpad.py update now records a resolved comment id under the
+# repo-root .prflow/tmp/workpad-id-cache/. Clear it so this block always exercises
+# the scan path first (the cache self-heals via the verify fetch, but a clean start
+# keeps the fixtures deterministic across suite runs).
+rm -rf "$LIB/../.prflow/tmp/workpad-id-cache"
 
 # issue #1087: the terminal gate also requires a validated completion
 # verification-flight marker. Stand up a passing flight record under a temp
@@ -6518,19 +6616,27 @@ PY
 S781U="$(mktemp -d)"
 cat > "$S781U/gh" <<'STUB'
 #!/usr/bin/env bash
-# gh stub for workpad.py update: repo view, comment lookup, body fetch, PATCH
-# (echoes the patched body so the test can read the written record back).
+# gh stub for workpad.py update (issue #2042 unified resolution): the comments-list
+# scan AND the single-comment verify fetch both return the full workpad object
+# (body + issue_url), so the scan resolves id AND body together — no separate body
+# fetch, no `gh repo view`. PATCH echoes the patched body so the test can read the
+# written record back.
 j="$*"
-if [[ "$j" == *"repo view"* ]]; then echo "owner/repo"; exit 0; fi
 if [[ "$j" == *"-X PATCH"* ]]; then
   for a in "$@"; do case "$a" in body=@*) cat "${a#body=@}";; esac; done
   exit 0
 fi
-if [[ "$j" == *"issues/comments/7"* ]]; then cat "$WP_BODY"; exit 0; fi
-if [[ "$j" == *"issues/999/comments"* ]]; then echo '[{"id":7,"body":"<!-- devflow:workpad -->"}]'; exit 0; fi
+if [[ "$j" == *"issues/comments/7"* ]]; then
+  printf '{"id":7,"body":%s,"issue_url":"https://api.github.com/repos/owner/repo/issues/999"}' "$(jq -Rs . < "$WP_BODY")"; exit 0
+fi
+if [[ "$j" == *"issues/999/comments"* ]]; then
+  printf '[{"id":7,"body":%s,"issue_url":"https://api.github.com/repos/owner/repo/issues/999"}]' "$(jq -Rs . < "$WP_BODY")"; exit 0
+fi
 echo '[]'
 STUB
 chmod +x "$S781U/gh"
+# Issue #2042: clear the resolved-id cache so this block exercises the scan path.
+rm -rf "$LIB/../.prflow/tmp/workpad-id-cache"
 cat > "$S781U/base.md" <<'WPMD'
 <!-- devflow:workpad -->
 # DevFlow Workpad — Issue #999
@@ -41673,6 +41779,181 @@ done
 assert_eq "#779 ubc-token-arms: every helper token is named in a checkpoint-4 arm (none falls through to publish)" \
   "" "${UBC_UNMAPPED# }"
 unset _t UBC_TOKENS UBC_TOKENS_ONELINE UBC_P4_BODY UBC_UNMAPPED
+
+# ── #2025 covmap-driver → update-branch-checkpoint.sh registers the coverage-map JSON-aware
+# merge driver itself before its base merge. Stage the real driver + its guard/population
+# deps in each scratch repo, or `--register` has nothing to register. ──────────────────────
+UBC_CM_DEPS="coverage-map-merge-driver.py coverage_map_guard.py lint_population.py"
+
+# Build a scratch repo (bare origin + work on `feat`) whose .gitattributes routes
+# lib/test/modules/coverage-map.json through merge=coverage-map-json, with the driver deps
+# staged under lib/test/; `feat` inserts an adjacent key. stage_driver=0 omits the driver
+# file itself (the AC4 declared-but-missing-driver arm).
+ubc_covmap_make() {  # root [stage_driver]
+  local root="$1" stage_driver="${2:-1}" dep
+  git init -q --bare "$root/bare.git"
+  git init -q -b main "$root/work"
+  git -C "$root/work" config user.email t@t
+  git -C "$root/work" config user.name t
+  mkdir -p "$root/work/lib/test/modules"
+  printf 'lib/test/modules/coverage-map.json merge=coverage-map-json\n' > "$root/work/.gitattributes"
+  for dep in $UBC_CM_DEPS; do
+    [ "$dep" = "coverage-map-merge-driver.py" ] && [ "$stage_driver" = "0" ] && continue
+    cp "$LIB/test/$dep" "$root/work/lib/test/$dep"
+  done
+  printf '{\n  "aaa": {"owner": "x"},\n  "zzz": {"owner": "x"}\n}\n' > "$root/work/lib/test/modules/coverage-map.json"
+  git -C "$root/work" add .gitattributes lib/test
+  git -C "$root/work" commit -qm init
+  git -C "$root/work" remote add origin "$root/bare.git"
+  git -C "$root/work" push -q -u origin main
+  git -C "$root/work" checkout -q -b feat
+  printf '{\n  "aaa": {"owner": "x"},\n  "mmm": {"owner": "feat"},\n  "zzz": {"owner": "x"}\n}\n' \
+    > "$root/work/lib/test/modules/coverage-map.json"
+  git -C "$root/work" add lib/test/modules/coverage-map.json
+  git -C "$root/work" commit -qm feat-key
+  git -C "$root/work" push -q -u origin feat
+}
+
+# Advance origin/main with the map carrying a DISTINCT adjacent key — a textual conflict
+# without the driver, a clean union with it.
+ubc_covmap_advance() {  # root tag
+  ubc_advance_base "$1" "$2" lib/test/modules/coverage-map.json \
+    "$(printf '{\n  "aaa": {"owner": "x"},\n  "nnn": {"owner": "base"},\n  "zzz": {"owner": "x"}\n}')"
+}
+
+# ── covmap-clean → AC1 (adjacent-key conflict resolves cleanly), AC2 (driver registered to
+# exactly DRIVER_COMMAND, local), AC6 (no global/system key). ──────────────────────────────
+D="$(git_sandbox 'ubc-covmap-clean')"
+ubc_covmap_make "$D"
+ubc_covmap_advance "$D" cm
+ubc_run "$D"
+assert_eq "#2025 covmap-clean: adjacent-key conflict resolves → 'UPDATED 1' (AC1)" "UPDATED 1" "$UBC_OUT"
+assert_eq "#2025 covmap-clean: exit 0 (AC1)" "0" "$UBC_RC"
+assert_eq "#2025 covmap-clean: merged map unions all four keys (AC1)" "4" \
+  "$(git -C "$D/work" show HEAD:lib/test/modules/coverage-map.json 2>/dev/null | grep -oE '"(aaa|mmm|nnn|zzz)"' | wc -l | tr -d ' ')"
+assert_eq "#2025 covmap-clean: driver registered locally to DRIVER_COMMAND (AC2)" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-clean: no GLOBAL git config key written by the helper (AC6)" "" \
+  "$(git config --global --get merge.coverage-map-json.driver 2>/dev/null || true)"
+assert_eq "#2025 covmap-clean: no SYSTEM git config key written by the helper (AC6)" "" \
+  "$(git config --system --get merge.coverage-map-json.driver 2>/dev/null || true)"
+
+# ── covmap-undeclared → AC3: a checkout with no merge=coverage-map-json assignment writes no
+# config, invokes no registration, and emits no registration output on any stream. ──────────
+D="$(git_sandbox 'ubc-covmap-undeclared')"
+ubc_make "$D"
+ubc_advance_base "$D" ud
+ubc_run "$D"
+assert_eq "#2025 covmap-undeclared: normal update is unaffected → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
+assert_eq "#2025 covmap-undeclared: no merge.coverage-map-json.driver config written (AC3)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+assert_eq "#2025 covmap-undeclared: no registration output on stderr (AC3)" "no" \
+  "$(printf '%s' "$UBC_ERR" | grep -qF 'coverage-map merge driver' && echo yes || echo no)"
+
+# ── covmap-declared-other → AC3 reject path: .gitattributes EXISTS but resolves the map to a
+# near-miss superstring. Keep this row beside covmap-undeclared: a no-file repo never exercises
+# the resolve-then-reject arm at all. ──────────────────────────────────────────────────────
+D="$(git_sandbox 'ubc-covmap-declared-other')"
+ubc_make "$D"
+printf '# comment the parser must skip\n*.sh merge=text\nlib/test/modules/coverage-map.json merge=coverage-map-json-other\n' > "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm gitattributes-no-covmap-decl
+ubc_advance_base "$D" 'do'
+ubc_run "$D"
+assert_eq "#2025 covmap-declared-other: normal update unaffected → 'UPDATED 1' (AC3 parse reject)" "UPDATED 1" "$UBC_OUT"
+assert_eq "#2025 covmap-declared-other: no merge.coverage-map-json.driver config written (AC3 parse reject)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+assert_eq "#2025 covmap-declared-other: no registration output on stderr (AC3 parse reject)" "no" \
+  "$(printf '%s' "$UBC_ERR" | grep -qF 'coverage-map merge driver' && echo yes || echo no)"
+
+# ── covmap-nodriver → AC4: declaration present but the driver file absent → exactly one stderr
+# warning naming the missing driver path, then the merge falls back line-based (outcome
+# unchanged: an adjacent-key covmap conflict is still CONFLICT/exit 2). ─────────────────────
+D="$(git_sandbox 'ubc-covmap-nodriver')"
+ubc_covmap_make "$D" 0
+ubc_covmap_advance "$D" nd
+ubc_run "$D"
+assert_eq "#2025 covmap-nodriver: missing driver → line-based fallback → CONFLICT (AC4 outcome unchanged)" "CONFLICT" "$UBC_OUT"
+assert_eq "#2025 covmap-nodriver: exit 2 (AC4)" "2" "$UBC_RC"
+assert_eq "#2025 covmap-nodriver: exactly one stderr warning naming the missing driver path (AC4)" "1" \
+  "$(printf '%s\n' "$UBC_ERR" | grep -cF 'coverage-map-merge-driver.py is missing')"
+assert_eq "#2025 covmap-nodriver: no driver config written when the driver is absent (AC4)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+git -C "$D/work" merge --abort 2>/dev/null || true
+
+# ── covmap-regfail → AC5: the registration command exits non-zero (a python3 stub that fails
+# only on `--register`, passing every other call through to the real interpreter) → exactly one
+# stderr warning, the base merge still runs (later guards intact), outcome unchanged. ───────
+D="$(git_sandbox 'ubc-covmap-regfail')"
+ubc_covmap_make "$D"
+ubc_covmap_advance "$D" rf
+UBC_REALPY="$(command -v python3)"
+mkdir -p "$D/stubbin"
+cat > "$D/stubbin/python3" <<EOF
+#!/usr/bin/env bash
+for _a in "\$@"; do [ "\$_a" = "--register" ] && exit 1; done
+exec "$UBC_REALPY" "\$@"
+EOF
+chmod +x "$D/stubbin/python3"
+UBC_RF_OUT="$( cd "$D/work" && PATH="$D/stubbin:$PATH" "$UBC" 2>"$D/rf-err" )"; UBC_RF_RC=$?
+UBC_RF_ERR="$(cat "$D/rf-err" 2>/dev/null)"
+assert_eq "#2025 covmap-regfail: failed registration → line-based fallback → CONFLICT (AC5 outcome unchanged)" "CONFLICT" "$UBC_RF_OUT"
+assert_eq "#2025 covmap-regfail: exit 2 (AC5)" "2" "$UBC_RF_RC"
+assert_eq "#2025 covmap-regfail: exactly one stderr warning on registration failure (AC5)" "1" \
+  "$(printf '%s\n' "$UBC_RF_ERR" | grep -cF 'registration')"
+assert_eq "#2025 covmap-regfail: the base merge still ran after the fail-soft fallback (later guards intact, AC5)" "yes" \
+  "$(printf '%s' "$UBC_RF_ERR" | grep -qF 'coverage-map.json' && echo yes || echo no)"
+assert_eq "#2025 covmap-regfail: no driver config written after a failed registration (AC5)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+git -C "$D/work" merge --abort 2>/dev/null || true
+
+# ── covmap-real-gitattributes → pins the guard to THIS repo's checked-in .gitattributes, not
+# the synthetic line the rows above stage. Reformatting the real declaration into a shape the
+# guard misses goes RED here instead of silently reverting every merge to line-based. ──────
+D="$(git_sandbox 'ubc-covmap-real-ga')"
+ubc_covmap_make "$D"
+cp "$LIB/../.gitattributes" "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm real-gitattributes
+ubc_covmap_advance "$D" rg
+ubc_run "$D"
+assert_eq "#2025 covmap-real-gitattributes: the repo's own declaration registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-real-gitattributes: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
+
+# ── covmap-tab-declared → git splits a .gitattributes line on ANY whitespace, so a
+# tab-separated declaration is a real declaration. The guard must resolve it through git
+# rather than re-deriving the separator set, which silently under-accepts. ─────────────────
+D="$(git_sandbox 'ubc-covmap-tab')"
+ubc_covmap_make "$D"
+printf 'lib/test/modules/coverage-map.json\tmerge=coverage-map-json\n' > "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm tab-separated-declaration
+ubc_covmap_advance "$D" tb
+ubc_run "$D"
+assert_eq "#2025 covmap-tab-declared: tab-separated declaration registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-tab-declared: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
+
+# ── covmap-subdir → the declaration is resolved with `git -C <repo root>`, so a run whose CWD
+# is a SUBDIRECTORY still registers. Dropping that -C makes check-attr resolve the relative
+# pathspec against the subdirectory, read as undeclared, and silently revert to line-based. ─
+D="$(git_sandbox 'ubc-covmap-subdir')"
+ubc_covmap_make "$D"
+ubc_covmap_advance "$D" sd
+UBC_SD_OUT="$( cd "$D/work/lib/test" && "$UBC" 2>"$D/sd-err" )"; UBC_SD_RC=$?
+assert_eq "#2025 covmap-subdir: run from a subdirectory still registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-subdir: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_SD_OUT"
+assert_eq "#2025 covmap-subdir: exit 0" "0" "$UBC_SD_RC"
+git -C "$D/work" merge --abort 2>/dev/null || true
+
+unset UBC_CM_DEPS UBC_REALPY UBC_RF_OUT UBC_RF_RC UBC_RF_ERR UBC_SD_OUT UBC_SD_RC
+
 # ────────────────────────────────────────────────────────────────────────────
 echo "extract-execution-shape.sh (#437 execution-file shape probe: redaction + present/absent/unavailable + encoding)"
 # ────────────────────────────────────────────────────────────────────────────
@@ -48401,7 +48682,7 @@ assert_pin_unique "#497 AC10 skill clean render requires both persisted operands
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-and-fix-contract.sh" \
-  "review-and-fix-contract" 39; then
+  "review-and-fix-contract" 59; then
   printf 'ERROR: review-and-fix-contract boundary could not record its result\n'
   exit 1
 fi
@@ -49930,10 +50211,14 @@ assert_eq "python-pool: run-python-pool.sh exists and is executable" "yes" \
 # ── The DEVFLOW_SKIP_PYTHON_POOL selector, driven at BOTH entry points ──
 # devflow_pool_open/join are shadowed inside a subshell, so the real 275s of Python
 # never runs: the probe observes only the DECISION. `open=` is the number of pool
-# membership modes handed to devflow_pool_open (2 when the pool ran, 0 when gated);
-# `join=` is the number of verdict lines the join wrote to its private RESULTS_FILE
-# (the enabled arm reaches the reconciliation, which — with no summary captured from a
-# stubbed pool — records exactly one FAIL, so a non-zero join= is proof the body ran).
+# membership modes handed to devflow_pool_open (5 when the pool ran — one single-verdict
+# test_module_runner.py plus the four self-tally test_python_scripts parts (issue #2007);
+# 0 when gated); `join=` is the number of verdict lines the join wrote to its private
+# RESULTS_FILE (the enabled arm reaches the reconciliation, which — with no summary
+# captured from a stubbed pool — records one FAIL per self-tally member, i.e. 4, so a
+# non-zero join= is proof the body ran). The 5/4 pins couple to the pool membership; the
+# self-tally-member coupling assertion below fails RED in lockstep if a part is added or
+# dropped, forcing both to be updated together.
 _pps_selector_probe() {  # selector-value ('' = unset) -> "open=N join=N"
   (
     # Explicit templates, the convention this file and run-python-pool.sh already use:
@@ -49956,20 +50241,41 @@ _pps_selector_probe() {  # selector-value ('' = unset) -> "open=N join=N"
   ) 2>/dev/null | tail -1
 }
 assert_eq "python-pool selector: with DEVFLOW_SKIP_PYTHON_POOL unset the pool opens and the join body runs" \
-  "open=2 join=1" "$(_pps_selector_probe '')"
+  "open=5 join=4" "$(_pps_selector_probe '')"
 assert_eq "python-pool selector: DEVFLOW_SKIP_PYTHON_POOL=1 opens nothing and writes NO verdict (no double-count)" \
   "open=0 join=0" "$(_pps_selector_probe 1)"
 # Only the exact value 1 disables — the DEVFLOW_SKIP_SUITE_MODULES contract. A
 # half-set variable must not silently drop both suites from a run.
 assert_eq "python-pool selector: DEVFLOW_SKIP_PYTHON_POOL=0 still runs the pool (only the exact 1 disables)" \
-  "open=2 join=1" "$(_pps_selector_probe 0)"
+  "open=5 join=4" "$(_pps_selector_probe 0)"
 assert_eq "python-pool selector: a non-empty non-1 value still runs the pool" \
-  "open=2 join=1" "$(_pps_selector_probe yes)"
+  "open=5 join=4" "$(_pps_selector_probe yes)"
 assert_eq "python-pool selector: the predicate reports enabled when unset" "enabled" \
   "$( ( unset DEVFLOW_SKIP_PYTHON_POOL; devflow_python_pool_enabled && echo enabled || echo disabled ) )"
 assert_eq "python-pool selector: the predicate reports disabled at exactly 1" "disabled" \
   "$( ( DEVFLOW_SKIP_PYTHON_POOL=1; devflow_python_pool_enabled && echo enabled || echo disabled ) )"
 unset -f _pps_selector_probe
+
+# ── DEVFLOW_PYTHON_SELFTALLY_MEMBERS must equal the pool's self-tally registrations ──
+# The #720/#2007 reconciliation loops DEVFLOW_PYTHON_SELFTALLY_MEMBERS, a hand-maintained
+# literal decoupled from the `self-tally` triples devflow_python_suite_pool_open registers.
+# Without this pin a part added to the pool as self-tally but forgotten in the array would
+# run, contribute verdicts, and NEVER be reconciled — a silent coverage gap that fails open
+# exactly where the check claims to fail closed. Stub devflow_pool_open to emit its triples
+# as "name<TAB>mode", keep the self-tally names, and assert set-equality (both sides sorted).
+_pps_selftally_registered() {  # -> newline-sorted self-tally member names the pool registers
+  (
+    # devflow_python_suite_pool_open early-returns via devflow_python_pool_enabled when
+    # DEVFLOW_SKIP_PYTHON_POOL=1 (the monolith shard sets it), so clear it here — as the
+    # sibling probes do — or this assertion emits an empty RHS and goes RED on that shard.
+    unset DEVFLOW_SKIP_PYTHON_POOL
+    devflow_pool_open() { while [ "$#" -ge 3 ]; do printf '%s\t%s\n' "$1" "$3"; shift 3; done; }
+    devflow_python_suite_pool_open | grep '	self-tally$' | sed 's/	self-tally$//' | sort
+  ) 2>/dev/null
+}
+assert_eq "python-pool: DEVFLOW_PYTHON_SELFTALLY_MEMBERS equals the pool's registered self-tally members" \
+  "$(printf '%s\n' "${DEVFLOW_PYTHON_SELFTALLY_MEMBERS[@]}" | sort)" "$(_pps_selftally_registered)"
+unset -f _pps_selftally_registered
 
 # ── The join's POSITIVE reconciliation branch, in isolation ──
 # The selector probe above reaches only the else arm (no summary captured). The branch
@@ -49977,12 +50283,15 @@ unset -f _pps_selector_probe
 # `N passed, M failed` line, compared against the verdict lines it contributed — is the
 # one that regresses on a summary-format change, and it is otherwise exercised only end
 # to end inside a 3-minute pooled run. Drive it directly by seeding the two reap-time
-# captures and stubbing devflow_pool_join.
+# captures and stubbing devflow_pool_join. Scope DEVFLOW_PYTHON_SELFTALLY_MEMBERS to the one
+# seeded member so this probe isolates the arithmetic — the multi-member fan-out (one else-arm
+# FAIL per unseeded member) is covered by the selector probe's join=4 above, not re-tested here.
 _pps_reconcile_probe() {  # summary  lines -> "pass=N fail=N"
   (
     _pps_res="$(mktemp "${TMPDIR:-/tmp}/devflow-pps-reconcile.XXXXXX")"; : > "$_pps_res"
     RESULTS_FILE="$_pps_res"
     unset DEVFLOW_SKIP_PYTHON_POOL
+    DEVFLOW_PYTHON_SELFTALLY_MEMBERS=("test_python_scripts.py")
     devflow_pool_join() { :; }
     # Subscripts quoted: an unquoted associative-array subscript is read as a variable
     # reference in an assignment context (SC2154), unlike the read sites above.
@@ -55192,15 +55501,87 @@ assert_eq "#1745 the real-tree audit covered a positive number of files" "yes" \
 m = re.search(r"audited (\d+) of", sys.stdin.read())
 print("yes" if m and int(m.group(1)) > 0 else "no")')"
 
+# ── issue #2050: ruff family-preferring selection helpers ────────────────────
+# Keep these ABOVE the #1621 gate that consumes them, and do not re-declare them
+# in the #2009 block below, which reuses these definitions.
+devflow_ruff_family() {  # prints major.minor of a version or spec (0.16.4 / 0.16.* -> 0.16)
+  local v="$1" major rest minor
+  major="${v%%.*}"; rest="${v#*.}"; minor="${rest%%.*}"
+  printf '%s.%s' "$major" "$minor"
+}
+devflow_ruff_manifest_version() {  # $1 = manifest path; prints the pinned version or a sentinel
+  local _v
+  [ -s "$1" ] || { printf 'unreadable'; return; }
+  _v="$(python3 -c 'import json,sys
+d=json.load(open(sys.argv[1]))
+v=d["tools"]["ruff"]["version"]
+sys.stdout.write(v if isinstance(v,str) else "")' "$1" 2>/dev/null)" || { printf 'parse-failed'; return; }
+  [ -n "$_v" ] || { printf 'absent'; return; }
+  printf '%s' "$_v"
+}
+_devflow_ruff_probe_ver() {  # $1 = candidate command (word-split intentionally); prints the reported version token, empty when unrunnable
+  # Both the rc-0 check and the version token are load-bearing: dropping the rc lets a
+  # candidate that errors but still prints two stdout tokens read as runnable and, under a
+  # manifest sentinel, be SELECTED over a healthy one.
+  local out rc; local -a _parts
+  out="$($1 --version 2>/dev/null)"; rc=$?
+  [ "$rc" -eq 0 ] || return 0
+  [ -n "$out" ] || return 0
+  read -r -a _parts <<<"$out"
+  printf '%s' "${_parts[1]:-}"
+}
+devflow_ruff_select_cmd() {
+  # $1 = manifest ruff version or sentinel; $2 = candidate 1 cmd; $3 = candidate 2 cmd.
+  # Emits "<outcome>|<token>|<detail>" (pipe-separated so an empty token field survives read).
+  # Prefers the candidate whose major.minor family equals the manifest family (candidate 1
+  # first); a manifest sentinel (non-numeric) selects the first RUNNABLE candidate in order.
+  # outcome: selected | family-mismatch | none.
+  local manifest_ver="$1" c1="$2" c2="$3"
+  local manifest_fam="" v1="" v2="" f1="" f2="" detail=""
+  case "$manifest_ver" in [0-9]*) manifest_fam="$(devflow_ruff_family "$manifest_ver")" ;; esac
+  v1="$(_devflow_ruff_probe_ver "$c1")"
+  v2="$(_devflow_ruff_probe_ver "$c2")"
+  [ -n "$v1" ] && f1="$(devflow_ruff_family "$v1")"
+  [ -n "$v2" ] && f2="$(devflow_ruff_family "$v2")"
+  if [ -z "$manifest_fam" ]; then
+    if [ -n "$v1" ]; then printf '%s|%s|%s' selected "$c1" "$v1"; return; fi
+    if [ -n "$v2" ]; then printf '%s|%s|%s' selected "$c2" "$v2"; return; fi
+    printf '%s||' none; return
+  fi
+  if [ -n "$v1" ] && [ "$f1" = "$manifest_fam" ]; then printf '%s|%s|%s' selected "$c1" "$v1"; return; fi
+  if [ -n "$v2" ] && [ "$f2" = "$manifest_fam" ]; then printf '%s|%s|%s' selected "$c2" "$v2"; return; fi
+  if [ -z "$v1" ] && [ -z "$v2" ]; then printf '%s||' none; return; fi
+  [ -n "$v1" ] && detail="$c1 $v1"
+  [ -n "$v2" ] && detail="${detail:+$detail / }$c2 $v2"
+  printf '%s||%s' family-mismatch "$detail"
+}
+devflow_ruff_gate_skip_reason() {
+  # $1 = selection outcome, $2 = manifest family, $3 = resolved-candidate detail.
+  # The gate routes its self-skip through this, so the outcome->reason mapping is
+  # exercised on a host where the live gate takes neither branch.
+  case "$1" in
+    family-mismatch)
+      printf 'no ruff candidate matches the manifest family %s (resolved: %s) — refusing to lint under a wrong-family rule set (issue #2050); install a ruff in the %s family so a candidate matches' \
+        "$2" "${3:-none}" "$2" ;;
+    *)
+      printf "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.16.*' arms it at the desk" ;;
+  esac
+}
+RUFF_MANIFEST_VER="$(devflow_ruff_manifest_version "$LIB/../.prflow/lint-manifest.json")"
+case "$RUFF_MANIFEST_VER" in [0-9]*) RUFF_MANIFEST_FAM="$(devflow_ruff_family "$RUFF_MANIFEST_VER")" ;; *) RUFF_MANIFEST_FAM="$RUFF_MANIFEST_VER" ;; esac
+
 # ── issue #1621: ruff Python-lint gate (monolith-shard-resident) ─────────────
-# Rationale and scope: docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, the #1621 paragraph.
-# Do not swap this execution probe for `command -v`: a present-but-unrunnable ruff
-# would then FAIL the suite instead of routing to the skip() below.
+# Select the candidate whose family matches the manifest pin (issue #2050), so a
+# stale off-family ruff first on PATH no longer decides the lint. Do not swap the
+# probe inside devflow_ruff_select_cmd for `command -v`: a present-but-unrunnable
+# ruff would then FAIL instead of routing to the skip() below.
 RUFF_CMD=()
-if ruff --version >/dev/null 2>&1; then
-  RUFF_CMD=(ruff)
-elif python3 -m ruff --version >/dev/null 2>&1; then
-  RUFF_CMD=(python3 -m ruff)
+RUFF_SELECT="$(devflow_ruff_select_cmd "$RUFF_MANIFEST_VER" "ruff" "python3 -m ruff")"
+IFS='|' read -r RUFF_SEL_OUTCOME RUFF_SEL_TOKEN RUFF_SEL_DETAIL <<<"$RUFF_SELECT"
+if [ "$RUFF_SEL_OUTCOME" = "selected" ]; then
+  IFS=' ' read -r -a RUFF_CMD <<<"$RUFF_SEL_TOKEN"
+  # AC1: print the selected candidate + version on the pass path as well as on failure.
+  printf '#1621 ruff gate: selected %s (reports %s); manifest family %s\n' "$RUFF_SEL_TOKEN" "$RUFF_SEL_DETAIL" "$RUFF_MANIFEST_FAM"
 fi
 if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
   # Do not swap git ls-files for a recursive walk (it would scan sibling
@@ -55238,8 +55619,125 @@ if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
   if [ "$RUFF_FIX_RC" -eq 1 ] && printf '%s\n' "$RUFF_FIX_OUT" | grep -q 'F401'; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
   assert_eq "#1621 ruff Python-lint gate fires on a known F401 violation (non-vacuity)" yes "$RUFF_FIX_FIRES"
 else
-  skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.16.*' arms it at the desk"
+  # Both self-skip arms take their reason from devflow_ruff_gate_skip_reason, whose
+  # outcome->reason routing the #2050 matrix asserts; inlining a reason here would put
+  # the family-mismatch wording back beyond the reach of any check.
+  skip "#1621 ruff Python-lint gate" blocking-gate \
+    "$(devflow_ruff_gate_skip_reason "$RUFF_SEL_OUTCOME" "$RUFF_MANIFEST_FAM" "$RUFF_SEL_DETAIL")"
 fi
+
+# ── #2050: adversarial matrix over devflow_ruff_select_cmd (family-preferring selection) ──
+# Hermetic shims report a fixed --version; the helper sees them as opaque candidate commands,
+# so the family-selection logic is proved without a real off-family ruff on the runner.
+mkdir -p .prflow/tmp
+RUFF_SEL_MTX="$(mktemp -d .prflow/tmp/ruff-select-matrix.XXXXXX)"
+[ -n "$RUFF_SEL_MTX" ] && [ -d "$RUFF_SEL_MTX" ] || { printf 'FATAL: mktemp -d failed for the #2050 ruff-select matrix\n' >&2; exit 1; }
+_ruff_sel_shim() {  # $1 = path, $2 = version it reports for `--version`
+  { printf '#!/usr/bin/env bash\n'; printf "printf 'ruff %s\\\\n'\n" "$2"; } > "$1"
+  chmod +x "$1"
+}
+_ruff_sel_shim "$RUFF_SEL_MTX/off"    0.6.9
+_ruff_sel_shim "$RUFF_SEL_MTX/off2"   0.15.0
+_ruff_sel_shim "$RUFF_SEL_MTX/infam"  0.16.4
+_ruff_sel_shim "$RUFF_SEL_MTX/infam2" 0.16.3
+RUFF_SEL_MISSING="$RUFF_SEL_MTX/does-not-exist"
+
+# AC1 (the RED repro): off-family candidate 1 first, in-family candidate 2 reachable → the
+# in-family candidate 2 is selected, NOT the off-family shim first in order.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/infam")"
+assert_eq "#2050 select: off-family cand1 + in-family cand2 -> selects the in-family cand2 (AC1)" "selected $RUFF_SEL_MTX/infam 0.16.4" "$RS_O $RS_T $RS_D"
+
+# Preference: candidate 1 in-family wins over an in-family candidate 2 (PATH ruff preferred).
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/infam" "$RUFF_SEL_MTX/infam2")"
+assert_eq "#2050 select: both in-family -> candidate 1 (PATH ruff) is preferred" "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
+
+# In-family candidate 1 + off-family candidate 2 -> candidate 1 selected (family match wins).
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/infam" "$RUFF_SEL_MTX/off")"
+assert_eq "#2050 select: in-family cand1 + off-family cand2 -> selects the in-family cand1" "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
+
+# AC2: both candidates off-family -> family-mismatch, no candidate selected.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/off2")"
+assert_eq "#2050 select: both off-family -> family-mismatch (AC2)" "family-mismatch" "$RS_O"
+assert_eq "#2050 select: family-mismatch detail names the resolved versions (AC2)" yes \
+  "$(case "$RS_D" in *0.6.9*0.15.0*) echo yes ;; *) echo no ;; esac)"
+
+# AC2: only candidate 1 runnable and off-family (candidate 2 absent) -> still family-mismatch.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MISSING")"
+assert_eq "#2050 select: sole runnable candidate off-family -> family-mismatch (AC2)" "family-mismatch" "$RS_O"
+
+# The MIRROR of the row above: candidate 1 absent, candidate 2 runnable off-family. Do not drop
+# the detail join's `${detail:+…/ }` guard for a bare `$detail / ` — every other row here leaves
+# v1 non-empty, so only this shape shows the leading " / " an unguarded join would emit.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MTX/off2")"
+assert_eq "#2050 select: sole runnable candidate 2 off-family -> family-mismatch, detail unprefixed (AC2)" \
+  "family-mismatch $RUFF_SEL_MTX/off2 0.15.0" "$RS_O $RS_D"
+
+# AC3: a manifest sentinel -> first RUNNABLE candidate in given order (today's behavior),
+# even when that first candidate is off-family.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd unreadable "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/infam")"
+assert_eq "#2050 select: manifest sentinel -> first runnable candidate in order (AC3)" "selected $RUFF_SEL_MTX/off 0.6.9" "$RS_O $RS_T $RS_D"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd parse-failed "$RUFF_SEL_MISSING" "$RUFF_SEL_MTX/infam")"
+assert_eq "#2050 select: sentinel skips an unrunnable candidate 1 to the runnable candidate 2 (AC3)" "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
+
+# Neither candidate runnable -> none (the today's-skip path, family arm).
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MISSING")"
+assert_eq "#2050 select: neither candidate runnable -> none" "none" "$RS_O"
+# ...and the SENTINEL arm has its own `none` return, which the row above (family arm) never
+# reaches: without this row a sentinel manifest with no runnable candidate could return a
+# selected-shaped outcome and the gate would lint under a candidate it never resolved.
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd unreadable "$RUFF_SEL_MISSING" "$RUFF_SEL_MISSING")"
+assert_eq "#2050 select: sentinel manifest + neither candidate runnable -> none, empty token and detail" \
+  "none||" "$RS_O|$RS_T|$RS_D"
+
+# A MULTI-WORD candidate is what production passes as candidate 2 (`python3 -m ruff`), and
+# no single-path shim exercises it: quoting "$1" in the probe would leave every row above
+# green while the live gate resolved no candidate at all and self-skipped the Python lint.
+RUFF_SEL_MW="bash $RUFF_SEL_MTX/infam"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MW")"
+assert_eq "#2050 select: a multi-word candidate is probed word-split (python3 -m ruff shape)" \
+  "selected $RUFF_SEL_MW 0.16.4" "$RS_O $RS_T $RS_D"
+# ...and the gate's reconstruction of that token round-trips to the same argv the probe ran.
+RUFF_MW_CMD=(); IFS=' ' read -r -a RUFF_MW_CMD <<<"$RS_T"
+# Keep the :- defaults: run.sh runs under `set -u`, so indexing an empty RUFF_MW_CMD would
+# abort the whole monolith shard instead of emitting the FAIL this row exists to show.
+assert_eq "#2050 select: the gate's IFS=' ' reconstruction round-trips a multi-word token" \
+  "2 bash $RUFF_SEL_MTX/infam" "${#RUFF_MW_CMD[@]} ${RUFF_MW_CMD[0]:-} ${RUFF_MW_CMD[1]:-}"
+
+# rc guard: a candidate that PRINTS a well-formed version line but exits non-zero is not
+# runnable. Without the probe's rc check this shim reads as runnable and, under a sentinel
+# manifest, is selected over the healthy in-family candidate 2.
+{ printf '#!/usr/bin/env bash\n'; printf "printf 'ruff 0.16.4\\\\n'\nexit 3\n"; } > "$RUFF_SEL_MTX/chatty-rc3"
+chmod +x "$RUFF_SEL_MTX/chatty-rc3"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd unreadable "$RUFF_SEL_MTX/chatty-rc3" "$RUFF_SEL_MTX/infam")"
+assert_eq "#2050 select: a chatty non-zero-rc candidate is NOT runnable (sentinel path)" \
+  "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/chatty-rc3" "$RUFF_SEL_MISSING")"
+assert_eq "#2050 select: a chatty non-zero-rc candidate cannot satisfy the family match" "none" "$RS_O"
+
+# devflow_ruff_family degenerate inputs. `rest="${v#*.}"` returns a dotless token unchanged, so
+# such a token comes back as that token repeated — pin the shape before someone relaxes the
+# caller's `[0-9]*` guard and a degenerate version report starts deciding the selection.
+assert_eq "#2050 family: a dotless numeric token repeats as major.minor (0 -> 0.0)" "0.0" "$(devflow_ruff_family 0)"
+assert_eq "#2050 family: a non-numeric token yields a family that matches no numeric pin" "nightly.nightly" "$(devflow_ruff_family nightly)"
+assert_eq "#2050 family: a three-part version truncates to major.minor" "0.16" "$(devflow_ruff_family 0.16.4)"
+assert_eq "#2050 family: a wildcard spec truncates to major.minor" "0.16" "$(devflow_ruff_family '0.16.*')"
+
+# Gate routing: the two self-skip reasons are selected by OUTCOME, and on a host whose live
+# gate takes neither branch nothing else exercises that mapping — an inverted elif/else would
+# otherwise stay green. Assert each arm is selected and that the arms are distinguishable.
+RUFF_SKIP_FM="$(devflow_ruff_gate_skip_reason family-mismatch 0.16 "cand 0.6.9")"
+RUFF_SKIP_NONE="$(devflow_ruff_gate_skip_reason none 0.16 "")"
+assert_eq "#2050 gate: family-mismatch routes to the wrong-family-rule-set reason" yes \
+  "$(case "$RUFF_SKIP_FM" in *"no ruff candidate matches the manifest family 0.16"*"cand 0.6.9"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2050 gate: outcome none routes to the not-runnable reason" yes \
+  "$(case "$RUFF_SKIP_NONE" in *"ruff not runnable on PATH"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2050 gate: the two skip reasons are distinct (an inverted elif/else is visible)" no \
+  "$([ "$RUFF_SKIP_FM" = "$RUFF_SKIP_NONE" ] && echo yes || echo no)"
+assert_eq "#2050 gate: an empty resolved detail renders as 'none', never as an empty clause" yes \
+  "$(case "$(devflow_ruff_gate_skip_reason family-mismatch 0.16 "")" in *"(resolved: none)"*) echo yes ;; *) echo no ;; esac)"
+
+rm -rf "$RUFF_SEL_MTX"
+unset -f _ruff_sel_shim
 
 # ── #1621: ci.yml's two ruff pins are a coupled pair; reconcile them mechanically ──
 # Assert BOTH halves individually as well as their equality: two `absent` reads would
@@ -55332,22 +55830,8 @@ rm -rf "$RUFF_MTX_DIR"
 # ── #2009: the lint manifest's ruff pin must stay within ci.yml's ruff== family ──
 # Reconcile the two pins mechanically by minor family so a bump to one alone cannot silently
 # disagree with the other and redden the #1621 gate on rule-set skew rather than on findings.
-devflow_ruff_family() {  # prints major.minor of a version or spec (0.16.4 / 0.16.* -> 0.16)
-  local v="$1" major rest minor
-  major="${v%%.*}"; rest="${v#*.}"; minor="${rest%%.*}"
-  printf '%s.%s' "$major" "$minor"
-}
-devflow_ruff_manifest_version() {  # $1 = manifest path; prints the pinned version or a sentinel
-  local _v
-  [ -s "$1" ] || { printf 'unreadable'; return; }
-  _v="$(python3 -c 'import json,sys
-d=json.load(open(sys.argv[1]))
-v=d["tools"]["ruff"]["version"]
-sys.stdout.write(v if isinstance(v,str) else "")' "$1" 2>/dev/null)" || { printf 'parse-failed'; return; }
-  [ -n "$_v" ] || { printf 'absent'; return; }
-  printf '%s' "$_v"
-}
-RUFF_MANIFEST_VER="$(devflow_ruff_manifest_version "$LIB/../.prflow/lint-manifest.json")"
+# devflow_ruff_family, devflow_ruff_manifest_version, and RUFF_MANIFEST_VER are defined once
+# above the #1621 gate (issue #2050) and REUSED here — do not re-declare them.
 case "$RUFF_MANIFEST_VER" in [0-9]*) RUFF_MANIFEST_VER_OK=yes ;; *) RUFF_MANIFEST_VER_OK=no ;; esac
 # structural-pin-ok: cross-file-phase-contract -- positive control: a sentinel version here would make the family reconciliation below vacuous
 assert_eq "#2009 lint-manifest declares a concrete ruff version (arms the reconciliation)" yes "$RUFF_MANIFEST_VER_OK"
@@ -55380,7 +55864,24 @@ printf '%s' '{"tools":{"ruff":{"version":"0.16.4"}}}' > "$RUFF_MAN_MTX/good.json
 assert_eq "#2009 manifest reader: a valid manifest reads its version" 0.16.4 "$(devflow_ruff_manifest_version "$RUFF_MAN_MTX/good.json")"
 rm -rf "$RUFF_MAN_MTX"
 
+# ── #2050: devflow-implement.yml's ruff== install spec must stay within the manifest family ──
+# Do not fork a second reader for the `claude` job's install spec: reuse devflow_ruff_pin,
+# whose own #1621 matrix already pins the sentinel arms — a hand-rolled reader would
+# re-derive those arms untested and let a manifest family bump leave this spec behind.
+RUFF_IMPL_SPEC="$(devflow_ruff_pin claude "$LIB/../.github/workflows/devflow-implement.yml")"
+case "$RUFF_IMPL_SPEC" in [0-9]*) RUFF_IMPL_SPEC_OK=yes ;; *) RUFF_IMPL_SPEC_OK=no ;; esac
+# structural-pin-ok: cross-file-phase-contract -- positive control: a sentinel spec here would make the family assertion below pass vacuously, so a workflow that stopped installing ruff (or renamed the claude job) would go unnoticed
+assert_eq "#2050 devflow-implement.yml declares a concrete ruff== install spec (arms the assertion)" yes "$RUFF_IMPL_SPEC_OK"
+# structural-pin-ok: cross-file-phase-contract -- the implement workflow's ruff install and the lint manifest pin must share a family, or a manifest bump leaves the in-env gate installing a wrong-family ruff; editing either alone flips this
+assert_eq "#2050 devflow-implement.yml ruff install spec is within the manifest ruff family" yes "$(_ruff_fam_agree "$RUFF_IMPL_SPEC" "$RUFF_MANIFEST_VER")"
+
+# Discrimination: a family bump applied to only one side reads as disagreement (RED).
+assert_eq "#2050 impl-spec reconciliation: matching families agree" yes "$(_ruff_fam_agree "0.16.*" 0.16.4)"
+assert_eq "#2050 impl-spec reconciliation: implement-spec bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree "0.17.*" 0.16.4)"
+assert_eq "#2050 impl-spec reconciliation: manifest bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree "0.16.*" 0.17.0)"
+
 unset -f devflow_ruff_pin devflow_ruff_family devflow_ruff_manifest_version _ruff_fam_agree
+unset -f _devflow_ruff_probe_ver devflow_ruff_select_cmd devflow_ruff_gate_skip_reason
 
 # ── internal-docs structure lint (lib/test/lint-internal-docs.py) ──
 # Baseline-tolerant by design: it fails only on a violation absent from
