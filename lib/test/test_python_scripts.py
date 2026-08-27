@@ -980,7 +980,7 @@ _UPDATE_ISSUE_URL = 'https://api.github.com/repos/owner/repo/issues/999'
 def _drive_cmd_update(body, patch_fails=False, patch_response=None,
                       id_response=None, fail_at=None,
                       seed_cache_id=None, verify_fails=False, verify_response=None,
-                      **arg_overrides):
+                      cache_dir=None, **arg_overrides):
     global _LAST_GH_CALLS
     _LAST_GH_CALLS = []
     marker = '<!-- devflow:workpad -->'
@@ -993,8 +993,11 @@ def _drive_cmd_update(body, patch_fails=False, patch_response=None,
     workpad._repo_full = lambda: 'owner/repo'
     workpad._workpad_marker = lambda explicit=None: marker
     # Hermetic id cache: a fresh temp dir per call, so a real-tree cache never leaks
-    # in and this call's write never leaks out.
-    _cache_dir = tempfile.mkdtemp(prefix='wp-idcache-')
+    # in and this call's write never leaks out. A caller may pass `cache_dir` to SHARE
+    # one dir across sequential calls (the cold-write → warm-read round-trip test) —
+    # the caller then owns that dir's lifetime and this driver does not remove it.
+    _owns_cache_dir = cache_dir is None
+    _cache_dir = cache_dir if cache_dir is not None else tempfile.mkdtemp(prefix='wp-idcache-')
     workpad._workpad_id_cache_path = lambda issue, mk: Path(_cache_dir) / f'{issue}.json'
     # Anchor the failed-write buffer under the same temp dir, so the buffer-replay
     # path never resolves _repo_root() (which would issue a `git rev-parse` through
@@ -1058,7 +1061,8 @@ def _drive_cmd_update(body, patch_fails=False, patch_response=None,
     finally:
         (workpad._run, workpad._repo_full, workpad._workpad_marker,
          workpad._workpad_id_cache_path, workpad._workpad_buffer_path) = saved
-        shutil.rmtree(_cache_dir, ignore_errors=True)
+        if _owns_cache_dir:
+            shutil.rmtree(_cache_dir, ignore_errors=True)
     return code, out.getvalue(), err.getvalue(), state['patched']
 
 
@@ -1622,6 +1626,24 @@ _code, _out, _err, _patched = _drive_cmd_update(
     OC_BODY, seed_cache_id=7, verify_response=_twin_resp, note=['n'])
 assert_eq("#2042 G5: the cache-verify path accepts the twin-namespace marker (no scan fallback)",
           True, _patched is not None and len(_gh_calls_of('comments-list')) == 0)
+
+# End-to-end cold-write → warm-read round-trip over ONE shared cache dir, through the
+# REAL _write_workpad_id_cache / _read_workpad_id_cache pair (not a hand-seeded fixture):
+# the FIRST update scans (cold) and writes the cache; the SECOND update over the same dir
+# reads that written record back, verifies it, and makes NO comments-list request. This
+# ties the write-record shape to what the read+verify accept — a rename of the persisted
+# key would break the warm path here even if a seed fixture were changed to match.
+_e2e_dir = tempfile.mkdtemp(prefix='wp2042-e2e-')
+try:
+    _c1, _o1, _e1, _p1 = _drive_cmd_update(OC_BODY, note=['cold'], cache_dir=_e2e_dir)
+    _cold_lists = len(_gh_calls_of('comments-list'))
+    assert_eq("#2042 e2e: the cold call scans (one comments-list) and PATCHes",
+              True, _p1 is not None and _cold_lists == 1)
+    _c2, _o2, _e2, _p2 = _drive_cmd_update(OC_BODY, note=['warm'], cache_dir=_e2e_dir)
+    assert_eq("#2042 e2e: the warm call reads the just-written cache and makes NO comments-list request",
+              True, _p2 is not None and len(_gh_calls_of('comments-list')) == 0)
+finally:
+    shutil.rmtree(_e2e_dir, ignore_errors=True)
 
 # A crash in the tail AFTER the PATCH landed must not report not-persisted, whose
 # remedy re-sends the call and double-writes the append-only notes.
