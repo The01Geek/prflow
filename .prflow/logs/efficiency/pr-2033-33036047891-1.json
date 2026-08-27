@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2033",
+  "generated_at": "2026-08-27T04:09:59Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.64",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 14.26992395,
+    "tokens": {
+      "input_tokens": 98,
+      "output_tokens": 50957,
+      "cache_read_input_tokens": 10815348,
+      "cache_creation_input_tokens": 260463,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 178,
+        "outputTokens": 68504,
+        "cacheReadInputTokens": 14662383,
+        "cacheCreationInputTokens": 487728,
+        "webSearchRequests": 0,
+        "costUSD": 13.069717750000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 72,
+        "outputTokens": 17258,
+        "cacheReadInputTokens": 2357286,
+        "cacheCreationInputTokens": 222410,
+        "webSearchRequests": 0,
+        "costUSD": 1.2002062000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 63,
+    "duration_ms": 2896436
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"; echo \"RUN_ID=$GITHUB_RUN_ID\"; git branch --show-current; git rev-parse HEAD",
+      "git rev-parse HEAD @{u}\necho \"---\"\ngit diff origin/main...HEAD > .prflow/tmp/diff-2031.patch\nwc -l .prflow/tmp/diff-2031.patch\necho \"---changed files---\"\ngit diff --name-only origin/main...HEAD",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/flight-declaration-2031.json <<'EOF'\n{\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-parallel.sh\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_services\": \"none\"\n  },\n  \"checkout\": {\n    \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n   …[per-command-truncated]",
+      "python3 - <<'PYEOF'\nimport json\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-parallel.sh\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_services\": \"none\"\n  },\n  \"checkout\": {\n    \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n    \"head\": \"15678c64c869bbde252d6ad7bfd5bfe8fbbabad7\",\n    \"index_digest\": \"8d132de88e3732fb1f6c965058 …[per-command-truncated]",
+      "python3 -c \"\nimport json, base64\ndecl = {'schema_version': 1, 'profile': {'profile_version': 1, 'argv': ['lib/test/run-parallel.sh'], 'cwd': '/home/runner/work/prflow/prflow', 'environment': {}, 'toolchain': {}, 'dependencies': {}, 'output_roots': [], 'external_services': 'none'}, 'checkout': {'checkout_id': '/home/runner/work/prflow/prflow/.git', 'head': '15678c64c869bbde252d6ad7bfd5bfe8fbbabad7', 'index_digest': '8d132de88e3732fb1f6c9650586d7ee44b15a602', 'tracked_digest': '8d132de88e3732fb1f6 …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nWID=$(scripts/workpad.py id 2031 2>/dev/null || true)\necho \"WID=$WID\"\nif [ -n \"$WID\" ]; then scripts/workpad.py body \"$WID\" 2>/dev/null | grep -iE \"post-merge|test-authoring-waiver|## Progress\" | head -40; fi\necho \"=== deferrals ===\"\nls -la .prflow/tmp/review/pr-2033/deferrals.json 2>&1 | head",
+      "cd /home/runner/work/prflow/prflow\necho \"=== vendored ===\"; .prflow/vendor/prflow/scripts/prompt-surface-growth.py 2>&1 | head -40 || echo \"RC=$?\"\necho \"=== repo-relative ===\"; scripts/prompt-surface-growth.py 2>&1 | head -40",
+      "cd /home/runner/work/prflow/prflow; scripts/prompt-surface-growth.py 2>&1",
+      ".prflow/vendor/prflow/scripts/workpad.py body 5433091723 > /home/runner/work/prflow/prflow/.prflow/tmp/wp-2031.txt 2>/dev/null; wc -l /home/runner/work/prflow/prflow/.prflow/tmp/wp-2031.txt",
+      "cd /home/runner/work/prflow/prflow; PR=$(gh pr view --json number --jq '.number'); echo \"PR=$PR\"; [ -n \"$PR\" ] && gh api --method PATCH \"repos/{owner}/{repo}/pulls/$PR\" -F body=@.prflow/tmp/pr-2033-body.md --jq '.number' || echo \"NO PR NUMBER\""
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
