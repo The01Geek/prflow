@@ -213,6 +213,8 @@ telemetry_master_disables_for() {
     # break the issue-#458 drift-guard and force a workflow edit. Reads the JSON
     # TYPE (`is False`), so the number 0 and the string "false" never disable.
     # A 2-way copy here would falsify the contract the other two copies state.
+    # Unlike them this copy announces nothing on 2: its stderr is byte-pinned
+    # against the pre-change resolver's, and a breadcrumb would break that.
     PRFLOW_TEL_CFG="$config_file" python3 -c '
 import json, os, sys
 try:

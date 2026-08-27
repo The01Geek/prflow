@@ -7064,8 +7064,41 @@ chmod 644 "$T2035_CR_UNREAD/.prflow/config.json"
 printf '%s' '{"telemetry":{"enabled":false},"prflow":{"execution_diagnostics_enabled":""}}' > "$T2035_ROOT/m-subempty.json"
 assert_eq "#2035 a sub-key set to an empty string inherits the master-off resolution" "false" \
   "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-subempty.json")"
+# The control carries the SAME empty-string sub-key and drops only the master, so
+# it isolates the master's contribution; pointing it at a config with no sub-key
+# at all would stay green if the empty string were later special-cased.
+printf '%s' '{"prflow":{"execution_diagnostics_enabled":""}}' > "$T2035_ROOT/m-subempty-nomaster.json"
 assert_eq "#2035 an empty-string sub-key without the master still takes the default (positive control)" "true" \
-  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-missing.json")"
+  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-subempty-nomaster.json")"
+printf '%s' '{"prflow":{"execution_diagnostics_enabled":null}}' > "$T2035_ROOT/m-subnull-nomaster.json"
+assert_eq "#2035 a JSON-null sub-key without the master still takes the default (positive control)" "true" \
+  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-subnull-nomaster.json")"
+
+# A predicate that is PRESENT but will not run exits with the same 1 and 2 the
+# verdicts use, so the collector must route on its stderr — otherwise a truncated
+# vendored copy reads as a deliberate telemetry opt-in and says nothing.
+T2035_CR_BROKEN="$T2035_ROOT/collect-broken-predicate"
+mkdir -p "$T2035_CR_BROKEN/scripts" "$T2035_CR_BROKEN/root/.prflow"
+cp "$T2035_CST" "$T2035_CR_BROKEN/scripts/"
+printf '%s' 'def broken(:' > "$T2035_CR_BROKEN/scripts/telemetry-master-off.py"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_BROKEN/root/.prflow/config.json"
+bash "$T2035_CR_BROKEN/scripts/collect-staged-telemetry.sh" "$T2035_CR_BROKEN/root" \
+  "$T2035_CR_BROKEN/root/upload" >/dev/null 2>"$T2035_CR_BROKEN/err.txt"
+assert_eq "#2035 collect-staged announces an unrunnable predicate instead of collecting silently" "yes" \
+  "$(grep -qF 'could not be run' "$T2035_CR_BROKEN/err.txt" && echo yes || echo no)"
+assert_eq "#2035 collect-staged does NOT blame the config when the predicate is what failed" "no" \
+  "$(grep -qF 'could not be read or parsed' "$T2035_CR_BROKEN/err.txt" && echo yes || echo no)"
+
+# A slash-free invocation name makes the `%/*` strip a no-op; without the case
+# guard the anchor empties and the gate silently misses its own predicate.
+T2035_CR_BARE="$T2035_ROOT/collect-bare-argv0"
+mkdir -p "$T2035_CR_BARE/scripts" "$T2035_CR_BARE/root/.prflow"
+cp "$T2035_CST" "$T2035_OFF" "$T2035_CR_BARE/scripts/"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_BARE/root/.prflow/config.json"
+( cd "$T2035_CR_BARE/scripts" && bash collect-staged-telemetry.sh "$T2035_CR_BARE/root" \
+  "$T2035_CR_BARE/root/upload" ) >/dev/null 2>"$T2035_CR_BARE/err.txt"
+assert_eq "#2035 collect-staged resolves its anchor from a slash-free invocation name" "yes" \
+  "$(grep -qF 'telemetry.enabled is false' "$T2035_CR_BARE/err.txt" && echo yes || echo no)"
 
 rm -rf "$T2035_ROOT"
 # ── #2006 run-profile floor and PR-less implement record ─────────────────────

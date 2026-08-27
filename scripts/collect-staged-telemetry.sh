@@ -31,9 +31,14 @@ fi
 # nothing. Fail-safe to ON everywhere else, and every unconsulted path announces
 # itself — a silent skip of this gate is indistinguishable from a deliberate opt-in.
 # Dirname-free: `dirname` is not one of the tools lib/preflight.sh guarantees.
-_CST_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
-# Resolve the config through the override-then-state-dir ladder, so this gate and
-# the --persist gate it must agree with read the same file; hardcoding `.prflow/`
+# The case guard is load-bearing: `%/*` is a NO-OP on a slash-free invocation
+# name, which would `cd` to the script's own name and empty the anchor.
+case "${BASH_SOURCE[0]}" in
+  */*) _CST_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)" ;;
+  *)   _CST_DIR="$(pwd)" ;;
+esac
+# Resolve the config through the same override-then-state-dir ladder --persist
+# uses, so the two gates agree on which file to read; hardcoding `.prflow/` here
 # would split them on a consumer mid-migration from `.devflow/`.
 if [ -z "${DEVFLOW_CONFIG_FILE:-}" ] && [ -r "$_CST_DIR/../lib/resolve-state-dir.sh" ]; then
   # shellcheck source=../lib/resolve-state-dir.sh
@@ -52,10 +57,15 @@ elif ! command -v python3 >/dev/null 2>&1; then
   echo "::warning::collect-staged-telemetry: python3 not on PATH — the telemetry.enabled master switch was NOT consulted; collecting as if telemetry were on (issue #2035)" >&2
 else
   _CST_RC=0
-  python3 "$_CST_DIR/telemetry-master-off.py" "$_CST_CFG" >/dev/null 2>&1 || _CST_RC=$?
-  if [ "$_CST_RC" -eq 0 ]; then
+  # Capture the interpreter's stderr rather than discarding it: the predicate is
+  # silent on every verdict, so ANY stderr means it did not run (a truncated or
+  # unreadable copy), which python3 reports with the same 1 and 2 the verdicts use.
+  _CST_ERR="$(python3 "$_CST_DIR/telemetry-master-off.py" "$_CST_CFG" 2>&1 >/dev/null)" || _CST_RC=$?
+  if [ "$_CST_RC" -eq 0 ] && [ -z "$_CST_ERR" ]; then
     echo "::warning::collect-staged-telemetry: telemetry.enabled is false — collecting nothing this run (issue #2035)" >&2
     exit 0
+  elif [ -n "$_CST_ERR" ]; then
+    echo "::warning::collect-staged-telemetry: '$_CST_DIR/telemetry-master-off.py' could not be run — the telemetry.enabled master switch was NOT consulted; collecting as if telemetry were on (issue #2035)" >&2
   elif [ "$_CST_RC" -eq 2 ]; then
     echo "::warning::collect-staged-telemetry: config '$_CST_CFG' exists but could not be read or parsed — the telemetry.enabled master switch was NOT consulted; collecting as if telemetry were on (issue #2035)" >&2
   fi
