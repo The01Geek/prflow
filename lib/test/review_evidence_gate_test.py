@@ -59,15 +59,24 @@ class GradePhaseLog(unittest.TestCase):
         self.assertEqual(missing, ['phase-entry-1', 'phase-entry-2'])
 
     def test_malformed_matrix(self):
-        # wrong-typed / unknown extra content, a truncated line, and a valid-falsy phase
-        # value each make the whole log malformed → unestablished, never a pass.
+        # wrong-typed / unknown extra content, a truncated line, a valid-falsy phase
+        # value, and an unknown extra field each make the whole log malformed →
+        # unestablished, never a pass.
         for text in ('phase-entry phase=1\ngarbage line\nphase-entry phase=2\n',
                      'phase-entry phase=1\nphase-entry ph',        # truncated
                      'phase-entry phase=\n',                       # valid-falsy empty
-                     'phase-entry phase=0\nphase-entry phase=99\n',  # unknown id
                      'phase-entry phase=1 extra=1\n'):             # unknown extra field
             grade, _ = gate._grade_phase_log(text)
             self.assertEqual(grade, 'malformed', text)
+
+    def test_unknown_phase_id_tolerated(self):
+        # A phase id the gate does not enumerate is a valid (ignored) entry, not
+        # malformed — so a phase the engine adds/renumbers does not silently disable the
+        # gate. It still does not satisfy the checklist evidence on its own.
+        grade, missing = gate._grade_phase_log(
+            'phase-entry phase=0\nphase-entry phase=9.9\n')
+        self.assertEqual(grade, 'checklist')
+        self.assertEqual(missing, ['phase-entry-1', 'phase-entry-2'])
 
     def test_blank_lines_tolerated(self):
         grade, missing = gate._grade_phase_log(

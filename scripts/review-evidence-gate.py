@@ -65,10 +65,6 @@ import os
 import re
 import sys
 
-# The closed phase-id vocabulary the entry gate may record — the Phase routing table in
-# skills/review/SKILL.md. A `phase-entry` line naming any other value is malformed.
-_VALID_PHASE_IDS = frozenset(
-    {'0', '0.3.6', '0.6', '1', '1.5', '2', '3', '4', '4.1.7', '4.4'})
 # The checklist phase-entry records that together evidence the checklist ran — Phase 1
 # (checklist generation + dedup) and Phase 2 (checklist verification). Each maps its
 # phase-log line literal to a SPACE-FREE token for the machine `missing=` field, so that
@@ -84,16 +80,18 @@ _BLOCKER_RECHECK_HIT_RECORD = 'blocker-recheck-hit re-verdict=posted'
 # predates this change (an older vendored engine writes no phase log at all).
 _PHASE_LOG_INSTRUCTION_SENTINEL = 'phase-entry phase='
 
-_PHASE_ENTRY_RE = re.compile(r'\Aphase-entry phase=(?P<id>.*)\Z')
+# A valid phase-entry line is `phase-entry phase=<id>` where <id> is a single non-space
+# token — so a valid-falsy `phase=`, a truncated line, and an `extra=` field all fail to
+# match and grade the log malformed. The id is NOT checked against a fixed vocabulary:
+# the gate needs only the presence of the Phase 1 and Phase 2 entries, so a phase the
+# engine adds or renumbers stays a valid (ignored) entry rather than silently making a
+# compliant log read malformed — no `_VALID_PHASE_IDS` copy of SKILL.md's routing table.
+_PHASE_ENTRY_RE = re.compile(r'\Aphase-entry phase=(?P<id>\S+)\Z')
 _VERDICT_MARKER_RE = re.compile(
     r'\A<!-- prflow:review-verdict head=(?P<head>[0-9a-fA-F]{40}) '
     r'verdict=(?P<verdict>APPROVE|REJECT) -->')
 
 _REVIEW_SUBDIR = os.path.join('.prflow', 'tmp', 'review')
-
-# Review states GitHub records; only these two gate a merge, so only these two are
-# dismissed (a COMMENTED-state suffixed-approve verdict is left to the durable comment).
-_MERGE_GATING_STATES = frozenset({'APPROVED', 'CHANGES_REQUESTED'})
 
 
 def _detail(*parts):
@@ -224,8 +222,7 @@ def _grade_phase_log(text):
         if line in (_GENERATOR_FAILURE_RECORD, _BLOCKER_RECHECK_HIT_RECORD):
             seen.add(line)
             continue
-        m = _PHASE_ENTRY_RE.match(line)
-        if m and m.group('id') in _VALID_PHASE_IDS:
+        if _PHASE_ENTRY_RE.match(line):
             seen.add(line)
             continue
         return 'malformed', None
@@ -253,13 +250,6 @@ def _engine_root_has_instruction(vendored_engine_root):
 def _decide(args):
     """Compute the verdict token and its human-readable detail lines. Returns
     (token, [detail...])."""
-    workpad = _load_workpad()
-    if workpad is None:
-        return 'unestablished workpad-import-failed', _detail(
-            'review-evidence-gate: could not import scripts/workpad.py — the ',
-            'classification implementation is unavailable, so no checklist-',
-            'requirement decision could be made.')
-
     pre, pre_err = _read_json(args.pre_inventory)
     if pre_err is not None or not isinstance(pre, dict):
         return 'unestablished pre-inventory-unreadable', _detail(
@@ -327,6 +317,15 @@ def _decide(args):
             args.vendored_engine_root, ' does not carry the phase-log ',
             'instruction (an older vendored engine); no phase log can be ',
             'required of it.')
+
+    # The classification lives in scripts/workpad.py — import it now (not at entry), so a
+    # no-verdict / older-engine / unestablished-baseline run never pays the import.
+    workpad = _load_workpad()
+    if workpad is None:
+        return 'unestablished workpad-import-failed', _detail(
+            'review-evidence-gate: could not import scripts/workpad.py — the ',
+            'classification implementation is unavailable, so no checklist-',
+            'requirement decision could be made.')
 
     facts = workpad._recompute_diff_facts(
         reviewed_head, args.base_ref or None, args.repo_root)
