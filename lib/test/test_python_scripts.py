@@ -37595,12 +37595,9 @@ try:
     assert_eq("#2050 control: supported path never runs the degrade purge", False,
               "deleted stale off-version binary" in _out)
 
-    # ── The purge's three defensive arms. Each fails in the SKIP direction (breadcrumb +
-    #    keep the binary), so a regression that dropped the breadcrumb or turned the skip
-    #    into a blind delete would otherwise pass. A manifest that reaches the degrade arm
-    #    is by construction VALID (lint_manifest rejects a missing `version` and an empty
-    #    `artifacts`), so the two unreadable arms are driven by faulting the interpreter
-    #    read itself via LINTPROV_PYTHON rather than by a malformed manifest.
+    # ── The purge's three defensive arms. Do not drive the two unreadable arms with a
+    #    malformed manifest: lint_manifest rejects a missing `version` and an empty
+    #    `artifacts`, so such a fixture never reaches the degrade arm at all.
     def _fault_py_2050(path, marker):
         """A python3 shim that exits 1 for the one -c program containing `marker`
         and execs the real interpreter for every other call."""

@@ -55193,9 +55193,8 @@ m = re.search(r"audited (\d+) of", sys.stdin.read())
 print("yes" if m and int(m.group(1)) > 0 else "no")')"
 
 # ── issue #2050: ruff family-preferring selection helpers ────────────────────
-# Defined here, ABOVE the #1621 gate that consumes them; the #2009 block below
-# REUSES these definitions rather than re-declaring them. Rationale and scope:
-# docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, the #1621 paragraph.
+# Keep these ABOVE the #1621 gate that consumes them, and do not re-declare them
+# in the #2009 block below, which reuses these definitions.
 devflow_ruff_family() {  # prints major.minor of a version or spec (0.16.4 / 0.16.* -> 0.16)
   local v="$1" major rest minor
   major="${v%%.*}"; rest="${v#*.}"; minor="${rest%%.*}"
@@ -55212,8 +55211,12 @@ sys.stdout.write(v if isinstance(v,str) else "")' "$1" 2>/dev/null)" || { printf
   printf '%s' "$_v"
 }
 _devflow_ruff_probe_ver() {  # $1 = candidate command (word-split intentionally); prints the reported version token, empty when unrunnable
-  local out; local -a _parts
-  out="$($1 --version 2>/dev/null || true)"
+  # Both the rc-0 check and the version token are load-bearing: dropping the rc lets a
+  # candidate that errors but still prints two stdout tokens read as runnable and, under a
+  # manifest sentinel, be SELECTED over a healthy one.
+  local out rc; local -a _parts
+  out="$($1 --version 2>/dev/null)"; rc=$?
+  [ "$rc" -eq 0 ] || return 0
   [ -n "$out" ] || return 0
   read -r -a _parts <<<"$out"
   printf '%s' "${_parts[1]:-}"
@@ -55242,6 +55245,18 @@ devflow_ruff_select_cmd() {
   [ -n "$v1" ] && detail="$c1 $v1"
   [ -n "$v2" ] && detail="${detail:+$detail / }$c2 $v2"
   printf '%s||%s' family-mismatch "$detail"
+}
+devflow_ruff_gate_skip_reason() {
+  # $1 = selection outcome, $2 = manifest family, $3 = resolved-candidate detail.
+  # The gate routes its self-skip through this, so the outcome->reason mapping is
+  # exercised on a host where the live gate takes neither branch.
+  case "$1" in
+    family-mismatch)
+      printf 'no ruff candidate matches the manifest family %s (resolved: %s) — refusing to lint under a wrong-family rule set (issue #2050); install a ruff in the %s family so a candidate matches' \
+        "$2" "${3:-none}" "$2" ;;
+    *)
+      printf "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.16.*' arms it at the desk" ;;
+  esac
 }
 RUFF_MANIFEST_VER="$(devflow_ruff_manifest_version "$LIB/../.prflow/lint-manifest.json")"
 case "$RUFF_MANIFEST_VER" in [0-9]*) RUFF_MANIFEST_FAM="$(devflow_ruff_family "$RUFF_MANIFEST_VER")" ;; *) RUFF_MANIFEST_FAM="$RUFF_MANIFEST_VER" ;; esac
@@ -55294,12 +55309,12 @@ if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
   # A missing grep short-circuits to FIRES=no → the assertion reddens (fail-closed).
   if [ "$RUFF_FIX_RC" -eq 1 ] && printf '%s\n' "$RUFF_FIX_OUT" | grep -q 'F401'; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
   assert_eq "#1621 ruff Python-lint gate fires on a known F401 violation (non-vacuity)" yes "$RUFF_FIX_FIRES"
-elif [ "$RUFF_SEL_OUTCOME" = "family-mismatch" ]; then
-  # Neither candidate matches the manifest family: self-skip naming the resolved version(s)
-  # and the pinned family, rather than linting under a wrong-family rule set (issue #2050).
-  skip "#1621 ruff Python-lint gate" blocking-gate "no ruff candidate matches the manifest family $RUFF_MANIFEST_FAM (resolved: ${RUFF_SEL_DETAIL:-none}) — refusing to lint under a wrong-family rule set (issue #2050); install a ruff in the $RUFF_MANIFEST_FAM family so a candidate matches"
 else
-  skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.16.*' arms it at the desk"
+  # Both self-skip arms take their reason from devflow_ruff_gate_skip_reason, whose
+  # outcome->reason routing the #2050 matrix asserts; inlining a reason here would put
+  # the family-mismatch wording back beyond the reach of any check.
+  skip "#1621 ruff Python-lint gate" blocking-gate \
+    "$(devflow_ruff_gate_skip_reason "$RUFF_SEL_OUTCOME" "$RUFF_MANIFEST_FAM" "$RUFF_SEL_DETAIL")"
 fi
 
 # ── #2050: adversarial matrix over devflow_ruff_select_cmd (family-preferring selection) ──
@@ -55351,6 +55366,51 @@ assert_eq "#2050 select: sentinel skips an unrunnable candidate 1 to the runnabl
 # Neither candidate runnable -> none (the today's-skip path, family arm).
 IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MISSING")"
 assert_eq "#2050 select: neither candidate runnable -> none" "none" "$RS_O"
+
+# A MULTI-WORD candidate is what production passes as candidate 2 (`python3 -m ruff`), and
+# no single-path shim exercises it: quoting "$1" in the probe would leave every row above
+# green while the live gate resolved no candidate at all and self-skipped the Python lint.
+RUFF_SEL_MW="bash $RUFF_SEL_MTX/infam"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MW")"
+assert_eq "#2050 select: a multi-word candidate is probed word-split (python3 -m ruff shape)" \
+  "selected $RUFF_SEL_MW 0.16.4" "$RS_O $RS_T $RS_D"
+# ...and the gate's reconstruction of that token round-trips to the same argv the probe ran.
+RUFF_MW_CMD=(); IFS=' ' read -r -a RUFF_MW_CMD <<<"$RS_T"
+assert_eq "#2050 select: the gate's IFS=' ' reconstruction round-trips a multi-word token" \
+  "2 bash $RUFF_SEL_MTX/infam" "${#RUFF_MW_CMD[@]} ${RUFF_MW_CMD[0]} ${RUFF_MW_CMD[1]}"
+
+# rc guard: a candidate that PRINTS a well-formed version line but exits non-zero is not
+# runnable. Without the probe's rc check this shim reads as runnable and, under a sentinel
+# manifest, is selected over the healthy in-family candidate 2.
+{ printf '#!/usr/bin/env bash\n'; printf "printf 'ruff 0.16.4\\\\n'\nexit 3\n"; } > "$RUFF_SEL_MTX/chatty-rc3"
+chmod +x "$RUFF_SEL_MTX/chatty-rc3"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd unreadable "$RUFF_SEL_MTX/chatty-rc3" "$RUFF_SEL_MTX/infam")"
+assert_eq "#2050 select: a chatty non-zero-rc candidate is NOT runnable (sentinel path)" \
+  "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/chatty-rc3" "$RUFF_SEL_MISSING")"
+assert_eq "#2050 select: a chatty non-zero-rc candidate cannot satisfy the family match" "none" "$RS_O"
+
+# devflow_ruff_family degenerate inputs. `rest="${v#*.}"` returns a dotless token unchanged,
+# so the contract is that such a token yields a family that can never equal a numeric
+# manifest family — assert it before someone relaxes the caller's `[0-9]*` guard.
+assert_eq "#2050 family: a dotless numeric token yields a non-numeric-family sentinel" "0.0" "$(devflow_ruff_family 0)"
+assert_eq "#2050 family: a non-numeric token yields a family that matches no numeric pin" "nightly.nightly" "$(devflow_ruff_family nightly)"
+assert_eq "#2050 family: a three-part version truncates to major.minor" "0.16" "$(devflow_ruff_family 0.16.4)"
+assert_eq "#2050 family: a wildcard spec truncates to major.minor" "0.16" "$(devflow_ruff_family '0.16.*')"
+
+# Gate routing: the two self-skip reasons are selected by OUTCOME, and on a host whose live
+# gate takes neither branch nothing else exercises that mapping — an inverted elif/else would
+# otherwise stay green. Assert each arm is selected and that the arms are distinguishable.
+RUFF_SKIP_FM="$(devflow_ruff_gate_skip_reason family-mismatch 0.16 "cand 0.6.9")"
+RUFF_SKIP_NONE="$(devflow_ruff_gate_skip_reason none 0.16 "")"
+assert_eq "#2050 gate: family-mismatch routes to the wrong-family-rule-set reason" yes \
+  "$(case "$RUFF_SKIP_FM" in *"no ruff candidate matches the manifest family 0.16"*"cand 0.6.9"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2050 gate: outcome none routes to the not-runnable reason" yes \
+  "$(case "$RUFF_SKIP_NONE" in *"ruff not runnable on PATH"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2050 gate: the two skip reasons are distinct (an inverted elif/else is visible)" no \
+  "$([ "$RUFF_SKIP_FM" = "$RUFF_SKIP_NONE" ] && echo yes || echo no)"
+assert_eq "#2050 gate: an empty resolved detail renders as 'none', never as an empty clause" yes \
+  "$(case "$(devflow_ruff_gate_skip_reason family-mismatch 0.16 "")" in *"(resolved: none)"*) echo yes ;; *) echo no ;; esac)"
 
 rm -rf "$RUFF_SEL_MTX"
 unset -f _ruff_sel_shim
