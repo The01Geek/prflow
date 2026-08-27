@@ -1786,6 +1786,8 @@ jobs:
           STATE="$(classify_one "$SKILL")"
           # The two review commands deliver a SECOND extension on this tier; a fault on it
           # must not hide behind a deliverable primary, so a faulted second state wins.
+          # Promote FAULTS only: promoting a deliverable second state would overwrite a
+          # faulted primary with a clean terminal.
           SKILL2=""
           case "$SKILL" in
             review-and-fix) SKILL2=receiving-code-review ;;

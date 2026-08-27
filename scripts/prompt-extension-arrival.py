@@ -70,8 +70,9 @@ FINAL_UNESTABLISHED = "unestablished"
 
 # The delivery ladder's own emitted status line (load-prompt-extension.sh), which the
 # local/interactive & cloud-review prose-side classifier reads instead of statting the
-# root — the tier has no job-level step to run `classify` in. Only these two status
-# tokens are ones the ladder produces; anything else (including no line at all) is not a
+# root — the tier has no job-level step to run `classify` in. Only these two tokens are
+# POSITIVE-SIGNAL tokens; anything else — `unestablished (<reason>)`, which
+# render-prompt-extension.sh also emits, any future token, or no line at all — is not a
 # positive signal (AC1/AC2).
 LADDER_STATUS_PREFIX = "PROMPT-EXTENSION-STATUS:"
 LADDER_STATUS_CONTENT_PRESENT = "content-present"
@@ -230,8 +231,9 @@ def _scan_ladder_status(output: str) -> str:
     non-delivery. Declaring ``arrived`` by absence of evidence is the false-``Complete``
     semantics this mode must never reinstate.
 
-    ``content-present`` wins over ``present-empty`` if both appear; an unrecognized token
-    after the prefix is not a status the ladder produces, so it does not signal arrival.
+    ``content-present`` wins over ``present-empty`` if both appear; any other token after
+    the prefix — ``unestablished (<reason>)`` from render-prompt-extension.sh included —
+    is not a positive-signal token, so it does not signal arrival.
     """
     saw_present_empty = False
     for line in output.splitlines():

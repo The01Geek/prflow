@@ -1116,14 +1116,19 @@ assert_eq "reconcile step: extractor exited 0 (python3+PyYAML present, workflow 
 assert_eq "reconcile step: run: body extracted from devflow.yml" "yes" \
   "$(case "$(cat "$RCN_DIR/reconcile.sh" 2>/dev/null)" in *record_non_arrival*) echo yes ;; *) echo no ;; esac)"
 
-devflow_rcn_run() {
-  # $1 EXPECTED, $2 AGENT_OUTCOME; echoes the exit code, leaving output in $RCN_DIR/out.
+devflow_rcn_run_cmd() {
+  # $1 CMD, $2 EXPECTED, $3 AGENT_OUTCOME; echoes the exit code, output in $RCN_DIR/out.
   GH_CALLS="$RCN_DIR/gh-calls" \
   PATH="$RCN_DIR/bin:$PATH" \
-  CMD="/prflow:review 2000" EXPECTED="$1" SKILL=review AGENT_OUTCOME="$2" \
+  CMD="$1" EXPECTED="$2" SKILL=review AGENT_OUTCOME="$3" \
   REPO=owner/repo GH_TOKEN=x \
     bash "$RCN_DIR/reconcile.sh" > "$RCN_DIR/out" 2>&1
   echo "$?"
+}
+
+devflow_rcn_run() {
+  # $1 EXPECTED, $2 AGENT_OUTCOME; echoes the exit code, leaving output in $RCN_DIR/out.
+  devflow_rcn_run_cmd "/prflow:review 2000" "$1" "$2"
 }
 
 : > "$RCN_DIR/gh-calls"
@@ -1170,6 +1175,133 @@ assert_eq "reconcile: arrived-expected + success → exit 0 (documented residual
 assert_eq "reconcile: arrived-expected + success → no PR record posted" "" \
   "$(cat "$RCN_DIR/gh-calls")"
 
+# The already-non-green early exit is ONE guard shared by every enforcing expectation, so
+# pin each arm reaching it rather than only detector-absent: a per-expectation `if` added
+# above that guard would silently re-fail a job that is already red.
+for RCN_EXP in undeliverable-broken-symlink classify-unreadable skill-unresolved arrived-expected; do
+  : > "$RCN_DIR/gh-calls"
+  RCN_RC="$(devflow_rcn_run "$RCN_EXP" failure)"
+  assert_eq "reconcile: $RCN_EXP + non-success → exit 0 (already non-green)" "0" "$RCN_RC"
+  assert_eq "reconcile: $RCN_EXP + non-success → no PR record posted" "" \
+    "$(cat "$RCN_DIR/gh-calls")"
+done
+
+# No PR number resolvable from the command: the numeric guard must reject the trailing
+# token and take the record-unrecordable warning arm, never POST to `repos/owner/repo/
+# issues//comments` — a path that would silently address the wrong resource.
+: > "$RCN_DIR/gh-calls"
+RCN_RC="$(devflow_rcn_run_cmd "/prflow:review" detector-absent success)"
+assert_eq "reconcile: no PR number + fail-closed arm → still exit 1" "1" "$RCN_RC"
+assert_eq "reconcile: no PR number → record-unrecordable warning emitted" "yes" \
+  "$(case "$(cat "$RCN_DIR/out")" in *"no PR number resolvable from command"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "reconcile: no PR number → no gh POST attempted" "" \
+  "$(cat "$RCN_DIR/gh-calls")"
+
+# A non-numeric trailing token is the same case: the guard is numeric, not merely non-empty.
+: > "$RCN_DIR/gh-calls"
+RCN_RC="$(devflow_rcn_run_cmd "/prflow:review notanumber" detector-absent success)"
+assert_eq "reconcile: non-numeric trailing token → no gh POST attempted" "" \
+  "$(cat "$RCN_DIR/gh-calls")"
+assert_eq "reconcile: non-numeric trailing token → record-unrecordable warning emitted" "yes" \
+  "$(case "$(cat "$RCN_DIR/out")" in *"no PR number resolvable from command"*) echo yes ;; *) echo no ;; esac)"
+
 rm -rf "$RCN_DIR"
+
+# ── issue #1971: devflow.yml "Classify prompt-extension arrival" job-level arms ──
+# The pre-agent classify step publishes the expectation the reconcile step above enforces,
+# so an unpinned skill-selection order or a swallowed second-extension fault would make the
+# whole pair pass while checking the wrong extension.
+CLS_DIR="$(mktemp -d)"
+mkdir -p "$CLS_DIR/work/scripts"
+# Stub detector: `classify --skill <name>` echoes whatever STUB_<skill-with-underscores>
+# holds, so each arm below drives one classify outcome per extension without a real closure.
+cat > "$CLS_DIR/work/scripts/prompt-extension-arrival.py" <<'CLSPY'
+import os, sys
+skill = sys.argv[sys.argv.index("--skill") + 1]
+out = os.environ.get("STUB_" + skill.replace("-", "_"), "")
+if out:
+    print(out)
+CLSPY
+CLSPY_RC=0
+python3 - "$LIB/../.github/workflows/devflow.yml" "$CLS_DIR/classify.sh" <<'CLSPY2' || CLSPY_RC=$?
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+body = ""
+for job in d["jobs"].values():
+    for step in job.get("steps") or []:
+        if str(step.get("name", "")).startswith("Classify prompt-extension"):
+            body = step["run"]
+open(sys.argv[2], "w").write(body)
+CLSPY2
+assert_eq "classify step: extractor exited 0 (python3+PyYAML present, workflow parsed)" "0" "$CLSPY_RC"
+# A step whose run: body could not be extracted would make every assertion below pass
+# vacuously against an empty script.
+assert_eq "classify step: run: body extracted from devflow.yml" "yes" \
+  "$(case "$(cat "$CLS_DIR/classify.sh" 2>/dev/null)" in *classify_one*) echo yes ;; *) echo no ;; esac)"
+
+devflow_cls_run() {
+  # $1 CMD, $2 primary stub output, $3 second-extension stub output, $4 cwd ("work" or
+  # "bare" — bare has no scripts/ detector, driving the detector-absent arm).
+  # Echoes "<state>|<skill>" read back from the step's own $GITHUB_OUTPUT file.
+  : > "$CLS_DIR/gh-output"
+  ( cd "$CLS_DIR/$4" && \
+    GITHUB_OUTPUT="$CLS_DIR/gh-output" CMD="$1" \
+    STUB_review_and_fix="$2" STUB_review="$2" STUB_pr_description="$2" \
+    STUB_receiving_code_review="$3" STUB_requesting_code_review="$3" \
+    bash "$CLS_DIR/classify.sh" > "$CLS_DIR/out" 2>&1 )
+  CLS_STATE=""; CLS_SKILL=""
+  while IFS= read -r _line; do
+    case "$_line" in
+      state=*) CLS_STATE="${_line#state=}" ;;
+      skill=*) CLS_SKILL="${_line#skill=}" ;;
+    esac
+  done < "$CLS_DIR/gh-output"
+  echo "$CLS_STATE|$CLS_SKILL"
+}
+mkdir -p "$CLS_DIR/bare"
+
+# Most-specific-first: `/prflow:review-and-fix` contains the substring `/prflow:review`, so
+# a case arm reordered to put `review` first would classify the wrong extension entirely.
+assert_eq "classify: review-and-fix command selects the review-and-fix skill" "arrived-expected|review-and-fix" \
+  "$(devflow_cls_run "/prflow:review-and-fix 2000" "state=arrived-expected" "state=arrived-expected" work)"
+assert_eq "classify: review command selects the review skill" "arrived-expected|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=arrived-expected" "state=arrived-expected" work)"
+assert_eq "classify: pr-description command selects the pr-description skill" "arrived-expected|pr-description" \
+  "$(devflow_cls_run "/prflow:pr-description 2000" "state=arrived-expected" "" work)"
+# The `/devflow:` transitional spelling is an accepted alias, not a separate command.
+assert_eq "classify: /devflow: alias spelling selects the same skill" "arrived-expected|review-and-fix" \
+  "$(devflow_cls_run "/devflow:review-and-fix 2000" "state=arrived-expected" "state=arrived-expected" work)"
+
+# A fault on the SECOND extension must not hide behind a deliverable primary: the promoted
+# state carries that second extension's own skill name, so the reconcile ::error:: names it.
+assert_eq "classify: second-extension fault overrides a deliverable primary" "undeliverable-nonregular|receiving-code-review" \
+  "$(devflow_cls_run "/prflow:review-and-fix 2000" "state=arrived-expected" "state=undeliverable-nonregular" work)"
+assert_eq "classify: second-extension classify-unreadable overrides a deliverable primary" "classify-unreadable|requesting-code-review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=arrived-expected" "" work)"
+# The override promotes FAULTS only: a deliverable second extension must not overwrite a
+# faulted primary, which would downgrade a real fault to a clean terminal.
+assert_eq "classify: deliverable second extension never overrides a faulted primary" "undeliverable-unreadable|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=undeliverable-unreadable" "state=arrived-expected" work)"
+# `absent` is a clean state, not a fault, so it does not promote either.
+assert_eq "classify: absent second extension never overrides the primary" "arrived-expected|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=arrived-expected" "state=absent" work)"
+
+# classify_one parses the leading `state=` token only; trailing words on the same line are
+# diagnostics, and folding them into the state would publish an unrecognized token.
+assert_eq "classify: state= parsing strips trailing diagnostic words" "absent|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=absent (no extension file)" "state=absent" work)"
+# Empty/unparsable detector output on a PRESENT detector is a run fault, never the
+# bump-prflow_version remedy detector-absent names.
+assert_eq "classify: unparsable detector output → classify-unreadable" "classify-unreadable|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "no state line here" "state=arrived-expected" work)"
+
+# No case arm matches → skill-unresolved with an EMPTY skill, never detector-absent.
+assert_eq "classify: unmatched command → skill-unresolved with empty skill" "skill-unresolved|" \
+  "$(devflow_cls_run "/prflow:docs 2000" "state=arrived-expected" "state=arrived-expected" work)"
+# Detector missing from both the vendored and repo paths → detector-absent, skill retained.
+assert_eq "classify: detector absent from both paths → detector-absent" "detector-absent|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=arrived-expected" "state=arrived-expected" bare)"
+
+rm -rf "$CLS_DIR"
 
 rm -rf "$LPE_DIR"
