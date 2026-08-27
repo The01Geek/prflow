@@ -48682,7 +48682,7 @@ assert_pin_unique "#497 AC10 skill clean render requires both persisted operands
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-and-fix-contract.sh" \
-  "review-and-fix-contract" 39; then
+  "review-and-fix-contract" 59; then
   printf 'ERROR: review-and-fix-contract boundary could not record its result\n'
   exit 1
 fi
