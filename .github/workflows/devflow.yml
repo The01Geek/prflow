@@ -1772,12 +1772,34 @@ jobs:
           # classify resolves DEVFLOW_PROMPT_EXTENSION_ROOT itself. `|| true` is required:
           # classify exits 3 on a present-but-undeliverable fault and -e would abort before
           # the state is published.
-          OUT="$(python3 "$H" classify --skill "$SKILL")" || true
-          echo "$OUT"
-          STATE="${OUT#state=}"; STATE="${STATE%% *}"
-          echo "state=${STATE:-detector-absent}" >> "$GITHUB_OUTPUT"
+          classify_one() {
+            local out state
+            out="$(python3 "$H" classify --skill "$1")" || true
+            echo "$out" >&2
+            state=""
+            case "$out" in state=*) state="${out#state=}"; state="${state%% *}" ;; esac
+            # classify-unreadable, never detector-absent: the detector file IS present
+            # (statted above), so empty/unparsable classify output is a run fault whose
+            # remedy is a re-run — not the bump-prflow_version remedy detector-absent names.
+            echo "${state:-classify-unreadable}"
+          }
+          STATE="$(classify_one "$SKILL")"
+          # The two review commands deliver a SECOND extension on this tier; a fault on it
+          # must not hide behind a deliverable primary, so a faulted second state wins.
+          SKILL2=""
+          case "$SKILL" in
+            review-and-fix) SKILL2=receiving-code-review ;;
+            review) SKILL2=requesting-code-review ;;
+          esac
+          if [ -n "$SKILL2" ]; then
+            STATE2="$(classify_one "$SKILL2")"
+            case "$STATE2" in
+              undeliverable-*|classify-unreadable) STATE="$STATE2"; SKILL="$SKILL2" ;;
+            esac
+          fi
+          echo "state=$STATE" >> "$GITHUB_OUTPUT"
           echo "skill=$SKILL" >> "$GITHUB_OUTPUT"
-          echo "prompt-extension-arrival: $SKILL extension classified state=${STATE:-detector-absent}"
+          echo "prompt-extension-arrival: classified state=$STATE (skill=$SKILL)"
 
       - name: Run Claude Code
         id: claude
@@ -2673,18 +2695,32 @@ jobs:
             record_non_arrival "prompt-extension arrival unestablished — the pre-agent classify step matched no skill arm for this command; add one to that step's case"
             exit 1
           fi
+          if [ "$EXPECTED" = "classify-unreadable" ]; then
+            fail_closed "the pre-agent classify step could not read a classification from the present arrival detector (empty or unparsable output — a run fault, not a version skew; re-run the command)"
+            record_non_arrival "prompt-extension arrival unestablished — the pre-agent classify step could not read a classification from the arrival detector; re-run the command"
+            exit 1
+          fi
           case "$EXPECTED" in
             undeliverable-*)
               fail_closed "the extension file was present but undeliverable ($EXPECTED)"
               record_non_arrival "prompt-extension arrival unestablished — present-but-undeliverable extension file: $EXPECTED"
               exit 1
               ;;
+            arrived-expected)
+              # arrived-expected + success: deliverable at the trusted closure, but this
+              # read-only tier has no positive-tick artifact, so consumption is confirmed
+              # only by the agent-side forced record — not at job level (documented residual).
+              echo "prompt-extension-arrival: $SKILL extension deliverable at the trusted closure; job-level cannot independently confirm consumption on this read-only tier — the agent-side forced record is the catch (documented residual)"
+              exit 0
+              ;;
+            *)
+              # Fail closed on a token this step does not recognize: passing it through
+              # would be the declare-arrival-by-absence the positive-signal rule forbids.
+              fail_closed "the pre-agent classify step published an unrecognized expectation token '$EXPECTED'"
+              record_non_arrival "prompt-extension arrival unestablished — unrecognized expectation token '$EXPECTED' from the pre-agent classify step"
+              exit 1
+              ;;
           esac
-          # arrived-expected + success: deliverable at the trusted closure, but this read-only
-          # tier has no positive-tick artifact, so consumption is confirmed only by the
-          # agent-side forced record — not at job level (documented residual).
-          echo "prompt-extension-arrival: $SKILL extension deliverable at the trusted closure; job-level cannot independently confirm consumption on this read-only tier — the agent-side forced record is the catch (documented residual)"
-          exit 0
 
   # ── Out-of-job review finalizer (issue #1174). ──────────────────────────────
   # Every review post-run handler used to be an `always()` step INSIDE the

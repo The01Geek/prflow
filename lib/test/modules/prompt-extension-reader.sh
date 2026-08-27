@@ -1097,7 +1097,8 @@ RCN_DIR="$(mktemp -d)"
 mkdir -p "$RCN_DIR/bin"
 printf '%s\n' '#!/bin/sh' 'echo "gh $*" >> "$GH_CALLS"' 'exit 0' > "$RCN_DIR/bin/gh"
 chmod +x "$RCN_DIR/bin/gh"
-python3 - "$LIB/../.github/workflows/devflow.yml" "$RCN_DIR/reconcile.sh" <<'RCNPY'
+RCNPY_RC=0
+python3 - "$LIB/../.github/workflows/devflow.yml" "$RCN_DIR/reconcile.sh" <<'RCNPY' || RCNPY_RC=$?
 import sys, yaml
 d = yaml.safe_load(open(sys.argv[1]))
 body = ""
@@ -1107,10 +1108,13 @@ for job in d["jobs"].values():
             body = step["run"]
 open(sys.argv[2], "w").write(body)
 RCNPY
+# One legible failure when the extractor itself cannot run (python3/PyYAML missing or the
+# workflow unparsable), instead of four misattributed rc-127 mismatches downstream.
+assert_eq "reconcile step: extractor exited 0 (python3+PyYAML present, workflow parsed)" "0" "$RCNPY_RC"
 # A step whose run: body could not be extracted would make every assertion below pass
 # vacuously against an empty script.
 assert_eq "reconcile step: run: body extracted from devflow.yml" "yes" \
-  "$(case "$(cat "$RCN_DIR/reconcile.sh")" in *record_non_arrival*) echo yes ;; *) echo no ;; esac)"
+  "$(case "$(cat "$RCN_DIR/reconcile.sh" 2>/dev/null)" in *record_non_arrival*) echo yes ;; *) echo no ;; esac)"
 
 devflow_rcn_run() {
   # $1 EXPECTED, $2 AGENT_OUTCOME; echoes the exit code, leaving output in $RCN_DIR/out.
@@ -1137,6 +1141,34 @@ assert_eq "reconcile: detector-absent + non-success → exit 0 (already non-gree
 # `absent` is a clean consumer state (no extension file), never a fail-closed arm.
 RCN_RC="$(devflow_rcn_run absent success)"
 assert_eq "reconcile: absent + success → exit 0 (clean consumer state)" "0" "$RCN_RC"
+
+# No expectation at all on a successful run disabled the whole check — fail closed.
+RCN_RC="$(devflow_rcn_run "" success)"
+assert_eq "reconcile: empty expectation + success → exit 1 (fails closed)" "1" "$RCN_RC"
+
+# An unclassified command has no arrival evidence at all — fail closed.
+RCN_RC="$(devflow_rcn_run skill-unresolved success)"
+assert_eq "reconcile: skill-unresolved + success → exit 1 (fails closed)" "1" "$RCN_RC"
+
+# A present-but-undeliverable extension is exactly the silent-drop class — fail closed.
+RCN_RC="$(devflow_rcn_run undeliverable-broken-symlink success)"
+assert_eq "reconcile: undeliverable-* + success → exit 1 (fails closed)" "1" "$RCN_RC"
+
+# The detector was present but its classification could not be read — fail closed with
+# the re-run remedy, never the detector-absent bump-prflow_version remedy.
+RCN_RC="$(devflow_rcn_run classify-unreadable success)"
+assert_eq "reconcile: classify-unreadable + success → exit 1 (fails closed)" "1" "$RCN_RC"
+
+# A token this step does not recognize must not pass through as arrival-by-absence.
+RCN_RC="$(devflow_rcn_run bogus-future-token success)"
+assert_eq "reconcile: unrecognized token + success → exit 1 (fails closed)" "1" "$RCN_RC"
+
+# arrived-expected + success is the clean pass: exit 0 and NO durable record posted.
+: > "$RCN_DIR/gh-calls"
+RCN_RC="$(devflow_rcn_run arrived-expected success)"
+assert_eq "reconcile: arrived-expected + success → exit 0 (documented residual pass)" "0" "$RCN_RC"
+assert_eq "reconcile: arrived-expected + success → no PR record posted" "" \
+  "$(cat "$RCN_DIR/gh-calls")"
 
 rm -rf "$RCN_DIR"
 

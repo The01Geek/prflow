@@ -17,7 +17,11 @@ implement tier to the local/interactive tier and the cloud review/command tier.
   checkout. Because the read-only review/command tier has no implement-style positive-tick
   arrival row, the post-agent step enforces only what it can establish at job level — it
   fails closed on a successful run whose expectation is unestablished (no pre-agent token,
-  detector absent, no skill arm matching the command, or an undeliverable extension file).
+  detector absent, no skill arm matching the command, an unreadable classification from a
+  present detector, an unrecognized expectation token, or an undeliverable extension file).
+  The classify step also classifies the second extension the two review commands deliver
+  (`receiving-code-review` / `requesting-code-review`), so a fault on it cannot hide behind
+  a deliverable primary.
   On an arrived-expected (deliverable)
   run it records that consumption cannot be independently confirmed on this read-only tier
   and passes; the agent-side classify and forced durable record are the consumption catch.
@@ -25,6 +29,11 @@ implement tier to the local/interactive tier and the cloud review/command tier.
   `skills/pr-description`) now force the non-arrival record to a durable surface in a fixed,
   terminating order — workpad, then the pull request, then the run's own output naming the
   record unrecordable.
+- The mechanized classifier's invocation contract is delivered whole: the skill bodies
+  instruct capturing the ladder's combined stdout+stderr (the status line is on stderr),
+  `skills/pr-description` carries the same `PROMPT-EXTENSION-STATUS` exit-0 contract as the
+  other two bodies, and `scripts/prompt-extension-arrival.py` carries the executable bit so
+  the by-path leading-token invocation the bodies name can actually run.
 - `scripts/prompt-extension-arrival.py` is granted in the `command` capability profile (the
   five generated allowlist literals regenerated, `manifest_version` bumped); the read-only
   `review` profile stays unwidened, so a review-tier invocation is denied and classified
