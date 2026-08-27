@@ -1,0 +1,167 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T20:06:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "advisory",
+      "source_file": ".changeset/issue-2061-workpad-notes-cleanup.md",
+      "claim_text": "issue-2061 changeset body parenthetical references (#2062) while file is named for 2061",
+      "skip_category": "advisory-parked",
+      "evidence": "shadow-surfaced Suggestion on a base-side file the checkpoint-1 base merge brought in (authored by PR #2061, not by this PR's deletion diff); out of this PR's scope",
+      "parking_evidence": {
+        "basis": "the flagged file is a base-side changeset this PR's diff does not author; it arrived via the checkpoint-1 origin/main merge",
+        "failing_input": "the (#2062) parenthetical in the issue-2061 changeset",
+        "source": ".changeset/issue-2061-workpad-notes-cleanup.md (base-side, from PR #2061)",
+        "finding_ref": {
+          "iter": 1,
+          "index": 0
+        }
+      }
+    },
+    {
+      "finding_id": "S-2",
+      "decision": "advisory",
+      "source_file": ".changeset/issue-2061-workpad-notes-cleanup.md",
+      "claim_text": "issue-2061 changeset 'reader and internal docs reconciled' phrasing slightly overstated",
+      "skip_category": "advisory-parked",
+      "evidence": "shadow's own truthfulness sweep confirmed workpad.py --note already nests under ## Progress at HEAD, so the statement is not demonstrably false; base-side file, out of this PR's scope",
+      "parking_evidence": {
+        "basis": "shadow self-verified the statement holds at HEAD; base-side changeset not authored by this PR",
+        "failing_input": "the 'reader ... reconciled' phrasing in the issue-2061 changeset",
+        "source": ".changeset/issue-2061-workpad-notes-cleanup.md (base-side, from PR #2061)",
+        "finding_ref": {
+          "iter": 1,
+          "index": 1
+        }
+      }
+    }
+  ],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-27T20:12:00Z",
+    "reviewed_sha": "190488df48d3ce7f826167d3b88b70abe2e48750",
+    "verdict": "APPROVE with notes",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "issue-2061 changeset body parenthetical references (#2062) while file named for 2061 — behavior-inert bookkeeping, base-side file",
+        "defect_signature": {
+          "file": ".changeset/issue-2061-workpad-notes-cleanup.md",
+          "line_range": [
+            1,
+            11
+          ],
+          "kind": "doc_inconsistency"
+        }
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "issue-2061 changeset 'reader reconciled' phrasing slightly overstated; shadow verified statement holds at HEAD — not demonstrably false",
+        "defect_signature": {
+          "file": ".changeset/issue-2061-workpad-notes-cleanup.md",
+          "line_range": [
+            1,
+            11
+          ],
+          "kind": "doc_overstatement"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 2,
+      "overlap_with_iter_N": 0,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
