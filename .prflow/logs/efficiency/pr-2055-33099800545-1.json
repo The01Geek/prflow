@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2055",
+  "generated_at": "2026-08-27T17:57:19Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.35.1",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.686013750000004,
+    "tokens": {
+      "input_tokens": 66,
+      "output_tokens": 40146,
+      "cache_read_input_tokens": 5411324,
+      "cache_creation_input_tokens": 223428,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 196,
+        "outputTokens": 86168,
+        "cacheReadInputTokens": 9995195,
+        "cacheCreationInputTokens": 751261,
+        "webSearchRequests": 0,
+        "costUSD": 12.686013750000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 57,
+    "duration_ms": 756119
+  },
+  "permission_denials": {
+    "count": 20,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main; echo \"---LPC---\"; .prflow/vendor/prflow/scripts/config-get.sh .prflow_review.live_progress_comment_enabled true; echo \"---ENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"",
+      "H=3b926fd802c1ca5c33d39d3d00d02405b57effed\nfor f in test_python_scripts.py test_python_scripts_part2.py; do\n  echo \"=== $f (expect all 0) ===\"\n  for sym in _GuardRig _run_deps _HELPER1011 _write_flight _make_ci_repo _prov_run _lint_changed _run_invocation; do\n    printf '%s: ' \"$sym\"; git show \"$H:lib/test/$f\" | grep -c \"$sym\"\n  done\ndone\necho \"=== test_python_scripts_part4.py (expect 0 for these 5) ===\"\nfor sym in _GuardRig _run_deps _HELPER1011 _write_flight _make_ci_repo; do\n  printf '%s: ' \" …[per-command-truncated]",
+      "for p in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\n  echo \"===== lib/test/$p =====\"\n  git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/\"$p\" | grep -nE '^[^[:space:]#].*assert_eq\\(|^assert_eq\\(' | tail -1\n  echo \"-- total lines --\"\n  git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/\"$p\" | grep -c ''\ndone",
+      "for f in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\n  b=$(git show 1f4e06ea459c6cefedd6a5675c9bea310e30eca9:lib/test/$f 2>/dev/null | grep -c 'assert_eq(')\n  h=$(git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/$f 2>/dev/null | grep -c 'assert_eq(')\n  echo \"$f base=$b head=$h\"\ndone",
+      "for f in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\n  git show \"1f4e06ea459c6cefedd6a5675c9bea310e30eca9:lib/test/$f\" 2>/dev/null | grep -c 'assert_eq(' | tr -d '\\n'\n  printf ' base | '\n  git show \"3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/$f\" 2>/dev/null | grep -c 'assert_eq(' | tr -d '\\n'\n  printf ' head  '\n  printf '%s\\n' \"$f\"\ndone",
+      "for f in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\n  echo \"=== $f ===\"\n  git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/$f 2>&1 | grep -cE \"_GuardRig|_run_deps|validate_implement_completion_ci|_prov_run|_fs_cli|lint_changed\" || echo \"0\"\ndone",
+      "for f in lib/test/test_python_scripts.py lib/test/test_python_scripts_part2.py lib/test/test_python_scripts_part3.py lib/test/test_python_scripts_part4.py; do\necho \"===== $f =====\"\ngit show 3b926fd802c1ca5c33d39d3d00d02405b57effed:$f 2>/dev/null | grep -nE '(_GuardRig|_payload\\(|_run_deps|_HELPER1011|_write_flight|_PASS_REC|_make_ci_repo|_ci_rec|_ci_root|_ci_head|_run_cce_1898|_write_json_1898|_CI_REQUIRED_|_CI_YML|_fs_cli|_prov_run|_prov_transcript|_PROV_SRC|_wp1027|_lint_changed|_lint_manifest …[per-command-truncated]",
+      "for f in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\n  echo \"=== $f ===\"\n  git show \"3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/$f\" | grep -cnE \"_GuardRig|_run_deps\\(|validate_implement_completion_ci|_prov_run\\(|lint_changed\\._|_lint_changed\"\ndone",
+      "for p in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\n  printf '=== %s ===\\n' \"$p\"\n  git show \"3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/$p\" 2>/dev/null | grep -c 'class _GuardRig' \ndone",
+      "cd /home/runner/work/prflow/prflow\nfor p in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\necho \"===== $p =====\"\ngit show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/$p > /tmp/$p 2>/dev/null\nfor sym in _GuardRig _run_deps _HELPER1011 _write_flight _make_ci_repo _prov_run _lint_changed _run_invocation; do\n  c=$(grep -c \"$sym\" /tmp/$p)\n  echo \"  $sym : $c\"\ndone\ndone",
+      "git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts.py > /tmp/p1.py; git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts_part2.py > /tmp/p2.py; git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts_part3.py > /tmp/p3.py; git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts_part4.py > /tmp/p4.py; wc -l /tmp/p1.py /tmp/p2.py /tmp/p3.py /tmp/p4.py",
+      "git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts.py > /tmp/p1.py",
+      "git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts_part2.py > /tmp/p2.py",
+      "git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts_part3.py > /tmp/p3.py",
+      "git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts_part4.py > /tmp/p4.py",
+      "mkdir -p .prflow/tmp/rev2055; git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts.py > .prflow/tmp/rev2055/p1.py",
+      "git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts_part2.py > .prflow/tmp/rev2055/p2.py",
+      "git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts_part3.py > .prflow/tmp/rev2055/p3.py",
+      "git show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/test_python_scripts_part4.py > .prflow/tmp/rev2055/p4.py",
+      "for n in p1:test_python_scripts p2:test_python_scripts_part2 p3:test_python_scripts_part3 p4:test_python_scripts_part4; do\nlabel=${n%%:*}; file=${n#*:}\necho \"===== $label ($file) last assert_eq line and tail =====\"\ngit show 3b926fd802c1ca5c33d39d3d00d02405b57effed:lib/test/$file.py | grep -n \"^assert_eq(\\|^    assert_eq(\\|assert_eq(\" | tail -1\ndone"
+    ],
+    "total": 20,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
