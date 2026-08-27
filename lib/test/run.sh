@@ -1256,6 +1256,81 @@ assert_eq "#530/#539 review-and-fix bundle assembled all 9 members (thin root + 
 MAXI_SKILL="$MAXI_BUNDLE"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "prflow_review_and_fix.fix_below_threshold_iterations (schema + resolution) (#2053)"
+# ────────────────────────────────────────────────────────────────────────────
+# The below-Important fix-loop damper window is read from config via config-get.sh
+# (default 1) and clamped INLINE in skills/review-and-fix/references/loop-control.md:
+# a non-integer/negative/empty/unparseable value (or a resolver failure) → default 1,
+# and a configured 0 is HONORED (the documented off-switch — a default-coalescing read
+# would silently replace it, the bug class #312/#304). Same three-part model as
+# max_iterations above: (a) schema/example contract, (b) resolver read behavior,
+# (c) the clamp via a function kept byte-aligned with the SKILL block (floor 0, not 1).
+FBI_SCHEMA="$LIB/../.prflow/config.schema.json"
+FBI_EXAMPLE="$LIB/../.prflow/config.example.json"
+FBI_PROP='.properties.prflow_review_and_fix.properties.fix_below_threshold_iterations'
+assert_eq "fix_below_threshold_iterations: schema type is integer" "integer" \
+  "$(jq -r "$FBI_PROP.type" "$FBI_SCHEMA")"
+assert_eq "fix_below_threshold_iterations: schema minimum is 0" "0" \
+  "$(jq -r "$FBI_PROP.minimum" "$FBI_SCHEMA")"
+assert_eq "fix_below_threshold_iterations: schema default is 1" "1" \
+  "$(jq -r "$FBI_PROP.default" "$FBI_SCHEMA")"
+assert_eq "fix_below_threshold_iterations: schema has a non-empty description" "yes" \
+  "$(jq -e "$FBI_PROP.description | type == \"string\" and (length > 0)" "$FBI_SCHEMA" >/dev/null && echo yes || echo no)"
+# Default-equality: schema default == example value (the third leg — the SKILL fallback
+# literal 1 — is pinned as the config-get.sh default arg in the resolver reads below).
+assert_eq "fix_below_threshold_iterations: example value matches schema default" \
+  "$(jq -r "$FBI_PROP.default" "$FBI_SCHEMA")" \
+  "$(jq -r '.prflow_review_and_fix.fix_below_threshold_iterations' "$FBI_EXAMPLE")"
+
+# Resolver-read behavior — the six-shape adversarial matrix for a config-JSON consumer
+# (object / array / non-integer scalar / valid-falsy 0 / missing / wrong-type-negative).
+# config-get.sh passes the value through verbatim; the inline clamp downstream validates.
+FBI_CFG="$(probe_tmp 'fix_below_threshold_iterations resolver fixture temp')"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":3}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: configured integer read back verbatim" "3" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: unset key → resolver default 1" "1" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+assert_eq "fix_below_threshold_iterations: missing config file → resolver default 1" "1" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 /no/such/config.json)"
+# Valid-falsy 0 — the load-bearing off-switch row: the resolver passes 0 through, and the
+# clamp below HONORS it (does not coalesce to the default).
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":0}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: valid-falsy 0 passed through to clamp" "0" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":"abc"}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: non-integer value passed through to clamp (abc)" "abc" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":-2}}' > "$FBI_CFG"
+assert_eq "fix_below_threshold_iterations: negative value passed through to clamp (-2)" "-2" \
+  "$("$CG" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$FBI_CFG")"
+rm -f "$FBI_CFG"
+
+# The review-and-fix inline clamp for the damper window, applied to the resolver output above.
+# Mirrors the exact value logic in skills/review-and-fix/references/loop-control.md (floor 0,
+# NOT 1): a configured 0 is honored; a negative/non-integer/empty value or a resolver failure
+# (rc≠0) falls back to the default 1. Keep byte-aligned with the loop-control.md clamp block.
+fbi_clamp() {
+  local v="$1" rc="${2:-0}"
+  if [ "$rc" -ne 0 ] || ! printf '%s' "$v" | grep -Eq '^-?[0-9]+$'; then
+    printf '1\n'
+  elif [ "$v" -lt 0 ]; then
+    printf '1\n'
+  else
+    printf '%s\n' "$v"
+  fi
+}
+assert_eq "fix_below_threshold_iterations clamp: valid value honored"          "3"  "$(fbi_clamp 3)"
+assert_eq "fix_below_threshold_iterations clamp: 0 honored (off-switch)"       "0"  "$(fbi_clamp 0)"
+assert_eq "fix_below_threshold_iterations clamp: large value honored (no cap)" "42" "$(fbi_clamp 42)"
+assert_eq "fix_below_threshold_iterations clamp: negative → default 1"         "1"  "$(fbi_clamp -2)"
+assert_eq "fix_below_threshold_iterations clamp: non-integer → default 1"      "1"  "$(fbi_clamp abc)"
+assert_eq "fix_below_threshold_iterations clamp: float → default 1"            "1"  "$(fbi_clamp 2.5)"
+assert_eq "fix_below_threshold_iterations clamp: empty → default 1"            "1"  "$(fbi_clamp '')"
+assert_eq "fix_below_threshold_iterations clamp: resolver failure (rc≠0) → 1"  "1"  "$(fbi_clamp '' 2)"
+
+# ────────────────────────────────────────────────────────────────────────────
 echo "severity thresholds (schema + example + config-get resolution + SKILL pins) (#251)"
 # ────────────────────────────────────────────────────────────────────────────
 # Three enum-valued keys let a repo tune fixer aggressiveness and verdict strictness.
