@@ -6797,6 +6797,423 @@ assert_eq "#499 union: classifier-unavailable retry refuses the remote write" "n
 assert_eq "#499 union: classifier-unavailable refusal is breadcrumbed" "yes" "$(printf '%s' "$T499_U_C_ERR" | grep -qF 'could not classify a colliding telemetry blob' && echo yes || echo no)"
 rm -rf "$T499_U_ROOT"
 
+# ── Telemetry master switch (issue #2035) ────────────────────────────────────
+# telemetry.enabled=false (the JSON boolean) turns off every optional telemetry
+# mechanism in one switch: the five default-true enrolled sub-keys inherit it on
+# their config-get.sh miss path, and the two push-path helpers skip. Only the JSON
+# boolean false disables; every other state (wrong-typed, corrupt, error) fails
+# safe to ON. A sub-key set to a value that resolves wins over the master.
+T2035_ROOT="$(probe_tmp '#2035 telemetry master switch root')"; rm -rf "$T2035_ROOT"; mkdir -p "$T2035_ROOT"
+T2035_CG="$REPO_ROOT/scripts/config-get.sh"
+T2035_OFF="$REPO_ROOT/scripts/telemetry-master-off.py"
+T2035_ET="$REPO_ROOT/lib/efficiency-trace.sh"
+T2035_CST="$REPO_ROOT/scripts/collect-staged-telemetry.sh"
+
+# telemetry-master-off.py — the single-source JSON-boolean-false predicate.
+printf '%s' '{"telemetry":{"enabled":false}}'   > "$T2035_ROOT/m-false.json"
+printf '%s' '{"telemetry":{"enabled":true}}'    > "$T2035_ROOT/m-true.json"
+printf '%s' '{"telemetry":{"enabled":"false"}}' > "$T2035_ROOT/m-strfalse.json"
+printf '%s' '{"telemetry":{"enabled":0}}'       > "$T2035_ROOT/m-zero.json"
+printf '%s' '{"telemetry":{"enabled":null}}'    > "$T2035_ROOT/m-null.json"
+printf '%s' '{"telemetry":[]}'                  > "$T2035_ROOT/m-arr.json"
+printf '%s' '{"telemetry":"x"}'                 > "$T2035_ROOT/m-scalar.json"
+printf '%s' '{"other":1}'                       > "$T2035_ROOT/m-missing.json"
+printf '%s' 'not json{'                         > "$T2035_ROOT/m-corrupt.json"
+assert_eq "#2035 predicate: JSON boolean false is OFF" "off" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-false.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: JSON boolean true is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-true.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: string 'false' is ON (JSON type, not coerced string)" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-strfalse.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: number 0 is ON (is-False not ==False)" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-zero.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: null is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-null.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: telemetry array is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-arr.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: telemetry scalar is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-scalar.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: telemetry missing is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-missing.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: corrupt config is ON (fail-safe)" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-corrupt.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: missing file is ON (fail-safe)" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/nope.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: no argument is ON (fail-safe)" "on" "$(python3 "$T2035_OFF" >/dev/null 2>&1 && echo off || echo on)"
+
+# The three-way exit contract both shell callers route on: 0 off, 2 the config is
+# there but unreadable/unparseable, 1 everything else. Folding 2 onto 1 would let a
+# caller report a corrupt config as a deliberate opt-in.
+python3 "$T2035_OFF" "$T2035_ROOT/m-false.json" >/dev/null 2>&1; assert_eq "#2035 predicate exit: master-off is 0" "0" "$?"
+python3 "$T2035_OFF" "$T2035_ROOT/m-corrupt.json" >/dev/null 2>&1; assert_eq "#2035 predicate exit: corrupt config is 2 (indeterminate)" "2" "$?"
+python3 "$T2035_OFF" "$T2035_ROOT/nope.json" >/dev/null 2>&1; assert_eq "#2035 predicate exit: absent config is 1 (plain ON, not indeterminate)" "1" "$?"
+python3 "$T2035_OFF" "$T2035_ROOT/m-missing.json" >/dev/null 2>&1; assert_eq "#2035 predicate exit: readable config without the key is 1" "1" "$?"
+
+# AC1 — master false + each enrolled sub-key absent → config-get prints "false".
+assert_eq "#2035 AC1 efficiency_telemetry_enabled inherits false" "false" "$("$T2035_CG" prflow_review_and_fix.efficiency_telemetry_enabled true "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC1 execution_diagnostics_enabled inherits false" "false" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC1 execution_denial_commands_enabled inherits false" "false" "$("$T2035_CG" prflow.execution_denial_commands_enabled true "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC1 live_progress_comment_enabled inherits false" "false" "$("$T2035_CG" prflow_review.live_progress_comment_enabled true "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC1 investigation_record_enabled inherits false" "false" "$("$T2035_CG" create_issue.investigation_record_enabled true "$T2035_ROOT/m-false.json")"
+
+# AC2 — a sub-key set to a value that resolves wins, in both directions.
+printf '%s' '{"telemetry":{"enabled":false},"prflow":{"execution_diagnostics_enabled":true}}' > "$T2035_ROOT/p-explicit-true.json"
+printf '%s' '{"prflow":{"execution_diagnostics_enabled":false}}' > "$T2035_ROOT/p-explicit-false.json"
+assert_eq "#2035 AC2 explicit sub-key true beats master false" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/p-explicit-true.json")"
+assert_eq "#2035 AC2 explicit sub-key false wins with master absent" "false" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/p-explicit-false.json")"
+
+# AC3 — the seven master-key shapes: only the JSON boolean false disables an
+# enrolled sub-key miss; every other shape prints the caller default.
+assert_eq "#2035 AC3 master missing → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-missing.json")"
+assert_eq "#2035 AC3 master array → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-arr.json")"
+assert_eq "#2035 AC3 master scalar → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-scalar.json")"
+assert_eq "#2035 AC3 master enabled true → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-true.json")"
+assert_eq "#2035 AC3 master enabled string 'false' → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-strfalse.json")"
+assert_eq "#2035 AC3 master enabled number 0 → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-zero.json")"
+assert_eq "#2035 AC3 master enabled null → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-null.json")"
+assert_eq "#2035 AC3 master enabled JSON false → false" "false" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")"
+
+# AC6 — a key OUTSIDE the enrolled set is unaffected by the master: its miss-path
+# stdout is byte-identical whether the master is false or absent.
+assert_eq "#2035 AC6 non-enrolled key unaffected by master false" "mydefault" "$("$T2035_CG" base_branch mydefault "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC6 non-enrolled key same with master absent" "$("$T2035_CG" base_branch mydefault "$T2035_ROOT/m-missing.json")" "$("$T2035_CG" base_branch mydefault "$T2035_ROOT/m-false.json")"
+# AC6 stderr clause — the miss-path STDERR (incl. the superseded-key migration
+# breadcrumb) is byte-identical whether the master is false or absent: the master
+# check writes no output on any path, so it cannot perturb this stream. Use a
+# non-enrolled key WITH a superseded counterpart (prflow_runner ← devflow_runner)
+# so the breadcrumb actually fires, and the SAME config path in both reads so the
+# path embedded in the breadcrumb cannot differ.
+T2035_NE_SUP="$T2035_ROOT/ne-sup.json"
+printf '%s' '{"telemetry":{"enabled":false},"devflow_runner":{"legacy_key":true}}' > "$T2035_NE_SUP"
+T2035_NE_ERR_OFF="$("$T2035_CG" prflow_runner.legacy_key d "$T2035_NE_SUP" 2>&1 >/dev/null)"
+printf '%s' '{"devflow_runner":{"legacy_key":true}}' > "$T2035_NE_SUP"
+T2035_NE_ERR_ABSENT="$("$T2035_CG" prflow_runner.legacy_key d "$T2035_NE_SUP" 2>&1 >/dev/null)"
+assert_eq "#2035 AC6 non-enrolled superseded breadcrumb fires (positive control)" "yes" "$(printf '%s' "$T2035_NE_ERR_OFF" | grep -qF 'superseded counterpart' && echo yes || echo no)"
+assert_eq "#2035 AC6 non-enrolled miss-path stderr byte-identical under master-false vs absent" "$T2035_NE_ERR_ABSENT" "$T2035_NE_ERR_OFF"
+
+# Residual — the resolver's exit-code contract is undisturbed under master-off.
+# Use a repo-root-resolved fixture dir so a no-default call is expressible.
+mkdir -p "$T2035_ROOT/cfgdir/.prflow"
+cp "$T2035_ROOT/m-false.json" "$T2035_ROOT/cfgdir/.prflow/config.json"
+( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" nonexistent.key ) >/dev/null 2>&1
+assert_eq "#2035 exit contract: non-enrolled no-default miss exits 1 under master-off" "1" "$?"
+( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" nonexistent.key fallback ) >/dev/null 2>&1
+assert_eq "#2035 exit contract: non-enrolled with default exits 0 under master-off" "0" "$?"
+assert_eq "#2035 enrolled inherit via repo-root config resolution" "false" "$( ( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" prflow.execution_diagnostics_enabled true ) )"
+# Ordering — an ENROLLED key with NO caller default under master-off prints
+# "false" and exits 0, because telemetry_master_disables_for runs before the
+# has_default branch in emit_default_or_fail. Pins that a no-default enrolled miss
+# is not the non-enrolled exit-1 path.
+T2035_ENROLLED_NODEF="$( ( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" prflow.execution_diagnostics_enabled ) 2>/dev/null )"
+T2035_ENROLLED_NODEF_RC=$?
+assert_eq "#2035 exit contract: enrolled no-default miss prints false under master-off" "false" "$T2035_ENROLLED_NODEF"
+assert_eq "#2035 exit contract: enrolled no-default miss exits 0 under master-off" "0" "$T2035_ENROLLED_NODEF_RC"
+# Idempotency — two master-off resolutions of the same enrolled key are identical.
+assert_eq "#2035 idempotent enrolled resolution" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")"
+
+# Matrix residual — a telemetry OBJECT present but `enabled` absent (the realistic
+# config shape holding only `telemetry.branch`) is the missing-sub-key shape: the
+# predicate reads tel.get("enabled") as None, so it is ON, and an enrolled miss
+# prints the caller default.
+printf '%s' '{"telemetry":{"branch":"prflow-telemetry"}}' > "$T2035_ROOT/m-noenabled.json"
+assert_eq "#2035 predicate: telemetry object present but enabled absent is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-noenabled.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 master enabled-absent (telemetry object present) → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-noenabled.json")"
+
+# Ordering — the master check runs AFTER probe_superseded_key, so an enrolled key
+# absent-but-with-its-superseded-spelling-present still emits the migration
+# breadcrumb even when the master disables it. This pins the emit_default_or_fail
+# ordering: master-off must not short-circuit the superseded-key probe.
+printf '%s' '{"telemetry":{"enabled":false},"devflow":{"execution_diagnostics_enabled":true}}' > "$T2035_ROOT/m-false-superseded.json"
+T2035_SUP_OUT="$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false-superseded.json" 2>"$T2035_ROOT/sup-err.txt")"
+assert_eq "#2035 ordering: master-off still prints false for an absent enrolled key" "false" "$T2035_SUP_OUT"
+assert_eq "#2035 ordering: migration breadcrumb still fires under master-off (probe before master)" "yes" "$(grep -qF 'superseded counterpart' "$T2035_ROOT/sup-err.txt" && echo yes || echo no)"
+
+# AC4 — the push path: --persist under master-off leaves the telemetry branch ref
+# UNMOVED and still exits 0. A real bare-remote git repo (git plumbing not mocked),
+# with a positive control (master-absent) proving the guard is not vacuous.
+_t2035_persist() { # $1=config-file → prints "<exit>|<branch-created yes/no>|<skip yes/no>"
+  local cfg="$1" pr root wd err rc created skip announced
+  pr="$T2035_ROOT/persist-$RANDOM$RANDOM"
+  root="$pr/repo"
+  git init -q --bare "$pr/remote.git"
+  git init -q "$root"; git -C "$root" config user.email t@e.com; git -C "$root" config user.name t
+  git -C "$root" commit --allow-empty -qm seed; git -C "$root" branch -M main
+  git -C "$root" remote add origin "$pr/remote.git"; git -C "$root" push -q -u origin main
+  cp "$cfg" "$root/.prflow-cfg.json"
+  wd="$root/.prflow/tmp/review/pr-2035/run-1"; mkdir -p "$wd"
+  printf '%s' '{"iter":1,"fix_commit_sha":"","loop_role":"fix"}' > "$wd/iter-1.json"
+  err="$( ( cd "$root" && unset GITHUB_ACTIONS && DEVFLOW_CONFIG_FILE="$root/.prflow-cfg.json" bash "$T2035_ET" --persist --workpad-dir "$wd" --slug pr-2035 ) 2>&1 )"
+  rc=$?
+  if git -C "$root" rev-parse --verify --quiet refs/heads/prflow-telemetry >/dev/null 2>&1; then created=yes; else created=no; fi
+  if printf '%s' "$err" | grep -qF 'telemetry.enabled is false'; then skip=yes; else skip=no; fi
+  if printf '%s' "$err" | grep -qF 'was NOT consulted'; then announced=yes; else announced=no; fi
+  printf '%s|%s|%s|%s' "$rc" "$created" "$skip" "$announced"
+}
+T2035_PERSIST_OFF="$(_t2035_persist "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC4 --persist master-off exits 0" "0" "${T2035_PERSIST_OFF%%|*}"
+assert_eq "#2035 AC4 --persist master-off leaves telemetry branch uncreated" "no" "$(printf '%s' "$T2035_PERSIST_OFF" | cut -d'|' -f2)"
+assert_eq "#2035 AC4 --persist master-off emits the skip breadcrumb" "yes" "$(printf '%s' "$T2035_PERSIST_OFF" | cut -d'|' -f3)"
+T2035_PERSIST_ON="$(_t2035_persist "$T2035_ROOT/m-missing.json")"
+assert_eq "#2035 AC5 --persist master-absent exits 0" "0" "${T2035_PERSIST_ON%%|*}"
+assert_eq "#2035 AC5 --persist master-absent creates the telemetry branch (positive control)" "yes" "$(printf '%s' "$T2035_PERSIST_ON" | cut -d'|' -f2)"
+assert_eq "#2035 AC5 --persist master-absent emits no skip breadcrumb" "no" "$(printf '%s' "$T2035_PERSIST_ON" | cut -d'|' -f3)"
+T2035_PERSIST_CORRUPT="$(_t2035_persist "$T2035_ROOT/m-corrupt.json")"
+assert_eq "#2035 AC5 --persist corrupt-config exits 0 (fail-safe on)" "0" "${T2035_PERSIST_CORRUPT%%|*}"
+assert_eq "#2035 AC5 --persist corrupt-config does not skip (fail-safe on)" "no" "$(printf '%s' "$T2035_PERSIST_CORRUPT" | cut -d'|' -f3)"
+assert_eq "#2035 --persist announces the unconsulted master switch on a corrupt config" "yes" "$(printf '%s' "$T2035_PERSIST_CORRUPT" | cut -d'|' -f4)"
+assert_eq "#2035 --persist announces nothing when the switch WAS consulted (positive control)" "no" "$(printf '%s' "$T2035_PERSIST_OFF" | cut -d'|' -f4)"
+
+# The efficiency-trace.sh inline predicate is a hand-maintained copy, so the two
+# shapes its own comment calls load-bearing (number 0 and string "false" must stay
+# ON, via `is False` not `== False`) are driven through THIS copy too — pinning
+# them only against the predicate script would let a `== False` regression here
+# skip persistence on {"telemetry":{"enabled":0}} with the suite still green.
+T2035_PERSIST_ZERO="$(_t2035_persist "$T2035_ROOT/m-zero.json")"
+assert_eq "#2035 --persist number 0 stays ON (inline copy: is-False not ==False)" "no" "$(printf '%s' "$T2035_PERSIST_ZERO" | cut -d'|' -f3)"
+assert_eq "#2035 --persist number 0 creates the telemetry branch" "yes" "$(printf '%s' "$T2035_PERSIST_ZERO" | cut -d'|' -f2)"
+assert_eq "#2035 --persist number 0 exits 0" "0" "${T2035_PERSIST_ZERO%%|*}"
+T2035_PERSIST_STRFALSE="$(_t2035_persist "$T2035_ROOT/m-strfalse.json")"
+assert_eq "#2035 --persist string 'false' stays ON (inline copy: JSON type, not coerced)" "no" "$(printf '%s' "$T2035_PERSIST_STRFALSE" | cut -d'|' -f3)"
+assert_eq "#2035 --persist string 'false' creates the telemetry branch" "yes" "$(printf '%s' "$T2035_PERSIST_STRFALSE" | cut -d'|' -f2)"
+assert_eq "#2035 --persist string 'false' exits 0" "0" "${T2035_PERSIST_STRFALSE%%|*}"
+
+# AC4 — collect-staged-telemetry.sh stages no payload under master-off, and its
+# positive control (master-absent) collects the staged payload.
+_t2035_collect() { # $1=config-file → prints "<stdout>|<breadcrumb yes/no>"
+  local cfg="$1" cr stage dest out err
+  cr="$T2035_ROOT/collect-$RANDOM$RANDOM"; mkdir -p "$cr/.prflow"
+  cp "$cfg" "$cr/.prflow/config.json"
+  stage="$cr/.prflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1"; mkdir -p "$stage"
+  printf '%s' '{}' > "$stage/iter-1.json"
+  dest="$cr/upload"
+  out="$(bash "$T2035_CST" "$cr" "$dest" 2>"$cr/err.txt")"
+  if grep -qF 'telemetry.enabled is false' "$cr/err.txt"; then err=yes; else err=no; fi
+  printf '%s|%s' "$out" "$err"
+}
+T2035_COLLECT_OFF="$(_t2035_collect "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC4 collect-staged master-off stages nothing" "" "${T2035_COLLECT_OFF%%|*}"
+assert_eq "#2035 AC4 collect-staged master-off emits breadcrumb" "yes" "$(printf '%s' "$T2035_COLLECT_OFF" | cut -d'|' -f2)"
+T2035_COLLECT_ON="$(_t2035_collect "$T2035_ROOT/m-missing.json")"
+assert_eq "#2035 AC4 collect-staged master-absent collects (positive control)" "1" "${T2035_COLLECT_ON%%|*}"
+# Fail-safe symmetry with the --persist path: a corrupt config collects and emits
+# no skip breadcrumb — the predicate exits 2, which is a shade of ON, so the
+# collector runs as if the master were unset (and says the switch was unconsulted).
+T2035_COLLECT_CORRUPT="$(_t2035_collect "$T2035_ROOT/m-corrupt.json")"
+assert_eq "#2035 AC5 collect-staged corrupt-config collects (fail-safe on)" "1" "${T2035_COLLECT_CORRUPT%%|*}"
+assert_eq "#2035 AC5 collect-staged corrupt-config emits no skip breadcrumb" "no" "$(printf '%s' "$T2035_COLLECT_CORRUPT" | cut -d'|' -f2)"
+
+# The master switch not being CONSULTED is a distinct outcome from it being read
+# as ON, and it is announced. Without this the two gates fail open in silence and
+# an operator who set telemetry.enabled=false cannot tell the switch was ignored.
+T2035_NOPY_DIR="$T2035_ROOT/nopy"
+mkdir -p "$T2035_NOPY_DIR"
+T2035_BASH_ABS="$(command -v bash)"
+T2035_CR_NOPY="$T2035_ROOT/collect-nopy"
+mkdir -p "$T2035_CR_NOPY/.prflow"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_NOPY/.prflow/config.json"
+mkdir -p "$T2035_CR_NOPY/.prflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1"
+printf '%s' '{}' > "$T2035_CR_NOPY/.prflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1/iter-1.json"
+# PATH points at an EMPTY dir so `command -v python3` genuinely misses; bash is
+# invoked by absolute path because a cleared PATH cannot resolve `bash` itself.
+( PATH="$T2035_NOPY_DIR" "$T2035_BASH_ABS" "$T2035_CST" "$T2035_CR_NOPY" "$T2035_CR_NOPY/upload" ) >/dev/null 2>"$T2035_CR_NOPY/err.txt"
+assert_eq "#2035 collect-staged announces an unconsulted master switch when python3 is absent" "yes" \
+  "$(grep -qF 'master switch was NOT consulted' "$T2035_CR_NOPY/err.txt" && echo yes || echo no)"
+
+T2035_HELPERLESS="$T2035_ROOT/helperless"
+mkdir -p "$T2035_HELPERLESS"
+cp "$T2035_CST" "$T2035_HELPERLESS/collect-staged-telemetry.sh"
+T2035_CR_NOHELP="$T2035_ROOT/collect-nohelp"
+mkdir -p "$T2035_CR_NOHELP/.prflow"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_NOHELP/.prflow/config.json"
+bash "$T2035_HELPERLESS/collect-staged-telemetry.sh" "$T2035_CR_NOHELP" "$T2035_CR_NOHELP/upload" >/dev/null 2>"$T2035_CR_NOHELP/err.txt"
+assert_eq "#2035 collect-staged announces an unconsulted master switch when the predicate script is absent" "yes" \
+  "$(grep -qF 'master switch was NOT consulted' "$T2035_CR_NOHELP/err.txt" && echo yes || echo no)"
+
+# DEVFLOW_CONFIG_FILE reaches the collect gate, as it already does --persist: the
+# two push-path gates must not disagree about where the master switch lives.
+T2035_CR_ENVCFG="$T2035_ROOT/collect-envcfg"
+mkdir -p "$T2035_CR_ENVCFG/.prflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1"
+printf '%s' '{}' > "$T2035_CR_ENVCFG/.prflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1/iter-1.json"
+printf '%s' '{}' > "$T2035_CR_ENVCFG/.prflow/config.json"
+assert_eq "#2035 collect-staged honors DEVFLOW_CONFIG_FILE for the master switch" "" \
+  "$( DEVFLOW_CONFIG_FILE="$T2035_ROOT/m-false.json" bash "$T2035_CST" "$T2035_CR_ENVCFG" "$T2035_CR_ENVCFG/upload" 2>/dev/null )"
+
+# The issue-#1002 state-dir read-through reaches this gate too: a consumer still on
+# .devflow/ who sets the master false must not have their payload uploaded anyway.
+T2035_CR_DEVFLOW="$T2035_ROOT/collect-devflow"
+mkdir -p "$T2035_CR_DEVFLOW/.devflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_DEVFLOW/.devflow/config.json"
+printf '%s' '{}' > "$T2035_CR_DEVFLOW/.devflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1/iter-1.json"
+bash "$T2035_CST" "$T2035_CR_DEVFLOW" "$T2035_CR_DEVFLOW/upload" >/dev/null 2>"$T2035_CR_DEVFLOW/err.txt"
+assert_eq "#2035 collect-staged honors a superseded .devflow/ config for the master switch" "yes" \
+  "$(grep -qF 'telemetry.enabled is false' "$T2035_CR_DEVFLOW/err.txt" && echo yes || echo no)"
+
+# A sub-key present as JSON null reaches the resolver's miss path exactly as an
+# absent one does, so it inherits too — the schema and docs say so, and this pins it.
+printf '%s' '{"telemetry":{"enabled":false},"prflow":{"execution_diagnostics_enabled":null}}' > "$T2035_ROOT/m-subnull.json"
+assert_eq "#2035 a sub-key set to JSON null inherits the master-off resolution" "false" \
+  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-subnull.json")"
+
+# A config the gate could not read is indistinguishable from master-on at the
+# predicate's exit code, so the collector announces it rather than collecting as a
+# silent opt-in. Corrupt JSON is the uid-independent case; the permission case is
+# expectation-matched to whether this uid actually loses the read, because root and
+# some filesystems ignore the mode bit and an unconditional "yes" is a false RED.
+T2035_CR_CORRUPT="$T2035_ROOT/collect-corrupt"
+mkdir -p "$T2035_CR_CORRUPT/.prflow"
+cp "$T2035_ROOT/m-corrupt.json" "$T2035_CR_CORRUPT/.prflow/config.json"
+bash "$T2035_CST" "$T2035_CR_CORRUPT" "$T2035_CR_CORRUPT/upload" >/dev/null 2>"$T2035_CR_CORRUPT/err.txt"
+assert_eq "#2035 collect-staged announces a corrupt config instead of collecting silently" "yes" \
+  "$(grep -qF 'could not be read or parsed' "$T2035_CR_CORRUPT/err.txt" && echo yes || echo no)"
+
+T2035_CR_OK="$T2035_ROOT/collect-readable"
+mkdir -p "$T2035_CR_OK/.prflow"
+cp "$T2035_ROOT/m-missing.json" "$T2035_CR_OK/.prflow/config.json"
+bash "$T2035_CST" "$T2035_CR_OK" "$T2035_CR_OK/upload" >/dev/null 2>"$T2035_CR_OK/err.txt"
+assert_eq "#2035 collect-staged announces nothing when the switch WAS consulted (positive control)" "no" \
+  "$(grep -qF 'was NOT consulted' "$T2035_CR_OK/err.txt" && echo yes || echo no)"
+
+T2035_CR_UNREAD="$T2035_ROOT/collect-unreadable"
+mkdir -p "$T2035_CR_UNREAD/.prflow"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_UNREAD/.prflow/config.json"
+chmod 000 "$T2035_CR_UNREAD/.prflow/config.json"
+if [ -r "$T2035_CR_UNREAD/.prflow/config.json" ]; then T2035_UNREAD_EXP="no"; else T2035_UNREAD_EXP="yes"; fi
+bash "$T2035_CST" "$T2035_CR_UNREAD" "$T2035_CR_UNREAD/upload" >/dev/null 2>"$T2035_CR_UNREAD/err.txt"
+assert_eq "#2035 collect-staged announces an unreadable config instead of collecting silently" "$T2035_UNREAD_EXP" \
+  "$(grep -qF 'could not be read or parsed' "$T2035_CR_UNREAD/err.txt" && echo yes || echo no)"
+chmod 644 "$T2035_CR_UNREAD/.prflow/config.json"
+
+# An empty-string sub-key reaches the resolver's miss path exactly as an absent or
+# JSON-null one does, so it inherits too — the schema and docs say so, and this pins it.
+printf '%s' '{"telemetry":{"enabled":false},"prflow":{"execution_diagnostics_enabled":""}}' > "$T2035_ROOT/m-subempty.json"
+assert_eq "#2035 a sub-key set to an empty string inherits the master-off resolution" "false" \
+  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-subempty.json")"
+# The control carries the SAME empty-string sub-key and drops only the master, so
+# it isolates the master's contribution; pointing it at a config with no sub-key
+# at all would stay green if the empty string were later special-cased.
+printf '%s' '{"prflow":{"execution_diagnostics_enabled":""}}' > "$T2035_ROOT/m-subempty-nomaster.json"
+assert_eq "#2035 an empty-string sub-key without the master still takes the default (positive control)" "true" \
+  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-subempty-nomaster.json")"
+printf '%s' '{"prflow":{"execution_diagnostics_enabled":null}}' > "$T2035_ROOT/m-subnull-nomaster.json"
+assert_eq "#2035 a JSON-null sub-key without the master still takes the default (positive control)" "true" \
+  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-subnull-nomaster.json")"
+
+# A predicate that is PRESENT but will not run exits with the same 1 and 2 the
+# verdicts use, so the collector must route on its stderr — otherwise a truncated
+# vendored copy reads as a deliberate telemetry opt-in and says nothing.
+T2035_CR_BROKEN="$T2035_ROOT/collect-broken-predicate"
+mkdir -p "$T2035_CR_BROKEN/scripts" "$T2035_CR_BROKEN/root/.prflow"
+cp "$T2035_CST" "$T2035_CR_BROKEN/scripts/"
+printf '%s' 'def broken(:' > "$T2035_CR_BROKEN/scripts/telemetry-master-off.py"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_BROKEN/root/.prflow/config.json"
+bash "$T2035_CR_BROKEN/scripts/collect-staged-telemetry.sh" "$T2035_CR_BROKEN/root" \
+  "$T2035_CR_BROKEN/root/upload" >/dev/null 2>"$T2035_CR_BROKEN/err.txt"
+assert_eq "#2035 collect-staged announces an unrunnable predicate instead of collecting silently" "yes" \
+  "$(grep -qF 'could not be run' "$T2035_CR_BROKEN/err.txt" && echo yes || echo no)"
+assert_eq "#2035 collect-staged does NOT blame the config when the predicate is what failed" "no" \
+  "$(grep -qF 'could not be read or parsed' "$T2035_CR_BROKEN/err.txt" && echo yes || echo no)"
+
+# A slash-free invocation name makes the `%/*` strip a no-op; without the case
+# guard the anchor empties and the gate silently misses its own predicate.
+T2035_CR_BARE="$T2035_ROOT/collect-bare-argv0"
+mkdir -p "$T2035_CR_BARE/scripts" "$T2035_CR_BARE/root/.prflow"
+cp "$T2035_CST" "$T2035_OFF" "$T2035_CR_BARE/scripts/"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_BARE/root/.prflow/config.json"
+( cd "$T2035_CR_BARE/scripts" && bash collect-staged-telemetry.sh "$T2035_CR_BARE/root" \
+  "$T2035_CR_BARE/root/upload" ) >/dev/null 2>"$T2035_CR_BARE/err.txt"
+assert_eq "#2035 collect-staged resolves its anchor from a slash-free invocation name" "yes" \
+  "$(grep -qF 'telemetry.enabled is false' "$T2035_CR_BARE/err.txt" && echo yes || echo no)"
+
+# AC7 — the schema declares the key and the example's value equals its default.
+# The repo's per-key pattern (see #329 in review-trigger-helpers.sh): without it
+# nothing pins the key's type, presence, or example/default agreement on drift.
+T2035_SCHEMA="$REPO_ROOT/.prflow/config.schema.json"
+T2035_EXAMPLE="$REPO_ROOT/.prflow/config.example.json"
+T2035_ENABLED_PROP='.properties.telemetry.properties.enabled'
+assert_eq "#2035 AC7 schema declares telemetry.enabled as a boolean" "boolean" \
+  "$(jq -r "$T2035_ENABLED_PROP.type" "$T2035_SCHEMA")"
+assert_eq "#2035 AC7 schema default for telemetry.enabled is true" "true" \
+  "$(jq -r "$T2035_ENABLED_PROP.default" "$T2035_SCHEMA")"
+assert_eq "#2035 AC7 schema gives telemetry.enabled a non-empty description" "yes" \
+  "$(jq -e "$T2035_ENABLED_PROP.description | type == \"string\" and (length > 0)" "$T2035_SCHEMA" >/dev/null && echo yes || echo no)"
+assert_eq "#2035 AC7 example value matches schema default" \
+  "$(jq -r "$T2035_ENABLED_PROP.default" "$T2035_SCHEMA")" \
+  "$(jq -r '.telemetry.enabled' "$T2035_EXAMPLE")"
+
+# A config whose TOP LEVEL is not a JSON object is the one predicate branch no
+# per-surface assertion above distinguishes, so it is where the three copies of
+# the {0,1,2} contract could drift apart silently. Drive it through all three.
+printf '%s' '[]' > "$T2035_ROOT/m-toplevel-array.json"
+python3 "$T2035_OFF" "$T2035_ROOT/m-toplevel-array.json" >/dev/null 2>&1
+assert_eq "#2035 drift: predicate exit for a top-level non-object is 2 (indeterminate)" "2" "$?"
+# Behaviour, not a drift pin: config-get.sh's copy is silent on 2 by design, so
+# exits 1 and 2 are indistinguishable there and no assertion can separate them.
+assert_eq "#2035 drift: config-get.sh copy leaves an enrolled key at its default for a top-level non-object" "true" \
+  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-toplevel-array.json")"
+T2035_PERSIST_TLA="$(_t2035_persist "$T2035_ROOT/m-toplevel-array.json")"
+assert_eq "#2035 drift: --persist copy exits 0 for a top-level non-object" "0" "${T2035_PERSIST_TLA%%|*}"
+assert_eq "#2035 drift: --persist copy does not skip for a top-level non-object (fail-safe on)" "no" \
+  "$(printf '%s' "$T2035_PERSIST_TLA" | cut -d'|' -f3)"
+assert_eq "#2035 drift: --persist copy announces the unconsulted switch for a top-level non-object" "yes" \
+  "$(printf '%s' "$T2035_PERSIST_TLA" | cut -d'|' -f4)"
+T2035_COLLECT_TLA="$(_t2035_collect "$T2035_ROOT/m-toplevel-array.json")"
+assert_eq "#2035 drift: collect-staged copy collects for a top-level non-object (fail-safe on)" "1" "${T2035_COLLECT_TLA%%|*}"
+assert_eq "#2035 drift: collect-staged copy emits no skip breadcrumb for a top-level non-object" "no" \
+  "$(printf '%s' "$T2035_COLLECT_TLA" | cut -d'|' -f2)"
+# The collect path is the predicate script's real consumer, so this is what pins
+# its exit 2 end to end: on a 1 it would collect in silence instead of announcing.
+T2035_CR_TLA="$T2035_ROOT/collect-toplevel-array"
+mkdir -p "$T2035_CR_TLA/.prflow"
+cp "$T2035_ROOT/m-toplevel-array.json" "$T2035_CR_TLA/.prflow/config.json"
+bash "$T2035_CST" "$T2035_CR_TLA" "$T2035_CR_TLA/upload" >/dev/null 2>"$T2035_CR_TLA/err.txt"
+assert_eq "#2035 drift: collect-staged announces a top-level non-object instead of collecting silently" "yes" \
+  "$(grep -qF 'could not be read or parsed' "$T2035_CR_TLA/err.txt" && echo yes || echo no)"
+
+# --persist's python3-absent arm, the counterpart of the collect-path assertion
+# above. Without it a regression that dropped this breadcrumb, or turned the arm
+# into a skip, would pass the whole suite: the collect path proves nothing here.
+# A PATH of symlinks to every real PATH entry EXCEPT python3 is what isolates the
+# arm — an empty PATH would also take git and jq away, so --persist would fail for
+# an unrelated reason and the positive control below could not tell the two apart.
+T2035_NOPY_BIN="$T2035_ROOT/nopy-bin"
+mkdir -p "$T2035_NOPY_BIN"
+while IFS= read -r _t2035_d; do
+  [ -d "$_t2035_d" ] || continue
+  for _t2035_f in "$_t2035_d"/*; do
+    [ -x "$_t2035_f" ] && [ ! -d "$_t2035_f" ] || continue
+    _t2035_b="${_t2035_f##*/}"
+    [ "$_t2035_b" = python3 ] && continue
+    [ -e "$T2035_NOPY_BIN/$_t2035_b" ] && continue
+    ln -s "$_t2035_f" "$T2035_NOPY_BIN/$_t2035_b" 2>/dev/null || true
+  done
+done < <(printf '%s\n' "${PATH//:/$'\n'}")
+# Expectation-matched: if this host still resolves python3 under the shim PATH
+# (a python3 that is not a PATH-resolved executable), the arm cannot be reached
+# and asserting the breadcrumb unconditionally would be a false RED.
+if PATH="$T2035_NOPY_BIN" command -v python3 >/dev/null 2>&1; then
+  T2035_NOPY_EXP_ANNOUNCE="no"; T2035_NOPY_EXP_SKIP="yes"
+else
+  T2035_NOPY_EXP_ANNOUNCE="yes"; T2035_NOPY_EXP_SKIP="no"
+fi
+T2035_NOPY_PR="$T2035_ROOT/persist-nopy"
+T2035_NOPY_ROOT="$T2035_NOPY_PR/repo"
+git init -q --bare "$T2035_NOPY_PR/remote.git"
+git init -q "$T2035_NOPY_ROOT"
+git -C "$T2035_NOPY_ROOT" config user.email t@e.com
+git -C "$T2035_NOPY_ROOT" config user.name t
+git -C "$T2035_NOPY_ROOT" commit --allow-empty -qm seed
+git -C "$T2035_NOPY_ROOT" branch -M main
+git -C "$T2035_NOPY_ROOT" remote add origin "$T2035_NOPY_PR/remote.git"
+git -C "$T2035_NOPY_ROOT" push -q -u origin main
+cp "$T2035_ROOT/m-false.json" "$T2035_NOPY_ROOT/.prflow-cfg.json"
+T2035_NOPY_WD="$T2035_NOPY_ROOT/.prflow/tmp/review/pr-2035/run-1"
+mkdir -p "$T2035_NOPY_WD"
+printf '%s' '{"iter":1,"fix_commit_sha":"","loop_role":"fix"}' > "$T2035_NOPY_WD/iter-1.json"
+T2035_NOPY_ERR="$( ( cd "$T2035_NOPY_ROOT" && env -u GITHUB_ACTIONS PATH="$T2035_NOPY_BIN" \
+  DEVFLOW_CONFIG_FILE="$T2035_NOPY_ROOT/.prflow-cfg.json" "$T2035_BASH_ABS" "$T2035_ET" \
+  --persist --workpad-dir "$T2035_NOPY_WD" --slug pr-2035 ) 2>&1 )"
+T2035_NOPY_RC=$?
+assert_eq "#2035 --persist exits 0 when python3 is absent" "0" "$T2035_NOPY_RC"
+assert_eq "#2035 --persist announces an unconsulted master switch when python3 is absent" "$T2035_NOPY_EXP_ANNOUNCE" \
+  "$(printf '%s' "$T2035_NOPY_ERR" | grep -qF 'python3 not on PATH' && echo yes || echo no)"
+assert_eq "#2035 --persist does NOT skip when python3 is absent (fail-safe on, master-false config)" "$T2035_NOPY_EXP_SKIP" \
+  "$(printf '%s' "$T2035_NOPY_ERR" | grep -qF 'telemetry.enabled is false' && echo yes || echo no)"
+# Positive control: the run still reached the persist itself, so the assertions
+# above measure the master-switch arm and not a --persist that died early.
+assert_eq "#2035 --persist still persists with python3 absent (positive control)" "yes" \
+  "$(git -C "$T2035_NOPY_ROOT" rev-parse --verify --quiet refs/heads/prflow-telemetry >/dev/null 2>&1 && echo yes || echo no)"
+
+rm -rf "$T2035_ROOT"
 # ── #2006 run-profile floor and PR-less implement record ─────────────────────
 # These fixtures assert RECORD CONTENT on the local telemetry branch. The module unset
 # DEVFLOW_TELEMETRY_PUSH above, so under CI's ambient GITHUB_ACTIONS=true --persist

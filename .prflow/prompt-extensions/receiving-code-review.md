@@ -102,18 +102,15 @@ while silently reverting whatever a concurrent PR added. This rule hardcodes no 
 command: both are read from `--list` at runtime, so the rule and the registry structurally cannot
 drift.
 
-## Do not run the suite locally — push and read CI
+## Local suite execution — three instruments, then push and read CI
 
-A reception pass in this repository does not run the test suite locally to satisfy the base
-skill's Verification Gate. Commit the fixes, push them, and read CI for the pushed commit as the
-verification evidence, per `CLAUDE.md`'s local/interactive tier rung 1. A local full-suite run
-here is non-reproducible under this repository's worktree concurrency and disagrees with the
-merge-gating signal in both directions, so a green local aggregate is not evidence the fixes hold.
-
-A focused module or focused Python test is still the right instrument for *iterating* on a fix
-you are actively writing, and mutation-checking a new test still runs that one target locally —
-neither discharges the completion gate, which stays the CI reading for the commit this pass
-pushed.
+A reception pass's permitted local suite execution is exactly three instruments: a focused module,
+a focused Python test, and the single target a new test's mutation-check runs. Shards are not among
+them — `run-shard.sh` and `monolith` substitute for the coordinator, which this tier never
+launches. None of the three discharges the completion gate: commit the fixes, push them, and read
+CI for the pushed commit as the verification evidence, per `CLAUDE.md`'s local/interactive tier
+rung 1. A local aggregate is non-reproducible under this repository's worktree concurrency, so a
+green one is not evidence the fixes hold.
 
 Once this pass has read a green CI rollup for the pushed commit, discharge the checker's
 completion validation through `check-completion-evidence.py --context-mode direct` (a fix loop
