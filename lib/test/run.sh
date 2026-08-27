@@ -41749,6 +41749,23 @@ assert_eq "#2025 covmap-undeclared: no merge.coverage-map-json.driver config wri
 assert_eq "#2025 covmap-undeclared: no registration output on stderr (AC3)" "no" \
   "$(printf '%s' "$UBC_ERR" | grep -qF 'coverage-map merge driver' && echo yes || echo no)"
 
+# ── covmap-declared-other → AC3 parse-reject path: .gitattributes EXISTS but declares no
+# merge=coverage-map-json (comment line, *.sh glob that must not expand, near-miss superstring the
+# padded match must reject) → the loop runs and registers nothing; covmap-undeclared (no file at
+# all) never enters that loop, so its case-match/comment-skip/glob-avoidance arms go untested. ──
+D="$(git_sandbox 'ubc-covmap-declared-other')"
+ubc_make "$D"
+printf '# comment the parser must skip\n*.sh merge=text\nlib/test/modules/coverage-map.json merge=coverage-map-json-other\n' > "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm gitattributes-no-covmap-decl
+ubc_advance_base "$D" do
+ubc_run "$D"
+assert_eq "#2025 covmap-declared-other: normal update unaffected → 'UPDATED 1' (AC3 parse reject)" "UPDATED 1" "$UBC_OUT"
+assert_eq "#2025 covmap-declared-other: no merge.coverage-map-json.driver config written (AC3 parse reject)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+assert_eq "#2025 covmap-declared-other: no registration output on stderr (AC3 parse reject)" "no" \
+  "$(printf '%s' "$UBC_ERR" | grep -qF 'coverage-map merge driver' && echo yes || echo no)"
+
 # ── covmap-nodriver → AC4: declaration present but the driver file absent → exactly one stderr
 # warning naming the missing driver path, then the merge falls back line-based (outcome
 # unchanged: an adjacent-key covmap conflict is still CONFLICT/exit 2). ─────────────────────
