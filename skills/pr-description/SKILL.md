@@ -116,7 +116,7 @@ Re-generate from the diff (always overwrite — these reflect current state):
 - Deferred Findings (when there is at least one renderable entry, as defined in Step 1 — re-derived from the manifest on every run so the block stays in sync with the latest /prflow:implement Phase 4.0.5 filing; carry-forward-safe: a regeneration with no manifest present preserves the existing block's entries verbatim rather than wiping them, per the carry-forward rule in Step 1)
 
 Merge (keep existing items that are still relevant, add new ones, remove stale ones):
-- Test Plan — preserve human-added checklist items; add items for new changes; remove items for changes that no longer exist
+- Test Plan — preserve human-added checklist items; add items for new changes; remove items for changes that no longer exist. Preserve verbatim any recorded *test-authoring proportionality waiver* line — a line stating that specific auxiliary test ceremony was deliberately not written, and why: it is a durable record of what was intentionally not written, not a stale checklist item to remove or a test claim to rewrite.
 
 Merge (combine existing and new):
 - Resolves — if `$ARGUMENTS` provides an issue number, include it; also keep any existing issue references that differ from `$ARGUMENTS`
