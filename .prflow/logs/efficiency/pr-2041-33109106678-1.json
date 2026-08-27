@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2041",
+  "generated_at": "2026-08-27T19:38:18Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "run_profile": {
+    "phase_durations_ms": "unestablished",
+    "final_status": "unestablished",
+    "prior_record_count": 3,
+    "issue_number": null,
+    "engine_outcome": "cancelled"
+  }
+}
