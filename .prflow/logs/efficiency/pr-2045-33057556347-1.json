@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2045",
+  "generated_at": "2026-08-27T09:23:24Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.67",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.685959250000005,
+    "tokens": {
+      "input_tokens": 66,
+      "output_tokens": 27302,
+      "cache_read_input_tokens": 4706212,
+      "cache_creation_input_tokens": 172892,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 172,
+        "outputTokens": 54066,
+        "cacheReadInputTokens": 7812396,
+        "cacheCreationInputTokens": 444625,
+        "webSearchRequests": 0,
+        "costUSD": 8.685959250000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 45,
+    "duration_ms": 514671
+  },
+  "permission_denials": {
+    "count": 14,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "cd /home/runner/work/prflow/prflow\nfor f in lib/test/module-harness.sh lib/test/run-parallel.sh lib/test/run-python-pool.sh lib/test/test_module_runner.py .prflow/config.json .github/workflows/matcher-probe.yml CLAUDE.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md lib/test/brand-devflow-buckets.json; do\n  echo \"########## $f ##########\"\n  awk -v F=\"a/$f\" '$0 ~ \"^diff --git\" {p=($3==F)} p' .prflow/tmp/review/pr-2045/local/diff.patch\ndone",
+      "cd /home/runner/work/prflow/prflow\ngit cat-file -t 85d0204e7f700dd04b07f16162f15c3d010cda3e 2>&1 || { echo \"fetching...\"; git fetch origin 85d0204e7f700dd04b07f16162f15c3d010cda3e 2>&1 | tail -2; }",
+      "H=85d0204e7f700dd04b07f16162f15c3d010cda3e\nfor p in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\n  echo \"===== $p HEAD (first 12) =====\"\n  git show \"$H:lib/test/$p\" | head -12\n  echo \"===== $p TAIL (last 6) =====\"\n  git show \"$H:lib/test/$p\" | tail -6\ndone",
+      "H=85d0204e7f700dd04b07f16162f15c3d010cda3e\nfor p in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\n  c=$(git show \"$H:lib/test/$p\" | grep -c 'DEVFLOW_POOL_TALLY_FILE')\n  d=$(git show \"$H:lib/test/$p\" | grep -cE '^def assert_eq|^    def assert_eq|assert_eq =')\n  a=$(git show \"$H:lib/test/$p\" | grep -cE 'assert_eq\\(')\n  echo \"$p: tally_refs=$c assert_eq_def=$d assert_eq_calls=$a\"\ndone",
+      "H=85d0204e7f700dd04b07f16162f15c3d010cda3e\necho \"=== count of '#2009 main: a matching family exits 0' assertion across parts ===\"\nfor p in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\n  n=$(git show \"$H:lib/test/$p\" | grep -c '#2009 main: a matching family exits 0 and is silent')\n  printf '%s: %s\\n' \"$p\" \"$n\"\ndone",
+      "H=85d0204e7f700dd04b07f16162f15c3d010cda3e\nfor p in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\n  n=$(git show \"$H:lib/test/$p\" | grep -c '#2009 main: a matching family exits 0 and is silent')\n  echo \"$p has $n\"\ndone",
+      "for p in test_python_scripts.py test_python_scripts_part2.py test_python_scripts_part3.py test_python_scripts_part4.py; do\n  ref=\"85d0204e7f700dd04b07f16162f15c3d010cda3e:lib/test/$p\"\n  n=$(git show \"$ref\" | grep -c '#2009 main: a matching family exits 0 and is silent')\n  echo \"$p has $n\"\ndone",
+      "cd /tmp\nfor n in \"\" _part2 _part3 _part4; do\n  git -C /home/runner/work/prflow/prflow show \"85d0204e7f700dd04b07f16162f15c3d010cda3e:lib/test/test_python_scripts${n}.py\" 2>/dev/null | grep -oE 'assert_eq\\(\"[^\"]+\"' \ndone | sort > /tmp/allnames.txt\necho \"total labeled assert_eq (single-line label): $(wc -l < /tmp/allnames.txt)\"\necho \"unique: $(sort -u /tmp/allnames.txt | wc -l)\"\necho \"=== cross-part/in dup labels (first 20) ===\"\nsort /tmp/allnames.txt | uniq -d | head -20",
+      "git show 85d0204e7f700dd04b07f16162f15c3d010cda3e:lib/test/test_python_scripts.py | grep -oE 'assert_eq\\(\"[^\"]+\"' > /tmp/n1.txt\ngit show 85d0204e7f700dd04b07f16162f15c3d010cda3e:lib/test/test_python_scripts_part2.py | grep -oE 'assert_eq\\(\"[^\"]+\"' > /tmp/n2.txt\ngit show 85d0204e7f700dd04b07f16162f15c3d010cda3e:lib/test/test_python_scripts_part3.py | grep -oE 'assert_eq\\(\"[^\"]+\"' > /tmp/n3.txt\ngit show 85d0204e7f700dd04b07f16162f15c3d010cda3e:lib/test/test_python_scripts_part4.py | grep -oE 'asse …[per-command-truncated]",
+      "git show 85d0204e7f700dd04b07f16162f15c3d010cda3e:lib/test/test_python_scripts.py | grep -oE 'assert_eq\\(\"[^\"]+\"' > .prflow/tmp/review/pr-2045/local/n1.txt; wc -l < .prflow/tmp/review/pr-2045/local/n1.txt",
+      "git --no-pager diff main..85d0204e7f700dd04b07f16162f15c3d010cda3e -- lib/test/module-harness.sh lib/test/run-parallel.sh lib/test/run.sh lib/test/modules/parallel-suite-runner.sh lib/test/test_module_runner.py lib/test/run-python-pool.sh lib/test/modules/coverage-map.json lib/test/brand-devflow-buckets.json 2>/dev/null | head -400",
+      "git --no-pager diff main..85d0204e7f700dd04b07f16162f15c3d010cda3e -- lib/test/module-harness.sh lib/test/run-parallel.sh lib/test/modules/parallel-suite-runner.sh lib/test/test_module_runner.py lib/test/run-python-pool.sh lib/test/modules/coverage-map.json lib/test/brand-devflow-buckets.json",
+      "git diff --stat $(git merge-base 85d0204e7f700dd04b07f16162f15c3d010cda3e f0021ef94) 85d0204e7f700dd04b07f16162f15c3d010cda3e | tail -40",
+      "for p in test_python_scripts test_python_scripts_part2 test_python_scripts_part3 test_python_scripts_part4; do echo -n \"$p 1811: \"; git show 85d0204e7f700dd04b07f16162f15c3d010cda3e:lib/test/$p.py | grep -c '1811' ; done"
+    ],
+    "total": 14,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
