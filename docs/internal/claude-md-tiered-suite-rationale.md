@@ -228,9 +228,9 @@ so the review-engine advisory can only observe that at least one record is prese
 ## Why the owed-fix set is established rather than assumed (issue #1252)
 
 Launching one whole-suite pass per fix is the waste the batching rule names. The set is established
-by reading whichever surfaces the run recorded on — the workpad via `scripts/workpad.py id <issue>`
-then `scripts/workpad.py body <comment-id>`, where `id`'s exit 2 means *no workpad* and routes to
-the PR-description surface while its exit 1 means *unestablished* — plus the previous pass's
+by reading whichever surfaces the run recorded on — the workpad via the one-call
+`scripts/workpad.py body --issue <issue>`, where exit 2 means *no workpad* and routes to
+the PR-description surface while its exit 3 means *unestablished* — plus the previous pass's
 `Failure recap` from its retained-log root.
 
 A limb with nothing to read is established-and-empty, not unestablished: a run with no previous

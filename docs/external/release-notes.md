@@ -11,6 +11,7 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 ## August 27, 2026
 
+- **Implement runs author tests in proportion to the change.** On a small change, an `/prflow:implement` run can now skip extra test ceremony that would be out of proportion to the change, while still writing a covering test for each behavior change and recording what it waived on a `Test authoring waived:` line in the pull request's Test Plan. The coverage reviewer honors a recorded waiver — lowering only lesser-severity findings on the named surfaces while keeping its most serious findings at full strength — and a fresh install runs that reviewer only on the first fix-loop iteration. You get this through the normal plugin update. [#2031](https://github.com/The01Geek/prflow/issues/2031)
 - **Improvement: `/prflow:implement` runs reach the coding phase sooner.** The pre-coding issue-claim audit now delivers all of its per-pass records to the run's workpad in one batched update at the end of the audit (plus one further call in the uncommon case where the records span more than one reflection kind), instead of a separate network write as each pass completes. Runs spend less time in the pre-coding phase and cloud runs hold their Actions slot for less time, with the recorded workpad content unchanged. You get this through the normal plugin update. [#2018](https://github.com/The01Geek/prflow/issues/2018)
 
 ## August 25, 2026
