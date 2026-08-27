@@ -65,6 +65,9 @@
         "model": "opus",
         "effort": "low",
         "iterations": "first-only"
+      },
+      "prflow:pr-test-analyzer": {
+        "iterations": "first-only"
       }
     }
   },
