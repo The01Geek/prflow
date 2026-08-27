@@ -6868,11 +6868,11 @@ assert_eq "#2035 AC3 master enabled JSON false → false" "false" "$("$T2035_CG"
 assert_eq "#2035 AC6 non-enrolled key unaffected by master false" "mydefault" "$("$T2035_CG" base_branch mydefault "$T2035_ROOT/m-false.json")"
 assert_eq "#2035 AC6 non-enrolled key same with master absent" "$("$T2035_CG" base_branch mydefault "$T2035_ROOT/m-missing.json")" "$("$T2035_CG" base_branch mydefault "$T2035_ROOT/m-false.json")"
 # AC6 stderr clause — the miss-path STDERR (incl. the superseded-key migration
-# breadcrumb) is byte-identical whether the master is false or absent, because a
-# non-enrolled key hits telemetry_master_disables_for's `case *) return 1` before
-# any output. Use a non-enrolled key WITH a superseded counterpart (prflow_runner
-# ← devflow_runner) so the breadcrumb actually fires, and the SAME config path in
-# both reads so the path embedded in the breadcrumb cannot differ.
+# breadcrumb) is byte-identical whether the master is false or absent: the master
+# check writes no output on any path, so it cannot perturb this stream. Use a
+# non-enrolled key WITH a superseded counterpart (prflow_runner ← devflow_runner)
+# so the breadcrumb actually fires, and the SAME config path in both reads so the
+# path embedded in the breadcrumb cannot differ.
 T2035_NE_SUP="$T2035_ROOT/ne-sup.json"
 printf '%s' '{"telemetry":{"enabled":false},"devflow_runner":{"legacy_key":true}}' > "$T2035_NE_SUP"
 T2035_NE_ERR_OFF="$("$T2035_CG" prflow_runner.legacy_key d "$T2035_NE_SUP" 2>&1 >/dev/null)"

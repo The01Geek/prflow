@@ -67,7 +67,7 @@ A few things to know:
 
 - **Only the boolean `false` disables.** Every other value — the string `"false"`, `0`, `null`, a wrong type, a missing key or an unreadable config — leaves telemetry **on**. This fail-safe direction is deliberate: a malformed config never silently drops your observability.
 - **A key you set to a real value always wins for the five sub-keys.** If you set one of them (for example `prflow.execution_diagnostics_enabled`) to `true` or `false` it overrides the master, in both directions — so you can turn the master off but keep that mechanism on, or leave the master on and turn it off. The `prflow-telemetry` branch push is the exception: it reads the master alone, so a master `false` skips it even when `efficiency_telemetry_enabled` is explicitly `true`.
-- **The value is ergonomics and privacy, not cost.** Turning telemetry off saves only a small amount of run time (measured at roughly 1–3% of a run); the point is fewer GitHub writes, no telemetry branch and no stored records.
+- **The value is ergonomics and privacy, not cost.** Turning telemetry off saves only a small amount of run time; the point is fewer GitHub writes, no telemetry branch and no stored records.
 - **Rollback is removing the key**, which restores every default. Mixed plugin versions are safe: a repository whose vendored PRFlow copy predates this key simply ignores it and keeps telemetry on until the next upgrade.
 
 ## Choose Your Settings

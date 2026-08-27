@@ -32,9 +32,9 @@ fi
 # itself — a silent skip of this gate is indistinguishable from a deliberate opt-in.
 # Dirname-free: `dirname` is not one of the tools lib/preflight.sh guarantees.
 _CST_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
-# Resolve the config through the same override-then-state-dir ladder every other
-# reader uses; hardcoding `.prflow/` would read a different file than the
-# --persist gate this one is meant to agree with.
+# Resolve the config through the override-then-state-dir ladder, so this gate and
+# the --persist gate it must agree with read the same file; hardcoding `.prflow/`
+# would split them on a consumer mid-migration from `.devflow/`.
 if [ -z "${DEVFLOW_CONFIG_FILE:-}" ] && [ -r "$_CST_DIR/../lib/resolve-state-dir.sh" ]; then
   # shellcheck source=../lib/resolve-state-dir.sh
   . "$_CST_DIR/../lib/resolve-state-dir.sh" 2>/dev/null || true

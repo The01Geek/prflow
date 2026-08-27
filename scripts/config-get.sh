@@ -196,7 +196,8 @@ sys.stdout.write("." + ".".join(old))
 
 # Telemetry master-key inheritance (issue #2035): 0 iff "$1" is one of the five
 # enrolled default-true telemetry gates AND telemetry.enabled is the JSON boolean
-# false. Best-effort: missing python3 or any read error -> return 1 (telemetry on).
+# false. Best-effort: missing python3 -> 1; a read/parse error -> 2; every
+# non-zero means telemetry on.
 telemetry_master_disables_for() {
     case "$1" in
         prflow_review_and_fix.efficiency_telemetry_enabled|\
@@ -211,8 +212,7 @@ telemetry_master_disables_for() {
     # Stop-hook closure member, so adding a source/exec edge to a new script would
     # break the issue-#458 drift-guard and force a workflow edit. Reads the JSON
     # TYPE (`is False`), so the number 0 and the string "false" never disable.
-    # Carries the same {0,1,2} exit contract as the other two copies even though
-    # only 0 is read here: a 2-way copy would falsify their shared docstring.
+    # A 2-way copy here would falsify the contract the other two copies state.
     PRFLOW_TEL_CFG="$config_file" python3 -c '
 import json, os, sys
 try:
