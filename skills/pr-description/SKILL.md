@@ -129,6 +129,9 @@ Preserve as-is:
 Relocate, do not preserve in place:
 - A provenance line of the form `_Generated via /prflow:implement (...)_` (italic) or the legacy plain form `Generated via /prflow:implement (...)` — wherever it appears in the existing body, carry it forward verbatim as the last line of the whole output, below `<!-- PR_BODY_END -->` and below any other post-marker content. It is a durable record of the run that opened the PR and is meant to read as the body's signature, so a copy left higher up — above `<!-- PR_BODY_START -->`, or in the middle of the body — is moved down rather than kept, and exactly one copy is emitted.
 
+Strip, do not preserve:
+- A stopped-run note block delimited by `<!-- prflow:stopped-run-note-start -->` and `<!-- prflow:stopped-run-note-end -->` — remove the block and its markers entirely, wherever it appears. Without this, a late stall-backstop write that lands the block *after* a resume's gate already stripped it would ride pre-marker content through into the final description, shipping a completed and merged PR with a permanent stale stopped-run banner.
+
 If the existing body has NO markers: Treat the entire existing body as pre-marker content, except the provenance line, which the relocation rule above places. Output that pre-marker content above `<!-- PR_BODY_START -->`, then generate the full template below the marker, then the provenance line last.
 
 ### Template
