@@ -172,6 +172,59 @@ assert_eq "raf max_iterations clamp: float falls back" "5" "$(_raf_maxi_clamp 2.
 assert_eq "raf max_iterations clamp: empty falls back" "5" "$(_raf_maxi_clamp '')"
 assert_eq "raf max_iterations clamp: resolver failure falls back" "5" "$(_raf_maxi_clamp '' 2)"
 
+# fix_below_threshold_iterations (#2053): the below-Important damper window — sibling of
+# max_iterations, floor 0 (a configured 0 is HONORED, the off-switch), default 1.
+RAF_FBI_PROP='.properties.prflow_review_and_fix.properties.fix_below_threshold_iterations'
+assert_eq "raf fix_below_threshold_iterations: schema type is integer" "integer" \
+  "$(jq -r "$RAF_FBI_PROP.type" "$RAF_SCHEMA")"
+assert_eq "raf fix_below_threshold_iterations: schema minimum is zero" "0" \
+  "$(jq -r "$RAF_FBI_PROP.minimum" "$RAF_SCHEMA")"
+assert_eq "raf fix_below_threshold_iterations: schema default is one" "1" \
+  "$(jq -r "$RAF_FBI_PROP.default" "$RAF_SCHEMA")"
+assert_eq "raf fix_below_threshold_iterations: schema has a non-empty description" "yes" \
+  "$(jq -e "$RAF_FBI_PROP.description | type == \"string\" and (length > 0)" "$RAF_SCHEMA" >/dev/null && echo yes || echo no)"
+assert_eq "raf fix_below_threshold_iterations: example matches schema default" \
+  "$(jq -r "$RAF_FBI_PROP.default" "$RAF_SCHEMA")" \
+  "$(jq -r '.prflow_review_and_fix.fix_below_threshold_iterations' "$RAF_EXAMPLE")"
+RAF_FBI_CFG="$_raf_tmp_root/fix-below-threshold-iterations.json"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":3}}' > "$RAF_FBI_CFG"
+assert_eq "raf fix_below_threshold_iterations: configured integer resolves verbatim" "3" \
+  "$("$RAF_CONFIG_GET" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$RAF_FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{}}' > "$RAF_FBI_CFG"
+assert_eq "raf fix_below_threshold_iterations: missing key resolves to default" "1" \
+  "$("$RAF_CONFIG_GET" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$RAF_FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":0}}' > "$RAF_FBI_CFG"
+assert_eq "raf fix_below_threshold_iterations: resolver preserves valid-falsy 0" "0" \
+  "$("$RAF_CONFIG_GET" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$RAF_FBI_CFG")"
+# Object and array shapes complete the six-shape matrix: config-get.sh coerces them to a
+# non-integer string, which the clamp below falls back to the default 1.
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":{"a":1}}}' > "$RAF_FBI_CFG"
+assert_eq "raf fix_below_threshold_iterations: object value coerced" "[object Object]" \
+  "$("$RAF_CONFIG_GET" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$RAF_FBI_CFG")"
+printf '%s' '{"prflow_review_and_fix":{"fix_below_threshold_iterations":[1,2]}}' > "$RAF_FBI_CFG"
+assert_eq "raf fix_below_threshold_iterations: array value coerced" "1,2" \
+  "$("$RAF_CONFIG_GET" .prflow_review_and_fix.fix_below_threshold_iterations 1 "$RAF_FBI_CFG")"
+_raf_fbi_clamp() {
+  local v="$1" rc="${2:-0}"
+  if [ "$rc" -ne 0 ] || ! printf '%s' "$v" | grep -Eq '^-?[0-9]+$'; then
+    printf '1\n'
+  elif [ "$v" -lt 0 ]; then
+    printf '1\n'
+  else
+    printf '%s\n' "$v"
+  fi
+}
+assert_eq "raf fix_below_threshold_iterations clamp: valid value is honored" "3" "$(_raf_fbi_clamp 3)"
+assert_eq "raf fix_below_threshold_iterations clamp: zero is honored (off-switch)" "0" "$(_raf_fbi_clamp 0)"
+assert_eq "raf fix_below_threshold_iterations clamp: no upper cap" "42" "$(_raf_fbi_clamp 42)"
+assert_eq "raf fix_below_threshold_iterations clamp: negative falls back to one" "1" "$(_raf_fbi_clamp -2)"
+assert_eq "raf fix_below_threshold_iterations clamp: non-integer falls back" "1" "$(_raf_fbi_clamp abc)"
+assert_eq "raf fix_below_threshold_iterations clamp: object-coerced falls back" "1" "$(_raf_fbi_clamp '[object Object]')"
+assert_eq "raf fix_below_threshold_iterations clamp: array-coerced falls back" "1" "$(_raf_fbi_clamp '1,2')"
+assert_eq "raf fix_below_threshold_iterations clamp: float falls back" "1" "$(_raf_fbi_clamp 2.5)"
+assert_eq "raf fix_below_threshold_iterations clamp: empty falls back" "1" "$(_raf_fbi_clamp '')"
+assert_eq "raf fix_below_threshold_iterations clamp: resolver failure falls back" "1" "$(_raf_fbi_clamp '' 2)"
+
 # ────────────────────────────────────────────────────────────────────────────
 echo "review-and-fix contract: pre-fix gates and guardrails"
 # ────────────────────────────────────────────────────────────────────────────

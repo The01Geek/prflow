@@ -23,6 +23,7 @@ Tune the shared review engine and the local review-and-fix loop to match your re
 | **Setting** | **Type and accepted values** | **Fallback or scaffold** | **Tier and security note** | **Example** |
 | --- | --- | --- | --- | --- |
 | `prflow_review_and_fix.fix_severity_threshold` | `critical`, `important` or `suggestion` | `important` | Local review-and-fix and implementation's inline fix loop. Findings severe enough to cause a rejection remain eligible for correction at every value. | `"fix_severity_threshold": "important"` |
+| `prflow_review_and_fix.fix_below_threshold_iterations` | Integer zero or greater | `1` | Local review-and-fix and implementation's inline fix loop. Only affects a repository that set `fix_severity_threshold` to `suggestion`; at the default threshold no below-`important` findings are admitted, so this key has no effect. Below-`important` findings route to the fixer only during this many leading iterations; after that window, an iteration with no Critical or Important finding parks each below-`important` finding as advisory. Set at or above `max_iterations` to restore the previous behavior; set `0` to park below-`important` findings from the first iteration. Findings that drove a rejection always route regardless. | `"fix_below_threshold_iterations": 1` |
 | `prflow_review_and_fix.max_iterations` | Integer one or greater | `5`; values below one clamp to one | Review-and-fix. Higher values can increase cost. | `"max_iterations": 5` |
 | `prflow_review_and_fix.efficiency_telemetry_enabled` | Boolean | `true` | Review-and-fix. False disables the effectiveness record and prevents denied-command records from being persisted on the telemetry branch. | `"efficiency_telemetry_enabled": true` |
 | `prflow_review_and_fix.efficiency_cut_candidate_min_dispatch` | Integer one or greater | `3` | Cross-run analysis. It is recorded for later analysis and does not cut an agent during the current run. | `"efficiency_cut_candidate_min_dispatch": 3` |
@@ -42,6 +43,7 @@ Tune the shared review engine and the local review-and-fix loop to match your re
   },
   "prflow_review_and_fix": {
     "fix_severity_threshold": "important",
+    "fix_below_threshold_iterations": 1,
     "max_iterations": 5,
     "efficiency_telemetry_enabled": true
   },
