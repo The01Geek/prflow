@@ -1533,25 +1533,39 @@ do_persist() {
   local root dir slug run_id _TELEMETRY_STAGE
   # Telemetry master switch (issue #2035): a JSON-false telemetry.enabled skips the
   # whole persist — no record, no durable copy, no telemetry-branch commit. Fail-safe
-  # to ON: missing python3 or any read error runs as before. Inline python3 -c, NOT an
-  # exec of a repo .py: efficiency-trace.sh is a hardened Stop-hook closure member, so a
-  # source/exec edge to a new script would break the issue-#458 drift-guard and force a
-  # workflow edit. Reads the JSON TYPE (`is False`), so 0 and "false" never disable.
+  # to ON, and every unconsulted path announces itself: silence here is indistinguishable
+  # from a deliberate opt-in. Inline python3 -c, NOT an exec of a repo .py:
+  # efficiency-trace.sh is a hardened Stop-hook closure member, so a source/exec edge to a
+  # new script would break the issue-#458 drift-guard and force a workflow edit. Reads the
+  # JSON TYPE (`is False`), so 0 and "false" never disable; exit 2 means the config exists
+  # but could not be read or parsed, matching scripts/telemetry-master-off.py's contract.
+  local _tel_rc
   if ! command -v python3 >/dev/null 2>&1; then
     echo "devflow: efficiency-trace.sh --persist: python3 not on PATH — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
-  fi
-  if command -v python3 >/dev/null 2>&1 && DEVFLOW_TEL_CFG="$_DEVFLOW_CONFIG" python3 -c '
+  else
+    # `|| _tel_rc=$?`, never a bare invocation then `$?`: this file runs under
+    # `set -e`, which kills the whole --persist on the predicate's non-zero exit.
+    _tel_rc=0
+    DEVFLOW_TEL_CFG="$_DEVFLOW_CONFIG" python3 -c '
 import json, os, sys
 try:
     with open(os.environ["DEVFLOW_TEL_CFG"], encoding="utf-8") as fh:
         data = json.load(fh)
-except Exception:
+except FileNotFoundError:
     sys.exit(1)
-tel = data.get("telemetry") if isinstance(data, dict) else None
+except Exception:
+    sys.exit(2)
+if not isinstance(data, dict):
+    sys.exit(2)
+tel = data.get("telemetry")
 sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
-' >/dev/null 2>&1; then
-    echo "devflow: efficiency-trace.sh --persist: telemetry.enabled is false — skipping telemetry-branch persistence and the durable workpad copy this run (issue #2035)" >&2
-    return 0
+' >/dev/null 2>&1 || _tel_rc=$?
+    if [ "$_tel_rc" -eq 0 ]; then
+      echo "devflow: efficiency-trace.sh --persist: telemetry.enabled is false — skipping telemetry-branch persistence and the durable workpad copy this run (issue #2035)" >&2
+      return 0
+    elif [ "$_tel_rc" -eq 2 ]; then
+      echo "devflow: efficiency-trace.sh --persist: config '$_DEVFLOW_CONFIG' exists but could not be read or parsed — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
+    fi
   fi
   root="$(devflow_repo_root)"
   # Resolve the telemetry branch ONCE, here in the parent, before anything forks. The

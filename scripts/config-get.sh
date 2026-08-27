@@ -43,7 +43,10 @@
 #
 # Exit codes:
 #   0  value (or default) printed to stdout
-#   1  key not found and no default given
+#   1  key not found and no default given. NOT reached for one of the five
+#      telemetry gates enrolled in the issue-#2035 master switch: when
+#      telemetry.enabled is the JSON boolean false, such a key's miss path
+#      prints `false` and exits 0 whether or not a default was given.
 #   2  bad arguments, missing `python3`, or JSON parse error
 
 set -euo pipefail

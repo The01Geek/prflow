@@ -28,15 +28,14 @@ if [ -z "$ROOT" ] || [ -z "$DEST" ]; then
 fi
 
 # Telemetry master switch (issue #2035): a JSON-false telemetry.enabled collects
-# nothing — no payload staged for the relay. Fail-safe to ON: a missing helper/python3
-# or unreadable config collects as before (JSON-type read in telemetry-master-off.py).
+# nothing. Fail-safe to ON everywhere else, and every unconsulted path announces
+# itself — a silent skip of this gate is indistinguishable from a deliberate opt-in.
 # Dirname-free anchor: `dirname` is not one of the tools lib/preflight.sh guarantees,
 # and an empty anchor would silently no-op this gate.
 _CST_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
-# Resolve the config the way every other reader does — the DEVFLOW_CONFIG_FILE
-# override, then the state-dir read-through. Spelling `.prflow/` here instead would
-# make this gate miss a mid-migration `.devflow/` consumer's master switch and
-# upload the payload their sibling --persist gate skipped.
+# Resolve the config the way every other reader does. Spelling `.prflow/` here
+# instead would make this gate miss a mid-migration `.devflow/` consumer's master
+# switch and upload the payload their sibling --persist gate skipped.
 if [ -z "${DEVFLOW_CONFIG_FILE:-}" ] && [ -r "$_CST_DIR/../lib/resolve-state-dir.sh" ]; then
   # shellcheck source=../lib/resolve-state-dir.sh
   . "$_CST_DIR/../lib/resolve-state-dir.sh" 2>/dev/null || true
@@ -52,13 +51,15 @@ if [ ! -f "$_CST_DIR/telemetry-master-off.py" ]; then
   echo "::warning::collect-staged-telemetry: telemetry-master-off.py not found beside this script — the telemetry.enabled master switch was NOT consulted; collecting as if telemetry were on (issue #2035)" >&2
 elif ! command -v python3 >/dev/null 2>&1; then
   echo "::warning::collect-staged-telemetry: python3 not on PATH — the telemetry.enabled master switch was NOT consulted; collecting as if telemetry were on (issue #2035)" >&2
-elif python3 "$_CST_DIR/telemetry-master-off.py" "$_CST_CFG" >/dev/null 2>&1; then
-  echo "::warning::collect-staged-telemetry: telemetry.enabled is false — collecting nothing this run (issue #2035)" >&2
-  exit 0
-elif [ -e "$_CST_CFG" ] && [ ! -r "$_CST_CFG" ]; then
-  # The predicate folds "config unreadable" into the same exit 1 as "master is on",
-  # so without this arm an unreadable config uploads looking like a deliberate opt-in.
-  echo "::warning::collect-staged-telemetry: config '$_CST_CFG' exists but is not readable — the telemetry.enabled master switch was NOT consulted; collecting as if telemetry were on (issue #2035)" >&2
+else
+  _CST_RC=0
+  python3 "$_CST_DIR/telemetry-master-off.py" "$_CST_CFG" >/dev/null 2>&1 || _CST_RC=$?
+  if [ "$_CST_RC" -eq 0 ]; then
+    echo "::warning::collect-staged-telemetry: telemetry.enabled is false — collecting nothing this run (issue #2035)" >&2
+    exit 0
+  elif [ "$_CST_RC" -eq 2 ]; then
+    echo "::warning::collect-staged-telemetry: config '$_CST_CFG' exists but could not be read or parsed — the telemetry.enabled master switch was NOT consulted; collecting as if telemetry were on (issue #2035)" >&2
+  fi
 fi
 
 rm -rf "$DEST" 2>/dev/null || true

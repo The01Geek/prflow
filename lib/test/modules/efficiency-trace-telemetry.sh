@@ -6831,6 +6831,14 @@ assert_eq "#2035 predicate: corrupt config is ON (fail-safe)" "on" "$(python3 "$
 assert_eq "#2035 predicate: missing file is ON (fail-safe)" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/nope.json" >/dev/null 2>&1 && echo off || echo on)"
 assert_eq "#2035 predicate: no argument is ON (fail-safe)" "on" "$(python3 "$T2035_OFF" >/dev/null 2>&1 && echo off || echo on)"
 
+# The three-way exit contract both shell callers route on: 0 off, 2 the config is
+# there but unreadable/unparseable, 1 everything else. Folding 2 onto 1 would let a
+# caller report a corrupt config as a deliberate opt-in.
+python3 "$T2035_OFF" "$T2035_ROOT/m-false.json" >/dev/null 2>&1; assert_eq "#2035 predicate exit: master-off is 0" "0" "$?"
+python3 "$T2035_OFF" "$T2035_ROOT/m-corrupt.json" >/dev/null 2>&1; assert_eq "#2035 predicate exit: corrupt config is 2 (indeterminate)" "2" "$?"
+python3 "$T2035_OFF" "$T2035_ROOT/nope.json" >/dev/null 2>&1; assert_eq "#2035 predicate exit: absent config is 1 (plain ON, not indeterminate)" "1" "$?"
+python3 "$T2035_OFF" "$T2035_ROOT/m-missing.json" >/dev/null 2>&1; assert_eq "#2035 predicate exit: readable config without the key is 1" "1" "$?"
+
 # AC1 — master false + each enrolled sub-key absent → config-get prints "false".
 assert_eq "#2035 AC1 efficiency_telemetry_enabled inherits false" "false" "$("$T2035_CG" prflow_review_and_fix.efficiency_telemetry_enabled true "$T2035_ROOT/m-false.json")"
 assert_eq "#2035 AC1 execution_diagnostics_enabled inherits false" "false" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")"
@@ -6914,7 +6922,7 @@ assert_eq "#2035 ordering: migration breadcrumb still fires under master-off (pr
 # UNMOVED and still exits 0. A real bare-remote git repo (git plumbing not mocked),
 # with a positive control (master-absent) proving the guard is not vacuous.
 _t2035_persist() { # $1=config-file → prints "<exit>|<branch-created yes/no>|<skip yes/no>"
-  local cfg="$1" pr root wd err rc created skip
+  local cfg="$1" pr root wd err rc created skip announced
   pr="$T2035_ROOT/persist-$RANDOM$RANDOM"
   root="$pr/repo"
   git init -q --bare "$pr/remote.git"
@@ -6928,7 +6936,8 @@ _t2035_persist() { # $1=config-file → prints "<exit>|<branch-created yes/no>|<
   rc=$?
   if git -C "$root" rev-parse --verify --quiet refs/heads/prflow-telemetry >/dev/null 2>&1; then created=yes; else created=no; fi
   if printf '%s' "$err" | grep -qF 'telemetry.enabled is false'; then skip=yes; else skip=no; fi
-  printf '%s|%s|%s' "$rc" "$created" "$skip"
+  if printf '%s' "$err" | grep -qF 'was NOT consulted'; then announced=yes; else announced=no; fi
+  printf '%s|%s|%s|%s' "$rc" "$created" "$skip" "$announced"
 }
 T2035_PERSIST_OFF="$(_t2035_persist "$T2035_ROOT/m-false.json")"
 assert_eq "#2035 AC4 --persist master-off exits 0" "0" "${T2035_PERSIST_OFF%%|*}"
@@ -6941,6 +6950,8 @@ assert_eq "#2035 AC5 --persist master-absent emits no skip breadcrumb" "no" "$(p
 T2035_PERSIST_CORRUPT="$(_t2035_persist "$T2035_ROOT/m-corrupt.json")"
 assert_eq "#2035 AC5 --persist corrupt-config exits 0 (fail-safe on)" "0" "${T2035_PERSIST_CORRUPT%%|*}"
 assert_eq "#2035 AC5 --persist corrupt-config does not skip (fail-safe on)" "no" "$(printf '%s' "$T2035_PERSIST_CORRUPT" | cut -d'|' -f3)"
+assert_eq "#2035 --persist announces the unconsulted master switch on a corrupt config" "yes" "$(printf '%s' "$T2035_PERSIST_CORRUPT" | cut -d'|' -f4)"
+assert_eq "#2035 --persist announces nothing when the switch WAS consulted (positive control)" "no" "$(printf '%s' "$T2035_PERSIST_OFF" | cut -d'|' -f4)"
 
 # AC4 — collect-staged-telemetry.sh stages no payload under master-off, and its
 # positive control (master-absent) collects the staged payload.
@@ -7019,15 +7030,41 @@ printf '%s' '{"telemetry":{"enabled":false},"prflow":{"execution_diagnostics_ena
 assert_eq "#2035 a sub-key set to JSON null inherits the master-off resolution" "false" \
   "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-subnull.json")"
 
-# An unreadable config is indistinguishable from master-on at the predicate's exit
-# code, so the collector announces it rather than uploading as a silent opt-in.
+# A config the gate could not read is indistinguishable from master-on at the
+# predicate's exit code, so the collector announces it rather than collecting as a
+# silent opt-in. Corrupt JSON is the uid-independent case; the permission case is
+# expectation-matched to whether this uid actually loses the read, because root and
+# some filesystems ignore the mode bit and an unconditional "yes" is a false RED.
+T2035_CR_CORRUPT="$T2035_ROOT/collect-corrupt"
+mkdir -p "$T2035_CR_CORRUPT/.prflow"
+cp "$T2035_ROOT/m-corrupt.json" "$T2035_CR_CORRUPT/.prflow/config.json"
+bash "$T2035_CST" "$T2035_CR_CORRUPT" "$T2035_CR_CORRUPT/upload" >/dev/null 2>"$T2035_CR_CORRUPT/err.txt"
+assert_eq "#2035 collect-staged announces a corrupt config instead of collecting silently" "yes" \
+  "$(grep -qF 'could not be read or parsed' "$T2035_CR_CORRUPT/err.txt" && echo yes || echo no)"
+
+T2035_CR_OK="$T2035_ROOT/collect-readable"
+mkdir -p "$T2035_CR_OK/.prflow"
+cp "$T2035_ROOT/m-missing.json" "$T2035_CR_OK/.prflow/config.json"
+bash "$T2035_CST" "$T2035_CR_OK" "$T2035_CR_OK/upload" >/dev/null 2>"$T2035_CR_OK/err.txt"
+assert_eq "#2035 collect-staged announces nothing when the switch WAS consulted (positive control)" "no" \
+  "$(grep -qF 'was NOT consulted' "$T2035_CR_OK/err.txt" && echo yes || echo no)"
+
 T2035_CR_UNREAD="$T2035_ROOT/collect-unreadable"
 mkdir -p "$T2035_CR_UNREAD/.prflow"
 cp "$T2035_ROOT/m-false.json" "$T2035_CR_UNREAD/.prflow/config.json"
 chmod 000 "$T2035_CR_UNREAD/.prflow/config.json"
+if [ -r "$T2035_CR_UNREAD/.prflow/config.json" ]; then T2035_UNREAD_EXP="no"; else T2035_UNREAD_EXP="yes"; fi
 bash "$T2035_CST" "$T2035_CR_UNREAD" "$T2035_CR_UNREAD/upload" >/dev/null 2>"$T2035_CR_UNREAD/err.txt"
-assert_eq "#2035 collect-staged announces an unreadable config instead of uploading silently" "yes" \
-  "$(grep -qF 'is not readable' "$T2035_CR_UNREAD/err.txt" && echo yes || echo no)"
+assert_eq "#2035 collect-staged announces an unreadable config instead of collecting silently" "$T2035_UNREAD_EXP" \
+  "$(grep -qF 'could not be read or parsed' "$T2035_CR_UNREAD/err.txt" && echo yes || echo no)"
 chmod 644 "$T2035_CR_UNREAD/.prflow/config.json"
+
+# An empty-string sub-key reaches the resolver's miss path exactly as an absent or
+# JSON-null one does, so it inherits too — the schema and docs say so, and this pins it.
+printf '%s' '{"telemetry":{"enabled":false},"prflow":{"execution_diagnostics_enabled":""}}' > "$T2035_ROOT/m-subempty.json"
+assert_eq "#2035 a sub-key set to an empty string inherits the master-off resolution" "false" \
+  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-subempty.json")"
+assert_eq "#2035 an empty-string sub-key without the master still takes the default (positive control)" "true" \
+  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-missing.json")"
 
 rm -rf "$T2035_ROOT"
