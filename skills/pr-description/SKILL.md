@@ -75,6 +75,8 @@ If `WORKPAD_BODY` is set, scan its `## Acceptance Criteria` section for lines ma
 
 If no workpad exists, no issue number is available, or no `(post-merge)`-tagged items are found, `POST_MERGE_ITEMS` stays empty and the template's Post-Merge Verification section is omitted entirely. The lookup is best-effort — never fail the run on a missing workpad.
 
+Also scan `WORKPAD_BODY`'s `## Progress` notes for any note whose text begins with the marker `test-authoring-waiver:` (the /prflow:implement run records one per §2.3 test-authoring proportionality waiver it took, naming what was waived and why). Strip the rendered timestamp prefix and the `test-authoring-waiver:` marker, and collect each remainder as `TEST_AUTHORING_WAIVER_ITEMS` for Step 2's Test Plan. If no workpad exists, no issue number is available, or no such note is found, `TEST_AUTHORING_WAIVER_ITEMS` stays empty. Best-effort — never fail the run on a missing workpad.
+
 Best-effort: pull deferred review findings from the manifest. /prflow:review-and-fix writes each run's manifest run-scoped (`.prflow/tmp/review/<slug>/<run-id>/deferrals.json`), and /prflow:implement Phase 4.0.5 merges every run-scoped manifest into one slug-level aggregate at `.prflow/tmp/review/pr-<N>/deferrals.json`, then files follow-up issues and updates that aggregate in place with `id` and `follow_up` fields per entry. Read the slug-level aggregate and surface its entries in the PR body as a Scope-Acknowledged Findings block so /prflow:review (run later as a formal merge signal) can match them and demote the corresponding findings to Informational.
 
 ```bash
@@ -116,7 +118,7 @@ Re-generate from the diff (always overwrite — these reflect current state):
 - Deferred Findings (when there is at least one renderable entry, as defined in Step 1 — re-derived from the manifest on every run so the block stays in sync with the latest /prflow:implement Phase 4.0.5 filing; carry-forward-safe: a regeneration with no manifest present preserves the existing block's entries verbatim rather than wiping them, per the carry-forward rule in Step 1)
 
 Merge (keep existing items that are still relevant, add new ones, remove stale ones):
-- Test Plan — preserve human-added checklist items; add items for new changes; remove items for changes that no longer exist
+- Test Plan — preserve human-added checklist items; add items for new changes; remove items for changes that no longer exist. When `TEST_AUTHORING_WAIVER_ITEMS` is non-empty, seed one `Test authoring waived: <ceremony> — <reason>` line per item into the Test Plan, re-derived from the workpad on every run so the list stays in sync with the latest /prflow:implement waiver note (the same producer discipline as Post-Merge Verification). Preserve verbatim any such recorded *test-authoring proportionality waiver* line — a durable record of auxiliary test ceremony deliberately not written, not a stale checklist item to remove or a test claim to rewrite.
 
 Merge (combine existing and new):
 - Resolves — if `$ARGUMENTS` provides an issue number, include it; also keep any existing issue references that differ from `$ARGUMENTS`

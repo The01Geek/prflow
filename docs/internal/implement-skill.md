@@ -1,5 +1,7 @@
 # `/prflow:implement` skill — Phase 2.3 sweep discipline and Phase 4.3 finalize
 
+<!-- verified-against: 15678c64c 2026-08-27 -->
+
 **Skill:** `skills/implement/phases/phase-2-sweeps-contract.md` (Phase 2.3, *Implement*) — read at phase entry by the thin `skills/implement/SKILL.md` orchestrator. It carries the §2.3 preamble and the trigger heading and predicate of the 2.3.0-family conditional sweeps; its sibling `skills/implement/phases/phase-2-sweeps-quality.md` carries the six always-firing sweeps' procedures in full plus the trigger heading and predicate of the remaining conditional sweeps (2.3.1, 2.3.2, 2.3.7). Since issue #1581 the eight conditional sweeps' *procedures* live in per-sweep gated references (see **Gated conditional-sweep procedures** below).
 
 ## Early Phase 1 dependency preflight
@@ -767,6 +769,51 @@ merge-gated specification. **Exhaustive criterion-level verification-lifecycle a
 implement Phase 2**, and the Phase 3.4 gate below is its downstream verifier. The old "every AC maps to
 a named assertion, and every assertion maps back" duty in the issue body is retired; do not reintroduce
 it as current create-issue behavior.
+
+## Test-authoring proportionality waiver (Phase 2 §2.3)
+
+The Phase 2 §2.3 test-first gate carries a **test-authoring proportionality waiver** that mirrors the
+production-code out-of-scope exit idiom (`phase-2-sweeps-quality.md` §2.3.3/§2.3.5): when writing the
+full auxiliary test ceremony would balloon the test diff out of proportion to the change, the run ships
+**one covering RED-first test per behavior change**, skips the waived ceremony, and records the decision
+as an auditable workpad note — the same recorded-note discipline the production-code exit already uses.
+Its purpose is proportional test authoring on small tickets: fewer authored test lines, fewer
+downstream coverage findings, and fewer fix-loop iterations spent polishing tests nobody asked for.
+
+**The waivable set is closed and small, and everything else stays binding.** Its canonical enumeration —
+which ceremonies may be waived, and what stays binding waiver or no waiver — is the §2.3 waiver clause in
+`skills/implement/phases/phase-2-sweeps-contract.md`; read it there rather than from a copy here. The
+design point this page owns is *why* the set is closed: the mandate to extract inline workflow shell into
+a helper is deliberately outside it, because §2.3 carves inline shell out of the no-automated-test class
+precisely so the covering test can exist against the extracted helper — waiving extraction would leave the
+still-binding covering test unsatisfiable.
+
+**The marker.** A run taking the waiver records one workpad note beginning with the stable marker
+`test-authoring-waiver:`, in the grammar the §2.3 clause states. That marker is the contract three
+downstream surfaces read:
+
+- **PR Test Plan (Phase 4.2 seeding).** `skills/pr-description/SKILL.md` scans the workpad `## Progress`
+  notes for each `test-authoring-waiver:` note, strips the rendered timestamp prefix and the marker,
+  and seeds one `Test authoring waived: <ceremony> — <reason>` line per note into the Test Plan
+  section. The line is re-derived from the workpad on every regeneration (the same producer discipline
+  as Post-Merge Verification) and preserved verbatim across regeneration — it is a durable record of
+  ceremony deliberately not written, not a stale checklist item to remove.
+- **Phase 4.2 verification-claims audit.** The `## Test Plan` claim audit
+  (`phase-4-documentation.md` §4.2) leaves the waiver line in place: a `Test authoring waived:` line
+  asserts nothing about a test that exists, so it is not a verification claim to bind to a named test
+  or rewrite as an unbacked test claim.
+- **The fix loop.** `skills/review-and-fix/references/fixing.md`'s fix-authoring test-first gate honors a
+  recorded waiver, dual-sourced the same way `phase-3-agents.md` resolves it: on an implement-driven
+  loop (before Phase 4.2 has seeded the Test Plan) it reads the workpad `test-authoring-waiver:` notes;
+  on a later or standalone PR review it reads the seeded `Test authoring waived:` Test Plan line. Where
+  a waiver is recorded, the loop does not re-impose the waivable ceremony on the surfaces the waiver
+  names — the covering RED-first test and the mutation-check discipline stay binding for them.
+
+The coverage reviewer honors the same waiver through its dispatch prompt; see
+[`review-agent-overrides.md`](review-agent-overrides.md) for the reviewer-side bounded honor rule and the
+`prflow:pr-test-analyzer` first-only override that drops it from fix-loop iterations ≥ 2.
+
+Provenance: issue #2031.
 
 ## Acceptance-criteria gate: the gated `(post-merge)` tag (Phase 3.4)
 
