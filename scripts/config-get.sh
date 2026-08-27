@@ -43,7 +43,10 @@
 #
 # Exit codes:
 #   0  value (or default) printed to stdout
-#   1  key not found and no default given
+#   1  key not found and no default given. NOT reached for one of the five
+#      telemetry gates enrolled in the issue-#2035 master switch: when
+#      telemetry.enabled is the JSON boolean false, such a key's miss path
+#      prints `false` and exits 0 whether or not a default was given.
 #   2  bad arguments, missing `python3`, or JSON parse error
 
 set -euo pipefail
@@ -191,8 +194,50 @@ sys.stdout.write("." + ".".join(old))
     echo "config-get.sh: '.${key#.}' is absent from $config_file but its superseded counterpart '$hit' is present — run /prflow:init to migrate the config keys; until then this read resolves as if the key were unset." >&2
 }
 
+# Telemetry master-key inheritance (issue #2035): 0 iff "$1" is one of the five
+# enrolled default-true telemetry gates AND telemetry.enabled is the JSON boolean
+# false. Best-effort: missing python3 -> 1; a read/parse error -> 2; every
+# non-zero means telemetry on.
+telemetry_master_disables_for() {
+    case "$1" in
+        prflow_review_and_fix.efficiency_telemetry_enabled|\
+        prflow.execution_diagnostics_enabled|\
+        prflow.execution_denial_commands_enabled|\
+        prflow_review.live_progress_comment_enabled|\
+        create_issue.investigation_record_enabled) ;;
+        *) return 1 ;;
+    esac
+    command -v python3 >/dev/null 2>&1 || return 1
+    # Inline python3 -c, NEVER an exec of telemetry-master-off.py (whose {0,1,2}
+    # contract this carries): a new exec edge breaks the issue-#458 Stop-hook
+    # drift guard. Stay SILENT on 2 — a breadcrumb breaks the AC6 stderr pin.
+    PRFLOW_TEL_CFG="$config_file" python3 -c '
+import json, os, sys
+try:
+    with open(os.environ["PRFLOW_TEL_CFG"], encoding="utf-8") as fh:
+        data = json.load(fh)
+except FileNotFoundError:
+    sys.exit(1)
+except Exception:
+    sys.exit(2)
+if not isinstance(data, dict):
+    sys.exit(2)
+tel = data.get("telemetry")
+# `is False`, never ==: in Python 0 == False, so == would disable telemetry on a
+# config carrying the number 0, which the seven-shape matrix requires to stay ON.
+sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
+' >/dev/null 2>&1
+}
+
 emit_default_or_fail() {
     probe_superseded_key
+    # Master inheritance runs AFTER probe_superseded_key so the migration
+    # breadcrumb still fires for an absent enrolled key, and only for the enrolled
+    # set so a non-enrolled miss path stays byte-identical (issue #2035).
+    if telemetry_master_disables_for "${key#.}"; then
+        printf '%s\n' "false"
+        exit 0
+    fi
     if [ "$has_default" -eq 1 ]; then
         printf '%s\n' "$default"
         exit 0
