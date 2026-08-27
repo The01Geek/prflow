@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2037",
+  "generated_at": "2026-08-27T04:47:02Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.64",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 12.990712050000004,
+    "tokens": {
+      "input_tokens": 112,
+      "output_tokens": 45069,
+      "cache_read_input_tokens": 11873692,
+      "cache_creation_input_tokens": 243353,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 160,
+        "outputTokens": 55420,
+        "cacheReadInputTokens": 13772322,
+        "cacheCreationInputTokens": 428260,
+        "webSearchRequests": 0,
+        "costUSD": 11.861659750000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 52,
+        "outputTokens": 10991,
+        "cacheReadInputTokens": 1705129,
+        "cacheCreationInputTokens": 271205,
+        "webSearchRequests": 0,
+        "costUSD": 1.1290523,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 99,
+    "duration_ms": 1953240
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<unset>}\"; git branch --show-current; git status --porcelain | head; .prflow/vendor/prflow/scripts/config-get.sh base_branch 2>/dev/null || echo \"no base config\"",
+      "git diff origin/main...HEAD > .prflow/tmp/diff-2013.patch; wc -l .prflow/tmp/diff-2013.patch",
+      "gh pr view 2037 --json number,body,title,headRefName --jq '{number,title}'; echo \"===WORKPAD===\"; WID=$(scripts/workpad.py id 2013 2>/dev/null || true); echo \"WID=$WID\"; if [ -n \"$WID\" ]; then scripts/workpad.py body \"$WID\" 2>/dev/null | grep -iE '\\(post-merge\\)' || echo \"(no post-merge items)\"; fi; echo \"===DEFERRALS===\"; ls -la .prflow/tmp/review/pr-2037/deferrals.json 2>/dev/null || echo \"(no deferrals file)\"",
+      "scripts/prompt-surface-growth.py 2>&1 || echo \"RC=$?\"",
+      "WID=$(scripts/workpad.py id 2013 2>/dev/null || true); echo \"WID=$WID\"; if [ -n \"$WID\" ]; then scripts/workpad.py body \"$WID\" 2>/dev/null | grep -in 'post-merge' || echo \"no-post-merge\"; fi",
+      "scripts/prompt-surface-growth.py"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
