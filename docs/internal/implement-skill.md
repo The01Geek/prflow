@@ -448,7 +448,9 @@ that misdescribes the diff's own new function, or a doc sentence the diff adds t
 guarantee, is precisely the blind spot 2.3.4 leaves and 2.3.4a closes. These contradictions ship clean —
 the prose reads plausibly, the code compiles, and the author's tests assert the prose's *intent* rather
 than the code's *behavior* — so the engine reconciles every authored claim before commit: it traces each
-claim to the actual code path (following dispatch into pre-existing helpers the diff calls) and, on any
+claim to the actual code path (following dispatch into pre-existing helpers the diff calls — and, for a
+claim about how an invoked helper runs by default, into that helper's argument parsing and
+environment-variable defaults, not only its documented purpose) and, on any
 divergence, **the code is the fact** — it fixes the code or rewrites the claim, and never commits the
 unreconciled pair. The **PR body** is reconciled in Phase 4.2, where the body is authored
 (it does not exist at commit time) — there the sweep broadens into a **three-class claim audit**, each class
