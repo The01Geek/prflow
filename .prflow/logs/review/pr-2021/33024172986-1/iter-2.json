@@ -1,0 +1,199 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-27T01:05:00Z",
+  "fix_commit_sha": "63ff0757915f201b25cd28aee7a09f2866b72c38",
+  "fix_files": [
+    "lib/test/run-parallel.sh",
+    "lib/test/run.sh",
+    "scripts/ruff-version-skew.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "convergence_time_shadow",
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "comment-discipline trims surfaced by the early shadow (run-parallel.sh sentinel comment, run.sh #2009 intro, ruff-version-skew.py docstring)",
+      "defect_signature": {
+        "file": "lib/test/run-parallel.sh",
+        "line_range": [
+          280,
+          283
+        ],
+        "kind": "comment-discipline"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "ci.yml digest verify covers linux-x86_64 only; AC1 version-report clause weakly covered — CI-matrix expansion pushed back as out of the issue's scope; the five digests were verified out-of-band vs astral's published .sha256",
+      "defect_signature": {
+        "file": ".github/workflows/ci.yml",
+        "line_range": [
+          58,
+          109
+        ],
+        "kind": "test-coverage-gap"
+      },
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "gate probes only PATH ruff, not the python3 -m ruff fallback — design scope, not a defect, consistent with AC3",
+      "defect_signature": {
+        "file": "lib/test/run-parallel.sh",
+        "line_range": [
+          254,
+          264
+        ],
+        "kind": "design-scope"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "63ff0757915f201b25cd28aee7a09f2866b72c38"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "pushed_back",
+      "source_file": ".github/workflows/ci.yml",
+      "claim_text": "CI verifies only linux-x86_64 manifest digest; AC1 version-report weakly covered",
+      "skip_category": "out-of-scope",
+      "evidence": "the issue's testing strategy delegates digest verification to the provisioning path; the five digests were verified out-of-band against astral's published .sha256 (linux-x86_64, windows-x86_64, macos-arm64 all exact-match); editing ci.yml is a scope expansion the issue did not mandate",
+      "parking_evidence": {
+        "basis": "out of the issue's decided scope; digests independently verified out-of-band",
+        "failing_input": "the four non-linux-x86_64 manifest digests unverified in CI",
+        "source": "https://github.com/astral-sh/ruff/releases/download/0.16.4/*.sha256",
+        "finding_ref": {
+          "iter": 2,
+          "index": 1
+        }
+      }
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "advisory",
+      "source_file": "lib/test/run-parallel.sh",
+      "claim_text": "gate probes only PATH ruff not python3 -m ruff",
+      "skip_category": "advisory-parked",
+      "evidence": "design scope consistent with AC3 (absent ruff proceeds) and the provisioning-shadows-PATH intent; reviewer explicitly not an AC violation",
+      "parking_evidence": {
+        "basis": "reviewer classified it a design-scope note, not a defect; consistent with AC3",
+        "failing_input": "a host with no PATH ruff but a skewed python3 -m ruff",
+        "source": "lib/test/run-parallel.sh:254-264",
+        "finding_ref": {
+          "iter": 2,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 9,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-27T01:10:00Z",
+    "reviewed_sha": "63ff0757915f201b25cd28aee7a09f2866b72c38",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "parked_class_sweep": {
+    "classes": [],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "default_channel": "loop-record",
+  "pr_branch": "issue-2009-cloud-implement-runs-red-the-1621-ruff-gate-on-a",
+  "base_branch": "main",
+  "generated_at": "2026-08-27T01:12:00Z",
+  "deferrals": [
+    {
+      "finding_id": "F-7",
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "file": ".github/workflows/ci.yml",
+      "line_range": [58, 109],
+      "symbol": "",
+      "kind": "test-coverage-gap",
+      "summary": "ci.yml's lint-manifest real-download-and-digest-verify pass runs for linux-x86_64 only, so the four other newly-changed per-os/arch ruff digests (linux-arm64, macos-x86_64, macos-arm64, windows-x86_64) are hash-verified nowhere in CI; and the 'provisioned run reports 0.16.4' clause is asserted as runs-not-reports. A wrong/transposed digest on a non-linux-x86_64 platform would ship undetected until a consumer on that platform provisions and fails closed.",
+      "category": "out-of-scope",
+      "explanation": "The issue's testing strategy delegates digest verification to the provisioning path's own digest verification and does not mandate a CI-matrix expansion; editing ci.yml is a scope expansion beyond issue #2009. The five digests were independently spot-verified out-of-band against astral's published .sha256 (linux-x86_64, windows-x86_64, macos-arm64 all exact-match), so no shipped defect is implied — this tracks a CI-automation enhancement for a follow-up."
+    }
+  ]
+}
