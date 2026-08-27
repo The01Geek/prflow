@@ -41673,6 +41673,181 @@ done
 assert_eq "#779 ubc-token-arms: every helper token is named in a checkpoint-4 arm (none falls through to publish)" \
   "" "${UBC_UNMAPPED# }"
 unset _t UBC_TOKENS UBC_TOKENS_ONELINE UBC_P4_BODY UBC_UNMAPPED
+
+# ── #2025 covmap-driver → update-branch-checkpoint.sh registers the coverage-map JSON-aware
+# merge driver itself before its base merge. Stage the real driver + its guard/population
+# deps in each scratch repo, or `--register` has nothing to register. ──────────────────────
+UBC_CM_DEPS="coverage-map-merge-driver.py coverage_map_guard.py lint_population.py"
+
+# Build a scratch repo (bare origin + work on `feat`) whose .gitattributes routes
+# lib/test/modules/coverage-map.json through merge=coverage-map-json, with the driver deps
+# staged under lib/test/; `feat` inserts an adjacent key. stage_driver=0 omits the driver
+# file itself (the AC4 declared-but-missing-driver arm).
+ubc_covmap_make() {  # root [stage_driver]
+  local root="$1" stage_driver="${2:-1}" dep
+  git init -q --bare "$root/bare.git"
+  git init -q -b main "$root/work"
+  git -C "$root/work" config user.email t@t
+  git -C "$root/work" config user.name t
+  mkdir -p "$root/work/lib/test/modules"
+  printf 'lib/test/modules/coverage-map.json merge=coverage-map-json\n' > "$root/work/.gitattributes"
+  for dep in $UBC_CM_DEPS; do
+    [ "$dep" = "coverage-map-merge-driver.py" ] && [ "$stage_driver" = "0" ] && continue
+    cp "$LIB/test/$dep" "$root/work/lib/test/$dep"
+  done
+  printf '{\n  "aaa": {"owner": "x"},\n  "zzz": {"owner": "x"}\n}\n' > "$root/work/lib/test/modules/coverage-map.json"
+  git -C "$root/work" add .gitattributes lib/test
+  git -C "$root/work" commit -qm init
+  git -C "$root/work" remote add origin "$root/bare.git"
+  git -C "$root/work" push -q -u origin main
+  git -C "$root/work" checkout -q -b feat
+  printf '{\n  "aaa": {"owner": "x"},\n  "mmm": {"owner": "feat"},\n  "zzz": {"owner": "x"}\n}\n' \
+    > "$root/work/lib/test/modules/coverage-map.json"
+  git -C "$root/work" add lib/test/modules/coverage-map.json
+  git -C "$root/work" commit -qm feat-key
+  git -C "$root/work" push -q -u origin feat
+}
+
+# Advance origin/main with the map carrying a DISTINCT adjacent key — a textual conflict
+# without the driver, a clean union with it.
+ubc_covmap_advance() {  # root tag
+  ubc_advance_base "$1" "$2" lib/test/modules/coverage-map.json \
+    "$(printf '{\n  "aaa": {"owner": "x"},\n  "nnn": {"owner": "base"},\n  "zzz": {"owner": "x"}\n}')"
+}
+
+# ── covmap-clean → AC1 (adjacent-key conflict resolves cleanly), AC2 (driver registered to
+# exactly DRIVER_COMMAND, local), AC6 (no global/system key). ──────────────────────────────
+D="$(git_sandbox 'ubc-covmap-clean')"
+ubc_covmap_make "$D"
+ubc_covmap_advance "$D" cm
+ubc_run "$D"
+assert_eq "#2025 covmap-clean: adjacent-key conflict resolves → 'UPDATED 1' (AC1)" "UPDATED 1" "$UBC_OUT"
+assert_eq "#2025 covmap-clean: exit 0 (AC1)" "0" "$UBC_RC"
+assert_eq "#2025 covmap-clean: merged map unions all four keys (AC1)" "4" \
+  "$(git -C "$D/work" show HEAD:lib/test/modules/coverage-map.json 2>/dev/null | grep -oE '"(aaa|mmm|nnn|zzz)"' | wc -l | tr -d ' ')"
+assert_eq "#2025 covmap-clean: driver registered locally to DRIVER_COMMAND (AC2)" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-clean: no GLOBAL git config key written by the helper (AC6)" "" \
+  "$(git config --global --get merge.coverage-map-json.driver 2>/dev/null || true)"
+assert_eq "#2025 covmap-clean: no SYSTEM git config key written by the helper (AC6)" "" \
+  "$(git config --system --get merge.coverage-map-json.driver 2>/dev/null || true)"
+
+# ── covmap-undeclared → AC3: a checkout with no merge=coverage-map-json assignment writes no
+# config, invokes no registration, and emits no registration output on any stream. ──────────
+D="$(git_sandbox 'ubc-covmap-undeclared')"
+ubc_make "$D"
+ubc_advance_base "$D" ud
+ubc_run "$D"
+assert_eq "#2025 covmap-undeclared: normal update is unaffected → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
+assert_eq "#2025 covmap-undeclared: no merge.coverage-map-json.driver config written (AC3)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+assert_eq "#2025 covmap-undeclared: no registration output on stderr (AC3)" "no" \
+  "$(printf '%s' "$UBC_ERR" | grep -qF 'coverage-map merge driver' && echo yes || echo no)"
+
+# ── covmap-declared-other → AC3 reject path: .gitattributes EXISTS but resolves the map to a
+# near-miss superstring. Keep this row beside covmap-undeclared: a no-file repo never exercises
+# the resolve-then-reject arm at all. ──────────────────────────────────────────────────────
+D="$(git_sandbox 'ubc-covmap-declared-other')"
+ubc_make "$D"
+printf '# comment the parser must skip\n*.sh merge=text\nlib/test/modules/coverage-map.json merge=coverage-map-json-other\n' > "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm gitattributes-no-covmap-decl
+ubc_advance_base "$D" 'do'
+ubc_run "$D"
+assert_eq "#2025 covmap-declared-other: normal update unaffected → 'UPDATED 1' (AC3 parse reject)" "UPDATED 1" "$UBC_OUT"
+assert_eq "#2025 covmap-declared-other: no merge.coverage-map-json.driver config written (AC3 parse reject)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+assert_eq "#2025 covmap-declared-other: no registration output on stderr (AC3 parse reject)" "no" \
+  "$(printf '%s' "$UBC_ERR" | grep -qF 'coverage-map merge driver' && echo yes || echo no)"
+
+# ── covmap-nodriver → AC4: declaration present but the driver file absent → exactly one stderr
+# warning naming the missing driver path, then the merge falls back line-based (outcome
+# unchanged: an adjacent-key covmap conflict is still CONFLICT/exit 2). ─────────────────────
+D="$(git_sandbox 'ubc-covmap-nodriver')"
+ubc_covmap_make "$D" 0
+ubc_covmap_advance "$D" nd
+ubc_run "$D"
+assert_eq "#2025 covmap-nodriver: missing driver → line-based fallback → CONFLICT (AC4 outcome unchanged)" "CONFLICT" "$UBC_OUT"
+assert_eq "#2025 covmap-nodriver: exit 2 (AC4)" "2" "$UBC_RC"
+assert_eq "#2025 covmap-nodriver: exactly one stderr warning naming the missing driver path (AC4)" "1" \
+  "$(printf '%s\n' "$UBC_ERR" | grep -cF 'coverage-map-merge-driver.py is missing')"
+assert_eq "#2025 covmap-nodriver: no driver config written when the driver is absent (AC4)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+git -C "$D/work" merge --abort 2>/dev/null || true
+
+# ── covmap-regfail → AC5: the registration command exits non-zero (a python3 stub that fails
+# only on `--register`, passing every other call through to the real interpreter) → exactly one
+# stderr warning, the base merge still runs (later guards intact), outcome unchanged. ───────
+D="$(git_sandbox 'ubc-covmap-regfail')"
+ubc_covmap_make "$D"
+ubc_covmap_advance "$D" rf
+UBC_REALPY="$(command -v python3)"
+mkdir -p "$D/stubbin"
+cat > "$D/stubbin/python3" <<EOF
+#!/usr/bin/env bash
+for _a in "\$@"; do [ "\$_a" = "--register" ] && exit 1; done
+exec "$UBC_REALPY" "\$@"
+EOF
+chmod +x "$D/stubbin/python3"
+UBC_RF_OUT="$( cd "$D/work" && PATH="$D/stubbin:$PATH" "$UBC" 2>"$D/rf-err" )"; UBC_RF_RC=$?
+UBC_RF_ERR="$(cat "$D/rf-err" 2>/dev/null)"
+assert_eq "#2025 covmap-regfail: failed registration → line-based fallback → CONFLICT (AC5 outcome unchanged)" "CONFLICT" "$UBC_RF_OUT"
+assert_eq "#2025 covmap-regfail: exit 2 (AC5)" "2" "$UBC_RF_RC"
+assert_eq "#2025 covmap-regfail: exactly one stderr warning on registration failure (AC5)" "1" \
+  "$(printf '%s\n' "$UBC_RF_ERR" | grep -cF 'registration')"
+assert_eq "#2025 covmap-regfail: the base merge still ran after the fail-soft fallback (later guards intact, AC5)" "yes" \
+  "$(printf '%s' "$UBC_RF_ERR" | grep -qF 'coverage-map.json' && echo yes || echo no)"
+assert_eq "#2025 covmap-regfail: no driver config written after a failed registration (AC5)" "" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
+git -C "$D/work" merge --abort 2>/dev/null || true
+
+# ── covmap-real-gitattributes → pins the guard to THIS repo's checked-in .gitattributes, not
+# the synthetic line the rows above stage. Reformatting the real declaration into a shape the
+# guard misses goes RED here instead of silently reverting every merge to line-based. ──────
+D="$(git_sandbox 'ubc-covmap-real-ga')"
+ubc_covmap_make "$D"
+cp "$LIB/../.gitattributes" "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm real-gitattributes
+ubc_covmap_advance "$D" rg
+ubc_run "$D"
+assert_eq "#2025 covmap-real-gitattributes: the repo's own declaration registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-real-gitattributes: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
+
+# ── covmap-tab-declared → git splits a .gitattributes line on ANY whitespace, so a
+# tab-separated declaration is a real declaration. The guard must resolve it through git
+# rather than re-deriving the separator set, which silently under-accepts. ─────────────────
+D="$(git_sandbox 'ubc-covmap-tab')"
+ubc_covmap_make "$D"
+printf 'lib/test/modules/coverage-map.json\tmerge=coverage-map-json\n' > "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm tab-separated-declaration
+ubc_covmap_advance "$D" tb
+ubc_run "$D"
+assert_eq "#2025 covmap-tab-declared: tab-separated declaration registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-tab-declared: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
+
+# ── covmap-subdir → the declaration is resolved with `git -C <repo root>`, so a run whose CWD
+# is a SUBDIRECTORY still registers. Dropping that -C makes check-attr resolve the relative
+# pathspec against the subdirectory, read as undeclared, and silently revert to line-based. ─
+D="$(git_sandbox 'ubc-covmap-subdir')"
+ubc_covmap_make "$D"
+ubc_covmap_advance "$D" sd
+UBC_SD_OUT="$( cd "$D/work/lib/test" && "$UBC" 2>"$D/sd-err" )"; UBC_SD_RC=$?
+assert_eq "#2025 covmap-subdir: run from a subdirectory still registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-subdir: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_SD_OUT"
+assert_eq "#2025 covmap-subdir: exit 0" "0" "$UBC_SD_RC"
+git -C "$D/work" merge --abort 2>/dev/null || true
+
+unset UBC_CM_DEPS UBC_REALPY UBC_RF_OUT UBC_RF_RC UBC_RF_ERR UBC_SD_OUT UBC_SD_RC
+
 # ────────────────────────────────────────────────────────────────────────────
 echo "extract-execution-shape.sh (#437 execution-file shape probe: redaction + present/absent/unavailable + encoding)"
 # ────────────────────────────────────────────────────────────────────────────
