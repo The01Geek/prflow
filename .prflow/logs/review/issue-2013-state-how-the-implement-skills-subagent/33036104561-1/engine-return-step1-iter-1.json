@@ -1,0 +1,37 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE",
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:comment-analyzer", "prflow:silent-failure-hunter"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:comment-analyzer", "prflow:silent-failure-hunter"],
+  "phase3_failed_agents": [],
+  "diff_profile": "prose-only markdown; agent-executed prompt-surface skill files (skills/implement/phases/phase-1-setup.md, skills/implement/references/deferred-ac-followups.md) + internal doc (docs/internal/implement-skill.md) + new changeset. Engine-self-modifying (touches skills/**). No code, no tests, no type/interface changes — pr-test-analyzer and type-design-analyzer gated out.",
+  "cap_drops": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Low",
+      "description": "The three new barrier blocks intentionally differ from the four pre-existing barriers (2.1, 3.4/4.1, 4.2), yielding a four-variant 'Dispatch barrier.' family with no test pinning them coherent (pins retired; review pass is the compensating control). Latent drift surface for a future consolidation; no action required.",
+      "defect_signature": "prose-variant-drift:dispatch-barrier-family"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Low",
+      "description": "Informational: the seven barrier sites are no longer byte-identical prose (three new sites carry an extra runner-backgrounded/inline-fallback-routing paragraph) — deliberate per the changeset, worth awareness for any future coupled-mirror edit.",
+      "defect_signature": "prose-variant-drift:seven-site-nonuniform"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Low",
+      "description": "Pre-existing (not introduced here): the Phase 4.0 deferral-drafter is not named in the headless-wait dispatch-points enumeration in docs/internal/implement-skill.md:22 / render-grounding-block.sh, yet it is now one of the seven barrier sites. The barrier's local arm binds regardless; no factual error in the added prose.",
+      "defect_signature": "enumeration-incongruence:deferral-drafter-not-in-headless-list"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Pre-existing, not introduced: an infinite-stall subagent (never returns, never terminally ends) is not covered by the three fallback conditions; governed upstream by the injected block's 'poll to keep the turn alive' discipline and CLAUDE_CODE_DISABLE_BACKGROUND_TASKS floor. The diff does not widen this gap.",
+      "defect_signature": "residual-gap:infinite-stall-no-terminal-detection"
+    }
+  ],
+  "report": "## Review Report — issue-2013-state-how-the-implement-skills-subagent (current-branch mode)\n\n**Verdict: APPROVE**\n\n### Scope\nProse-only markdown change, engine-self-modifying (touches `skills/**`). Four files: `skills/implement/phases/phase-1-setup.md`, `skills/implement/references/deferred-ac-followups.md`, `docs/internal/implement-skill.md`, and a new `.changeset/issue-2013-dispatch-wait-governed-sites.md`.\n\n### Acceptance-criteria verification (all satisfied)\n- **AC1 (behavioral wait wording at 3 sites):** the §1.4, §1.6, and §4.0 `run_in_background: false` clauses now state the dispatch is discharged only by the subagent's completed return, a launch acknowledgment is not that return, and the flag is named as the current mechanism, not the wait. Confirmed.\n- **AC2 (same one-clause pointer + collect-before-turn-ends local arm as Phase 2.1):** the three added blocks carry the Phase 2.1 pointer sentence verbatim plus the local arm. Confirmed byte-identical across the three sites (single unique grep line).\n- **AC3 (extended local arm — runner-backgrounded collect-then-route; not-failed-while-running; three failed-dispatch triggers):** present verbatim and identically at all three sites; fallback triggers match each site's existing inline-fallback conditions.\n- **AC4 (docs name post-change pointer set; retirement recorded):** `docs/internal/implement-skill.md` now enumerates Phase 1.4, 1.6, 2.1, 3.4, 4.0, 4.1, 4.2 and states the per-site assertions were retired as documentation-presence pins, recorded in `lib/test/assertion-floor-retention-allow.json` (record present; retirement predates this diff, so no allow-file diff is owed).\n- **AC5 (byte-ceiling passes):** `lib/test/lint-reference-size.py` exits 0; `phase-1-setup.md` is 61285 bytes, under the 61,750 ceiling.\n\n### Rationale-trim verification\nEvery trimmed span in `phase-1-setup.md` was walked by two independent reviewers: all removals are pure rationale/consequence clauses. No instruction, command, flag, stop-condition, boundary marker, or unique routing-arm was lost. The collapsed 'Two non-satisfied arms' block is a de-duplication — the UNAVAILABLE→STOP fail-closed arm remains stated earlier in the same section. The coupled read-target / cross-pass-coherence bullets remain byte-identical with Phase 2.1.\n\n### Phase 3 roster (3 dispatched, 0 failed)\n- **code-reviewer:** no Critical/High/Medium; one Low (four-variant barrier family, latent drift, review pass is compensating control).\n- **comment-analyzer:** no accuracy defects; two Low informational notes (seven barriers no longer byte-identical by design; deferral-drafter absent from the headless-wait dispatch-points enumeration — pre-existing).\n- **silent-failure-hunter:** no silent-failure / fall-open / removed-stop-condition findings; one Suggestion (infinite-stall gap, pre-existing, not widened).\n\n### Conclusion\nAll acceptance criteria satisfied, mechanical claims verified, trims removed only rationale, and the added prose is accurate against the mechanisms it describes. No blocking findings. Test evidence: `lint-reference-size.py` exit 0 in-env; the whole-suite/CI completion gate is the fix-loop's own concern, not this engine pass. **APPROVE.**"
+}
