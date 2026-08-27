@@ -29,6 +29,16 @@ import subprocess
 import sys
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 (never at import — it would mutate an importer's streams).
+    Tolerates a stream with no usable reconfigure (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def _gh():
     # DEVFLOW_GH is the documented override the test suite stubs; else bare `gh`.
     # Python callers deliberately do not probe (CLAUDE.md resolver contract).
@@ -86,6 +96,7 @@ def resolve_issue_pr(issue, gh=None):
 
 
 def main(argv):
+    _force_utf8_streams()
     ap = argparse.ArgumentParser()
     ap.add_argument("--issue", required=True)
     args = ap.parse_args(argv[1:])
