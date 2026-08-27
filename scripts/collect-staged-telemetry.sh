@@ -30,7 +30,9 @@ fi
 # Telemetry master switch (issue #2035): a JSON-false telemetry.enabled collects
 # nothing — no payload staged for the relay. Fail-safe to ON: a missing helper/python3
 # or unreadable config collects as before (JSON-type read in telemetry-master-off.py).
-_CST_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Dirname-free anchor: `dirname` is not one of the tools lib/preflight.sh guarantees,
+# and an empty anchor would silently no-op this gate.
+_CST_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 if [ -f "$_CST_DIR/telemetry-master-off.py" ] && command -v python3 >/dev/null 2>&1 \
    && python3 "$_CST_DIR/telemetry-master-off.py" "$ROOT/.prflow/config.json" >/dev/null 2>&1; then
   echo "::warning::collect-staged-telemetry: telemetry.enabled is false — collecting nothing this run (issue #2035)" >&2

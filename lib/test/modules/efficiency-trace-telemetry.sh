@@ -6887,9 +6887,9 @@ assert_eq "#2035 enrolled inherit via repo-root config resolution" "false" "$( (
 # has_default branch in emit_default_or_fail. Pins that a no-default enrolled miss
 # is not the non-enrolled exit-1 path.
 T2035_ENROLLED_NODEF="$( ( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" prflow.execution_diagnostics_enabled ) 2>/dev/null )"
+T2035_ENROLLED_NODEF_RC=$?
 assert_eq "#2035 exit contract: enrolled no-default miss prints false under master-off" "false" "$T2035_ENROLLED_NODEF"
-( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" prflow.execution_diagnostics_enabled ) >/dev/null 2>&1
-assert_eq "#2035 exit contract: enrolled no-default miss exits 0 under master-off" "0" "$?"
+assert_eq "#2035 exit contract: enrolled no-default miss exits 0 under master-off" "0" "$T2035_ENROLLED_NODEF_RC"
 # Idempotency — two master-off resolutions of the same enrolled key are identical.
 assert_eq "#2035 idempotent enrolled resolution" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")"
 
@@ -6921,7 +6921,7 @@ _t2035_persist() { # $1=config-file → prints "<exit>|<branch-created yes/no>|<
   git init -q "$root"; git -C "$root" config user.email t@e.com; git -C "$root" config user.name t
   git -C "$root" commit --allow-empty -qm seed; git -C "$root" branch -M main
   git -C "$root" remote add origin "$pr/remote.git"; git -C "$root" push -q -u origin main
-  cp "$cfg" "$root/.prflow-cfg.json" 2>/dev/null || { mkdir -p "$root"; cp "$cfg" "$root/.prflow-cfg.json"; }
+  cp "$cfg" "$root/.prflow-cfg.json"
   wd="$root/.prflow/tmp/review/pr-2035/run-1"; mkdir -p "$wd"
   printf '%s' '{"iter":1,"fix_commit_sha":"","loop_role":"fix"}' > "$wd/iter-1.json"
   err="$( ( cd "$root" && unset GITHUB_ACTIONS && DEVFLOW_CONFIG_FILE="$root/.prflow-cfg.json" bash "$T2035_ET" --persist --workpad-dir "$wd" --slug pr-2035 ) 2>&1 )"
