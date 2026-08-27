@@ -538,13 +538,9 @@ assert_eq "#2024(S3): the over-cap comment body made NO PATCH" "yes" \
   "$([ -s "$S338/patchlog" ] && echo no || echo yes)"
 assert_eq "#2024(S3): the refusal names the 65536 limit and that it is a byte count" "yes" \
   "$(grep -q '65536' "$S338/err" && grep -q 'byte count' "$S338/err" && echo yes || echo no)"
-# S4: the `patch` subcommand route enforces the comment cap too — covers the
-# cmd_patch `except _UpdateError -> sys.exit(1)` arm (and _patch_comment_body's
-# body_path branch through it), which AC10's direct _patch_comment_body test
-# bypasses. A `patch` on an over-cap body-file must abort non-zero with NO PATCH
-# and name the limit. The body carries the marker as line 1 so the live-body
-# establish-check degrades to patching-as-typed and reaches the size guard,
-# rather than refusing earlier on the no-marker arm.
+# S4: the `patch` route enforces the comment cap too — covering the cmd_patch
+# except-arm (and _patch_comment_body's body_path branch) that AC10 bypasses.
+# The marker on line 1 degrades the live-body check so it reaches the size guard.
 _s2024_patchbig="$S338/patch-big.md"
 printf '<!-- devflow:workpad -->\n' > "$_s2024_patchbig"
 printf '%*s\n' 66000 '' | tr ' ' x >> "$_s2024_patchbig"
