@@ -6869,6 +6869,14 @@ assert_eq "#2035 exit contract: non-enrolled no-default miss exits 1 under maste
 ( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" nonexistent.key fallback ) >/dev/null 2>&1
 assert_eq "#2035 exit contract: non-enrolled with default exits 0 under master-off" "0" "$?"
 assert_eq "#2035 enrolled inherit via repo-root config resolution" "false" "$( ( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" prflow.execution_diagnostics_enabled true ) )"
+# Ordering — an ENROLLED key with NO caller default under master-off prints
+# "false" and exits 0, because telemetry_master_disables_for runs before the
+# has_default branch in emit_default_or_fail. Pins that a no-default enrolled miss
+# is not the non-enrolled exit-1 path.
+T2035_ENOLLED_NODEF="$( ( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" prflow.execution_diagnostics_enabled ) 2>/dev/null )"
+assert_eq "#2035 exit contract: enrolled no-default miss prints false under master-off" "false" "$T2035_ENOLLED_NODEF"
+( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" prflow.execution_diagnostics_enabled ) >/dev/null 2>&1
+assert_eq "#2035 exit contract: enrolled no-default miss exits 0 under master-off" "0" "$?"
 # Idempotency — two master-off resolutions of the same enrolled key are identical.
 assert_eq "#2035 idempotent enrolled resolution" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")"
 
@@ -6939,5 +6947,11 @@ assert_eq "#2035 AC4 collect-staged master-off stages nothing" "" "${T2035_COLLE
 assert_eq "#2035 AC4 collect-staged master-off emits breadcrumb" "yes" "$(printf '%s' "$T2035_COLLECT_OFF" | cut -d'|' -f2)"
 T2035_COLLECT_ON="$(_t2035_collect "$T2035_ROOT/m-missing.json")"
 assert_eq "#2035 AC4 collect-staged master-absent collects (positive control)" "1" "${T2035_COLLECT_ON%%|*}"
+# Fail-safe symmetry with the --persist path: a corrupt config collects (ON) and
+# emits no skip breadcrumb — the predicate exits 1 (indeterminate → ON) so the
+# collector runs as if the master were unset.
+T2035_COLLECT_CORRUPT="$(_t2035_collect "$T2035_ROOT/m-corrupt.json")"
+assert_eq "#2035 AC5 collect-staged corrupt-config collects (fail-safe on)" "1" "${T2035_COLLECT_CORRUPT%%|*}"
+assert_eq "#2035 AC5 collect-staged corrupt-config emits no skip breadcrumb" "no" "$(printf '%s' "$T2035_COLLECT_CORRUPT" | cut -d'|' -f2)"
 
 rm -rf "$T2035_ROOT"
