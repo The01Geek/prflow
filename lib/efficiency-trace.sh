@@ -1529,6 +1529,305 @@ apply_denial_floor() {
   return 0
 }
 
+# ── Run-profile floor (Layer 4c, issue #2006) ────────────────────────────────
+# Land this run's `run_profile` — per-phase durations, the workpad's final status word,
+# the count of prior implement records for the same issue, and the engine step's own
+# outcome — as one top-level key beside `harness_cost` and `permission_denials`. One
+# object rather than four top-level keys: `_efficiency_entry` in
+# scripts/build-experiment-records.py passes such an object through verbatim in one
+# line, and four keys would need four independent add-if-absent guards racing over the
+# same file.
+#
+# Every sub-field whose source could not be established holds the STRING `unestablished`
+# and never `0`. A zero here is a real measurement, so collapsing an unknown onto it
+# would let an unmeasured run enter an aggregate as a real value.
+
+# Add one top-level KEY (add-if-absent) to an in-STAGING record file $1, via temp+mv so a
+# failed jq leaves the file untouched. $2 = key name, $3 = its JSON value, $4 = a display
+# label, $5 = the floor name for the breadcrumb. Parameterized on the key because this
+# diff would otherwise add a third near-identical copy of _floor_merge_staged. The two
+# existing copies are deliberately NOT folded into this one: their breadcrumb literals are
+# pinned in lib/test/modules/efficiency-trace-telemetry.sh, so rewording them would break
+# coupled pins this change does not own.
+_floor_merge_key_staged() {
+  local file="$1" key="$2" val="$3" label="$4" floor="$5" jq_err
+  if "$DEVFLOW_JQ" -e --arg k "$key" 'has($k)' "$file" >/dev/null 2>&1; then
+    echo "devflow: efficiency-trace.sh --persist: ${floor}: ${label} already carries ${key}; left untouched" >&2
+    return 0
+  fi
+  if jq_err="$("$DEVFLOW_JQ" --arg k "$key" --argjson v "$val" '.[$k] = $v' "$file" 2>&1 > "$file.keytmp")"; then
+    if mv "$file.keytmp" "$file" 2>/dev/null; then
+      echo "devflow: efficiency-trace.sh --persist: ${floor}: attached ${key} to ${label}" >&2
+    else
+      echo "::warning::efficiency-trace.sh --persist: ${floor}: could not move the merged ${label} into place; left without ${key}" >&2
+      rm -f "$file.keytmp" 2>/dev/null
+    fi
+  else
+    echo "::warning::efficiency-trace.sh --persist: ${floor}: could not merge ${key} into ${label} (${jq_err:-no error text}); left without ${key}" >&2
+    rm -f "$file.keytmp" 2>/dev/null
+  fi
+}
+
+# Count prior efficiency records for this run's own record family on the telemetry branch,
+# excluding this run's own ident. Prints a decimal count, or the string `unestablished`.
+# $2 = the PR number (may be empty), $3 = the issue number (may be empty), $4 = this run's
+# ident. Counts only records under THIS run's own `pr-<N>-`/`issue-<N>-` keys, so an issue
+# whose work moved to a second PR begins a new count under that PR's key.
+#
+# Do NOT derive the absent-ref case from devflow_telemetry_list_blobs' empty output: it
+# prints nothing for an absent ref, an unestablished probe and an unreadable tree alike, so
+# a real zero would be indistinguishable from a failed read. Probe the ref itself.
+_prior_implement_record_count() {
+  local root="$1" pr="$2" issue="$3" ident="$4" ref rel base blob _match _class n=0 rc=0 listing
+  ref="$(devflow_telemetry_ref)"
+  git -C "$root" rev-parse --verify --quiet "$ref" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 1 ]; then
+    # Absent ref. An established empty only when the pre-synthesis fetch actually ran:
+    # on an ephemeral runner that never fetched, absence says nothing about prior records.
+    case "${_DEVFLOW_TELEMETRY_FETCH_STATUS:-unattempted}" in
+      ok) printf '0\n'; return 0 ;;
+      *)  printf 'unestablished\n'; return 0 ;;
+    esac
+  fi
+  if [ "$rc" -ne 0 ]; then printf 'unestablished\n'; return 0; fi
+  if ! listing="$(git -c core.quotePath=false -C "$root" ls-tree -r --name-only "$ref" -- ".prflow/logs/efficiency/" 2>/dev/null)"; then
+    printf 'unestablished\n'; return 0
+  fi
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    base="${rel##*/}"
+    case "$base" in *-"$ident".json) continue ;; esac
+    _match=no
+    if [ -n "$pr" ]; then
+      case "$base" in "pr-${pr}-"*.json) _match=yes ;; esac
+    fi
+    if [ "$_match" = no ] && [ -n "$issue" ]; then
+      case "$base" in "issue-${issue}-"*.json) _match=yes ;; esac
+    fi
+    [ "$_match" = yes ] || continue
+    # A review or review-and-fix run on the same PR shares this key, so confirm the class
+    # rather than counting it: the field names implement records specifically.
+    if ! blob="$(devflow_telemetry_show_blob "$root" "$ref" "$rel")" || [ -z "$blob" ]; then
+      # An unreadable candidate leaves the count unestablished. Skipping it would print a
+      # decimal that silently omits a record this function could not classify.
+      printf 'unestablished\n'; return 0
+    fi
+    # An implement record persisted with no cost operand carries no harness_cost at all, so
+    # a second positive signal is needed; a candidate matching neither is unclassifiable,
+    # not "some other class".
+    #
+    # Do NOT add a `.slug` or `.source` signal here: measured against the stored records,
+    # a slug signal overcounts review-and-fix runs on issue-named branches as implement and
+    # a source signal misclassifies implement records as other (census in
+    # docs/internal/improvement-loops/runtime-evaluations.md).
+    _class="$(printf '%s' "$blob" | "$DEVFLOW_JQ" -r '
+        if (.harness_cost.command? // null) == "implement" then "implement"
+        elif (.harness_cost.command? // null) != null then "other"
+        elif (.run_profile.issue_number? // null) != null then "implement"
+        else "unknown" end' 2>/dev/null)" || _class=""
+    case "$_class" in
+      implement) n=$((n + 1)) ;;
+      other) : ;;
+      *) printf 'unestablished\n'; return 0 ;;
+    esac
+  done <<EOF
+$listing
+EOF
+  printf '%s\n' "$n"
+}
+
+
+# Consume DEVFLOW_RUN_PROFILE (scripts/prepare-run-profile.sh's single-line JSON) and
+# DEVFLOW_ENGINE_OUTCOME, and land them as one top-level `run_profile` key. Mirrors
+# apply_harness_floor's arms so the two floors behave identically. $1 root, $2 staging root.
+apply_run_profile_floor() {
+  local root="$1" stage="$2"
+  # Inert and SILENT unless the backstop supplied at least one operand, so the agent-side
+  # persist call sites (Loop-Exit, Stop-hook), which set neither, stay byte-identical to
+  # before this floor existed. Gating on the PROFILE alone would drop engine_outcome and
+  # prior_record_count — neither of which needs a workpad — whenever the workpad-sourced
+  # half could not be derived, recording them as absent rather than as unestablished.
+  if [ -z "${DEVFLOW_RUN_PROFILE:-}" ] && [ -z "${DEVFLOW_ENGINE_OUTCOME:-}" ]; then
+    return 0
+  fi
+  if [ "$ENABLED" != "true" ]; then
+    echo "::warning::efficiency-trace.sh --persist: run-profile floor: efficiency telemetry is disabled; DEVFLOW_RUN_PROFILE supplied but not attached this run" >&2
+    return 0
+  fi
+  local profile="${DEVFLOW_RUN_PROFILE:-}"
+  if [ -z "$profile" ]; then
+    echo "::warning::efficiency-trace.sh --persist: run-profile floor: no DEVFLOW_RUN_PROFILE this run; the workpad-sourced fields are recorded as unestablished and the rest of run_profile still lands" >&2
+    profile='{}'
+  elif ! printf '%s' "$profile" | "$DEVFLOW_JQ" -e 'type == "object"' >/dev/null 2>&1; then
+    echo "::warning::efficiency-trace.sh --persist: run-profile floor: DEVFLOW_RUN_PROFILE is not a JSON object; the workpad-sourced fields are recorded as unestablished and the rest of run_profile still lands" >&2
+    profile='{}'
+  fi
+  if [ -z "${GITHUB_RUN_ID:-}" ]; then
+    echo "::warning::efficiency-trace.sh --persist: run-profile floor: GITHUB_RUN_ID is unset, so this run's record cannot be identified; no floor write" >&2
+    return 0
+  fi
+  local ident="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}"
+  local issue="${DEVFLOW_ISSUE_NUMBER:-}" pr="${DEVFLOW_EXECUTION_PR:-}"
+  local prior="unestablished" issue_json="null"
+  case "$issue" in
+    ''|*[!0-9]*) issue="" ;;
+    *) issue_json="$issue" ;;
+  esac
+  case "$pr" in ''|*[!0-9]*) pr="" ;; esac
+  if [ -n "$issue" ] || [ -n "$pr" ]; then
+    prior="$(_prior_implement_record_count "$root" "$pr" "$issue" "$ident")"
+  fi
+  local prior_json="\"unestablished\""
+  case "$prior" in
+    ''|*[!0-9]*) : ;;
+    *) prior_json="$prior" ;;
+  esac
+  local run_profile
+  if ! run_profile="$(printf '%s' "$profile" | "$DEVFLOW_JQ" -c \
+        --argjson prior "$prior_json" \
+        --argjson issue "$issue_json" \
+        --arg outcome "${DEVFLOW_ENGINE_OUTCOME:-}" \
+        '{phase_durations_ms: (.phase_durations_ms // "unestablished"),
+          final_status: (.final_status // "unestablished"),
+          prior_record_count: $prior,
+          issue_number: $issue,
+          engine_outcome: (if ($outcome | IN("success","failure","cancelled","skipped")) then $outcome else "unestablished" end)}' 2>/dev/null)"; then
+    echo "::warning::efficiency-trace.sh --persist: run-profile floor: could not assemble the run_profile object (jq failed); no floor write" >&2
+    return 0
+  fi
+
+  local eff_dir="${stage}/.prflow/logs/efficiency" f
+  # Merge arm (a): a record staged this pass under this run-id identity. `*-<ident>.json`
+  # matches ANY slug, which is what lets the issue-keyed PR-less record be caught here.
+  if [ -d "$eff_dir" ]; then
+    for f in "$eff_dir"/*-"$ident".json; do
+      [ -e "$f" ] || continue
+      _floor_merge_key_staged "$f" run_profile "$run_profile" "staged record $(basename "$f")" "run-profile floor"
+      return 0
+    done
+  fi
+  # Merge arm (b): a record already persisted on the telemetry branch for this run-id.
+  local ref rel base blob
+  ref="$(devflow_telemetry_ref)"
+  while IFS= read -r rel; do
+    case "$rel" in *-"$ident".json) ;; *) continue ;; esac
+    base="$(basename "$rel")"
+    if ! blob="$(devflow_telemetry_show_blob "$root" "$ref" "$rel")" || [ -z "$blob" ]; then
+      echo "::warning::efficiency-trace.sh --persist: run-profile floor: could not read ${rel} from the telemetry branch (unreadable or empty blob); trying the next record for this run-id" >&2
+      continue
+    fi
+    if printf '%s' "$blob" | "$DEVFLOW_JQ" -e 'has("run_profile")' >/dev/null 2>&1; then
+      echo "devflow: efficiency-trace.sh --persist: run-profile floor: record ${rel} already carries run_profile; leaving it untouched (backstop re-run no-op)" >&2
+      return 0
+    fi
+    mkdir -p "$eff_dir" 2>/dev/null || true
+    if printf '%s' "$blob" | "$DEVFLOW_JQ" --argjson rp "$run_profile" '.run_profile = $rp' > "${eff_dir}/${base}" 2>/dev/null; then
+      echo "devflow: efficiency-trace.sh --persist: run-profile floor: attached run_profile to already-persisted record ${rel}" >&2
+    else
+      echo "::warning::efficiency-trace.sh --persist: run-profile floor: could not merge run_profile into ${rel}; no floor write" >&2
+      rm -f "${eff_dir}/${base}" 2>/dev/null
+    fi
+    return 0
+  done < <(devflow_telemetry_list_blobs "$root" "$ref" ".prflow/logs/efficiency/")
+
+  # Skeleton arm: no record for this run-id anywhere. Only record-deriving classes get one.
+  case "${DEVFLOW_COMMAND_CLASS:-}" in
+    review|review-and-fix|implement) ;;
+    pr-description)
+      echo "::warning::efficiency-trace.sh --persist: run-profile floor: no record by design for command class 'pr-description'; no skeleton written" >&2
+      return 0 ;;
+    *)
+      echo "::warning::efficiency-trace.sh --persist: run-profile floor: command class '${DEVFLOW_COMMAND_CLASS:-<unset>}' does not derive records; no skeleton written" >&2
+      return 0 ;;
+  esac
+  if [ -z "${DEVFLOW_EXECUTION_PR:-}" ]; then
+    echo "::warning::efficiency-trace.sh --persist: run-profile floor: no record for run-id ${ident} and DEVFLOW_EXECUTION_PR is empty; skeleton skipped (the PR-less floor owns that case)" >&2
+    return 0
+  fi
+  local slug="pr-${DEVFLOW_EXECUTION_PR}" generated_at skel
+  if [ -n "$ref" ] && devflow_telemetry_blob_exists "$root" "$ref" ".prflow/logs/efficiency/${slug}-${ident}.json" 2>/dev/null; then
+    echo "::warning::efficiency-trace.sh --persist: run-profile floor: a record already exists on the telemetry branch at .prflow/logs/efficiency/${slug}-${ident}.json; declining to overwrite it with a run-profile skeleton" >&2
+    return 0
+  fi
+  generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  mkdir -p "$eff_dir" 2>/dev/null || true
+  if skel="$("$DEVFLOW_JQ" -n --arg slug "$slug" --arg ga "$generated_at" --argjson rp "$run_profile" \
+        '{schema_version: 1, slug: $slug, generated_at: $ga, source: null,
+          synthesized: true, iterations: 0, per_iteration: [], telemetry: [],
+          run_profile: $rp}' 2>/dev/null)" && printf '%s\n' "$skel" > "${eff_dir}/${slug}-${ident}.json"; then
+    echo "devflow: efficiency-trace.sh --persist: run-profile floor: no record for run-id ${ident}; wrote a minimal run-profile skeleton ${slug}-${ident}.json" >&2
+  else
+    echo "::warning::efficiency-trace.sh --persist: run-profile floor: could not write the run-profile skeleton for ${slug}-${ident}; no floor write" >&2
+    rm -f "${eff_dir}/${slug}-${ident}.json" 2>/dev/null
+  fi
+  return 0
+}
+
+# ── PR-less implement record floor (issue #2006) ─────────────────────────────
+# An implement run whose PR never resolves produced NO record at all: every other floor
+# keys its skeleton `pr-<N>-<run-id>.json` and declines when DEVFLOW_EXECUTION_PR is
+# empty, so the run's cost, denials and profile were discarded with only a job-log
+# warning that expires. This floor writes the missing host record under the distinct
+# slug `issue-<N>`, which no PR-keyed name can collide with, carrying the issue number
+# and the fixed-vocabulary reason no PR resolved.
+#
+# It runs BEFORE the other three floors so their `*-<ident>.json` any-slug merge arms
+# then attach harness_cost, permission_denials and run_profile onto this same file with
+# no change to any of them. $1 root, $2 staging root.
+apply_pr_less_issue_floor() {
+  local root="$1" stage="$2"
+  # Only the implement class: every other class's candidate number is a PR, so there is
+  # no issue to key an issue-slugged record by.
+  [ "${DEVFLOW_COMMAND_CLASS:-}" = "implement" ] || return 0
+  # A resolved PR means the existing PR-keyed floors own this run; this one is inert.
+  [ -z "${DEVFLOW_EXECUTION_PR:-}" ] || return 0
+  local issue="${DEVFLOW_ISSUE_NUMBER:-}"
+  case "$issue" in
+    ''|*[!0-9]*)
+      echo "::warning::efficiency-trace.sh --persist: PR-less floor: no PR resolved AND DEVFLOW_ISSUE_NUMBER is '${issue:-<unset>}', so this run cannot be keyed by issue either; no record written" >&2
+      return 0 ;;
+  esac
+  if [ "$ENABLED" != "true" ]; then
+    echo "::warning::efficiency-trace.sh --persist: PR-less floor: efficiency telemetry is disabled; no PR-less record written this run" >&2
+    return 0
+  fi
+  if [ -z "${GITHUB_RUN_ID:-}" ]; then
+    echo "::warning::efficiency-trace.sh --persist: PR-less floor: GITHUB_RUN_ID is unset, so this run's record cannot be identified; no record written" >&2
+    return 0
+  fi
+  local ident="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}" slug="issue-${issue}"
+  local eff_dir="${stage}/.prflow/logs/efficiency" ref generated_at rec
+  # Do not overwrite a record this pass already staged for this run-id, whatever its slug.
+  local f
+  if [ -d "$eff_dir" ]; then
+    for f in "$eff_dir"/*-"$ident".json; do
+      [ -e "$f" ] || continue
+      echo "devflow: efficiency-trace.sh --persist: PR-less floor: a record for run-id ${ident} is already staged ($(basename "$f")); leaving it as the host record" >&2
+      return 0
+    done
+  fi
+  ref="$(devflow_telemetry_ref)"
+  if [ -n "$ref" ] && devflow_telemetry_blob_exists "$root" "$ref" ".prflow/logs/efficiency/${slug}-${ident}.json" 2>/dev/null; then
+    echo "devflow: efficiency-trace.sh --persist: PR-less floor: .prflow/logs/efficiency/${slug}-${ident}.json is already on the telemetry branch; declining to overwrite it (backstop re-run no-op)" >&2
+    return 0
+  fi
+  generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  mkdir -p "$eff_dir" 2>/dev/null || true
+  if rec="$("$DEVFLOW_JQ" -n --arg slug "$slug" --arg ga "$generated_at" \
+        --argjson issue "$issue" --arg reason "${DEVFLOW_NO_PR_REASON:-}" \
+        '{schema_version: 1, slug: $slug, generated_at: $ga, source: null,
+          synthesized: true, iterations: 0, per_iteration: [], telemetry: [],
+          issue_number: $issue,
+          no_pr_reason: (if $reason == "" then "unestablished" else $reason end)}' 2>/dev/null)" \
+     && printf '%s\n' "$rec" > "${eff_dir}/${slug}-${ident}.json"; then
+    echo "devflow: efficiency-trace.sh --persist: PR-less floor: no PR resolved for issue ${issue}; wrote ${slug}-${ident}.json so the cost, denial and profile floors have a host record" >&2
+  else
+    echo "::warning::efficiency-trace.sh --persist: PR-less floor: could not write ${slug}-${ident}.json; this run's record is dropped" >&2
+    rm -f "${eff_dir}/${slug}-${ident}.json" 2>/dev/null
+  fi
+  return 0
+}
+
 do_persist() {
   local root dir slug run_id _TELEMETRY_STAGE
   root="$(devflow_repo_root)"
@@ -1872,6 +2171,13 @@ do_persist() {
   # unset, so the agent-side persist call sites (Loop-Exit, Stop-hook) are byte-
   # identical to before. Best-effort; runs after every run dir has been staged so
   # its run-id targeting sees this pass's staged record if one was derived. ────────
+  # ── PR-less implement record floor (issue #2006): an implement run whose PR never
+  # resolved has no host record for the three floors below to merge onto, so they each
+  # decline and the run's whole measurement is discarded. Write the issue-keyed host
+  # record FIRST; the floors' `*-<ident>.json` any-slug merge arms then find it. Inert on
+  # every other class and whenever a PR did resolve. ─────────────────────────────────
+  apply_pr_less_issue_floor "$root" "$_TELEMETRY_STAGE"
+
   apply_harness_floor "$root" "$_TELEMETRY_STAGE"
 
   # ── Permission-denial forensics floor (issue #1064 D2): merge the assembled denial
@@ -1881,6 +2187,11 @@ do_persist() {
   # call sites are byte-identical to before. Runs after apply_harness_floor so a record
   # this pass derived (or the branch's already-persisted one) is in place to merge onto.
   apply_denial_floor "$root" "$_TELEMETRY_STAGE"
+
+  # ── Run-profile floor (issue #2006): merge this run's phase durations, workpad final
+  # status, prior-record count and engine step outcome as a top-level `run_profile` key.
+  # Runs after the floors above so the host record they may have written is in place.
+  apply_run_profile_floor "$root" "$_TELEMETRY_STAGE"
 
   # ── Detached write of everything staged above to the telemetry branch ──────
   # (issue #441). Replaces the former current-branch `chore:` commit: the shared

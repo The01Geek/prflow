@@ -1939,3 +1939,114 @@ PY
   assert_eq "#431 config_fingerprint: partial flag / None arm / canonical hash" "yes" \
     "$([ $? -eq 0 ] && echo yes || echo no)"
 fi
+
+# ── #2006 run_profile passthrough and PR-less exclusion ───────────────────────
+# The join carries the run-profile floor's object through verbatim, reads an absent key
+# as JSON null (a pre-change record), and keeps a PR-less implement record out of every
+# PR's run list. That exclusion is keyed on `no_pr_reason` rather than the `issue-<N>`
+# slug: `target_slugs` includes branch-name variants, so a branch literally named
+# `issue-<N>` would make a name-based guard admit the record as one of that PR's runs.
+if [ -f "$BXR" ]; then
+  rp_check() { python3 - "$BXR" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("bxr", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+
+pre = m._efficiency_entry({"slug": "pr-1"}, "r1")
+profile = {"phase_durations_ms": {"Setup": 1000, "Review": "unestablished"},
+           "final_status": "Complete", "prior_record_count": 0,
+           "engine_outcome": "success"}
+post = m._efficiency_entry({"slug": "pr-2", "run_profile": profile}, "r2")
+prless = m._efficiency_entry(
+    {"slug": "issue-9", "no_pr_reason": "no-closing-pr-found"}, "r3")
+index = {"pr-2": [post], "issue-9": [prless]}
+ok = (
+    pre["run_profile"] is None and
+    pre["no_pr_reason"] is None and
+    post["run_profile"] == profile and
+    post["run_profile"]["phase_durations_ms"]["Review"] == "unestablished" and
+    prless["no_pr_reason"] == "no-closing-pr-found" and
+    [r["slug"] for r in m._collect_efficiency(index, {"pr-2"})] == ["pr-2"] and
+    m._collect_efficiency(index, {"issue-9"}) == []
+)
+sys.exit(0 if ok else 1)
+PY
+  }
+  rp_check
+  assert_eq "#2006 join: run_profile passes through verbatim, an absent key is null, and a PR-less record joins no PR" "yes" \
+    "$([ $? -eq 0 ] && echo yes || echo no)"
+fi
+
+# A store mixing pre-change and post-change lines must not make actionable-patterns.sh
+# emit a warning it does not emit on a store of pre-change lines alone — the additive
+# fields are invisible to every one of its four warning conditions.
+#
+# Drive the script the way its own usage states — $1 retrospectives.jsonl, $2
+# overrides.json, $3 optional --full — and place experiment-records.jsonl BESIDE the
+# retrospectives file, which is where the script derives it from. An EXPERIMENTS_FILE
+# passed through the environment is overwritten by that derivation, and passing --full as
+# $1 makes both invocations fail identically, so a comparison built either way compares
+# two failures and can never go red.
+AP_SH="$LIB/actionable-patterns.sh"
+if [ -f "$AP_SH" ]; then
+  ER_PRE_LINE='{"schema_version":1,"pr":1,"issue":11,"branch":"b1","merged_at":"2026-07-01T00:00:00Z","verdict":"APPROVE","config_fingerprint":null,"efficiency_runs":[{"slug":"pr-1","run_id":"r1","cost":{"calls":1,"tokens":10,"wall_clock_s":1},"iterations":1}],"retrospective":null,"important_finding_count":0,"permission_denials_count":0,"provenance":{}}'
+  ER_POST_LINE='{"schema_version":1,"pr":2,"issue":12,"branch":"b2","merged_at":"2026-07-02T00:00:00Z","verdict":"APPROVE","config_fingerprint":null,"efficiency_runs":[{"slug":"pr-2","run_id":"r2","cost":{"calls":1,"tokens":10,"wall_clock_s":1},"iterations":1,"run_profile":{"phase_durations_ms":{"Setup":1000},"final_status":"Complete","prior_record_count":0,"issue_number":12,"engine_outcome":"success"},"no_pr_reason":null}]}'
+  ER_RETRO_LINE='{"pr":1,"issue":11,"branch":"b1","merged_at":"2026-07-01T00:00:00Z","verdict":"APPROVE","findings":[{"tag":"convention-violation","summary":"s"}]}'
+  # actionable-patterns.sh looks up open issues for the cooldown check. That shells to
+  # gh, which succeeds on an authenticated desk and fails on CI — aborting the script
+  # under its `set -euo pipefail` and making BOTH compared runs fail identically, which
+  # is precisely the vacuity the positive controls below exist to catch. Stub gh through
+  # the documented DEVFLOW_GH override so the comparison is host-independent.
+  ER_AP_GH="$(mktemp -d)/gh"
+  printf '#!/usr/bin/env bash\nprintf %%s "[]"\n' > "$ER_AP_GH"
+  chmod +x "$ER_AP_GH"
+
+  er_ap_warnings() {
+    # $1 = the experiment-records.jsonl content. Returns the ::warning:: count.
+    local d
+    d="$(mktemp -d)"
+    printf '%s\n' "$ER_RETRO_LINE" > "$d/retrospectives.jsonl"
+    printf '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$d/overrides.json"
+    printf '%s' "$1" > "$d/experiment-records.jsonl"
+    DEVFLOW_GH="$ER_AP_GH" GITHUB_REPOSITORY=owner/repo \
+      bash "$AP_SH" "$d/retrospectives.jsonl" "$d/overrides.json" --full 2>&1 >/dev/null \
+      | grep -c '::warning::actionable-patterns' || true
+    rm -rf "$d"
+  }
+  ER_PRE_CONTENT="$ER_PRE_LINE
+"
+  ER_MIX_CONTENT="$ER_PRE_LINE
+$ER_POST_LINE
+"
+  ER_W_PRE="$(er_ap_warnings "$ER_PRE_CONTENT")"
+  ER_W_MIX="$(er_ap_warnings "$ER_MIX_CONTENT")"
+  # Echo the script's EXIT STATUS over fixture $1. The control needs evidence the run
+  # HAPPENED; asserting its stdout parses as a JSON array instead made the control
+  # platform-dependent — it held on macOS and went RED on CI's Ubuntu, where this
+  # no-patterns fixture prints nothing rather than an empty array.
+  er_ap_rc() {
+    local d rc=0
+    d="$(mktemp -d)"
+    printf '%s\n' "$ER_RETRO_LINE" > "$d/retrospectives.jsonl"
+    printf '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$d/overrides.json"
+    printf '%s' "$1" > "$d/experiment-records.jsonl"
+    DEVFLOW_GH="$ER_AP_GH" GITHUB_REPOSITORY=owner/repo \
+      bash "$AP_SH" "$d/retrospectives.jsonl" "$d/overrides.json" --full >/dev/null 2>&1 || rc=$?
+    rm -rf "$d"
+    printf '%s' "$rc"
+  }
+  # Positive control: the fixture is otherwise valid and the script RUNS over it, emitting
+  # its pattern array. Without this an equal warning count below could be two identical
+  # failures agreeing rather than two real runs agreeing.
+  assert_eq "#2006 mixed store: the pre-change fixture drives actionable-patterns.sh to a real run (positive control)" "0" \
+    "$(er_ap_rc "$ER_PRE_CONTENT")"
+  assert_eq "#2006 mixed store: the mixed fixture drives it to a real run too (positive control)" "0" \
+    "$(er_ap_rc "$ER_MIX_CONTENT")"
+  assert_eq "#2006 mixed store: actionable-patterns.sh emits no warning it does not emit on a pre-change store" \
+    "$ER_W_PRE" "$ER_W_MIX"
+  # And the corrupt-store arm still warns — proving the counter can go non-zero, so the
+  # equality above is not passing merely because nothing is ever counted.
+  assert_eq "#2006 mixed store: a corrupt store DOES warn (the counter is not inert)" "yes" \
+    "$(test "$(er_ap_warnings 'not json at all
+')" -gt 0 && echo yes || echo no)"
+fi
