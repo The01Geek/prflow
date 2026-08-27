@@ -4791,7 +4791,7 @@ case "$*" in
     if [ -n "${PCRT_PR_JSON-}" ]; then
       _jqprog="."; _prev=""
       for _a in "$@"; do [ "$_prev" = "--jq" ] && _jqprog="$_a"; _prev="$_a"; done
-      printf '%s' "$PCRT_PR_JSON" | jq -r "$_jqprog"; exit 0
+      printf '%s' "$PCRT_PR_JSON" | jq -r "$_jqprog"; exit $?
     fi
     printf '%s' "${PCRT_PR_STATE-open}"; exit 0 ;;
 esac
@@ -4910,9 +4910,23 @@ assert_eq "pcrt #2067-open-null: the posting arm made exactly ONE PR-state read"
 pcrt_run PCRT_LIST_OUT="" PCRT_PR_JSON='{"state":"open","merged":false}'
 assert_eq "pcrt #2067-open-absent: a response with no auto_merge key behaves as null and still posts" \
   "1" "$PCRT_POSTS"
+assert_eq "pcrt #2067-open-absent: the posting arm made exactly ONE PR-state read" \
+  "1" "$PCRT_STATE_READS"
+
+# Adversarial non-object shape: a response the helper's jq cannot index (`.merged` on
+# an array errors → gh exits non-zero) drives the fail-closed unreadable-state arm —
+# the stub propagates jq's real exit status (exit $?), so this reaches the helper's
+# `if !` guard exactly as real gh would.
+pcrt_run PCRT_LIST_OUT="" PCRT_PR_JSON='[]'
+assert_eq "pcrt #2067-non-object: a non-object state response fails CLOSED, posting nothing" \
+  "0" "$PCRT_POSTS"
+assert_eq "pcrt #2067-non-object: the fail-closed arm warns naming the unresolved state" \
+  "1" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::ci auto-review trigger: could not read PR #7 state.*fail-closed')"
 
 # Ordering — a MERGED PR still carrying an auto_merge record (the PR #2059 shape)
-# takes the merged arm; reordering the case arms would break this.
+# takes the merged arm; the jq testing `.merged` before the auto_merge branch (and
+# that branch's `.state == "open"` guard) is what guarantees it — reorder either and
+# this breaks.
 pcrt_run PCRT_PR_JSON='{"state":"closed","merged":true,"auto_merge":{"enabled_by":{"login":"octocat"},"merge_method":"squash"}}'
 assert_eq "pcrt #2067-merged-armed: a MERGED PR still carrying an auto_merge record posts nothing" \
   "0" "$PCRT_POSTS"
