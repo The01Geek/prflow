@@ -1,11 +1,11 @@
 {
   "files": {
-    "lib/efficiency-trace.sh": "be5a46ebebef2741932cd155a8aa11486f52b4865752bf0417de3afe7d7e841a",
+    "lib/efficiency-trace.sh": "a1ee5306d394a4677595ca93c50e01bb9a213f3fcaf026d5737d2de9ab3a871d",
     "scripts/apply-issue-dependencies.py": "7310a57b8636fc42ee7ae00fe8d4dd9e9111f08abed08031d33bcd38942449fa",
     "scripts/apply-labels.sh": "90f665a49c447107e2ea08e35767c2f7c2bde5a45b3d62c48c209ed30e049ae2",
     "scripts/branch-for-issue.py": "3261a27aaba107f99f9f93f3d8df32b7cd3bcababd7b2d58bd815d22d22ea539",
     "scripts/check-completion-evidence.py": "f61453e7a25343aa0eda706df0bc175030ee8c282796a7cf3e9df2a9fad15a7c",
-    "scripts/config-get.sh": "88e5400da8a54964bdddddf0f1c2e4730f122be8d8e1d727aa03902b6b97c264",
+    "scripts/config-get.sh": "74e43a5b5b923901c59d9e58217bb6fb0d1758e20e6226ab2ed6e9d51d4dd195",
     "scripts/discover-deferral-manifests.py": "b1f60b43a635731810f5dfecffd5223e7b0d93d07a8219ed334a0291ad67bf4e",
     "scripts/dismiss-stale-rejections.sh": "86e002098a5b59f4d396e20a510bd757c8c9dfcdac1d267aa6631171521bfe3e",
     "scripts/ensure-label.sh": "334e91ed92bee47be931770a75e6d085e1ce7ad042e4e7099cffa76f747a06e1",
