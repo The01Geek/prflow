@@ -1087,4 +1087,57 @@ assert_eq "pea classify-ladder: content-present wins over present-empty → arri
 
 rm -rf "$PEA_DIR"
 
+# ── issue #1971: devflow.yml "Reconcile prompt-extension arrival" job-level arms ──
+# The review/command tier's post-agent reconcile fails CLOSED on every expectation it
+# cannot reconcile on a successful agent run — `detector-absent` (an older vendored
+# prflow_version) included, exactly as devflow-implement.yml's #1446 pair already does.
+# Downgrading that arm to a warning would let a review run whose skill body may never
+# have loaded post a green verdict, which is the failure this surface exists to catch.
+RCN_DIR="$(mktemp -d)"
+mkdir -p "$RCN_DIR/bin"
+printf '%s\n' '#!/bin/sh' 'echo "gh $*" >> "$GH_CALLS"' 'exit 0' > "$RCN_DIR/bin/gh"
+chmod +x "$RCN_DIR/bin/gh"
+python3 - "$LIB/../.github/workflows/devflow.yml" "$RCN_DIR/reconcile.sh" <<'RCNPY'
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+body = ""
+for job in d["jobs"].values():
+    for step in job.get("steps") or []:
+        if str(step.get("name", "")).startswith("Reconcile prompt-extension"):
+            body = step["run"]
+open(sys.argv[2], "w").write(body)
+RCNPY
+# A step whose run: body could not be extracted would make every assertion below pass
+# vacuously against an empty script.
+assert_eq "reconcile step: run: body extracted from devflow.yml" "yes" \
+  "$(case "$(cat "$RCN_DIR/reconcile.sh")" in *record_non_arrival*) echo yes ;; *) echo no ;; esac)"
+
+devflow_rcn_run() {
+  # $1 EXPECTED, $2 AGENT_OUTCOME; echoes the exit code, leaving output in $RCN_DIR/out.
+  GH_CALLS="$RCN_DIR/gh-calls" \
+  PATH="$RCN_DIR/bin:$PATH" \
+  CMD="/prflow:review 2000" EXPECTED="$1" SKILL=review AGENT_OUTCOME="$2" \
+  REPO=owner/repo GH_TOKEN=x \
+    bash "$RCN_DIR/reconcile.sh" > "$RCN_DIR/out" 2>&1
+  echo "$?"
+}
+
+: > "$RCN_DIR/gh-calls"
+RCN_RC="$(devflow_rcn_run detector-absent success)"
+assert_eq "reconcile: detector-absent + success → exit 1 (fails closed)" "1" "$RCN_RC"
+assert_eq "reconcile: detector-absent + success → ::error:: emitted" "yes" \
+  "$(case "$(cat "$RCN_DIR/out")" in *"::error::prompt-extension-arrival"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "reconcile: detector-absent + success → durable non-arrival record posted to the PR" "yes" \
+  "$(case "$(cat "$RCN_DIR/gh-calls")" in *"repos/owner/repo/issues/2000/comments"*) echo yes ;; *) echo no ;; esac)"
+
+# An already non-green run is not re-failed here: doing so would add no signal.
+RCN_RC="$(devflow_rcn_run detector-absent failure)"
+assert_eq "reconcile: detector-absent + non-success → exit 0 (already non-green)" "0" "$RCN_RC"
+
+# `absent` is a clean consumer state (no extension file), never a fail-closed arm.
+RCN_RC="$(devflow_rcn_run absent success)"
+assert_eq "reconcile: absent + success → exit 0 (clean consumer state)" "0" "$RCN_RC"
+
+rm -rf "$RCN_DIR"
+
 rm -rf "$LPE_DIR"
