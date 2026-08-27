@@ -1639,8 +1639,10 @@ JSON
   # 5a. Strip the withheld auto-review tier's dead config settings (issue #2071) on
   #     every apply, independent of --remove-withheld-review-tier. scaffold-config.sh
   #     above only backfills; this is the one step that DELETES, so a consumer stops
-  #     carrying settings nothing in a fresh install can read.
-  devflow_strip_withheld_review_settings
+  #     carrying settings nothing in a fresh install can read. Best-effort like the rest
+  #     of the apply: a fail-closed rc 1 (no python3 / unsafe shape) is already logged and
+  #     must not abort the whole install under set -e, so the non-zero is tolerated here.
+  devflow_strip_withheld_review_settings || true
 
   # 5b. Gitignore the runtime-vendored tree for thin installs (and un-ignore it for
   #     DEVFLOW_VENDOR=1, which commits it). Runs after scaffold so .prflow/.gitignore exists.
