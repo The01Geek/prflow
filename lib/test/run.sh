@@ -18211,7 +18211,7 @@ echo "review/implement trigger helpers (derive-review-verdict.sh … resolve-com
 # together, or test_module_runner.py's tranche test goes RED.
 # See the module's .inventory.md for the coverage map back to these locations.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-trigger-helpers.sh" \
-  "review-trigger-helpers" 844; then
+  "review-trigger-helpers" 864; then
   printf 'ERROR: review-trigger-helpers boundary could not record its result\n'
   exit 1
 fi

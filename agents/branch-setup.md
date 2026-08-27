@@ -70,9 +70,9 @@ PR_JSON='[]'
 
 **Record this pre-check's answer durably** so a maintainer can tell an adoption from a first attempt without opening the run log. Write exactly **one** durable `## Progress` note per run whose text begins `resume-precheck: ` and names the observable state consulted — the workpad `**Branch:**` value (or `absent`), whether each query ran, and what was selected. One of three shapes:
 
-- **Adopted** — `resume-precheck: adopted PR #<n> (head <headRefName>, selected by the <head|body> query, closes-issue <yes|by-construction>); workpad Branch line <name|absent>; skipping branch creation and both signals`
-- **Queried cleanly, none found** — `resume-precheck: both open-PR queries ran and returned none for this issue; workpad Branch line <name|absent>; no prior attempt to adopt`
-- **Unresolvable** — the reflection named in the EMPTY-`PR_JSON` bullet below, whose text likewise begins `resume-precheck: `.
+- **Adopted** — `"$WORKPAD" update $ISSUE_NUMBER --note "resume-precheck: adopted PR #<n> (head <headRefName>, selected by the <head|body> query, closes-issue <yes|by-construction>); workpad Branch line <name|absent>; skipping branch creation and both signals"`
+- **Queried cleanly, none found** — `"$WORKPAD" update $ISSUE_NUMBER --note "resume-precheck: both open-PR queries ran and returned none for this issue; workpad Branch line <name|absent>; no prior attempt to adopt"`
+- **Unresolvable** — the `## Progress` note named in the EMPTY-`PR_JSON` bullet below, whose text likewise begins `resume-precheck: `.
 
 **When an open PR for the issue exists**, that PR's head branch is the branch this run continues. Check it out — fetching it first when it is absent locally — and **only once you have confirmed the tree landed on `$HEAD_REF`** skip branch creation and both signals. The skip is never unconditional: a `git fetch` that fails, a deleted remote ref, or a checkout refused by local modifications would otherwise leave you on the harness's fresh branch with the signals already waived. Capture the checkout's stderr in the **same statement** that runs it — git's worktree refusal `fatal: '<branch>' is already used by worktree at '<path>'` is the only discriminator between the two failure shapes below (match `already used by worktree`; git before 2.43 worded it `already checked out at`, retained as a secondary alternative):
 
@@ -126,7 +126,7 @@ Route on `PR_JSON`, `HEAD_REF`, `LANDED`, and `$CO_ERR`:
 
 **When there is no workpad `Branch` line and no open PR for the issue** — `PR_JSON` is the literal `[]`, meaning the queries *ran* and found nothing — this pre-check adopts nothing: record the **Queried cleanly, none found** note and fall through to the Signals.
 
-**An EMPTY `PR_JSON` is not that case, and must never be read as one.** An unresolvable PR query is not evidence that no PR exists, so record it before falling through — `"$WORKPAD" update $ISSUE_NUMBER --reflection-kind note --reflection "resume-precheck: the open-PR query could not be resolved (gh failed); could not confirm whether an open PR exists, falling through to branch creation — if a prior attempt's PR exists, this run may duplicate it"` — then continue to the Signals.
+**An EMPTY `PR_JSON` is not that case, and must never be read as one.** An unresolvable PR query is not evidence that no PR exists, so record it before falling through — `"$WORKPAD" update $ISSUE_NUMBER --note "resume-precheck: the open-PR query could not be resolved (gh failed); could not confirm whether an open PR exists, falling through to branch creation — if a prior attempt's PR exists, this run may duplicate it"` — then continue to the Signals.
 
 ## Signals
 

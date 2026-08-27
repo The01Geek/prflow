@@ -4,6 +4,21 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.6] — 2026-08-27
+
+### Fixed
+- **The CI-green auto-review trigger no longer requests a review for a pull request set to auto-merge.** `scripts/post-ci-review-trigger.sh`'s post-time state guard now reads the `auto_merge` field from the pull-request response it already fetches: an open pull request with GitHub auto-merge armed gets no `/prflow:review` comment and a distinct warning annotation naming enabled auto-merge, so the trigger stops racing the coming merge onto an already-merged target (a paid review with no reader). The merged test is still decided first and the new state is emitted only for an open pull request, so the existing merged/closed/unestablished arms are unchanged; the helper still makes a single state request. In a repository that also requires an approving review the armed pull request does not merge at CI-green, so this arm withholds the automatic request and the manual `/prflow:review` comment remains the supported path. (#2072)
+
+## [2.35.5] — 2026-08-27
+
+### Fixed
+- **Trim boilerplate from the implement run's workpad Notes.** The implement skill no longer
+  records a fixed Reflection note naming how it resolved its skill directory, and the branch
+  resume pre-check now writes its `resume-precheck:` record to `## Progress` instead of the
+  Reflection block, matching the instruction that already called for a `## Progress` note;
+  its adopted, queried-cleanly-none-found, and unresolvable recording cases each carry a
+  written-out command. The reader and the internal docs were reconciled to match. (#2062)
+
 ## [2.35.4] — 2026-08-27
 
 ### Added
