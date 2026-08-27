@@ -4923,10 +4923,9 @@ assert_eq "pcrt #2067-non-object: a non-object state response fails CLOSED, post
 assert_eq "pcrt #2067-non-object: the fail-closed arm warns naming the unresolved state" \
   "1" "$(printf '%s\n' "$PCRT_OUT" | grep -c '^::warning::ci auto-review trigger: could not read PR #7 state.*fail-closed')"
 
-# Ordering — a MERGED PR still carrying an auto_merge record (the PR #2059 shape)
-# takes the merged arm; the jq testing `.merged` before the auto_merge branch (and
-# that branch's `.state == "open"` guard) is what guarantees it — reorder either and
-# this breaks.
+# Ordering — a MERGED PR still carrying an auto_merge record (the PR #2059 shape) takes
+# the merged arm because the auto_merge branch's `.state == "open"` guard excludes any
+# closed/merged PR; drop that guard and this breaks.
 pcrt_run PCRT_PR_JSON='{"state":"closed","merged":true,"auto_merge":{"enabled_by":{"login":"octocat"},"merge_method":"squash"}}'
 assert_eq "pcrt #2067-merged-armed: a MERGED PR still carrying an auto_merge record posts nothing" \
   "0" "$PCRT_POSTS"
