@@ -6204,6 +6204,139 @@ try:
             assert_eq("#1388 helper: unwritable target named", True, "unwritable target" in _out)
         finally:
             _ro.chmod(0o755)
+
+    # ── issue #2050: the unsupported-platform degrade arm purges a stale off-version
+    #    cache-restored binary from DEST_BIN before it is appended to GITHUB_PATH ──
+    def _plant_bin_2050(dest, name, version_report):
+        dest.mkdir(parents=True, exist_ok=True)
+        exe = dest / name
+        exe.write_text(f"#!/bin/sh\necho '{name} {version_report}'\n", encoding="utf-8")
+        exe.chmod(0o755)
+        return exe
+
+    # (a) A stale off-version ruff in DEST_BIN on the degrade arm is deleted + named; the arm
+    #     still warns and continues (rc 0). The manifest pins ruff 1.0.0; the stale reports 0.0.1.
+    _db_stale = _d1388b / "degrade-stale-bin"
+    _stale2050 = _plant_bin_2050(_db_stale, "ruff", "0.0.1")
+    _rc, _out = _run_helper_1388(_repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_stale)
+    assert_eq("#2050 degrade arm: rc 0 (warn-and-continue preserved)", 0, _rc)
+    assert_eq("#2050 degrade arm: stale off-version binary deleted from DEST_BIN", False, _stale2050.exists())
+    assert_eq("#2050 degrade arm: output names the deleted binary", True,
+              "deleted stale off-version binary" in _out and str(_stale2050) in _out)
+    assert_eq("#2050 degrade arm: still emits the unsupported-platform warning", True, "::warning::" in _out)
+
+    # (b) A version-MATCHING binary in DEST_BIN on the degrade arm is a legitimate reuse and
+    #     survives (delete only the FAILING binaries). Manifest pins ruff 1.0.0.
+    _db_ok = _d1388b / "degrade-ok-bin"
+    _okbin2050 = _plant_bin_2050(_db_ok, "ruff", "1.0.0")
+    _rc, _out = _run_helper_1388(_repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_ok)
+    assert_eq("#2050 degrade arm: version-matching binary survives the purge", True, _okbin2050.exists())
+    assert_eq("#2050 degrade arm: no deletion line for a version-matching binary", False,
+              "deleted stale off-version binary" in _out)
+
+    # (b2) A MULTI-member tool. Do not turn the purge loop's version-match `continue` into a
+    #      `break`: every other fixture plants one member, so only a manifest whose artifacts
+    #      contribute two members shows a matching member ending the loop before a stale one.
+    #      Iteration order is `sorted()`, so "ruff" (matching) is visited before "ruff.exe" (stale).
+    _mm_manifest = _mk_manifest_1388(_dig)
+    _mm_manifest["tools"]["ruff"]["artifacts"].append(
+        {"os": "windows", "arch": "x86_64", "digest": "sha256:" + "c" * 64,
+         "archive_type": "zip", "member": "ruff.exe", "strategy": "extract-zip"})
+    _repo_mm = _mk_repo_1388(_d1388b / "mm2050-repo", _mm_manifest)
+    _db_mm = _d1388b / "degrade-multimember-bin"
+    _mm_ok = _plant_bin_2050(_db_mm, "ruff", "1.0.0")
+    _mm_stale = _plant_bin_2050(_db_mm, "ruff.exe", "0.0.1")
+    _rc, _out = _run_helper_1388(_repo_mm, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_mm)
+    assert_eq("#2050 degrade arm: multi-member purge keeps rc 0", 0, _rc)
+    assert_eq("#2050 degrade arm: multi-member purge deletes the stale member past a matching one",
+              False, _mm_stale.exists())
+    assert_eq("#2050 degrade arm: multi-member purge keeps the version-matching member", True,
+              _mm_ok.exists())
+    assert_eq("#2050 degrade arm: multi-member purge names only the stale member it deleted", True,
+              str(_mm_stale) in _out and f"binary {_mm_ok} " not in _out)
+
+    # (c) Control — the SUPPORTED path never runs the purge: a stale shellcheck in DEST_BIN is
+    #     re-installed (overwritten) to the pinned version, not routed through the degrade delete.
+    #     Build a FRESH archive+repo (the shared _arc file is overwritten by later fixtures above).
+    _ctrl_dir = _d1388b / "ctrl2050"
+    _ctrl_dir.mkdir(exist_ok=True)
+    _ctrl_arc, _ctrl_dig = _mk_archive_1388(_ctrl_dir, "shellcheck", "9.9.9")
+    _repo_ctrl = _mk_repo_1388(_d1388b / "ctrl2050-repo", _mk_manifest_1388(_ctrl_dig))
+    _db_ctrl = _d1388b / "supported-ctrl-bin"
+    _plant_bin_2050(_db_ctrl, "shellcheck", "0.0.1")
+    _rc, _out = _run_helper_1388(_repo_ctrl, tools="shellcheck", archive=_ctrl_arc, dest_bin=_db_ctrl)
+    assert_eq("#2050 control: supported-path install succeeds (rc 0)", 0, _rc)
+    assert_eq("#2050 control: supported path installs the pinned shellcheck", True, (_db_ctrl / "shellcheck").exists())
+    assert_eq("#2050 control: supported path never runs the degrade purge", False,
+              "deleted stale off-version binary" in _out)
+
+    # ── The purge's three defensive arms. Do not drive the two unreadable arms with a
+    #    malformed manifest: lint_manifest rejects a missing `version` and an empty
+    #    `artifacts`, so such a fixture never reaches the degrade arm at all.
+    def _fault_py_2050(path, marker):
+        """A python3 shim that exits 1 for the one -c program containing `marker`
+        and execs the real interpreter for every other call."""
+        path.write_text(
+            "#!/bin/sh\n"
+            "for a in \"$@\"; do\n"
+            f"  case \"$a\" in *'{marker}'*) exit 1;; esac\n"
+            "done\n"
+            f"exec {sys.executable} \"$@\"\n", encoding="utf-8")
+        path.chmod(0o755)
+        return path
+
+    # (d) Unreadable manifest version -> purge skipped, breadcrumbed, binary KEPT.
+    _db_nover = _d1388b / "degrade-nover-bin"
+    _nover2050 = _plant_bin_2050(_db_nover, "ruff", "0.0.1")
+    _rc, _out = _run_helper_1388(
+        _repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_nover,
+        extra_env={"LINTPROV_PYTHON": str(_fault_py_2050(_d1388b / "py-nover.sh", '["version"]'))})
+    assert_eq("#2050 degrade arm: unreadable manifest version keeps rc 0", 0, _rc)
+    assert_eq("#2050 degrade arm: unreadable manifest version breadcrumbs the skipped purge", True,
+              "could not read the manifest version; stale-binary purge skipped" in _out)
+    assert_eq("#2050 degrade arm: unreadable manifest version does NOT delete the binary", True,
+              _nover2050.exists())
+
+    # (e) Readable version but unreadable artifact members -> same skip-and-breadcrumb.
+    _db_nomem = _d1388b / "degrade-nomem-bin"
+    _nomem2050 = _plant_bin_2050(_db_nomem, "ruff", "0.0.1")
+    _rc, _out = _run_helper_1388(
+        _repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_nomem,
+        extra_env={"LINTPROV_PYTHON": str(_fault_py_2050(_d1388b / "py-nomem.sh", 'a["member"]'))})
+    assert_eq("#2050 degrade arm: unreadable artifact members keeps rc 0", 0, _rc)
+    assert_eq("#2050 degrade arm: unreadable artifact members breadcrumbs the skipped purge", True,
+              "could not read artifact members; stale-binary purge skipped" in _out)
+    assert_eq("#2050 degrade arm: unreadable artifact members does NOT delete the binary", True,
+              _nomem2050.exists())
+    assert_eq("#2050 degrade arm: the members arm still read the version (no version breadcrumb)", False,
+              "could not read the manifest version" in _out)
+
+    # (f) The delete itself fails (read-only DEST_BIN) -> warn that the binary may still
+    #     shadow PATH, and still continue. Under a privileged uid the rm succeeds, so the
+    #     correct behaviour there is the deletion arm — assert whichever the uid permits.
+    _db_ro = _d1388b / "degrade-ro-bin"
+    _ro2050 = _plant_bin_2050(_db_ro, "ruff", "0.0.1")
+    _db_ro.chmod(0o555)
+    try:
+        try:
+            (_db_ro / "probe").write_text("x", encoding="utf-8")
+            _ro_enforced = False
+            (_db_ro / "probe").unlink()
+        except OSError:
+            _ro_enforced = True
+        _rc, _out = _run_helper_1388(_repo, tools="ruff", arch="arm64", archive=_arc, dest_bin=_db_ro)
+        assert_eq("#2050 degrade arm: undeletable stale binary keeps rc 0", 0, _rc)
+        if _ro_enforced:
+            assert_eq("#2050 degrade arm: undeletable stale binary warns it may still shadow PATH", True,
+                      "could not delete stale off-version binary" in _out and "may still shadow PATH" in _out)
+            assert_eq("#2050 degrade arm: undeletable stale binary names the path it warns about", True,
+                      str(_ro2050) in _out)
+            assert_eq("#2050 degrade arm: undeletable stale binary is still present", True, _ro2050.exists())
+        else:
+            assert_eq("#2050 degrade arm: privileged uid takes the deletion arm instead", True,
+                      "deleted stale off-version binary" in _out)
+    finally:
+        _db_ro.chmod(0o755)
 finally:
     shutil.rmtree(_d1388b, ignore_errors=True)
 
