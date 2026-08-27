@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2036",
+  "generated_at": "2026-08-27T17:12:45Z",
+  "config_fingerprint": {
+    "sha256": "c2dd346fdf78eacf9e402b333f46db8770aa0afa8742a7dc4ac5d1139ba96283",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "recurring_defect_kinds": "unestablished",
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:code-reviewer",
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:type-design-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 6,
+      "phase3_dispatched_present": true,
+      "phase3_failed_agents_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "prflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:type-design-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": true,
+        "engine_self_modifying": true,
+        "detect_all_audit": true
+      },
+      "verification_posture": "agent-only",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 10,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:code-reviewer",
+          "verdict": null,
+          "disposition": "silent",
+          "fix_decisions": []
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": null,
+          "disposition": "silent",
+          "fix_decisions": []
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": "unique-effective",
+          "disposition": "returned",
+          "fix_decisions": []
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": null,
+          "disposition": "silent",
+          "fix_decisions": []
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": null,
+          "disposition": "silent",
+          "fix_decisions": []
+        },
+        {
+          "agent": "prflow:type-design-analyzer",
+          "verdict": "unique-effective",
+          "disposition": "returned",
+          "fix_decisions": []
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    }
+  ]
+}
