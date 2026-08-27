@@ -1,0 +1,275 @@
+{
+ "root_completeness": "complete",
+ "engine_dir": "/Users/the01geek/repos/devflow-autopilot/.claude/worktrees/pr-2041/skills/review",
+ "engine_dir_candidate_resolved": "candidate 1 (<worktree>/skills/review)",
+ "iteration": 5,
+ "dispatch_mode": "engine-executed in-session (Phases 0-4.3; Phase 4.4 skipped per fix-loop path)",
+ "verdict": "REJECT",
+ "verdict_threshold": "critical",
+ "fix_threshold": "suggestion",
+ "verdict_drivers": [
+  "Threshold-independent self-contradicting-diff carve-out: Important finding 1 - scripts/config-get.sh:199 diff-added header comment 'missing python3 or any read error -> return 1 (telemetry on)' is false against HEAD after iteration 4's own sweep made that inline copy three-way {0,1,2}; a read/parse error now returns 2. Non-demotable, corroborated 2/3. NOT covered by the Phase 4.1.5 behavior-inert cap: vendor-slice.sh line 74 copies $src/scripts into every consumer slice and line 110 prunes only docs/site, docs/external, docs/internal and lib/test, so config-get.sh ships and its comment is prose a consumer holds.",
+  "Rule 1: 1 verification-checklist FAIL (VC-12)"
+ ],
+ "reviewed_head": "356bf013ab30803a5aa5c218a19f86384042557b",
+ "base": "8773b1eb8ea151baa9a8d53baa299a569cda6609 (origin/main; merge-base with HEAD)",
+ "head_override": "none",
+ "tree_identity": "clean; git rev-parse HEAD == reviewed head",
+ "diff_profile": {
+  "small_diff": false,
+  "config_only": false,
+  "has_new_types": false,
+  "engine_self_modifying": true,
+  "detect_all_audit": false,
+  "sections": 13,
+  "note": "13 files, unchanged scope from iteration 4."
+ },
+ "extension_status": "content-present (arrived) - scripts/load-prompt-extension.sh review, read whole",
+ "checklist_summary": {
+  "total": 16,
+  "passed": 15,
+  "failed": 1,
+  "inconclusive": 0,
+  "orchestrator_direct": 16,
+  "failed_items": [
+   {
+    "id": "VC-12",
+    "claim": "scripts/config-get.sh's telemetry_master_disables_for header comment accurately states the function's return contract against HEAD",
+    "evidence": "False. Line 199 reads 'Best-effort: missing python3 or any read error -> return 1 (telemetry on).' The inline predicate at lines 217-228 returns 2 on a read/parse error (except Exception: sys.exit(2)) and 2 on a non-dict top level. Only the missing-python3 arm (line 209) and the non-enrolled case arm (line 207) return 1. Directly contradicted by the comment the same sweep added 15 lines below ('Carries the same {0,1,2} exit contract as the other two copies').",
+    "inaccuracy_scope": "source_authored_text",
+    "source_file": "scripts/config-get.sh"
+   }
+  ],
+  "resolved_from_iteration_4": [
+   "VC-9 now PASS",
+   "VC-10 now PASS",
+   "VC-11 now PASS"
+  ]
+ },
+ "issue_compliance": {
+  "issue": 2035,
+  "criteria_total": 8,
+  "criteria_met": 8,
+  "acceptance_criteria_divergence": "none",
+  "scope": "unchanged",
+  "note": "All eight acceptance criteria remain met by the shipped behaviour; the sole REJECT driver is diff-added comment prose that is false against HEAD, not an unmet criterion."
+ },
+ "phase3_dispatched": [
+  "prflow:comment-analyzer",
+  "prflow:silent-failure-hunter",
+  "prflow:requesting-code-review (as general-purpose Task; the prflow:requesting-code-review agent type is not registered in this session, so the skill was dispatched per the engine's final-pass contract)"
+ ],
+ "expected_reviewers": [
+  "prflow:silent-failure-hunter",
+  "prflow:comment-analyzer",
+  "prflow:requesting-code-review"
+ ],
+ "phase3_failed_agents": [],
+ "gated_out_agents": [
+  {
+   "agent": "prflow:type-design-analyzer",
+   "reason": "has_new_types false"
+  },
+  {
+   "agent": "prflow:code-reviewer",
+   "reason": "iterations: first-only, excluded on iteration 5"
+  },
+  {
+   "agent": "prflow:pr-test-analyzer",
+   "reason": "iterations: first-only, excluded on iteration 5"
+  }
+ ],
+ "verification_evidence_advisory": "Focused module lib/test/run-module.sh efficiency-trace-telemetry: 1126 passed, 0 failed. ruff check scripts/telemetry-master-off.py clean. shellcheck --severity=warning -e SC1091 over the three touched shell files clean. Whole-suite completion gate NOT discharged by this review (local tier discharges it by a CI reading for a pushed commit).",
+ "phase3_findings": [
+  {
+   "agent": "prflow:silent-failure-hunter + prflow:requesting-code-review",
+   "severity": "Important",
+   "description": "NEW REGRESSION INTRODUCED BY ITERATION 4'S OWN SWEEP. scripts/config-get.sh:199 - the header comment on telemetry_master_disables_for - still reads 'Best-effort: missing python3 or any read error -> return 1 (telemetry on).' The sweep (commit 19284bc91) changed that function's inline python3 -c from a two-way {0,1} contract to the three-way {0,1,2} contract, so a read/parse error and a non-dict top level now return 2, not 1. The sweep edited the body and the comment 15 lines below it but left this header untouched, producing a direct intra-function, intra-diff contradiction with its own added line 'Carries the same {0,1,2} exit contract as the other two copies'. Behaviour is unaffected (the sole caller tests zero-ness only), but this is the same documented_falsehood class as iteration 4's finding 1, recreated one level up by the fix for finding 1 - the FOURTH consecutive iteration whose fix wording introduced exactly one new false claim. Remedy: 'missing python3 -> 1; a read/parse error -> 2; every non-zero means telemetry on'.",
+   "defect_signature": {
+    "file": "scripts/config-get.sh",
+    "line_range": [
+     197,
+     199
+    ],
+    "kind": "documented_falsehood"
+   },
+   "corroboration_count": 2,
+   "corroborating_agents": [
+    "prflow:silent-failure-hunter",
+    "prflow:requesting-code-review"
+   ],
+   "corroborating_checklist_item": "VC-12",
+   "self_contradicting_diff_carve_out": true,
+   "phase_4_1_5_cap": "not applied - limb two fails: vendor-slice.sh:74 copies $src/scripts into the vendored slice and :110 prunes only docs/site, docs/external, docs/internal and lib/test, so scripts/config-get.sh ships into every consumer repo. Limb one not reached.",
+   "phase_4_1_6": "promoted-confirmed: verified by direct read of the inline body (except Exception -> sys.exit(2); not isinstance(data, dict) -> sys.exit(2)) and by the silent-failure-hunter's 16-shape input matrix.",
+   "contributed_to_verdict": true,
+   "regression_introduced_by_this_iteration_fix": true
+  },
+  {
+   "agent": "prflow:requesting-code-review + prflow:comment-analyzer",
+   "severity": "Important",
+   "description": "docs/external/docs/configuration/observability-and-privacy.md:70 still states turning telemetry off 'saves only a small amount of run time (measured at roughly 1-3% of a run)'. Unsourced measurement-shaped claim in shipped customer docs; git log -S shows it entered in commit 51cfdb331 and has survived all four fix iterations, raised in every one. It traces only to issue #2035's own User Impact section - no artifact in the repository measures it - and it is registered in no exempt-literal record as a past-time snapshot, an enforcement constant or a future target. NOT routed into the carve-out: unsourced is unestablished rather than demonstrated-false (the figure may have been measured outside the repo by the issue author), consistent with iterations 1-4's adjudication. Remedy: drop the parenthetical - the sentence stands without it - or register it as a dated past-time snapshot naming the measurement.",
+   "defect_signature": {
+    "file": "docs/external/docs/configuration/observability-and-privacy.md",
+    "line_range": [
+     70,
+     70
+    ],
+    "kind": "unsupported_claim"
+   },
+   "corroboration_count": 2,
+   "contributed_to_verdict": false,
+   "raised_in_iterations": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ]
+  },
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Suggestion",
+   "description": "lib/test/modules/efficiency-trace-telemetry.sh:6870-6873 explains the AC6 stderr byte-identity assertion as holding 'because a non-enrolled key hits telemetry_master_disables_for's `case *) return 1` before any output.' Verified false: in scripts/config-get.sh's emit_default_or_fail, probe_superseded_key runs FIRST and emits the migration breadcrumb, and only then is telemetry_master_disables_for called - the breadcrumb is already on stderr when the case arm is reached. The assertion itself is correct (the breadcrumb is byte-identical because probe_superseded_key runs unconditionally and identically in both configs), but the stated reason is wrong.",
+   "defect_signature": {
+    "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+    "line_range": [
+     6870,
+     6875
+    ],
+    "kind": "documented_falsehood"
+   },
+   "corroboration_count": 1,
+   "phase_4_1_5_cap": "applied - capped to Suggestion. Limb two passes: vendor-slice.sh:110 prunes $stage/lib/test, so this comment reaches no consumer; its sole reader is a maintainer of this repository. Outside the carve-out, so it drives no REJECT at the critical threshold.",
+   "contributed_to_verdict": false
+  },
+  {
+   "agent": "prflow:comment-analyzer",
+   "severity": "Suggestion",
+   "description": "scripts/collect-staged-telemetry.sh:34-36 says the config is resolved 'through the same override-then-state-dir ladder every other reader uses'. The universal is loose: scripts/config-get.sh (a reader, and host of the third predicate copy) reads no DEVFLOW_CONFIG_FILE at all - its override is a positional third argument, then prflow_state_dir against the git repo root. Adjudicated NOT a carve-out finding: config-get.sh does walk an override-then-state-dir ladder, differing only in the override channel, so the claim is imprecise rather than false, and its load-bearing half (state-dir resolution rather than a hardcoded .prflow/) is true of every reader. Remedy: name the gate it must agree with ('the same ladder lib/config-source.sh uses, so this gate reads the same file as the --persist gate').",
+   "defect_signature": {
+    "file": "scripts/collect-staged-telemetry.sh",
+    "line_range": [
+     34,
+     36
+    ],
+    "kind": "imprecise_claim"
+   },
+   "corroboration_count": 1,
+   "contributed_to_verdict": false
+  },
+  {
+   "agent": "prflow:comment-analyzer + prflow:requesting-code-review",
+   "severity": "Suggestion",
+   "description": "Prevention-only comment cap still exceeded at two sites. lib/efficiency-trace.sh:1833-1839 went from 8 to 7 physical lines - under the three-line cap only if read as three separate prohibition clauses (3+2+2); as one contiguous block it is over, so the sweep's commit message overstates 'trimmed back under the prevention-only cap'. The sweep also GREW scripts/config-get.sh's block from 4 to 6 lines (210-215); the added clause 'a 2-way copy would falsify their shared docstring' is derivation pointing at prose rather than a named wrong change. Remedy: separate the clauses with blank comment lines so each reads as its own capped comment, or move the derivation to docs/internal per the \u00a72.3 rule.",
+   "defect_signature": {
+    "file": "lib/efficiency-trace.sh",
+    "line_range": [
+     1833,
+     1839
+    ],
+    "kind": "comment_policy_violation"
+   },
+   "corroboration_count": 2,
+   "contributed_to_verdict": false
+  },
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Suggestion",
+   "description": "test_gap, carried over unchanged from iteration 4 (the sweep added no assertions). The 'master switch was NOT consulted' announcement is regression-covered only for scripts/collect-staged-telemetry.sh (assertions at :6995 python3-absent and :7006 helper-absent). lib/efficiency-trace.sh do_persist's python3-absent arm (:1840) and its rc==2 corrupt-config arm (:1865), and scripts/config-get.sh's `command -v python3 || return 1` fall-through (:209), have no assertion - a regression dropping either announcement would stay green. The efficiency-trace.sh arm is reachable with the same PATH=<empty-dir> plus absolute-bash technique the collect test already uses.",
+   "defect_signature": {
+    "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+    "line_range": [
+     6985,
+     7010
+    ],
+    "kind": "test_gap"
+   },
+   "corroboration_count": 1,
+   "contributed_to_verdict": false
+  },
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Suggestion",
+   "description": ".prflow/config.schema.json:1147's telemetry.enabled description ends 'Read at RUNTIME through scripts/config-get.sh (and scripts/telemetry-master-off.py) against the checked-out tree'; docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:1148 carries the same pairing. The parenthetical reads as though config-get.sh delegates to telemetry-master-off.py - it never execs or imports it (it carries its own inline copy precisely because it is an issue-#458 Stop-hook closure member; HOOK_TARGETS confirms membership and excludes the .py). The .py's only exec caller is scripts/collect-staged-telemetry.sh, and lib/efficiency-trace.sh - the third reader - is absent from the sentence. NOT RESOLVED from iteration 4; the sweep did not touch the schema.",
+   "defect_signature": {
+    "file": ".prflow/config.schema.json",
+    "line_range": [
+     1147,
+     1147
+    ],
+    "kind": "misleading_reader_attribution"
+   },
+   "corroboration_count": 1,
+   "contributed_to_verdict": false
+  },
+  {
+   "agent": "prflow:requesting-code-review",
+   "severity": "Suggestion",
+   "description": "The non-resolving-states enumeration reads as closed and is incomplete on six shipped surfaces: .prflow/config.schema.json:1147 plus the four enrolled sub-key descriptions ('absent, JSON null, or an empty string') and docs/external/.../observability-and-privacy.md:62. An empty JSON array is a fourth such state - verified by execution against this branch's own resolver: with {\"telemetry\":{\"enabled\":false},\"prflow\":{\"execution_diagnostics_enabled\":[]}} config-get.sh prints false, and with the master absent the same shape prints the caller default. (An empty JSON object does NOT - it resolves to a literal.) The governing clause 'does not resolve to a value' stays true, so this is an incomplete illustration. Remedy: open the list ('for example, absent, JSON null, an empty string, or an empty array') rather than adding a fifth literal. NOT RESOLVED from iteration 4.",
+   "defect_signature": {
+    "file": ".prflow/config.schema.json",
+    "line_range": [
+     1147,
+     1147
+    ],
+    "kind": "closed_enumeration_incomplete"
+   },
+   "corroboration_count": 1,
+   "contributed_to_verdict": false
+  },
+  {
+   "agent": "prflow:silent-failure-hunter",
+   "severity": "Suggestion",
+   "description": "scripts/collect-staged-telemetry.sh:38-47 - the state-dir ladder degrades without a breadcrumb in two places: an unreadable lib/resolve-state-dir.sh is skipped by the `[ -r ]` guard silently, and a failed source is swallowed by `2>/dev/null || true`; the final else then hardcodes \"$ROOT/.prflow/config.json\", the very hardcode the comment three lines above warns against. Bounded: the fail direction is ON (the intended safe direction), and do_persist - which resolves through lib/config-source.sh's ladder - would have staged nothing for the collector to find, so the divergence is inert in practice. This does NOT falsify the block's 'every unconsulted path announces itself' invariant, because that path does consult the switch (it just may read the wrong file). Hygiene, not a live silent failure.",
+   "defect_signature": {
+    "file": "scripts/collect-staged-telemetry.sh",
+    "line_range": [
+     38,
+     47
+    ],
+    "kind": "silent_fallback_no_announcement"
+   },
+   "corroboration_count": 1,
+   "contributed_to_verdict": false
+  },
+  {
+   "agent": "orchestrator (Phase 4.1 report-only)",
+   "severity": "Suggestion",
+   "description": "Two bookkeeping inconsistencies the sweep left. (a) scripts/workflow-flight-recorder-registry.json's efficiency-trace-telemetry description was not updated to mention the #2035 block, though the same hunk raised minimum_assertions 1057 -> 1126 under assertion_floor_policy 'exact'; peer entries carry exhaustive descriptions. (b) lib/test/modules/coverage-map.json gives lib/efficiency-trace.sh, scripts/collect-staged-telemetry.sh and scripts/telemetry-master-off.py the efficiency-trace-telemetry owner, but leaves scripts/config-get.sh as 'unmodularized' with an empty note, although 29 assertions in that module drive it via T2035_CG.",
+   "defect_signature": {
+    "file": "scripts/workflow-flight-recorder-registry.json",
+    "line_range": [
+     90,
+     93
+    ],
+    "kind": "style"
+   },
+   "corroboration_count": 1,
+   "contributed_to_verdict": false
+  }
+ ],
+ "prior_iteration_findings_status": {
+  "1 (Important, telemetry-master-off.py docstring 3-copy equivalence)": "RESOLVED - config-get.sh's inline copy is now three-way {0,1,2} and byte-identical to lib/efficiency-trace.sh's modulo the env var name (verified by diff). Docstring restated to 'same decision and the same exit contract ... and in which exit codes each caller acts on', true against all three bodies. Caveat: the fix left the contradicting function header at config-get.sh:199 - new finding 1.",
+  "2 (Suggestion, collect-staged .devflow/ upload consequence)": "RESOLVED - the false 'upload the payload their sibling --persist gate skipped' clause is gone; the replacement ('hardcoding .prflow/ would read a different file than the --persist gate this one is meant to agree with') is true, verified against lib/config-source.sh:37. Minor imprecision in the 'every other reader' universal filed as a separate Suggestion.",
+  "3 (Suggestion, collect-staged anchor 'silently no-op')": "RESOLVED - clause deleted; the comment is now just the true dirname half. Behaviour confirmed: under set -uo pipefail (no -e) an empty _CST_DIR falls into the [ ! -f ] arm and emits the loud ::warning::.",
+  "4 (Suggestion, module 'explicit sub-key always wins' x2)": "RESOLVED - both now read 'a sub-key set to a value that resolves wins', consistent with the file's own JSON-null and empty-string inheritance assertions.",
+  "5 (Suggestion, module 'predicate exits 1 (indeterminate)')": "RESOLVED - now 'exits 2, which is a shade of ON ... (and says the switch was unconsulted)', matching the docstring, the module's own :6838 assertion, and collect-staged's rc-2 warning arm.",
+  "6 (Suggestion, do_persist comment over the 3-line cap)": "PARTIALLY RESOLVED - 8 lines -> 7, derivation and provenance narrative removed, but still over the cap as one contiguous block; and the sweep grew config-get.sh's block from 4 to 6 lines. Re-filed as a Suggestion.",
+  "7 (Suggestion, test_gap on the NOT-consulted announcements)": "NOT RESOLVED - the sweep added no assertions.",
+  "8 (Suggestion, schema reader attribution)": "NOT RESOLVED - the sweep did not touch the schema.",
+  "9 (Suggestion, closed non-resolving-states list)": "NOT RESOLVED - unchanged on all six surfaces; empty JSON array confirmed a fourth member by execution.",
+  "10 (Suggestion, unsourced 1-3% figure in shipped external docs)": "NOT RESOLVED - unchanged since commit 51cfdb331 across all four fix iterations. Escalated to Important this iteration."
+ },
+ "regressions_introduced_by_this_iteration_wording": [
+  "scripts/config-get.sh:199 - the telemetry_master_disables_for header still states the pre-sweep two-way return contract ('any read error -> return 1'), falsified by the same sweep's change of that function's inline predicate to {0,1,2}, and directly contradicted by the comment the same sweep added 15 lines below. This is the fourth consecutive iteration whose own fix wording introduced exactly one new false claim, and it is the sole REJECT driver."
+ ],
+ "phase_4_0": "no deferral matches; no finding demoted",
+ "phase_4_1_5": "cap applied to 1 finding (the lib/test/modules/efficiency-trace-telemetry.sh:6870-6873 AC6 ordering comment, capped to Suggestion on the full two-limb enumeration: vendor-slice.sh:110 prunes $stage/lib/test). Cap NOT applied to the scripts/config-get.sh:199 finding - limb two fails because vendor-slice.sh:74 copies scripts/ into every consumer checkout.",
+ "phase_4_1_6": "truthfulness sweep: one finding promoted/confirmed into the carve-out (scripts/config-get.sh:199). One further demonstrated falsehood (module AC6 ordering comment) filed capped at Suggestion under 4.1.5 rather than routed into the carve-out. intra-diff contradiction scan: one contradicting pair found - config-get.sh:199 'any read error -> return 1' against config-get.sh:214-215 'Carries the same {0,1,2} exit contract as the other two copies', same function, same PR, 15 lines apart.",
+ "phase_4_1_7": "not applicable - no Phase 0.6 STALE findings (0.6 skipped)",
+ "phase_0_6": "skipped - prflow_review.stale_prose.enabled resolves false",
+ "phase_4_4": "skipped (fix-loop path)",
+ "writing_skills_gate": "not triggered - the reviewed diff touches none of the trigger globs",
+ "report_path": ".prflow/tmp/review/pr-2041/local-20260827T164853Z-1/engine-return-step1-iter-5.json"
+}
