@@ -95,6 +95,9 @@ _is_known_shard "$SHARD" || { printf 'run-shard.sh: unknown shard %s (known: %s)
 
 TALLY_DIR="${DEVFLOW_SHARD_TALLY_DIR:-$REPO_ROOT/.prflow/tmp/shard-tally/$SHARD}"
 mkdir -p "$TALLY_DIR" || { printf 'run-shard.sh: could not create tally dir %s\n' "$TALLY_DIR" >&2; exit 2; }
+# Record this shard launch's checkout fingerprint in its retained tally dir for the same-tree
+# relaunch gate (issue #2008). Best-effort — never block the shard on a fingerprint failure.
+python3 "$SCRIPT_DIR/shard-tally.py" record-fingerprint --out "$TALLY_DIR" || :
 LOG_FILE="$TALLY_DIR/log.txt"
 
 shard_rc=0
