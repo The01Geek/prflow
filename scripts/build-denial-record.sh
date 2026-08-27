@@ -106,7 +106,7 @@ if ! COUNT_TOOLS=$("$DEVFLOW_JQ" -rs '
     | ($denials_all | unique) as $denials
     | (last(.. | objects | select(.type? == "result"))) as $r
     | ($denials | length) as $dcount
-    # Array-presence signal (issue #2064), read BEFORE the object filter above: any
+    # Array-presence signal (issue #2064), independent of the object filter above: any
     # permission_denials value that is an array is a MEASUREMENT even when empty or
     # all-non-object, so its gathered length (0 for those) is the count. Without it an
     # empty-array new-shape run fell to "unavailable" instead of a measured 0.

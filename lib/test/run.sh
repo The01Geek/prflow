@@ -18138,6 +18138,10 @@ assert_eq "#2064 denial record: neither carrier with a result event raises the s
   "yes" "$(bash "$BDR" "$DEN_TMP/2064-neither.json" true 2>&1 >/dev/null | grep -qF 'execution-file shape drift suspected' && echo yes || echo no)"
 assert_eq "#2064 denial record: the emitted record carries NO result_present key (inert helper signal)" \
   "null" "$(bash "$BDR" "$DEN_TMP/2064-neither.json" true 2>/dev/null | "$DEN_JQ" -c '.result_present')"
+# Idempotency: one build over the neither-carrier file emits exactly one drift breadcrumb (mirrors
+# the diagnostics-side idempotency pin).
+assert_eq "#2064 denial record: a build over the neither-carrier file emits exactly one shape-drift breadcrumb" "1" \
+  "$(bash "$BDR" "$DEN_TMP/2064-neither.json" true 2>&1 >/dev/null | grep -cF 'execution-file shape drift suspected')"
 
 # Adversarial: a non-array permission_denials value → unavailable + drift; the [1,2,3] fixture
 # resolves to a measured 0 (its scalar entries drop out, array presence counts).
@@ -37594,6 +37598,10 @@ assert_eq "#2064 three-denial new-shape array publishes permission_denials_count
   "$(_diag_run "$_D_THREE_ARR" >/dev/null; grep -qxF 'permission_denials_count=3' "$D363/out" && echo yes || echo no)"
 assert_eq "#2064 three-denial new-shape array raises NO shape-drift warning" "no" \
   "$(_diag_run "$_D_THREE_ARR" | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+# The array-derived count still drives the operator '::warning:: this run recorded' just like
+# the old count-field path — a positive count is a positive count whichever carrier supplied it.
+assert_eq "#2064 three-denial new-shape array raises the '::warning:: this run recorded 3' operator warning" "yes" \
+  "$(_diag_run "$_D_THREE_ARR" | grep -qF '::warning::DevFlow: this run recorded 3 permission denial(s)' && echo yes || echo no)"
 
 # Neither carrier (result event present, no count field AND no permission_denials array
 # anywhere) → still `unavailable`, PLUS the shape-drift warning. The warning does NOT reuse

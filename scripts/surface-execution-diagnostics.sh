@@ -105,9 +105,9 @@ _emit() {
 _publish_denials() {  # rendered-block
   _count=""
   _saw_label=0
-  # A rendered "### Run summary" section is present iff a result event was found (only the
-  # run-summary branch renders it), so it is the shape-drift warning's "result event present"
-  # gate (issue #2064), read with a bash-builtin case.
+  # Shape-drift gate (issue #2064): "### Run summary" renders when the result-summary branch
+  # ran; the drift warning fires only when the count is also unavailable, which implies a
+  # result event was present. Read with a bash-builtin case.
   _result_present=0
   case "$1" in
     *"### Run summary"*) _result_present=1 ;;
@@ -247,10 +247,10 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" '
         | if type == "array" then .[] else . end
         | select(type == "object")] | unique) as $denials
     # Array-presence signal (issue #2064). Whether ANY permission_denials value in the
-    # slurped input is an array, read BEFORE the object-type filter above drops entries.
-    # A present array is a MEASUREMENT even when empty or all-non-object, so its gathered
-    # length (0 for those) is the count; without it the empty-array run fell to null and
-    # mis-reported a measured zero as unavailable.
+    # slurped input is an array — read independently of the object-type filter above, which
+    # drops non-object entries. A present array is a MEASUREMENT even when empty or
+    # all-non-object, so its gathered length (0 for those) is the count; without it the
+    # empty-array run fell to null and mis-reported a measured zero as unavailable.
     | ([.. | objects | .permission_denials? | select(type == "array")] | length > 0) as $has_pd_array
     | if $r == null and ($denials | length) == 0 then
         # No result event and no denial detail — but the CLI version lives in the
