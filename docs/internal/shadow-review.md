@@ -63,10 +63,12 @@ was the danger investigated under issue #57 — real, but wrongly recorded as a 
 property; the actual constraint is cross-harness portability, which warrants keeping the shadow to a
 single subagent layer.
 
-### Nested dispatch across harnesses (the single home of this table)
+### Nested dispatch across harnesses (canonical home of this table)
 
-This page is the one place the cross-harness picture and the version facts below are recorded; the
-other internal pages point here rather than restate them.
+The per-harness capability table below is canonical here; the other internal pages point at it
+rather than restate it. The nested-dispatch version facts and the *shipped* dispatch design are
+co-recorded in [`docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md`](DEVFLOW_SYSTEM_OVERVIEW.md) §9 (the
+issue-1850 record), which this page agrees with.
 
 | harness | nested dispatch |
 |---|---|
@@ -82,18 +84,33 @@ depth 3, controlled by `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` (counting layers b
 conversation; a value of 1 disables). Because the capability varies by harness and by version, the
 one-subagent-layer rule is a portability floor rather than a claim that nesting never works.
 
-**The fix: the PARENT orchestrator runs the shadow fan-out itself.** The parent *can* dispatch
-subagents, so it re-runs `/prflow:review`'s Phases 0 through 4.3 inline — resolving the engine
-directory via the ordered, repo-root-anchored candidate list (repo-root `skills/review`, then the
-`.prflow/vendor/prflow/` and superseded `.devflow/vendor/devflow/` vendored layouts), binding the
-bundle to that located directory, `Read`ing its `SKILL.md` in full under Step 1's completeness
-predicate, walking its gated phase references under `phases/` (re-deriving bundle identity and clearing each reference's boundary contract at every entry — a shadow entry is a phase entry), and running every
-Phase-3 reviewer normally. (Reading the engine as an inline procedure, rather than invoking it via
-the `Skill` tool, is deliberate: `Skill` would run the engine end-to-end including Phase 4.4's
-GitHub post, and the loop posts no formal review and no verdict comment. The shadow stops before
-Phase 4.4.)
-Because it reuses Phase 3.1's launch list and per-agent prompts verbatim, the shadow exercises the
-**same reviewer set** a standalone `/prflow:review` would on this diff.
+**The shipped fix (issue #1850): dispatch the engine as an Agent-tool subagent first, fall back to
+parent-inline.** Like the Step 1 iteration entry, the Step 2.6 shadow dispatches `/prflow:review`'s
+Phases 0–4.3 into a review-engine **Agent-tool subagent**, which fans out the Phase 3 roster from
+its own context and returns `dispatch_mode: fanned-out`. Only when that subagent reports
+`dispatch_mode: unavailable` (no delegation tool — the non-portable-nested-dispatch harness above)
+or returns a non-well-formed result does the parent fall back to running the phases **inline** in its
+own context, exactly the old behavior: resolve the engine directory via the ordered, repo-root-anchored
+candidate list, bind the bundle, `Read` its `SKILL.md` in full under Step 1's completeness predicate,
+walk the gated `phases/` references clearing each boundary contract at every entry (a shadow entry is
+a phase entry), and run every Phase-3 reviewer. The engine is read as an inline procedure rather than
+via the `Skill` tool because `Skill` would run Phase 4.4's GitHub post, and the loop posts no formal
+review or verdict comment — the shadow stops before Phase 4.4. Either arm reuses Phase 3.1's launch
+list and per-agent prompts verbatim, so the shadow exercises the **same reviewer set** a standalone
+`/prflow:review` would on this diff. The two-layers rationale (why the subagent arm is now the primary
+one) and the `dispatch_mode` contract are recorded once in
+[`docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md`](DEVFLOW_SYSTEM_OVERVIEW.md) §9.
+
+**Re-entrant freshness (issue #2052).** Each engine entry regenerates the run-scoped `diff.patch`
+in its own Phase 0.2 — the overwrite contract lives canonically in
+`skills/review/phases/phase-0-setup.md` §0.2 ("the file is overwritten every run within the same
+run-id, never across runs"). Because that contract fires only when Phase 0.2 runs, a *re-entrant*
+entry could otherwise review a populated cache left at the previous HEAD. The parent therefore
+deletes the run-scoped `diff.patch` and its derived batch slices before every re-entrant engine
+entry (a Step 1 iteration after the first, and the Step 2.6 shadow — on both dispatch arms), and each
+entry reports the `diff_produced_at_head` sha; the parent fails the entry when that sha is missing or
+does not match `git rev-parse HEAD` in its own checkout. Deletion, never regeneration, is the
+parent's freshness role, so it stays within the blinding boundary below.
 
 ## The dirty-tree backstop: review agents never mutate the working tree
 
