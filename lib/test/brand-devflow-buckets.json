@@ -350,6 +350,11 @@
       },
       {
         "file": "install.sh",
+        "context": "DevFlow signature\" states a conclusion",
+        "reason": "comment quoting the frozen 'carries no DevFlow signature' log literal; must match the emitted string"
+      },
+      {
+        "file": "install.sh",
         "context": "the file is not DevFlow's",
         "reason": "user-facing read-failure log string pinned by installer-wiring tests"
       },

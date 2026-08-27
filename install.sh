@@ -1050,7 +1050,7 @@ devflow_remove_withheld_tier() {
     # grep's rc is THREE-valued and the two failure rcs mean different things: 1 = read the
     # file, found no match (a content judgement) and 2 = could not read it at all (a
     # permission error, an I/O fault). Both preserve, but reporting rc 2 as "carries no
-    # PRFlow signature" states a conclusion about content nothing ever read — the same
+    # DevFlow signature" states a conclusion about content nothing ever read — the same
     # unestablished-measurement-presented-as-established error this file's provenance layer
     # exists to avoid. Capture the rc and name the real one.
     _sig="$(devflow_withheld_tier_signature "$_wt")"
