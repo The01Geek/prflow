@@ -4,6 +4,17 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.61] — 2026-08-27
+
+### Changed
+- **Batch the issue-claim auditor's workpad writes into one update call.** The
+  `issue-claim-auditor` agent now composes each pass record as its pass completes and holds it,
+  delivering the accrued records in one batched `workpad.py update` invocation at audit end —
+  plus one further call per additional reflection kind, since one update applies a single
+  `--reflection-kind` — instead of one network round trip per pass; an audit that ends at a stop
+  arm folds its accrued records into the same terminating update. Note texts and reflection kinds are unchanged, so
+  workpad-reading consumers see identical content. (#2022)
+
 ## [2.34.60] — 2026-08-27
 
 ### Fixed
