@@ -194,7 +194,13 @@ this file conflicts, keep **every key from both sides**:
   The `.gitattributes` `merge=coverage-map-json` declaration only *names* the driver;
   git falls back silently to its line-based merge until the driver is registered locally,
   so `--check` (which prints the exact registration command when it is not) is the thing
-  to run if you are unsure.
+  to run if you are unsure. You need not register it by hand inside an implement run:
+  `scripts/update-branch-checkpoint.sh` now **also** self-registers the driver before its
+  base merge (invoking the driver's own `--register`, which writes only LOCAL git config),
+  so an adjacent-key insertion unions instead of Blocking the run on a CONFLICT. That
+  registration is guarded on the `.gitattributes` declaration and fail-soft — a checkout
+  with no declaration stays silent, and a missing driver file or a non-zero registration
+  exit each warn once to stderr and fall back to git's line-based merge.
 - If you resolve by hand (or in GitHub's web editor, where the driver cannot run), take
   **both** sides' entries and then re-canonicalize with `--fix` (canonical form only — the
   entries must already all be present first).
