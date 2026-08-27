@@ -20,10 +20,10 @@ This module is **new coverage** for a new subject, not an extraction out of
 
 ## Notes
 
-The module uses only the caller-provided API (`assert_eq`, and the
+The module is built on the caller-provided API (`assert_eq`, and the
 `module-harness.sh` helper `devflow_run_focused_python_test`) plus `python3`,
-`mktemp`, `grep`, and `$LIB`-relative paths, and carries no pin helper
-(`devflow_module_pin_*`), so it needs no audited-pin rename. The generic
+`mktemp`, `grep`, and `$LIB`-relative paths; it declares no `devflow_module_pin_*`
+helper, so it needs no audited-pin rename. The generic
 test-harness, registry-validation, module-registration and module-runner checks
 stay global so deleting this module cannot also delete the checks that prove it
 is selected and executed.

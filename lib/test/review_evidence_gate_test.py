@@ -238,8 +238,8 @@ class GateEndToEnd(unittest.TestCase):
         out = self._run(d, head, base, eng,
                         {'run_roots': ['slug/old'], 'review_ids': []},
                         self._marked(head))
-        # A stale run root predating the pre-inventory contributes to no arm; with no
-        # fresh root the missing-record fail arm fires.
+        # The stale run root is in the pre-inventory, so it is not attributed to this run;
+        # with no fresh root the missing-record fail arm fires.
         self.assertTrue(self._token(out).startswith('fail missing=run-root,phase-log'))
 
     def test_two_fresh_roots_unattributable(self):
@@ -255,6 +255,17 @@ class GateEndToEnd(unittest.TestCase):
         out = self._run(d, head, base, eng, {'run_roots': [], 'review_ids': [222]},
                         self._marked(head))
         self.assertEqual(self._token(out), 'no-verdict')
+
+    def test_unestablished_review_id_baseline(self):
+        # When the pre-inventory could not establish its review-ID baseline, a marked
+        # verdict cannot be told from a prior run's — so it is unestablished, never
+        # dismissed (guards against a false dismissal of a legitimate prior verdict).
+        d, head, base, eng = self._sandbox('code')
+        out = self._run(d, head, base, eng,
+                        {'run_roots': [], 'review_ids': [], 'review_ids_established': False},
+                        self._marked(head))
+        self.assertEqual(
+            self._token(out), 'unestablished pre-inventory-review-ids-unestablished')
 
     def test_no_verdict_when_unmarked_only(self):
         d, head, base, eng = self._sandbox('code')

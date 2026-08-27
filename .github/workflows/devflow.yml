@@ -1831,14 +1831,20 @@ jobs:
             ROOTS_JSON="$( (cd .prflow/tmp/review && find . -mindepth 2 -maxdepth 2 -type d) \
               | sed 's#^\./##' | jq -R . | jq -s . )"
           fi
+          # Whether the review-ID baseline was ESTABLISHED is load-bearing: if the fetch
+          # fails and we default to an empty set, a prior run's legitimate verdict would
+          # read as "fresh" and could be dismissed. So record the establishment flag and
+          # let the gate go unestablished (never dismiss) when the baseline is false.
           IDS_JSON='[]'
+          IDS_ESTABLISHED=false
           if [ -n "${PR_NUMBER:-}" ]; then
-            IDS_JSON="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" \
-              --jq '.[].id' 2>/dev/null | jq -R . | jq -s 'map(select(length>0) | tonumber)')" \
-              || IDS_JSON='[]'
+            if RAW_IDS="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" --jq '.[].id' 2>/dev/null)"; then
+              IDS_JSON="$(printf '%s\n' "$RAW_IDS" | jq -R . | jq -s 'map(select(length>0) | tonumber)')"
+              IDS_ESTABLISHED=true
+            fi
           fi
-          jq -n --argjson r "$ROOTS_JSON" --argjson i "$IDS_JSON" \
-            '{run_roots: $r, review_ids: $i}' > .prflow/tmp/pre-inventory.json
+          jq -n --argjson r "$ROOTS_JSON" --argjson i "$IDS_JSON" --argjson e "$IDS_ESTABLISHED" \
+            '{run_roots: $r, review_ids: $i, review_ids_established: $e}' > .prflow/tmp/pre-inventory.json
           echo "review-evidence pre-inventory: $(cat .prflow/tmp/pre-inventory.json)"
 
       - name: Run Claude Code
@@ -2246,8 +2252,12 @@ jobs:
           CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
           COMMAND: ${{ needs.gate.outputs.command }}
           # The login of THIS run's reviewer identity (issue #1250 idiom): a human's
-          # review is never mistaken for the run's own.
-          REVIEWER_LOGIN: ${{ steps.reviewer-token.outputs.app-slug != '' && format('{0}[bot]', steps.reviewer-token.outputs.app-slug) || 'github-actions[bot]' }}
+          # review is never mistaken for the run's own. Identity is by command, mirroring
+          # the engine step's own github_token selection: /prflow:review runs under the
+          # downscoped reviewer token, while /prflow:review-and-fix runs under the primary
+          # app token — so the login must be resolved from the matching token's app-slug,
+          # else a review-and-fix verdict authored by the primary app reads as no verdict.
+          REVIEWER_LOGIN: ${{ startsWith(needs.gate.outputs.command, '/prflow:review ') && (steps.reviewer-token.outputs.app-slug != '' && format('{0}[bot]', steps.reviewer-token.outputs.app-slug) || 'github-actions[bot]') || (steps.app-token.outputs.app-slug != '' && format('{0}[bot]', steps.app-token.outputs.app-slug) || 'github-actions[bot]') }}
         run: |
           set -uo pipefail
           # The pre-engine inventory step is what makes attribution possible; without it
@@ -2277,8 +2287,10 @@ jobs:
             BASE_REF="origin/$BASE_REF_RAW"
           fi
           REVIEWS_FILE="$RUNNER_TEMP/evidence-gate-reviews.json"
-          gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" > "$REVIEWS_FILE" 2>/dev/null \
-            || echo '[]' > "$REVIEWS_FILE"
+          # A failed fetch leaves the file empty on purpose — the gate reads that as an
+          # unparseable payload (unestablished), never as an empty '[]' review set that
+          # would launder a hollow verdict into a green no-verdict.
+          gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" > "$REVIEWS_FILE" 2>/dev/null || true
           RESULT="$(python3 "$GATE" --pre-inventory .prflow/tmp/pre-inventory.json \
             --post-tree-root . --reviews-payload "$REVIEWS_FILE" \
             --base-ref "$BASE_REF" --repo-root . --reviewer-login "$REVIEWER_LOGIN" \

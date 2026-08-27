@@ -43,8 +43,8 @@
 #     the second invocation resolves the comment the first one created, reads
 #     its terminal Status, and writes nothing.
 #   - The `--evidence-gate-fail` 4th argument (issue #2075) is the review-evidence
-#     gate's arm: it overrides the interim-only guard for exactly one case — a run
-#     that DID write a terminal verdict but whose posted verdict lacks
+#     gate's arm: it overrides the interim-only guard for the evidence-gate case — a
+#     run that DID write a terminal verdict but whose posted verdict lacks
 #     phase-execution evidence — rewriting that terminal Status to `❌ Review
 #     failed` and reporting the `evidence-gate-flip` arm. Without it a hollow
 #     verdict's terminal comment would keep reading as a pass. A re-run finds the
@@ -265,7 +265,7 @@ interim = m.group(1).lstrip().startswith('🚀')
 # Default (dead-run backstop): fail closed and flip ONLY an interim (🚀) Status;
 # anything else — a written verdict, an agent-side ❌ Review failed, any terminal
 # glyph — is treated as terminal and left untouched. The --evidence-gate-fail arm
-# (issue #2075) overrides that guard for exactly one case: a run that DID reach a
+# (issue #2075) overrides that guard for the evidence-gate case: a run that DID reach a
 # terminal verdict but whose posted verdict lacks phase-execution evidence, so its
 # terminal Status must still be rewritten to the failed state.
 if not interim and not evidence_gate_fail:

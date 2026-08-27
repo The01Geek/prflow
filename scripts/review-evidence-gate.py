@@ -69,8 +69,8 @@ import sys
 # skills/review/SKILL.md. A `phase-entry` line naming any other value is malformed.
 _VALID_PHASE_IDS = frozenset(
     {'0', '0.3.6', '0.6', '1', '1.5', '2', '3', '4', '4.1.7', '4.4'})
-# The two phase entries that together evidence the checklist phases ran (Phase 1 =
-# checklist generation + dedup; Phase 2 = checklist verification). Each maps its
+# The checklist phase-entry records that together evidence the checklist ran — Phase 1
+# (checklist generation + dedup) and Phase 2 (checklist verification). Each maps its
 # phase-log line literal to a SPACE-FREE token for the machine `missing=` field, so that
 # field stays one word the caller can split on (the human detail spells it out in full).
 _CHECKLIST_PHASE_ENTRIES = (
@@ -283,8 +283,8 @@ def _decide(args):
 
     placed = _classify_own_reviews(reviews, args.reviewer_login)
     # This run's verdict: a marker-bearing review whose id is NOT in the pre-engine
-    # inventory (a verdict already present before the engine step is a prior run's and
-    # contributes to no arm of this run's evidence — never dismissed).
+    # inventory (a verdict already present before the engine step is a prior run's, not
+    # this run's — so it is never dismissed).
     fresh_marked = [(rid, state, mhead) for (rid, state, mhead) in placed['marked']
                     if rid not in pre_review_ids]
     fresh_unmarked = [rid for rid in placed['unmarked'] if rid not in pre_review_ids]
@@ -299,6 +299,19 @@ def _decide(args):
                 ', '.join(str(r) for r in sorted(
                     i for i in fresh_unmarked if isinstance(i, int)))))
         return 'no-verdict', detail
+
+    # The ID-set delta is only trustworthy when the pre-engine review-ID baseline was
+    # actually established. When the pre-inventory step could not fetch the head's
+    # reviews (recorded `review_ids_established: false`), every id is "fresh" by default,
+    # so a PRIOR run's legitimate verdict would be mis-attributed to this run and could be
+    # dismissed — so a verdict under an unestablished baseline is unestablished, never a
+    # fail or a dismissal. A missing key is the pre-#2075 inventory shape and reads as
+    # established (the common success case).
+    if not pre.get('review_ids_established', True):
+        return 'unestablished pre-inventory-review-ids-unestablished', _detail(
+            'review-evidence-gate: the pre-engine review-ID baseline was not ',
+            'established (the pre-inventory step could not fetch the reviews), so ',
+            'this run cannot be told from a prior run and no verdict is dismissed.')
 
     # The newest marker-bearing verdict review (largest id) is the run's verdict; the
     # reviewed head is that verdict marker's OWN head, so a /prflow:review-and-fix verdict
