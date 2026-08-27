@@ -1,0 +1,251 @@
+{
+  "iter": 1,
+  "started_at": "unrecoverable",
+  "fix_commit_sha": "892a7ef9c8984aca4fb3b5162e92ca290ec1d25f",
+  "fix_files": [
+    "lib/test/run.sh",
+    "lib/test/run-parallel.sh",
+    "lib/test/modules/coverage-map.json",
+    "lib/test/test_python_scripts_part2.py",
+    "lib/test/test_python_scripts_part3.py",
+    "lib/test/test_python_scripts_part4.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-12",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-13-14",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-15",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-16-19",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-17",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-18",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Critical",
+      "description": "run.sh _pps_selector_probe/_pps_reconcile_probe not updated for the 5-member pool -> monolith shard RED",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          49958,
+          50011
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 4,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "no coupling assertion tying DEVFLOW_PYTHON_SELFTALLY_MEMBERS to the pool's self-tally registrations (silent coverage gap on future drift)",
+      "defect_signature": {
+        "file": "lib/test/module-harness.sh",
+        "line_range": [
+          2100,
+          2105
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "POOL_RESERVATION_CEILING comment claims 'does not increase contention' but 4-vCPU reservation goes 2->3; justification misleading",
+      "defect_signature": {
+        "file": "lib/test/run-parallel.sh",
+        "line_range": [
+          107,
+          132
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "coverage-map.json note fields still name test_python_scripts.py after focused_test repoint",
+      "defect_signature": {
+        "file": "lib/test/modules/coverage-map.json",
+        "line_range": null,
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "part docstrings name the original filename in the run-from-repo-root hint",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts_part2.py",
+        "line_range": [
+          32,
+          33
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "a part whose self-tally collapses to 0 tests reconciles 0==0 and passes unnoticed (pre-existing latent gap, not introduced by this PR)",
+      "defect_signature": {
+        "file": "lib/test/module-harness.sh",
+        "line_range": [
+          2126,
+          2133
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "892a7ef9c8984aca4fb3b5162e92ca290ec1d25f"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "892a7ef9c8984aca4fb3b5162e92ca290ec1d25f"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "892a7ef9c8984aca4fb3b5162e92ca290ec1d25f"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "892a7ef9c8984aca4fb3b5162e92ca290ec1d25f"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "892a7ef9c8984aca4fb3b5162e92ca290ec1d25f"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "deferred",
+      "source_file": "lib/test/module-harness.sh",
+      "claim_text": "zero-test part reconciles 0==0",
+      "skip_category": "out-of-scope",
+      "evidence": "pre-existing latent gap not introduced by this PR (the split adds no such shape); adding a lower-bound guard is scope expansion beyond issue #2007",
+      "parking_evidence": {
+        "basis": "pre-existing gap, not a regression this diff introduces",
+        "failing_input": "a part whose entire assertion population is accidentally removed, emitting a valid '0 passed, 0 failed' summary",
+        "source": "lib/test/module-harness.sh:2126-2133",
+        "finding_ref": {
+          "iter": 1,
+          "index": 5
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 5,
+    "fix_diff_lines": 60,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
