@@ -25,6 +25,7 @@ fetches public release assets, so the untrusted-manifest CI job can run it.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import importlib.util
 import sys
@@ -70,27 +71,30 @@ def _default_fetch(url: str) -> bytes:
     return data
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
 class ArtifactResult:
     """One declared artifact's verification outcome. `status` is one of
     `verified`, `unresolved` (no trusted URL/digest for a declared artifact),
-    `fetch-error`, or `digest-mismatch`; only `verified` is a pass."""
+    `fetch-error`, or `digest-mismatch`; only `verified` is a pass.
 
-    # Closed vocabulary, enforced in __init__: a misspelled status must not read as
-    # a silent not-ok, which would make a failing artifact indistinguishable from a
-    # real rejection reason in the printed line.
+    Frozen: the record is written once at construction, so the status check below
+    is a lifetime guarantee rather than a construction-time one."""
+
+    # Closed vocabulary, enforced in __post_init__: a misspelled status must not
+    # read as a silent not-ok, which would make a failing artifact
+    # indistinguishable from a real rejection reason in the printed line.
     STATUSES = ("verified", "unresolved", "fetch-error", "digest-mismatch")
 
-    __slots__ = ("arch", "detail", "os", "status", "tool")
+    tool: str
+    os: str
+    arch: str
+    status: str
+    detail: str = ""
 
-    def __init__(self, tool: str, os_name: str, arch: str, status: str, detail: str = ""):
-        if status not in self.STATUSES:
+    def __post_init__(self):
+        if self.status not in self.STATUSES:
             raise ValueError(
-                f"unknown artifact status {status!r}; expected one of {self.STATUSES}")
-        self.tool = tool
-        self.os = os_name
-        self.arch = arch
-        self.status = status
-        self.detail = detail
+                f"unknown artifact status {self.status!r}; expected one of {self.STATUSES}")
 
     @property
     def ok(self) -> bool:
@@ -102,24 +106,29 @@ class ArtifactResult:
         return f"{base}: {self.detail}" if self.detail else base
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
 class VerifyResult:
     """The whole-manifest outcome. `ok` is true only when the manifest was
     established, it declared at least one artifact, and every declared artifact
-    verified."""
+    verified.
 
-    __slots__ = ("ok", "reason", "results")
+    Frozen, with `results` stored as a tuple: a mutable `results` list would let a
+    caller append a failed artifact to an `ok` record after construction, re-opening
+    the exact state the checks below reject."""
 
-    def __init__(self, ok: bool, reason: str, results: list[ArtifactResult]):
+    ok: bool
+    reason: str
+    results: tuple[ArtifactResult, ...]
+
+    def __post_init__(self):
+        object.__setattr__(self, "results", tuple(self.results))
         # Do not relax: a true `ok` carrying no results is the "clean pass with
         # nothing verified" state this verifier exists to make impossible, and a
         # true `ok` beside a failed result would report a pass over a mismatch.
-        if ok and not results:
-            raise ValueError(f"ok result verified nothing: {reason}")
-        if ok and not all(r.ok for r in results):
-            raise ValueError(f"ok result carries a non-verified artifact: {reason}")
-        self.ok = ok
-        self.reason = reason
-        self.results = results
+        if self.ok and not self.results:
+            raise ValueError(f"ok result verified nothing: {self.reason}")
+        if self.ok and not all(r.ok for r in self.results):
+            raise ValueError(f"ok result carries a non-verified artifact: {self.reason}")
 
 
 def verify_manifest_digests(manifest_path, fetch=None) -> VerifyResult:

@@ -39093,6 +39093,40 @@ assert_eq('#2029 iter: empty artifacts -> empty', [],
 assert_eq('#2029 iter: shipped manifest enumerates all 10 declared artifacts', 10,
           len(_VLM.iter_declared_artifacts(_VLM_BASE)))
 
+
+def _vlm_iter_err(manifest):
+    """Return the ValueError message the enumeration raised, or None when it built."""
+    try:
+        _VLM.iter_declared_artifacts(manifest)
+        return None
+    except ValueError as _exc:
+        return str(_exc)
+
+
+# The caller's `verified == declared` gate is computed from this list, so a malformed
+# row must RAISE rather than be dropped: silently excluding it would turn a skipped
+# declared artifact into a clean pass — the exact silent narrowing this feature exists
+# to prevent. Each case pins the offender named in the message, so a rejection from an
+# unrelated shape check cannot masquerade as the rejection under test.
+_vlm_iter_bad_tool = _vlm_iter_err({'tools': {'ruff': ['not-an-object']}})
+assert_eq('#2029 iter: a non-object tool raises rather than being skipped', True,
+          _vlm_iter_bad_tool is not None and "tool 'ruff' is not an object" in _vlm_iter_bad_tool)
+_vlm_iter_no_arch = _vlm_iter_err(
+    {'tools': {'ruff': {'artifacts': [{'os': 'linux', 'arch': 'x86_64'}, {'os': 'linux'}]}}})
+assert_eq('#2029 iter: an artifact lacking arch raises, naming its index', True,
+          _vlm_iter_no_arch is not None
+          and "tool 'ruff' artifact #1 lacks os/arch" in _vlm_iter_no_arch)
+_vlm_iter_scalar_art = _vlm_iter_err({'tools': {'ruff': {'artifacts': ['x86_64']}}})
+assert_eq('#2029 iter: a non-object artifact raises, naming its index', True,
+          _vlm_iter_scalar_art is not None
+          and "tool 'ruff' artifact #0 lacks os/arch" in _vlm_iter_scalar_art)
+# Positive control on the same fixture shape: the well-formed sibling row of the
+# no-arch case above enumerates cleanly, so the rejections above are attributable to
+# the malformed row rather than to the fixture being rejected wholesale.
+assert_eq('#2029 iter: the well-formed control row still enumerates', [('ruff', 'linux', 'x86_64')],
+          _VLM.iter_declared_artifacts(
+              {'tools': {'ruff': {'artifacts': [{'os': 'linux', 'arch': 'x86_64'}]}}}))
+
 # Happy path — every declared artifact fetched with the seeded bytes verifies clean.
 _vlm_ok_manifest = json.loads(json.dumps(_VLM_BASE))
 _vlm_ok_content = _vlm_seed_digests(_vlm_ok_manifest)
@@ -39161,7 +39195,7 @@ _vlm_missing = _VLM.verify_manifest_digests(str(SCRIPTS / 'no-such-manifest-2029
 assert_eq('#2029 verify: unestablished manifest -> not ok', False, _vlm_missing.ok)
 assert_eq('#2029 verify: unestablished manifest carries a reason', True,
           _vlm_missing.reason.startswith('unestablished manifest'))
-assert_eq('#2029 verify: unestablished manifest verifies nothing', [], _vlm_missing.results)
+assert_eq('#2029 verify: unestablished manifest verifies nothing', (), _vlm_missing.results)
 
 # main() exit-code contract over the shipped manifest is not exercised here (it would
 # hit the network); the injected-fetch tests above are the behavioral coverage.
@@ -39242,6 +39276,46 @@ assert_eq('#2029 main: one printed line names each declared (tool, os/arch) as O
           sorted(_l.rsplit(': ', 1)[0] for _l in _vlm_main_lines[:-1]))
 
 
+# main()'s FAILURE output is the visible fail-closed surface the CI step exists to
+# surface, so exercise the with-results branch too: one corrupted digest must render a
+# per-artifact FAIL line with its detail on stdout and the summary on STDERR. Printing
+# the summary to stdout, or mis-formatting line(), would otherwise pass the whole suite.
+_vlm_fail_manifest = json.loads(json.dumps(_VLM_BASE))
+_vlm_fail_content = _vlm_seed_digests(_vlm_fail_manifest)
+_vlm_fail_manifest['tools']['ruff']['artifacts'][0]['digest'] = 'sha256:' + ('0' * 64)
+_vlm_fail_path = _vlm_write(_vlm_fail_manifest)
+_vlm_fail_saved_fetch = _VLM._default_fetch
+_VLM._default_fetch = lambda u: _vlm_fail_content[u]
+_vlm_fail_out = io.StringIO()
+_vlm_fail_err = io.StringIO()
+try:
+    with contextlib.redirect_stdout(_vlm_fail_out), contextlib.redirect_stderr(_vlm_fail_err):
+        _vlm_fail_rc = _VLM.main([_vlm_fail_path])
+finally:
+    _VLM._default_fetch = _vlm_fail_saved_fetch
+    os.unlink(_vlm_fail_path)
+_vlm_fail_lines = _vlm_fail_out.getvalue().splitlines()
+_vlm_fail_marked = [_l for _l in _vlm_fail_lines if _l.startswith('FAIL ')]
+# Always a str, so a mutant that renders no FAIL line reports a clean red here rather
+# than crashing the whole run on an index error.
+_vlm_fail_first = _vlm_fail_marked[0] if _vlm_fail_marked else ''
+assert_eq('#2029 main: a corrupted declared digest exits 1', 1, _vlm_fail_rc)
+assert_eq('#2029 main: the failing artifact gets one FAIL line naming its status', 1,
+          len(_vlm_fail_marked))
+assert_eq('#2029 main: the FAIL line names the artifact, the status and the detail', True,
+          _vlm_fail_first.startswith('FAIL ruff ')
+          and ' digest-mismatch: ' in _vlm_fail_first
+          and 'declared sha256:' + ('0' * 64) in _vlm_fail_first)
+# The other nine still verified, so the failure is attributable to the corrupted row
+# rather than to the whole run collapsing — the positive control on this same fixture.
+assert_eq('#2029 main: every other declared artifact still reports OK', 9,
+          len([_l for _l in _vlm_fail_lines if _l.startswith('OK ')]))
+assert_eq('#2029 main: the failure summary goes to stderr, not stdout',
+          ('FAIL: only 9/10 declared artifacts verified', True),
+          (_vlm_fail_err.getvalue().strip(),
+           not any(_l.startswith(('PASS:', 'FAIL:')) for _l in _vlm_fail_lines)))
+
+
 def _vlm_construct(fn):
     """Return the ValueError message a constructor raised, or None when it built."""
     try:
@@ -39276,6 +39350,42 @@ assert_eq('#2029 VerifyResult: the legitimate ok and not-ok shapes still constru
           (_VLM.VerifyResult(True, 'r', [_vlm_vr_verified]).ok,
            _VLM.VerifyResult(False, 'r', []).ok,
            _VLM.VerifyResult(False, 'r', [_vlm_vr_failed]).ok))
+
+
+def _vlm_mutate(fn):
+    """Return the exception type name a post-construction mutation raised, or None."""
+    try:
+        fn()
+        return None
+    except Exception as _exc:
+        return type(_exc).__name__
+
+
+# Construction-time checks are only a lifetime guarantee if the record cannot be
+# rewritten afterwards: an assignable `status` or an appendable `results` would re-open
+# the illegal states the constructors above reject.
+_vlm_frozen_ar = _VLM.ArtifactResult('ruff', 'linux', 'x86_64', 'verified')
+assert_eq('#2029 ArtifactResult: status cannot be reassigned after construction',
+          'FrozenInstanceError',
+          _vlm_mutate(lambda: setattr(_vlm_frozen_ar, 'status', 'verifed')))
+_vlm_frozen_vr = _VLM.VerifyResult(True, 'r', [_vlm_vr_verified])
+assert_eq('#2029 VerifyResult: ok cannot be reassigned after construction',
+          'FrozenInstanceError',
+          _vlm_mutate(lambda: setattr(_vlm_frozen_vr, 'ok', False)))
+# results is stored as a tuple, so a failed artifact cannot be appended to an ok record.
+assert_eq('#2029 VerifyResult: results is an immutable tuple, not an appendable list',
+          (True, 'AttributeError'),
+          (isinstance(_vlm_frozen_vr.results, tuple),
+           _vlm_mutate(lambda: _vlm_frozen_vr.results.append(_vlm_vr_failed))))
+# Positive control on the same shapes, built fresh: a non-frozen mutant lets the
+# assignments above land, so reusing those two instances here would read back the
+# mutant's writes instead of the constructed values.
+_vlm_ctl_ar = _VLM.ArtifactResult('ruff', 'linux', 'x86_64', 'verified')
+_vlm_ctl_vr = _VLM.VerifyResult(True, 'r', [_vlm_ctl_ar])
+assert_eq('#2029 frozen records still read back their constructed values',
+          ('ruff', 'linux', 'x86_64', 'verified', True, 1),
+          (_vlm_ctl_ar.tool, _vlm_ctl_ar.os, _vlm_ctl_ar.arch,
+           _vlm_ctl_ar.status, _vlm_ctl_vr.ok, len(_vlm_ctl_vr.results)))
 
 print()
 print(f"{PASS} passed, {FAIL} failed")
