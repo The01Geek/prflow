@@ -30,7 +30,7 @@ Covers areas that are silent-failure-class regressions if they drift:
   comment, not the visible table, and degrade gracefully on an absent block.
 
 Run from repo root:
-    python3 lib/test/test_python_scripts.py
+    python3 lib/test/test_python_scripts_part2.py
 """
 
 import argparse
@@ -97,7 +97,7 @@ FAIL = 0
 # assertion appended to it, so the suite's whole assertion count reaches
 # RESULTS_FILE (a single collapsed verdict would silently drop this suite's ~1800
 # assertions from the reported total). When the variable is unset — a standalone
-# `python3 lib/test/test_python_scripts.py` run — this is a no-op, so direct
+# `python3 lib/test/test_python_scripts_part2.py` run — this is a no-op, so direct
 # invocation is unchanged. Append-only, one line per verdict, matching the tally
 # grammar _devflow_valid_result_count enforces (PASS/FAIL lines only).
 _POOL_TALLY_FILE = os.environ.get("DEVFLOW_POOL_TALLY_FILE")

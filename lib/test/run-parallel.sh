@@ -120,10 +120,16 @@ BUDGET_CEILING=8
 # `DEVFLOW_SUITE_PROCESS_BUDGET=4` to force the runner's budget, and `DEVFLOW_SHARD_DISPATCHER`
 # pointed at a stub sleeping a time-scaled model of each shard's measured duration — on the
 # host shape this coordinator runs on in the cloud, `ubuntu-latest` at 4 vCPU, i.e.
-# `BUDGET = min(cpu_count, 8) = 4`. On such a host `BUDGET - 1 = 3` already caps the
-# reservation below this ceiling, so raising the ceiling to the membership does not
-# increase contention there; it only lets a host with more cores run more parts
-# concurrently, up to the real membership.
+# `BUDGET = min(cpu_count, 8) = 4`. On such a host the reservation resolves to
+# `min(BUDGET - 1, ceiling) = min(3, 5) = 3`, so the split does change the 4-vCPU reservation
+# from 2 (under the old ceiling of 2) to 3. That is not the regression the #1180 snapshot
+# recorded: that snapshot measured reservation 3 as slower *because the two-member pool left
+# the third reserved slot empty* — a wasted slot subtracted from the other shards. With five
+# members the pool fills all three reserved slots with real, concurrent parts, so the extra
+# slot is now productive rather than wasted, and the #1180 reservation-3 figure does not carry
+# to the five-member pool. Re-measuring the five-member packing is tracked separately; the
+# constant follows the AC (five members) and the reservation stays `BUDGET - 1`-bounded on
+# 4 vCPU.
 #
 # It is a global cap, so it also binds a host with more cores, where `BUDGET - 1` would
 # otherwise have selected more than the membership. That is the same over-reservation
