@@ -59,12 +59,14 @@ If you want a private, low-noise setup without hunting down each individual key,
 }
 ```
 
-With `telemetry.enabled` set to the JSON boolean `false`, every optional telemetry mechanism turns off in one place: the efficiency trace, execution diagnostics, durable scrubbed denied-command text, the live review progress comment and the created-issue investigation record all resolve to disabled wherever you have not set their own key, and the workpad-copy push to the `prflow-telemetry` branch is skipped — so quiet runs write nothing to that branch.
+With `telemetry.enabled` set to the JSON boolean `false`, the enrolled telemetry mechanisms turn off in one place: the efficiency trace, execution diagnostics, durable scrubbed denied-command text, the live review progress comment and the created-issue investigation record all resolve to disabled wherever you have not set their own key, and the workpad-copy push to the `prflow-telemetry` branch is skipped — so quiet runs write nothing to that branch.
+
+`execution_transcript_artifact_enabled` is not enrolled, because it already defaults to `false`; if you turned it on, it stays on until you turn it off yourself.
 
 A few things to know:
 
 - **Only the boolean `false` disables.** Every other value — the string `"false"`, `0`, `null`, a wrong type, a missing key or an unreadable config — leaves telemetry **on**. This fail-safe direction is deliberate: a malformed config never silently drops your observability.
-- **An explicit key always wins.** If you set an individual key (for example `prflow.execution_diagnostics_enabled`) it overrides the master, in both directions — so you can turn the master off but keep one mechanism on, or leave the master on and turn one mechanism off.
+- **An explicit key always wins for the five sub-keys.** If you set one of them (for example `prflow.execution_diagnostics_enabled`) it overrides the master, in both directions — so you can turn the master off but keep that mechanism on, or leave the master on and turn it off. The `prflow-telemetry` branch push is the exception: it reads the master alone, so a master `false` skips it even when `efficiency_telemetry_enabled` is explicitly `true`.
 - **The value is ergonomics and privacy, not cost.** Turning telemetry off saves only a small amount of run time (measured at roughly 1–3% of a run); the point is fewer GitHub writes, no telemetry branch and no stored records.
 - **Rollback is removing the key**, which restores every default. Mixed plugin versions are safe: a repository whose vendored PRFlow copy predates this key simply ignores it and keeps telemetry on until the next upgrade.
 

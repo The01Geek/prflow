@@ -33,8 +33,26 @@ fi
 # Dirname-free anchor: `dirname` is not one of the tools lib/preflight.sh guarantees,
 # and an empty anchor would silently no-op this gate.
 _CST_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
-if [ -f "$_CST_DIR/telemetry-master-off.py" ] && command -v python3 >/dev/null 2>&1 \
-   && python3 "$_CST_DIR/telemetry-master-off.py" "$ROOT/.prflow/config.json" >/dev/null 2>&1; then
+# Resolve the config the way every other reader does — the DEVFLOW_CONFIG_FILE
+# override, then the state-dir read-through. Spelling `.prflow/` here instead would
+# make this gate miss a mid-migration `.devflow/` consumer's master switch and
+# upload the payload their sibling --persist gate skipped.
+if [ -z "${DEVFLOW_CONFIG_FILE:-}" ] && [ -r "$_CST_DIR/../lib/resolve-state-dir.sh" ]; then
+  # shellcheck source=../lib/resolve-state-dir.sh
+  . "$_CST_DIR/../lib/resolve-state-dir.sh" 2>/dev/null || true
+fi
+if [ -n "${DEVFLOW_CONFIG_FILE:-}" ]; then
+  _CST_CFG="$DEVFLOW_CONFIG_FILE"
+elif command -v prflow_state_dir >/dev/null 2>&1; then
+  _CST_CFG="$(prflow_state_dir "$ROOT")/config.json"
+else
+  _CST_CFG="$ROOT/.prflow/config.json"
+fi
+if [ ! -f "$_CST_DIR/telemetry-master-off.py" ]; then
+  echo "::warning::collect-staged-telemetry: telemetry-master-off.py not found beside this script — the telemetry.enabled master switch was NOT consulted; collecting as if telemetry were on (issue #2035)" >&2
+elif ! command -v python3 >/dev/null 2>&1; then
+  echo "::warning::collect-staged-telemetry: python3 not on PATH — the telemetry.enabled master switch was NOT consulted; collecting as if telemetry were on (issue #2035)" >&2
+elif python3 "$_CST_DIR/telemetry-master-off.py" "$_CST_CFG" >/dev/null 2>&1; then
   echo "::warning::collect-staged-telemetry: telemetry.enabled is false — collecting nothing this run (issue #2035)" >&2
   exit 0
 fi

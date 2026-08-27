@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Single source of PRFlow's telemetry master-switch predicate (issue #2035).
+"""PRFlow's telemetry master-switch predicate, as a standalone script (issue #2035).
+
+`scripts/collect-staged-telemetry.sh` is the caller that execs this file.
+`scripts/config-get.sh` and `lib/efficiency-trace.sh` carry byte-equivalent
+inline `python3 -c` copies of the same JSON-type test instead of exec-ing it:
+both are hardened Stop-hook closure members, where a new source/exec edge would
+break the issue-#458 drift guard. Change one, change all three.
 
 Exit 0 (telemetry OFF) ONLY when ``telemetry.enabled`` is the JSON boolean
 ``false`` in the config file named by argv[1]. Exit 1 (telemetry ON /

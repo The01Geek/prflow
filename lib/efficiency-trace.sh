@@ -1537,6 +1537,9 @@ do_persist() {
   # exec of a repo .py: efficiency-trace.sh is a hardened Stop-hook closure member, so a
   # source/exec edge to a new script would break the issue-#458 drift-guard and force a
   # workflow edit. Reads the JSON TYPE (`is False`), so 0 and "false" never disable.
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "devflow: efficiency-trace.sh --persist: python3 not on PATH — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
+  fi
   if command -v python3 >/dev/null 2>&1 && DEVFLOW_TEL_CFG="$_DEVFLOW_CONFIG" python3 -c '
 import json, os, sys
 try:

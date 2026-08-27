@@ -6967,4 +6967,50 @@ T2035_COLLECT_CORRUPT="$(_t2035_collect "$T2035_ROOT/m-corrupt.json")"
 assert_eq "#2035 AC5 collect-staged corrupt-config collects (fail-safe on)" "1" "${T2035_COLLECT_CORRUPT%%|*}"
 assert_eq "#2035 AC5 collect-staged corrupt-config emits no skip breadcrumb" "no" "$(printf '%s' "$T2035_COLLECT_CORRUPT" | cut -d'|' -f2)"
 
+# The master switch not being CONSULTED is a distinct outcome from it being read
+# as ON, and it is announced. Without this the two gates fail open in silence and
+# an operator who set telemetry.enabled=false cannot tell the switch was ignored.
+T2035_NOPY_DIR="$T2035_ROOT/nopy"
+mkdir -p "$T2035_NOPY_DIR"
+T2035_BASH_ABS="$(command -v bash)"
+T2035_CR_NOPY="$T2035_ROOT/collect-nopy"
+mkdir -p "$T2035_CR_NOPY/.prflow"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_NOPY/.prflow/config.json"
+mkdir -p "$T2035_CR_NOPY/.prflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1"
+printf '%s' '{}' > "$T2035_CR_NOPY/.prflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1/iter-1.json"
+# PATH points at an EMPTY dir so `command -v python3` genuinely misses; bash is
+# invoked by absolute path because a cleared PATH cannot resolve `bash` itself.
+( PATH="$T2035_NOPY_DIR" "$T2035_BASH_ABS" "$T2035_CST" "$T2035_CR_NOPY" "$T2035_CR_NOPY/upload" ) >/dev/null 2>"$T2035_CR_NOPY/err.txt"
+assert_eq "#2035 collect-staged announces an unconsulted master switch when python3 is absent" "yes" \
+  "$(grep -qF 'master switch was NOT consulted' "$T2035_CR_NOPY/err.txt" && echo yes || echo no)"
+
+T2035_HELPERLESS="$T2035_ROOT/helperless"
+mkdir -p "$T2035_HELPERLESS"
+cp "$T2035_CST" "$T2035_HELPERLESS/collect-staged-telemetry.sh"
+T2035_CR_NOHELP="$T2035_ROOT/collect-nohelp"
+mkdir -p "$T2035_CR_NOHELP/.prflow"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_NOHELP/.prflow/config.json"
+bash "$T2035_HELPERLESS/collect-staged-telemetry.sh" "$T2035_CR_NOHELP" "$T2035_CR_NOHELP/upload" >/dev/null 2>"$T2035_CR_NOHELP/err.txt"
+assert_eq "#2035 collect-staged announces an unconsulted master switch when the predicate script is absent" "yes" \
+  "$(grep -qF 'master switch was NOT consulted' "$T2035_CR_NOHELP/err.txt" && echo yes || echo no)"
+
+# DEVFLOW_CONFIG_FILE reaches the collect gate, as it already does --persist: the
+# two push-path gates must not disagree about where the master switch lives.
+T2035_CR_ENVCFG="$T2035_ROOT/collect-envcfg"
+mkdir -p "$T2035_CR_ENVCFG/.prflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1"
+printf '%s' '{}' > "$T2035_CR_ENVCFG/.prflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1/iter-1.json"
+printf '%s' '{}' > "$T2035_CR_ENVCFG/.prflow/config.json"
+assert_eq "#2035 collect-staged honors DEVFLOW_CONFIG_FILE for the master switch" "" \
+  "$( DEVFLOW_CONFIG_FILE="$T2035_ROOT/m-false.json" bash "$T2035_CST" "$T2035_CR_ENVCFG" "$T2035_CR_ENVCFG/upload" 2>/dev/null )"
+
+# The issue-#1002 state-dir read-through reaches this gate too: a consumer still on
+# .devflow/ who sets the master false must not have their payload uploaded anyway.
+T2035_CR_DEVFLOW="$T2035_ROOT/collect-devflow"
+mkdir -p "$T2035_CR_DEVFLOW/.devflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1"
+cp "$T2035_ROOT/m-false.json" "$T2035_CR_DEVFLOW/.devflow/config.json"
+printf '%s' '{}' > "$T2035_CR_DEVFLOW/.devflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1/iter-1.json"
+bash "$T2035_CST" "$T2035_CR_DEVFLOW" "$T2035_CR_DEVFLOW/upload" >/dev/null 2>"$T2035_CR_DEVFLOW/err.txt"
+assert_eq "#2035 collect-staged honors a superseded .devflow/ config for the master switch" "yes" \
+  "$(grep -qF 'telemetry.enabled is false' "$T2035_CR_DEVFLOW/err.txt" && echo yes || echo no)"
+
 rm -rf "$T2035_ROOT"
