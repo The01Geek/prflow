@@ -4,6 +4,38 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.10] — 2026-08-27
+
+### Removed
+- **Removed the report-only stall-observer workflow, its scan helper, and its two `prflow_implement.stall_observer` config keys.** The scheduled observer never reported the still-running stalls it was built to catch, so `.github/workflows/stall-observer.yml`, `scripts/stall-observer-scan.py`, and the `enabled` / `advisory_threshold_minutes` keys were deleted; the in-job `prflow_implement.stall_backstop` is untouched. The workflow was never shipped to consumer repositories, so no installed consumer loses a running mechanism. (#2069)
+
+### Fixed
+- **`workpad.py update` now accepts `--note-file` and `--reflection-file` more than once**, appending one bullet per payload in command-line order instead of silently keeping only the last path. Each payload is measured on its own against the per-note byte budget, and the stdin form `-` may be used at most once per flag. A call passing either flag once is unchanged. (#2078)
+
+## [2.35.9] — 2026-08-27
+
+### Added
+- **The cloud review tier's command-shape discipline now names a revision-anchored
+  read-and-count recipe.** A review actor that needs to count in how many lines a symbol
+  appears in a file at a specific commit finds the recipe stated in the review skill root's
+  command-shape block (`skills/review/SKILL.md`) and, self-contained, in the displaced-path
+  routing contract each dispatched review agent receives
+  (`skills/review/phases/phase-3-agents.md`): read the file with `git show <sha>:<path>`
+  (the revision written as a literal) and count with the granted text tools
+  (`grep -c -F` for a line count, `grep -n -F` to locate). Because the raw
+  `git show … | grep -c` pipe has no recorded review-tier verdict, the recipe prescribes a
+  composed Write/`tee`-into-`.prflow/tmp/`-then-`grep` form until a probe verdict is recorded. The
+  same block's refused-shape list now names the spellings an agent would otherwise iterate
+  — git's own grep sub-command, git -C, and a revision passed as a parameter expansion — so
+  the block's existing two-refusal hard rule becomes actionable for this need. The exact
+  pipe shape gains a `matcher-probe.yml` probe row and a pending-verdict record in
+  `docs/internal/cloud-allowlist.md`. (#2074)
+
+## [2.35.8] — 2026-08-27
+
+### Fixed
+- **Treat an empty `permission_denials` array as a measured zero in the denial-count extractors.** On claude-code CLI 2.1.247 the execution file carries a `permission_denials` array (empty on a clean run) and no `permission_denials_count` field, so `scripts/surface-execution-diagnostics.sh` and `scripts/build-denial-record.sh` reported every clean run's count as `unavailable` instead of `0`. Both extractors now treat the presence of a `permission_denials` array as a measurement (an empty or all-non-object array yields `0`), retain the `unavailable` sentinel for the neither-carrier case (no count field and no `permission_denials` array), and emit a shape-drift warning when a result event is present but the count is still unknown. The `devflow-runner.yml` output mapping moves to the documented string-equality form so a published `0` survives. (#2068)
+
 ## [2.35.7] — 2026-08-27
 
 ### Added

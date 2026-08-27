@@ -199,24 +199,6 @@
               "default": 2
             }
           }
-        },
-        "stall_observer": {
-          "type": "object",
-          "additionalProperties": false,
-          "description": "Cloud-only out-of-band, REPORT-ONLY observer for in-flight /prflow:implement stalls (.github/workflows/stall-observer.yml; issue #1027). The in-job stall_backstop runs only AFTER the agent step returns, so it structurally cannot observe a run that is still going. This scheduled observer reads each open PRFlow issue's workpad **Last updated:** time against an advisory staleness threshold and surfaces 'silent for N minutes; last checkpoint X' as a job annotation + step summary. It NEVER kills a run and NEVER re-dispatches one — so it cannot race the stall_backstop resume arm. Because no wall-clock gap cleanly separates a stall from legitimate work (a healthy run ran 119 min; a 69-min inter-checkpoint gap occurred on healthy runs too), the threshold is advisory-only and its default is deliberately conservative and provisional pending a larger sample. Repo-internal in this release: install.sh does not ship stall-observer.yml to consumers.",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Master switch for the stall observer. true (the default) lets the scheduled job emit advisory annotations; false makes the job no-op after the config gate. Only the exact string 'false' disables it; an unrecognized/missing value resolves to true.",
-              "default": true
-            },
-            "advisory_threshold_minutes": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Advisory-only staleness threshold in minutes: an in-flight workpad silent at least this long is surfaced as an advisory. It never kills or resumes a run. The default 90 is deliberately above the observed 119-min legitimate run's typical inter-update gaps and the observed 69-min healthy gap, to avoid training operators to ignore false alarms; it is provisional and should be re-set from a larger sample.",
-              "default": 90
-            }
-          }
         }
       }
     },

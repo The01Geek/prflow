@@ -27,7 +27,6 @@ Event routing is a security and cost boundary. Restricting the accepted event an
 - `.github/workflows/devflow-runner.yml` — the read-only review runner the command tier dispatches.
 - `.github/workflows/ci.yml` — pull-request verification jobs.
 - `.github/workflows/mintlify-check.yml` — advisory Mintlify validation for pull requests that change the public docs source.
-- `.github/workflows/stall-observer.yml` — a scheduled, report-only observer for stalled in-flight runs.
 - `.github/workflows/version-consolidate.yml` — the merge-to-main changeset consolidation job.
 - `.github/workflows/telemetry-push.yml` — the telemetry relay; part of the withheld automatic-review tier, retained in the tree for already-installed consumers.
 - `scripts/authorize-actor.sh`, `scripts/react-to-trigger.sh`, and deduplication helpers — trigger decisions.

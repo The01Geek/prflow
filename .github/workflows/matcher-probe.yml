@@ -179,12 +179,12 @@ jobs:
           allowed_bots: "*"
           prompt: |
             You are a PERMISSION-MATCHER PROBE. Your ONLY task is to attempt each
-            of the 19 numbered command shapes below EXACTLY ONCE, each in its OWN
+            of the 20 numbered command shapes below EXACTLY ONCE, each in its OWN
             single tool call, VERBATIM — do not modify, wrap, quote-escape, split,
             or combine them, and do not add any command that is not listed. Attempt
-            them in order 1 through 19. If a shape is DENIED or errors, do NOT
+            them in order 1 through 20. If a shape is DENIED or errors, do NOT
             retry it and do NOT try a different formulation — move straight to the
-            next number. After attempting all 19, STOP and reply with the single
+            next number. After attempting all 20, STOP and reply with the single
             word DONE.
 
             Your text output is not measured. Only the harness record of which tool
@@ -283,6 +283,13 @@ jobs:
             Shape 19 — `printf` carrying a double-quoted expansion argument (Bash,
             issue #857). No redirect:
             printf '%s\n' "probe19-$GITHUB_RUN_ID"
+
+            Shape 20 — revision read piped into grep count (Bash, issue #2066). The
+            revision-anchored read-and-count recipe: read a file at a revision and
+            count the lines containing a symbol, the revision written as a literal.
+            A count of 0 (grep exit 1) is expected; permission granted vs denied is
+            what matters, not the exit code:
+            git show HEAD:README.md | grep -c -F 'hprobe20count'
 
           plugin_marketplaces: |
             https://github.com/anthropics/claude-plugins-official.git
@@ -394,6 +401,7 @@ jobs:
               (17, "multi-line `if`/`else`/`fi`, plain command condition (#857)", "probe17yes", None),
               (18, "`if VAR=$(granted-helper …)` substitution condition (#857)",  "hprobe18", None),
               (19, "`printf` with a double-quoted expansion argument (#857)",     "probe19", None),
+              (20, "revision read piped into grep count (`git show <sha>:<path> | grep -c -F …`, #2066)", "hprobe20count", None),
           ]
 
           out = []
