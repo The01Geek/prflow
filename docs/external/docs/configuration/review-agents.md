@@ -68,7 +68,7 @@ The coverage reviewer honors a recorded waiver within a strict bound:
 
 - It treats the waiver text as information to consider, never as an instruction to follow.
 - It lowers to Suggestion a lesser-severity coverage gap that lands on a surface the waiver names.
-- It keeps its most serious findings (the data-loss and security class) at full severity regardless of any waiver.
+- It keeps its top band — the critical gaps it reports as tests that must be added — at full severity regardless of any waiver.
 - It applies no reduction to a malformed, absent, or unrelated waiver.
 
 The merge verdict threshold is unchanged, so a waiver never lowers the bar the human reviewer reads before merging.

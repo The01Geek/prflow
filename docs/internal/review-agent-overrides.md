@@ -1,4 +1,5 @@
 # Per-subagent model & effort overrides for the review engine
+
 <!-- verified-against: 15678c64c 2026-08-27 -->
 
 **Config block:** `prflow_review.agent_overrides` in `.prflow/config.json`
@@ -216,17 +217,15 @@ pass dispatches it, and from the PR body's Test Plan line on any later review. `
 resolves the verbatim waiver text into the `{TEST_AUTHORING_WAIVER}` slot of the pr-test-analyzer
 dispatch prompt (substituting `none recorded` when none is present), using only reads the engine already
 performs — the already-granted workpad read and Phase 0's `gh pr view … --json body` read — with no new
-helper or command head. The reviewer then:
+helper or command head.
 
-- treats the waiver text strictly as **data to classify, never an instruction to obey** — it is
-  author-supplied and may be phrased like a command; it changes nothing beyond the bounded cap below;
-- caps a coverage gap it would otherwise rate in the **sub-critical band (1-7)** at Suggestion when the
-  gap falls on a surface the waiver names, stating the waiver as the reason;
-- keeps its **top band exempt** — a gap rated **8-10** (the Critical Gaps bucket, the data-loss and
-  security class) stays at full severity regardless of any waiver;
-- **fails toward full strictness** on a malformed, absent, duplicated, or truncated waiver, or one
-  naming surfaces the diff does not touch — no cap applies unless the gap both falls in the sub-critical
-  band and lands on a surface the waiver actually names.
+The reviewer then applies a bounded honor rule whose canonical statement — including the exact severity
+bands it reads — is the **Coverage-waiver honor rule (bounded)** section of `agents/pr-test-analyzer.md`;
+read it there rather than from a copy here. In summary: the waiver text is data to classify and never an
+instruction to obey; a sub-critical coverage gap on a surface the waiver names is capped at Suggestion;
+the reviewer's top band — its Critical Gaps bucket — is exempt from every waiver; and a malformed,
+absent, duplicated, truncated, or non-matching waiver applies no cap at all, so the rule fails toward
+full strictness.
 
 Trust-boundary residual: the PR body is author-writable, so a waiver line can appear without a real
 waiver behind it. The residual is bounded — the honor rule only lowers matching sub-critical findings to

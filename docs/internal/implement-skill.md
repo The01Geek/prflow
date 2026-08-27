@@ -1,4 +1,5 @@
 # `/prflow:implement` skill — Phase 2.3 sweep discipline and Phase 4.3 finalize
+
 <!-- verified-against: 15678c64c 2026-08-27 -->
 
 **Skill:** `skills/implement/phases/phase-2-sweeps-contract.md` (Phase 2.3, *Implement*) — read at phase entry by the thin `skills/implement/SKILL.md` orchestrator. It carries the §2.3 preamble and the trigger heading and predicate of the 2.3.0-family conditional sweeps; its sibling `skills/implement/phases/phase-2-sweeps-quality.md` carries the six always-firing sweeps' procedures in full plus the trigger heading and predicate of the remaining conditional sweeps (2.3.1, 2.3.2, 2.3.7). Since issue #1581 the eight conditional sweeps' *procedures* live in per-sweep gated references (see **Gated conditional-sweep procedures** below).
@@ -779,19 +780,17 @@ as an auditable workpad note — the same recorded-note discipline the productio
 Its purpose is proportional test authoring on small tickets: fewer authored test lines, fewer
 downstream coverage findings, and fewer fix-loop iterations spent polishing tests nobody asked for.
 
-**The waivable set is exactly three, complete by construction:** multi-element collection-cardinality
-cases (§2.3.7, `skills/implement/references/sweep-2-3-7-collection-cardinality.md`), stub blind-spot
-enumeration, and per-criterion one-assertion accounting (several criteria grouped under one covering
-assertion, each criterion still recorded). Everything else stays binding whether or not a waiver is
-taken: the covering RED-first test itself, the mutation-check discipline for any test actually written,
-the pin-corpus authoring boundary, the no-automated-test arm, and the extract-inline-shell-into-a-helper
-mandate — inline shell is carved out of the no-automated-test class precisely because the covering test
-can only exist against the extracted helper, so waiving extraction would leave the still-binding covering
-test unsatisfiable.
+**The waivable set is closed and small, and everything else stays binding.** Its canonical enumeration —
+which ceremonies may be waived, and what stays binding waiver or no waiver — is the §2.3 waiver clause in
+`skills/implement/phases/phase-2-sweeps-contract.md`; read it there rather than from a copy here. The
+design point this page owns is *why* the set is closed: the mandate to extract inline workflow shell into
+a helper is deliberately outside it, because §2.3 carves inline shell out of the no-automated-test class
+precisely so the covering test can exist against the extracted helper — waiving extraction would leave the
+still-binding covering test unsatisfiable.
 
-**The marker and its grammar.** A run taking the waiver records one workpad note beginning with the
-stable marker `test-authoring-waiver:` followed by what was waived and why, in the grammar
-`<ceremony> — <reason>`. That marker and grammar are the contract three downstream surfaces read:
+**The marker.** A run taking the waiver records one workpad note beginning with the stable marker
+`test-authoring-waiver:`, in the grammar the §2.3 clause states. That marker is the contract three
+downstream surfaces read:
 
 - **PR Test Plan (Phase 4.2 seeding).** `skills/pr-description/SKILL.md` scans the workpad `## Progress`
   notes for each `test-authoring-waiver:` note, strips the rendered timestamp prefix and the marker,
