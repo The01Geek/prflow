@@ -1277,6 +1277,15 @@ Render the report markdown and post it as a comment on the state PR:
 ```bash
 source $LIB/render-report.sh
 devflow_render_report "$SUMMARY_JSON" > .prflow/tmp/report.md
+# Buffer the implement-runtime section, append it before the report is posted, and gate that
+# append on content rather than exit status: --retro exits 1 on an unreadable store while
+# still writing the section that says so.
+$LIB/../scripts/implement-run-report.py --retro > .prflow/tmp/implement-runtime.md || true
+if [ -s .prflow/tmp/implement-runtime.md ]; then
+  cat .prflow/tmp/implement-runtime.md >> .prflow/tmp/report.md
+else
+  printf '## Implement runtime trends\n\n_(section omitted — implement-run-report.py --retro produced no output)_\n' >> .prflow/tmp/report.md
+fi
 bash $LIB/post-status.sh --pr "$STATE_PR" --report-file .prflow/tmp/report.md
 ```
 

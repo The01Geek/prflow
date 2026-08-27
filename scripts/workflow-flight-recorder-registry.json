@@ -57,7 +57,7 @@
     },
     "harness-python-guards": {
       "path": "lib/test/modules/harness-python-guards.sh",
-      "minimum_assertions": 45,
+      "minimum_assertions": 49,
       "assertion_floor_policy": "exact",
       "description": "Focused monolith-only Python guard drivers whose subject is a single code unit and whose verification is self-contained: the #600 render-audit-prompt renderer, the #527 verification-launch baseline analyzer, the #528 single-flight verification ledger, the #668 reception-identity producer, the #798 pin-corpus classifier unit tests, the #810 pin-corpus authoring-gate unit tests plus the red-on-removal and residual-prose retirement censuses/current-corpus closure, the #985 opt-in suite wall-clock profiler unit tests, the #591 coverage-map ratchet guard (live-tree invocation, unit test, and a planted coverage-map drift as the coverage-map guard's positive control), and the #1194 coverage-map merge tooling (the JSON-aware git merge driver driven against real offline merges plus the CI-side key-retention check), and the #1287 assertion-floor retention check (its pure detect_decreases/classify_outcome core over every decrease, retirement, malformed-comparand, escape-hatch and arm-order shape, plus the CLI end-to-end against a real offline git repository)"
     },
@@ -81,13 +81,13 @@
     },
     "experiment-records": {
       "path": "lib/test/modules/experiment-records.sh",
-      "minimum_assertions": 165,
+      "minimum_assertions": 170,
       "assertion_floor_policy": "exact",
       "description": "Focused #431 build-experiment-records.py unified-experiment-record join: the DEVFLOW_GH-stubbed assembler driven over fixture stores with per-scenario repo roots, the joined record fields, and the config_fingerprint stamp with its partial-flag, None and canonical-hash arms"
     },
     "efficiency-trace-telemetry": {
       "path": "lib/test/modules/efficiency-trace-telemetry.sh",
-      "minimum_assertions": 1063,
+      "minimum_assertions": 1126,
       "assertion_floor_policy": "exact",
       "description": "Focused efficiency-trace and telemetry-persistence coverage: the efficiency-trace.jq/.sh per-run derivation surface with its degradation and flag-off arms, --persist and --self-check (#80), the #475 harness-side cost floor, the #381 synthesis floor with its shadow-provenance pins, #532 base-ref freshness, #441 telemetry-branch persistence, the #469 push-operand fail-closed/fetch-before-exclusion/degraded-retention contract, the #489 cross-workflow telemetry artifact relay, and the #499 unavailable-telemetry normalization matrix that shares this module's _et_show durable-blob reader"
     },

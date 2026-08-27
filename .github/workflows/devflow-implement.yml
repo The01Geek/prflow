@@ -1835,6 +1835,10 @@ jobs:
           DEVFLOW_CANDIDATE_NUMBER: ${{ needs.gate.outputs.number }}
           # Job-lifetime-valid token for the floor's gh PR resolution: the job-start App
           # token can already be past its ~60-minute lifetime by backstop time (#287).
+          # Run-profile floor (issue #2006). The engine step's own outcome, which the run
+          # cannot read for itself mid-run — an always() step can read any prior step's
+          # context, so the workflow supplies it here.
+          DEVFLOW_ENGINE_OUTCOME: ${{ steps.claude.outcome }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
@@ -1849,9 +1853,17 @@ jobs:
           DEVFLOW_EXECUTION_COST=""
           DEVFLOW_EXECUTION_PR=""
           DEVFLOW_COMMAND_CLASS=""
+          # Emitted by prepare-harness-floor.sh alongside the two above (issue #2006).
+          # DEVFLOW_ISSUE_NUMBER is non-empty only on the implement class; it keys the
+          # PR-less record and the prior-record count. DEVFLOW_NO_PR_REASON names which
+          # PR-resolution branch fired.
+          DEVFLOW_ISSUE_NUMBER=""
+          DEVFLOW_NO_PR_REASON=""
+          DEVFLOW_RUN_PROFILE=""
           if [ -f "$FLOOR" ]; then
             COST_FILE="${RUNNER_TEMP:-/tmp}/devflow-harness-cost-$$.json"
-            # The glue prints two eval-able env assignments (PR + class) to stdout and
+            # The glue prints four eval-able env assignments (PR, class, issue number,
+            # no-PR reason) to stdout and
             # writes the cost JSON to $COST_FILE; its breadcrumbs go to the step log.
             eval "$(bash "$FLOOR" "${EXECUTION_FILE:-}" "${DEVFLOW_COMMAND:-}" "${DEVFLOW_CANDIDATE_NUMBER:-}" "$COST_FILE")"
             [ -s "$COST_FILE" ] && DEVFLOW_EXECUTION_COST="$(cat "$COST_FILE")"
@@ -1894,10 +1906,34 @@ jobs:
           # skeleton) AND the permission_denials record (issue #1064); unset, it is
           # byte-identical to before (issue #441/#475). It never touches HEAD or the
           # TRACKED working tree. Best-effort/exit-0.
+          # Run-profile floor glue (issue #2006): resolve this run's workpad and derive its
+          # per-phase durations and final status. Guarded exactly like $FLOOR — a vendored
+          # tree pinned to an older prflow_version lacks it, and that must draw a NAMED
+          # ::warning:: (profile inert) rather than a bare interpreter error under `set +e`.
+          PROFILE_GLUE=.prflow/vendor/prflow/scripts/prepare-run-profile.sh
+          if [ ! -f "$PROFILE_GLUE" ]; then
+            echo "::warning::run-profile floor inert: $PROFILE_GLUE missing (a vendored tree pinned to an older prflow_version); the run profile is skipped this run"
+          elif [ -z "$DEVFLOW_ISSUE_NUMBER" ]; then
+            echo "::notice::run-profile floor inert: no issue number for this command class; the run profile is derived for implement runs only"
+          else
+            PROFILE_FILE="${RUNNER_TEMP:-/tmp}/devflow-run-profile-$$.json"
+            # Do NOT drop the rc: the glue exits 0 by design, so a non-zero exit means a
+            # corrupt or partial vendored copy, which must draw a NAMED ::warning:: rather
+            # than leaving DEVFLOW_RUN_PROFILE silently empty with no diagnosis.
+            if ! bash "$PROFILE_GLUE" "$DEVFLOW_ISSUE_NUMBER" "$PROFILE_FILE"; then
+              echo "::warning::run-profile floor inert: $PROFILE_GLUE exited non-zero (a corrupt or partial vendored copy); the run profile is skipped this run"
+            fi
+            [ -s "$PROFILE_FILE" ] && DEVFLOW_RUN_PROFILE="$(cat "$PROFILE_FILE")"
+            rm -f "$PROFILE_FILE"
+          fi
           DEVFLOW_EXECUTION_COST="$DEVFLOW_EXECUTION_COST" \
           DEVFLOW_EXECUTION_PR="$DEVFLOW_EXECUTION_PR" \
           DEVFLOW_COMMAND_CLASS="$DEVFLOW_COMMAND_CLASS" \
           DEVFLOW_DENIAL_RECORD="$DEVFLOW_DENIAL_RECORD" \
+          DEVFLOW_ISSUE_NUMBER="$DEVFLOW_ISSUE_NUMBER" \
+          DEVFLOW_NO_PR_REASON="$DEVFLOW_NO_PR_REASON" \
+          DEVFLOW_RUN_PROFILE="$DEVFLOW_RUN_PROFILE" \
+          DEVFLOW_ENGINE_OUTCOME="${DEVFLOW_ENGINE_OUTCOME:-}" \
             bash "$HELPER" --persist
           exit 0
 

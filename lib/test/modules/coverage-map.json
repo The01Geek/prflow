@@ -356,6 +356,11 @@
       "note": "retained unreachable-in-tree: called only by the withheld auto-review tier's workflow, kept so an installed consumer copy still resolves it (issue #936); now ALSO reached by scripts/dead-run-verdict-present.sh, wired into devflow.yml's dead-run flip gate (issue #1172)",
       "owner": "review-trigger-helpers"
     },
+    "scripts/derive-run-profile.py": {
+      "focused_test": "lib/test/test_derive_run_profile.py",
+      "note": "",
+      "owner": "unmodularized"
+    },
     "scripts/describe-command-job-arm.sh": {
       "note": "issue #1174: the out-of-job review_finalize backstop's command-job arm selector (completed-normally / cancelled / did-not-report from needs.command.result); every arm and the arm ORDER are driven in the #1174 section of lib/test/modules/review-trigger-helpers.sh — a distinct decision from describe-dead-run-cause.sh, which it must not duplicate",
       "owner": "review-trigger-helpers"
@@ -488,9 +493,29 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/implement-benchmark.py": {
+      "focused_test": "lib/test/test_implement_benchmark.py",
+      "note": "",
+      "owner": "unmodularized"
+    },
     "scripts/implement-context-eval.py": {
       "focused_test": "lib/test/test_implement_context_eval.py",
       "note": "issue #1209 implement runtime-context eval; maintainer-only instrument, tested directly by lib/test/test_implement_context_eval.py (serial)",
+      "owner": "unmodularized"
+    },
+    "scripts/implement-run-report.py": {
+      "focused_test": "lib/test/test_implement_run_report.py",
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "scripts/implement-timeline.py": {
+      "focused_test": "lib/test/test_implement_timeline.py",
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "scripts/implement_records.py": {
+      "focused_test": "lib/test/test_implement_run_report.py",
+      "note": "shared reader for the two report tools; its behavior is driven through test_implement_run_report.py and test_implement_benchmark.py",
       "owner": "unmodularized"
     },
     "scripts/import-workflow-transcript.py": {
@@ -605,6 +630,10 @@
     "scripts/prepare-harness-floor.sh": {
       "note": "",
       "owner": "unmodularized"
+    },
+    "scripts/prepare-run-profile.sh": {
+      "note": "",
+      "owner": "efficiency-trace-telemetry"
     },
     "scripts/pretooluse-shape-guard.py": {
       "focused_test": "lib/test/test_python_scripts_part3.py",
@@ -1686,6 +1715,10 @@
     "2003": {
       "note": "",
       "owner": "unmodularized"
+    },
+    "2006": {
+      "note": "",
+      "owner": "efficiency-trace-telemetry"
     },
     "2009": {
       "note": "",

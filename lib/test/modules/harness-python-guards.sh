@@ -573,3 +573,19 @@ assert_eq "#1065 canonical-form control: non-canonical serialized bytes turn the
 assert_eq "#1065 canonical-form control: the RED names arm 11" "yes" \
   "$(case "$_hpg_cg_canon_drift_out" in *"[arm11]"*) echo yes ;; *) echo no ;; esac)"
 rm -rf "$_hpg_cg_fixture"
+
+# ────────────────────────────────────────────────────────────────────────────
+echo "implement run evaluation instruments (issue #2006)"
+# ────────────────────────────────────────────────────────────────────────────
+# Without these four drivers the test files exist and pass by hand but the SUITE
+# never runs them, so a regression in any of the five instruments ships green.
+_ire_out="$(mktemp -d)"
+devflow_run_focused_python_test "implement run evaluation: derive-run-profile focused Python tests pass" \
+  "$LIB/test/test_derive_run_profile.py" "$_ire_out/derive.out"
+devflow_run_focused_python_test "implement run evaluation: implement-timeline focused Python tests pass" \
+  "$LIB/test/test_implement_timeline.py" "$_ire_out/timeline.out"
+devflow_run_focused_python_test "implement run evaluation: implement-run-report focused Python tests pass" \
+  "$LIB/test/test_implement_run_report.py" "$_ire_out/report.out"
+devflow_run_focused_python_test "implement run evaluation: implement-benchmark focused Python tests pass" \
+  "$LIB/test/test_implement_benchmark.py" "$_ire_out/benchmark.out"
+rm -rf "$_ire_out"

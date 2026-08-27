@@ -28,7 +28,7 @@
     },
     "implement-workflow": {
       "path": ".github/workflows/devflow-implement.yml",
-      "digest": "sha256:5714136a9247fa9dedcfc5c31dd5678d3e3f422734aee6dd6e60d687e838f8ae"
+      "digest": "sha256:5d4b20bcda7a6e8e9d3daf107db82a99128e65c4679d6274c38479b14b796090"
     }
   }
 }
