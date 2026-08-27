@@ -1023,11 +1023,12 @@ open queue so a weekly re-run does not re-file the same offender. Run the
 block below **once per offender**, each as its own Bash call:
 
 ```bash
-# One run of this block files ONE offender; repeat it per offender. TITLE is that
-# offender's issue title, composed and exported by you (stable across weeks).
+# One run of this block files ONE offender; repeat it per offender. Set TITLE to THIS
+# offender's issue title (stable across weeks) HERE, in the same call — each Bash call is
+# a fresh shell, so a TITLE set by an earlier call arrives unset and nothing is ever filed.
 # The in:title search is TOKENIZED, so re-match the title EXACTLY via jq env.TITLE — a token
 # overlap must not suppress a genuine filing (or annotate the wrong issue).
-export TITLE
+export TITLE="<this offender's issue title>"
 # Fail CLOSED on a query failure: an errored `gh issue list` must NOT be read as "none open"
 # and re-file a duplicate — `if gh …; then` routes on the query's OWN exit status.
 if EXISTING="$(gh issue list --state open --search "in:title \"$TITLE\"" --json number,title --jq 'map(select(.title == env.TITLE)) | .[0].number // empty')"; then
