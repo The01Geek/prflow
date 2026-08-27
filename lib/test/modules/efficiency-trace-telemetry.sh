@@ -6872,6 +6872,23 @@ assert_eq "#2035 enrolled inherit via repo-root config resolution" "false" "$( (
 # Idempotency — two master-off resolutions of the same enrolled key are identical.
 assert_eq "#2035 idempotent enrolled resolution" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")"
 
+# Matrix residual — a telemetry OBJECT present but `enabled` absent (the realistic
+# config shape holding only `telemetry.branch`) is the missing-sub-key shape: the
+# predicate reads tel.get("enabled") as None, so it is ON, and an enrolled miss
+# prints the caller default.
+printf '%s' '{"telemetry":{"branch":"prflow-telemetry"}}' > "$T2035_ROOT/m-noenabled.json"
+assert_eq "#2035 predicate: telemetry object present but enabled absent is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-noenabled.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 master enabled-absent (telemetry object present) → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-noenabled.json")"
+
+# Ordering — the master check runs AFTER probe_superseded_key, so an enrolled key
+# absent-but-with-its-superseded-spelling-present still emits the migration
+# breadcrumb even when the master disables it. This pins the emit_default_or_fail
+# ordering: master-off must not short-circuit the superseded-key probe.
+printf '%s' '{"telemetry":{"enabled":false},"devflow":{"execution_diagnostics_enabled":true}}' > "$T2035_ROOT/m-false-superseded.json"
+T2035_SUP_OUT="$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false-superseded.json" 2>"$T2035_ROOT/sup-err.txt")"
+assert_eq "#2035 ordering: master-off still prints false for an absent enrolled key" "false" "$T2035_SUP_OUT"
+assert_eq "#2035 ordering: migration breadcrumb still fires under master-off (probe before master)" "yes" "$(grep -qF 'superseded counterpart' "$T2035_ROOT/sup-err.txt" && echo yes || echo no)"
+
 # AC4 — the push path: --persist under master-off leaves the telemetry branch ref
 # UNMOVED and still exits 0. A real bare-remote git repo (git plumbing not mocked),
 # with a positive control (master-absent) proving the guard is not vacuous.
