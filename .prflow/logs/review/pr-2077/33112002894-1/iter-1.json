@@ -1,0 +1,173 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T20:00:00Z",
+  "fix_commit_sha": "548355488",
+  "fix_files": [
+    "scripts/review-evidence-gate.py",
+    "scripts/flip-review-progress-failed.sh",
+    ".github/workflows/devflow.yml",
+    ".changeset/issue-2075-review-evidence-gate.md",
+    "skills/review/SKILL.md",
+    "lib/test/review_evidence_gate_test.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "dispatch_mode": null,
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Changeset/comments overclaimed that /prflow:review-and-fix verdicts are gated; the fix loop posts no marker-bearing review so the gate safely no-ops for it.",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The phase-log write was worded best-effort/optional while the gate fails+dismisses on a missing log; a compliant run that skipped the line could be falsely dismissed.",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "_load_workpad swallowed the import exception; the whole gate could go permanently unestablished undiagnosably.",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The always-exit-0 contract was not upheld at the source for the classification calls.",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Several unestablished safety arms (reviewer-login-absent, reviews-payload not-an-array/unparseable, pre-inventory not-an-object) were untested.",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Pre-inventory comment said 'the reviewed head's review IDs' but the fetch is unscoped.",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "tee -a under the read-only review profile — confirmed already granted and used by existing phase files; no change.",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "REVIEWER_LOGIN github-actions[bot] fallback — confirmed it matches the actual identity when app-slug is empty (GITHUB_TOKEN path); not a fail-open.",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "aa7592314"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "b70f53e7d"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "aa7592314"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "aa7592314"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "aa7592314"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "aa7592314"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 6,
+    "fix_diff_lines": 120,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": "2026-08-27T20:00:00Z",
+    "reviewed_sha": "b70f53e7d37a9ca6664b84d731728b143a9ffc85",
+    "verdict": "APPROVE",
+    "coverage": "not_verified",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": "partial reviewer roster dispatched for the independent shadow audit; the two correctness reviewers found no Critical or Important code defect",
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Important",
+        "description": "The two new devflow.yml run: blocks (pre-inventory producer, gate invoker with REVIEWER_LOGIN selection and RID/RSTATE extraction) have no per-arm tests.",
+        "disposition": "soft-proceed-residual: the issue's Testing Strategy scopes the thin workflow steps to the actionlint pass; a new helper introduced by this branch is unreachable this run (vendored version-pin)."
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "No marked-COMMENTED fail case.",
+        "disposition": "applied (test_commented_state_reported added)."
+      }
+    ],
+    "comparison": {
+      "shadow_total": 2,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
