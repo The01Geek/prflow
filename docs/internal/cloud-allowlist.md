@@ -441,8 +441,16 @@ through the ladder under test) and reconciles that expectation against the run's
 workpad, blocking `Complete` when deliverable content was expected but no ticked arrival
 row records it — the shape a lost skill body produces, which `permission_denials_count`
 is structurally blind to. Being job-level it runs outside the matcher and needs no grant
-here. The local/interactive and cloud-review tiers still rely on the run-authored record
-above (issue #1971).
+here. **Issue #1971 extended the same enforcement to the cloud-review/command tier and the
+local/interactive tier:** `devflow.yml` gained the matching pre-/post-agent job-level pair
+reading the trusted base-ref closure, and `scripts/prompt-extension-arrival.py` gained a
+`classify-ladder-output` positive-signal mode that classifies from the ladder's own
+`PROMPT-EXTENSION-STATUS:` line — `arrived` only on `content-present`, `absent` only on
+`present-empty`, `unestablished` when no status was produced (the denial-shaped no-output
+case) — with the three workpad-less bodies forced to record an `unestablished` finding in a
+fixed workpad→PR→terminal fallback order. The helper is granted in the **`command`** profile
+for that tier; the read-only **`review`** profile is not widened, so there the invocation is
+denied, yields no output, and is classified `unestablished` rather than assumed arrived.
 Residual 1 — whether `${CLAUDE_SKILL_DIR}` is substituted inside placeholder text — was
 never measured and now never will be: with the channel retired there is no call site to
 dispatch it against. The anchor was used rather than a vendored literal because this

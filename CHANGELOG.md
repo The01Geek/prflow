@@ -4,6 +4,62 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.3] — 2026-08-27
+
+### Fixed
+- **Close the stale `diff.patch` reuse hazard in re-entrant review-engine entries.** In the
+  `/prflow:review-and-fix` loop, every engine entry after the run's first — a Step 1 iteration
+  from iteration 2 on, and every Step 2.6 shadow entry, on both dispatch arms — now deletes the
+  run-scoped `diff.patch` and its Phase 1 batch slices immediately before dispatch and confirms
+  they are gone, so the
+  entry's own Phase 0.2 regenerates the diff at the current HEAD rather than reviewing a stale
+  cache produced at a previous HEAD. Each re-entrant entry's return record carries the HEAD sha
+  its Phase 0.2 produced the diff at, and the parent fails a missing or mismatched sha through
+  the entry's existing failure handling. The shadow dispatch now carries the held `run_id` and,
+  in PR mode, `head_override = local` as its Phase 0.2 caller inputs, and the Loop Exit
+  widens-surface guard fails closed when the cached diff is absent instead of reading it as an
+  empty diff. (#2057)
+
+## [2.35.2] — 2026-08-27
+
+### Changed
+Extend prompt-extension / skill-body arrival enforcement (issue #1446) beyond the cloud
+implement tier to the local/interactive tier and the cloud review/command tier.
+
+- `scripts/prompt-extension-arrival.py` gains a `classify-ladder-output` mode that
+  classifies from the delivery ladder's own emitted `PROMPT-EXTENSION-STATUS:` line
+  (stdin) by positive signal: `arrived` only on a produced `content-present` status,
+  `absent` only on a produced `present-empty` status, and `unestablished` whenever no
+  status line was produced at all — a helper denied when invoked by path emits no output,
+  so it never reads as arrival.
+- `.github/workflows/devflow.yml` gains the pre-agent classify / post-agent reconcile
+  job-level pair the implement workflow already carries, reading the extension root from
+  the trusted base-ref closure (`DEVFLOW_PROMPT_EXTENSION_ROOT`) rather than the PR-head
+  checkout. Because the read-only review/command tier has no implement-style positive-tick
+  arrival row, the post-agent step enforces only what it can establish at job level — it
+  fails closed on a successful run whose expectation is unestablished (no pre-agent token,
+  detector absent, no skill arm matching the command, an unreadable classification from a
+  present detector, an unrecognized expectation token, or an undeliverable extension file).
+  The classify step also classifies the second extension the two review commands deliver
+  (`receiving-code-review` / `requesting-code-review`), so a fault on it cannot hide behind
+  a deliverable primary.
+  On an arrived-expected (deliverable)
+  run it records that consumption cannot be independently confirmed on this read-only tier
+  and passes; the agent-side classify and forced durable record are the consumption catch.
+- The three workpad-less skill bodies (`skills/review`, `skills/review-and-fix`,
+  `skills/pr-description`) now force the non-arrival record to a durable surface in a fixed,
+  terminating order — workpad, then the pull request, then the run's own output naming the
+  record unrecordable.
+- The mechanized classifier's invocation contract is delivered whole: the skill bodies
+  instruct capturing the ladder's combined stdout+stderr (the status line is on stderr),
+  `skills/pr-description` carries the same `PROMPT-EXTENSION-STATUS` exit-0 contract as the
+  other two bodies, and `scripts/prompt-extension-arrival.py` carries the executable bit so
+  the by-path leading-token invocation the bodies name can actually run.
+- `scripts/prompt-extension-arrival.py` is granted in the `command` capability profile (the
+  five generated allowlist literals regenerated, `manifest_version` bumped); the read-only
+  `review` profile stays unwidened, so a review-tier invocation is denied and classified
+  `unestablished` rather than reported as arrival.
+
 ## [2.35.1] — 2026-08-27
 
 ### Changed
