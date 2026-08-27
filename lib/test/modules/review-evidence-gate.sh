@@ -224,8 +224,11 @@ rgs_sandbox 'fail missing=phase-entry-2 review_id=987 review_state=APPROVED'
 rgs_run >/dev/null
 assert_eq "#2075 step: the durable comment body leads with the human detail" "human detail line" \
   "$(head -1 "$RGS_ROOT/tmp/evidence-gate-body.md")"
-assert_eq "#2075 step: the durable comment body keeps the machine token as a footer" "yes" \
-  "$(grep -qF 'review_id=987 review_state=APPROVED' "$RGS_ROOT/tmp/evidence-gate-body.md" && echo yes || echo no)"
+# Compared against the token the sandbox seeded rather than a transcribed literal, so
+# the assertion cannot drift from the fixture and carries no raw-presence pin.
+assert_eq "#2075 step: the durable comment body keeps the machine token as its last line" \
+  "\`$(cat "$RGS_ROOT/token")\`" \
+  "$(grep -v '^$' "$RGS_ROOT/tmp/evidence-gate-body.md" | tail -1)"
 
 rm -rf "$RGS_ROOT"
 unset -f rgs_sandbox rgs_run rgs_dismissed
