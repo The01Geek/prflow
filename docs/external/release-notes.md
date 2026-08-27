@@ -9,6 +9,10 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## August 27, 2026
+
+- **Improvement: `/prflow:implement` runs reach the coding phase sooner.** The pre-coding issue-claim audit now delivers all of its per-pass records to the run's workpad in a single update at the end of the audit, instead of a separate network write as each pass completes. Runs spend less time in the pre-coding phase and cloud runs hold their Actions slot for less time, with the recorded workpad content unchanged. You get this through the normal plugin update. [#2018](https://github.com/The01Geek/prflow/issues/2018)
+
 ## August 25, 2026
 
 - **Improvement: Issue-implementation runs start with verified lint tools already installed.** The installer now ships a lint manifest and publishes a digest-bound compatibility marker to your repository, and `/prflow:implement` cloud runs install the pinned ShellCheck and Ruff set — run-local and digest- and version-verified — before the agent starts, so runs no longer spend paid turns rediscovering and installing those tools. The change also hardens the cloud review job so it can never execute the environment-setup action edited in the pull request under review. You get this by re-running the installer to refresh your workflows. [#1963](https://github.com/The01Geek/prflow/issues/1963)
