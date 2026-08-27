@@ -41675,12 +41675,8 @@ assert_eq "#779 ubc-token-arms: every helper token is named in a checkpoint-4 ar
 unset _t UBC_TOKENS UBC_TOKENS_ONELINE UBC_P4_BODY UBC_UNMAPPED
 
 # ── #2025 covmap-driver → update-branch-checkpoint.sh registers the coverage-map JSON-aware
-# merge driver itself (guarded on the .gitattributes declaration, fail-soft) before its base
-# merge, so an adjacent-key coverage-map.json insertion unions instead of routing to CONFLICT
-# and Blocking the run. Driven end-to-end in scratch repos that stage a copy of the real
-# driver + its guard/population deps so `--register` has a driver to register and git one to
-# run. Without the block the covmap-clean row degrades to CONFLICT — the pre-fix behavior — so
-# the row is a behavioral guard, not a vacuous pin. ───────────────────────────────────────
+# merge driver itself before its base merge. Stage the real driver + its guard/population
+# deps in each scratch repo, or `--register` has nothing to register. ──────────────────────
 UBC_CM_DEPS="coverage-map-merge-driver.py coverage_map_guard.py lint_population.py"
 
 # Build a scratch repo (bare origin + work on `feat`) whose .gitattributes routes
@@ -41749,10 +41745,9 @@ assert_eq "#2025 covmap-undeclared: no merge.coverage-map-json.driver config wri
 assert_eq "#2025 covmap-undeclared: no registration output on stderr (AC3)" "no" \
   "$(printf '%s' "$UBC_ERR" | grep -qF 'coverage-map merge driver' && echo yes || echo no)"
 
-# ── covmap-declared-other → AC3 parse-reject path: .gitattributes EXISTS but declares no
-# merge=coverage-map-json (comment line, *.sh glob that must not expand, near-miss superstring the
-# padded match must reject) → the loop runs and registers nothing; covmap-undeclared (no file at
-# all) never enters that loop, so its case-match/comment-skip/glob-avoidance arms go untested. ──
+# ── covmap-declared-other → AC3 reject path: .gitattributes EXISTS but resolves the map to a
+# near-miss superstring. Keep this row beside covmap-undeclared: a no-file repo never exercises
+# the resolve-then-reject arm at all. ──────────────────────────────────────────────────────
 D="$(git_sandbox 'ubc-covmap-declared-other')"
 ubc_make "$D"
 printf '# comment the parser must skip\n*.sh merge=text\nlib/test/modules/coverage-map.json merge=coverage-map-json-other\n' > "$D/work/.gitattributes"
@@ -41806,6 +41801,37 @@ assert_eq "#2025 covmap-regfail: the base merge still ran after the fail-soft fa
 assert_eq "#2025 covmap-regfail: no driver config written after a failed registration (AC5)" "" \
   "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null || true)"
 git -C "$D/work" merge --abort 2>/dev/null || true
+
+# ── covmap-real-gitattributes → pins the guard to THIS repo's checked-in .gitattributes, not
+# the synthetic line the rows above stage. Reformatting the real declaration into a shape the
+# guard misses goes RED here instead of silently reverting every merge to line-based. ──────
+D="$(git_sandbox 'ubc-covmap-real-ga')"
+ubc_covmap_make "$D"
+cp "$LIB/../.gitattributes" "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm real-gitattributes
+ubc_covmap_advance "$D" rg
+ubc_run "$D"
+assert_eq "#2025 covmap-real-gitattributes: the repo's own declaration registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-real-gitattributes: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
+
+# ── covmap-tab-declared → git splits a .gitattributes line on ANY whitespace, so a
+# tab-separated declaration is a real declaration. The guard must resolve it through git
+# rather than re-deriving the separator set, which silently under-accepts. ─────────────────
+D="$(git_sandbox 'ubc-covmap-tab')"
+ubc_covmap_make "$D"
+printf 'lib/test/modules/coverage-map.json\tmerge=coverage-map-json\n' > "$D/work/.gitattributes"
+git -C "$D/work" add .gitattributes
+git -C "$D/work" commit -qm tab-separated-declaration
+ubc_covmap_advance "$D" tb
+ubc_run "$D"
+assert_eq "#2025 covmap-tab-declared: tab-separated declaration registers the driver" \
+  "python3 lib/test/coverage-map-merge-driver.py %O %A %B" \
+  "$(git -C "$D/work" config --local --get merge.coverage-map-json.driver 2>/dev/null)"
+assert_eq "#2025 covmap-tab-declared: adjacent-key conflict resolves → 'UPDATED 1'" "UPDATED 1" "$UBC_OUT"
+
 unset UBC_CM_DEPS UBC_REALPY UBC_RF_OUT UBC_RF_RC UBC_RF_ERR
 
 # ────────────────────────────────────────────────────────────────────────────

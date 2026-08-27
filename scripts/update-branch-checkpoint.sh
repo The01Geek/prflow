@@ -317,31 +317,24 @@ _merge_and_dispatch() {
   fi
 }
 
-# (6.5) Register the coverage-map JSON-aware merge driver so an adjacent-key
-# coverage-map.json insertion unions instead of routing to CONFLICT below (issue #2025).
-# Guard on the .gitattributes DECLARATION, never driver-file existence: a moved driver
-# here must warn (below), not silently fall back to git's line-based merge, and the
-# vendored copy in a consumer repo (no declaration) must stay silent. Fail-soft.
+# (6.5) Register the coverage-map merge driver so an adjacent-key coverage-map.json insert
+# unions instead of CONFLICTing (issue #2025). Resolve via `git check-attr`, not a hand-rolled
+# scan, and guard on the declaration, not driver-file existence: either silently goes line-based.
 _ubc_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [ -n "$_ubc_root" ] && [ -f "$_ubc_root/.gitattributes" ]; then
-  _ubc_map_driver_declared=0
-  # Match merge=coverage-map-json as a whole space-delimited attribute (pad the line so a
-  # start/end token still matches); skip comment lines. Never `for word in $line` — a
-  # gitattributes pattern like `*.sh` would glob-expand.
-  while IFS= read -r _ubc_ga_line || [ -n "$_ubc_ga_line" ]; do
-    case "$_ubc_ga_line" in '#'*) continue ;; esac
-    case " $_ubc_ga_line " in
-      *' merge=coverage-map-json '*) _ubc_map_driver_declared=1; break ;;
-    esac
-  done < "$_ubc_root/.gitattributes"
-  if [ "$_ubc_map_driver_declared" -eq 1 ]; then
-    _ubc_driver="$_ubc_root/lib/test/coverage-map-merge-driver.py"
-    if [ ! -f "$_ubc_driver" ]; then
-      echo "update-branch-checkpoint: coverage-map merge driver declared in .gitattributes but $_ubc_driver is missing — skipping registration; the base merge falls back to git's line-based merge" >&2
-    elif ! python3 "$_ubc_driver" --register >/dev/null 2>&1; then
-      echo "update-branch-checkpoint: coverage-map merge driver registration ($_ubc_driver --register) exited non-zero — the base merge falls back to git's line-based merge" >&2
-    fi
-  fi
+if [ -n "$_ubc_root" ]; then
+  # -C the root: check-attr resolves a relative pathspec against the CWD, so a call from a
+  # subdirectory would query a path that does not exist and read as undeclared.
+  _ubc_map_attr="$(git -C "$_ubc_root" check-attr merge -- lib/test/modules/coverage-map.json 2>/dev/null || true)"
+  case "$_ubc_map_attr" in
+    *': merge: coverage-map-json')
+      _ubc_driver="$_ubc_root/lib/test/coverage-map-merge-driver.py"
+      if [ ! -f "$_ubc_driver" ]; then
+        echo "update-branch-checkpoint: coverage-map merge driver declared in .gitattributes but $_ubc_driver is missing — skipping registration; the base merge falls back to git's line-based merge" >&2
+      elif ! python3 "$_ubc_driver" --register >/dev/null 2>&1; then
+        echo "update-branch-checkpoint: coverage-map merge driver registration ($_ubc_driver --register) exited non-zero — the base merge falls back to git's line-based merge" >&2
+      fi
+      ;;
+  esac
 fi
 
 # (7) Merge the base.
