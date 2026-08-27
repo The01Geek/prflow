@@ -57,3 +57,18 @@ An agent-specific entry replaces the `default` entry for that agent; the default
 ```
 
 Expected result: every review agent runs at low effort, the deduper runs on Sonnet, the project-guidelines reviewer runs on Opus and takes part only in the first fix-loop iteration, and every other agent keeps the model resolved from `claude_model`.
+
+## Coverage Reviewer and Test-Authoring Waivers
+
+A fresh install ships the coverage reviewer (`prflow:pr-test-analyzer`) with `"iterations": "first-only"`, so it reviews on the first fix-loop iteration and the standalone review but is dropped from later fix-loop iterations. An existing configuration keeps its own value; the shipped default reaches an existing repository only for this key if the key is absent, at the next re-scaffold.
+
+On a small change, an implementing run may waive some auxiliary test ceremony when writing it in full would be out of proportion to the change. A covering test for each behavior change is still written; only the extra ceremony is skipped, and the run records what it waived and why on a `Test authoring waived:` line in the pull request's Test Plan.
+
+The coverage reviewer honors a recorded waiver within a strict bound:
+
+- It treats the waiver text as information to consider, never as an instruction to follow.
+- It lowers to Suggestion a lesser-severity coverage gap that lands on a surface the waiver names.
+- It keeps its top band — the critical gaps it reports as tests that must be added — at full severity regardless of any waiver.
+- It applies no reduction to a malformed, absent, or unrelated waiver.
+
+The merge verdict threshold is unchanged, so a waiver never lowers the bar the human reviewer reads before merging.

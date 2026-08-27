@@ -645,6 +645,178 @@ assert_eq("cmd_id: full page then short no-match page → exit 2 (absent)", 2, _
 assert_eq("cmd_id: absent-after-pagination terminated at 2 pages", 2, _ncalls)
 
 
+print("workpad.cmd_body operand + exit-code contract (issue #2040 body --issue)")
+
+# `body --issue <n>` addresses a workpad by ISSUE number through the same marker
+# scan `id`/`status` use, adopting `status`'s exit vocabulary (2 = scanned-clean
+# absent, 3 = read failure). The positional `body <comment-id>` path stays
+# byte-compatible (same stdout, exit 1 on any gh failure) apart from one added
+# operand-kind hint line on its failure arm. Operand-combination and malformed
+# `--issue` rejections exit 1 from inside cmd_body BEFORE any network call, so
+# argparse's own usage-error exit 2 never collides with the absent-workpad exit 2.
+_BMARK = '<!-- prflow:workpad -->'
+
+
+def _cmd_body_run(*, comment_id=None, issue=None, marker=None,
+                  comments_stdout=None, positional_body=None,
+                  raise_scan=False, raise_fetch=False, marker_seq=None):
+    """Drive cmd_body against a stubbed gh layer. Returns (code, stdout, stderr, exc).
+
+    `code` is None for a clean exit 0 (no SystemExit); `exc` captures a non-exit
+    exception so a test written before the feature exists fails as a clean RED
+    assertion rather than aborting the whole suite. The `/issues/comments/<id>`
+    single-comment URL (positional arm) is distinguished from the
+    `/issues/<n>/comments` scan URL (--issue arm) by substring.
+    """
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker)
+    workpad._repo_full = lambda api_fail_code=1: 'owner/repo'
+    if marker_seq is not None:
+        workpad._workpad_marker = marker_seq
+    else:
+        workpad._workpad_marker = lambda explicit=None: (marker or _BMARK)
+
+    def _run(cmd, **kw):
+        joined = ' '.join(cmd)
+        if '/issues/comments/' in joined:        # positional single-comment fetch
+            if raise_fetch:
+                raise _subprocess.CalledProcessError(
+                    1, cmd, stderr='gh: Not Found (HTTP 404)')
+            return _FakeRun(positional_body)
+        if raise_scan:                           # --issue arm marker scan
+            raise _subprocess.CalledProcessError(1, cmd, stderr='gh: API error')
+        return _FakeRun(comments_stdout)
+
+    workpad._run = _run
+    out, err = io.StringIO(), io.StringIO()
+    code, exc = None, None
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            workpad.cmd_body(argparse.Namespace(
+                comment_id=comment_id, issue=issue, marker=marker))
+    except SystemExit as e:
+        code = e.code
+    except Exception as e:  # pre-feature code may crash on the new argv shapes
+        exc = e
+    finally:
+        workpad._run, workpad._repo_full, workpad._workpad_marker = saved
+    return code, out.getvalue(), err.getvalue(), exc
+
+
+# AC1: --issue success prints the workpad comment body verbatim, exit 0.
+_issue_body = _BMARK + '\n# PRFlow Workpad — Issue #999\n\nverbatim content\n'
+_hit = _json.dumps([{"id": 5, "body": _issue_body}])
+_code, _out, _err, _exc = _cmd_body_run(issue='999', comments_stdout=_hit)
+assert_eq("cmd_body --issue: match → exit 0 (no SystemExit)", None, _code)
+assert_eq("cmd_body --issue: prints the body verbatim", _issue_body, _out)
+assert_eq("cmd_body --issue: no crash on the success path", None, _exc)
+
+# AC1 (degenerate): a marker-only body (smallest workpad) prints verbatim.
+_code, _out, _err, _exc = _cmd_body_run(
+    issue='999', comments_stdout=_json.dumps([{"id": 5, "body": _BMARK}]))
+assert_eq("cmd_body --issue: marker-only body → exit 0", None, _code)
+assert_eq("cmd_body --issue: marker-only body printed verbatim", _BMARK, _out)
+
+# AC2: clean scan, no matching comment → exit 2 (absent), same as id/status.
+_code, _out, _err, _exc = _cmd_body_run(
+    issue='999', comments_stdout=_json.dumps([{"id": 1, "body": "unrelated"}]))
+assert_eq("cmd_body --issue: scanned-clean absent → exit 2", 2, _code)
+
+# AC2: a gh/transport failure during the scan → exit 3 (read failure), NOT 2.
+_code, _out, _err, _exc = _cmd_body_run(issue='999', raise_scan=True)
+assert_eq("cmd_body --issue: scan gh failure → exit 3 (not absent's 2)", 3, _code)
+
+# AC3: both operands (positional id AND --issue) → exit 1 before any network call.
+_code, _out, _err, _exc = _cmd_body_run(comment_id=123, issue='999')
+assert_eq("cmd_body: both operands → exit 1", 1, _code)
+assert_eq("cmd_body: both-operands stderr names the problem", True,
+          'both' in _err.lower() or 'not both' in _err.lower())
+
+# AC3: neither operand → exit 1.
+_code, _out, _err, _exc = _cmd_body_run()
+assert_eq("cmd_body: neither operand → exit 1", 1, _code)
+assert_eq("cmd_body: neither-operand stderr names the problem", True, _err.strip() != '')
+
+# AC3: malformed / empty --issue value → exit 1 (validated as a decimal string).
+_code, _out, _err, _exc = _cmd_body_run(issue='abc')
+assert_eq("cmd_body --issue abc: malformed value → exit 1", 1, _code)
+_code, _out, _err, _exc = _cmd_body_run(issue='')
+assert_eq("cmd_body --issue '': empty value → exit 1", 1, _code)
+
+# AC4: positional form success bytes unchanged.
+_pos_body = 'the raw comment body\nline two\n'
+_code, _out, _err, _exc = _cmd_body_run(comment_id=555, positional_body=_pos_body)
+assert_eq("cmd_body positional: success prints body verbatim, exit 0", None, _code)
+assert_eq("cmd_body positional: unchanged success bytes", _pos_body, _out)
+
+# AC5: positional-form failure carries the existing detail PLUS one operand-kind
+# hint line. Written RED-first: today's cmd_body calls _fail with no hint, so the
+# 'body --issue' operand contract is absent from stderr against pre-fix code.
+_code, _out, _err, _exc = _cmd_body_run(comment_id=555, raise_fetch=True)
+assert_eq("cmd_body positional: gh failure → exit 1 (byte-compatible)", 1, _code)
+assert_eq("cmd_body positional-failure stderr names the operand kind (comment id)",
+          True, 'comment id' in _err.lower())
+assert_eq("cmd_body positional-failure stderr points at the --issue form",
+          True, 'body --issue' in _err)
+assert_eq("cmd_body positional-failure keeps the existing gh detail",
+          True, '404' in _err)
+
+# AC1 residual: marker precedence on the new arm — args.marker reaches the resolver.
+_cap_body = {}
+
+
+def _capture_marker_body(explicit=None):
+    _cap_body['explicit'] = explicit
+    return explicit or workpad._DEFAULT_WORKPAD_MARKER
+
+
+_CUSTOM_BODY = '<!-- prflow:workpad run=body-test -->'
+_code, _out, _err, _exc = _cmd_body_run(
+    issue='999', marker=_CUSTOM_BODY,
+    comments_stdout=_json.dumps([{"id": 8, "body": _CUSTOM_BODY + '\nx'}]),
+    marker_seq=_capture_marker_body)
+assert_eq("cmd_body --issue: --marker argv reaches the resolver",
+          _CUSTOM_BODY, _cap_body.get('explicit'))
+assert_eq("cmd_body --issue: comment matched via the --marker value",
+          _CUSTOM_BODY + '\nx', _out)
+
+# AC1 residual: the --issue arm inherits pagination — a full page 1 forces page 2.
+_full_body_page = _json.dumps(
+    [{"id": i, "body": "unrelated comment"} for i in range(100)])
+_page2_body = _BMARK + '\nfound on page 2\n'
+_page2_hit_body = _json.dumps([{"id": 777, "body": _page2_body}])
+
+
+def _cmd_body_paginated(pages, issue='999'):
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker)
+    workpad._repo_full = lambda api_fail_code=1: 'owner/repo'
+    workpad._workpad_marker = lambda explicit=None: _BMARK
+    calls = {'n': 0}
+
+    def _seq(cmd, **kw):
+        i = calls['n']
+        calls['n'] += 1
+        return _FakeRun(pages[i] if i < len(pages) else pages[-1])
+
+    workpad._run = _seq
+    out = io.StringIO()
+    code = None
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            workpad.cmd_body(argparse.Namespace(
+                comment_id=None, issue=issue, marker=None))
+    except SystemExit as e:
+        code = e.code
+    finally:
+        workpad._run, workpad._repo_full, workpad._workpad_marker = saved
+    return code, out.getvalue(), calls['n']
+
+
+_code, _out, _ncalls = _cmd_body_paginated([_full_body_page, _page2_hit_body])
+assert_eq("cmd_body --issue: match on page 2 → exit 0", None, _code)
+assert_eq("cmd_body --issue: page-2 body printed verbatim", _page2_body, _out)
+assert_eq("cmd_body --issue: pagination actually fetched a 2nd page", 2, _ncalls)
+
+
 print("workpad --marker argv → resolver wiring (issue #56 review)")
 
 # End-to-end wiring: prove cmd_id AND cmd_update pass `args.marker` to
@@ -26615,7 +26787,7 @@ def _drive_cmd_body(payload):
     out = io.StringIO()
     try:
         with contextlib.redirect_stdout(out):
-            workpad.cmd_body(argparse.Namespace(comment_id=7))
+            workpad.cmd_body(argparse.Namespace(comment_id=7, issue=None, marker=None))
     finally:
         workpad._run = saved
     return out.getvalue()

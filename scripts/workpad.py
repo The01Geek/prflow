@@ -24,7 +24,7 @@ Usage:
     workpad.py acs       ISSUE [--exclude-post-merge] [--neutralize-boxes]
                                [--emit-source-token]
     workpad.py acs-resolve ISSUE [--pr N]
-    workpad.py body      COMMENT_ID
+    workpad.py body      COMMENT_ID | --issue ISSUE [--marker M]
     workpad.py patch     COMMENT_ID BODY_FILE
     workpad.py create    ISSUE BODY_FILE
     workpad.py new-body  ISSUE [--run-link V] [--branch V] [--marker M]
@@ -33,7 +33,7 @@ Usage:
     workpad.py handoff-state FILE --issue N --run-id ID --run-attempt ATTEMPT
 
 Subcommands that locate the workpad by its marker comment (`id`, `new-body`,
-`update`) accept `--marker` to target a non-default marker — /devflow:review
+`update`, and `body --issue`) accept `--marker` to target a non-default marker — /devflow:review
 uses it to drive its own `<!-- prflow:review-progress -->` comment. The flag
 is preferred over the `DEVFLOW_WORKPAD_MARKER` env var: a leading
 env-assignment makes the command un-matchable against the cloud allow-list.
@@ -465,8 +465,9 @@ def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1):
     """Scan an issue's comments (paginated) and return the first whose body
     starts with `marker`, or None when the scan completed and none matched.
 
-    Single source for the marker-scan that `cmd_id`, `cmd_status` and the acs
-    surfaces (`_acs_read_workpad`, and so `cmd_acs`/`cmd_acs_resolve` through
+    Single source for the marker-scan that `cmd_id`, `cmd_status`, `cmd_body`'s
+    `--issue` arm and the acs surfaces (`_acs_read_workpad`, and so
+    `cmd_acs`/`cmd_acs_resolve` through
     it) share — the `per_page=100`/`< 100` pagination boundary and the API/parse
     error handling live here once. A `gh api` or JSON-parse failure exits via
     `_fail(cmd, …)` with `api_fail_code` (default 1, so the caller's error prefix
@@ -559,10 +560,48 @@ def _comment_body_established(repo, comment_id):
 
 
 def cmd_body(args):
+    issue = args.issue
+    comment_id = args.comment_id
+    # Operand validation runs BEFORE any network call and exits 1 from here, so a
+    # malformed/missing/ambiguous operand never reaches argparse's usage-error
+    # exit 2 (which would be indistinguishable from the absent-workpad exit 2).
+    if issue is not None and comment_id is not None:
+        sys.stderr.write(
+            "workpad.py body: pass either a positional comment id or --issue <n>, "
+            "not both\n")
+        sys.exit(1)
+    if issue is None and comment_id is None:
+        sys.stderr.write(
+            "workpad.py body: no operand — pass a positional comment id, or "
+            "--issue <n> to address the workpad by issue number\n")
+        sys.exit(1)
+    if issue is not None:
+        if not (issue.isascii() and issue.isdigit()):
+            sys.stderr.write(
+                f"workpad.py body: --issue value must be a non-empty decimal "
+                f"issue number (got {issue!r})\n")
+            sys.exit(1)
+        # Same marker scan `id`/`status` run; the scan result already carries the
+        # full body, so no second fetch. Adopt status's exit vocabulary via
+        # api_fail_code=3: exit 3 on a read failure, exit 2 on a clean-absent scan.
+        marker = _workpad_marker(args.marker)
+        c = _find_workpad_comment(
+            'body', _repo_full(api_fail_code=3), issue, marker, api_fail_code=3)
+        if c is None:
+            sys.exit(2)
+        sys.stdout.write(c.get('body') or '')
+        return
     repo = _repo_full()
     try:
-        out = _comment_body(repo, args.comment_id)
+        out = _comment_body(repo, comment_id)
     except (subprocess.CalledProcessError, OSError) as e:
+        # The positional arm cannot tell a wrong-operand 404 (an issue number in
+        # the comment-id slot) from a transport/auth failure on a valid id, so it
+        # documents the operand rather than diagnosing — the existing _fail detail
+        # still follows (issue #2040/#2006).
+        sys.stderr.write(
+            "workpad.py body: the positional operand is read as a comment id; to "
+            "read a workpad by issue number use: body --issue <n>\n")
         _fail('body', e)
     sys.stdout.write(out)
 
@@ -7011,8 +7050,19 @@ def main():
     s.add_argument('--marker', default=None, help=_marker_help)
     s.set_defaults(func=cmd_id)
 
-    s = sub.add_parser('body', help='Print the body of an existing workpad comment.')
-    s.add_argument('comment_id', type=int)
+    s = sub.add_parser('body', help='Print a workpad body — by comment id '
+                       '(positional), or by issue number with --issue (exit 2 '
+                       'if absent, exit 3 on read failure).')
+    # Positional is optional so `--issue` can address by issue number instead;
+    # cmd_body rejects the both/neither/malformed-value combinations with exit 1
+    # BEFORE any network call, so argparse's usage-error exit 2 never collides
+    # with the absent-workpad exit 2 (issue #2040). --issue is an untyped string
+    # (validated as a decimal in cmd_body), never type=int, for the same reason.
+    s.add_argument('comment_id', type=int, nargs='?', default=None)
+    s.add_argument('--issue', default=None,
+                   help='Address the workpad by ISSUE number instead of a comment '
+                        'id (resolves via the same marker scan as `id`/`status`).')
+    s.add_argument('--marker', default=None, help=_marker_help)
     s.set_defaults(func=cmd_body)
 
     s = sub.add_parser(
