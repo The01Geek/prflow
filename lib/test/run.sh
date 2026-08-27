@@ -49984,6 +49984,10 @@ unset -f _pps_selector_probe
 # as "name<TAB>mode", keep the self-tally names, and assert set-equality (both sides sorted).
 _pps_selftally_registered() {  # -> newline-sorted self-tally member names the pool registers
   (
+    # devflow_python_suite_pool_open early-returns via devflow_python_pool_enabled when
+    # DEVFLOW_SKIP_PYTHON_POOL=1 (the monolith shard sets it), so clear it here — as the
+    # sibling probes do — or this assertion emits an empty RHS and goes RED on that shard.
+    unset DEVFLOW_SKIP_PYTHON_POOL
     devflow_pool_open() { while [ "$#" -ge 3 ]; do printf '%s\t%s\n' "$1" "$3"; shift 3; done; }
     devflow_python_suite_pool_open | grep '	self-tally$' | sed 's/	self-tally$//' | sort
   ) 2>/dev/null

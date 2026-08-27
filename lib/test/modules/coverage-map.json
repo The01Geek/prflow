@@ -523,7 +523,7 @@
       "owner": "unmodularized"
     },
     "scripts/lint_manifest.py": {
-      "focused_test": "lib/test/test_python_scripts_part4.py",
+      "focused_test": "lib/test/test_python_scripts_part3.py",
       "note": "issue #1276 declarative lint-manifest strict reader/validator",
       "owner": "unmodularized"
     },
