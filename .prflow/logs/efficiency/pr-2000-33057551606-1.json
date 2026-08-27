@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2000",
+  "generated_at": "2026-08-27T09:30:00Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.67",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.805882250000002,
+    "tokens": {
+      "input_tokens": 58,
+      "output_tokens": 50810,
+      "cache_read_input_tokens": 4882515,
+      "cache_creation_input_tokens": 256052,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 132,
+        "outputTokens": 99411,
+        "cacheReadInputTokens": 7652167,
+        "cacheCreationInputTokens": 725387,
+        "webSearchRequests": 0,
+        "costUSD": 11.805882250000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 46,
+    "duration_ms": 925162
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-EMPTY} ATTEMPT=${GITHUB_RUN_ATTEMPT:-EMPTY} ACTIONS=${GITHUB_ACTIONS:-EMPTY}\"",
+      "mkdir -p .prflow/tmp\nif rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null &&\n   git status --porcelain -z > .prflow/tmp/review-dirty-tree-before &&\n   [ -f .prflow/tmp/review-dirty-tree-before ] &&\n   [ ! -L .prflow/tmp/review-dirty-tree-before ] &&\n   git hash-object .prflow/tmp/review-dirty-tree-before; then\n  :\nelse\n  echo \"SNAP_FAILED\"; printf '%s\\n' disabled > .prflow/tmp/review-dirty-tree-disabled\nfi",
+      "rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before",
+      "git show f36798e3a2f3bb8548725aa7713a97f7d6683f6a:lib/generate-capability-profiles.py > /tmp/gen.py\ngit show f36798e3a2f3bb8548725aa7713a97f7d6683f6a:lib/capability-profiles.json > /tmp/cap.json\ncd /tmp && python3 -c \"\nimport json, hashlib\nm=json.load(open('cap.json'))\nprof=m['profiles']['command'] if 'profiles' in m else None\nprint('keys:', list(m.keys()))\n\"",
+      "git show f36798e3a2f3bb8548725aa7713a97f7d6683f6a:lib/capability-profiles.json > /tmp/cap.json; python3 -c \"\nimport json\nm=json.load(open('/tmp/cap.json'))\nprint(list(m.keys()))\n\"",
+      "git show f36798e3a2f3bb8548725aa7713a97f7d6683f6a:lib/generate-capability-profiles.py > /home/runner/work/prflow/prflow/.prflow/tmp/gen.py\ngit show f36798e3a2f3bb8548725aa7713a97f7d6683f6a:lib/capability-profiles.json > /home/runner/work/prflow/prflow/.prflow/tmp/cap.json\npython3 -c \"\nimport json, hashlib, re\nm=json.load(open('/home/runner/work/prflow/prflow/.prflow/tmp/cap.json'))\nprint('top keys:', list(m.keys()))\n\""
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
