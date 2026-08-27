@@ -75,9 +75,17 @@ class ArtifactResult:
     `verified`, `unresolved` (no trusted URL/digest for a declared artifact),
     `fetch-error`, or `digest-mismatch`; only `verified` is a pass."""
 
+    # Closed vocabulary, enforced in __init__: a misspelled status must not read as
+    # a silent not-ok, which would make a failing artifact indistinguishable from a
+    # real rejection reason in the printed line.
+    STATUSES = ("verified", "unresolved", "fetch-error", "digest-mismatch")
+
     __slots__ = ("arch", "detail", "os", "status", "tool")
 
     def __init__(self, tool: str, os_name: str, arch: str, status: str, detail: str = ""):
+        if status not in self.STATUSES:
+            raise ValueError(
+                f"unknown artifact status {status!r}; expected one of {self.STATUSES}")
         self.tool = tool
         self.os = os_name
         self.arch = arch
@@ -102,6 +110,13 @@ class VerifyResult:
     __slots__ = ("ok", "reason", "results")
 
     def __init__(self, ok: bool, reason: str, results: list[ArtifactResult]):
+        # Do not relax: a true `ok` carrying no results is the "clean pass with
+        # nothing verified" state this verifier exists to make impossible, and a
+        # true `ok` beside a failed result would report a pass over a mismatch.
+        if ok and not results:
+            raise ValueError(f"ok result verified nothing: {reason}")
+        if ok and not all(r.ok for r in results):
+            raise ValueError(f"ok result carries a non-verified artifact: {reason}")
         self.ok = ok
         self.reason = reason
         self.results = results

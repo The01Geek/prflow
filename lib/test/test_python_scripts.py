@@ -38996,6 +38996,115 @@ assert_eq('#2029 verify: unestablished manifest verifies nothing', [], _vlm_miss
 _vlm_main_missing = _VLM.main([str(SCRIPTS / 'no-such-manifest-2029.json')])
 assert_eq('#2029 main: unestablished manifest exits 1', 1, _vlm_main_missing)
 
+
+class _VlmFakeResponse:
+    """A urlopen stand-in serving a fixed payload, honouring the byte count the
+    caller asks for so a dropped `+1` sentinel read shows up as a short read."""
+
+    def __init__(self, payload):
+        self._payload = payload
+
+    def read(self, n=None):
+        return self._payload if n is None else self._payload[:n]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
+def _vlm_capped_fetch(cap, payload_len):
+    """Call `_default_fetch` with `_MAX_BYTES` temporarily set to `cap`, against a
+    stubbed urlopen serving `payload_len` bytes. Returns ('ok', '<bytes returned>')
+    or ('raised', <message>) — slot 1 is always a str so a mutant taking the other
+    arm reports a clean FAIL rather than crashing the run. Globals always restored."""
+    _saved_cap = _VLM._MAX_BYTES
+    _saved_urlopen = _VLM.urllib.request.urlopen
+    _VLM._MAX_BYTES = cap
+    _VLM.urllib.request.urlopen = (
+        lambda _u, timeout=None: _VlmFakeResponse(b'x' * payload_len))
+    try:
+        return ('ok', str(len(_VLM._default_fetch('https://example.invalid/a.tar.gz'))))
+    except ValueError as _exc:
+        return ('raised', str(_exc))
+    finally:
+        _VLM._MAX_BYTES = _saved_cap
+        _VLM.urllib.request.urlopen = _saved_urlopen
+
+
+# The oversize cap is a memory-exhaustion boundary on a URL derived from untrusted
+# PR-head manifest input, so pin both halves of it. Over-cap must raise: dropping the
+# `+1` sentinel read would return a silently TRUNCATED body instead.
+_vlm_over = _vlm_capped_fetch(4, 5)
+assert_eq('#2029 fetch: a body over the cap raises rather than truncating silently',
+          ('raised', True),
+          (_vlm_over[0], 'exceeded 4 bytes' in _vlm_over[1]))
+# Exactly-at-cap must pass: a `>=` comparison would reject a legal maximum-size body.
+assert_eq('#2029 fetch: a body exactly at the cap is returned whole',
+          ('ok', '4'), _vlm_capped_fetch(4, 4))
+assert_eq('#2029 fetch: a body under the cap is returned whole',
+          ('ok', '3'), _vlm_capped_fetch(4, 3))
+
+# main()'s success path is the contract the CI step gates on, so exercise it with the
+# module-level default fetch swapped for the seeded content (no network).
+_vlm_main_manifest = json.loads(json.dumps(_VLM_BASE))
+_vlm_main_content = _vlm_seed_digests(_vlm_main_manifest)
+_vlm_main_path = _vlm_write(_vlm_main_manifest)
+_vlm_main_saved_fetch = _VLM._default_fetch
+_VLM._default_fetch = lambda u: _vlm_main_content[u]
+_vlm_main_out = io.StringIO()
+try:
+    with contextlib.redirect_stdout(_vlm_main_out):
+        _vlm_main_rc = _VLM.main([_vlm_main_path])
+finally:
+    _VLM._default_fetch = _vlm_main_saved_fetch
+    os.unlink(_vlm_main_path)
+_vlm_main_lines = _vlm_main_out.getvalue().splitlines()
+assert_eq('#2029 main: every declared artifact verified exits 0', 0, _vlm_main_rc)
+assert_eq('#2029 main: the summary line reports the verified/declared counts',
+          'PASS: verified 10/10 declared artifacts', _vlm_main_lines[-1])
+assert_eq('#2029 main: one printed line names each declared (tool, os/arch) as OK',
+          sorted(f'OK {_t} {_o}/{_a} verified'
+                 for _t, _o, _a in _VLM.iter_declared_artifacts(_vlm_main_manifest)),
+          sorted(_l.rsplit(': ', 1)[0] for _l in _vlm_main_lines[:-1]))
+
+
+def _vlm_construct(fn):
+    """Return the ValueError message a constructor raised, or None when it built."""
+    try:
+        fn()
+        return None
+    except ValueError as _exc:
+        return str(_exc)
+
+
+# A misspelled status must be rejected outright — read as a bare string it would
+# silently be not-ok, indistinguishable from a genuine failure reason.
+_vlm_bad_status = _vlm_construct(
+    lambda: _VLM.ArtifactResult('ruff', 'linux', 'x86_64', 'verifed'))
+assert_eq('#2029 ArtifactResult: a misspelled status is rejected, naming the value',
+          True, _vlm_bad_status is not None and 'verifed' in _vlm_bad_status)
+# Positive control on the same shape: every vocabulary member still constructs.
+assert_eq('#2029 ArtifactResult: every vocabulary member is accepted', True,
+          all(_VLM.ArtifactResult('ruff', 'linux', 'x86_64', _s).status == _s
+              for _s in _VLM.ArtifactResult.STATUSES))
+
+# The "clean pass that verified nothing" state is exactly what this feature exists to
+# prevent, so it must be unrepresentable rather than merely unproduced by the factory.
+assert_eq('#2029 VerifyResult: ok with no results is rejected', True,
+          _vlm_construct(lambda: _VLM.VerifyResult(True, 'r', [])) is not None)
+_vlm_vr_failed = _VLM.ArtifactResult('ruff', 'linux', 'x86_64', 'digest-mismatch')
+_vlm_vr_verified = _VLM.ArtifactResult('ruff', 'linux', 'x86_64', 'verified')
+assert_eq('#2029 VerifyResult: ok carrying a non-verified artifact is rejected', True,
+          _vlm_construct(lambda: _VLM.VerifyResult(True, 'r', [_vlm_vr_failed])) is not None)
+# Positive control on the same fixtures: the legitimate shapes still construct.
+assert_eq('#2029 VerifyResult: the legitimate ok and not-ok shapes still construct',
+          (True, False, False),
+          (_VLM.VerifyResult(True, 'r', [_vlm_vr_verified]).ok,
+           _VLM.VerifyResult(False, 'r', []).ok,
+           _VLM.VerifyResult(False, 'r', [_vlm_vr_failed]).ok))
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
