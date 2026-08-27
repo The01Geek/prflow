@@ -445,7 +445,7 @@ literal:c1208a0bb8d6599ef38978778f74636f91e58bf9f7c8c4eca176111be91184d9	boundar
 literal:c1c4eed15be2778dfa7e96e290f30688d3dbab7f0829046edbab0b5e831f1a20	boundary	Finding output completeness contract.
 literal:c335e87515ffeb05de65be52203456df0b0cc6b69cf41b48082358484b980f5b	boundary	maintainer adjudication: declared security or interface boundary
 literal:c385cc83d6f7baab10591b0a99158b18d4525a4f254d54392f39b23c61b39296	boundary	maintainer adjudication: final-modules helper-routing: Keeps the standalone command resolver routed through the single shared detector.
-literal:c3c8e4ec4460fd5e3eba0cab7df47bb3c7e5cae48c7831656b61357d01618e79	boundary	maintainer adjudication: declared security or interface boundary
+literal:5da9cceb0ae001defd5ebadfbaac117ac02c26e6ce95cf07b6bb7c09ff4dd2ff	boundary	maintainer adjudication: declared security or interface boundary
 literal:c3e7e129a9a60d950be03a77815328a3080ed4689efe796011a7afefe12d1060	boundary	maintainer adjudication: review PB: progress marker/status boundary: #356 pin: skills/review/SKILL.md seeds the '**Status:** 🚀 Reviewing' line the helper matches
 literal:c4725709061630fc37ab3d27cb70497e364884c4fc50b897a1fdad15b0115de4	boundary	maintainer adjudication: declared security or interface boundary
 literal:c565449cae2dc843383e327a6bd8b1269ecf9575fc5254db21c0a76e255ded41	boundary	Authorization lookup operand.
