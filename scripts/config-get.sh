@@ -191,8 +191,35 @@ sys.stdout.write("." + ".".join(old))
     echo "config-get.sh: '.${key#.}' is absent from $config_file but its superseded counterpart '$hit' is present — run /prflow:init to migrate the config keys; until then this read resolves as if the key were unset." >&2
 }
 
+# Telemetry master-key inheritance (issue #2035). 0 iff "$1" is one of the five
+# enrolled default-true telemetry gates AND telemetry.enabled is the JSON boolean
+# false — read in telemetry-master-off.py, since coerce() above renders the boolean
+# false and the string "false" alike. Best-effort: a missing python3 or helper
+# leaves telemetry on (fail-safe). execution_transcript_artifact_enabled is NOT
+# enrolled: it defaults false, so inheriting a false master would be a no-op.
+telemetry_master_disables_for() {
+    case "$1" in
+        prflow_review_and_fix.efficiency_telemetry_enabled|\
+        prflow.execution_diagnostics_enabled|\
+        prflow.execution_denial_commands_enabled|\
+        prflow_review.live_progress_comment_enabled|\
+        create_issue.investigation_record_enabled) ;;
+        *) return 1 ;;
+    esac
+    command -v python3 >/dev/null 2>&1 || return 1
+    [ -f "$_CONFIG_GET_DIR/telemetry-master-off.py" ] || return 1
+    python3 "$_CONFIG_GET_DIR/telemetry-master-off.py" "$config_file" >/dev/null 2>&1
+}
+
 emit_default_or_fail() {
     probe_superseded_key
+    # Master inheritance runs AFTER probe_superseded_key so the migration
+    # breadcrumb still fires for an absent enrolled key, and only for the enrolled
+    # set so a non-enrolled miss path stays byte-identical (issue #2035).
+    if telemetry_master_disables_for "${key#.}"; then
+        printf '%s\n' "false"
+        exit 0
+    fi
     if [ "$has_default" -eq 1 ]; then
         printf '%s\n' "$default"
         exit 0

@@ -1531,6 +1531,15 @@ apply_denial_floor() {
 
 do_persist() {
   local root dir slug run_id _TELEMETRY_STAGE
+  # Telemetry master switch (issue #2035): a JSON-false telemetry.enabled skips the
+  # whole persist — no record, no durable workpad copy, no telemetry-branch commit.
+  # Fail-safe to ON: a missing helper/python3, an unreadable config, or any non-false
+  # master runs persist unchanged (the JSON-type read lives in telemetry-master-off.py).
+  if [ -f "$HERE/../scripts/telemetry-master-off.py" ] && command -v python3 >/dev/null 2>&1 \
+     && python3 "$HERE/../scripts/telemetry-master-off.py" "$_DEVFLOW_CONFIG" >/dev/null 2>&1; then
+    echo "devflow: efficiency-trace.sh --persist: telemetry.enabled is false — skipping telemetry-branch persistence and the durable workpad copy this run (issue #2035)" >&2
+    return 0
+  fi
   root="$(devflow_repo_root)"
   # Resolve the telemetry branch ONCE, here in the parent, before anything forks. The
   # resolution is memoized in _DEVFLOW_TELEMETRY_BRANCH_CACHE, and a subshell inherits the
