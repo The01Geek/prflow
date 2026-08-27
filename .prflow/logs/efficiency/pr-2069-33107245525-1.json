@@ -136,5 +136,89 @@
         }
       }
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.35.4",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 36.859152050000006,
+    "tokens": {
+      "input_tokens": 210,
+      "output_tokens": 104395,
+      "cache_read_input_tokens": 30358722,
+      "cache_creation_input_tokens": 469938,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 538,
+        "outputTokens": 177019,
+        "cacheReadInputTokens": 39990734,
+        "cacheCreationInputTokens": 1515003,
+        "webSearchRequests": 0,
+        "costUSD": 35.65456825,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 72,
+        "outputTokens": 17066,
+        "cacheReadInputTokens": 2174074,
+        "cacheCreationInputTokens": 239586,
+        "webSearchRequests": 0,
+        "costUSD": 1.2045838000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 173,
+    "duration_ms": 2716777
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT SERVER=$GITHUB_SERVER_URL REPO=$GITHUB_REPOSITORY\"",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"BASE=$BASE CUR=$CUR\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      "for f in .prflow/config.json .prflow/config.example.json .prflow/config.schema.json lib/test/modules/coverage-map.json lib/test/brand-devflow-buckets.json lib/test/coverage-map-retention-allow.json; do python3 -c \"import json,sys; json.load(open('$f')); print('OK', '$f')\" || echo \"FAIL $f\"; done",
+      "mkdir -p .prflow/tmp/review/pr-2069/33107245525-1 && git diff --merge-base main > .prflow/tmp/review/pr-2069/33107245525-1/diff.patch && wc -l .prflow/tmp/review/pr-2069/33107245525-1/diff.patch",
+      "for f in .prflow/config.json .prflow/config.example.json lib/test/coverage-map-retention-allow.json lib/test/modules/coverage-map.json lib/test/brand-devflow-buckets.json; do python3 -c \"import json;json.load(open('$f'));print('OK $f')\"; done",
+      "cd /home/runner/work/prflow/prflow\necho \"=== AC1: deleted files not tracked ===\"\ngit ls-files | grep -E 'stall-observer.yml|stall-observer-scan.py' || echo \"(none tracked - good)\"\necho \"=== AC2: tree search for stall-observer / stall_observer ===\"\ngit ls-files | while read f; do if grep -Il -e 'stall-observer' -e 'stall_observer' \"$f\" >/dev/null 2>&1; then echo \"$f\"; fi; done\necho \"=== AC6: changeset ===\"\nls .changeset/ | grep stall",
+      "ls .changeset/*.md | grep -v README | head -3 | while read f; do echo \"== $f\"; head -4 \"$f\"; done; echo \"=== coverage-map diff ===\"; git diff 8773b1eb8..9c6c6cf26 -- lib/test/modules/coverage-map.json lib/test/brand-devflow-buckets.json",
+      "for f in .prflow/config.schema.json .prflow/config.example.json .prflow/config.json lib/test/coverage-map-retention-allow.json lib/test/modules/coverage-map.json lib/test/brand-devflow-buckets.json; do python3 -c \"import json;json.load(open('$f'))\" && echo \"OK $f\"; done",
+      "ls .changeset/; echo \"---\"; grep -rl \"^bump:\\|^type:\" .changeset/*.md | head -3 | while read f; do echo \"== $f ==\"; sed -n '1,5p' \"$f\"; done"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  },
+  "run_profile": {
+    "phase_durations_ms": {
+      "Documentation": "unestablished",
+      "Implement": 995000,
+      "PR marked ready": "unestablished",
+      "Review": 818000,
+      "Setup": 393000
+    },
+    "final_status": "Reviewing",
+    "prior_record_count": 0,
+    "issue_number": 2065,
+    "engine_outcome": "failure"
+  }
 }
