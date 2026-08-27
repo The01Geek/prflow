@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2043",
+  "generated_at": "2026-08-27T05:57:50Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.64",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.6657932,
+    "tokens": {
+      "input_tokens": 44,
+      "output_tokens": 25518,
+      "cache_read_input_tokens": 3530375,
+      "cache_creation_input_tokens": 205961,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 86,
+        "outputTokens": 53166,
+        "cacheReadInputTokens": 4537417,
+        "cacheCreationInputTokens": 492097,
+        "webSearchRequests": 0,
+        "costUSD": 7.4462485,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 8,
+        "outputTokens": 2156,
+        "cacheReadInputTokens": 173481,
+        "cacheCreationInputTokens": 65309,
+        "webSearchRequests": 0,
+        "costUSD": 0.21954469999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 36,
+    "duration_ms": 547908
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/requesting-code-review}\"/../../scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT:$?\"",
+      "/home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT:$?\"",
+      "/home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh requesting-code-review",
+      "echo \"=== VC-7 reference-size ===\"; lib/test/lint-reference-size.py; echo \"ref-size-rc=$?\"\necho \"=== VC-5 worktree-fence-shapes ===\"; lib/test/lint-worktree-fence-shapes.py; echo \"worktree-rc=$?\"\necho \"=== byte size of phase-1-setup.md ===\"; wc -c skills/implement/phases/phase-1-setup.md",
+      "echo \"=== VC-6 extract-command-shapes implement profile ===\"; lib/test/extract-command-shapes.py --profile implement 2>&1 | tail -30; echo \"extract-rc=${PIPESTATUS[0]}\"",
+      "lib/test/lint-reference-size.py",
+      "lib/test/lint-worktree-fence-shapes.py",
+      "lib/test/extract-command-shapes.py --profile implement"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
