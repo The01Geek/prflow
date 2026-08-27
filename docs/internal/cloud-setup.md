@@ -1331,11 +1331,25 @@ so extending the hardened set forces this statement to be restated.
 
 ### CI validates the candidate manifest without write credentials
 
+<!-- verified-against: ae03ae384 2026-08-27 -->
+
 A `lint-manifest` job in `.github/workflows/ci.yml` validates and exercises the
 candidate `.prflow/lint-manifest.json` on every PR under workflow-level
 `contents: read` (no repository write credentials), so a manifest change is
 proven before it becomes implement-active — which it only does after merge
 (workflow/config resolution is post-merge for the trigger-time channel).
+
+The job exercises one real provisioning pass on linux-x86_64, and additionally
+downloads **every** declared `(tool, os, arch)` artifact and sha256-compares each
+against its pinned digest, so a wrong or transposed digest on a platform no CI
+runner exercises cannot ship undetected. The verifier `scripts/verify_lint_manifest_digests.py`
+enumerates the declared set from the manifest itself (via `iter_declared_artifacts`
+in `scripts/lint_provision.py`) and fails closed when a declared artifact is
+skipped, its download URL cannot be resolved, a download errors, a digest
+mismatches, or the manifest declares no artifacts — the verified count must equal
+the declared count. It carries no write credentials of its own and only reads the
+manifest and fetches public release assets, so it runs inside this untrusted-input
+job. Provenance: issue #2029.
 
 ## Extending the tool allowlist
 
