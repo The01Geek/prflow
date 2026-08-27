@@ -1,0 +1,172 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T20:00:00Z",
+  "fix_commit_sha": "9605f3fee",
+  "fix_files": [
+    "lib/test/modules/review-trigger-helpers.sh",
+    "lib/test/run.sh",
+    "scripts/workflow-flight-recorder-registry.json"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "checklist": [],
+  "dispatch_mode": null,
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "pcrt stub real-jq branch exited 0 unconditionally; a non-object fixture returned rc0/empty instead of modeling gh's non-zero fail-closed path",
+      "defect_signature": {
+        "file": "lib/test/modules/review-trigger-helpers.sh",
+        "line_range": [
+          4791,
+          4795
+        ],
+        "kind": "test_fidelity"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "open-absent posting arm omitted the exactly-one-state-read assertion",
+      "defect_signature": {
+        "file": "lib/test/modules/review-trigger-helpers.sh",
+        "line_range": [
+          4910,
+          4912
+        ],
+        "kind": "test_coverage"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "#2067-merged-armed comment misattributed ordering to the case-arm order rather than the jq precedence / .state==open guard",
+      "defect_signature": {
+        "file": "lib/test/modules/review-trigger-helpers.sh",
+        "line_range": [
+          4914,
+          4916
+        ],
+        "kind": "comment_accuracy"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "2b251b8fa"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "2b251b8fa"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "2b251b8fa"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 24,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": "2026-08-27T20:05:00Z",
+    "reviewed_sha": "2b251b8fa",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": null,
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": "intentional",
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "reworded #2067-merged-armed comment overstated: swapping jq branch order does not break the test because the .state==open guard alone excludes closed/merged PRs; only that guard is load-bearing",
+        "defect_signature": {
+          "file": "lib/test/modules/review-trigger-helpers.sh",
+          "line_range": [
+            4914,
+            4916
+          ],
+          "kind": "comment_accuracy"
+        },
+        "corroboration_count": 1,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
