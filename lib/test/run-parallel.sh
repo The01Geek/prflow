@@ -278,9 +278,8 @@ _ruff_version_preflight() {
   fi
   verdict="$(python3 "$helper" --manifest "$manifest" --reported "$out" 2>&1)"
   # Do NOT key the refusal on the helper's exit code — an uncaught traceback exits 1 exactly
-  # as a skew does — so the comparand is the helper's own `ruff-version-skew: SKEW` completion
-  # sentinel, matched at the START of a line (a crash prints none and fails open), mirroring
-  # the sibling `_cheap_lint_run` gates above.
+  # as a skew does — so key on the helper's own `ruff-version-skew: SKEW` sentinel matched at
+  # a line START instead (a crash prints none and fails open).
   local skew=0 line
   while IFS= read -r line; do
     case "$line" in

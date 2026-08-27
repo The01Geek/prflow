@@ -55330,10 +55330,8 @@ assert_eq "#1621 ruff-pin matrix: a directory operand fails closed to a sentinel
 rm -rf "$RUFF_MTX_DIR"
 
 # ── #2009: the lint manifest's ruff pin must stay within ci.yml's ruff== family ──
-# Provisioning installs the manifest's exact ruff into prflow-lint-bin, which shadows PATH;
-# a manifest version outside ci.yml's ruff== family reddens the #1621 gate on rule-set skew
-# rather than on findings (issue #2009). Reconcile the two pins mechanically by minor family
-# so a bump to one alone cannot silently disagree with the other.
+# Reconcile the two pins mechanically by minor family so a bump to one alone cannot silently
+# disagree with the other and redden the #1621 gate on rule-set skew rather than on findings.
 devflow_ruff_family() {  # prints major.minor of a version or spec (0.16.4 / 0.16.* -> 0.16)
   local v="$1" major rest minor
   major="${v%%.*}"; rest="${v#*.}"; minor="${rest%%.*}"

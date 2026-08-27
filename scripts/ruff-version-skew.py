@@ -26,9 +26,6 @@ for a direct caller:
 
 Fail-closed to 2 (never 0) on any manifest read problem: an unusable comparand is unknown,
 not "matches". Unknown is not zero.
-
-The `SKEW` sentinel: without it, a caller keying on exit code would read an uncaught
-traceback (exit 1) as a real skew and refuse a whole-suite launch on a helper bug.
 """
 
 from __future__ import annotations
