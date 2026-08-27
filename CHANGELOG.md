@@ -4,6 +4,24 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.58] — 2026-08-27
+
+### Added
+- **Weekly retrospective loop now consumes test-suite runtime trend.** Two steps were added to
+  the `retrospective-weekly` skill: a suite-profiling pass that runs the existing profiler,
+  ranks the slowest sections, labels, and assertions, and files targeted retire/speed-up/extract
+  follow-up issues for the top offenders; and a ceiling tripwire that reads the coordinator's
+  latest `run-parallel: elapsed` figure from CI job logs and files (or annotates an already-open)
+  suite-runtime maintenance issue when it crosses 85% of `BASH_MAX_TIMEOUT_MS`. Both steps only
+  read figures and file issues — neither gates a run on suite duration. (#2015)
+
+## [2.34.57] — 2026-08-27
+
+### Changed
+Permit a fingerprint-gated failed-shard-only suite relaunch after a RED completion-gate pass whose fix changed no repository file (issue #2008, PR #2016).
+
+Each suite launch now records its five-field checkout fingerprint (from `scripts/checkout-fingerprint.py`) as `fingerprint.json` in its retained location — the run root for `lib/test/run-parallel.sh`, the tally dir for `lib/test/run-shard.sh` — written *unestablished* (never omitted) when it cannot be produced. Two new `lib/test/shard-tally.py` subcommands support the relaunch: `record-fingerprint` writes that record (best-effort, always exits 0) and `same-tree-eligible` exits 0 only when a fresh fingerprint equals the RED run's recorded one on all five fields. The completion-gate prose in `CLAUDE.md` states the eligibility rule: on a proven byte-identical tree, relaunch only the failed shards and recombine them with the RED run's retained clean-shard tallies through `shard-tally.py combine --require-shards`; on any field mismatch or unestablished fingerprint the full coordinator relaunch stays mandatory.
+
 ## [2.34.56] — 2026-08-26
 
 ### Changed
