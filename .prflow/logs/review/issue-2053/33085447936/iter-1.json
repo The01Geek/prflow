@@ -1,0 +1,208 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T00:00:00Z",
+  "fix_commit_sha": "bd03fac6116e5fbe3fbf064ba45235e07b041015",
+  "fix_files": [
+    "lib/test/run.sh",
+    "lib/test/modules/review-and-fix-contract.sh",
+    "skills/review-and-fix/references/fixing.md"
+  ],
+  "loop_role": "fix",
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "dispatched_effort": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "fixing.md item 7 did not document the below-important-damper producer row shape",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/fixing.md",
+        "line_range": [
+          181,
+          181
+        ],
+        "kind": "doc_completeness_asymmetry"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "loop-control.md sits at exactly the 61750-byte reference-size ceiling (fragility note about future edits)",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          1,
+          1
+        ],
+        "kind": "reference_size_boundary"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "fbi_clamp preamble restated the function's own value logic (mirror-fact)",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          1319,
+          1322
+        ],
+        "kind": "mirror_fact_comment"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "run.sh section-header comment carries provenance (#312/#304) beyond the 3-line cap, mirroring the max_iterations block",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          1258,
+          1266
+        ],
+        "kind": "comment_length"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "contract module _raf_fbi_clamp omitted the float row present in the run.sh mirror",
+      "defect_signature": {
+        "file": "lib/test/modules/review-and-fix-contract.sh",
+        "line_range": [
+          230,
+          230
+        ],
+        "kind": "test_symmetry"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "the non-integer clamp breadcrumb reads 'not a non-negative integer' but only fires for non-numeric input (negatives take the separate 'is negative' arm); cosmetic and accurate",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          110,
+          110
+        ],
+        "kind": "breadcrumb_wording"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "bd03fac6116e5fbe3fbf064ba45235e07b041015"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "24a8aa30c85f5a592bbd1eba4125cf72da4cacd4"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "24a8aa30c85f5a592bbd1eba4125cf72da4cacd4"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "pushed_back",
+      "source_file": "skills/review-and-fix/references/loop-control.md",
+      "claim_text": "loop-control.md at exact reference-size ceiling",
+      "skip_category": "uncategorized",
+      "evidence": "informational note about future edits, not a defect in this PR; file passes the lint (61750 == MAX_BYTES, not over)"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "pushed_back",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "section-header comment carries #312/#304 provenance beyond the cap",
+      "skip_category": "claim-quality",
+      "evidence": "kept deliberately to preserve byte/style consistency with the sibling max_iterations block (comment-analyzer noted it is consistency-preserving, not a regression)"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "pushed_back",
+      "source_file": "skills/review-and-fix/references/loop-control.md",
+      "claim_text": "breadcrumb wording 'not a non-negative integer'",
+      "skip_category": "claim-quality",
+      "evidence": "the arm gated by ^-?[0-9]+$ only fires for non-numeric input (negatives route to the separate 'is negative' arm), so the wording is accurate; cosmetic only"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "reviewed_sha": "bd03fac6116e5fbe3fbf064ba45235e07b041015",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter"
+    ],
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
