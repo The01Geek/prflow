@@ -41758,7 +41758,7 @@ ubc_make "$D"
 printf '# comment the parser must skip\n*.sh merge=text\nlib/test/modules/coverage-map.json merge=coverage-map-json-other\n' > "$D/work/.gitattributes"
 git -C "$D/work" add .gitattributes
 git -C "$D/work" commit -qm gitattributes-no-covmap-decl
-ubc_advance_base "$D" do
+ubc_advance_base "$D" 'do'
 ubc_run "$D"
 assert_eq "#2025 covmap-declared-other: normal update unaffected → 'UPDATED 1' (AC3 parse reject)" "UPDATED 1" "$UBC_OUT"
 assert_eq "#2025 covmap-declared-other: no merge.coverage-map-json.driver config written (AC3 parse reject)" "" \
