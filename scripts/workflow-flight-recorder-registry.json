@@ -28,7 +28,7 @@
     },
     "review-and-fix-contract": {
       "path": "lib/test/modules/review-and-fix-contract.sh",
-      "minimum_assertions": 39,
+      "minimum_assertions": 59,
       "assertion_floor_policy": "exact",
       "description": "Focused review-and-fix iteration, guardrail, convergence, telemetry, and prompt-composition contracts"
     },

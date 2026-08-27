@@ -268,7 +268,7 @@
             "important",
             "suggestion"
           ],
-          "description": "The /prflow:review-and-fix fix loop routes to the fixer every finding whose severity is at or above this threshold (severity ordering: critical > important > suggestion); findings below it stay advisory. At the default 'important', the loop fixes Critical + Important/Major and parks Suggestion/Minor as advisory \u2014 identical to the historical hard-coded behavior. Set 'suggestion' for a more aggressive fixer (Suggestion/Minor also routed to the fixer, bounded by max_iterations and the convergence check) or 'critical' for a conservative one. Independent of prflow_review.verdict_severity_threshold, except that every REJECT-driving finding is always fixable regardless of this key. A missing/wrong-type/unknown value falls back to the default with a stderr breadcrumb (never aborts a run).",
+          "description": "The /prflow:review-and-fix fix loop routes to the fixer every finding whose severity is at or above this threshold (severity ordering: critical > important > suggestion); findings below it stay advisory. At the default 'important', the loop fixes Critical + Important/Major and parks Suggestion/Minor as advisory \u2014 identical to the historical hard-coded behavior. Set 'suggestion' for a more aggressive fixer (Suggestion/Minor also routed to the fixer, bounded by max_iterations, the convergence check, and the fix_below_threshold_iterations damper window that parks below-important findings after the opening iterations on a Critical/Important-clean iteration) or 'critical' for a conservative one. Independent of prflow_review.verdict_severity_threshold, except that every REJECT-driving finding is always fixable regardless of this key. A missing/wrong-type/unknown value falls back to the default with a stderr breadcrumb (never aborts a run).",
           "default": "important"
         },
         "max_iterations": {
@@ -276,6 +276,12 @@
           "minimum": 1,
           "description": "Maximum number of fix-loop iterations /prflow:review-and-fix runs before exiting with its latest verdict. Higher converges on a clean verdict more often at greater subagent cost; lower saves cost. A value below 1 is clamped up to 1, and a non-integer/empty/unparseable value (or an unreadable config) falls back to the default. No upper bound is imposed.",
           "default": 5
+        },
+        "fix_below_threshold_iterations": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many leading /prflow:review-and-fix iterations route below-important findings (Suggestion/Minor) that fix_severity_threshold admits to the fixer. After this opening window, on an iteration whose routed findings include no Critical and no Important finding, each fresh below-important finding is parked as an advisory instead of starting a new fix iteration; on an iteration that routes at least one Critical or Important finding, below-important findings still ride along to the fixer. Only affects a repo that set fix_severity_threshold to 'suggestion' (at the default 'important' no below-important finding is admitted). Set 0 to park below-important findings from the first iteration on; set at or above max_iterations to restore the pre-damper behavior. A negative/non-integer/empty/unparseable value (or an unreadable config) falls back to the default with a stderr breadcrumb (never aborts a run).",
+          "default": 1
         },
         "efficiency_telemetry_enabled": {
           "type": "boolean",

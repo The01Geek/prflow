@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.0] — 2026-08-27
+
+### Added
+- **Add `prflow_review_and_fix.fix_below_threshold_iterations` — a configurable damper for below-Important fix-loop findings.** When `fix_severity_threshold` is set to `suggestion`, the `/prflow:review-and-fix` loop now routes below-`important` findings to the fixer only during the first `fix_below_threshold_iterations` iterations (default 1). After that window, on an iteration whose findings include no Critical and no Important finding, each fresh below-`important` finding is parked as an advisory instead of starting a new fix iteration, so a small Critical/Important-clean change converges in about two review fan-outs instead of running to the iteration cap. Below-`important` findings still ride along whenever a Critical or Important finding routes, and REJECT-drivers always route. Set the key to `0` to park below-`important` findings from the first iteration, or at/above `max_iterations` to restore the previous behavior. Runs at the default `important` threshold are unaffected. Separately, every convergence evaluation now records its three condition operands (`fixes_applied`, `fix_diff_lines`, `new_corroborated_critical_count`) in the iteration record so the decision is auditable. (#2056)
+
 ## [2.34.70] — 2026-08-27
 
 ### Fixed
