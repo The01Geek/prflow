@@ -131,5 +131,95 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.35.4",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 34.4725138,
+    "tokens": {
+      "input_tokens": 200,
+      "output_tokens": 126713,
+      "cache_read_input_tokens": 33912883,
+      "cache_creation_input_tokens": 450958,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 358,
+        "outputTokens": 188948,
+        "cacheReadInputTokens": 38185470,
+        "cacheCreationInputTokens": 1284120,
+        "webSearchRequests": 0,
+        "costUSD": 33.5350675,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 70,
+        "outputTokens": 10760,
+        "cacheReadInputTokens": 2316119,
+        "cacheCreationInputTokens": 146593,
+        "webSearchRequests": 0,
+        "costUSD": 0.9374462999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 125,
+    "duration_ms": 3561911
+  },
+  "permission_denials": {
+    "count": 15,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/workpad.py handoff-state .prflow/tmp/implement-handoff-2067-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json --issue 2067 --run-id $GITHUB_RUN_ID --run-attempt $GITHUB_RUN_ATTEMPT; echo \"---HANDOFF-EXIT:$?---\"\n.prflow/vendor/prflow/scripts/workpad.py status 2067; echo \"---STATUS-EXIT:$?---\"",
+      "git diff origin/main...HEAD > .prflow/tmp/review/pr-2072/33111072181-1/diff.patch 2>&1; wc -l .prflow/tmp/review/pr-2072/33111072181-1/diff.patch",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review; echo \"---EXIT:$?\"",
+      "git log --oneline -20 --all --name-only -- '.changeset/*.md' 2>/dev/null | grep '.changeset/' | grep -v README | head -3; echo \"---show a recent one---\"; for f in $(git log --all --pretty= --name-only -- '.changeset/*.md' | grep -v README | grep '.md$' | head -20); do git show \"origin/main~5:$f\" 2>/dev/null && break; done 2>/dev/null | head; echo \"==try consolidate schema==\"; grep -rn \"bump\\|type\" scripts/consolidate-changesets.py 2>/dev/null | head",
+      "F='{\"state\":\"closed\",\"merged\":true,\"auto_merge\":{\"enabled_by\":{\"login\":\"octocat\"},\"merge_method\":\"squash\"}}'\necho \"orig:      $(printf '%s' \"$F\" | jq -r 'if .merged then \"merged\" elif (.state == \"open\" and .auto_merge != null) then \"automerge\" else (.state // \"\") end')\"\necho \"reordered: $(printf '%s' \"$F\" | jq -r 'if (.state == \"open\" and .auto_merge != null) then \"automerge\" elif .merged then \"merged\" else (.state // \"\") end')\"",
+      "AM='{\"state\":\"open\",\"merged\":false,\"auto_merge\":{\"enabled_by\":{\"login\":\"octocat\"},\"merge_method\":\"squash\"}}'\necho \"fixed jq, armed:   $(printf '%s' \"$AM\" | jq -r 'if .merged then \"merged\" elif (.state == \"open\" and .auto_merge != null) then \"automerge\" else (.state // \"\") end')\"\necho \"prefix jq, armed:  $(printf '%s' \"$AM\" | jq -r 'if .merged then \"merged\" else (.state // \"\") end')\"\nMA='{\"state\":\"closed\",\"merged\":true,\"auto_merge\":{\"enabled_by\":{\"login\":\"octocat\"}}}'\necho \"no-open-guard, merged+ …[per-command-truncated]",
+      "cat > /tmp/ac-flight-declare.json <<'EOF'\n{\"scope\": \"lib/test/modules/review-trigger-helpers.sh\", \"command\": \"lib/test/run-module.sh review-trigger-helpers\"}\nEOF\n.prflow/vendor/prflow/scripts/verification-flight.py --help 2>&1 | head -50",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p .prflow/tmp/review/pr-2072/33111072181-1\nFP=$(.prflow/vendor/prflow/scripts/checkout-fingerprint.py)\necho \"$FP\"\npython3 - \"$FP\" <<'EOF' > /tmp/decl.json\nimport json,sys\nfp = json.loads(sys.argv[1])\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-module.sh\", \"review-trigger-helpers\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {\"CI\": \"\"},\n    \"toolchain\": {\"bash\": \"5.x\"},\n    \"dep …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p .prflow/tmp/review/pr-2072/33111072181-1\n.prflow/vendor/prflow/scripts/checkout-fingerprint.py > /tmp/fp.json\ncat /tmp/fp.json",
+      ".prflow/vendor/prflow/scripts/checkout-fingerprint.py > /tmp/fp.json",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/ac-verify\n.prflow/vendor/prflow/scripts/checkout-fingerprint.py > /home/runner/work/prflow/prflow/.prflow/tmp/ac-verify/fp.json\ncat /home/runner/work/prflow/prflow/.prflow/tmp/ac-verify/fp.json",
+      "python3 - <<'PYEOF' | tee /home/runner/work/prflow/prflow/.prflow/tmp/ac-verify/decl.json\nimport json\nfp = json.load(open(\"/home/runner/work/prflow/prflow/.prflow/tmp/ac-verify/fp.json\"))\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-module.sh\", \"review-trigger-helpers\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {\"CI\": \"\"},\n    \"toolchain\": {\"bash\": \"5.x\"},\n    \"dependencies\": {\"jq\": \"1.x\"},\n    \"output_roots\": [\".prfl …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py --evidence-file .prflow/tmp/ac-evidence-2067.json --claim-file .prflow/tmp/ac-claim-2067.json 2>/dev/null | tail -40; echo \"---EXIT:${PIPESTATUS[0]}---\"",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"---EXIT:$?---\"",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"---EXIT:$?---\""
+    ],
+    "total": 15,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  },
+  "run_profile": {
+    "phase_durations_ms": {
+      "Documentation": 1809000,
+      "Implement": 706000,
+      "PR marked ready": 0,
+      "Review": 2380000,
+      "Setup": 2201000
+    },
+    "final_status": "Complete",
+    "prior_record_count": "unestablished",
+    "issue_number": 2067,
+    "engine_outcome": "failure"
+  }
 }
