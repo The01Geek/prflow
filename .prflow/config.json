@@ -199,6 +199,7 @@
     "labels": "PRFlow,Deferred"
   },
   "telemetry": {
+    "enabled": false,
     "branch": "prflow-telemetry"
   },
   "verification_flight": {

@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.7] — 2026-08-27
+
+### Added
+- **`telemetry.enabled` master config key.** Set `telemetry.enabled` to the JSON boolean `false` in `.prflow/config.json` to turn off PRFlow's enrolled optional telemetry in one switch: the five default-true telemetry sub-keys (`prflow_review_and_fix.efficiency_telemetry_enabled`, `prflow.execution_diagnostics_enabled`, `prflow.execution_denial_commands_enabled`, `prflow_review.live_progress_comment_enabled`, `create_issue.investigation_record_enabled`) resolve to disabled wherever their own key does not resolve to a value (absent, JSON null, or an empty string), and the review-and-fix workpad-copy push to the telemetry branch is skipped. `prflow.execution_transcript_artifact_enabled` is not enrolled — it already defaults to `false`. A sub-key set to a value that resolves always wins over the master for those five resolver reads, while the telemetry-branch push reads the master alone. Only the JSON boolean `false` disables — every other state (including a string `"false"`, a corrupt config, or a resolver error) leaves telemetry on, matching the existing gates' fail-safe direction. (#2041)
+
+## [2.35.6] — 2026-08-27
+
+### Fixed
+- **The CI-green auto-review trigger no longer requests a review for a pull request set to auto-merge.** `scripts/post-ci-review-trigger.sh`'s post-time state guard now reads the `auto_merge` field from the pull-request response it already fetches: an open pull request with GitHub auto-merge armed gets no `/prflow:review` comment and a distinct warning annotation naming enabled auto-merge, so the trigger stops racing the coming merge onto an already-merged target (a paid review with no reader). The merged test is still decided first and the new state is emitted only for an open pull request, so the existing merged/closed/unestablished arms are unchanged; the helper still makes a single state request. In a repository that also requires an approving review the armed pull request does not merge at CI-green, so this arm withholds the automatic request and the manual `/prflow:review` comment remains the supported path. (#2072)
+
 ## [2.35.5] — 2026-08-27
 
 ### Fixed
