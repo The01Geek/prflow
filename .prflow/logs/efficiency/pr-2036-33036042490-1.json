@@ -270,5 +270,83 @@
       "iter": 2,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.64",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 48.15513865000004,
+    "tokens": {
+      "input_tokens": 224,
+      "output_tokens": 101626,
+      "cache_read_input_tokens": 32098608,
+      "cache_creation_input_tokens": 431516,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 653,
+        "outputTokens": 244518,
+        "cacheReadInputTokens": 44860447,
+        "cacheCreationInputTokens": 2701945,
+        "webSearchRequests": 0,
+        "costUSD": 47.051779750000016,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 82,
+        "outputTokens": 14630,
+        "cacheReadInputTokens": 2676987,
+        "cacheCreationInputTokens": 168599,
+        "webSearchRequests": 0,
+        "costUSD": 1.1033589,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 135,
+    "duration_ms": 2560768
+  },
+  "permission_denials": {
+    "count": 16,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset}\"; echo \"GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-unset}\"; git branch --show-current; git status --porcelain | head; git log --oneline -5",
+      "mkdir -p .prflow/tmp && rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null && git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "mkdir -p .prflow/tmp && rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null && git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "cd /home/runner/work/prflow/prflow\necho \"=== Run new test class (proves AC1/2/3 + malformed exit) ===\"\npython3 -m unittest lib.test.test_verification_flight.TestSelfDocumentingHelp -v 2>&1 | tail -20 || cd lib/test && python3 -m unittest test_verification_flight.TestSelfDocumentingHelp -v 2>&1 | tail -20\necho \"=== AC1 actual top-level help epilog ===\"; python3 scripts/verification-flight.py --help 2>&1 | sed -n '/exit codes:/,$p'\necho \"=== AC4: CLAUDE.md consult line ===\"; grep -n 'The exact con …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p .prflow/tmp\ncat > /tmp/decl.json <<'EOF'\n{\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/test_verification_flight.py\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_services\": false\n  },\n  \"checkout\": {\n    \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n    \"head\": \"d05a43f9df18ec938bd564a4afa1048458666f84\",\n    \"index_di …[per-command-truncated]",
+      "python3 - <<'PYEOF'\nimport json\ndecl = {\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/test_verification_flight.py\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_services\": False\n  },\n  \"checkout\": {\n    \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n    \"head\": \"d05a43f9df18ec938bd564a4afa1048458666f84\",\n    \"index_digest\": \"fc4f5975f6f2d039b228bc3ad4adeba474b7b1 …[per-command-truncated]",
+      "printf '%s' '{\"profile\":{\"profile_version\":1,\"argv\":[\"lib/test/test_verification_flight.py\"],\"cwd\":\"/home/runner/work/prflow/prflow\",\"environment\":{},\"toolchain\":{},\"dependencies\":{},\"output_roots\":[],\"external_services\":false},\"checkout\":{\"checkout_id\":\"/home/runner/work/prflow/prflow/.git\",\"head\":\"d05a43f9df18ec938bd564a4afa1048458666f84\",\"index_digest\":\"fc4f5975f6f2d039b228bc3ad4adeba474b7b17a\",\"tracked_digest\":\"fc4f5975f6f2d039b228bc3ad4adeba474b7b17a\",\"untracked_digest\":\"4b825dc642cb6eb9a06 …[per-command-truncated]",
+      "printf '%s' '{\"profile\":{\"profile_version\":1,\"argv\":[\"lib/test/test_verification_flight.py\"],\"cwd\":\"/home/runner/work/prflow/prflow\",\"environment\":{},\"toolchain\":{},\"dependencies\":{},\"output_roots\":[],\"external_services\":false},\"checkout\":{\"checkout_id\":\"/home/runner/work/prflow/prflow/.git\",\"head\":\"d05a43f9df18ec938bd564a4afa1048458666f84\",\"index_digest\":\"fc4f5975f6f2d039b228bc3ad4adeba474b7b17a\",\"tracked_digest\":\"fc4f5975f6f2d039b228bc3ad4adeba474b7b17a\",\"untracked_digest\":\"4b825dc642cb6eb9a06 …[per-command-truncated]",
+      "mkdir -p .prflow/tmp && printf '%s' '{\"profile\":{\"profile_version\":1,\"argv\":[\"lib/test/test_verification_flight.py\"],\"cwd\":\"/home/runner/work/prflow/prflow\",\"environment\":{},\"toolchain\":{},\"dependencies\":{},\"output_roots\":[],\"external_services\":false},\"checkout\":{\"checkout_id\":\"/home/runner/work/prflow/prflow/.git\",\"head\":\"d05a43f9df18ec938bd564a4afa1048458666f84\",\"index_digest\":\"fc4f5975f6f2d039b228bc3ad4adeba474b7b17a\",\"tracked_digest\":\"fc4f5975f6f2d039b228bc3ad4adeba474b7b17a\",\"untracked_dige …[per-command-truncated]",
+      "lib/test/test_verification_flight.py 2>&1 | tail -30",
+      "lib/test/test_verification_flight.py",
+      "FLIGHT=39ad7ce3b90f36bd23c1b08c04d0749b1db8ea1b9563e7f98ea131f9a4414632\nTOKEN=8ea09a905728d79e41f16428b9008ce4ae123d035188178a413e4125808c52be\nprintf '%s' '{\"result\":\"passed\",\"summary\":\"129 tests, 0 failures, 0 skipped (python3 lib/test/test_verification_flight.py)\"}' | tee .prflow/tmp/finish.json > /dev/null\npython3 scripts/verification-flight.py finish --flight \"$FLIGHT\" --token \"$TOKEN\" --result passed --evidence-file .prflow/tmp/finish.json --state-dir .prflow/tmp/verification-flights 2>&1 | …[per-command-truncated]",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"---RC:$?\"",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"---RC:$?\"",
+      "scripts/prompt-surface-growth.py",
+      "cat > /tmp/pr2036-body.md <<'EOF'\n<!-- PR_BODY_START -->\n## Summary\n- `verification-flight.py --help` now answers the two questions an implement run otherwise greps the source for: what each exit code means, and what a claim declaration file must contain.\n- The interface facts are rendered from the module's own constants, so help can never drift from the validator or the exit-code table.\n\n## Changes\n**`scripts/verification-flight.py`**: Adds `EXIT_CODE_MEANINGS` (one-line meaning per exit code,  …[per-command-truncated]"
+    ],
+    "total": 16,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
