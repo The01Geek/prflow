@@ -1,0 +1,47 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE",
+  "report": "Shadow review of PR #2026 (issue #2024, workpad size limits) converges APPROVE. The two guards are correct and fail closed before any PATCH. Per-note 2048-byte budget (_check_note_within_budget) is measured over the caller's own --note/--note-file (_own_notes) BEFORE _plan_buffer_replay, so buffer-replayed and tool-composed rows are correctly exempt (the wedge the design warns of is avoided). The 65536-byte comment cap (_check_body_within_limit) is enforced on both PATCH routes: the update path measures the assembled body before temp-write/PATCH/failed-write-buffer (so a size refusal buffers nothing), and _patch_comment_body checks the text branch (_byte_len) and the body_path branch (stat().st_size = bytes GitHub receives); cmd_patch catches _UpdateError and exits 1. Coupled sites are reconciled in-change: run.sh floor 94->105 and registry minimum_assertions 105 (exact policy) both match the 11 new assertions (S1:3+S2:2+S3:3+S4:3); coverage-map routes issue 2024 to workpad-cli; changeset present. Focused module run: 105 passed, 0 failed. Test coverage is strong: off-by-one at 2048/2049 and at 65536, per-note-vs-per-call scoping, --note/--note-file parity, UTF-8-byte-vs-character (AC11 multibyte), buffer-replay exemption (AC6), size-refusal-buffers-nothing (AC5), tool-composed exemption (AC7), and the cmd_patch/body_path route (S4, which reaches the guard via the marker-line-1 degrade-and-continue arm rather than the no-marker early exit). Task's specific coverage focus (S4 arms + exact-floor coupling) is verified present and passing. No Critical/Important runtime defects. One real non-runtime finding: the PR rewrote the operand-trace reference (table -> one --note per comparand) but left the internal-doc mirror docs/internal/implement-skill.md:196,290 saying 'four-column operand table', now contradicting the shipped reference (coupled-mirror not reconciled in the same change). Remaining items are Suggestions.",
+  "phase3_findings": [
+    {
+      "agent": "comment-analyzer",
+      "severity": "Important",
+      "description": "docs/internal/implement-skill.md:196 and :290 still say the 2.3.0c trigger 'demands a four-column operand table', but the PR rewrote skills/implement/references/sweep-2-3-0c-operand-trace.md to require one --note per comparand and to explicitly forbid 'a single multi-row table in one note' — an unreconciled coupled-mirror contradiction the PR itself introduced (behavior-inert, internal-only, non-blocking).",
+      "defect_signature": "coupled-mirror-drift:implement-skill.md:operand-table-vs-per-note"
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Minor",
+      "description": "scripts/workpad.py:3642 — the byte-based body cap can refuse a body GitHub (65,536-CHARACTER limit) would accept for heavy-multibyte content; if the excess comes from buffer-replay-folded content the refusal exits before the buffer clear, so retries re-fold and re-refuse (permanent, though loud/stderr, not silent). Deliberate conservative choice mandated by AC11; requires ~64KB buffered content; changeset 'can no longer wedge' claim is accurate only for the per-note path.",
+      "defect_signature": "byte-vs-char-body-cap-buffer-wedge-residual"
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Coverage asymmetry: exact-65536-byte ACCEPT is asserted only on the patch route (AC10 _ok_body); the update route asserts only the over-cap side (AC4/S3). Shared comparand _check_body_within_limit's '>' boundary is pinned, so low risk; add one update-route exact-limit-accepts assertion to close it.",
+      "defect_signature": "missing-update-route-exact-limit-accept"
+    },
+    {
+      "agent": "code-reviewer",
+      "severity": "Suggestion",
+      "description": "lib/test/modules/workpad-cli.sh S4 block carries a ~7-line explanatory comment (design narrative) exceeding CLAUDE.md's 3-physical-line comment-discipline cap for test files; trim to the prohibition+consequence (why the marker must be line 1).",
+      "defect_signature": "comment-discipline-over-cap:workpad-cli-S4"
+    },
+    {
+      "agent": "code-reviewer",
+      "severity": "Suggestion",
+      "description": "Prose in phase-2-implement.md and the operand-trace reference hardcodes the literal '2,048-byte per-note budget'; no mechanism ties the prose figure to workpad.py's _NOTE_BYTE_BUDGET, so it would silently rot if the constant changes (Conventions: prefer pinned/generated figures). Low: enforcement constant unlikely to drift.",
+      "defect_signature": "transcribed-literal-rot:2048-byte-budget-prose"
+    },
+    {
+      "agent": "comment-analyzer",
+      "severity": "Suggestion",
+      "description": "scripts/workpad.py _check_note_within_budget docstring's trailing 'because the caller checks it against the pre-replay caller-note list, not at the shared renderer' is design derivation rather than the function's contract; could be trimmed per the contract-docstring carve-out. Also :1280 'st_size is the byte count GitHub receives' restates what stat().st_size self-evidently yields.",
+      "defect_signature": "docstring-derivation-clause"
+    }
+  ],
+  "reviewers_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "checklist_skipped": false
+}

@@ -1,0 +1,66 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "engine_root": "skills/review/SKILL.md",
+  "verdict": "APPROVE",
+  "report": "## Shadow review — PR #2026 (issue #2024: enforce workpad size limits before a write)\n\nBlind re-review of `git diff main...HEAD` at head f8e9a3ac5. The change adds two byte-size guards to `scripts/workpad.py`: a 2,048-byte per-note budget (`_check_note_within_budget`, applied to caller `--note`/`--note-file` in `_cmd_update_inner` before the buffer-replay fold, exempting buffer-replayed and tool-composed rows) and a 65,536-byte comment-body cap (`_check_body_within_limit`, in `_cmd_update_inner` before PATCH and in both branches of `_patch_comment_body`; `cmd_patch` now catches `_UpdateError`). Plus new tests, assertion-floor bumps (94->102, lockstep across run.sh + registry), a coverage-map entry, a changeset, and two prompt-prose edits.\n\n### Verdict: APPROVE (merge-ready; no Critical or blocking-Important finding)\n\n**Two size guards — correctness held on every adversarial axis.** Off-by-one boundaries correct (`> budget`/`> limit`: 2048 and 65536 accepted, 2049/65537 refused; pinned by tests). Both guards route through `_byte_len` (UTF-8) with multi-byte coverage on both sides. Only two PATCH sites exist (update line 3659, `_patch_comment_body` line 1283) and both are guarded; `_patch_comment_body` covers both its text branch (byte_len) and body_path branch (stat().st_size). A size refusal exits non-zero before any PATCH and before `_buffer_failed_change`, so nothing is buffered (no replay wedge) — pinned by AC5. Per-note check iterates only `_own_notes` before the fold, so buffer-replayed (AC6) and tool-composed (AC7) rows are genuinely exempt. `_UpdateError` is caught before the `CalledProcessError`/`OSError` arm on every route; a body_path `stat()` OSError surfaces loudly via `cmd_patch`'s existing handler.\n\n**Notable finding (non-blocking): byte-vs-character comment cap.** GitHub's real comment limit is 65,536 CHARACTERS; the guard enforces 65,536 UTF-8 BYTES. For a pre-existing workpad body legitimately accepted by GitHub (<=65536 chars) but over 65536 bytes (multibyte-heavy), every subsequent `update` would be refused — the wedge failure mode the issue set out to prevent, which the per-note axis explicitly exempts but the body-cap axis does not. Assessed as an acceptable conservative trade-off, NOT a blocking regression: (1) zero regression for ASCII (near-all PRFlow workpads); (2) the false-refusal window (near char-limit AND heavily multibyte) is negligible here; (3) recoverable out-of-band via `cmd_patch --body-file`, which replaces the whole body and passes the cap once the replacement is under it — so not permanent; (4) documented in code (workpad.py:341-342) and the changeset. Recommended follow-ups (non-blocking): measure `len(text)` (chars) to match GitHub exactly and close the window, or add a one-line changeset caveat; and add a test for the new `cmd_patch` command-level `_UpdateError` exit-1 arm (currently only the helper is tested).\n\n**Tests** are substantive and drive the real code paths (fake `_run` reads the staged body file; shell S1-S3 run a real CLI subprocess). Boundaries, byte-vs-char, per-note-vs-per-call, both exemptions, both patch routes, and no-buffering-on-refusal are all asserted. Comments/docstrings accurate and within the 3-line discipline. Prose edits truthful, consumer-agnostic, and consistent with the shipped 2,048-byte limit. Assertion floors reconciled in lockstep.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "scripts/workpad.py:376 (_check_body_within_limit) — comment cap enforced over UTF-8 bytes while GitHub's limit is 65,536 characters; a pre-existing multibyte-heavy body (<=65536 chars, >65536 bytes) that GitHub accepted would have every subsequent update refused. Recoverable via cmd_patch --body-file, documented and conservative — not a blocking wedge. Consider a char-count measure or a changeset caveat.",
+      "defect_signature": "byte-vs-char-comment-cap-pre-existing-body-wedge"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "lib/test/test_python_scripts.py — the new cmd_patch command-level `except _UpdateError -> sys.exit(1)` arm (scripts/workpad.py:1359-1363) is untested; AC10 tests _patch_comment_body directly, bypassing cmd_patch. A reordered except clause would not be caught. Drive an oversize body_file through _drive_cmd_patch_body.",
+      "defect_signature": "untested-cmd_patch-UpdateError-exit-arm"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "lib/test/test_python_scripts.py — exactly-at-limit (65536-byte) body via the update route (_cmd_update_inner) is not tested; the update route is asserted only for the over-cap case. Boundary arithmetic is covered once via the shared _check_body_within_limit at the helper level (AC10), so low value, but the update-route body guard is boundary-tested asymmetrically vs the note guard.",
+      "defect_signature": "update-route-body-cap-at-limit-untested"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "lib/test/test_python_scripts.py — --note-file byte-vs-char is tested only with ASCII payloads; the multi-byte case is asserted for inline --note only. Shared _own_notes path makes this low value.",
+      "defect_signature": "note-file-multibyte-untested"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "scripts/workpad.py:354-360 (_check_note_within_budget docstring) — trailing provenance sentence ('Mirrors the sibling _is_single_line guards' ... convention') and the 'because the caller checks it against the pre-replay caller-note list' clause are design-narrative rather than contract; could be trimmed. Docstring is a carve-out population, so not a violation. Also the inline pointer '(see _check_note_within_budget)' at line 3580 is soft-misdirecting — the exemption is enforced at the call site by looping only _own_notes, not inside the function.",
+      "defect_signature": "docstring-provenance-and-pointer-nit"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "None",
+      "description": "No issues at or above threshold. Both guards correct on boundaries, byte measurement, bypass surface, buffering-on-refusal, and replay/tool-composed exemptions. Exception ordering correct. Assertion floors consistent (+8 = S1..S3). Prose edits accurate, consumer-agnostic. Comment discipline satisfied.",
+      "defect_signature": "clean"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "None",
+      "description": "APPROVE / merge-ready. The byte-vs-char cap is a documented, operator-recoverable conservative trade-off, not a blocking regression. Guard placement, off-by-one, both patch routes, no-buffer-on-refusal, and coupled-site reconciliation all verified. One Minor: char-count measure or changeset caveat would make the anti-wedge guarantee airtight.",
+      "defect_signature": "final-pass-approve"
+    }
+  ],
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "checklist_skipped": null
+}

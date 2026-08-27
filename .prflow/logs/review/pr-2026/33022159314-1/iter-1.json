@@ -1,0 +1,132 @@
+{
+  "iter": 1,
+  "loop_role": "fix",
+  "fix_commit_sha": "0cfef194e",
+  "fix_files": [
+    "scripts/workpad.py",
+    "lib/test/modules/workpad-cli.sh",
+    "lib/test/run.sh",
+    "scripts/workflow-flight-recorder-registry.json",
+    "docs/internal/implement-skill.md"
+  ],
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "verdict": "APPROVE",
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings_summary": "iter1 engine: 12 findings, all Suggestion (0 Critical/Important). Fix rounds addressed comment discipline, the cmd_patch test-coverage gap (shadow-promoted Important), and the operand-trace internal-doc mirror (shadow-promoted Important). Final convergence shadow: APPROVE, 0 Critical/Important, remaining findings all Suggestion/Minor below the 'important' fix threshold.",
+  "fix_decisions": [
+    {
+      "finding_id": "F-cmt-discipline",
+      "decision": "applied",
+      "commit": "f8e9a3ac5",
+      "source_file": "scripts/workpad.py",
+      "claim_text": "comment-discipline cleanups (redundant/overclaiming/inaccurate-attribution comments)"
+    },
+    {
+      "finding_id": "F-cmd-patch-cov",
+      "decision": "applied",
+      "commit": "bc6072b8e",
+      "source_file": "lib/test/modules/workpad-cli.sh",
+      "claim_text": "shadow Important: cover the cmd_patch size-refusal route (S4) + floor 102->105"
+    },
+    {
+      "finding_id": "F-doc-mirror",
+      "decision": "applied",
+      "commit": "0cfef194e",
+      "source_file": "docs/internal/implement-skill.md",
+      "claim_text": "shadow Important: reconcile operand-trace four-column-table mirror to one-note-per-comparand"
+    },
+    {
+      "finding_id": "F-budget-couple",
+      "decision": "deferred",
+      "skip_category": "out-of-scope",
+      "source_file": "skills/implement/references/sweep-2-3-0c-operand-trace.md",
+      "claim_text": "2048 literal mirrored uncoupled in code+prose",
+      "evidence": "coupling a prose budget figure to _NOTE_BYTE_BUDGET needs a new cross-file pin/test — scope expansion; advisory"
+    },
+    {
+      "finding_id": "F-byte-vs-char",
+      "decision": "advisory",
+      "skip_category": "advisory-parked",
+      "source_file": "scripts/workpad.py",
+      "claim_text": "body cap over bytes vs GitHub's char limit",
+      "evidence": "deliberate conservative trade-off mandated by AC11; documented; operator-recoverable; not a regression"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 40,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "iter-3-convergence",
+    "reviewed_sha": "0cfef194e",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "provenance-clean",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "comparison": {
+      "shadow_total": 8,
+      "overlap_with_iter_N": 0,
+      "new": 8,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
