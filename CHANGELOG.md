@@ -4,6 +4,17 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.58] — 2026-08-27
+
+### Added
+- **Weekly retrospective loop now consumes test-suite runtime trend.** Two steps were added to
+  the `retrospective-weekly` skill: a suite-profiling pass that runs the existing profiler,
+  ranks the slowest sections, labels, and assertions, and files targeted retire/speed-up/extract
+  follow-up issues for the top offenders; and a ceiling tripwire that reads the coordinator's
+  latest `run-parallel: elapsed` figure from CI job logs and files (or annotates an already-open)
+  suite-runtime maintenance issue when it crosses 85% of `BASH_MAX_TIMEOUT_MS`. Both steps only
+  read figures and file issues — neither gates a run on suite duration. (#2015)
+
 ## [2.34.57] — 2026-08-27
 
 ### Changed
