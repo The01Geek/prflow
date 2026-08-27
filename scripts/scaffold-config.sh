@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# scaffold-config.sh — DevFlow's single config-scaffolding implementation.
+# scaffold-config.sh — PRFlow's single config-scaffolding implementation.
 #
-# Drops the DevFlow config files into a repo's .prflow/ directory:
+# Drops the PRFlow config files into a repo's .prflow/ directory:
 #   - config.json     scaffolded from config.example.json when absent; when it
 #                     already exists it's kept (your IDs/secrets stay) and only
 #                     newly-introduced keys are backfilled from the example —
@@ -621,7 +621,7 @@ done
 # wherever the user's value diverges in type from the example (e.g. a scalar where
 # the example now nests an object): the user's value still wins wholesale, so
 # nested defaults under it are NOT backfilled. A key the user deleted is re-added
-# with its documented default; DevFlow doesn't track deletions.
+# with its documented default; PRFlow doesn't track deletions.
 # Best-effort, mirroring detect-project-tools.sh (trap-guarded temp, non-fatal
 # logs): a missing jq, a malformed config.json, or a jq merge/compare failure logs
 # and skips without aborting the scaffold. Only rewrites when the merge actually
