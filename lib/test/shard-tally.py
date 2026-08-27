@@ -34,6 +34,16 @@ This helper is the transport-and-recombine layer:
              on a missing/unexpected/duplicated shard and states the covered
              population on the trailing line (issue #1289).
 
+  record-fingerprint — write this launch's five-field checkout fingerprint (from
+             scripts/checkout-fingerprint.py) into <out>/fingerprint.json, or an
+             unestablished record when it cannot be produced. Best-effort: always
+             writes, always exits 0, so it never blocks a launch (issue #2008).
+
+  same-tree-eligible — exit 0 (ELIGIBLE) only when a fresh fingerprint equals a
+             recorded one on all five fields, else exit 1; fail-closed, so an
+             unestablished or absent fingerprint refuses the same-tree failed-
+             shard-only relaunch (issue #2008).
+
 Parsing keys on the two stable, unit-tested summary contracts:
   * lib/test/summary.sh   — `N passed, M failed[, K skipped]` + `  SKIP  ...` lines
   * lib/test/run-module.sh — `Module <id>: N passed, M failed`
@@ -45,9 +55,23 @@ prerequisite), never through a non-preflight PATH tool (CLAUDE.md guard-class 2)
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
+
+# The five-field checkout identity a launch records (issue #2008). COUPLED with
+# scripts/checkout-fingerprint.py's emitted object and scripts/verification-flight.py's
+# `_CHECKOUT_REQUIRED` — the same five names; change them together.
+_FINGERPRINT_FIELDS = (
+    "checkout_id",
+    "head",
+    "index_digest",
+    "tracked_digest",
+    "untracked_digest",
+)
 
 # A run.sh final summary line (from lib/test/summary.sh). Anchored to a whole line.
 _BARE_SUMMARY = re.compile(r"^(\d+) passed, (\d+) failed(?:, (\d+) skipped)?$")
@@ -478,6 +502,161 @@ def cmd_combine(args: argparse.Namespace) -> int:
     return 0 if total_fail == 0 and not problems else 1
 
 
+def _fingerprint_helper_cmd() -> list[str]:
+    """The command that produces a fresh checkout fingerprint on stdout.
+
+    `DEVFLOW_FINGERPRINT_HELPER` overrides it verbatim (run directly, so a test stub
+    or an alternate producer works); otherwise the bundled `scripts/checkout-fingerprint.py`
+    is run with this interpreter. checkout-fingerprint.py lives under `scripts/`, i.e.
+    `../../scripts/` from this file under `lib/test/`.
+    """
+    override = os.environ.get("DEVFLOW_FINGERPRINT_HELPER")
+    if override:
+        return [override]
+    default = Path(__file__).resolve().parent.parent.parent / "scripts" / "checkout-fingerprint.py"
+    return [sys.executable, str(default)]
+
+
+def _fingerprint_reason(obj: object) -> str | None:
+    """None when `obj` is an established five-field fingerprint, else why it is not.
+
+    The single definition of "established" for both the record path and the eligibility
+    read. Every content field must be a non-empty string; equality across the five is the
+    whole eligibility contract, so no object-id shape is imposed here.
+    """
+    if not isinstance(obj, dict):
+        return "is not a JSON object"
+    if obj.get("unestablished"):
+        return "is unestablished"
+    missing = [k for k in _FINGERPRINT_FIELDS if not (isinstance(obj.get(k), str) and obj.get(k))]
+    if missing:
+        return f"missing field(s): {', '.join(missing)}"
+    return None
+
+
+def _established_fingerprint(text: str) -> dict | None:
+    """Parse `text` as an established five-field fingerprint, else None."""
+    try:
+        obj = json.loads(text)
+    except ValueError:
+        return None
+    return obj if _fingerprint_reason(obj) is None else None
+
+
+def _load_fingerprint(path: Path) -> tuple[dict | None, str]:
+    """Return (record, "") for an established fingerprint file, else (None, reason).
+
+    Fail-closed: an unreadable file, non-JSON, an unestablished marker, or a missing
+    field is a reason — never a match, so an unestablished recorded fingerprint can
+    never discharge the same-tree relaunch.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        return None, f"unreadable ({error})"
+    try:
+        obj = json.loads(text)
+    except ValueError:
+        return None, "is not valid JSON"
+    reason = _fingerprint_reason(obj)
+    return (None, reason) if reason is not None else (obj, "")
+
+
+def _unlink_quietly(path: Path) -> bool:
+    """Best-effort remove `path`; return True when a file still survives afterwards."""
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+    return path.exists()
+
+
+def cmd_record_fingerprint(args: argparse.Namespace) -> int:
+    """Record this launch's checkout fingerprint into `--out`/fingerprint.json.
+
+    Best-effort by design: it ALWAYS writes the record and ALWAYS exits 0, so a
+    fingerprint failure can never block a suite launch. When the fingerprint cannot be
+    produced (or is not an established five-field object) the record is written as
+    `{"unestablished": true, "reason": ...}` — never omitted, never a partial or
+    invented fingerprint (issue #2008).
+    """
+    dest = Path(args.out) / "fingerprint.json"
+    reason = ""
+    established_text: str | None = None
+    try:
+        # Bound the helper: git under this repo's worktree concurrency can hang on a held
+        # index.lock, which `|| :` cannot rescue (it swallows the exit code, not wall-clock).
+        proc = subprocess.run(
+            _fingerprint_helper_cmd(),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        reason = f"could not run the checkout-fingerprint helper ({error})"
+    else:
+        stdout = proc.stdout.strip()
+        if proc.returncode == 0 and _established_fingerprint(stdout):
+            established_text = stdout + "\n"
+        else:
+            reason = (
+                f"checkout-fingerprint helper exited {proc.returncode} without an "
+                f"established five-field fingerprint: {proc.stderr.strip()} "
+                f"(stdout head: {stdout[:200]!r})"
+            )
+    if established_text is not None:
+        record_text, note = established_text, f"recorded established checkout fingerprint at {dest}"
+    else:
+        record_text = json.dumps({"unestablished": True, "reason": reason or "unknown"}, sort_keys=True) + "\n"
+        note = f"recorded UNESTABLISHED checkout fingerprint at {dest} ({reason})"
+    try:
+        # Unlink before writing: run-shard.sh's tally dir persists across launches, so a
+        # failed write would otherwise leave the PREVIOUS launch's fingerprint in place and
+        # same-tree-eligible would read it as this launch's tree.
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.unlink(missing_ok=True)
+        dest.write_text(record_text, encoding="utf-8")
+    except OSError as error:
+        # Report whether a record actually survived: claiming the absent-record fail-closed
+        # while an earlier launch's fingerprint is still on disk sends a reader looking for
+        # an absent file that is present and stale.
+        residue = (
+            f"a STALE record from an earlier launch survives at {dest} and must not be "
+            "used as --recorded"
+            if _unlink_quietly(dest)
+            else "no record survives, so same-tree-eligible fails closed"
+        )
+        print(
+            f"shard-tally record-fingerprint: could NOT write the fingerprint record at "
+            f"{dest} ({error}); the launch continues and {residue}",
+            file=sys.stderr,
+        )
+        return 0
+    print(f"shard-tally record-fingerprint: {note}", file=sys.stderr)
+    return 0
+
+
+def cmd_same_tree_eligible(args: argparse.Namespace) -> int:
+    """Exit 0 (ELIGIBLE) only when a fresh fingerprint equals the recorded one on all
+    five fields; otherwise INELIGIBLE (exit 1). Fail-closed on any unusable input, so an
+    unestablished or absent fingerprint on either side refuses the same-tree relaunch."""
+    recorded, r_reason = _load_fingerprint(Path(args.recorded))
+    if recorded is None:
+        print(f"INELIGIBLE: recorded fingerprint {r_reason}", file=sys.stderr)
+        return 1
+    fresh, f_reason = _load_fingerprint(Path(args.fresh))
+    if fresh is None:
+        print(f"INELIGIBLE: fresh fingerprint {f_reason}", file=sys.stderr)
+        return 1
+    for field in _FINGERPRINT_FIELDS:
+        if recorded[field] != fresh[field]:
+            print(f"INELIGIBLE: fingerprint field '{field}' differs", file=sys.stderr)
+            return 1
+    print("ELIGIBLE")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -534,6 +713,21 @@ def main(argv: list[str] | None = None) -> int:
         help="render at most N entries per detail class (0 or negative = uncapped)",
     )
     co.set_defaults(func=cmd_combine)
+
+    rf = sub.add_parser(
+        "record-fingerprint",
+        help="record this launch's checkout fingerprint into <dir>/fingerprint.json",
+    )
+    rf.add_argument("--out", required=True, help="directory to write fingerprint.json into")
+    rf.set_defaults(func=cmd_record_fingerprint)
+
+    el = sub.add_parser(
+        "same-tree-eligible",
+        help="exit 0 only when a fresh fingerprint equals a recorded one on all five fields",
+    )
+    el.add_argument("--recorded", required=True, help="the RED run's recorded fingerprint.json")
+    el.add_argument("--fresh", required=True, help="a freshly produced fingerprint.json")
+    el.set_defaults(func=cmd_same_tree_eligible)
 
     args = parser.parse_args(argv)
     return args.func(args)
