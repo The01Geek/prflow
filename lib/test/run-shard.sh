@@ -54,8 +54,8 @@ _shard_modules() { # shard-name -> prints module ids (empty for the non-module s
     monolith)      printf '' ;;
     python-pool)   printf '' ;;
     modules-pin)   printf '%s' 'harness-python-guards' ;;
-    modules-large) printf '%s' 'retrospective-lifecycle review-trigger-helpers create-issue-contract review-stall-backstop efficiency-trace-telemetry' ;;
-    modules-rest)  printf '%s' 'workflow-flight-recorder review-and-fix-contract capability-profiles regenerate-artifacts installer-wiring prompt-extension-reader experiment-records issue-audit-state tier1-rename-migration parallel-suite-runner phase2-durability-checkpoint review-contract workpad-cli implement-contract' ;;
+    modules-large) printf '%s' 'retrospective-lifecycle review-trigger-helpers create-issue-contract review-stall-backstop efficiency-trace-telemetry installer-wiring parallel-suite-runner tier1-rename-migration experiment-records' ;;
+    modules-rest)  printf '%s' 'workflow-flight-recorder review-and-fix-contract capability-profiles regenerate-artifacts prompt-extension-reader issue-audit-state phase2-durability-checkpoint review-contract workpad-cli implement-contract' ;;
     *) return 2 ;;
   esac
 }
@@ -95,6 +95,9 @@ _is_known_shard "$SHARD" || { printf 'run-shard.sh: unknown shard %s (known: %s)
 
 TALLY_DIR="${DEVFLOW_SHARD_TALLY_DIR:-$REPO_ROOT/.prflow/tmp/shard-tally/$SHARD}"
 mkdir -p "$TALLY_DIR" || { printf 'run-shard.sh: could not create tally dir %s\n' "$TALLY_DIR" >&2; exit 2; }
+# Record this shard launch's checkout fingerprint in its retained tally dir for the same-tree
+# relaunch gate (issue #2008). Best-effort — never block the shard on a fingerprint failure.
+python3 "$SCRIPT_DIR/shard-tally.py" record-fingerprint --out "$TALLY_DIR" || :
 LOG_FILE="$TALLY_DIR/log.txt"
 
 shard_rc=0
