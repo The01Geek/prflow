@@ -1,0 +1,66 @@
+{
+  "entry": "shadow",
+  "iteration": 1,
+  "run_id": "33085057931-1",
+  "root_completeness": "established",
+  "diff_produced_at_head": "8cb4de005679a87ae57f31eb96f1bd1598bb2251",
+  "diff_profile": "config_only",
+  "diff_profile_detail": "prose-only edits to 3 skills/review-and-fix/references/*.md files + 1 new .changeset/*.md; no source/logic/test files; has_new_types=false; test-relevance predicate unmatched",
+  "reviewers_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "requesting-code-review"
+  ],
+  "gated_out_reviewers": [
+    "type-design-analyzer (no new types)",
+    "pr-test-analyzer (test-relevance predicate unmatched: no test/source files touched)"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": [],
+  "per_reviewer": {
+    "code-reviewer": {
+      "assessment": "ACs 1-5 satisfied by shipped skill edits; one Medium (AC6 docs unmet) + one Suggestion (reference-size headroom)",
+      "findings": [
+        {"severity": "Medium", "defect_signature": {"file": "docs/internal/shadow-review.md", "line_range": "3-6"}, "summary": "AC6 unmet: doc not updated; its source-pointer list omits loop-control.md which now co-owns shadow dispatch caller-inputs and freshness"},
+        {"severity": "Suggestion", "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": "0-0"}, "summary": "reference-size headroom now ~57 bytes under the 61,750 ceiling; future prose additions will turn lint RED"}
+      ]
+    },
+    "silent-failure-hunter": {
+      "assessment": "clean from error-handling/silent-failure standpoint; every new branch routes to an existing conservative failure arm",
+      "findings": [
+        {"severity": "Suggestion", "defect_signature": {"file": ".changeset/issue-2052-reentrant-diffpatch-freshness.md", "line_range": "22-22"}, "summary": "trailing (#2057) is the PR number while issue is 2052 — cosmetic provenance only (matches repo convention)"}
+      ]
+    },
+    "comment-analyzer": {
+      "assessment": "essentially clean; added prose accurate about the mechanism and does not contradict the engine; batch-*.patch glob matches batch-<k>.patch; no documented falsehoods",
+      "findings": [
+        {"severity": "Low", "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": "65-65"}, "summary": "framing slightly overstates the diff.patch hazard (Phase 0.2 already clears/regenerates diff.patch in local-diff modes); deletion genuinely required for batch slices, so prose is defensible"},
+        {"severity": "Low", "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": "79-79"}, "summary": "reword trims lose minor specificity/usage guidance (dropped '/prflow:review <PR> separately' pointer, 'across two directories', 'devflow/ path component') — no load-bearing instruction lost"}
+      ]
+    },
+    "requesting-code-review": {
+      "assessment": "NOT READY — ACs 1-5 satisfied and well-formed; AC6 entirely unimplemented (blocking)",
+      "findings": [
+        {"severity": "REJECT", "defect_signature": {"file": "docs/internal/shadow-review.md", "line_range": "66-200"}, "summary": "AC6 unmet: docs/internal/shadow-review.md untouched; must describe re-entrant dispatch/deletion design, correct its single-home claim (line 66), and name where the overwrite contract lives"}
+      ]
+    }
+  },
+  "phase3_findings": [
+    {"id": "F1", "severity": "REJECT", "defect_signature": {"file": "docs/internal/shadow-review.md", "line_range": "66-200"}, "summary": "AC6 unimplemented: docs/internal/shadow-review.md was not updated despite being an explicit issue #2052 deliverable (describe dispatch design, correct single-home claim, name overwrite-contract home). Source-pointer list (lines 3-6) omits loop-control.md which now co-owns shadow freshness/caller-inputs.", "concurrence": ["code-reviewer", "requesting-code-review"]},
+    {"id": "F2", "severity": "Suggestion", "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": "0-0"}, "summary": "loop-control.md now ~57 bytes under the lint-reference-size 61,750 ceiling; future edits should trim not add."},
+    {"id": "F3", "severity": "Low", "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": "65-65"}, "summary": "Changeset/loop-control framing marginally overstates the diff.patch (vs batch-slice) reuse hazard; belt-and-suspenders and defensible."}
+  ],
+  "phase2_fails": [
+    {"claim": "docs/internal/shadow-review.md is updated to reflect the shipped re-entrant dispatch design (AC6)", "result": "FAIL", "evidence": "git diff --name-only cbd0eb9..HEAD shows no docs/ file changed; file's line 66 single-home claim and lines 3-6 source list are stale relative to loop-control.md's new shadow-dispatch ownership"}
+  ],
+  "acs_satisfied": ["AC1", "AC2", "AC3", "AC4", "AC5"],
+  "acs_unmet": ["AC6"],
+  "verdict": "REJECT"
+}

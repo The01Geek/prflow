@@ -1,0 +1,166 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T00:00:00Z",
+  "fix_commit_sha": "8cb4de005679a87ae57f31eb96f1bd1598bb2251",
+  "fix_files": [],
+  "loop_role": "fix",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "diff_produced_at_head defense-in-depth framing / not folded into iter-N / vacuous inline-arm comparison (below-threshold prose-consistency)",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          65,
+          72
+        ],
+        "kind": "prose-accuracy"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "changeset framing slightly overstates the live diff.patch reuse vector; net effect holds",
+      "defect_signature": {
+        "file": ".changeset/issue-2052-reentrant-diffpatch-freshness.md",
+        "line_range": [
+          12,
+          22
+        ],
+        "kind": "prose-accuracy"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "below-threshold",
+      "source_file": "skills/review-and-fix/references/loop-control.md",
+      "claim_text": "diff_produced_at_head prose-consistency",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "below-threshold",
+      "source_file": ".changeset/issue-2052-reentrant-diffpatch-freshness.md",
+      "claim_text": "changeset framing",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-27T00:00:00Z",
+    "reviewed_sha": "8cb4de005679a87ae57f31eb96f1bd1598bb2251",
+    "diff_produced_at_head": "8cb4de005679a87ae57f31eb96f1bd1598bb2251",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Important",
+        "description": "AC6 unmet: docs/internal/shadow-review.md was not touched; issue #2052 AC6 requires it to describe the engine-subagent-first dispatch design, correct its single-home claim, and name where the diff.patch overwrite contract lives. This is a DOCUMENTATION deliverable the implement flow defers to the Phase 4.1 docs pass.",
+        "defect_signature": {
+          "file": "docs/internal/shadow-review.md",
+          "line_range": [
+            66,
+            200
+          ],
+          "kind": "doc-ac-unmet"
+        }
+      }
+    ],
+    "phase2_fails": [
+      {
+        "claim": "AC6: docs/internal/shadow-review.md realigned",
+        "verdict": "FAIL",
+        "note": "doc-AC owned by Phase 4.1"
+      }
+    ],
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": {
+    "step_2_6": {
+      "calls": 4,
+      "tokens": 128000,
+      "wall_clock_s": 452
+    }
+  },
+  "synthesized": false
+}

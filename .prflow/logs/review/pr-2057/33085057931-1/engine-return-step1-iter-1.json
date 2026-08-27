@@ -1,0 +1,56 @@
+{
+  "root_completeness": "established",
+  "diff_produced_at_head": "8cb4de005679a87ae57f31eb96f1bd1598bb2251",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "profile": "engine_self_modifying (overrides other flags' checklist) -> full Phase 1+2 checklist; Phase 3 roster gated by Phase 3.1 (type-design-analyzer skipped: has_new_types=false; pr-test-analyzer skipped: config_only test-relevance predicate)"
+  },
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "requesting-code-review"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "requesting-code-review"],
+  "phase3_failed_agents": [],
+  "cap_drops": [],
+  "verdict": "APPROVE",
+  "phase3_findings": [
+    {
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": "216 (contract) / 219 (diff_produced_at_head)", "kind": "vacuous-guard / defense-in-depth-framing"},
+      "severity": "LOW",
+      "agent": "prflow:silent-failure-hunter",
+      "description": "The diff_produced_at_head head-check is not an independent backstop of the pre-dispatch deletion: subagent and parent share one checkout and a review entry never commits, so HEAD_dispatch == HEAD_produce unconditionally and the compare only bites on external/concurrent HEAD movement. If the pre-dispatch rm silently no-ops and Phase 0.2 reuses a stale cache, nothing tells Phase 0.2 to stamp the reused content's head rather than current HEAD, so a stale diff could pass vacuously. Freshness rests entirely on the deletion working. Originally graded MEDIUM by the agent; Phase 4.1.5 over-grade pass caps it at LOW — the primary mechanism (unconditional pre-dispatch deletion -> Phase 0.2 regeneration) is sound and no concrete input yields a wrong verdict; this is a framing/defense-in-depth observation, not a correctness defect."
+    },
+    {
+      "defect_signature": {"file": "skills/review-and-fix/references/shadow-review.md", "line_range": "105 vs 107", "kind": "ambiguous-fail-arm"},
+      "severity": "LOW",
+      "agent": "prflow:silent-failure-hunter",
+      "description": "A *missing* diff_produced_at_head is claimed by two arms: L105 (new) routes 'missing or mismatched' through Step 2.6 outcome 3, while L107 (unchanged) says a return lacking any Step-1 field (which now includes diff_produced_at_head) is not well-formed -> run shadow inline. Both arms are fail-closed, so no silent failure results, but the prose overlaps; reconcile so missing -> inline well-formedness and mismatched -> outcome 3 do not both claim the missing case."
+    },
+    {
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": "41 (return-field list) + 65-72", "kind": "internal-inconsistency"},
+      "severity": "LOW",
+      "agent": "prflow:code-reviewer",
+      "description": "diff_produced_at_head is listed among the fields the subagent writes to the return file immediately before 'fold those returned fields into iter-<N>.json', yet the authoritative iter-record spec (references/fixing.md item 7) and ITER_EXPECTED_FIELDS in lib/efficiency-trace.sh do not list it, and the re-entrant paragraph treats it as a transient dispatch-time operand. Harmless (the self-check field validation is a set-difference ignoring extra keys) but the grammar leaves ambiguous whether it is a persisted/expected iter field. A clarifying clause that it is a dispatch-time check operand, not folded into iter-<N>.json, would keep the two record-spec sites uncontradicted."
+    },
+    {
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": "72 / 219", "kind": "prose-accuracy-edge (vacuous inline-arm comparison)"},
+      "severity": "SUGGESTION",
+      "agent": "prflow:comment-analyzer / prflow:silent-failure-hunter / requesting-code-review",
+      "description": "On the parent-inline (unavailable) arm the parent both writes diff_produced_at_head and compares it against its own git rev-parse HEAD in the same checkout, so the comparison is vacuously true and the prescribed 'not-well-formed inline fallback' remediation is circular (the parent is already inline). Correct defense-in-depth; the meaningful comparison is the fanned-out arm. Three reviewers independently flagged this consistency point. Wording-only; no fix required."
+    },
+    {
+      "defect_signature": {"file": ".changeset/issue-2052-reentrant-diffpatch-freshness.md", "line_range": "12-22 / mirrored at loop-control.md 212,216", "kind": "prose-accuracy / defense-in-depth-framing"},
+      "severity": "SUGGESTION",
+      "agent": "prflow:code-reviewer / requesting-code-review",
+      "description": "The changeset frames the diff.patch deletion as what makes Phase 0.2 regenerate at current HEAD, but Phase 0.2's local-diff paths (the only paths the fix loop takes, via head_override=local) already rm and regenerate diff.patch themselves (phase-0-setup.md Step 1 'clear stale authority'). The genuinely additive protection is the batch-*.patch deletion (Phase 0.2 never clears batch slices) plus the fail-closed guards; the diff.patch half is belt-and-suspenders. Net effect (fresh diff) holds either way; the 'reviewing a stale cache' framing slightly overstates the live diff.patch reuse vector."
+    },
+    {
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md (61693 B) and shadow-review.md (61619 B)", "line_range": "whole-file", "kind": "maintainability"},
+      "severity": "SUGGESTION",
+      "agent": "prflow:code-reviewer",
+      "description": "After this change loop-control.md sits ~57 bytes under and shadow-review.md ~131 bytes under the 61,750-byte boundary-gated reference ceiling (lib/test/lint-reference-size.py). Both pass now, but any further prose to either will trip the suite RED; remedy per CLAUDE.md is to trim, not exempt. Confirm CI 'lib + python tests' (reference-size lint) is green."
+    }
+  ],
+  "phase4_1_report": "# PRFlow Review — PR #2057 (issue #2052)\n\n**Verdict: APPROVE**\n\n## Diff profile\nengine_self_modifying + config_only (prose-only). Flags: small_diff=false (4 files), config_only=true (all .md), has_new_types=false, engine_self_modifying=true (skills/**), detect_all_audit=false. Full Phase 1+2 checklist forced by engine_self_modifying. Phase 3 roster: code-reviewer, silent-failure-hunter, comment-analyzer, requesting-code-review (type-design-analyzer and pr-test-analyzer gated out by has_new_types=false / config_only test-relevance).\n\n## Scope\nProse-only edits to PRFlow's own review-and-fix engine: loop-control.md, loop-exit.md, shadow-review.md, plus a changeset. Implements the re-entrant review-engine diff.patch freshness contract for issue #2052.\n\n## Acceptance-criteria verification (all satisfied)\n- (a) Re-entrant entries (Step-1 iter>=2 and every Step 2.6 shadow entry, both dispatch arms; first Step-1 entry and standalone /prflow:review exempt) delete run-scoped diff.patch + batch-*.patch before dispatch — loop-control.md re-entrant-freshness block; shadow-review.md invokes it. Glob batch-*.patch matches Phase 1's batch-<k>.patch producer (verified).\n- (b) diff_produced_at_head added to the Step-1 and shadow return field set; parent compares vs git rev-parse HEAD and routes missing/mismatch to existing failure handling (Step-1 not-well-formed inline fallback / shadow Step 2.6 outcome 3); parent-inline arm writes it itself.\n- (c) Shadow dispatch now carries run_id + (PR mode) head_override=local — fixes a real reachable bug: previously the shadow's Phase 0.2 fell to the standalone gh pr diff path (pushed state, not local fix commits) and scattered scratch to a different run-id dir.\n- (d) Loop Exit widens-surface guard fails closed on an absent cache (records reflection bullet, keeps every candidate skip disqualified) instead of reading absent-as-empty.\n- (e) Cache-deletion glob guarded for zsh nomatch with the canonical `[ -n \"${ZSH_VERSION:-}\" ] && setopt nonomatch || :` line in the same fenced block.\n- (f) Changeset added (bump: patch, type: Fixed) with an accurate summary.\n\n## Findings\nNo BLOCKER or HIGH findings. Three LOW and three SUGGESTION items, all prose-consistency / defense-in-depth-framing observations that do not gate merge (see phase3_findings). Recurring cross-reviewer theme: the diff.patch deletion and the diff_produced_at_head comparison are defense-in-depth over Phase 0.2's already-existing rm/regenerate on the local-diff path; the batch-*.patch deletion, the fail-closed loop-exit guard, and the shadow run_id/head_override passing are the load-bearing additions.\n\n## Verdict rationale\nThe change satisfies every acceptance criterion, is internally consistent across the three edited references, single-sources the contract (shadow-review.md points at loop-control.md rather than paraphrasing), follows CLAUDE.md conventions (glob guard, instruction+consequence prose, in-plugin pointers only), removes no phrase that leaves a dangling reference, and fixes at least one genuinely reachable bug (the shadow dispatch). Highest-graded finding is LOW after the Phase 4.1.5 over-grade pass. APPROVE.\n"
+}
