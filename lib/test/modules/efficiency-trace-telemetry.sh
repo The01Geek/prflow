@@ -6802,7 +6802,7 @@ rm -rf "$T499_U_ROOT"
 # mechanism in one switch: the five default-true enrolled sub-keys inherit it on
 # their config-get.sh miss path, and the two push-path helpers skip. Only the JSON
 # boolean false disables; every other state (wrong-typed, corrupt, error) fails
-# safe to ON. An explicit sub-key always wins over the master.
+# safe to ON. A sub-key set to a value that resolves wins over the master.
 T2035_ROOT="$(probe_tmp '#2035 telemetry master switch root')"; rm -rf "$T2035_ROOT"; mkdir -p "$T2035_ROOT"
 T2035_CG="$REPO_ROOT/scripts/config-get.sh"
 T2035_OFF="$REPO_ROOT/scripts/telemetry-master-off.py"
@@ -6846,7 +6846,7 @@ assert_eq "#2035 AC1 execution_denial_commands_enabled inherits false" "false" "
 assert_eq "#2035 AC1 live_progress_comment_enabled inherits false" "false" "$("$T2035_CG" prflow_review.live_progress_comment_enabled true "$T2035_ROOT/m-false.json")"
 assert_eq "#2035 AC1 investigation_record_enabled inherits false" "false" "$("$T2035_CG" create_issue.investigation_record_enabled true "$T2035_ROOT/m-false.json")"
 
-# AC2 — an explicit sub-key wins over the master, in both directions.
+# AC2 — a sub-key set to a value that resolves wins, in both directions.
 printf '%s' '{"telemetry":{"enabled":false},"prflow":{"execution_diagnostics_enabled":true}}' > "$T2035_ROOT/p-explicit-true.json"
 printf '%s' '{"prflow":{"execution_diagnostics_enabled":false}}' > "$T2035_ROOT/p-explicit-false.json"
 assert_eq "#2035 AC2 explicit sub-key true beats master false" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/p-explicit-true.json")"
@@ -6971,9 +6971,9 @@ assert_eq "#2035 AC4 collect-staged master-off stages nothing" "" "${T2035_COLLE
 assert_eq "#2035 AC4 collect-staged master-off emits breadcrumb" "yes" "$(printf '%s' "$T2035_COLLECT_OFF" | cut -d'|' -f2)"
 T2035_COLLECT_ON="$(_t2035_collect "$T2035_ROOT/m-missing.json")"
 assert_eq "#2035 AC4 collect-staged master-absent collects (positive control)" "1" "${T2035_COLLECT_ON%%|*}"
-# Fail-safe symmetry with the --persist path: a corrupt config collects (ON) and
-# emits no skip breadcrumb — the predicate exits 1 (indeterminate → ON) so the
-# collector runs as if the master were unset.
+# Fail-safe symmetry with the --persist path: a corrupt config collects and emits
+# no skip breadcrumb — the predicate exits 2, which is a shade of ON, so the
+# collector runs as if the master were unset (and says the switch was unconsulted).
 T2035_COLLECT_CORRUPT="$(_t2035_collect "$T2035_ROOT/m-corrupt.json")"
 assert_eq "#2035 AC5 collect-staged corrupt-config collects (fail-safe on)" "1" "${T2035_COLLECT_CORRUPT%%|*}"
 assert_eq "#2035 AC5 collect-staged corrupt-config emits no skip breadcrumb" "no" "$(printf '%s' "$T2035_COLLECT_CORRUPT" | cut -d'|' -f2)"

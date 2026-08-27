@@ -1532,13 +1532,12 @@ apply_denial_floor() {
 do_persist() {
   local root dir slug run_id _TELEMETRY_STAGE
   # Telemetry master switch (issue #2035): a JSON-false telemetry.enabled skips the
-  # whole persist — no record, no durable copy, no telemetry-branch commit. Fail-safe
-  # to ON, and every unconsulted path announces itself: silence here is indistinguishable
-  # from a deliberate opt-in. Inline python3 -c, NOT an exec of a repo .py:
-  # efficiency-trace.sh is a hardened Stop-hook closure member, so a source/exec edge to a
-  # new script would break the issue-#458 drift-guard and force a workflow edit. Reads the
-  # JSON TYPE (`is False`), so 0 and "false" never disable; exit 2 means the config exists
-  # but could not be read or parsed, matching scripts/telemetry-master-off.py's contract.
+  # whole persist, and every unconsulted path announces itself — silence here is
+  # indistinguishable from a deliberate opt-in.
+  # Inline python3 -c, NOT an exec of a repo .py: efficiency-trace.sh is a hardened
+  # Stop-hook closure member, so a source/exec edge would break the #458 drift-guard.
+  # Reads the JSON TYPE (`is False`), so 0 and "false" never disable; the {0,1,2}
+  # exit contract is scripts/telemetry-master-off.py's, carried by all three copies.
   local _tel_rc
   if ! command -v python3 >/dev/null 2>&1; then
     echo "devflow: efficiency-trace.sh --persist: python3 not on PATH — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2

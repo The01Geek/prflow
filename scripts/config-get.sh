@@ -211,14 +211,20 @@ telemetry_master_disables_for() {
     # Stop-hook closure member, so adding a source/exec edge to a new script would
     # break the issue-#458 drift-guard and force a workflow edit. Reads the JSON
     # TYPE (`is False`), so the number 0 and the string "false" never disable.
+    # Carries the same {0,1,2} exit contract as the other two copies even though
+    # only 0 is read here: a 2-way copy would falsify their shared docstring.
     PRFLOW_TEL_CFG="$config_file" python3 -c '
 import json, os, sys
 try:
     with open(os.environ["PRFLOW_TEL_CFG"], encoding="utf-8") as fh:
         data = json.load(fh)
-except Exception:
+except FileNotFoundError:
     sys.exit(1)
-tel = data.get("telemetry") if isinstance(data, dict) else None
+except Exception:
+    sys.exit(2)
+if not isinstance(data, dict):
+    sys.exit(2)
+tel = data.get("telemetry")
 sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
 ' >/dev/null 2>&1
 }

@@ -30,12 +30,11 @@ fi
 # Telemetry master switch (issue #2035): a JSON-false telemetry.enabled collects
 # nothing. Fail-safe to ON everywhere else, and every unconsulted path announces
 # itself — a silent skip of this gate is indistinguishable from a deliberate opt-in.
-# Dirname-free anchor: `dirname` is not one of the tools lib/preflight.sh guarantees,
-# and an empty anchor would silently no-op this gate.
+# Dirname-free: `dirname` is not one of the tools lib/preflight.sh guarantees.
 _CST_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
-# Resolve the config the way every other reader does. Spelling `.prflow/` here
-# instead would make this gate miss a mid-migration `.devflow/` consumer's master
-# switch and upload the payload their sibling --persist gate skipped.
+# Resolve the config through the same override-then-state-dir ladder every other
+# reader uses; hardcoding `.prflow/` would read a different file than the
+# --persist gate this one is meant to agree with.
 if [ -z "${DEVFLOW_CONFIG_FILE:-}" ] && [ -r "$_CST_DIR/../lib/resolve-state-dir.sh" ]; then
   # shellcheck source=../lib/resolve-state-dir.sh
   . "$_CST_DIR/../lib/resolve-state-dir.sh" 2>/dev/null || true
