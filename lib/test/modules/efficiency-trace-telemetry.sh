@@ -6798,12 +6798,16 @@ assert_eq "#499 union: classifier-unavailable refusal is breadcrumbed" "yes" "$(
 rm -rf "$T499_U_ROOT"
 
 # ── #2006 run-profile floor and PR-less implement record ─────────────────────
+# These fixtures assert RECORD CONTENT on the local telemetry branch. The module unset
+# DEVFLOW_TELEMETRY_PUSH above, so under CI's ambient GITHUB_ACTIONS=true --persist
+# stages instead of writing that branch and every read below returns empty — green on
+# a dev desk, 23 RED on CI. Scrub the ambient variable per invocation.
 RP_PROFILE='{"phase_durations_ms":{"Setup":263000,"Implement":800000,"Review":"unestablished"},"final_status":"Complete"}'
 
 # Skeleton arm: a PR resolved, no record exists for this run-id → a pr-<N> skeleton
 # carrying run_profile, with the sub-fields the assertion below enumerates.
 RP_SK="$(_hc_repo "rp skeleton")"
-( cd "$RP_SK" && GITHUB_RUN_ID=4001 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+( cd "$RP_SK" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4001 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
     DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 run-profile(skeleton): a pr-<N> skeleton is written for this run-id" "yes" \
@@ -6828,11 +6832,11 @@ rm -rf "$RP_SK"
 # Inert arms: unset profile is silent; a non-object operand draws one breadcrumb and
 # writes nothing.
 RP_I="$(_hc_repo "rp inert")"
-RP_I_ERR="$( ( cd "$RP_I" && GITHUB_RUN_ID=4002 GITHUB_RUN_ATTEMPT=1 \
+RP_I_ERR="$( ( cd "$RP_I" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4002 GITHUB_RUN_ATTEMPT=1 \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
 assert_eq "#2006 run-profile(inert): unset DEVFLOW_RUN_PROFILE → the helper stays SILENT about the floor" "yes" \
   "$(printf '%s' "$RP_I_ERR" | grep -q 'run-profile floor' && echo no || echo yes)"
-RP_I_ERR2="$( ( cd "$RP_I" && GITHUB_RUN_ID=4003 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE='not-json' \
+RP_I_ERR2="$( ( cd "$RP_I" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4003 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE='not-json' \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
 assert_eq "#2006 run-profile(inert): a non-object operand draws a named breadcrumb and writes no record" "yes" \
   "$(printf '%s' "$RP_I_ERR2" | grep -q 'DEVFLOW_RUN_PROFILE is not a JSON object' && echo yes || echo no)"
@@ -6844,7 +6848,7 @@ rm -rf "$RP_I"
 # PR-less arm: no PR resolved → an issue-keyed record is written, and the cost and
 # profile floors land on that same file through their any-slug merge arms.
 RP_PL="$(_hc_repo "rp pr-less")"
-( cd "$RP_PL" && GITHUB_RUN_ID=4004 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+( cd "$RP_PL" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4004 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
     DEVFLOW_ENGINE_OUTCOME=failure DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_NO_PR_REASON=no-closing-pr-found \
     DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=implement \
     bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
@@ -6858,7 +6862,7 @@ assert_eq "#2006 PR-less: the harness cost floor lands on the issue-keyed record
 assert_eq "#2006 PR-less: the run-profile floor lands on the same issue-keyed record" "Complete failure" \
   "$(_et_show "$RP_PL" ".prflow/logs/efficiency/issue-2006-4004-1.json" | jq -r '.run_profile.final_status + " " + .run_profile.engine_outcome')"
 # Re-running the backstop for the same run id must not write a second record.
-( cd "$RP_PL" && GITHUB_RUN_ID=4004 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+( cd "$RP_PL" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4004 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
     DEVFLOW_ENGINE_OUTCOME=failure DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_NO_PR_REASON=no-closing-pr-found \
     DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=implement \
     bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
@@ -6869,17 +6873,17 @@ rm -rf "$RP_PL"
 # The PR-less floor is implement-only and PR-absent-only: a resolved PR or another
 # class leaves it inert, so it can never displace the PR-keyed record.
 RP_G="$(_hc_repo "rp pr-less gates")"
-( cd "$RP_G" && GITHUB_RUN_ID=4005 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
+( cd "$RP_G" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4005 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
     DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement \
     bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 PR-less: a resolved PR leaves the issue-keyed floor inert" "no" \
   "$(_et_on_branch "$RP_G" ".prflow/logs/efficiency/issue-2006-4005-1.json")"
-( cd "$RP_G" && GITHUB_RUN_ID=4006 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
+( cd "$RP_G" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4006 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
     DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=review-and-fix \
     bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 PR-less: a non-implement class leaves the issue-keyed floor inert" "no" \
   "$(_et_on_branch "$RP_G" ".prflow/logs/efficiency/issue-2006-4006-1.json")"
-RP_G_ERR="$( ( cd "$RP_G" && GITHUB_RUN_ID=4007 GITHUB_RUN_ATTEMPT=1 \
+RP_G_ERR="$( ( cd "$RP_G" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4007 GITHUB_RUN_ATTEMPT=1 \
     DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=implement \
     bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
 assert_eq "#2006 PR-less: no PR AND no issue number draws a named breadcrumb rather than a silent drop" "yes" \
@@ -6982,7 +6986,7 @@ fi
 # ref probe and an unreadable tree alike — which is why the floor probes the ref itself.
 RP_U="$(_hc_repo "rp unestablished")"
 git -C "$RP_U" remote set-url origin "$RP_U/../definitely-no-such-remote.git"
-( cd "$RP_U" && GITHUB_RUN_ID=4008 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+( cd "$RP_U" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4008 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
     DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 run-profile: an unestablished telemetry fetch makes prior_record_count unestablished, never a real 0" \
@@ -7119,14 +7123,14 @@ fi
 # pre-existing floors assert this arm; the two new ones must too.
 RP_OFF="$(_hc_repo "rp disabled")"
 printf '{"prflow_review_and_fix":{"efficiency_telemetry_enabled":false}}' > "$RP_OFF/.prflow/config.json"
-RP_OFF_ERR="$( ( cd "$RP_OFF" && GITHUB_RUN_ID=4009 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+RP_OFF_ERR="$( ( cd "$RP_OFF" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4009 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
     DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
 assert_eq "#2006 run-profile: telemetry disabled → the operand draws a breadcrumb and nothing is attached" "yes" \
   "$(printf '%s' "$RP_OFF_ERR" | grep -q 'run-profile floor: efficiency telemetry is disabled' && echo yes || echo no)"
 assert_eq "#2006 run-profile: telemetry disabled → no record is written" "no" \
   "$(_et_on_branch "$RP_OFF" ".prflow/logs/efficiency/pr-42-4009-1.json")"
-RP_OFF_ERR2="$( ( cd "$RP_OFF" && GITHUB_RUN_ID=4010 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
+RP_OFF_ERR2="$( ( cd "$RP_OFF" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4010 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
     DEVFLOW_NO_PR_REASON=no-closing-pr-found DEVFLOW_EXECUTION_COST="$HC_COST" \
     DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
 assert_eq "#2006 PR-less: telemetry disabled → the floor draws a breadcrumb and writes nothing" "yes" \
@@ -7140,7 +7144,7 @@ rm -rf "$RP_OFF"
 # neither of which needs a workpad — are available, so gating the whole key on the profile
 # recorded established fields as absent rather than as unestablished.
 RP_NOPROF="$(_hc_repo "rp no-profile")"
-( cd "$RP_NOPROF" && GITHUB_RUN_ID=4011 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ENGINE_OUTCOME=failure \
+( cd "$RP_NOPROF" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4011 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ENGINE_OUTCOME=failure \
     DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement \
     bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 run-profile: with no DEVFLOW_RUN_PROFILE the key still lands whole" \
@@ -7157,7 +7161,7 @@ rm -rf "$RP_NOPROF"
 # Neither operand set → still inert and silent, so the agent-side persist call sites are
 # unchanged by this floor.
 RP_INERT2="$(_hc_repo "rp both-unset")"
-RP_INERT2_ERR="$( ( cd "$RP_INERT2" && GITHUB_RUN_ID=4012 GITHUB_RUN_ATTEMPT=1 \
+RP_INERT2_ERR="$( ( cd "$RP_INERT2" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4012 GITHUB_RUN_ATTEMPT=1 \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
 assert_eq "#2006 run-profile: with NEITHER operand set the floor stays silent" "yes" \
   "$(printf '%s' "$RP_INERT2_ERR" | grep -q 'run-profile floor' && echo no || echo yes)"
@@ -7165,7 +7169,7 @@ assert_eq "#2006 run-profile: with NEITHER operand set the floor stays silent" "
 # reaching it. No witness is writable under the silent run's own env (it sets no operand at
 # all), so this establishes the weaker claim it can: the SAME env plus a cost operand
 # completes --persist and writes a record carrying no run_profile key.
-( cd "$RP_INERT2" && GITHUB_RUN_ID=4013 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
+( cd "$RP_INERT2" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4013 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 run-profile: --persist DID complete on that run (silence is a decline, not a death)" "yes" \
   "$(_et_on_branch "$RP_INERT2" ".prflow/logs/efficiency/pr-42-4013-1.json")"
@@ -7177,11 +7181,11 @@ rm -rf "$RP_INERT2"
 # A review or review-and-fix run on the same PR shares the pr-<N>- key, so a name-only
 # count would inflate the figure with records from other command classes.
 RP_CNT="$(_hc_repo "rp prior-count")"
-( cd "$RP_CNT" && GITHUB_RUN_ID=5001 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
+( cd "$RP_CNT" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5001 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=review-and-fix bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
-( cd "$RP_CNT" && GITHUB_RUN_ID=5002 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
+( cd "$RP_CNT" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5002 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
-( cd "$RP_CNT" && GITHUB_RUN_ID=5003 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+( cd "$RP_CNT" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5003 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
     DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_COST="$HC_COST" \
     DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 # Two prior records share the pr-42- key; only one of them is an implement run.
@@ -7192,14 +7196,14 @@ assert_eq "#2006 prior_record_count: a same-key review record is not counted as 
 # run_profile.issue_number is an implement record and must be counted. Without this the
 # signal could be deleted and the block above would stay green.
 RP_CNT2="$(_hc_repo "rp prior-count profile-only")"
-( cd "$RP_CNT2" && GITHUB_RUN_ID=5101 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+( cd "$RP_CNT2" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5101 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
     DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
     DEVFLOW_EXECUTION_PR=43 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 prior_record_count precondition: the profile-only prior record carries no harness_cost" "false" \
   "$(_et_show "$RP_CNT2" ".prflow/logs/efficiency/pr-43-5101-1.json" | jq -r 'has("harness_cost")')"
 assert_eq "#2006 prior_record_count precondition: but it does carry run_profile.issue_number" "2006" \
   "$(_et_show "$RP_CNT2" ".prflow/logs/efficiency/pr-43-5101-1.json" | jq -r '.run_profile.issue_number')"
-( cd "$RP_CNT2" && GITHUB_RUN_ID=5102 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+( cd "$RP_CNT2" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5102 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
     DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_COST="$HC_COST" \
     DEVFLOW_EXECUTION_PR=43 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 prior_record_count: a harness_cost-less prior record is counted via run_profile.issue_number" "1" \
@@ -7216,11 +7220,11 @@ RP_CNT3="$(_hc_repo "rp prior-count unknown")"
 # the shape 557 records on the real telemetry branch have.
 mkdir -p "$RP_CNT3/.prflow/tmp/review/pr-44/5201-1"
 printf '%s' "$HC_ITER" > "$RP_CNT3/.prflow/tmp/review/pr-44/5201-1/iter-1.json"
-( cd "$RP_CNT3" && GITHUB_RUN_ID=5201 GITHUB_RUN_ATTEMPT=1 \
+( cd "$RP_CNT3" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5201 GITHUB_RUN_ATTEMPT=1 \
     DEVFLOW_COMMAND_CLASS=review-and-fix bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 prior_record_count precondition: the unclassifiable prior record matches neither signal" "true" \
   "$(_et_show "$RP_CNT3" ".prflow/logs/efficiency/pr-44-5201-1.json" | jq -r '(has("harness_cost") | not) and (.run_profile.issue_number == null)')"
-( cd "$RP_CNT3" && GITHUB_RUN_ID=5202 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+( cd "$RP_CNT3" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5202 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
     DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_COST="$HC_COST" \
     DEVFLOW_EXECUTION_PR=44 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
 assert_eq "#2006 prior_record_count: an unclassifiable same-key record makes the count unestablished, not a short decimal" "unestablished" \

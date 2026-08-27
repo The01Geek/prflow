@@ -2010,23 +2010,27 @@ $ER_POST_LINE
 "
   ER_W_PRE="$(er_ap_warnings "$ER_PRE_CONTENT")"
   ER_W_MIX="$(er_ap_warnings "$ER_MIX_CONTENT")"
-  er_ap_stdout() {
-    local d out
+  # Echo the script's EXIT STATUS over fixture $1. The control needs evidence the run
+  # HAPPENED; asserting its stdout parses as a JSON array instead made the control
+  # platform-dependent — it held on macOS and went RED on CI's Ubuntu, where this
+  # no-patterns fixture prints nothing rather than an empty array.
+  er_ap_rc() {
+    local d rc=0
     d="$(mktemp -d)"
     printf '%s\n' "$ER_RETRO_LINE" > "$d/retrospectives.jsonl"
     printf '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$d/overrides.json"
     printf '%s' "$1" > "$d/experiment-records.jsonl"
-    out="$(bash "$AP_SH" "$d/retrospectives.jsonl" "$d/overrides.json" --full 2>/dev/null)"
+    bash "$AP_SH" "$d/retrospectives.jsonl" "$d/overrides.json" --full >/dev/null 2>&1 || rc=$?
     rm -rf "$d"
-    printf '%s' "$out"
+    printf '%s' "$rc"
   }
   # Positive control: the fixture is otherwise valid and the script RUNS over it, emitting
   # its pattern array. Without this an equal warning count below could be two identical
   # failures agreeing rather than two real runs agreeing.
-  assert_eq "#2006 mixed store: the pre-change fixture drives actionable-patterns.sh to real output (positive control)" "yes" \
-    "$(er_ap_stdout "$ER_PRE_CONTENT" | jq -e 'type == "array"' >/dev/null 2>&1 && echo yes || echo no)"
-  assert_eq "#2006 mixed store: the mixed fixture drives it to real output too (positive control)" "yes" \
-    "$(er_ap_stdout "$ER_MIX_CONTENT" | jq -e 'type == "array"' >/dev/null 2>&1 && echo yes || echo no)"
+  assert_eq "#2006 mixed store: the pre-change fixture drives actionable-patterns.sh to a real run (positive control)" "0" \
+    "$(er_ap_rc "$ER_PRE_CONTENT")"
+  assert_eq "#2006 mixed store: the mixed fixture drives it to a real run too (positive control)" "0" \
+    "$(er_ap_rc "$ER_MIX_CONTENT")"
   assert_eq "#2006 mixed store: actionable-patterns.sh emits no warning it does not emit on a pre-change store" \
     "$ER_W_PRE" "$ER_W_MIX"
   # And the corrupt-store arm still warns — proving the counter can go non-zero, so the
