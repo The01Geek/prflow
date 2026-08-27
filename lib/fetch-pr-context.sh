@@ -49,7 +49,7 @@ CHANGED_FILES="$(echo "$PR_JSON" | "$DEVFLOW_JQ" '[.files[].path]')"
 
 # ── 2. Classify retrospection kind ───────────────────────────────────────────
 # Mirror lib/scan.sh's union predicate (label / closes-issue / prefix) so
-# a PR scan selected on the label or closes-issue path — e.g. DevFlow's own
+# a PR scan selected on the label or closes-issue path — e.g. PRFlow's own
 # issue-<N>-<slug> branches that match no prefix — is not then dropped here.
 IMPL_PREFIX="$(devflow_conf '.prflow_retrospective.implementation_branch_prefix' 'claude/')"
 LABELS_JSON="$(echo "$PR_JSON" | "$DEVFLOW_JQ" -c '.labels // []')"
@@ -75,7 +75,7 @@ else
         ISSUE_NUMBER="$ISSUE_FROM_BODY"
     else
         # Final fallback: GitHub's own issue linkage (closingIssuesReferences).
-        # DevFlow's own `issue-<N>-<slug>` branches never match the `claude/issue-`
+        # PRFlow's own `issue-<N>-<slug>` branches never match the `claude/issue-`
         # pattern above, and a PR linked only via the UI carries no Closes/Fixes
         # keyword in its body — yet such PRs are selected by the union predicate.
         # Without this they source an EMPTY workpad (a milder form of the bug this
@@ -146,7 +146,7 @@ PR_DEVFLOW_PROVENANCE="$("$DEVFLOW_JQ" -n --argjson pr_labels "$LABELS_JSON" --a
 # operator can tell "no provenance label" apart from "provenance could not be read".
 case "$PR_DEVFLOW_PROVENANCE" in
     true|false) ;;
-    *) echo "::warning::fetch-pr-context: DevFlow provenance for PR ${PR} could not be established (jq emitted '${PR_DEVFLOW_PROVENANCE}'); failing closed to false" >&2
+    *) echo "::warning::fetch-pr-context: PRFlow provenance for PR ${PR} could not be established (jq emitted '${PR_DEVFLOW_PROVENANCE}'); failing closed to false" >&2
        PR_DEVFLOW_PROVENANCE=false ;;
 esac
 

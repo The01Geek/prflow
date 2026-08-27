@@ -52,7 +52,7 @@ DECISION_OUT=$(VERDICT="${VERDICT:-}" HEAD_SHA="$HEAD_SHA" PR_NUMBER="$PR_NUMBER
                REPO="${REPO:-}" APP_TOKEN_PRESENT="${APP_TOKEN_PRESENT:-}" bash "$RRB") || true
 # Parse the four `key=value` lines with bash builtins (while/case/${var#prefix}), NOT sed:
 # DECISION selects the fire/no-fire branch, and a selection-deciding value must not be
-# derived through a tool DevFlow's preflight does not guarantee (CLAUDE.md un-guaranteed-tool
+# derived through a tool PRFlow's preflight does not guarantee (CLAUDE.md un-guaranteed-tool
 # rule). An unparsed DECISION stays empty and takes the no-fire arm below — fail-closed.
 DECISION=""; REASON=""; MARKER=""; ATTEMPT=""
 while IFS= read -r _line; do
@@ -82,7 +82,7 @@ BODY_FILE="$(mktemp)" || {
 }
 {
   printf '%s\n\n' "$MARKER"
-  printf '**DevFlow review stall backstop** — this cloud review ended with no verdict for `%s`. Auto-resume attempt %s:\n\n' "$HEAD_SHA" "$ATTEMPT"
+  printf '**PRFlow review stall backstop** — this cloud review ended with no verdict for `%s`. Auto-resume attempt %s:\n\n' "$HEAD_SHA" "$ATTEMPT"
   printf '/devflow:review\n'
 } > "$BODY_FILE"
 POST=.prflow/vendor/prflow/scripts/post-issue-comment.sh

@@ -1567,7 +1567,7 @@ do_persist() {
     # branch's first use) — we skip the fetch and emit NO warning, ref stays absent.
     # When the branch DOES exist remotely, fetch it into the remote-tracking CACHE
     # (`refs/remotes/origin/<branch>`, force-safe — it is a cache, never local
-    # history) and VERIFY it is a DevFlow telemetry store before advancing the LOCAL
+    # history) and VERIFY it is a PRFlow telemetry store before advancing the LOCAL
     # ref. A consumer's same-named NON-telemetry branch is therefore never clobbered
     # into refs/heads/<branch> (which persist_tree trusts) — that case is left for
     # persist_tree's own rejection-arm re-verification, exactly as before. Only a
@@ -1612,7 +1612,7 @@ do_persist() {
           # of list_blobs warns rather than laundering an unreadable store into a silent
           # established-empty and re-attributing an already-recorded commit.
           _DEVFLOW_TELEMETRY_FETCH_STATUS=failed
-          echo "::warning::efficiency-trace.sh --persist: the telemetry branch '${_tb_branch}' exists on origin and was fetched, but its tip could not be verified as a readable DevFlow telemetry store — whether prior records exist is UNESTABLISHED, so the fix-commit exclusion set may be incomplete this run; synthesis could re-attribute an already-recorded commit" >&2
+          echo "::warning::efficiency-trace.sh --persist: the telemetry branch '${_tb_branch}' exists on origin and was fetched, but its tip could not be verified as a readable PRFlow telemetry store — whether prior records exist is UNESTABLISHED, so the fix-commit exclusion set may be incomplete this run; synthesis could re-attribute an already-recorded commit" >&2
         fi
       else
         _DEVFLOW_TELEMETRY_FETCH_STATUS=failed

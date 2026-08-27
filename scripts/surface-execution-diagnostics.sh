@@ -130,7 +130,7 @@ _publish_denials() {  # rendered-block
       || echo "devflow: surface-execution-diagnostics: could not append permission_denials_count to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — downstream jobs will read the 'unavailable' default" >&2
   fi
   if [ "$_count" != unavailable ] && [ "$_count" -gt 0 ]; then
-    echo "::warning::DevFlow: this run recorded $_count permission denial(s) — the engine attempted commands its tool profile does not grant. See the execution-diagnostics block for which ones."
+    echo "::warning::PRFlow: this run recorded $_count permission denial(s) — the engine attempted commands its tool profile does not grant. See the execution-diagnostics block for which ones."
   fi
 }
 
@@ -165,13 +165,13 @@ _publish_claude_code_version() {  # rendered-block
       || echo "devflow: surface-execution-diagnostics: could not append claude_code_version to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — no step output is published for this run" >&2
   fi
   if [ "$_ccver" != unavailable ]; then
-    echo "::notice::DevFlow: claude-code CLI version $_ccver (from the execution-file init record)"
+    echo "::notice::PRFlow: claude-code CLI version $_ccver (from the execution-file init record)"
   else
     echo "devflow: surface-execution-diagnostics: claude_code_version could not be established from the execution file — publishing 'unavailable'" >&2
   fi
 }
 
-_HEADER="## DevFlow execution diagnostics"
+_HEADER="## PRFlow execution diagnostics"
 _NO_DIAG="$_HEADER
 _No diagnostics available (execution file absent, empty, or unparseable)._"
 

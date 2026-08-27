@@ -14,7 +14,7 @@
 # Inputs:
 #   stdin  — the context bundle emitted by fetch-pr-context.sh. Reads:
 #     .signals.workpad_final_status  <string|null> — the sentinel/status word
-#     .pr_devflow_provenance         <bool>        — true iff the DevFlow label
+#     .pr_devflow_provenance         <bool>        — true iff the PRFlow label
 #            is on the PR or the resolved issue (fail-closed: any non-`true`
 #            value, including a wrong type or an absent field, reads as false).
 #   --argjson gate — the cheap-gate.jq output object { clean, reason }. Reads
@@ -58,7 +58,7 @@
 | (($status == "Absent") or ($status == "NoIssue")) as $is_sentinel
 | if ($workpad_reason and $is_sentinel and ($has_provenance | not))
   then { disposition: "skip",
-         reason: ("no DevFlow provenance and no workpad audit trail — workpad_final_status is "
+         reason: ("no PRFlow provenance and no workpad audit trail — workpad_final_status is "
                   + ($status | tostring)
                   + "; skipping without analysis") }
   else { disposition: "dispatch", reason: ($gate_reason // "dispatched for analysis") }

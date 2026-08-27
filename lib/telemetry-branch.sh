@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# telemetry-branch.sh — persist DevFlow observability artifacts to a dedicated,
+# telemetry-branch.sh — persist PRFlow observability artifacts to a dedicated,
 # long-lived ORPHAN branch (default `prflow-telemetry`, name from the
 # `telemetry.branch` config key) WITHOUT ever touching the current branch, HEAD,
 # the default branch, or the TRACKED working tree. Writes go entirely through git
@@ -183,7 +183,7 @@ devflow_telemetry_verify_store() {
     case "$path" in
       .prflow/logs/*) ;;
       *)
-        echo "::warning::telemetry-branch: existing ref '${ref}' holds a non-.prflow/logs/ path ('${path}') — it is not a DevFlow telemetry store; refusing to append (a consumer may use this branch for something else)" >&2
+        echo "::warning::telemetry-branch: existing ref '${ref}' holds a non-.prflow/logs/ path ('${path}') — it is not a PRFlow telemetry store; refusing to append (a consumer may use this branch for something else)" >&2
         return 1 ;;
     esac
   done < <(printf '%s\n' "$tree_out")
@@ -654,7 +654,7 @@ devflow_telemetry_persist_tree() {
     # That is sound only because the LOCAL ref has exactly one writer class — this
     # helper — and every write it makes is a `.prflow/logs/`-shaped tree (the staged-
     # path guard above enforces that by construction), so a tip that appears mid-loop
-    # is necessarily another DevFlow persist's. The REMOTE tip has no such guarantee
+    # is necessarily another PRFlow persist's. The REMOTE tip has no such guarantee
     # (a consumer may have created a same-named branch), which is exactly why the push
     # path DOES re-verify the fetched tip before re-parenting. If a second local writer
     # class is ever added, re-verify here too.
@@ -818,7 +818,7 @@ devflow_telemetry_persist_tree() {
           # re-parent would commit onto (and push over) a branch the consumer uses
           # for something else. verify_store fails closed on an unreadable tree.
           if ! devflow_telemetry_verify_store "$root" "refs/remotes/origin/${branch}"; then
-            echo "::warning::telemetry-branch: the remote '${branch}' is not a DevFlow telemetry store — refusing to re-parent onto or push over it; telemetry retained on the local ref only (rename it or set telemetry.branch to a different name)$(_devflow_telemetry_retention_note)" >&2
+            echo "::warning::telemetry-branch: the remote '${branch}' is not a PRFlow telemetry store — refusing to re-parent onto or push over it; telemetry retained on the local ref only (rename it or set telemetry.branch to a different name)$(_devflow_telemetry_retention_note)" >&2
             exit 1
           fi
           local_cur="$(git -C "$root" rev-parse --verify --quiet "$ref" 2>/dev/null || true)"
