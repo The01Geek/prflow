@@ -1,0 +1,62 @@
+{
+  "pass": "shadow-step-2.6",
+  "pr_number": 2033,
+  "issue": 2031,
+  "run_id": "33029557485-1",
+  "head": "486e2e8ea0b594367d3eb3c9313ad0ac8d8ab80f",
+  "base": "main",
+  "diff_path": ".prflow/tmp/review/pr-2033/33029557485-1/diff.patch",
+  "root_completeness": "full",
+  "verdict": "APPROVE",
+  "diff_profile": "engine_self_modifying (docs/prose + JSON config only; no test files, no new types)",
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "gated_off": {
+    "prflow:type-design-analyzer": "has_new_types=false",
+    "prflow:pr-test-analyzer": "test-relevance predicate does not match (docs/.md + .json only, no test files, no new testable code logic)"
+  },
+  "shadow_roster_note": "iterations:first-only NOT applied to shadow fan-out, so code-reviewer IS included; full expected roster = the 4 always-on.",
+  "per_reviewer": {
+    "prflow:code-reviewer": {"returned": true, "findings": 0},
+    "prflow:silent-failure-hunter": {"returned": true, "findings": 1},
+    "prflow:comment-analyzer": {"returned": true, "findings": 0},
+    "prflow:requesting-code-review": {"returned": true, "findings": 1}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "defect_signature": {"file": "skills/pr-description/SKILL.md", "line_range": [78, 78], "kind": "other"},
+      "summary": "Rendered-note separator (em-dash) collides with the waiver grammar separator (<ceremony> — <reason>); parse instruction does not spell out the exact rendered prefix inline. Blast radius is a mis-stripped Test Plan line, not data loss. Fails toward no-change."
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "defect_signature": {"file": "skills/pr-description/SKILL.md", "line_range": [105, 105], "kind": "other"},
+      "summary": "Step 2 Test Plan merge bullet's 'same producer discipline as Post-Merge Verification' analogy pulls against the explicit 'preserve verbatim' clause on the empty-workpad/regeneration case AC7 turns on; also ambiguous about dedup on re-runs. Clarity risk, not a definite failure; explicit preserve clause most likely governs."
+    }
+  ],
+  "phase2_fails": [],
+  "corroboration_note": "Both Suggestions land on skills/pr-description/SKILL.md Test Plan seeding logic (adjacent lines) but do not mechanically corroborate (different line ranges, both kind=other). Both are single-source, both sub-critical.",
+  "issue_compliance": {
+    "AC1": "satisfied",
+    "AC2": "satisfied",
+    "AC3": "satisfied",
+    "AC4": "satisfied",
+    "AC5": "satisfied",
+    "AC6": "satisfied",
+    "AC7": "satisfied (with the final-pass clarity Suggestion noted against the Post-Merge analogy)",
+    "AC8": "satisfied"
+  },
+  "report": "Blinded Step 2.6 shadow re-review of PR #2033 final tree (head 486e2e8ea). All four always-on reviewers returned real assessments (full coverage). The change is a prose+config test-authoring proportionality waiver spanning 8 files plus a changeset. No Critical or Important findings. Two sub-critical (Suggestion) findings, both against skills/pr-description/SKILL.md's Test Plan seeding prose (em-dash separator ambiguity; Post-Merge-Verification analogy vs preserve-verbatim tension). The marker producer/consumer chain (test-authoring-waiver: workpad note -> ## Progress render -> PR Test Plan line -> reviewer prompt) is internally consistent; the config.example.json entry validates against the existing schema; the two pinned mutation-check sentences are untouched; the severity-cap posture in agents/pr-test-analyzer.md fails toward full strictness and exempts the 8-10 band. All 8 ACs judged satisfied. Verdict: APPROVE."
+}

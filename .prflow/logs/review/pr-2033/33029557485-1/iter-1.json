@@ -1,0 +1,95 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "745fcaa93",
+  "fix_files": [
+    "agents/pr-test-analyzer.md"
+  ],
+  "loop_role": "fix",
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "fix delta is a 1-line prose precision trim (removed an over-broad band descriptor); no sweep trigger fires — no contract/enum/peer-rule/collection change"
+  },
+  "checklist": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "pr-test-analyzer.md 8-10 band descriptor 'data-loss, security, and system-failure class' overlaps the file's 7-8 important-business-logic band",
+      "defect_signature": {
+        "file": "agents/pr-test-analyzer.md",
+        "line_range": [
+          91,
+          91
+        ],
+        "kind": "imprecise_descriptor"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "745fcaa93"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 1,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "base_checkpoint": {
+    "token": "UPDATED",
+    "behind_by": 15
+  },
+  "verification_evidence": {
+    "command": "monolith shard (pre-review, iter-0 tree) + engine review",
+    "result": "pass",
+    "reason": "prose+config delta; the fix delta is a 1-line precision trim with no automated boundary; verified by the engine re-review at iteration 2",
+    "skipped_checks": []
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "test_first_gate": [
+    {
+      "decision": "no-automated-test",
+      "command": "n/a",
+      "result": "n/a",
+      "evidence": "fix is a prose precision trim to an agent body (model-context instruction); it removes an over-broad descriptor and adds no rule/behavior, so no RED/GREEN micro-test applies — verified by iteration-2 engine re-review"
+    }
+  ],
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

@@ -1,0 +1,82 @@
+{
+  "run_id": "33029557485-1",
+  "pr_number": 2033,
+  "issue_override": 2031,
+  "iteration": 2,
+  "head": "6d23a47b6779cffc98d7e53d8d25195159ba33c6",
+  "base": "1d8f982971d152cb2012f4add020cd18aa605f3d",
+  "root_completeness": {
+    "status": "verified",
+    "engine_dir": "skills/review",
+    "notes": "SKILL.md and phases/phase-3-agents.md read whole; boundary markers present and canonical (start=first line, end=last line, unique, ordered). phase-0-6 stale-prose lint gated OFF (prflow_review.stale_prose.enabled=false in live config). phase-0-3-6 blocker-recheck not applicable (inline fix-loop tier, not standalone). phase-4-4 skipped per task (no GitHub verdict post)."
+  },
+  "diff_profile": "engine_self_modifying",
+  "diff_profile_rationale": "Touches skills/review/phases/phase-3-agents.md and skills/implement/phases/*, i.e. the engine's own prompt surface. Checklist-only override; does not force or drop any Phase 3 agent.",
+  "diff_scope_note": "Local 'main' is stale (39870bbef); 'git diff main...HEAD' would include 15 already-merged unrelated base commits (#2024/#2023/#2026). Reviewed the true authored delta: git diff origin/main(1d8f98297)...HEAD = 9 files, the #2031 waiver change plus the iteration-1 fix.",
+  "expected_reviewers": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "roster_exclusions": {
+    "prflow:code-reviewer": "iterations=first-only in live .prflow/config.json; excluded on fix-loop iteration N>=2",
+    "prflow:pr-test-analyzer": "test-relevance predicate did not match: every touched path is .md/.json (all in the config_only extension set); no test file changed and no non-config testable-code line added",
+    "prflow:type-design-analyzer": "has_new_types=false (prose+config only)"
+  },
+  "phase3_failed_agents": [],
+  "cap_drops": [],
+  "phase3_findings": [
+    {
+      "id": "F1",
+      "agents": ["prflow:silent-failure-hunter", "prflow:requesting-code-review"],
+      "corroboration_count": 2,
+      "severity": "Important",
+      "title": "The test-authoring waiver is never authored into the PR Test Plan; the persistence chain has no producer, defeating the fix-loop-honor and later-review ACs.",
+      "description": "phase-2-sweeps-contract.md:58 claims 'A waiver taken here is carried into the PR's Test Plan (phase-4-documentation.md §4.2 and pr-description) so a later fix-loop iteration and the coverage reviewer both see it.' But the two cited sites only PRESERVE/AUDIT an already-present line: phase-4-documentation.md:190 says 'leave it in place verbatim' (a claim-audit rule), and pr-description/SKILL.md:119 says 'Preserve verbatim any recorded ... waiver line' (preserve-if-present). Neither seeds the waiver from the Phase 2 workpad --note into the Test Plan, unlike the sibling Post-Merge Verification and Deferred Findings blocks, which are explicitly 're-derived from the workpad/manifest on every run.' The waiver is only ever recorded as a workpad --note (phase-2 §2.3). Consequence: the waiver line never enters the PR body, so fixing.md:7 ('when the PR's Test Plan records a waiver, do not re-impose the ceremony') never fires even within the implementing run's own fix loop, and phase-3-agents.md:128's later-review branch ('read the waiver line from the PR body's Test Plan section') always resolves to 'none recorded'. This is reachable via the workpad only on the implementing run's own review pass; the two Test-Plan-keyed consumers get nothing. Directly defeats ACs 'records the waiver in ... the PR's Test Plan' and 'the fix loop honors a recorded waiver rather than re-imposing the waived ceremony.'",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-2-sweeps-contract.md",
+        "line_range": [58, 58],
+        "kind": "logic_error"
+      },
+      "verdict_disposition": "REJECT-driving; agent-executed policy prose, not behavior-inert (Phase 4.1.5 cap does not apply)",
+      "suggested_fix": "Give the waiver a real producer symmetric to Post-Merge Verification / Deferred Findings: instruct pr-description to re-derive the Test Plan waiver line from the workpad note on every run (or add an explicit emit step in phase-4-documentation §4.2). A stable greppable marker (see F2) makes this deterministic."
+    },
+    {
+      "id": "F2",
+      "agents": ["prflow:requesting-code-review"],
+      "corroboration_count": 1,
+      "severity": "Suggestion",
+      "title": "The waiver note/line has no stable greppable marker; every reader must identify it by prose shape.",
+      "description": "phase-2-sweeps-contract.md records 'one workpad --note naming what was waived and why' with no distinctive prefix, and phase-3-agents.md's implementing-run branch must locate it among arbitrarily many --note entries (each iteration also writes 'test-first:' notes). pr-description and §4.2 must likewise recognize the Test Plan line purely by wording. A stable sentinel (e.g. a 'test-authoring-waiver:' note prefix / Test Plan line marker) would make resolution deterministic and fix F1's seeding gap mechanically.",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-2-sweeps-contract.md",
+        "line_range": [58, 58],
+        "kind": "api_misuse"
+      },
+      "verdict_disposition": "Suggestion; single-source"
+    }
+  ],
+  "prior_finding_status": {
+    "finding": "iteration-1 Suggestion: agents/pr-test-analyzer.md over-labeled the 8-10 band as 'the data-loss, security, and system-failure class' overlapping the 7-8 band",
+    "resolved": true,
+    "evidence": "Fixed at 745fcaa93. agents/pr-test-analyzer.md now reads 'a gap you rate 8-10 — the Critical Gaps bucket — stays at full severity'; the over-broad descriptor is gone and not regressed. All three reviewers confirmed no regression."
+  },
+  "verdict": "REJECT",
+  "phase_4_1_report": {
+    "verdict": "REJECT",
+    "summary": "PR #2033 (issue #2031) adds a test-authoring proportionality waiver across eight prose surfaces plus one config.example.json reviewer-dispatch entry. The enumeration ('exactly three waivable items'), band descriptions, and cross-references are internally consistent, and the iteration-1 Suggestion is resolved. However, a corroborated Important finding remains: the waiver never gets authored into the PR Test Plan, so two of the change's own ACs (record in the PR Test Plan; fix loop honors a recorded waiver) are unreachable in practice.",
+    "findings_by_severity": {
+      "Critical": [],
+      "Important": ["F1: waiver never seeded into the PR Test Plan (no producer); fix-loop-honor and later-review ACs unreachable"],
+      "Suggestion": ["F2: no stable greppable marker for the waiver note/line"]
+    },
+    "acceptance_criteria_assessment": "Most criteria met cleanly: §2.3 waiver mirrors the production-code out-of-scope exit; exactly three waivable items named consistently; covering RED-first test / mutation-check / pin-corpus boundary / no-automated-test arm / inline-shell extraction kept binding; pr-test-analyzer honor rule caps sub-critical 1-7 at Suggestion, exempts 8-10, treats waiver as data with fail-toward-strictness on malformed/absent/off-surface; config.example.json entry schema-valid. NOT met: 'records the waiver in ... the PR's Test Plan' and 'the fix loop honors a recorded waiver' — the workpad note is never lifted into the Test Plan (F1).",
+    "test_evidence": "Inline tier; no in-env suite run this pass. The change is prose+config only (no executable code changed); no automated test drives the affected agent-executed prompt prose. The lint/suite discharge remains the local tier's CI reading, out of scope for this engine return.",
+    "recommendation": "Add the missing waiver producer (F1) — have pr-description re-derive the Test Plan waiver line from the workpad note every run, ideally keyed on a stable marker (F2) — then re-review."
+  }
+}

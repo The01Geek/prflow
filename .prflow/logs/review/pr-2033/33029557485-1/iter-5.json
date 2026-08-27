@@ -1,0 +1,164 @@
+{
+  "iter": 5,
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "not-run",
+    "reason": "no fixes applied (iter-5 residual is a design-acceptable pushed-back Suggestion)"
+  },
+  "checklist": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "waiver uses free-text surface names, no structured surface field; fails toward strictness",
+      "defect_signature": {
+        "file": "agents/pr-test-analyzer.md",
+        "line_range": [
+          92,
+          92
+        ],
+        "kind": "free_text_surface"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "pushed_back",
+      "source_file": "agents/pr-test-analyzer.md",
+      "claim_text": "waiver uses free-text surface names, no structured surface field",
+      "skip_category": "out-of-scope",
+      "evidence": "the issue's design intentionally makes the waiver prose the reviewer treats as data; a structured surface field is a larger redesign beyond issue #2031's scope, and the free-text match fails toward full strictness (no cap when surfaces are unmatched)",
+      "parking_evidence": {
+        "basis": "structured surface field is out of scope for this issue; free-text fails toward strictness",
+        "failing_input": "n/a (fail-safe)",
+        "source": "issue #2031 design (prose-as-data waiver)",
+        "finding_ref": {
+          "iter": 5,
+          "index": 0
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "command": "engine review iter-5 + full-coverage shadow",
+    "result": "pass",
+    "reason": "converged at the iteration cap; the sole residual is a design-acceptable pushed-back Suggestion; the full-coverage shadow verdict is APPROVE",
+    "skipped_checks": []
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "iter-5-convergence",
+    "reviewed_sha": "486e2e8ea0b594367d3eb3c9313ad0ac8d8ab80f",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "pr-description Test Plan em-dash strip precision — rendered ## Progress note separator is an em-dash, same as the waiver grammar separator; strip prefix not spelled out inline",
+        "defect_signature": {
+          "file": "skills/pr-description/SKILL.md",
+          "line_range": [
+            78,
+            78
+          ],
+          "kind": "other"
+        }
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "pr-description 'same producer discipline as Post-Merge Verification' analogy vs the 'preserve verbatim' clause on the empty-workpad regeneration case; clarity, explicit preserve clause governs (AC7 satisfied)",
+        "defect_signature": {
+          "file": "skills/pr-description/SKILL.md",
+          "line_range": [
+            105,
+            105
+          ],
+          "kind": "other"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 2,
+      "overlap_with_iter_N": 0,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
