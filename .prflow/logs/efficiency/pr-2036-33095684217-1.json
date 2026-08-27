@@ -140,5 +140,78 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.70",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 14.451437000000007,
+    "tokens": {
+      "input_tokens": 112,
+      "output_tokens": 43669,
+      "cache_read_input_tokens": 10061350,
+      "cache_creation_input_tokens": 242608,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 191,
+        "outputTokens": 68114,
+        "cacheReadInputTokens": 12091345,
+        "cacheCreationInputTokens": 645044,
+        "webSearchRequests": 0,
+        "costUSD": 12.690782500000006,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 112,
+        "outputTokens": 14834,
+        "cacheReadInputTokens": 2521290,
+        "cacheCreationInputTokens": 443133,
+        "webSearchRequests": 0,
+        "costUSD": 1.7606545,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 70,
+    "duration_ms": 920850
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-2036/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main; .prflow/vendor/prflow/scripts/config-get.sh .prflow_review.live_progress_comment_enabled true",
+      "mkdir -p .prflow/tmp/review/pr-2036/33095684217-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2036/33095684217-1/verdicts/iter-1/VC-1-a91f7c2d.json << 'EOF'\n{\"id\":\"VC-1\",\"verdict\":\"PASS\",\"evidence\":\"scripts/verification-flight.py (head 1e82772e) defines EXIT_CODE_MEANINGS (lines 103-110) mapping each EXIT_* constant to a one-line meaning, and _exit_code_epilog() (lines 1264-1270) renders it as 'exit codes:' followed by '  {code}  {meaning}' lines, wired into the top-level ArgumentParser's epilog …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-2036/33095684217-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2036/33095684217-1/verdicts/iter-1/VC-8-19273fcc.json << 'EOF'\n{\n  \"id\": \"VC-8\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/verification-flight.py:1269 renders each pair as f\\\"  {code}  {meaning}\\\" inside _exit_code_epilog(). lib/test/test_verification_flight.py:1930 asserts f\\\"{code}  {meaning}\\\" (two spaces between code and meaning) is a substring of the --help output, which is contained within the e …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-2036/33095684217-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-2036/33095684217-1/verdicts/iter-1/VC-9-2a3b4c5d.json << 'EOF'\n{\n  \"id\": \"VC-9\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/verification-flight.py:94-99 defines exactly six EXIT_*-prefixed module-level names (EXIT_OK=0, EXIT_NON_PASS=2, EXIT_INVALID=3, EXIT_CAS_REJECT=4, EXIT_UNREADABLE=5, EXIT_WAIT_EXPIRED=6), all plain ints with no EXIT_-prefixed bools present. EXIT_CODE_MEANINGS (lines 103-110) has  …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:code-reviewer\" \"prflow:silent-failure-hunter\" \"prflow:comment-analyzer\" \"prflow:pr-test-analyzer\" \"prflow:type-design-analyzer\" \"prflow:requesting-code-review\" 2>&1; echo \"rc=$?\"\necho \"---SNAP---\"\nmkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "cd /home/runner/work/prflow/prflow\nH=1e82772e458c8c3872ff8d1b9fd1569becd7602c\ntmp=$(mktemp -d)\ngit show $H:scripts/verification-flight.py > \"$tmp/verification-flight.py\"\necho \"=== top-level --help epilog ===\"\npython3 \"$tmp/verification-flight.py\" --help 2>&1 | sed -n '/exit codes:/,$p'\necho \"=== claim --help epilog ===\"\npython3 \"$tmp/verification-flight.py\" claim --help 2>&1 | sed -n '/required keys:/,$p'\necho \"=== malformed subcommand exit code ===\"\npython3 \"$tmp/verification-flight.py\" no-such …[per-command-truncated]",
+      "git show 1e82772e458c8c3872ff8d1b9fd1569becd7602c:scripts/verification-flight.py > /tmp/vf_head.py && echo written",
+      "cd /home/runner/work/prflow/prflow\ngit show 1e82772e458c8c3872ff8d1b9fd1569becd7602c:scripts/verification-flight.py > .prflow/tmp/vf_head.py\necho \"=== top-level --help (epilog tail) ===\"\npython3 .prflow/tmp/vf_head.py --help 2>&1 | sed -n '/exit codes:/,$p'\necho \"=== claim --help (epilog tail) ===\"\npython3 .prflow/tmp/vf_head.py claim --help 2>&1 | sed -n '/required keys:/,$p'\necho \"=== malformed subcommand rc ===\"\npython3 .prflow/tmp/vf_head.py no-such 2>/dev/null; echo \"rc=$?\"\nrm -f .prflow/tm …[per-command-truncated]",
+      "git -C /home/runner/work/prflow/prflow show 1e82772e458c8c3872ff8d1b9fd1569becd7602c:scripts/verification-flight.py > /home/runner/work/prflow/prflow/.prflow/tmp/vf_head.py\necho \"=== top-level --help (epilog tail) ===\"\npython3 /home/runner/work/prflow/prflow/.prflow/tmp/vf_head.py --help 2>&1 | sed -n '/exit codes:/,$p'\necho \"=== claim --help (epilog tail) ===\"\npython3 /home/runner/work/prflow/prflow/.prflow/tmp/vf_head.py claim --help 2>&1 | sed -n '/required keys:/,$p'\necho \"=== malformed subc …[per-command-truncated]",
+      "git -C /home/runner/work/prflow/prflow show 1e82772e458c8c3872ff8d1b9fd1569becd7602c:scripts/verification-flight.py > /home/runner/work/prflow/prflow/.prflow/tmp/vf_head.py",
+      "git -C /home/runner/work/prflow/prflow show 1e82772e458c8c3872ff8d1b9fd1569becd7602c:scripts/verification-flight.py | python3 - --help 2>&1 | sed -n '/exit codes:/,$p'"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
