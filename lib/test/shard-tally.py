@@ -552,7 +552,7 @@ def _load_fingerprint(path: Path) -> tuple[dict | None, str]:
     """
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError as error:
+    except (OSError, UnicodeDecodeError) as error:
         return None, f"unreadable ({error})"
     try:
         obj = json.loads(text)
@@ -560,6 +560,15 @@ def _load_fingerprint(path: Path) -> tuple[dict | None, str]:
         return None, "is not valid JSON"
     reason = _fingerprint_reason(obj)
     return (None, reason) if reason is not None else (obj, "")
+
+
+def _unlink_quietly(path: Path) -> bool:
+    """Best-effort remove `path`; return True when a file still survives afterwards."""
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+    return path.exists()
 
 
 def cmd_record_fingerprint(args: argparse.Namespace) -> int:
@@ -602,14 +611,25 @@ def cmd_record_fingerprint(args: argparse.Namespace) -> int:
         record_text = json.dumps({"unestablished": True, "reason": reason or "unknown"}, sort_keys=True) + "\n"
         note = f"recorded UNESTABLISHED checkout fingerprint at {dest} ({reason})"
     try:
-        # A write failure (read-only mount, ENOSPC) must not raise and block the launch:
-        # breadcrumb and still exit 0, so same-tree-eligible fails closed on the absent record.
+        # Unlink before writing: run-shard.sh's tally dir persists across launches, so a
+        # failed write would otherwise leave the PREVIOUS launch's fingerprint in place and
+        # same-tree-eligible would read it as this launch's tree.
         dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.unlink(missing_ok=True)
         dest.write_text(record_text, encoding="utf-8")
     except OSError as error:
+        # Report whether a record actually survived: claiming the absent-record fail-closed
+        # while an earlier launch's fingerprint is still on disk sends a reader looking for
+        # an absent file that is present and stale.
+        residue = (
+            f"a STALE record from an earlier launch survives at {dest} and must not be "
+            "used as --recorded"
+            if _unlink_quietly(dest)
+            else "no record survives, so same-tree-eligible fails closed"
+        )
         print(
             f"shard-tally record-fingerprint: could NOT write the fingerprint record at "
-            f"{dest} ({error}); the launch continues and same-tree-eligible fails closed",
+            f"{dest} ({error}); the launch continues and {residue}",
             file=sys.stderr,
         )
         return 0

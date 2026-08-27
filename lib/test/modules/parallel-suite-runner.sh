@@ -1561,6 +1561,13 @@ assert_eq "psr fp: a non-JSON recorded fingerprint refuses the same-tree relaunc
   "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/malformed.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
 assert_eq "psr fp: a non-JSON fresh fingerprint refuses the same-tree relaunch (rc 1)" "1" \
   "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/recorded.json" --fresh "$PSR_EL/malformed.json" >/dev/null 2>&1; echo $?)"
+# Invalid UTF-8 bytes raise UnicodeDecodeError (a ValueError, NOT an OSError), so a read
+# guard catching OSError alone escapes as a traceback instead of the INELIGIBLE breadcrumb.
+printf '\377\376\000bad' > "$PSR_EL/badutf8.json"
+assert_eq "psr fp: an invalid-UTF-8 recorded fingerprint refuses the same-tree relaunch (rc 1)" "1" \
+  "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/badutf8.json" --fresh "$PSR_EL/fresh.json" >/dev/null 2>&1; echo $?)"
+assert_eq "psr fp: the invalid-UTF-8 refusal breadcrumbs rather than tracebacks" "yes" \
+  "$(case "$(python3 "$PSR_TALLY" same-tree-eligible --recorded "$PSR_EL/badutf8.json" --fresh "$PSR_EL/fresh.json" 2>&1)" in *Traceback*) echo no ;; *"INELIGIBLE: recorded fingerprint unreadable"*) echo yes ;; *) echo no ;; esac)"
 # The guarded write path: when the record file cannot be written (here fingerprint.json is a
 # pre-existing directory), record-fingerprint breadcrumbs and still exits 0 — never blocks a launch.
 PSR_FP_RO="$PSR_FP/rec-ro"
