@@ -3720,8 +3720,7 @@ def _cmd_update_inner(args):
         # inline --note/--reflection, and that recipe's documented inline fallback
         # covers a *structural* error only — never a PATCH failure — so leaving a
         # payload uncaptured drops the run's terminal reflection on the one path the
-        # feature was built to rescue. Every repeated payload is buffered (issue
-        # #2076), not just the last. The reads are memoized (see
+        # feature was built to rescue. The reads are memoized (see
         # `_reflection_file_payloads`), so `_apply_mutations` below reuses this text
         # rather than re-reading, which is also what keeps the `-`/stdin arm
         # single-read. Pulling the read forward of `_apply_mutations` means a bad
