@@ -82,7 +82,7 @@ BODY_FILE="$(mktemp)" || {
 }
 {
   printf '%s\n\n' "$MARKER"
-  printf '**PRFlow review stall backstop** — this cloud review ended with no verdict for `%s`. Auto-resume attempt %s:\n\n' "$HEAD_SHA" "$ATTEMPT"
+  printf '**DevFlow review stall backstop** — this cloud review ended with no verdict for `%s`. Auto-resume attempt %s:\n\n' "$HEAD_SHA" "$ATTEMPT"
   printf '/devflow:review\n'
 } > "$BODY_FILE"
 POST=.prflow/vendor/prflow/scripts/post-issue-comment.sh

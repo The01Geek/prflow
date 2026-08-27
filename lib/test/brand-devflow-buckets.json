@@ -337,6 +337,76 @@
         "file": "docs/internal/cloud-setup.md",
         "context": "DevFlow-Reviewer",
         "reason": "App-name reference (the separate review-identity App)"
+      },
+      {
+        "file": "install.sh",
+        "context": "locally modified since DevFlow wrote it",
+        "reason": "user-facing PRESERVED log string pinned by installer-wiring tests"
+      },
+      {
+        "file": "install.sh",
+        "context": "carries no DevFlow signature",
+        "reason": "user-facing signature-guard log string pinned by installer-wiring tests"
+      },
+      {
+        "file": "install.sh",
+        "context": "the file is not DevFlow's",
+        "reason": "user-facing read-failure log string pinned by installer-wiring tests"
+      },
+      {
+        "file": "scripts/surface-execution-diagnostics.sh",
+        "context": "::warning::DevFlow:",
+        "reason": "user-facing ::warning:: annotation string pinned by diagnostics tests"
+      },
+      {
+        "file": "scripts/surface-execution-diagnostics.sh",
+        "context": "::notice::DevFlow:",
+        "reason": "user-facing ::notice:: annotation string pinned by diagnostics tests"
+      },
+      {
+        "file": "scripts/surface-execution-diagnostics.sh",
+        "context": "DevFlow execution diagnostics",
+        "reason": "user-facing diagnostics block header pinned by diagnostics tests"
+      },
+      {
+        "file": "scripts/post-review-backstop-comment.sh",
+        "context": "DevFlow review stall backstop",
+        "reason": "user-facing PR-comment header string pinned by review-stall-backstop tests"
+      },
+      {
+        "file": "lib/telemetry-branch.sh",
+        "context": "DevFlow telemetry store",
+        "reason": "user-facing telemetry-store validation warning pinned by efficiency-trace-telemetry tests"
+      },
+      {
+        "file": "lib/efficiency-trace.sh",
+        "context": "DevFlow telemetry store",
+        "reason": "user-facing telemetry-store validation warning pinned by efficiency-trace-telemetry tests"
+      },
+      {
+        "file": "lib/dispatch-disposition.jq",
+        "context": "no DevFlow provenance",
+        "reason": "emitted skip-reason string pinned by the #626 disposition test"
+      },
+      {
+        "file": "scripts/resolve-extra-plugins.sh",
+        "context": "accepted DevFlow plugin/marketplace identifier set",
+        "reason": "emitted warn() breadcrumb string pinned by the identity test"
+      },
+      {
+        "file": "scripts/scaffold-config.sh",
+        "context": "prompt-extension example for the",
+        "reason": "scaffolded content coupled to the frozen .prflow/prompt-extensions/*.example mirror (#443)"
+      },
+      {
+        "file": "scripts/scaffold-config.sh",
+        "context": "prompt extensions for DevFlow skills",
+        "reason": "scaffolded README content coupled to the frozen .prflow/prompt-extensions mirror (#443)"
+      },
+      {
+        "file": "scripts/lint_manifest.py",
+        "context": "provisions before a model run",
+        "reason": "digest-bound to the committed .prflow/install-state.json compatibility marker (#1388)"
       }
     ]
   },

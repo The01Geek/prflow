@@ -689,7 +689,7 @@ install_managed() {
       if [ -d "$srcp" ]; then cp -R "$srcp" "$rel.prflow-new"; else cp "$srcp" "$rel.prflow-new"; fi
       case "$act" in
         modified)
-          log "PRESERVED (locally modified since PRFlow wrote it): $rel — the new version is at $rel.prflow-new; merge it by hand."
+          log "PRESERVED (locally modified since DevFlow wrote it): $rel — the new version is at $rel.prflow-new; merge it by hand."
           ;;
         unverified)
           log "PRESERVED (provenance unverified — no recorded digest, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new; merge it by hand, or delete $rel and re-run to take PRFlow's copy."
@@ -1066,10 +1066,10 @@ devflow_remove_withheld_tier() {
         log "removed withheld review-tier workflow $_wt.yml (opted in via --remove-withheld-review-tier)"
         ;;
       1)
-        log "warning: .github/workflows/$_wt.yml carries no PRFlow signature; left it untouched — it does not look like PRFlow's copy."
+        log "warning: .github/workflows/$_wt.yml carries no DevFlow signature; left it untouched — it does not look like DevFlow's copy."
         ;;
       *)
-        log "warning: could not read .github/workflows/$_wt.yml to check its signature (grep exit $_grc); left it untouched. This is a read failure, NOT a judgement that the file is not PRFlow's — fix its permissions and re-run if you meant to remove it."
+        log "warning: could not read .github/workflows/$_wt.yml to check its signature (grep exit $_grc); left it untouched. This is a read failure, NOT a judgement that the file is not DevFlow's — fix its permissions and re-run if you meant to remove it."
         ;;
     esac
   done

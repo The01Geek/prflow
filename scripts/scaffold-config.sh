@@ -233,9 +233,9 @@ else
     if {
          printf '%s\n' \
            '<!--' \
-           "PRFlow prompt-extension example for the $pe_skill skill." \
+           "DevFlow prompt-extension example for the $pe_skill skill." \
            '' \
-           'This directory holds consumer-owned prompt extensions for PRFlow skills.' \
+           'This directory holds consumer-owned prompt extensions for DevFlow skills.' \
            'Drop a file named <skill-name>.md here (no .example suffix) and its contents' \
            'are appended VERBATIM to the end of that skill prompt every time it runs. It' \
            'is an upgrade-safe way to add repo-specific instructions without forking the' \

@@ -183,7 +183,7 @@ devflow_telemetry_verify_store() {
     case "$path" in
       .prflow/logs/*) ;;
       *)
-        echo "::warning::telemetry-branch: existing ref '${ref}' holds a non-.prflow/logs/ path ('${path}') — it is not a PRFlow telemetry store; refusing to append (a consumer may use this branch for something else)" >&2
+        echo "::warning::telemetry-branch: existing ref '${ref}' holds a non-.prflow/logs/ path ('${path}') — it is not a DevFlow telemetry store; refusing to append (a consumer may use this branch for something else)" >&2
         return 1 ;;
     esac
   done < <(printf '%s\n' "$tree_out")
@@ -818,7 +818,7 @@ devflow_telemetry_persist_tree() {
           # re-parent would commit onto (and push over) a branch the consumer uses
           # for something else. verify_store fails closed on an unreadable tree.
           if ! devflow_telemetry_verify_store "$root" "refs/remotes/origin/${branch}"; then
-            echo "::warning::telemetry-branch: the remote '${branch}' is not a PRFlow telemetry store — refusing to re-parent onto or push over it; telemetry retained on the local ref only (rename it or set telemetry.branch to a different name)$(_devflow_telemetry_retention_note)" >&2
+            echo "::warning::telemetry-branch: the remote '${branch}' is not a DevFlow telemetry store — refusing to re-parent onto or push over it; telemetry retained on the local ref only (rename it or set telemetry.branch to a different name)$(_devflow_telemetry_retention_note)" >&2
             exit 1
           fi
           local_cur="$(git -C "$root" rev-parse --verify --quiet "$ref" 2>/dev/null || true)"

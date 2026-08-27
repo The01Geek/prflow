@@ -181,7 +181,7 @@ else:
 DEVFLOW_PLUGIN_NAMES = frozenset(os.environ.get("DEVFLOW_PLUGIN_NAMES", "").split())
 DEVFLOW_MARKETPLACES = frozenset(os.environ.get("DEVFLOW_MARKETPLACE_NAMES", "").split())
 if not DEVFLOW_PLUGIN_NAMES or not DEVFLOW_MARKETPLACES:
-    warn("the accepted PRFlow plugin/marketplace identifier set is empty or unset"
+    warn("the accepted DevFlow plugin/marketplace identifier set is empty or unset"
          " (the generated identity region in this helper is missing or was not"
          " regenerated); emitting nothing")
     sys.exit(0)

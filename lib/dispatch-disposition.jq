@@ -58,7 +58,7 @@
 | (($status == "Absent") or ($status == "NoIssue")) as $is_sentinel
 | if ($workpad_reason and $is_sentinel and ($has_provenance | not))
   then { disposition: "skip",
-         reason: ("no PRFlow provenance and no workpad audit trail — workpad_final_status is "
+         reason: ("no DevFlow provenance and no workpad audit trail — workpad_final_status is "
                   + ($status | tostring)
                   + "; skipping without analysis") }
   else { disposition: "dispatch", reason: ($gate_reason // "dispatched for analysis") }
