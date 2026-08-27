@@ -1,0 +1,98 @@
+{
+  "iter": 1,
+  "source": "review",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "detect_all_audit": true
+  },
+  "checklist": [
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    }
+  ],
+  "telemetry": "unavailable",
+  "synthesized": false
+}
