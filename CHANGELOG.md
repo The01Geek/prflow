@@ -4,6 +4,14 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.10] — 2026-08-27
+
+### Removed
+- **Removed the report-only stall-observer workflow, its scan helper, and its two `prflow_implement.stall_observer` config keys.** The scheduled observer never reported the still-running stalls it was built to catch, so `.github/workflows/stall-observer.yml`, `scripts/stall-observer-scan.py`, and the `enabled` / `advisory_threshold_minutes` keys were deleted; the in-job `prflow_implement.stall_backstop` is untouched. The workflow was never shipped to consumer repositories, so no installed consumer loses a running mechanism. (#2069)
+
+### Fixed
+- **`workpad.py update` now accepts `--note-file` and `--reflection-file` more than once**, appending one bullet per payload in command-line order instead of silently keeping only the last path. Each payload is measured on its own against the per-note byte budget, and the stdin form `-` may be used at most once per flag. A call passing either flag once is unchanged. (#2078)
+
 ## [2.35.9] — 2026-08-27
 
 ### Added
