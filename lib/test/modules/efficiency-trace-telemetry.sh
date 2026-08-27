@@ -6796,3 +6796,131 @@ git -C "$T499_U_C" fetch -q origin prflow-telemetry
 assert_eq "#499 union: classifier-unavailable retry refuses the remote write" "no" "$(git -C "$T499_U_C" cat-file -e FETCH_HEAD:.prflow/logs/efficiency/writer-c.json 2>/dev/null && echo yes || echo no)"
 assert_eq "#499 union: classifier-unavailable refusal is breadcrumbed" "yes" "$(printf '%s' "$T499_U_C_ERR" | grep -qF 'could not classify a colliding telemetry blob' && echo yes || echo no)"
 rm -rf "$T499_U_ROOT"
+
+# ── Telemetry master switch (issue #2035) ────────────────────────────────────
+# telemetry.enabled=false (the JSON boolean) turns off every optional telemetry
+# mechanism in one switch: the five default-true enrolled sub-keys inherit it on
+# their config-get.sh miss path, and the two push-path helpers skip. Only the JSON
+# boolean false disables; every other state (wrong-typed, corrupt, error) fails
+# safe to ON. An explicit sub-key always wins over the master.
+T2035_ROOT="$(probe_tmp '#2035 telemetry master switch root')"; rm -rf "$T2035_ROOT"; mkdir -p "$T2035_ROOT"
+T2035_CG="$REPO_ROOT/scripts/config-get.sh"
+T2035_OFF="$REPO_ROOT/scripts/telemetry-master-off.py"
+T2035_ET="$REPO_ROOT/lib/efficiency-trace.sh"
+T2035_CST="$REPO_ROOT/scripts/collect-staged-telemetry.sh"
+
+# telemetry-master-off.py — the single-source JSON-boolean-false predicate.
+printf '%s' '{"telemetry":{"enabled":false}}'   > "$T2035_ROOT/m-false.json"
+printf '%s' '{"telemetry":{"enabled":true}}'    > "$T2035_ROOT/m-true.json"
+printf '%s' '{"telemetry":{"enabled":"false"}}' > "$T2035_ROOT/m-strfalse.json"
+printf '%s' '{"telemetry":{"enabled":0}}'       > "$T2035_ROOT/m-zero.json"
+printf '%s' '{"telemetry":{"enabled":null}}'    > "$T2035_ROOT/m-null.json"
+printf '%s' '{"telemetry":[]}'                  > "$T2035_ROOT/m-arr.json"
+printf '%s' '{"telemetry":"x"}'                 > "$T2035_ROOT/m-scalar.json"
+printf '%s' '{"other":1}'                       > "$T2035_ROOT/m-missing.json"
+printf '%s' 'not json{'                         > "$T2035_ROOT/m-corrupt.json"
+assert_eq "#2035 predicate: JSON boolean false is OFF" "off" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-false.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: JSON boolean true is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-true.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: string 'false' is ON (JSON type, not coerced string)" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-strfalse.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: number 0 is ON (is-False not ==False)" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-zero.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: null is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-null.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: telemetry array is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-arr.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: telemetry scalar is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-scalar.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: telemetry missing is ON" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-missing.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: corrupt config is ON (fail-safe)" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/m-corrupt.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: missing file is ON (fail-safe)" "on" "$(python3 "$T2035_OFF" "$T2035_ROOT/nope.json" >/dev/null 2>&1 && echo off || echo on)"
+assert_eq "#2035 predicate: no argument is ON (fail-safe)" "on" "$(python3 "$T2035_OFF" >/dev/null 2>&1 && echo off || echo on)"
+
+# AC1 — master false + each enrolled sub-key absent → config-get prints "false".
+assert_eq "#2035 AC1 efficiency_telemetry_enabled inherits false" "false" "$("$T2035_CG" prflow_review_and_fix.efficiency_telemetry_enabled true "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC1 execution_diagnostics_enabled inherits false" "false" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC1 execution_denial_commands_enabled inherits false" "false" "$("$T2035_CG" prflow.execution_denial_commands_enabled true "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC1 live_progress_comment_enabled inherits false" "false" "$("$T2035_CG" prflow_review.live_progress_comment_enabled true "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC1 investigation_record_enabled inherits false" "false" "$("$T2035_CG" create_issue.investigation_record_enabled true "$T2035_ROOT/m-false.json")"
+
+# AC2 — an explicit sub-key wins over the master, in both directions.
+printf '%s' '{"telemetry":{"enabled":false},"prflow":{"execution_diagnostics_enabled":true}}' > "$T2035_ROOT/p-explicit-true.json"
+printf '%s' '{"prflow":{"execution_diagnostics_enabled":false}}' > "$T2035_ROOT/p-explicit-false.json"
+assert_eq "#2035 AC2 explicit sub-key true beats master false" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/p-explicit-true.json")"
+assert_eq "#2035 AC2 explicit sub-key false wins with master absent" "false" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/p-explicit-false.json")"
+
+# AC3 — the seven master-key shapes: only the JSON boolean false disables an
+# enrolled sub-key miss; every other shape prints the caller default.
+assert_eq "#2035 AC3 master missing → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-missing.json")"
+assert_eq "#2035 AC3 master array → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-arr.json")"
+assert_eq "#2035 AC3 master scalar → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-scalar.json")"
+assert_eq "#2035 AC3 master enabled true → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-true.json")"
+assert_eq "#2035 AC3 master enabled string 'false' → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-strfalse.json")"
+assert_eq "#2035 AC3 master enabled number 0 → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-zero.json")"
+assert_eq "#2035 AC3 master enabled null → default" "true" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-null.json")"
+assert_eq "#2035 AC3 master enabled JSON false → false" "false" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")"
+
+# AC6 — a key OUTSIDE the enrolled set is unaffected by the master: its miss-path
+# stdout is byte-identical whether the master is false or absent.
+assert_eq "#2035 AC6 non-enrolled key unaffected by master false" "mydefault" "$("$T2035_CG" base_branch mydefault "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC6 non-enrolled key same with master absent" "$("$T2035_CG" base_branch mydefault "$T2035_ROOT/m-missing.json")" "$("$T2035_CG" base_branch mydefault "$T2035_ROOT/m-false.json")"
+
+# Residual — the resolver's exit-code contract is undisturbed under master-off.
+# Use a repo-root-resolved fixture dir so a no-default call is expressible.
+mkdir -p "$T2035_ROOT/cfgdir/.prflow"
+cp "$T2035_ROOT/m-false.json" "$T2035_ROOT/cfgdir/.prflow/config.json"
+( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" nonexistent.key ) >/dev/null 2>&1
+assert_eq "#2035 exit contract: non-enrolled no-default miss exits 1 under master-off" "1" "$?"
+( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" nonexistent.key fallback ) >/dev/null 2>&1
+assert_eq "#2035 exit contract: non-enrolled with default exits 0 under master-off" "0" "$?"
+assert_eq "#2035 enrolled inherit via repo-root config resolution" "false" "$( ( cd "$T2035_ROOT/cfgdir" && "$T2035_CG" prflow.execution_diagnostics_enabled true ) )"
+# Idempotency — two master-off resolutions of the same enrolled key are identical.
+assert_eq "#2035 idempotent enrolled resolution" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")" "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-false.json")"
+
+# AC4 — the push path: --persist under master-off leaves the telemetry branch ref
+# UNMOVED and still exits 0. A real bare-remote git repo (git plumbing not mocked),
+# with a positive control (master-absent) proving the guard is not vacuous.
+_t2035_persist() { # $1=config-file → prints "<exit>|<branch-created yes/no>|<skip yes/no>"
+  local cfg="$1" pr root wd err rc created skip
+  pr="$T2035_ROOT/persist-$RANDOM$RANDOM"
+  root="$pr/repo"
+  git init -q --bare "$pr/remote.git"
+  git init -q "$root"; git -C "$root" config user.email t@e.com; git -C "$root" config user.name t
+  git -C "$root" commit --allow-empty -qm seed; git -C "$root" branch -M main
+  git -C "$root" remote add origin "$pr/remote.git"; git -C "$root" push -q -u origin main
+  cp "$cfg" "$root/.prflow-cfg.json" 2>/dev/null || { mkdir -p "$root"; cp "$cfg" "$root/.prflow-cfg.json"; }
+  wd="$root/.prflow/tmp/review/pr-2035/run-1"; mkdir -p "$wd"
+  printf '%s' '{"iter":1,"fix_commit_sha":"","loop_role":"fix"}' > "$wd/iter-1.json"
+  err="$( ( cd "$root" && unset GITHUB_ACTIONS && DEVFLOW_CONFIG_FILE="$root/.prflow-cfg.json" bash "$T2035_ET" --persist --workpad-dir "$wd" --slug pr-2035 ) 2>&1 )"
+  rc=$?
+  if git -C "$root" rev-parse --verify --quiet refs/heads/prflow-telemetry >/dev/null 2>&1; then created=yes; else created=no; fi
+  if printf '%s' "$err" | grep -qF 'telemetry.enabled is false'; then skip=yes; else skip=no; fi
+  printf '%s|%s|%s' "$rc" "$created" "$skip"
+}
+T2035_PERSIST_OFF="$(_t2035_persist "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC4 --persist master-off exits 0" "0" "${T2035_PERSIST_OFF%%|*}"
+assert_eq "#2035 AC4 --persist master-off leaves telemetry branch uncreated" "no" "$(printf '%s' "$T2035_PERSIST_OFF" | cut -d'|' -f2)"
+assert_eq "#2035 AC4 --persist master-off emits the skip breadcrumb" "yes" "$(printf '%s' "$T2035_PERSIST_OFF" | cut -d'|' -f3)"
+T2035_PERSIST_ON="$(_t2035_persist "$T2035_ROOT/m-missing.json")"
+assert_eq "#2035 AC5 --persist master-absent exits 0" "0" "${T2035_PERSIST_ON%%|*}"
+assert_eq "#2035 AC5 --persist master-absent creates the telemetry branch (positive control)" "yes" "$(printf '%s' "$T2035_PERSIST_ON" | cut -d'|' -f2)"
+assert_eq "#2035 AC5 --persist master-absent emits no skip breadcrumb" "no" "$(printf '%s' "$T2035_PERSIST_ON" | cut -d'|' -f3)"
+T2035_PERSIST_CORRUPT="$(_t2035_persist "$T2035_ROOT/m-corrupt.json")"
+assert_eq "#2035 AC5 --persist corrupt-config exits 0 (fail-safe on)" "0" "${T2035_PERSIST_CORRUPT%%|*}"
+assert_eq "#2035 AC5 --persist corrupt-config does not skip (fail-safe on)" "no" "$(printf '%s' "$T2035_PERSIST_CORRUPT" | cut -d'|' -f3)"
+
+# AC4 — collect-staged-telemetry.sh stages no payload under master-off, and its
+# positive control (master-absent) collects the staged payload.
+_t2035_collect() { # $1=config-file → prints "<stdout>|<breadcrumb yes/no>"
+  local cfg="$1" cr stage dest out err
+  cr="$T2035_ROOT/collect-$RANDOM$RANDOM"; mkdir -p "$cr/.prflow"
+  cp "$cfg" "$cr/.prflow/config.json"
+  stage="$cr/.prflow/tmp/telemetry-stage-1/.prflow/logs/review/pr-2035/run-1"; mkdir -p "$stage"
+  printf '%s' '{}' > "$stage/iter-1.json"
+  dest="$cr/upload"
+  out="$(bash "$T2035_CST" "$cr" "$dest" 2>"$cr/err.txt")"
+  if grep -qF 'telemetry.enabled is false' "$cr/err.txt"; then err=yes; else err=no; fi
+  printf '%s|%s' "$out" "$err"
+}
+T2035_COLLECT_OFF="$(_t2035_collect "$T2035_ROOT/m-false.json")"
+assert_eq "#2035 AC4 collect-staged master-off stages nothing" "" "${T2035_COLLECT_OFF%%|*}"
+assert_eq "#2035 AC4 collect-staged master-off emits breadcrumb" "yes" "$(printf '%s' "$T2035_COLLECT_OFF" | cut -d'|' -f2)"
+T2035_COLLECT_ON="$(_t2035_collect "$T2035_ROOT/m-missing.json")"
+assert_eq "#2035 AC4 collect-staged master-absent collects (positive control)" "1" "${T2035_COLLECT_ON%%|*}"
+
+rm -rf "$T2035_ROOT"
