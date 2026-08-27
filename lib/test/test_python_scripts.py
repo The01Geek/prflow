@@ -1573,7 +1573,10 @@ _saved_cp = workpad._workpad_id_cache_path
 workpad._workpad_id_cache_path = lambda issue, mk: Path(_wf_dir) / 'blocker' / f'{issue}.json'
 try:
     workpad._write_workpad_id_cache(999, _MK2042, 7, 'owner/repo')  # must not raise
-    assert_eq("#2042 AC7: a failed cache write is swallowed (no exception)", True, True)
+    # Observable post-condition (not a bare True==True): the swallowed write persisted
+    # nothing, so a subsequent read still misses (None) and the next update would scan.
+    assert_eq("#2042 AC7: a failed cache write persists nothing (subsequent read misses)",
+              None, workpad._read_workpad_id_cache(999, _MK2042))
 finally:
     workpad._workpad_id_cache_path = _saved_cp
     shutil.rmtree(_wf_dir, ignore_errors=True)
