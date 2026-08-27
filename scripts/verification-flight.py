@@ -89,13 +89,14 @@ ACTIVE_STATES = ("claimed", "running")
 TERMINAL_STATES = ("passed", "failed", "timed_out", "cancelled", "stale", "incomplete")
 ALL_STATES = ACTIVE_STATES + TERMINAL_STATES
 
-# Exit codes — a shell caller gates reuse on `status`/`wait` exiting 0.
-EXIT_OK = 0            # operation succeeded; for status/wait: state satisfies verification
-EXIT_NON_PASS = 2     # read succeeded but the flight does NOT satisfy verification
-EXIT_INVALID = 3      # invalid / incomplete declaration or arguments
-EXIT_CAS_REJECT = 4   # ownership / transition compare-and-swap rejected
-EXIT_UNREADABLE = 5   # state file missing, empty, truncated, or malformed
-EXIT_WAIT_EXPIRED = 6  # wait bound elapsed with the flight still active
+# Exit codes — a shell caller gates reuse on `status`/`wait` exiting 0. Each code's
+# one-line meaning lives once, in EXIT_CODE_MEANINGS below (rendered into --help).
+EXIT_OK = 0
+EXIT_NON_PASS = 2
+EXIT_INVALID = 3
+EXIT_CAS_REJECT = 4
+EXIT_UNREADABLE = 5
+EXIT_WAIT_EXPIRED = 6
 
 # One-line meaning per exit code, rendered into the top-level `--help` epilog and
 # enumerated by the test so the documented meanings cannot drift from the codes.
