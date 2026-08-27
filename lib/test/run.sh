@@ -55220,11 +55220,12 @@ _devflow_ruff_probe_ver() {  # $1 = candidate command (word-split intentionally)
 }
 devflow_ruff_select_cmd() {
   # $1 = manifest ruff version or sentinel; $2 = candidate 1 cmd; $3 = candidate 2 cmd.
-  # Emits one TSV line "<outcome>\t<token>\t<detail>": prefers the candidate whose major.minor
-  # family equals the manifest family (candidate 1 first), so an off-family ruff first on PATH
-  # no longer shadows an in-family one reachable via python3 -m ruff. On a manifest sentinel
-  # (non-numeric reading) it selects the first RUNNABLE candidate in the given order — today's
-  # behavior. outcome: selected | family-mismatch | none.
+  # Emits one line "<outcome>|<token>|<detail>" (pipe-separated, so an empty token field is
+  # preserved — consecutive tab/whitespace separators collapse under read). Prefers the
+  # candidate whose major.minor family equals the manifest family (candidate 1 first), so an
+  # off-family ruff first on PATH no longer shadows an in-family one reachable via
+  # python3 -m ruff. On a manifest sentinel (non-numeric reading) it selects the first RUNNABLE
+  # candidate in the given order — today's behavior. outcome: selected | family-mismatch | none.
   local manifest_ver="$1" c1="$2" c2="$3"
   local manifest_fam="" v1="" v2="" f1="" f2="" detail=""
   case "$manifest_ver" in [0-9]*) manifest_fam="$(devflow_ruff_family "$manifest_ver")" ;; esac
@@ -55233,16 +55234,16 @@ devflow_ruff_select_cmd() {
   [ -n "$v1" ] && f1="$(devflow_ruff_family "$v1")"
   [ -n "$v2" ] && f2="$(devflow_ruff_family "$v2")"
   if [ -z "$manifest_fam" ]; then
-    if [ -n "$v1" ]; then printf '%s\t%s\t%s' selected "$c1" "$v1"; return; fi
-    if [ -n "$v2" ]; then printf '%s\t%s\t%s' selected "$c2" "$v2"; return; fi
-    printf '%s\t\t' none; return
+    if [ -n "$v1" ]; then printf '%s|%s|%s' selected "$c1" "$v1"; return; fi
+    if [ -n "$v2" ]; then printf '%s|%s|%s' selected "$c2" "$v2"; return; fi
+    printf '%s||' none; return
   fi
-  if [ -n "$v1" ] && [ "$f1" = "$manifest_fam" ]; then printf '%s\t%s\t%s' selected "$c1" "$v1"; return; fi
-  if [ -n "$v2" ] && [ "$f2" = "$manifest_fam" ]; then printf '%s\t%s\t%s' selected "$c2" "$v2"; return; fi
-  if [ -z "$v1" ] && [ -z "$v2" ]; then printf '%s\t\t' none; return; fi
+  if [ -n "$v1" ] && [ "$f1" = "$manifest_fam" ]; then printf '%s|%s|%s' selected "$c1" "$v1"; return; fi
+  if [ -n "$v2" ] && [ "$f2" = "$manifest_fam" ]; then printf '%s|%s|%s' selected "$c2" "$v2"; return; fi
+  if [ -z "$v1" ] && [ -z "$v2" ]; then printf '%s||' none; return; fi
   [ -n "$v1" ] && detail="$c1 $v1"
   [ -n "$v2" ] && detail="${detail:+$detail / }$c2 $v2"
-  printf '%s\t\t%s' family-mismatch "$detail"
+  printf '%s||%s' family-mismatch "$detail"
 }
 RUFF_MANIFEST_VER="$(devflow_ruff_manifest_version "$LIB/../.prflow/lint-manifest.json")"
 case "$RUFF_MANIFEST_VER" in [0-9]*) RUFF_MANIFEST_FAM="$(devflow_ruff_family "$RUFF_MANIFEST_VER")" ;; *) RUFF_MANIFEST_FAM="$RUFF_MANIFEST_VER" ;; esac
@@ -55254,7 +55255,7 @@ case "$RUFF_MANIFEST_VER" in [0-9]*) RUFF_MANIFEST_FAM="$(devflow_ruff_family "$
 # ruff would then FAIL instead of routing to the skip() below.
 RUFF_CMD=()
 RUFF_SELECT="$(devflow_ruff_select_cmd "$RUFF_MANIFEST_VER" "ruff" "python3 -m ruff")"
-IFS=$'\t' read -r RUFF_SEL_OUTCOME RUFF_SEL_TOKEN RUFF_SEL_DETAIL <<<"$RUFF_SELECT"
+IFS='|' read -r RUFF_SEL_OUTCOME RUFF_SEL_TOKEN RUFF_SEL_DETAIL <<<"$RUFF_SELECT"
 if [ "$RUFF_SEL_OUTCOME" = "selected" ]; then
   IFS=' ' read -r -a RUFF_CMD <<<"$RUFF_SEL_TOKEN"
   # One line naming the selected candidate + its reported version + the manifest family, on
@@ -55322,32 +55323,32 @@ RUFF_SEL_MISSING="$RUFF_SEL_MTX/does-not-exist"
 
 # AC1 (the RED repro): off-family candidate 1 first, in-family candidate 2 reachable → the
 # in-family candidate 2 is selected, NOT the off-family shim first in order.
-IFS=$'\t' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/infam")"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/infam")"
 assert_eq "#2050 select: off-family cand1 + in-family cand2 -> selects the in-family cand2 (AC1)" "selected $RUFF_SEL_MTX/infam 0.16.4" "$RS_O $RS_T $RS_D"
 
 # Preference: candidate 1 in-family wins over an in-family candidate 2 (PATH ruff preferred).
-IFS=$'\t' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/infam" "$RUFF_SEL_MTX/infam2")"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/infam" "$RUFF_SEL_MTX/infam2")"
 assert_eq "#2050 select: both in-family -> candidate 1 (PATH ruff) is preferred" "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
 
 # AC2: both candidates off-family -> family-mismatch, no candidate selected.
-IFS=$'\t' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/off2")"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/off2")"
 assert_eq "#2050 select: both off-family -> family-mismatch (AC2)" "family-mismatch" "$RS_O"
 assert_eq "#2050 select: family-mismatch detail names the resolved versions (AC2)" yes \
   "$(case "$RS_D" in *0.6.9*0.15.0*) echo yes ;; *) echo no ;; esac)"
 
 # AC2: only candidate 1 runnable and off-family (candidate 2 absent) -> still family-mismatch.
-IFS=$'\t' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MISSING")"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MTX/off" "$RUFF_SEL_MISSING")"
 assert_eq "#2050 select: sole runnable candidate off-family -> family-mismatch (AC2)" "family-mismatch" "$RS_O"
 
 # AC3: a manifest sentinel -> first RUNNABLE candidate in given order (today's behavior),
 # even when that first candidate is off-family.
-IFS=$'\t' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd unreadable "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/infam")"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd unreadable "$RUFF_SEL_MTX/off" "$RUFF_SEL_MTX/infam")"
 assert_eq "#2050 select: manifest sentinel -> first runnable candidate in order (AC3)" "selected $RUFF_SEL_MTX/off 0.6.9" "$RS_O $RS_T $RS_D"
-IFS=$'\t' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd parse-failed "$RUFF_SEL_MISSING" "$RUFF_SEL_MTX/infam")"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd parse-failed "$RUFF_SEL_MISSING" "$RUFF_SEL_MTX/infam")"
 assert_eq "#2050 select: sentinel skips an unrunnable candidate 1 to the runnable candidate 2 (AC3)" "selected $RUFF_SEL_MTX/infam" "$RS_O $RS_T"
 
 # Neither candidate runnable -> none (the today's-skip path, family arm).
-IFS=$'\t' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MISSING")"
+IFS='|' read -r RS_O RS_T RS_D <<<"$(devflow_ruff_select_cmd 0.16.4 "$RUFF_SEL_MISSING" "$RUFF_SEL_MISSING")"
 assert_eq "#2050 select: neither candidate runnable -> none" "none" "$RS_O"
 
 rm -rf "$RUFF_SEL_MTX"
