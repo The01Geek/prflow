@@ -2364,7 +2364,7 @@ HC_UF_AN="$(GIT_AUTHOR_NAME=a GIT_AUTHOR_EMAIL=a@y GIT_COMMITTER_NAME=a GIT_COMM
 git -C "$HC_UF_A" update-ref refs/heads/prflow-telemetry "$HC_UF_AN"
 git -C "$HC_UF_A" push -q origin prflow-telemetry
 # Selective jq wrapper: fail ONLY the union merge program, delegate all else to real jq.
-printf '%s\n' '#!/usr/bin/env bash' 'for a in "$@"; do case "$a" in *"elif (\$local.harness_cost"*) exit 1 ;; esac; done' 'exec jq "$@"' > "$HC_UF/jqsel"
+printf '%s\n' '#!/usr/bin/env bash' 'for a in "$@"; do case "$a" in *"elif (\$local[\$k]"*) exit 1 ;; esac; done' 'exec jq "$@"' > "$HC_UF/jqsel"
 chmod +x "$HC_UF/jqsel"
 mkdir -p "$HC_UF/.prflow/tmp/review/pr-6/run-b"
 printf '%s' "$HC_ITER" > "$HC_UF/.prflow/tmp/review/pr-6/run-b/iter-1.json"
@@ -6796,3 +6796,437 @@ git -C "$T499_U_C" fetch -q origin prflow-telemetry
 assert_eq "#499 union: classifier-unavailable retry refuses the remote write" "no" "$(git -C "$T499_U_C" cat-file -e FETCH_HEAD:.prflow/logs/efficiency/writer-c.json 2>/dev/null && echo yes || echo no)"
 assert_eq "#499 union: classifier-unavailable refusal is breadcrumbed" "yes" "$(printf '%s' "$T499_U_C_ERR" | grep -qF 'could not classify a colliding telemetry blob' && echo yes || echo no)"
 rm -rf "$T499_U_ROOT"
+
+# ── #2006 run-profile floor and PR-less implement record ─────────────────────
+# These fixtures assert RECORD CONTENT on the local telemetry branch. The module unset
+# DEVFLOW_TELEMETRY_PUSH above, so under CI's ambient GITHUB_ACTIONS=true --persist
+# stages instead of writing that branch and every read below returns empty — green on
+# a dev desk, 23 RED on CI. Scrub the ambient variable per invocation.
+RP_PROFILE='{"phase_durations_ms":{"Setup":263000,"Implement":800000,"Review":"unestablished"},"final_status":"Complete"}'
+
+# Skeleton arm: a PR resolved, no record exists for this run-id → a pr-<N> skeleton
+# carrying run_profile, with the sub-fields the assertion below enumerates.
+RP_SK="$(_hc_repo "rp skeleton")"
+( cd "$RP_SK" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4001 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 run-profile(skeleton): a pr-<N> skeleton is written for this run-id" "yes" \
+  "$(_et_on_branch "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json")"
+assert_eq "#2006 run-profile(skeleton): run_profile carries exactly the enumerated sub-fields" \
+  "engine_outcome final_status issue_number phase_durations_ms prior_record_count" \
+  "$(_et_show "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json" | jq -r '.run_profile | keys | join(" ")')"
+assert_eq "#2006 run-profile(skeleton): the workpad-derived durations and status pass through verbatim" \
+  '[263000,"unestablished","Complete"]' \
+  "$(_et_show "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json" | jq -c '[.run_profile.phase_durations_ms.Setup,.run_profile.phase_durations_ms.Review,.run_profile.final_status]')"
+assert_eq "#2006 run-profile(skeleton): the engine step outcome comes from the workflow, not the run" \
+  "success" \
+  "$(_et_show "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json" | jq -r '.run_profile.engine_outcome')"
+# A telemetry branch that exists and holds no prior record for this issue is an
+# ESTABLISHED zero, not an unknown — collapsing the two would let an unread branch
+# report a first run as if it had been counted.
+assert_eq "#2006 run-profile(skeleton): prior_record_count is a real 0 when the ref resolved and matched nothing" \
+  "0" \
+  "$(_et_show "$RP_SK" ".prflow/logs/efficiency/pr-42-4001-1.json" | jq -r '.run_profile.prior_record_count')"
+rm -rf "$RP_SK"
+
+# Inert arms: unset profile is silent; a non-object operand draws one breadcrumb and
+# writes nothing.
+RP_I="$(_hc_repo "rp inert")"
+RP_I_ERR="$( ( cd "$RP_I" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4002 GITHUB_RUN_ATTEMPT=1 \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 run-profile(inert): unset DEVFLOW_RUN_PROFILE → the helper stays SILENT about the floor" "yes" \
+  "$(printf '%s' "$RP_I_ERR" | grep -q 'run-profile floor' && echo no || echo yes)"
+RP_I_ERR2="$( ( cd "$RP_I" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4003 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE='not-json' \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 run-profile(inert): a non-object operand draws a named breadcrumb and writes no record" "yes" \
+  "$(printf '%s' "$RP_I_ERR2" | grep -q 'DEVFLOW_RUN_PROFILE is not a JSON object' && echo yes || echo no)"
+assert_eq "#2006 run-profile(inert): a malformed operand still lands the key, workpad half unestablished" \
+  '["unestablished","unestablished"]' \
+  "$(_et_show "$RP_I" ".prflow/logs/efficiency/pr-42-4003-1.json" | jq -c '[.run_profile.phase_durations_ms,.run_profile.final_status]')"
+rm -rf "$RP_I"
+
+# PR-less arm: no PR resolved → an issue-keyed record is written, and the cost and
+# profile floors land on that same file through their any-slug merge arms.
+RP_PL="$(_hc_repo "rp pr-less")"
+( cd "$RP_PL" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4004 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=failure DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_NO_PR_REASON=no-closing-pr-found \
+    DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=implement \
+    bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 PR-less: a run with no resolvable PR persists an issue-keyed record" "yes" \
+  "$(_et_on_branch "$RP_PL" ".prflow/logs/efficiency/issue-2006-4004-1.json")"
+assert_eq "#2006 PR-less: the record names the issue and why no PR resolved" \
+  'issue-2006 2006 no-closing-pr-found' \
+  "$(_et_show "$RP_PL" ".prflow/logs/efficiency/issue-2006-4004-1.json" | jq -r '.slug + " " + (.issue_number|tostring) + " " + .no_pr_reason')"
+assert_eq "#2006 PR-less: the harness cost floor lands on the issue-keyed record" "execution-file" \
+  "$(_et_show "$RP_PL" ".prflow/logs/efficiency/issue-2006-4004-1.json" | jq -r '.harness_cost.cost_source')"
+assert_eq "#2006 PR-less: the run-profile floor lands on the same issue-keyed record" "Complete failure" \
+  "$(_et_show "$RP_PL" ".prflow/logs/efficiency/issue-2006-4004-1.json" | jq -r '.run_profile.final_status + " " + .run_profile.engine_outcome')"
+# Re-running the backstop for the same run id must not write a second record.
+( cd "$RP_PL" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4004 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=failure DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_NO_PR_REASON=no-closing-pr-found \
+    DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=implement \
+    bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 PR-less: a backstop re-run for the same run id is a no-op (one record only)" "1" \
+  "$(git -C "$RP_PL" ls-tree -r --name-only refs/heads/prflow-telemetry -- .prflow/logs/efficiency/ | grep -c '^\.prflow/logs/efficiency/issue-2006-' || true)"
+rm -rf "$RP_PL"
+
+# The PR-less floor is implement-only and PR-absent-only: a resolved PR or another
+# class leaves it inert, so it can never displace the PR-keyed record.
+RP_G="$(_hc_repo "rp pr-less gates")"
+( cd "$RP_G" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4005 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement \
+    bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 PR-less: a resolved PR leaves the issue-keyed floor inert" "no" \
+  "$(_et_on_branch "$RP_G" ".prflow/logs/efficiency/issue-2006-4005-1.json")"
+( cd "$RP_G" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4006 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=review-and-fix \
+    bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 PR-less: a non-implement class leaves the issue-keyed floor inert" "no" \
+  "$(_et_on_branch "$RP_G" ".prflow/logs/efficiency/issue-2006-4006-1.json")"
+RP_G_ERR="$( ( cd "$RP_G" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4007 GITHUB_RUN_ATTEMPT=1 \
+    DEVFLOW_EXECUTION_COST="$HC_COST" DEVFLOW_COMMAND_CLASS=implement \
+    bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 PR-less: no PR AND no issue number draws a named breadcrumb rather than a silent drop" "yes" \
+  "$(printf '%s' "$RP_G_ERR" | grep -q 'cannot be keyed by issue either' && echo yes || echo no)"
+rm -rf "$RP_G"
+
+# ── #2006 prepare-run-profile.sh glue — its inert branches, under stubs ──────
+RPG="$LIB/../scripts/prepare-run-profile.sh"
+# A guarded-out block silently drops its assertions, which an exact floor reports as a
+# bare count mismatch; assert the precondition so a lost executable bit names itself.
+assert_eq "#2006 module precondition: scripts/prepare-run-profile.sh is executable (guard 1)" "yes" \
+  "$(test -x "$RPG" && echo yes || echo no)"
+if [ -x "$RPG" ]; then
+  RPG_T="$(git_sandbox "rp glue")"
+  assert_eq "#2006 glue: an empty issue number is inert with a named breadcrumb" "yes" \
+    "$(bash "$RPG" "" "$RPG_T/out.json" 2>&1 | grep -q 'is not a positive integer' && echo yes || echo no)"
+  assert_eq "#2006 glue: a non-numeric issue number is inert with the same named breadcrumb" "yes" \
+    "$(bash "$RPG" abc "$RPG_T/out.json" 2>&1 | grep -q 'is not a positive integer' && echo yes || echo no)"
+  assert_eq "#2006 glue: a missing output path is inert with its OWN breadcrumb" "yes" \
+    "$(bash "$RPG" 2006 "" 2>&1 | grep -q 'no output path was given' && echo yes || echo no)"
+  assert_eq "#2006 glue: every inert branch still exits 0 so the always() backstop is never aborted" "0" \
+    "$(bash "$RPG" "" "$RPG_T/out.json" >/dev/null 2>&1; echo $?)"
+  rm -rf "$RPG_T"
+fi
+
+# ── #2006 derive-run-profile.py — the parser the glue feeds ───────────────────
+DRP="$LIB/../scripts/derive-run-profile.py"
+# A guarded-out block silently drops its assertions, which an exact floor reports as a
+# bare count mismatch; assert the precondition so a lost executable bit names itself.
+assert_eq "#2006 module precondition: scripts/derive-run-profile.py is executable (guard 1)" "yes" \
+  "$(test -x "$DRP" && echo yes || echo no)"
+if [ -x "$DRP" ]; then
+  DRP_T="$(git_sandbox "rp derive")"
+  printf '%s\n' \
+    '<!-- prflow:workpad -->' \
+    '**Status:** 🎉 Complete' \
+    '**Last updated:** 2026-08-26 10:30 UTC' \
+    '' \
+    '## Progress' \
+    '- [x] **Setup** — branch & workpad' \
+    '  - 10:00:00 — run started' \
+    '  - 10:05:30 — hydrated' \
+    '- [ ] **Documentation**' \
+    > "$DRP_T/workpad.md"
+  DRP_OUT="$(python3 "$DRP" --body-file "$DRP_T/workpad.md")"
+  assert_eq "#2006 derive: a phase span comes from its first and last timestamped note" "330000" \
+    "$(printf '%s' "$DRP_OUT" | jq -r '.phase_durations_ms.Setup')"
+  assert_eq "#2006 derive: a phase with no timestamped note is unestablished, never 0" "unestablished" \
+    "$(printf '%s' "$DRP_OUT" | jq -r '.phase_durations_ms.Documentation')"
+  assert_eq "#2006 derive: the final status is the bare word, glyph stripped" "Complete" \
+    "$(printf '%s' "$DRP_OUT" | jq -r '.final_status')"
+  assert_eq "#2006 derive: an unreadable body file exits non-zero rather than emitting an empty profile" "1" \
+    "$(python3 "$DRP" --body-file "$DRP_T/absent.md" >/dev/null 2>&1; echo $?)"
+  rm -rf "$DRP_T"
+fi
+
+# ── #2006 prepare-harness-floor.sh: the two added env assignments ─────────────
+# The issue number keys the PR-less record and the prior-record count, and the reason
+# names WHICH PR-resolution branch fired. The three reasons stay distinguishable: a gh
+# transport failure and a genuinely PR-less run are different facts, and the record's
+# reason field must not assert a cause the glue did not observe.
+# A guarded-out block silently drops its assertions, which an exact floor reports as a
+# bare count mismatch; assert the precondition so a lost executable bit names itself.
+assert_eq "#2006 module precondition: scripts/prepare-harness-floor.sh is executable (guard 1)" "yes" \
+  "$(test -x "$HC_GLUE" && echo yes || echo no)"
+if [ -x "$HC_GLUE" ]; then
+  HC_N="$(git_sandbox "hc issue-number")"
+  printf '{"type":"result","total_cost_usd":1}' > "$HC_N/exec.json"
+  cat > "$HC_N/gh-fail" <<'GHEOF'
+#!/usr/bin/env bash
+case "${1:-}" in --version) echo "gh version 0 (stub)"; exit 0 ;; esac
+exit 1
+GHEOF
+  cat > "$HC_N/gh-empty" <<'GHEOF'
+#!/usr/bin/env bash
+case "${1:-}" in --version) echo "gh version 0 (stub)"; exit 0 ;; esac
+exit 0
+GHEOF
+  chmod +x "$HC_N/gh-fail" "$HC_N/gh-empty"
+  HC_N_FAIL="$(DEVFLOW_GH="$HC_N/gh-fail" bash "$HC_GLUE" "$HC_N/exec.json" implement 2006 "$HC_N/c1.json" 2>/dev/null)"
+  assert_eq "#2006 glue: the implement arm emits the issue number even when no PR resolves" "yes" \
+    "$(printf '%s' "$HC_N_FAIL" | grep -qF "DEVFLOW_ISSUE_NUMBER='2006'" && echo yes || echo no)"
+  assert_eq "#2006 glue: a failed gh lookup is reported as gh-lookup-failed, not as an absent PR" "yes" \
+    "$(printf '%s' "$HC_N_FAIL" | grep -qF "DEVFLOW_NO_PR_REASON='gh-lookup-failed'" && echo yes || echo no)"
+  HC_N_EMPTY="$(DEVFLOW_GH="$HC_N/gh-empty" bash "$HC_GLUE" "$HC_N/exec.json" implement 2006 "$HC_N/c2.json" 2>/dev/null)"
+  assert_eq "#2006 glue: a clean lookup that finds no closing PR is reported as no-closing-pr-found" "yes" \
+    "$(printf '%s' "$HC_N_EMPTY" | grep -qF "DEVFLOW_NO_PR_REASON='no-closing-pr-found'" && echo yes || echo no)"
+  # A non-implement class's candidate is a PR number, so emitting it as the issue number
+  # would key the PR-less record to a PR as if it were an issue.
+  HC_N_REVIEW="$(DEVFLOW_GH="$HC_N/gh-empty" bash "$HC_GLUE" "$HC_N/exec.json" "/prflow:review" 88 "$HC_N/c3.json" 2>/dev/null)"
+  assert_eq "#2006 glue: a non-implement class emits an EMPTY issue number" "yes" \
+    "$(printf '%s' "$HC_N_REVIEW" | grep -qF "DEVFLOW_ISSUE_NUMBER=''" && echo yes || echo no)"
+  rm -rf "$HC_N"
+fi
+
+# The fail-closed direction of the prior-record count: when the telemetry-branch fetch
+# could NOT be established, an absent ref says nothing about prior records, so the count
+# is the unestablished sentinel rather than a real 0. devflow_telemetry_list_blobs cannot
+# express this distinction — it returns 0 and prints nothing on an absent ref, a failed
+# ref probe and an unreadable tree alike — which is why the floor probes the ref itself.
+RP_U="$(_hc_repo "rp unestablished")"
+git -C "$RP_U" remote set-url origin "$RP_U/../definitely-no-such-remote.git"
+( cd "$RP_U" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4008 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 run-profile: an unestablished telemetry fetch makes prior_record_count unestablished, never a real 0" \
+  "unestablished" \
+  "$(_et_show "$RP_U" ".prflow/logs/efficiency/pr-42-4008-1.json" | jq -r '.run_profile.prior_record_count')"
+rm -rf "$RP_U"
+
+# ── #2006: the union merge re-applies EVERY floor key ────────────────────────
+# On a concurrent-writer push the staged record is merged onto the fetched base rather than
+# overwriting it, so a floor key absent from the re-apply list is silently dropped on that
+# path. The declared list is reconciled against the keys efficiency-trace.sh writes in the
+# three shapes the extractor below recognizes — a jq top-level assignment, a
+# `_floor_merge_key_staged "$f" <key>` call, and a record-building `{schema_version: 1, …}`
+# object. A floor writing its key in some fourth shape is outside that recognition and is
+# NOT caught here, so a new floor uses one of those three or registers its key by hand.
+TB_FLOOR_KEYS="$(grep -o "_DEVFLOW_TELEMETRY_FLOOR_KEYS_JSON='[^']*'" "$LIB/telemetry-branch.sh" | sed "s/.*='//;s/'$//")"
+TB_KEYS_DECLARED="$(printf '%s' "$TB_FLOOR_KEYS" | jq -r '. | sort | join(" ")')"
+TB_KEYS_WRITTEN="$(python3 - "$LIB/efficiency-trace.sh" <<'PYEOF'
+import re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+keys = set(re.findall(r'\.([a-z_]+) = \$', src))
+keys |= set(re.findall(r'_floor_merge_key_staged "\$f" ([a-z_]+)', src))
+skeleton = {"schema_version", "slug", "generated_at", "source", "synthesized",
+            "iterations", "per_iteration", "telemetry"}
+for block in re.findall(r"\{schema_version: 1,.*?\}'", src, re.S):
+    for k in re.findall(r'(?:^|[{,])\s*([a-z_]+):', block):
+        if k not in skeleton:
+            keys.add(k)
+print(" ".join(sorted(keys)))
+PYEOF
+)"
+assert_eq "#2006 union merge: the declared key list equals the floor writes the extractor recognizes" \
+  "$TB_KEYS_WRITTEN" "$TB_KEYS_DECLARED"
+# The derivation must find something: an extractor that silently returns nothing would make
+# the equality above pass against an empty declared list.
+assert_eq "#2006 union merge: the key derivation is not vacuous (it found keys)" "yes" \
+  "$(test -n "$TB_KEYS_WRITTEN" && echo yes || echo no)"
+# Couple the fixture program below to the one telemetry-branch.sh actually runs; without
+# this the fixture is a hand copy and a change to the real program leaves it green.
+TB_MERGE_PROG="$(sed -n "/reduce (\$keys\[\]) as \$k (\./,/else . end)/p" "$LIB/telemetry-branch.sh" | sed "s/^ *//;s/ *\\\\$//" | sed "1s/^'//;\$s/' 2>\/dev\/null)\"$//")"
+assert_eq "#2006 union merge: the fixture program is byte-equal to telemetry-branch.sh's own lines" "yes" \
+  "$(printf '%s\n' "$TB_MERGE_PROG" | grep -qxF "$(grep -F 'if has($k) then . elif ($local[$k] != null)' "$LIB/telemetry-branch.sh" | sed "s/^ *//;s/ *\\\\$//;s/' 2>\/dev\/null)\"$//")" && echo yes || echo no)"
+TB_MERGE_BASE='{"schema_version":1,"slug":"pr-6"}'
+TB_MERGE_LOCAL='{"schema_version":1,"slug":"pr-6","harness_cost":{"cost_usd":5},"permission_denials":{"count":2},"run_profile":{"final_status":"Complete"},"issue_number":2006,"no_pr_reason":"no-closing-pr-found"}'
+assert_eq "#2006 union merge: a base lacking every floor key gains all of them" \
+  '["harness_cost","issue_number","no_pr_reason","permission_denials","run_profile"]' \
+  "$(printf '%s' "$TB_MERGE_BASE" | jq -c --argjson local "$TB_MERGE_LOCAL" --argjson keys "$TB_FLOOR_KEYS" "$TB_MERGE_PROG" | jq -c '[keys[] | select(. != "schema_version" and . != "slug")]')"
+# A base that already carries a key wins for THAT key — another writer got there first —
+# while the keys it lacks are still filled in.
+TB_MERGE_BASE2='{"schema_version":1,"slug":"pr-6","harness_cost":{"cost_usd":9}}'
+assert_eq "#2006 union merge: a base-side key wins per key, and the absent ones are still added" \
+  '[9,2,"Complete",2006]' \
+  "$(printf '%s' "$TB_MERGE_BASE2" | jq -c --argjson local "$TB_MERGE_LOCAL" --argjson keys "$TB_FLOOR_KEYS" "$TB_MERGE_PROG" | jq -c '[.harness_cost.cost_usd,.permission_denials.count,.run_profile.final_status,.issue_number]')"
+
+# ── #2006 glue: the two causes of `workpad.py id` exit 2 stay distinguishable ──
+# argparse also exits 2, on a usage error, so an older vendored workpad.py with no `id`
+# subcommand reaches the same code the "no workpad comment" arm reads. Reporting a
+# missing comment there names a cause the glue never observed.
+# A guarded-out block silently drops its assertions, which an exact floor reports as a
+# bare count mismatch; assert the precondition so a lost executable bit names itself.
+assert_eq "#2006 module precondition: scripts/prepare-run-profile.sh is executable (guard 2)" "yes" \
+  "$(test -x "$RPG" && echo yes || echo no)"
+if [ -x "$RPG" ]; then
+  RPG_A="$(git_sandbox "rp argparse")"
+  printf '%s\n' \
+    '#!/usr/bin/env python3' \
+    'import sys' \
+    'sys.stderr.write("usage: workpad.py [-h] {body,create} ...\n")' \
+    'sys.exit(2)' \
+    > "$RPG_A/workpad.py"
+  printf '%s\n' \
+    '#!/usr/bin/env python3' \
+    'import sys' \
+    'sys.exit(2)' \
+    > "$RPG_A/workpad-quiet.py"
+  cp "$LIB/../scripts/derive-run-profile.py" "$RPG_A/"
+  cp "$RPG" "$RPG_A/"
+  chmod +x "$RPG_A"/*.py "$RPG_A/prepare-run-profile.sh"
+  RPG_A_OUT="$(bash "$RPG_A/prepare-run-profile.sh" 2006 "$RPG_A/out.json" 2>&1)"
+  assert_eq "#2006 glue: an argparse usage error at exit 2 is reported as a rejected subcommand" "yes" \
+    "$(printf '%s' "$RPG_A_OUT" | grep -q "rejected the 'id' subcommand" && echo yes || echo no)"
+  assert_eq "#2006 glue: that arm does NOT claim the issue has no workpad comment" "yes" \
+    "$(printf '%s' "$RPG_A_OUT" | grep -q 'has no workpad comment' && echo no || echo yes)"
+  mv "$RPG_A/workpad-quiet.py" "$RPG_A/workpad.py"
+  RPG_Q_OUT="$(bash "$RPG_A/prepare-run-profile.sh" 2006 "$RPG_A/out.json" 2>&1)"
+  assert_eq "#2006 glue: a silent exit 2 IS the no-workpad arm" "yes" \
+    "$(printf '%s' "$RPG_Q_OUT" | grep -q 'has no workpad comment' && echo yes || echo no)"
+  rm -rf "$RPG_A"
+fi
+
+# ── #2006 glue: every emitted operand is shape-sanitized before it is eval'd ───
+# Both workflows run `eval "$(bash prepare-harness-floor.sh …)"`, so an operand carrying a
+# single quote breaks out of the quoting and executes. The candidate number reaches _emit
+# on the implement arm, and on the unusable-issue branch it is by construction not a
+# number — so the sanitizing happens in _emit, the one place whose contract asserts it.
+# A guarded-out block silently drops its assertions, which an exact floor reports as a
+# bare count mismatch; assert the precondition so a lost executable bit names itself.
+assert_eq "#2006 module precondition: scripts/prepare-harness-floor.sh is executable (guard 2)" "yes" \
+  "$(test -x "$HC_GLUE" && echo yes || echo no)"
+if [ -x "$HC_GLUE" ]; then
+  HC_INJ="$(git_sandbox "hc inject")"
+  printf '{"type":"result","total_cost_usd":1}' > "$HC_INJ/exec.json"
+  cat > "$HC_INJ/gh" <<'GHEOF'
+#!/usr/bin/env bash
+case "${1:-}" in --version) echo "gh version 0 (stub)"; exit 0 ;; esac
+exit 1
+GHEOF
+  chmod +x "$HC_INJ/gh"
+  HC_INJ_OUT="$(DEVFLOW_GH="$HC_INJ/gh" bash "$HC_GLUE" "$HC_INJ/exec.json" implement "2006'; : pwned #" "$HC_INJ/c.json" 2>/dev/null)"
+  assert_eq "#2006 glue: a quote-carrying candidate never reaches the eval'd output" "yes" \
+    "$(printf '%s' "$HC_INJ_OUT" | grep -q ": pwned" && echo no || echo yes)"
+  assert_eq "#2006 glue: an unusable issue number is emitted EMPTY rather than raw" "yes" \
+    "$(printf '%s' "$HC_INJ_OUT" | grep -qF "DEVFLOW_ISSUE_NUMBER=''" && echo yes || echo no)"
+  # Every emitted line must survive `eval` unchanged — the consumer's own operation is the
+  # guard, so drive it rather than re-deriving a quoting rule here.
+  HC_INJ_EVAL="unrun"
+  if ! printf '%s' "$HC_INJ_OUT" | grep -q ": pwned"; then
+    HC_INJ_EVAL="$( eval "$HC_INJ_OUT"; printf '%s|%s' "${DEVFLOW_ISSUE_NUMBER:-}" "${DEVFLOW_COMMAND_CLASS:-}" )"
+  fi
+  assert_eq "#2006 glue: the emitted block evals to an empty issue number and the right class" "|implement" \
+    "$HC_INJ_EVAL"
+  assert_eq "#2006 glue: blanking an out-of-shape operand draws its own breadcrumb, never silence" "yes" \
+    "$(DEVFLOW_GH="$HC_INJ/gh" bash "$HC_GLUE" "$HC_INJ/exec.json" implement "2006'; : pwned #" "$HC_INJ/c.json" 2>&1 >/dev/null | grep -q 'DEVFLOW_ISSUE_NUMBER was emitted EMPTY' && echo yes || echo no)"
+  # A well-shaped operand must NOT draw it — otherwise the breadcrumb fires on every run
+  # and stops meaning anything.
+  assert_eq "#2006 glue: a well-shaped operand draws no blanking breadcrumb" "yes" \
+    "$(DEVFLOW_GH="$HC_INJ/gh" bash "$HC_GLUE" "$HC_INJ/exec.json" implement 2006 "$HC_INJ/c.json" 2>&1 >/dev/null | grep -q 'was emitted EMPTY' && echo no || echo yes)"
+  rm -rf "$HC_INJ"
+fi
+
+# ── #2006: both new floors honour the telemetry off-switch ───────────────────
+# The off-switch-that-never-worked class: a floor that ignores
+# efficiency_telemetry_enabled keeps writing after a consumer disables telemetry. Both
+# pre-existing floors assert this arm; the two new ones must too.
+RP_OFF="$(_hc_repo "rp disabled")"
+printf '{"prflow_review_and_fix":{"efficiency_telemetry_enabled":false}}' > "$RP_OFF/.prflow/config.json"
+RP_OFF_ERR="$( ( cd "$RP_OFF" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4009 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 run-profile: telemetry disabled → the operand draws a breadcrumb and nothing is attached" "yes" \
+  "$(printf '%s' "$RP_OFF_ERR" | grep -q 'run-profile floor: efficiency telemetry is disabled' && echo yes || echo no)"
+assert_eq "#2006 run-profile: telemetry disabled → no record is written" "no" \
+  "$(_et_on_branch "$RP_OFF" ".prflow/logs/efficiency/pr-42-4009-1.json")"
+RP_OFF_ERR2="$( ( cd "$RP_OFF" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4010 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_NO_PR_REASON=no-closing-pr-found DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 PR-less: telemetry disabled → the floor draws a breadcrumb and writes nothing" "yes" \
+  "$(printf '%s' "$RP_OFF_ERR2" | grep -q 'PR-less floor: efficiency telemetry is disabled' && echo yes || echo no)"
+assert_eq "#2006 PR-less: telemetry disabled → no issue-keyed record is written" "no" \
+  "$(_et_on_branch "$RP_OFF" ".prflow/logs/efficiency/issue-2006-4010-1.json")"
+rm -rf "$RP_OFF"
+
+# ── #2006: run_profile lands WHOLE even when the workpad half is unavailable ──
+# The workpad-sourced pair can fail to derive while engine_outcome and prior_record_count —
+# neither of which needs a workpad — are available, so gating the whole key on the profile
+# recorded established fields as absent rather than as unestablished.
+RP_NOPROF="$(_hc_repo "rp no-profile")"
+( cd "$RP_NOPROF" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4011 GITHUB_RUN_ATTEMPT=1 DEVFLOW_ENGINE_OUTCOME=failure \
+    DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement \
+    bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 run-profile: with no DEVFLOW_RUN_PROFILE the key still lands whole" \
+  "engine_outcome final_status issue_number phase_durations_ms prior_record_count" \
+  "$(_et_show "$RP_NOPROF" ".prflow/logs/efficiency/pr-42-4011-1.json" | jq -r '.run_profile | keys | join(" ")')"
+assert_eq "#2006 run-profile: the fields needing no workpad are RECORDED, not absent" \
+  '["failure",0]' \
+  "$(_et_show "$RP_NOPROF" ".prflow/logs/efficiency/pr-42-4011-1.json" | jq -c '[.run_profile.engine_outcome,.run_profile.prior_record_count]')"
+assert_eq "#2006 run-profile: the workpad-sourced pair reads unestablished, never absent" \
+  '["unestablished","unestablished"]' \
+  "$(_et_show "$RP_NOPROF" ".prflow/logs/efficiency/pr-42-4011-1.json" | jq -c '[.run_profile.phase_durations_ms,.run_profile.final_status]')"
+rm -rf "$RP_NOPROF"
+
+# Neither operand set → still inert and silent, so the agent-side persist call sites are
+# unchanged by this floor.
+RP_INERT2="$(_hc_repo "rp both-unset")"
+RP_INERT2_ERR="$( ( cd "$RP_INERT2" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4012 GITHUB_RUN_ATTEMPT=1 \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) 2>&1 1>/dev/null )"
+assert_eq "#2006 run-profile: with NEITHER operand set the floor stays silent" "yes" \
+  "$(printf '%s' "$RP_INERT2_ERR" | grep -q 'run-profile floor' && echo no || echo yes)"
+# Positive control: silence must mean the floor declined, not that --persist died before
+# reaching it. No witness is writable under the silent run's own env (it sets no operand at
+# all), so this establishes the weaker claim it can: the SAME env plus a cost operand
+# completes --persist and writes a record carrying no run_profile key.
+( cd "$RP_INERT2" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=4013 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 run-profile: --persist DID complete on that run (silence is a decline, not a death)" "yes" \
+  "$(_et_on_branch "$RP_INERT2" ".prflow/logs/efficiency/pr-42-4013-1.json")"
+assert_eq "#2006 run-profile: and that completed run carries no run_profile key" "false" \
+  "$(_et_show "$RP_INERT2" ".prflow/logs/efficiency/pr-42-4013-1.json" | jq -r 'has("run_profile")')"
+rm -rf "$RP_INERT2"
+
+# ── #2006: prior_record_count counts IMPLEMENT records, as its name says ──────
+# A review or review-and-fix run on the same PR shares the pr-<N>- key, so a name-only
+# count would inflate the figure with records from other command classes.
+RP_CNT="$(_hc_repo "rp prior-count")"
+( cd "$RP_CNT" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5001 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=review-and-fix bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+( cd "$RP_CNT" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5002 GITHUB_RUN_ATTEMPT=1 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+( cd "$RP_CNT" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5003 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=42 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+# Two prior records share the pr-42- key; only one of them is an implement run.
+assert_eq "#2006 prior_record_count: a same-key review record is not counted as an implement one" "1" \
+  "$(_et_show "$RP_CNT" ".prflow/logs/efficiency/pr-42-5003-1.json" | jq -r '.run_profile.prior_record_count')"
+
+# The run_profile.issue_number signal: a prior record with NO harness_cost but a
+# run_profile.issue_number is an implement record and must be counted. Without this the
+# signal could be deleted and the block above would stay green.
+RP_CNT2="$(_hc_repo "rp prior-count profile-only")"
+( cd "$RP_CNT2" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5101 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 \
+    DEVFLOW_EXECUTION_PR=43 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 prior_record_count precondition: the profile-only prior record carries no harness_cost" "false" \
+  "$(_et_show "$RP_CNT2" ".prflow/logs/efficiency/pr-43-5101-1.json" | jq -r 'has("harness_cost")')"
+assert_eq "#2006 prior_record_count precondition: but it does carry run_profile.issue_number" "2006" \
+  "$(_et_show "$RP_CNT2" ".prflow/logs/efficiency/pr-43-5101-1.json" | jq -r '.run_profile.issue_number')"
+( cd "$RP_CNT2" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5102 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=43 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 prior_record_count: a harness_cost-less prior record is counted via run_profile.issue_number" "1" \
+  "$(_et_show "$RP_CNT2" ".prflow/logs/efficiency/pr-43-5102-1.json" | jq -r '.run_profile.prior_record_count')"
+rm -rf "$RP_CNT2"
+
+# The unknown arm: a same-key prior record matching NEITHER signal makes the whole count
+# `unestablished` rather than a decimal that silently omits it. A record with an `issue-`
+# slug and source "review-and-fix" is exactly this shape — 557 such records sit on the
+# telemetry branch — and must NOT be counted as implement.
+RP_CNT3="$(_hc_repo "rp prior-count unknown")"
+# The iteration-collection path writes a record for every run dir it finds; with no cost
+# operand for THIS run id, the prior run's record lands carrying no harness_cost at all —
+# the shape 557 records on the real telemetry branch have.
+mkdir -p "$RP_CNT3/.prflow/tmp/review/pr-44/5201-1"
+printf '%s' "$HC_ITER" > "$RP_CNT3/.prflow/tmp/review/pr-44/5201-1/iter-1.json"
+( cd "$RP_CNT3" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5201 GITHUB_RUN_ATTEMPT=1 \
+    DEVFLOW_COMMAND_CLASS=review-and-fix bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 prior_record_count precondition: the unclassifiable prior record matches neither signal" "true" \
+  "$(_et_show "$RP_CNT3" ".prflow/logs/efficiency/pr-44-5201-1.json" | jq -r '(has("harness_cost") | not) and (.run_profile.issue_number == null)')"
+( cd "$RP_CNT3" && env -u GITHUB_ACTIONS GITHUB_RUN_ID=5202 GITHUB_RUN_ATTEMPT=1 DEVFLOW_RUN_PROFILE="$RP_PROFILE" \
+    DEVFLOW_ENGINE_OUTCOME=success DEVFLOW_ISSUE_NUMBER=2006 DEVFLOW_EXECUTION_COST="$HC_COST" \
+    DEVFLOW_EXECUTION_PR=44 DEVFLOW_COMMAND_CLASS=implement bash "$LIB/efficiency-trace.sh" --persist ) >/dev/null 2>&1
+assert_eq "#2006 prior_record_count: an unclassifiable same-key record makes the count unestablished, not a short decimal" "unestablished" \
+  "$(_et_show "$RP_CNT3" ".prflow/logs/efficiency/pr-44-5202-1.json" | jq -r '.run_profile.prior_record_count')"
+rm -rf "$RP_CNT3"

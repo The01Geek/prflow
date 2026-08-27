@@ -30,9 +30,45 @@ Prompt size, delivered context, and model behavior are related but not identical
 - `scripts/create-issue-benchmark.py` — provider-neutral paired execution, statistical reporting, and anonymized review export.
 - `scripts/workflow_flight_recorder.py` — transcript and workflow evidence.
 - `scripts/prompt-surface-growth.py` — prompt-surface measurement.
+- `scripts/implement-timeline.py`, `scripts/implement-run-report.py`, `scripts/implement-benchmark.py`, `scripts/derive-run-profile.py` and the shared `scripts/implement_records.py` — implement run evaluation, tabulated above.
 - `lib/test/` evaluation guards and fixtures — reproducibility checks.
 - [`docs/internal/skill-body-load-delivery.md`](../skill-body-load-delivery.md) — skill delivery evidence.
 - [`docs/internal/implement-context.md`](../implement-context.md) and [`docs/internal/review-and-fix-split-wording-study.md`](../review-and-fix-split-wording-study.md) — detailed studies.
+
+## Implement run evaluation instruments
+
+Each cloud implement run persists one per-run efficiency record on the telemetry branch. The
+record is the joined measurement channel; the instruments below read it, or read the run's
+execution-transcript artifact, and none of them writes it.
+
+| Instrument | Input | Output channel |
+| --- | --- | --- |
+| `scripts/derive-run-profile.py` | a workpad comment body, as `--body-file <path>` | the `run_profile` object (per-phase durations and the final status word) on stdout as JSON |
+| `scripts/prepare-run-profile.sh` | an issue number and an output path | the same JSON written to that output path, having resolved the workpad comment itself; diagnostics on stderr |
+| `scripts/implement-timeline.py` | a run id (it downloads that run's execution-transcript artifact) or `--transcript <path>` | per-phase, per-step and per-activity wall-clock tables on stdout; the same data as JSON with `--json <path>` |
+| `scripts/implement-run-report.py` | the experiment-record store; a required run count `<N>`, or `--retro` | one row per run plus an aggregate block on stdout; under `--retro`, the weekly retrospective's implement-runtime trend section |
+| `scripts/implement-benchmark.py` | the experiment-record store and two `config_fingerprint` values | a per-cohort statistics block and an efficiency verdict on stdout, or a printed withholding reason |
+| `scripts/implement_records.py` | not a CLI — the shared reader the three report tools import | `load_runs_with_status()`, which reports an absent store separately from an unreadable one |
+
+The per-run record's added fields are populated by floors in `lib/efficiency-trace.sh`
+(`apply_run_profile_floor`, `apply_pr_less_issue_floor`), so a run that ends with no resolvable
+PR still persists an issue-keyed record naming why. A field whose source is unavailable holds
+the string `unestablished` and is excluded from every aggregate rather than counted as zero.
+
+### Why the prior-record count classifies on `harness_cost.command` alone
+
+`_prior_implement_record_count` in `lib/efficiency-trace.sh` classifies a candidate record as an
+implement record from `harness_cost.command`, falling back to the presence of
+`run_profile.issue_number`, and deliberately reads neither `.slug` nor `.source`. Measured over the
+2409 records on the telemetry branch at the time issue #2006 landed: 557 records carrying no
+`harness_cost` have a `.slug` beginning `issue-` but were written by review-and-fix runs on
+issue-named branches, so a slug signal overcounts them as implement; and 191 records whose
+`harness_cost.command` is `implement` carry `.source == "review-and-fix"`, so a source signal
+misclassifies genuine implement records as other. Neither field separates the two classes.
+
+The transcript channel is separate from the record channel: `implement-timeline.py` reads an
+artifact that expires after seven days, and reports that expiry as a notice at exit 0 rather
+than as a failure. A figure it cannot establish is not a zero.
 
 ## Controlled create-issue benchmark workflow
 
