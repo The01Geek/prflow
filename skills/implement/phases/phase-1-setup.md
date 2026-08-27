@@ -292,7 +292,7 @@ Use the Agent tool with `subagent_type: prflow:branch-setup` and `run_in_backgro
 
 - `ISSUE_NUMBER` — `$ISSUE_NUMBER`.
 - `WORKPAD` — the `workpad.py` helper path this tier uses as a leading token (the vendored literal `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier; the resolved `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py` on the local tier). Pass the ladder's rung order alongside this path — this leading-token form is rung 1 and the remaining rungs follow it in order — so the agent can fall through when the leading-token form does not run.
-- `SCRIPTS` — the same bundled-helper directory prefix (for `config-get.sh`, `branch-for-issue.py`, `preflight.py`, `run-jq.sh`, `refresh-pr-run-link.py`).
+- `SCRIPTS` — the same bundled-helper directory prefix (for `config-get.sh`, `branch-for-issue.py`, `preflight.py`, `run-jq.sh`, `pr-note-block.py`).
 - `BASE` — `$BASE` (the base branch; the agent re-derives it with the same fail-closed guard so a stale value cannot silently mistarget).
 - `WORKPAD_BODY` — the live workpad body read in §1.3/§1.4 (the agent reads its `**Branch:**` line from it; it must not re-fetch).
 - `HANDOFF` — the §1.3 cloud handoff provenance value (`created-current-run` / `adopted-existing` / `unknown`), which decides Verdict B's `provenance_established`.
