@@ -20,7 +20,7 @@ Add PRFlow's optional GitHub Actions tier to a repository. Skip this page if you
 <Steps>
   <Step title="Download the Installer">
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.35.7/install.sh -o devflow-install.sh
+    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.35.8/install.sh -o devflow-install.sh
     ```
   </Step>
   <Step title="Read the File Before Running It">
@@ -30,7 +30,7 @@ Add PRFlow's optional GitHub Actions tier to a repository. Skip this page if you
     The URL selects the installer. `DEVFLOW_REF` selects the payload it installs. Use the same value in both places.
 
     ```bash
-    DEVFLOW_REF=v2.35.7 bash devflow-install.sh
+    DEVFLOW_REF=v2.35.8 bash devflow-install.sh
     ```
 
     A first installation applies immediately. Add `--dry-run`, or set `DEVFLOW_DRY_RUN=1`, to preview instead.
@@ -71,7 +71,7 @@ Add PRFlow's optional GitHub Actions tier to a repository. Skip this page if you
     The workflows fetch the plugin at run time into `.prflow/vendor/prflow/`, using the `prflow_version` pin in `.prflow/config.json`. The fetched tree is ignored and is not committed.
 
     ```bash
-    DEVFLOW_REF=v2.35.7 bash devflow-install.sh
+    DEVFLOW_REF=v2.35.8 bash devflow-install.sh
     ```
 
     Choose this for a small install diff and a small update diff.
@@ -80,7 +80,7 @@ Add PRFlow's optional GitHub Actions tier to a repository. Skip this page if you
     The plugin tree is committed to your repository instead.
 
     ```bash
-    DEVFLOW_VENDOR=1 DEVFLOW_REF=v2.35.7 bash devflow-install.sh
+    DEVFLOW_VENDOR=1 DEVFLOW_REF=v2.35.8 bash devflow-install.sh
     ```
 
     Choose this when you want no run-time fetch and want the plugin bytes auditable in your own history. Expect a much larger install and update diff.

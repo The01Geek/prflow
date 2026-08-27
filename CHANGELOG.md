@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.8] — 2026-08-27
+
+### Fixed
+- **Treat an empty `permission_denials` array as a measured zero in the denial-count extractors.** On claude-code CLI 2.1.247 the execution file carries a `permission_denials` array (empty on a clean run) and no `permission_denials_count` field, so `scripts/surface-execution-diagnostics.sh` and `scripts/build-denial-record.sh` reported every clean run's count as `unavailable` instead of `0`. Both extractors now treat the presence of a `permission_denials` array as a measurement (an empty or all-non-object array yields `0`), retain the `unavailable` sentinel for the neither-carrier case (no count field and no `permission_denials` array), and emit a shape-drift warning when a result event is present but the count is still unknown. The `devflow-runner.yml` output mapping moves to the documented string-equality form so a published `0` survives. (#2068)
+
 ## [2.35.7] — 2026-08-27
 
 ### Added
