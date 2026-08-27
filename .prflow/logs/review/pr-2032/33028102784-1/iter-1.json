@@ -1,0 +1,97 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T00:00:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "engine_verdict": "APPROVE",
+  "engine_return_file": ".prflow/tmp/review/pr-2032/33028102784-1/engine-return-step1-iter-1.json",
+  "park_calibration": null,
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-27T00:00:00Z",
+    "reviewed_sha": "866a23fa758a0fca684416f71d73e728b0e43913",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": "intentional",
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "engine_return_file": ".prflow/tmp/review/pr-2032/33028102784-1/engine-return-shadow-iter-1.json",
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

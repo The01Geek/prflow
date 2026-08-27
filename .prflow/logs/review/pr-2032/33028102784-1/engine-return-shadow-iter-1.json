@@ -1,0 +1,46 @@
+{
+  "root_completeness": "complete",
+  "verdict": "APPROVE",
+  "phase4_1": {
+    "report": "Independent BLINDED SHADOW re-review of PR #2032 (issue #2028). Prose-only diff: one clause added to step 2 of the §2.3.4a self-authored-claim sweep in skills/implement/phases/phase-2-sweeps-quality.md, a matching mirror sentence in docs/internal/implement-skill.md, and a new .changeset entry (bump patch, type Changed). All four dispatched Phase-3 reviewers returned clean with zero findings. Acceptance criteria for #2028 all satisfied: AC1 — step 2 now traces a default-invocation claim to the helper's argument parsing and env-var defaults (verified in diff); AC2 — lib/test/lint-reference-size.py runs and exits 0 with no violation naming the file (verified locally); AC3 — no new lint/test/pinned literal, step numbering (1-8) and routing markers unchanged (verified in diff). Skill-body, docs mirror, and changeset are mutually consistent and truthful against HEAD. Prompt-surface edit routing evidence gate: the issue #2028 workpad carries a complete `Writing-skills evidence:` marker (mode=subagent, all four slots stated: skill-loaded=yes, guidance-applied=yes, pressure-scenario=no with reason, micro-tests=no with reason) — gate discharged. No documented_falsehood, no convention violation, no silent-failure class. Verdict: APPROVE.",
+    "verdict": "APPROVE",
+    "test_evidence": "reference-size lint (AC2 instrument) run locally, exit 0, no violation naming the file; change is agent-executed prompt prose with no automated regression coverage by recorded policy (review pass is the compensating control)."
+  },
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "per_reviewer_assessment": [
+    {"agent": "prflow:code-reviewer", "returned": true, "assessment": "No findings. Skill body, docs mirror, changeset mutually consistent and truthful against HEAD; no documented_falsehood, no convention violation. Noted below-threshold: changeset filename stem issue-2028 vs body trailer (#2032) — plausibly intentional, not filed."},
+    {"agent": "prflow:silent-failure-hunter", "returned": true, "assessment": "No findings. Change is guard-strengthening (adds a detection mechanism, closes a silent-failure class), not guard-weakening; no ordered-after-exit, no new fail-open surface; docs consistent with shipped instruction."},
+    {"agent": "prflow:comment-analyzer", "returned": true, "assessment": "PASS, no findings. Docs sentence and changeset accurately/non-misleadingly describe the skill-body change; prevention-only comment rule does not apply (all changed files are skill prose/internal docs/changeset)."},
+    {"agent": "prflow:requesting-code-review", "returned": true, "assessment": "No findings. All three ACs satisfied; changeset filename unique, no pins reference changed prose, step numbering 1-8 intact, reference-size lint exit 0 with no violation naming the file."}
+  ],
+  "phase3_findings": [],
+  "phase2_fails": [],
+  "diff_profile": {
+    "engine_self_modifying": true,
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "checklist_skipped": false,
+    "files": [
+      ".changeset/issue-2028-self-authored-claim-helper-default.md (added)",
+      "docs/internal/implement-skill.md (modified)",
+      "skills/implement/phases/phase-2-sweeps-quality.md (modified)"
+    ],
+    "gated_out": [
+      {"agent": "prflow:type-design-analyzer", "reason": "has_new_types=false"},
+      {"agent": "prflow:pr-test-analyzer", "reason": "test-relevance predicate unmet — all changed files .md/config_only, no test change and no added testable code logic"}
+    ]
+  },
+  "cap_drops": []
+}
