@@ -41697,7 +41697,7 @@ ubc_covmap_make() {  # root [stage_driver]
   printf 'lib/test/modules/coverage-map.json merge=coverage-map-json\n' > "$root/work/.gitattributes"
   for dep in $UBC_CM_DEPS; do
     [ "$dep" = "coverage-map-merge-driver.py" ] && [ "$stage_driver" = "0" ] && continue
-    cp "$LIB/$dep" "$root/work/lib/test/$dep"
+    cp "$LIB/test/$dep" "$root/work/lib/test/$dep"
   done
   printf '{\n  "aaa": {"owner": "x"},\n  "zzz": {"owner": "x"}\n}\n' > "$root/work/lib/test/modules/coverage-map.json"
   git -C "$root/work" add .gitattributes lib/test

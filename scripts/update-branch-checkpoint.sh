@@ -320,8 +320,8 @@ _merge_and_dispatch() {
 # (6.5) Register the coverage-map JSON-aware merge driver so an adjacent-key
 # coverage-map.json insertion unions instead of routing to CONFLICT below (issue #2025).
 # Guard on the .gitattributes DECLARATION, never driver-file existence: a moved driver
-# here must warn, not silently revert every checkpoint merge to git's line-based merge,
-# and the vendored copy in a consumer repo (no declaration) must stay silent. Fail-soft.
+# here must warn (below), not silently fall back to git's line-based merge, and the
+# vendored copy in a consumer repo (no declaration) must stay silent. Fail-soft.
 _ubc_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [ -n "$_ubc_root" ] && [ -f "$_ubc_root/.gitattributes" ]; then
   _ubc_map_driver_declared=0
