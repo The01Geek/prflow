@@ -47,8 +47,12 @@ def _load_sibling(name: str, filename: str):
     return mod
 
 
-lint_manifest = _load_sibling("lint_manifest", "lint_manifest.py")
 lint_provision = _load_sibling("lint_provision", "lint_provision.py")
+# lint_provision owns the manifest's artifact-shape layout (resolve_artifact /
+# iter_declared_artifacts) and re-exports the validated manifest reader, so reuse
+# both here rather than re-loading lint_manifest or re-walking the manifest shape.
+load_manifest = lint_provision.lint_manifest.load_manifest
+iter_declared_artifacts = lint_provision.iter_declared_artifacts
 
 # Cap a single download so a malicious or mistaken URL cannot exhaust memory. The
 # real assets are a few MB; 256 MiB is far above any of them and far below OOM.
@@ -64,20 +68,6 @@ def _default_fetch(url: str) -> bytes:
     if len(data) > _MAX_BYTES:
         raise ValueError(f"download exceeded {_MAX_BYTES} bytes: {url}")
     return data
-
-
-def iter_declared_artifacts(manifest: dict) -> list[tuple[str, str, str]]:
-    """Every declared `(tool, os, arch)` tuple in the manifest, in declaration
-    order. This is derived from the manifest's own `artifacts` lists, so the
-    verifier can never silently narrow the set it checks."""
-    out: list[tuple[str, str, str]] = []
-    for tool, tool_obj in manifest.get("tools", {}).items():
-        if not isinstance(tool_obj, dict):
-            continue
-        for art in tool_obj.get("artifacts", []):
-            if isinstance(art, dict) and "os" in art and "arch" in art:
-                out.append((tool, art["os"], art["arch"]))
-    return out
 
 
 class ArtifactResult:
@@ -124,7 +114,7 @@ def verify_manifest_digests(manifest_path, fetch=None) -> VerifyResult:
     if fetch is None:
         fetch = _default_fetch
 
-    loaded = lint_manifest.load_manifest(manifest_path)
+    loaded = load_manifest(manifest_path)
     if not loaded.established:
         return VerifyResult(False, f"unestablished manifest: {loaded.reason}", [])
     manifest = loaded.manifest
@@ -163,10 +153,19 @@ def verify_manifest_digests(manifest_path, fetch=None) -> VerifyResult:
     return VerifyResult(ok, reason, results)
 
 
+def _force_utf8_streams():
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv=None) -> int:
     """CLI: `verify_lint_manifest_digests.py <manifest-path>`. Prints one line per
     declared artifact and a summary; exits 0 only when every declared artifact
     verified, 1 otherwise."""
+    _force_utf8_streams()
     import argparse
 
     parser = argparse.ArgumentParser(

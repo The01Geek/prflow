@@ -38903,6 +38903,16 @@ def _vlm_seed_digests(manifest):
     return content
 
 
+def _vlm_run(manifest, fetch):
+    """Write the manifest to a temp file, verify it with the injected fetch, and
+    always clean the temp file up — the scaffold every verify case below shares."""
+    _p = _vlm_write(manifest)
+    try:
+        return _VLM.verify_manifest_digests(_p, fetch=fetch)
+    finally:
+        os.unlink(_p)
+
+
 # Enumeration is derived from the manifest itself, so the verifier can never silently
 # narrow the set it checks.
 assert_eq('#2029 iter: no tools -> empty', [], _VLM.iter_declared_artifacts({}))
@@ -38914,11 +38924,7 @@ assert_eq('#2029 iter: shipped manifest enumerates all 10 declared artifacts', 1
 # Happy path — every declared artifact fetched with the seeded bytes verifies clean.
 _vlm_ok_manifest = json.loads(json.dumps(_VLM_BASE))
 _vlm_ok_content = _vlm_seed_digests(_vlm_ok_manifest)
-_vlm_ok_path = _vlm_write(_vlm_ok_manifest)
-try:
-    _vlm_ok = _VLM.verify_manifest_digests(_vlm_ok_path, fetch=lambda u: _vlm_ok_content[u])
-finally:
-    os.unlink(_vlm_ok_path)
+_vlm_ok = _vlm_run(_vlm_ok_manifest, lambda u: _vlm_ok_content[u])
 assert_eq('#2029 verify: every declared artifact verifies -> ok', True, _vlm_ok.ok)
 assert_eq('#2029 verify: one result per declared artifact (never narrows)', 10,
           len(_vlm_ok.results))
@@ -38929,11 +38935,7 @@ assert_eq('#2029 verify: every result is verified', True,
 _vlm_bad_manifest = json.loads(json.dumps(_VLM_BASE))
 _vlm_bad_content = _vlm_seed_digests(_vlm_bad_manifest)
 _vlm_bad_manifest['tools']['ruff']['artifacts'][0]['digest'] = 'sha256:' + '0' * 64
-_vlm_bad_path = _vlm_write(_vlm_bad_manifest)
-try:
-    _vlm_bad = _VLM.verify_manifest_digests(_vlm_bad_path, fetch=lambda u: _vlm_bad_content[u])
-finally:
-    os.unlink(_vlm_bad_path)
+_vlm_bad = _vlm_run(_vlm_bad_manifest, lambda u: _vlm_bad_content[u])
 assert_eq('#2029 verify: a digest mismatch fails the check', False, _vlm_bad.ok)
 assert_eq('#2029 verify: the mismatched artifact is flagged, not skipped', 1,
           sum(1 for r in _vlm_bad.results if r.status == 'digest-mismatch'))
@@ -38948,12 +38950,7 @@ _vlm_unres_manifest['tools']['ruff']['artifacts'].append({
     'digest': 'sha256:' + 'a' * 64, 'archive_type': 'zip',
     'member': 'ruff.exe', 'strategy': 'extract-zip'})
 _vlm_unres_content = _vlm_seed_digests(_vlm_unres_manifest)
-_vlm_unres_path = _vlm_write(_vlm_unres_manifest)
-try:
-    _vlm_unres = _VLM.verify_manifest_digests(
-        _vlm_unres_path, fetch=lambda u: _vlm_unres_content[u])
-finally:
-    os.unlink(_vlm_unres_path)
+_vlm_unres = _vlm_run(_vlm_unres_manifest, lambda u: _vlm_unres_content[u])
 assert_eq('#2029 verify: a declared artifact with no URL template fails closed', False,
           _vlm_unres.ok)
 assert_eq('#2029 verify: the unresolvable declared artifact is flagged unresolved', 1,
@@ -38966,11 +38963,7 @@ def _vlm_raise(_u):
 
 _vlm_fe_manifest = json.loads(json.dumps(_VLM_BASE))
 _vlm_seed_digests(_vlm_fe_manifest)
-_vlm_fe_path = _vlm_write(_vlm_fe_manifest)
-try:
-    _vlm_fe = _VLM.verify_manifest_digests(_vlm_fe_path, fetch=_vlm_raise)
-finally:
-    os.unlink(_vlm_fe_path)
+_vlm_fe = _vlm_run(_vlm_fe_manifest, _vlm_raise)
 assert_eq('#2029 verify: a fetch failure fails the check', False, _vlm_fe.ok)
 assert_eq('#2029 verify: every declared artifact recorded as fetch-error', 10,
           sum(1 for r in _vlm_fe.results if r.status == 'fetch-error'))

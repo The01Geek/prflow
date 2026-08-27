@@ -109,6 +109,22 @@ def resolve_artifact(manifest: dict, tool: str, os_name: str, arch: str) -> dict
     return None
 
 
+def iter_declared_artifacts(manifest: dict) -> list[tuple[str, str, str]]:
+    """Every declared ``(tool, os, arch)`` tuple in the manifest, in declaration
+    order. Derived from the manifest's own ``artifacts`` lists — kept here, beside
+    ``resolve_artifact``, so this module stays the single owner of the manifest's
+    artifact-shape layout and a caller enumerating the declared set does not
+    re-derive it. ``manifest`` must be an already-validated manifest dict."""
+    out: list[tuple[str, str, str]] = []
+    for tool, tool_obj in manifest.get("tools", {}).items():
+        if not isinstance(tool_obj, dict):
+            continue
+        for art in tool_obj.get("artifacts", []):
+            if isinstance(art, dict) and "os" in art and "arch" in art:
+                out.append((tool, art["os"], art["arch"]))
+    return out
+
+
 def cache_key(os_name: str, arch: str, tool: str, version: str, digest: str,
               installer_version: str) -> str:
     """The run-local cache key `{OS, arch, tool, version, digest, installer version}`.
