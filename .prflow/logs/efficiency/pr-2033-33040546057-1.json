@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2033",
+  "generated_at": "2026-08-27T04:58:57Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.64",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.4313615,
+    "tokens": {
+      "input_tokens": 34,
+      "output_tokens": 23715,
+      "cache_read_input_tokens": 2374227,
+      "cache_creation_input_tokens": 179781,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 54,
+        "outputTokens": 39015,
+        "cacheReadInputTokens": 2807488,
+        "cacheCreationInputTokens": 380447,
+        "webSearchRequests": 0,
+        "costUSD": 5.4313615,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 28,
+    "duration_ms": 510695
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p .prflow/tmp/review/pr-2033/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"run-id=${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-UNSET}\"",
+      "diff <(sed -n '/Prompt-surface edit routing evidence gate/,$p' .prflow/prompt-extensions/review.md) <(sed -n '/Prompt-surface edit routing evidence gate/,$p' .prflow/prompt-extensions/review-and-fix.md) && echo \"TWIN-IDENTICAL\" || echo \"TWIN-DIFFERS\""
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
