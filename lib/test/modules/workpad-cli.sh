@@ -36,20 +36,30 @@ WP_PY="$LIB/../scripts/workpad.py"
 S338="$(mktemp -d)"
 cat > "$S338/gh" <<'STUB'
 #!/usr/bin/env bash
-# Minimal gh stub for workpad.py update: repo view, comments list (marker match),
-# body fetch, and PATCH (records that a PATCH happened + echoes the patched body).
+# Minimal gh stub for workpad.py update (issue #2042 unified resolution): the
+# comments-list scan AND the single-comment verify fetch both return the full
+# workpad object (body + issue_url), so the scan resolves id AND body together —
+# no separate `--jq .body` body fetch, no `gh repo view`. PATCH records that a
+# PATCH happened + echoes the patched body.
 j="$*"
-if [[ "$j" == *"repo view"* ]]; then echo "owner/repo"; exit 0; fi
 if [[ "$j" == *"-X PATCH"* ]]; then
   echo p >> "$WP_PATCHLOG"
   for a in "$@"; do case "$a" in body=@*) cat "${a#body=@}";; esac; done
   exit 0
 fi
-if [[ "$j" == *"issues/comments/7"* ]]; then cat "$WP_BODY"; exit 0; fi
-if [[ "$j" == *"issues/999/comments"* ]]; then echo '[{"id":7,"body":"<!-- devflow:workpad -->"}]'; exit 0; fi
+if [[ "$j" == *"issues/comments/7"* ]]; then
+  printf '{"id":7,"body":%s,"issue_url":"https://api.github.com/repos/owner/repo/issues/999"}' "$(jq -Rs . < "$WP_BODY")"; exit 0
+fi
+if [[ "$j" == *"issues/999/comments"* ]]; then
+  printf '[{"id":7,"body":%s,"issue_url":"https://api.github.com/repos/owner/repo/issues/999"}]' "$(jq -Rs . < "$WP_BODY")"; exit 0
+fi
 echo '[]'
 STUB
 chmod +x "$S338/gh"
+# Issue #2042: clear the repo-root resolved-id cache so this block exercises the
+# scan path first (the verify fetch self-heals a stale id, but a clean start keeps
+# the fixtures deterministic across suite runs).
+rm -rf "$LIB/../.prflow/tmp/workpad-id-cache"
 
 cat > "$S338/base.md" <<'WPMD'
 <!-- devflow:workpad -->
