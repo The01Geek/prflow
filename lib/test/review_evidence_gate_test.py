@@ -359,6 +359,27 @@ class GateEndToEnd(unittest.TestCase):
         token = self._run_raw(d, {'run_roots': [], 'review_ids': []}, bad, eng)
         self.assertEqual(token, 'unestablished reviews-payload-unparseable')
 
+    def test_reviews_payload_zero_byte_file_unestablished(self):
+        # The workflow leaves this file 0-byte on a failed `gh api` fetch. It must read
+        # as unparseable (unestablished), never as an empty review set — the pole that
+        # would launder a hollow verdict into a green no-verdict.
+        d, _head, _base, eng = self._sandbox('code')
+        empty = os.path.join(d, 'empty.json')
+        open(empty, 'w').close()
+        self.assertEqual(os.path.getsize(empty), 0)
+        token = self._run_raw(d, {'run_roots': [], 'review_ids': []}, empty, eng)
+        self.assertEqual(token, 'unestablished reviews-payload-unparseable')
+
+    def test_reviews_payload_literal_empty_array_is_no_verdict(self):
+        # The opposite pole of the zero-byte file: a literal `[]` is a legitimately
+        # empty review set and must reach the no-verdict arm, not an unestablished one.
+        d, _head, _base, eng = self._sandbox('code')
+        arr = os.path.join(d, 'arr.json')
+        with open(arr, 'w') as f:
+            f.write('[]')
+        token = self._run_raw(d, {'run_roots': [], 'review_ids': []}, arr, eng)
+        self.assertEqual(token, 'no-verdict')
+
     def test_reviews_payload_not_an_array_unestablished(self):
         d, _head, _base, eng = self._sandbox('code')
         obj = os.path.join(d, 'obj.json')

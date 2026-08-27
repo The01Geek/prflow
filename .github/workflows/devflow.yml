@@ -2311,8 +2311,13 @@ jobs:
               ;;
             fail\ *)
               echo "::error::review evidence gate: $TOKEN — this run posted a merge-gating verdict without the phase-execution evidence its diff requires"
-              # (a) durable pull-request comment naming the missing evidence.
-              printf '%s\n' "$RESULT" > "$RUNNER_TEMP/evidence-gate-body.md"
+              # (a) durable pull-request comment naming the missing evidence. The
+              # human detail leads; the machine token is kept as a trailing footer so
+              # a reader is not met by the raw `fail missing=… review_id=…` line, and
+              # the token still stays quotable from the comment itself.
+              printf '%s\n' "$RESULT" | tail -n +2 > "$RUNNER_TEMP/evidence-gate-body.md"
+              printf '\n<!-- review-evidence-gate token -->\n`%s`\n' "$TOKEN" \
+                >> "$RUNNER_TEMP/evidence-gate-body.md"
               if jq -n --rawfile b "$RUNNER_TEMP/evidence-gate-body.md" '{body: $b}' \
                    | gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" --input - >/dev/null; then
                 echo "::notice::review evidence gate: posted the missing-evidence comment on #$PR_NUMBER"

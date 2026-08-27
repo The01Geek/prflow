@@ -75,9 +75,9 @@
     },
     "review-evidence-gate": {
       "path": "lib/test/modules/review-evidence-gate.sh",
-      "minimum_assertions": 10,
+      "minimum_assertions": 25,
       "assertion_floor_policy": "exact",
-      "description": "Focused coverage for the cloud review-evidence gate (issue #2075): scripts/review-evidence-gate.py driven end to end by the focused python suite lib/test/review_evidence_gate_test.py (the classification reuse from scripts/workpad.py with no re-copied constants, the malformed phase-log matrix, run-root attribution by the pre/post inventory delta, and every pass/fail/unestablished/no-verdict arm over throwaway git sandboxes and stubbed reviews payloads), plus the new --evidence-gate-fail arm of scripts/flip-review-progress-failed.sh driven against a stubbed gh and a copied workpad.py — a terminal verdict comment left untouched without the flag, rewritten to the terminal failed state with it, the interim-flip control unchanged, and an unrecognized 4th argument refused as a named no-op"
+      "description": "Focused coverage for the cloud review-evidence gate (issue #2075): scripts/review-evidence-gate.py driven end to end by the focused python suite lib/test/review_evidence_gate_test.py (the classification reuse from scripts/workpad.py with no re-copied constants, the malformed phase-log matrix, run-root attribution by the pre/post inventory delta, and every pass/fail/unestablished/no-verdict arm over throwaway git sandboxes and stubbed reviews payloads), plus the new --evidence-gate-fail arm of scripts/flip-review-progress-failed.sh driven against a stubbed gh and a copied workpad.py — a terminal verdict comment left untouched without the flag, rewritten to the terminal failed state with it, the interim-flip control unchanged, and an unrecognized 4th argument refused as a named no-op; and devflow.yml's own extracted \"Review evidence gate\" step shell driven against recording stubs over its dismissal state-gate — an APPROVED and a CHANGES_REQUESTED unbacked review dismissed by their parsed review_id, a COMMENTED verdict left to the durable comment, an absent review_id dismissing nothing, a pass token exiting 0 with no dismissal, and an empty gate output warned as unrecognized rather than passing silently"
     },
     "review-stall-backstop": {
       "path": "lib/test/modules/review-stall-backstop.sh",

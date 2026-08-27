@@ -121,4 +121,111 @@ assert_eq "#2075 flip: an unrecognized 4th argument exits 0" "0" \
 assert_eq "#2075 flip: an unrecognized 4th argument writes nothing and names itself" "yes" \
   "$([ "$(reg_patches)" = 0 ] && grep -qF 'unrecognized 4th argument' "$REG_STATE/err" && echo yes || echo no)"
 
+# Convergence: re-running the evidence-gate arm over a comment already carrying the
+# terminal failed Status must not compound it — the second pass leaves the Status the
+# same failed state, so a re-attempted or retried gate step cannot corrupt the record.
+printf '%s\n' "$REG_MARK" '# PRFlow Review — PR #55' '' '**Status:** ❌ Review failed' \
+  > "$REG_ROOT/failed.md"
+reg_seed "$REG_ROOT/failed.md"
+assert_eq "#2075 flip: --evidence-gate-fail over an already-failed comment exits 0" "0" \
+  "$(reg_run 55 "$REG_MARK" 'no phase-execution evidence' --evidence-gate-fail)"
+assert_eq "#2075 flip: --evidence-gate-fail re-run converges on one failed Status line" "1" \
+  "$(grep -c '^\*\*Status:\*\* ❌ Review failed' "$REG_STATE/patched-body" 2>/dev/null || echo 0)"
+
 rm -rf "$REG_ROOT"
+
+# ────────────────────────────────────────────────────────────────────────────
+echo "devflow.yml 'Review evidence gate' step shell (#2075 — the dismissal state-gate)"
+# ────────────────────────────────────────────────────────────────────────────
+# The step's fail arm decides, from the gate token alone, whether to dismiss the
+# unbacked review: only a merge-gating state (APPROVED / CHANGES_REQUESTED) with a
+# parsed review_id is dismissed, and a COMMENTED verdict is left to the durable
+# comment. Nothing else exercises that shell, so a regression inverting the RSTATE
+# gate — or mis-parsing review_id — would dismiss a human's live change-request, or
+# silently leave an unbacked APPROVE standing.
+RGS_ROOT="$(mktemp -d)"
+# Slice the step's `run:` body out of the workflow and dedent it to a runnable script.
+awk '
+  index($0, "- name: Review evidence gate") { grab=1; next }
+  grab && /^      - name: / { exit }
+  grab && /^        run: \|/ { body=1; next }
+  body && /^      [^ ]/ { exit }
+  body { sub(/^          /, ""); print }
+' "$LIB/../.github/workflows/devflow.yml" > "$RGS_ROOT/step.sh"
+assert_eq "#2075 step: the 'Review evidence gate' run body was extracted" "yes" \
+  "$([ -s "$RGS_ROOT/step.sh" ] && grep -qF 'review-evidence-gate:' "$RGS_ROOT/step.sh" && echo yes || echo no)"
+
+# A sandbox holding every path the step probes, plus recording stubs on PATH.
+rgs_sandbox() {  # $1 = the gate token line the stubbed gate script emits
+  rm -rf "${RGS_ROOT:?}/wt" "${RGS_ROOT:?}/bin"
+  mkdir -p "$RGS_ROOT/wt/.prflow/tmp" "$RGS_ROOT/wt/scripts" "$RGS_ROOT/bin" "$RGS_ROOT/tmp"
+  : > "$RGS_ROOT/wt/.prflow/tmp/pre-inventory.json"
+  : > "$RGS_ROOT/wt/scripts/review-evidence-gate.py"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$RGS_ROOT/wt/scripts/flip-review-progress-failed.sh"
+  printf '%s\n' "$1" > "$RGS_ROOT/token"
+  : > "$RGS_ROOT/ghlog"
+  # python3 stub: stands in for the gate script, echoing the canned verdict + detail.
+  printf '%s\n' '#!/usr/bin/env bash' 'cat "$RGS_ROOT/token"; echo "human detail line"' \
+    > "$RGS_ROOT/bin/python3"
+  # gh stub: records every invocation; the base-ref read returns a ref, writes succeed.
+  printf '%s\n' '#!/usr/bin/env bash' 'echo "gh $*" >> "$RGS_ROOT/ghlog"' \
+    'case "$*" in *"--jq .base.ref"*) echo main ;; esac' 'exit 0' > "$RGS_ROOT/bin/gh"
+  printf '%s\n' '#!/usr/bin/env bash' 'echo "{}"' > "$RGS_ROOT/bin/jq"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$RGS_ROOT/bin/git"
+  chmod +x "$RGS_ROOT/bin/"* "$RGS_ROOT/wt/scripts/flip-review-progress-failed.sh"
+}
+rgs_run() {  # → echoes the step's exit status; side effects land in $RGS_ROOT/ghlog
+  ( cd "$RGS_ROOT/wt" \
+    && env RGS_ROOT="$RGS_ROOT" PATH="$RGS_ROOT/bin:$PATH" RUNNER_TEMP="$RGS_ROOT/tmp" \
+           GH_TOKEN=x REPO=o/r CONTEXT_NUMBER=55 COMMAND='/prflow:review 55' \
+           REVIEWER_LOGIN='prflow-reviewer[bot]' GITHUB_RUN_ID=1 GITHUB_RUN_ATTEMPT=1 \
+           bash "$RGS_ROOT/step.sh" >"$RGS_ROOT/out" 2>"$RGS_ROOT/err" )
+  echo $?
+}
+rgs_dismissed() { grep -c 'dismissals' "$RGS_ROOT/ghlog" 2>/dev/null || true; }
+
+# APPROVED — merge-gating: the unbacked review IS dismissed and the job goes red.
+rgs_sandbox 'fail missing=phase-entry-2 review_id=987 review_state=APPROVED'
+assert_eq "#2075 step: a fail token exits 1 (the job goes red)" "1" "$(rgs_run)"
+assert_eq "#2075 step: an APPROVED unbacked review is dismissed by its parsed id" "1" \
+  "$(grep -c 'reviews/987/dismissals' "$RGS_ROOT/ghlog" || true)"
+
+# CHANGES_REQUESTED — also merge-gating: dismissed.
+rgs_sandbox 'fail missing=phase-entry-1 review_id=654 review_state=CHANGES_REQUESTED'
+rgs_run >/dev/null
+assert_eq "#2075 step: a CHANGES_REQUESTED unbacked review is dismissed" "1" \
+  "$(grep -c 'reviews/654/dismissals' "$RGS_ROOT/ghlog" || true)"
+
+# COMMENTED — NOT merge-gating: left to the durable comment, never dismissed.
+rgs_sandbox 'fail missing=phase-entry-1 review_id=321 review_state=COMMENTED'
+assert_eq "#2075 step: a COMMENTED verdict still exits 1" "1" "$(rgs_run)"
+assert_eq "#2075 step: a COMMENTED verdict is NOT dismissed" "0" "$(rgs_dismissed)"
+
+# No parsable review_id — nothing to dismiss; the durable comment stands alone.
+rgs_sandbox 'fail missing=phase-entry-1 review_state=APPROVED'
+rgs_run >/dev/null
+assert_eq "#2075 step: an absent review_id dismisses nothing" "0" "$(rgs_dismissed)"
+
+# A pass token: no dismissal, exit 0.
+rgs_sandbox 'pass checklist-phases-ran'
+assert_eq "#2075 step: a pass token exits 0" "0" "$(rgs_run)"
+assert_eq "#2075 step: a pass token dismisses nothing" "0" "$(rgs_dismissed)"
+
+# An unrecognized token (the shape an argparse exit-2 leaves behind, RESULT empty)
+# is treated as unestablished — a warning, never a silent green pass.
+rgs_sandbox ''
+assert_eq "#2075 step: an empty gate output exits 0" "0" "$(rgs_run)"
+assert_eq "#2075 step: an empty gate output is warned as unrecognized" "yes" \
+  "$(grep -qF 'unrecognized gate output' "$RGS_ROOT/out" "$RGS_ROOT/err" && echo yes || echo no)"
+
+# The durable comment leads with the human detail, not the raw machine token; the
+# token survives as a trailing footer so it stays quotable from the comment itself.
+rgs_sandbox 'fail missing=phase-entry-2 review_id=987 review_state=APPROVED'
+rgs_run >/dev/null
+assert_eq "#2075 step: the durable comment body leads with the human detail" "human detail line" \
+  "$(head -1 "$RGS_ROOT/tmp/evidence-gate-body.md")"
+assert_eq "#2075 step: the durable comment body keeps the machine token as a footer" "yes" \
+  "$(grep -qF 'review_id=987 review_state=APPROVED' "$RGS_ROOT/tmp/evidence-gate-body.md" && echo yes || echo no)"
+
+rm -rf "$RGS_ROOT"
+unset -f rgs_sandbox rgs_run rgs_dismissed

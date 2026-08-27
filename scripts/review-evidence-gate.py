@@ -37,10 +37,13 @@ decision is `scripts/workpad.py`'s own `_review_coverage_profile_disproof` over
 implementation. An unloadable workpad.py routes to the unestablished arm, never a crash.
 
 OUTPUT CONTRACT. One machine-readable verdict token as stdout line 1, from the closed
-vocabulary below, followed by human-readable detail lines (the durable-comment body). It
-ALWAYS exits 0 — the invoking workflow step decides the job's pass/fail from the token, so
-`set -euo pipefail` in that step never dies mid-decision before the comment/dismissal/flip
-actions run.
+vocabulary below, followed by human-readable detail lines (the durable-comment body). Once
+argument parsing has succeeded it ALWAYS exits 0 — the invoking workflow step decides the
+job's pass/fail from the token, so no decision-path fault ends the step before the
+comment/dismissal/flip actions run. Argument parsing itself is outside that guarantee:
+argparse exits 2 on a malformed or missing required argument, which is a wiring bug in the
+caller, and the step's `set -uo pipefail` (no `-e`) leaves the token empty, routing to the
+step's unrecognized-output warning rather than a silent green.
 
   pass <arm>                 a verdict was posted and its required evidence is present, OR
                              no checklist was owed. <arm> is one of legitimate-skip,
@@ -425,8 +428,9 @@ def main(argv=None):
     _force_utf8_streams()
     parser = argparse.ArgumentParser(
         description='Fail a cloud review run whose posted verdict lacks phase-execution '
-                    'evidence (issue #2075). Always exits 0; the caller reads stdout '
-                    'line 1 for the verdict token.')
+                    'evidence (issue #2075). Exits 0 for every decision outcome once '
+                    'arguments parse; the caller reads stdout line 1 for the verdict '
+                    'token.')
     parser.add_argument('--pre-inventory', required=True,
                         help='JSON {"run_roots":[...],"review_ids":[...]} snapshotted '
                              'before the engine step.')
@@ -444,12 +448,12 @@ def main(argv=None):
                         help='the checked-out review engine root (holds SKILL.md).')
     args = parser.parse_args(argv)
 
-    # Uphold the always-exit-0 / never-crash contract at the source: any unexpected fault
-    # in the decision routes to an unestablished arm (a warning), never a traceback that
-    # would end the step non-zero and fail the job on the gate's own bug.
+    # Uphold the exit-0-after-parsing contract at the source: any unexpected fault in the
+    # decision routes to an unestablished arm (a warning), never a traceback that would end
+    # the step non-zero and fail the job on the gate's own bug.
     try:
         token, detail = _decide(args)
-    except Exception as e:  # the decision must never crash the step (always exit 0)
+    except Exception as e:  # a decision fault must never crash the step
         token = 'unestablished internal-error'
         detail = _detail('review-evidence-gate: an unexpected internal error occurred (',
                          f'{type(e).__name__}: {e}', '); reported unestablished.')

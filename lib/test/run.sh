@@ -18222,7 +18222,7 @@ echo "review-evidence gate (#2075 — scripts/review-evidence-gate.py + the flip
 # `minimum_assertions` in scripts/workflow-flight-recorder-registry.json — change both
 # together, or test_module_runner.py's tranche test goes RED.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-evidence-gate.sh" \
-  "review-evidence-gate" 10; then
+  "review-evidence-gate" 25; then
   printf 'ERROR: review-evidence-gate boundary could not record its result\n'
   exit 1
 fi
