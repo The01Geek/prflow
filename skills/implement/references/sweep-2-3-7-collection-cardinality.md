@@ -12,6 +12,6 @@ For each collection output the diff adds whose value depends on order, dedup, or
 
 This multi-element ceremony is one of the three items waivable under the §2.3 test-authoring proportionality waiver: when writing it would balloon the test diff out of proportion to the change, ship the covering RED-first test and record the waiver instead. The covering RED-first test stays mandatory; only the multi-element cardinality case is waived.
 
-Treat a cardinality-sensitive collection output shipped with only a single-element test as a defect in **this** PR, not a `pr-test-analyzer` finding to be caught downstream.
+Treat a cardinality-sensitive collection output shipped with only a single-element test, absent a recorded §2.3 test-authoring proportionality waiver for that surface, as a defect in **this** PR, not a `pr-test-analyzer` finding to be caught downstream.
 
 <!-- prflow:implement-ref step=2.3.7 file=skills/implement/references/sweep-2-3-7-collection-cardinality.md end -->
