@@ -1,0 +1,135 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "ae03ae384",
+  "fix_files": [
+    ".github/workflows/ci.yml",
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "dispatch_mode": "unavailable",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "zero-declared-artifacts branch of verify_manifest_digests not exercised end-to-end",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "count gate verified==len(declared) not distinguished from all(r.ok)",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "ci.yml step comment exceeds the 3-line cap",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "ci.yml step comment length + docstring duplication",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "stringly-typed status field could be typing.Literal",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "pushed_back",
+      "source_file": "scripts/verify_lint_manifest_digests.py",
+      "claim_text": "zero-declared branch untested",
+      "skip_category": "claim-quality",
+      "evidence": "unreachable for validated input: _validate_tool mandates non-empty artifacts, _validate_tools requires all KNOWN_TOOLs; verify only calls iter_declared_artifacts after loaded.established. Confirmed by iteration-2 pr-test-analyzer re-review."
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "ae03ae384"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "ae03ae384"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "advisory",
+      "source_file": "scripts/verify_lint_manifest_digests.py",
+      "claim_text": "stringly-typed status",
+      "skip_category": "advisory-parked",
+      "evidence": "Suggestion/not-worth-acting: closed 5-site producer set, typos fail safe, CI-only script"
+    }
+  ],
+  "changeset_decision": "none — internal-only CI change; confirmed by iteration-1 and shadow code-reviewer.",
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 15,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "dispatch_mode": "unavailable",
+    "reviewed_sha": "ae03ae384add58d9382a1fd3947a1f6a5fcb06fe",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:pr-test-analyzer",
+      "prflow:type-design-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:pr-test-analyzer",
+      "prflow:type-design-analyzer"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
