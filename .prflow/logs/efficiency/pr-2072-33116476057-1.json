@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2072",
+  "generated_at": "2026-08-27T21:13:31Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.35.5",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.4576410000000015,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 25913,
+      "cache_read_input_tokens": 3118172,
+      "cache_creation_input_tokens": 208287,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 78,
+        "outputTokens": 46826,
+        "cacheReadInputTokens": 3822037,
+        "cacheCreationInputTokens": 575121,
+        "webSearchRequests": 0,
+        "costUSD": 7.4576410000000015,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 33,
+    "duration_ms": 396925
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; git status --porcelain; echo \"---view---\"; gh pr view 2072 --json headRefName,baseRefName,baseRefOid,headRefOid,body,closingIssuesReferences --jq '.'",
+      "echo \"run_id:[${GITHUB_RUN_ID:-}] attempt:[${GITHUB_RUN_ATTEMPT:-}] actions:[${GITHUB_ACTIONS:-}]\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  },
+  "run_profile": {
+    "phase_durations_ms": "unestablished",
+    "final_status": "unestablished",
+    "prior_record_count": "unestablished",
+    "issue_number": null,
+    "engine_outcome": "success"
+  }
+}
