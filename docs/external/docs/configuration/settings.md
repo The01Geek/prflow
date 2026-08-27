@@ -60,8 +60,6 @@ A name containing `<name>`, such as `providers.<name>.auth`, means you choose th
 | `prflow_implement.provider` | [Model Providers](/docs/configuration/providers) | Provider route for implementation runs. |
 | `prflow_implement.stall_backstop.enabled` | [Implementation](/docs/configuration/implementation) | Whether a stalled cloud run is detected after the agent step. |
 | `prflow_implement.stall_backstop.max_resume_attempts` | [Implementation](/docs/configuration/implementation) | How many times a stalled run may be resumed. |
-| `prflow_implement.stall_observer.advisory_threshold_minutes` | [Implementation](/docs/configuration/implementation) | How long a run may go quiet before an advisory is raised. |
-| `prflow_implement.stall_observer.enabled` | [Implementation](/docs/configuration/implementation) | Whether the report-only stall observer runs. |
 | `prflow_implement.update_branch_checkpoints` | [Implementation](/docs/configuration/implementation) | Whether the base branch is merged in at checkpoints. |
 | `prflow_retrospective.audit_bundle_cap` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | How many pull request records inform one pattern. |
 | `prflow_retrospective.audit_model` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | The model used for the audit stage. |

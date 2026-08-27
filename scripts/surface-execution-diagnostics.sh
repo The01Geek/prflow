@@ -105,6 +105,13 @@ _emit() {
 _publish_denials() {  # rendered-block
   _count=""
   _saw_label=0
+  # Shape-drift gate (issue #2064): "### Run summary" renders when the result-summary branch
+  # ran; the drift warning fires only when the count is also unavailable, which implies a
+  # result event was present. Read with a bash-builtin case.
+  _result_present=0
+  case "$1" in
+    *"### Run summary"*) _result_present=1 ;;
+  esac
   while IFS= read -r _line; do
     case "$_line" in
       "- permission_denials_count: "*)
@@ -131,6 +138,12 @@ _publish_denials() {  # rendered-block
   fi
   if [ "$_count" != unavailable ] && [ "$_count" -gt 0 ]; then
     echo "::warning::DevFlow: this run recorded $_count permission denial(s) — the engine attempted commands its tool profile does not grant. See the execution-diagnostics block for which ones."
+  fi
+  # Shape-drift warning (issue #2064): a result event was present yet the count could not be
+  # established — no count field and no permission_denials array. Distinct prefix from the
+  # "this run recorded" warning above, which the suite greps for as a positive-denial signal.
+  if [ "$_count" = unavailable ] && [ "$_result_present" -eq 1 ]; then
+    echo "::warning::DevFlow: execution-file shape drift suspected — a result event was present but permission_denials_count could not be established (no count field, no permission_denials array). The execution-file shape may have changed; update the denial-count extractors."
   fi
 }
 
@@ -233,6 +246,12 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" '
     | ([.. | objects | (.permission_denials? // empty)
         | if type == "array" then .[] else . end
         | select(type == "object")] | unique) as $denials
+    # Array-presence signal (issue #2064). Whether ANY permission_denials value in the
+    # slurped input is an array — read independently of the object-type filter above, which
+    # drops non-object entries. A present array is a MEASUREMENT even when empty or
+    # all-non-object, so its gathered length (0 for those) is the count; without it the
+    # empty-array run fell to null and mis-reported a measured zero as unavailable.
+    | ([.. | objects | .permission_denials? | select(type == "array")] | length > 0) as $has_pd_array
     | if $r == null and ($denials | length) == 0 then
         # No result event and no denial detail — but the CLI version lives in the
         # system/init record independent of the result event, so still surface it: a
@@ -257,7 +276,7 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" '
         ($denials | length) as $dcount
         | (if $r.permission_denials_count != null then
              (if $dcount > $r.permission_denials_count then $dcount else $r.permission_denials_count end)
-           elif $dcount > 0 then $dcount
+           elif ($dcount > 0 or $has_pd_array) then $dcount
            else null end) as $count
         | $header, "",
           "### Run summary",

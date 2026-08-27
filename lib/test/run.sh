@@ -5457,12 +5457,294 @@ assert_eq "#493 helper: empty stdin fails closed — non-zero exit (Important #1
 assert_eq "#493 helper: missing URL arg fails closed — non-zero exit (Important #1)" \
   "2" \
   "$(printf 'Resolves #1\n[View run](x)' | python3 "$P493_HELPER" >/dev/null 2>&1; echo $?)"
-# #1582 moved the §1.4 resume pre-check (incl. this cloud-only run-link refresh) into
-# agents/branch-setup.md, so these two prose pins target that file now.
-assert_pin_unique "#493 resume: cloud-only guard skips the refresh on a local-tier resume (AC4)" \
-  '[ -n "${GITHUB_RUN_ID:-}" ]; then' "$P1582_BS"
-assert_pin_unique "#493 resume: best-effort warn on PR-body read failure (distinct from no-line; AC6)" \
+# Issue #2060 retired the branch-setup [View run] link rewrite (gate is now the link's single
+# owner) and gave the resume pre-check the note-block STRIP; the #493 pins re-anchor to that
+# strip fence. refresh-pr-run-link.py's fixtures above stay — it is now called by the gate.
+assert_pin_unique "#2060 resume: agent-side pre-check strips the stopped-run note block (AC4 local resume)" \
+  'python3 "$SCRIPTS"/pr-note-block.py strip' "$P1582_BS"  # structural-pin-ok: routing-dispatch-contract -- the resume pre-check delegates the note strip to the helper; the wiring is the seam AC4's local-resume arm depends on
+assert_pin_unique "#2060 resume: best-effort warn on PR-body read failure (distinct from empty-body)" \
   'could not read PR' "$P1582_BS"
+
+# ── Issue #2060: stopped-run note-block mirror + gate-owned PR run-link refresh ──
+# The note-block transform, the by-issue PR selection, and the gate-side orchestration are
+# extracted to fixture-tested helpers; workpad.py mirrors a terminal stop onto the PR body.
+P2060_PNB="$LIB/../scripts/pr-note-block.py"
+P2060_RIP="$LIB/../scripts/resolve-issue-pr.py"
+P2060_RPOR="$LIB/../scripts/refresh-pr-on-resume.sh"
+P2060_WP="$LIB/../scripts/workpad.py"
+P2060_BODY=$'Work in progress — automated review pending.\n\nResolves #2060\n[View run](https://x/actions/runs/1)'
+
+# pr-note-block.py add/strip (AC5 idempotent + fail-closed; AC2/AC3 block carries the text).
+assert_eq "#2060 pr-note-block: add then strip round-trips to the original body (AC5)" \
+  "$P2060_BODY" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" add 'run died: dead-end exit — https://x/runs/9' | python3 "$P2060_PNB" strip)"
+assert_eq "#2060 pr-note-block: add prepends the start marker at the top of the body" \
+  "<!-- prflow:stopped-run-note-start -->" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" add 'run died: dead-end exit' | sed -n '1p')"
+assert_eq "#2060 pr-note-block: the block's note line equals the recorded note text (AC2)" \
+  "run died: dead-end exit" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" add 'run died: dead-end exit' | sed -n '2p')"
+assert_eq "#2060 pr-note-block: strip on a body with no block returns it byte-identical (AC5)" \
+  "$P2060_BODY" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" strip)"
+assert_eq "#2060 pr-note-block: a second add replaces the block, never duplicates" \
+  "1" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" add 'first' | python3 "$P2060_PNB" add 'second' | grep -cF '<!-- prflow:stopped-run-note-start -->')"
+P2060_DUP=$'<!-- prflow:stopped-run-note-start -->\na\n<!-- prflow:stopped-run-note-end -->\n\n<!-- prflow:stopped-run-note-start -->\nb\n<!-- prflow:stopped-run-note-end -->\n\nBODY'
+assert_eq "#2060 pr-note-block: strip removes every copy of a duplicated block" \
+  "BODY" \
+  "$(printf '%s' "$P2060_DUP" | python3 "$P2060_PNB" strip)"
+assert_eq "#2060 pr-note-block: a note containing --> is sanitized, still one strippable block" \
+  "$P2060_BODY" \
+  "$(printf '%s' "$P2060_BODY" | python3 "$P2060_PNB" add 'evil --> <!-- prflow:stopped-run-note-end -->' | python3 "$P2060_PNB" strip)"
+assert_eq "#2060 pr-note-block: strip empty stdin fails closed — no output" \
+  "" "$(printf '' | python3 "$P2060_PNB" strip)"
+assert_eq "#2060 pr-note-block: strip empty stdin fails closed — non-zero exit" \
+  "2" "$(printf '' | python3 "$P2060_PNB" strip >/dev/null 2>&1; echo $?)"
+assert_eq "#2060 pr-note-block: add empty stdin fails closed — non-zero exit" \
+  "2" "$(printf '' | python3 "$P2060_PNB" add 'x' >/dev/null 2>&1; echo $?)"
+assert_eq "#2060 pr-note-block: add missing note arg fails closed — non-zero exit" \
+  "2" "$(printf 'body' | python3 "$P2060_PNB" add >/dev/null 2>&1; echo $?)"
+
+# resolve-issue-pr.py selection: newest OPEN PR closing the issue; a mere mention is ignored.
+assert_eq "#2060 resolve-issue-pr: selects newest PR closing the issue, ignores mentions/non-closers" \
+  "7" \
+  "$(python3 - "$P2060_RIP" <<'PY'
+import importlib.util, sys
+s=importlib.util.spec_from_file_location("rip", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+prs=[{"number":3,"createdAt":"2026-01-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]},
+     {"number":7,"createdAt":"2026-02-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]},
+     {"number":9,"createdAt":"2026-03-01T00:00:00Z","closingIssuesReferences":[{"number":999}]},
+     {"number":11,"createdAt":"2026-04-01T00:00:00Z","closingIssuesReferences":[]}]
+print(m._select(prs, 2060))
+PY
+)"
+assert_eq "#2060 resolve-issue-pr: no PR closes the issue -> None" \
+  "None" \
+  "$(python3 - "$P2060_RIP" <<'PY'
+import importlib.util, sys
+s=importlib.util.spec_from_file_location("rip", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+print(m._select([{"number":9,"createdAt":"z","closingIssuesReferences":[{"number":1}]}], 2060))
+PY
+)"
+
+# resolve-issue-pr.py CLI arms (found/none/refused) via a DEVFLOW_GH stub.
+P2060_TMP="$(mktemp -d)"
+printf '#!/usr/bin/env bash\nprintf %%s %s\n' "'[{\"number\":7,\"createdAt\":\"2026-02-01T00:00:00Z\",\"closingIssuesReferences\":[{\"number\":2060}]}]'" > "$P2060_TMP/gh-found"
+printf '#!/usr/bin/env bash\nprintf %%s %s\n' "'[]'" > "$P2060_TMP/gh-none"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$P2060_TMP/gh-fail"
+chmod +x "$P2060_TMP"/gh-found "$P2060_TMP"/gh-none "$P2060_TMP"/gh-fail
+assert_eq "#2060 resolve-issue-pr CLI: found -> prints number, exit 0" \
+  "7 0" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-found" python3 "$P2060_RIP" --issue 2060 2>/dev/null); echo "$o $?")"
+assert_eq "#2060 resolve-issue-pr CLI: clean none -> empty stdout, exit 2" \
+  " 2" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-none" python3 "$P2060_RIP" --issue 2060 2>/dev/null); echo "$o $?")"
+assert_eq "#2060 resolve-issue-pr CLI: gh failure -> REFUSED, exit 3" \
+  " 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-fail" python3 "$P2060_RIP" --issue 2060 2>/dev/null); echo "$o $?")"
+
+# refresh-pr-on-resume.sh arms (the gate's cooperative step): resolve+read+strip+refresh+PATCH.
+cat > "$P2060_TMP/gh-full" <<'SH'
+#!/usr/bin/env bash
+args="$*"
+case "$args" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"2026-02-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *"--method PATCH"*) cat >/dev/null; printf '7\n' ;;
+  *"pulls/7"*) printf '%s\n' 'Resolves #2060
+[View run](https://x/runs/OLD)' ;;
+  *) echo "unhandled gh: $args" >&2; exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-full"
+assert_eq "#2060 refresh-pr-on-resume: resolves + PATCHes -> REFRESHED, exit 0 (AC1/AC4)" \
+  "REFRESHED 7 0" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-full" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+# Efficiency: a body already current (no note block, [View run] already this run) is NOT re-PATCHed.
+cat > "$P2060_TMP/gh-noop" <<'SH'
+#!/usr/bin/env bash
+args="$*"
+case "$args" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"2026-02-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *"--method PATCH"*) cat >/dev/null; echo "PATCH-SHOULD-NOT-HAPPEN" >&2; printf '7\n' ;;
+  *"pulls/7"*) printf '%s\n' 'Resolves #2060
+[View run](https://x/runs/NEW)' ;;
+  *) echo "unhandled gh: $args" >&2; exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-noop"
+assert_eq "#2060 refresh-pr-on-resume: body already current -> NOOP, exit 0, no PATCH" \
+  "NOOP 7 0" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-noop" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+assert_eq "#2060 refresh-pr-on-resume: no open PR -> NO_PR, exit 2" \
+  "NO_PR 2" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-none" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+assert_eq "#2060 refresh-pr-on-resume: missing --run-url -> REFUSED, exit 3" \
+  "REFUSED missing-args 3" \
+  "$(o=$(bash "$P2060_RPOR" --issue 2060 2>/dev/null); echo "$o $?")"
+# REFUSED read arm: resolver finds a PR but the gh body read fails.
+cat > "$P2060_TMP/gh-readfail" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-readfail"
+assert_eq "#2060 refresh-pr-on-resume: PR body read fails -> REFUSED read, exit 3" \
+  "REFUSED read 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-readfail" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+# REFUSED patch arm: resolver + read succeed but the gh PATCH write fails.
+cat > "$P2060_TMP/gh-patchfail" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *"--method PATCH"*) exit 1 ;;
+  *"pulls/7"*) printf '%s\n' 'Resolves #2060
+[View run](https://x/runs/OLD)' ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-patchfail"
+assert_eq "#2060 refresh-pr-on-resume: PATCH write fails -> REFUSED patch, exit 3" \
+  "REFUSED patch 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-patchfail" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+# REFUSED resolve arm: the resolver itself fails (gh pr list errors -> resolve-issue-pr rc 3).
+assert_eq "#2060 refresh-pr-on-resume: resolver fails -> REFUSED resolve, exit 3" \
+  "REFUSED resolve 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-fail" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+# REFUSED empty-body arm: PR resolves but the read returns an empty body.
+cat > "$P2060_TMP/gh-emptybody" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *"pulls/7"*) printf '' ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-emptybody"
+assert_eq "#2060 refresh-pr-on-resume: empty PR body -> REFUSED empty-body, exit 3" \
+  "REFUSED empty-body 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-emptybody" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW 2>/dev/null); echo "$o $?")"
+# End-to-end body assertion: a body carrying a note block is PATCHed with the block STRIPPED and
+# the [View run] link REFRESHED — the strip and refresh stages both run and the write lands.
+P2060_PATCHOUT="$P2060_TMP/patchout"
+export P2060_PATCHOUT
+cat > "$P2060_TMP/gh-noted" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  "pr list "*) printf '%s\n' '[{"number":7,"createdAt":"z","closingIssuesReferences":[{"number":2060}]}]' ;;
+  *"--method PATCH"*) cat > "$P2060_PATCHOUT"; printf '7\n' ;;
+  *"pulls/7"*) printf '%s\n' '<!-- prflow:stopped-run-note-start -->
+run died: boom
+<!-- prflow:stopped-run-note-end -->
+
+Resolves #2060
+[View run](https://x/runs/OLD)' ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$P2060_TMP/gh-noted"
+DEVFLOW_GH="$P2060_TMP/gh-noted" bash "$P2060_RPOR" --issue 2060 --run-url https://x/runs/NEW >/dev/null 2>&1
+assert_eq "#2060 refresh-pr-on-resume: PATCHed body strips the note block and refreshes the link" \
+  "0 1" \
+  "$(printf '%s %s' "$(grep -cF 'stopped-run-note-start' "$P2060_PATCHOUT")" "$(grep -cF '[View run](https://x/runs/NEW)' "$P2060_PATCHOUT")")"
+unset P2060_PATCHOUT
+# resolve-issue-pr CLI: gh exits 0 but emits non-array/invalid JSON -> REFUSED, exit 3.
+printf '#!/usr/bin/env bash\nprintf %%s %s\n' "'not valid json'" > "$P2060_TMP/gh-badjson"
+chmod +x "$P2060_TMP/gh-badjson"
+assert_eq "#2060 resolve-issue-pr CLI: unparseable JSON -> REFUSED, exit 3" \
+  " 3" \
+  "$(o=$(DEVFLOW_GH="$P2060_TMP/gh-badjson" python3 "$P2060_RIP" --issue 2060 2>/dev/null); echo "$o $?")"
+# pr-note-block.py strip: an unterminated start marker (no matching end) is left as ordinary text.
+assert_eq "#2060 pr-note-block: strip leaves an unterminated start marker as ordinary text" \
+  '<!-- prflow:stopped-run-note-start -->
+tail' \
+  "$(printf '%s' '<!-- prflow:stopped-run-note-start -->
+tail' | python3 "$P2060_PNB" strip)"
+
+# workpad.py terminal-stop text selector: EXACTLY Failed/Cancelled(note) + blocked(reflection)
+# mirror; Complete and every other status/kind write NONE (AC3, AC7 untouched-surface).
+assert_eq "#2060 workpad mirror text: Failed/Cancelled/blocked select text; Complete/other/empty-payload None (AC3)" \
+  "run died: x|run cancelled — u|cannot reproduce: y|None|None|None|None|run died: z|cancelled: w" \
+  "$(python3 - "$P2060_WP" <<'PY'
+import importlib.util, sys
+from types import SimpleNamespace
+s=importlib.util.spec_from_file_location("wp", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+def t(status, kind, notes, refs): return m._stopped_note_text_for_mirror(SimpleNamespace(status=status, reflection_kind=kind), notes, refs)
+print("|".join(str(x) for x in [
+  t("Failed", None, ["run died: x"], []),
+  t("Cancelled", None, ["run cancelled — u"], []),
+  t("Blocked", "blocked", [], ["cannot reproduce: y"]),
+  t("Complete", None, ["done"], []),
+  t("Implementing", "note", ["progress"], []),
+  t("Failed", None, [], []),          # stop status but empty notes -> no block
+  t("Blocked", "blocked", [], []),    # blocked kind but empty reflection -> no block
+  t("💥 Failed", None, ["run died: z"], []),      # glyph-prefixed status still selects (strip works)
+  t("🛑 Cancelled", None, ["cancelled: w"], []),  # glyph-prefixed status still selects
+]))
+PY
+)"
+# The mirror is a best-effort absorber (AC6): a failure never propagates out of the helper.
+assert_eq "#2060 workpad mirror: a failing mirror is swallowed, never raised (AC6)" \
+  "SWALLOWED" \
+  "$(python3 - "$P2060_WP" <<'PY'
+import importlib.util, sys
+s=importlib.util.spec_from_file_location("wp", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+def boom(*a, **k): raise RuntimeError("boom")
+m._resolve_open_pr_for_issue = boom
+m._mirror_stopped_note_to_pr(2060, "x")  # must not raise
+print("SWALLOWED")
+PY
+)"
+# Behavioral coverage of workpad.py's inline (pinned-parallel) mirror pieces: the note-block
+# add/strip round-trip, the newest-open-PR-closing-the-issue selection, and the mirror happy
+# path (resolve -> read -> add block -> PATCH lands the note text on the PR body).
+assert_eq "#2060 workpad mirror: add/strip round-trip + selection + happy-path PATCH lands the note" \
+  "roundtrip=ok resolve=7 mirror=ok" \
+  "$(python3 - "$P2060_WP" <<'PY'
+import importlib.util, json, sys
+from types import SimpleNamespace
+s=importlib.util.spec_from_file_location("wp", sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+rt = "ok" if m._strip_stopped_note_block(m._add_stopped_note_block("BODY", "note --> x")) == "BODY" else "BAD"
+m._run = lambda cmd, **k: SimpleNamespace(stdout=json.dumps([
+  {"number":3,"createdAt":"2026-01-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]},
+  {"number":7,"createdAt":"2026-02-01T00:00:00Z","closingIssuesReferences":[{"number":2060}]},
+  {"number":9,"createdAt":"2026-03-01T00:00:00Z","closingIssuesReferences":[{"number":999}]}]))
+sel = m._resolve_open_pr_for_issue(2060)
+captured = {}
+def fake_run(cmd, **k):
+    if "-X" in cmd and "PATCH" in cmd:
+        for a in cmd:
+            if a.startswith("body=@"):
+                captured["body"] = open(a[6:]).read()
+        return SimpleNamespace(stdout="7")
+    return SimpleNamespace(stdout="Resolves #2060\n[View run](x)")
+m._resolve_open_pr_for_issue = lambda issue: 7
+m._run = fake_run
+m._mirror_stopped_note_to_pr(2060, "run died: boom")
+b = captured.get("body", "")
+mirror = "ok" if ("prflow:stopped-run-note-start" in b and "run died: boom" in b) else "BAD:" + repr(b)[:60]
+print(f"roundtrip={rt} resolve={sel} mirror={mirror}")
+PY
+)"
+# COUPLING: workpad.py's inline note-block markers stay byte-identical to pr-note-block.py's
+# (workpad.py cannot import the helper — its repo-owned import edges are locked to
+# section_parse.py for the Stop-hook closure hardening, issues #458/#583).
+assert_eq "#2060 coupling: workpad.py + pr-note-block.py share the stopped-run-note markers" \
+  "1 1 1 1" \
+  "$(printf '%s %s %s %s' \
+      "$(grep -cF '_START = "<!-- prflow:stopped-run-note-start -->"' "$P2060_PNB")" \
+      "$(grep -cF '_END = "<!-- prflow:stopped-run-note-end -->"' "$P2060_PNB")" \
+      "$(grep -cF '_STOPPED_NOTE_START = "<!-- prflow:stopped-run-note-start -->"' "$P2060_WP")" \
+      "$(grep -cF '_STOPPED_NOTE_END = "<!-- prflow:stopped-run-note-end -->"' "$P2060_WP")")"
+
+# Wiring: the gate adopt arm delegates PR-body maintenance to refresh-pr-on-resume.sh, so the
+# link is refreshed and the note stripped even when the claude job never runs (AC1/AC4).
+P2060_IMPL_WF="$LIB/../.github/workflows/devflow-implement.yml"
+assert_pin_unique "#2060 gate: adopt arm invokes refresh-pr-on-resume.sh on resume" \
+  'bash "$RPOR" --issue "$NUMBER" --run-url "$RUN_URL"' "$P2060_IMPL_WF"  # structural-pin-ok: routing-dispatch-contract -- the gate is the single owner of the PR run-link refresh; the wiring is the seam AC1/AC4 depend on
+rm -rf "$P2060_TMP"
 
 # Issue #224: Phase 3.1 (phases/phase-3-review.md) opens the draft PR against the
 # CONFIGURED base_branch, not the GitHub default branch. Because each phase's bash
@@ -8671,7 +8953,7 @@ fi
 # scripts/workpad.py CLI contract coverage (issue #1934: the #338 --rewrite-ac retag
 # block extracted from this file into a focused module).
 if ! devflow_run_full_suite_module "$LIB/test/modules/workpad-cli.sh" \
-  "workpad-cli" 105; then
+  "workpad-cli" 112; then
   printf 'ERROR: workpad-cli boundary could not record its result\n'
   exit 1
 fi
@@ -18127,6 +18409,45 @@ assert_eq "denial record: genuine zero → count 0, commands_state zero (not una
 assert_eq "denial record: digit-string count carrier normalized to number (not unavailable)" \
   "3" "$(bash "$BDR" "$DEN_TMP/strcount.json" true | "$DEN_JQ" -r '.count')"
 
+# ── #2064: an empty permission_denials array (new shape, NO count field) is a MEASURED
+# zero here too, and a result event with neither carrier raises the shape-drift breadcrumb
+# (mirrors surface-execution-diagnostics.sh).
+"$DEN_JQ" -n '{type:"result",is_error:false,permission_denials:[]}' > "$DEN_TMP/2064-empty.json"
+assert_eq "#2064 denial record: empty permission_denials array (no count field) → count 0, not unavailable" \
+  "0" "$(bash "$BDR" "$DEN_TMP/2064-empty.json" true 2>/dev/null | "$DEN_JQ" -r '.count')"
+assert_eq "#2064 denial record: empty-array run emits NO shape-drift warning (count is measured)" \
+  "no" "$(bash "$BDR" "$DEN_TMP/2064-empty.json" true 2>&1 >/dev/null | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+
+"$DEN_JQ" -n '{type:"result",is_error:false,permission_denials:[{tool_name:"Bash",tool_input:{command:"a"}},{tool_name:"Write",tool_input:{command:"b"}},{tool_name:"Edit",tool_input:{command:"c"}}]}' > "$DEN_TMP/2064-three.json"
+assert_eq "#2064 denial record: three-denial new-shape array (no count field) → count 3" \
+  "3" "$(bash "$BDR" "$DEN_TMP/2064-three.json" true 2>/dev/null | "$DEN_JQ" -r '.count')"
+assert_eq "#2064 denial record: three-denial new-shape array emits NO shape-drift warning" \
+  "no" "$(bash "$BDR" "$DEN_TMP/2064-three.json" true 2>&1 >/dev/null | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+
+"$DEN_JQ" -n '{type:"result",is_error:false,num_turns:3}' > "$DEN_TMP/2064-neither.json"
+assert_eq "#2064 denial record: neither carrier (result present) → count unavailable" \
+  "unavailable" "$(bash "$BDR" "$DEN_TMP/2064-neither.json" true 2>/dev/null | "$DEN_JQ" -r '.count')"
+assert_eq "#2064 denial record: neither carrier with a result event raises the shape-drift warning" \
+  "yes" "$(bash "$BDR" "$DEN_TMP/2064-neither.json" true 2>&1 >/dev/null | grep -qF 'execution-file shape drift suspected' && echo yes || echo no)"
+assert_eq "#2064 denial record: the emitted record carries NO result_present key (inert helper signal)" \
+  "null" "$(bash "$BDR" "$DEN_TMP/2064-neither.json" true 2>/dev/null | "$DEN_JQ" -c '.result_present')"
+# Idempotency: one build over the neither-carrier file emits exactly one drift breadcrumb (mirrors
+# the diagnostics-side idempotency pin).
+assert_eq "#2064 denial record: a build over the neither-carrier file emits exactly one shape-drift breadcrumb" "1" \
+  "$(bash "$BDR" "$DEN_TMP/2064-neither.json" true 2>&1 >/dev/null | grep -cF 'execution-file shape drift suspected')"
+
+# Adversarial: a non-array permission_denials value → unavailable + drift; the [1,2,3] fixture
+# resolves to a measured 0 (its scalar entries drop out, array presence counts).
+"$DEN_JQ" -n '{type:"result",is_error:false,permission_denials:"nope"}' > "$DEN_TMP/2064-notarr.json"
+assert_eq "#2064 denial record: non-array permission_denials value → count unavailable + drift warning" \
+  "unavailable|yes" \
+  "$(_c=$(bash "$BDR" "$DEN_TMP/2064-notarr.json" true 2>/dev/null | "$DEN_JQ" -r '.count'); bash "$BDR" "$DEN_TMP/2064-notarr.json" true 2>&1 >/dev/null | grep -qF 'execution-file shape drift' && _d=yes || _d=no; echo "${_c}|${_d}")"
+"$DEN_JQ" -n '{type:"result",is_error:false,permission_denials:[1,2,3]}' > "$DEN_TMP/2064-nonobj.json"
+assert_eq "#2064 denial record: all-non-object permission_denials array is a measured 0" \
+  "0" "$(bash "$BDR" "$DEN_TMP/2064-nonobj.json" true 2>/dev/null | "$DEN_JQ" -r '.count')"
+assert_eq "#2064 denial record: old-shape count-0 field still resolves to 0 (unchanged)" \
+  "0" "$(bash "$BDR" "$DEN_TMP/zero.json" true 2>/dev/null | "$DEN_JQ" -r '.count')"
+
 # ── #1064 B2: the NO-RESULT-EVENT shape. Every fixture above is a {type:"result"} event,
 # which is exactly why this gap shipped green. extract-execution-shape.sh gates every
 # field on a result event being present (a deliberate contract, pinned by #438 and NOT
@@ -19050,7 +19371,7 @@ assert_eq "#936/#582: install.sh's workflow copy loop ships exactly devflow + de
 assert_eq "#936/#582: the withheld auto-review tier is absent from install.sh's copy loop" \
   "absent" "$(case " $_582_SHIPPED " in *" devflow-review "*|*" devflow-runner "*|*" telemetry-push "*) echo present ;; *) echo absent ;; esac)"
 _582_RETAINED="devflow-runner telemetry-push"
-_582_INTERNAL="ci matcher-probe version-consolidate agents-seam-probe stall-observer mintlify-check"
+_582_INTERNAL="ci matcher-probe version-consolidate agents-seam-probe mintlify-check"
 # Exhaustive-and-disjoint: compare the on-disk basename set against the three lists
 # concatenated. A duplicate across lists makes the concatenated count exceed the
 # deduplicated count; a missing file makes the sorted sets differ. Both are asserted.
@@ -37547,6 +37868,75 @@ assert_eq "#363 diagnostics exits 0 with no GITHUB_OUTPUT set (standalone run)" 
   "$(printf '%s' "$_D_HOT" > "$D363/exec.json"; ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" >/dev/null 2>&1 ); echo $?)"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "#2064: an empty permission_denials array is a MEASURED zero, not 'unavailable'"
+# ────────────────────────────────────────────────────────────────────────────
+# New shape (claude-code CLI 2.1.247): the result event carries a `permission_denials`
+# array and NO `permission_denials_count` field. An empty array is a measurement of 0, not
+# an unestablished count — the whole point of this issue.
+_D_EMPTY_ARR='{"type":"result","is_error":false,"num_turns":3,"permission_denials":[]}'
+assert_eq "#2064 empty permission_denials array renders count 0 (measured), not n/a" "yes" \
+  "$(_diag_run "$_D_EMPTY_ARR" | grep -qxF -e '- permission_denials_count: 0' && echo yes || echo no)"
+assert_eq "#2064 empty permission_denials array renders 'No permission denials.'" "yes" \
+  "$(_diag_run "$_D_EMPTY_ARR" | grep -qxF 'No permission denials.' && echo yes || echo no)"
+assert_eq "#2064 empty permission_denials array publishes permission_denials_count=0" "yes" \
+  "$(_diag_run "$_D_EMPTY_ARR" >/dev/null; grep -qxF 'permission_denials_count=0' "$D363/out" && echo yes || echo no)"
+assert_eq "#2064 empty permission_denials array raises NO shape-drift warning (count is measured)" "no" \
+  "$(_diag_run "$_D_EMPTY_ARR" | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+
+# New shape with three denial objects and no count field → count 3, detail, output 3.
+_D_THREE_ARR='{"type":"result","is_error":false,"num_turns":9,"permission_denials":[{"tool_name":"Bash","tool_input":{"command":"aaa"}},{"tool_name":"Write","tool_input":{"command":"bbb"}},{"tool_name":"Edit","tool_input":{"command":"ccc"}}]}'
+assert_eq "#2064 three-denial new-shape array renders count 3 with per-denial detail" "yes" \
+  "$(_o=$(_diag_run "$_D_THREE_ARR"); printf '%s' "$_o" | grep -qxF -e '- permission_denials_count: 3' && printf '%s' "$_o" | grep -qF '3 permission denial(s) with detail:' && echo yes || echo no)"
+assert_eq "#2064 three-denial new-shape array publishes permission_denials_count=3" "yes" \
+  "$(_diag_run "$_D_THREE_ARR" >/dev/null; grep -qxF 'permission_denials_count=3' "$D363/out" && echo yes || echo no)"
+assert_eq "#2064 three-denial new-shape array raises NO shape-drift warning" "no" \
+  "$(_diag_run "$_D_THREE_ARR" | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+# The array-derived count still drives the operator '::warning:: this run recorded' just like
+# the old count-field path — a positive count is a positive count whichever carrier supplied it.
+assert_eq "#2064 three-denial new-shape array raises the '::warning:: this run recorded 3' operator warning" "yes" \
+  "$(_diag_run "$_D_THREE_ARR" | grep -qF '::warning::DevFlow: this run recorded 3 permission denial(s)' && echo yes || echo no)"
+
+# Neither carrier (result event present, no count field AND no permission_denials array
+# anywhere) → still `unavailable`, PLUS the shape-drift warning. The warning does NOT reuse
+# the '::warning::DevFlow: this run recorded' prefix, so the positive-denial signal above and
+# the no-warning-on-unknown assertions stay unambiguous.
+_D_NEITHER_2064='{"type":"result","is_error":false,"num_turns":3}'
+assert_eq "#2064 neither-carrier file still publishes permission_denials_count=unavailable" "yes" \
+  "$(_diag_run "$_D_NEITHER_2064" >/dev/null; grep -qxF 'permission_denials_count=unavailable' "$D363/out" && echo yes || echo no)"
+assert_eq "#2064 neither-carrier file with a result event raises the shape-drift warning" "yes" \
+  "$(_diag_run "$_D_NEITHER_2064" | grep -qF 'execution-file shape drift suspected' && echo yes || echo no)"
+assert_eq "#2064 the shape-drift warning does NOT use the 'this run recorded' positive-denial prefix" "no" \
+  "$(_diag_run "$_D_NEITHER_2064" | grep -qF '::warning::DevFlow: this run recorded' && echo yes || echo no)"
+# The shape-drift warning is gated on count==unknown: NOT on a measured 0, NOT on a positive count.
+assert_eq "#2064 shape-drift warning does NOT fire on a measured 0" "no" \
+  "$(_diag_run "$_D_COLD" | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+assert_eq "#2064 shape-drift warning does NOT fire on a positive count" "no" \
+  "$(_diag_run "$_D_HOT" | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+
+# Adversarial shapes: a non-array permission_denials value resolves to unavailable + drift;
+# the [1,2,3] fixture resolves to a measured 0 (its scalar entries drop out, array presence counts).
+_D_PD_NOTARR='{"type":"result","is_error":false,"permission_denials":"nope"}'
+assert_eq "#2064 non-array permission_denials value publishes unavailable and warns drift" "unavailable-drift" \
+  "$(_o=$(_diag_run "$_D_PD_NOTARR"); _diag_run "$_D_PD_NOTARR" >/dev/null; _c=$(sed -n 's/^permission_denials_count=//p' "$D363/out"); printf '%s' "$_o" | grep -qF 'execution-file shape drift' && _d=drift || _d=nodrift; echo "${_c}-${_d}")"
+_D_PD_NONOBJ='{"type":"result","is_error":false,"permission_denials":[1,2,3]}'
+assert_eq "#2064 an all-non-object permission_denials array is a measured 0" "yes" \
+  "$(_diag_run "$_D_PD_NONOBJ" >/dev/null; grep -qxF 'permission_denials_count=0' "$D363/out" && echo yes || echo no)"
+
+# Idempotency: one run emits exactly one shape-drift warning line.
+assert_eq "#2064 a run on the neither-carrier file emits exactly one shape-drift warning" "1" \
+  "$(_diag_run "$_D_NEITHER_2064" | grep -cF 'execution-file shape drift suspected')"
+
+# No result event (init-only) → unavailable but NO drift: the drift gate is result-present-gated,
+# and the no-result branch renders no "### Run summary", so _result_present stays 0. Pins the
+# complementary branch of the gate (result absent), which the neither-carrier fixtures above,
+# all result events, never exercise.
+_D_NORESULT_2064='[{"type":"system","subtype":"init","claude_code_version":"2.1.226"}]'
+assert_eq "#2064 a no-result-event file publishes permission_denials_count=unavailable" "yes" \
+  "$(_diag_run "$_D_NORESULT_2064" >/dev/null; grep -qxF 'permission_denials_count=unavailable' "$D363/out" && echo yes || echo no)"
+assert_eq "#2064 a no-result-event file raises NO shape-drift warning (drift is gated on result-present)" "no" \
+  "$(_diag_run "$_D_NORESULT_2064" | grep -qF 'execution-file shape drift' && echo yes || echo no)"
+
+# ────────────────────────────────────────────────────────────────────────────
 echo "#1528 observability: claude_code_version published from the init record + read back"
 # ────────────────────────────────────────────────────────────────────────────
 # The execution file's system/init record carries claude_code_version; surface-
@@ -37690,8 +38080,8 @@ assert_pin_unique "#363 devflow-runner.yml names the diagnostics step so its out
   "id: diagnostics" "$RUNNER_YML"
 # The default is the `unavailable` sentinel, NOT 0: a consumer must distinguish
 # "the engine refused no commands" from "the count could not be established".
-assert_pin_unique "#363 devflow-runner.yml defaults permission_denials_count to the 'unavailable' sentinel, never 0" \
-  "permission_denials_count: \${{ steps.diagnostics.outputs.permission_denials_count || 'unavailable' }}" "$RUNNER_YML"
+assert_pin_unique "#363/#2064 devflow-runner.yml resolves permission_denials_count to 'unavailable' only on an empty publish (string-equality form), passing a measured 0 through" \
+  "permission_denials_count: \${{ steps.diagnostics.outputs.permission_denials_count == '' && 'unavailable' || steps.diagnostics.outputs.permission_denials_count }}" "$RUNNER_YML"
 assert_eq "#363 devflow-runner.yml never defaults the denial count to a literal 0" "0" \
   "$(pin_count "permission_denials_count || '0'" "$RUNNER_YML")"
 assert_pin_unique "#363 devflow-runner.yml exposes permission_denials_count as a workflow_call output" \
@@ -53323,7 +53713,7 @@ assert_eq "#1402/#1423 lint: an empty DEVFLOW_WITHHELD_TIER does not refuse (the
 # The print flag exits before the slice and schema reads, so a query about the workflow set
 # cannot be refused by — or misdiagnosed against — a source it never consults.
 assert_eq "#1402 lint: --print-never-shipped-set is independent of the slice and schema sources" \
-  "rc=0|agents-seam-probe ci devflow-runner matcher-probe mintlify-check stall-observer telemetry-push version-consolidate" \
+  "rc=0|agents-seam-probe ci devflow-runner matcher-probe mintlify-check telemetry-push version-consolidate" \
   "$(cd "$LIB/.." && sp_encode --print-never-shipped-set --slice-source /dev/null --schema-source /dev/null)"
 # Selection collects every candidate before choosing, so ambiguity refuses rather than
 # resolving by position. Both conjuncts say nothing about a loop's DIRECTION — the fixture's
@@ -53357,7 +53747,7 @@ assert_eq "#1402 lint: --print-never-shipped-set joins the mutually exclusive pr
 # copy loop, turns this RED rather than silently widening or narrowing the audit.
 SP_NEVER_REAL="$(cd "$LIB/.." && python3 "$SP_LINT" --print-never-shipped-set | python3 -c 'import sys; print(" ".join(sys.stdin.read().split()))')"
 assert_eq "#1402 lint: the real never-shipped set matches the checked-in expectation" \
-  "agents-seam-probe ci devflow-runner matcher-probe mintlify-check stall-observer telemetry-push version-consolidate" "$SP_NEVER_REAL"
+  "agents-seam-probe ci devflow-runner matcher-probe mintlify-check telemetry-push version-consolidate" "$SP_NEVER_REAL"
 # The #582 partition names this same group from its own transcribed literals: everything the
 # copy loop does NOT install, i.e. the plugin-internal group PLUS the retained-but-unshipped
 # withheld tier (issue #1423 — a withheld name reaches no fresh consumer, so it is forbidden

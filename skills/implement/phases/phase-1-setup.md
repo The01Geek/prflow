@@ -292,11 +292,11 @@ Use the Agent tool with `subagent_type: prflow:branch-setup` and `run_in_backgro
 
 - `ISSUE_NUMBER` — `$ISSUE_NUMBER`.
 - `WORKPAD` — the `workpad.py` helper path this tier uses as a leading token (the vendored literal `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier; the resolved `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py` on the local tier). Pass the ladder's rung order alongside this path — this leading-token form is rung 1 and the remaining rungs follow it in order — so the agent can fall through when the leading-token form does not run.
-- `SCRIPTS` — the same bundled-helper directory prefix (for `config-get.sh`, `branch-for-issue.py`, `preflight.py`, `run-jq.sh`, `refresh-pr-run-link.py`).
+- `SCRIPTS` — the same bundled-helper directory prefix (for `config-get.sh`, `branch-for-issue.py`, `preflight.py`, `run-jq.sh`, `pr-note-block.py`).
 - `BASE` — `$BASE` (the base branch; the agent re-derives it with the same fail-closed guard so a stale value cannot silently mistarget).
 - `WORKPAD_BODY` — the live workpad body read in §1.3/§1.4 (the agent reads its `**Branch:**` line from it; it must not re-fetch).
 - `HANDOFF` — the §1.3 cloud handoff provenance value (`created-current-run` / `adopted-existing` / `unknown`), which decides Verdict B's `provenance_established`.
-- `GITHUB_RUN_ID` / `GITHUB_SERVER_URL` / `GITHUB_REPOSITORY` — for the PR-body run-link refresh (empty on a local run, which skips it).
+- `GITHUB_RUN_ID` / `GITHUB_SERVER_URL` / `GITHUB_REPOSITORY` — passed for context; the PR-body `[View run]` refresh is retired to the gate job (unused here).
 - `ISSUE_TITLE` — the issue title (from the §1.1 `gh issue view`), for branch derivation.
 
 Dispatch barrier. Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway); it is deliberately not restated here. As that pointer's local arm — governing a run whose prompt carries no such block — a run whose runner backgrounds the dispatch despite `run_in_background: false` collects the completed return through the runner's own result-retrieval channel before routing on it. A backgrounded dispatch is not the failed-dispatch case, so this site's inline fallback is not taken while the dispatched subagent is still running in the shared checkout; it becomes that case, and takes the fallback, only once the collected return reports a failure, reports no usable record, or the subagent has terminally ended with no return to collect.
