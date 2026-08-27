@@ -1,0 +1,99 @@
+{
+  "root_completeness": "established",
+  "verdict": "REJECT",
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Critical",
+      "description": "Acceptance criterion 9 unmet: docs/internal/claude-md-tiered-suite-rationale.md is absent from the diff and still describes the superseded two-call read-back at lines 231-234 (`scripts/workpad.py id <issue>` then `scripts/workpad.py body <comment-id>`, keyed on `id`'s exit-1/exit-2 vocabulary). AC9 explicitly requires that doc rewritten to the one-call `workpad.py body --issue <n>` form (exit 2 = absent, exit 3 = read failure), and requires a repo-wide sweep to leave no two-call read-back descriptions outside the deliberately-kept id-consuming surfaces (phase-1-setup.md §1.3, review/SKILL.md, implement/SKILL.md patch prose) and the two untouched workflow callers. This doc is the sole remaining offender, so both halves of AC9 fail. Corroborated by prflow:code-reviewer.",
+      "defect_signature": {
+        "file": "docs/internal/claude-md-tiered-suite-rationale.md",
+        "line_range": [230, 234],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "fix-required"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "AC-required doc sweep incomplete: docs/internal/claude-md-tiered-suite-rationale.md lines 231-234 still describe the two-call `id`->`body <comment-id>` read-back — a plain prose description of the owed-fix-set read procedure, not a deliberately-kept id-consuming surface — so issue #2040's repo-wide sweep requirement (AC9) is unmet and the internal rationale doc still teaches the two-call pattern the feature retired. (Graded comment_drift/incomplete-sweep rather than documented_falsehood because the two-call form still works against HEAD.) Same defect as the prflow:requesting-code-review finding above.",
+      "defect_signature": {
+        "file": "docs/internal/claude-md-tiered-suite-rationale.md",
+        "line_range": [231, 234],
+        "kind": "comment_drift"
+      },
+      "fix_decision": "fix-required"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Residual argparse exit-2 asymmetry on the positional arm: the design comment eliminates the argparse usage-error exit-2 vs absent-workpad exit-2 collision on the --issue arm (untyped string, validated in cmd_body) but leaves the positional `comment_id` as type=int, so `body notanint` is rejected by argparse with exit 2. Impact is limited (loud stderr, never routed by an --issue caller) and, per AC4, keeping the positional form byte-compatible actually requires the pre-existing type=int, so this asymmetry is largely intentional. Below threshold; no fix required.",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [303, 303],
+        "kind": "api_misuse"
+      },
+      "fix_decision": "no-fix"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "pr-description/SKILL.md collapses the new exit vocabulary: `body --issue $ISSUE_NUMBER 2>/dev/null || true` maps exit 2 (absent), exit 3 (read failure) and operand errors alike to an empty WORKPAD_BODY, so a transient API failure is indistinguishable from a genuinely-absent workpad. AC7 explicitly sanctions this best-effort never-fail-the-run arm for this post-merge-item scrape, so acceptable as designed. Informational; no fix required.",
+      "defect_signature": {
+        "file": "skills/pr-description/SKILL.md",
+        "line_range": [67, 67],
+        "kind": "logic_error"
+      },
+      "fix_decision": "no-fix"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Argparse wiring for the `body` subparser (comment_id -> nargs='?'/type=int/default=None, untyped --issue, added --marker) is never integration-tested: every operand-combination assertion drives cmd_body directly with a hand-built Namespace, so a regression dropping nargs='?' or restoring type=int on --issue would not be caught. Tests still satisfy AC10; a single end-to-end parse assertion would harden it. Below threshold; no fix required.",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [101, 116],
+        "kind": "test_gap"
+      },
+      "fix_decision": "no-fix"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The non-list 'error envelope' exit-3 sub-path (a rc-0 gh response that parses but is not a JSON array) that the --issue arm inherits from _find_workpad_comment is not exercised directly on the new arm, nor is the _repo_full(api_fail_code=3) repo-resolution-failure exit-3 path; both are only transitively covered via the shared cmd_id/cmd_status tests. AC10's enumerated cases are met; a direct case would fully pin the new arm's exit-3 contract. Below threshold; no fix required.",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [97, 99],
+        "kind": "test_gap"
+      },
+      "fix_decision": "no-fix"
+    }
+  ],
+  "report": "## Verdict: REJECT (acceptance criterion 9 unmet — the required internal-doc sweep is incomplete)\n\n## Issue Compliance\nReviewed against issue #2040: \"Add an issue-addressed `body --issue` read to workpad.py and collapse the two-fence workpad read-backs\" — criteria from the issue body (`acceptance_criteria_source: issue-body`; head_override = local, diffed `main...HEAD`); scope unchanged. Requirement-based checklist items are included in the verification results below. 10 of 11 acceptance criteria are satisfied; AC9 is unmet.\n\n- AC1–AC5 (scripts/workpad.py `cmd_body`): SATISFIED. The `--issue` arm resolves through `_workpad_marker(args.marker)` + the shared `_find_workpad_comment` scan (same as `id`/`status`), honoring `--marker`→env→config→default precedence and pagination, prints the matched comment body verbatim (exit 0), and yields exactly exit 3 (read failure, via `_repo_full(api_fail_code=3)` and `api_fail_code=3`) and exit 2 (clean-absent) as its only non-zero exits after validation. Operand validation (both/neither, and `issue.isascii() and issue.isdigit()` decimal check) exits 1 from inside `cmd_body` before any network call. `--issue` is an untyped string, avoiding the argparse usage-error exit-2 collision. Positional arm stays byte-compatible with an added operand-kind hint line before the existing `_fail` detail.\n- AC6: SATISFIED — exactly six sites collapsed to the one-call form (phase-2-implement.md §2.0; phase-2-sweeps-contract.md criterion-lifecycle + ground-once-ledger; pr-description/SKILL.md; two implement/SKILL.md bullets).\n- AC7: SATISFIED — swept failure branches retargeted to the new exit vocabulary.\n- AC8: SATISFIED — id-consuming surfaces (phase-1-setup.md §1.3, review/SKILL.md id capture, implement/SKILL.md patch prose) untouched.\n- AC9: **UNMET** — `docs/internal/claude-md-tiered-suite-rationale.md` was not modified and still describes the two-call read-back (lines 231–234); the repo-wide sweep requirement is therefore also unmet (this doc is the sole remaining offender).\n- AC10: SATISFIED — tests exercise the enumerated cases; the enriched-failure test is genuinely RED-first against pre-fix code.\n- AC11: SATISFIED — `.changeset/issue-2040-body-issue-read.md` is uniquely named with `bump: patch`; neither `.claude-plugin/plugin.json` nor `CHANGELOG.md` is touched.\n\n## Verification Checklist Results\n11 acceptance-criteria checklist items verified (engine_self_modifying → full checklist), 10 passed, 1 failed — all via agent/source verification.\n- VC-9: FAIL — AC9: docs/internal/claude-md-tiered-suite-rationale.md updated to one-call `body --issue` form and repo-wide two-call sweep clean [docs/internal/claude-md-tiered-suite-rationale.md:231]\n\n<details><summary>✅ Passed items (10 of 11) — click to expand</summary>\n\n- VC-1: AC1 `body --issue` success prints body verbatim, exit 0, marker precedence honored [scripts/workpad.py:577]\n- VC-2: AC2 exit 2 clean-absent / exit 3 read-failure are the only non-zero --issue exits [scripts/workpad.py:587]\n- VC-3: AC3 operand validation exits 1 pre-network for both/neither/malformed [scripts/workpad.py:567]\n- VC-4: AC4 positional form byte-compatible [scripts/workpad.py:593]\n- VC-5: AC5 positional failure adds operand-kind hint line before existing detail [scripts/workpad.py:601]\n- VC-6: AC6 exactly six read-back sites collapsed [skills/*]\n- VC-7: AC7 swept failure branches retargeted to new exit vocabulary [skills/implement/phases/*]\n- VC-8: AC8 id-consuming surfaces unchanged [skills/implement/phases/phase-1-setup.md]\n- VC-10: AC10 tests cover enumerated cases, enriched-failure RED-first [lib/test/test_python_scripts.py:632]\n- VC-11: AC11 changeset bump:patch, no plugin.json/CHANGELOG edits [.changeset/issue-2040-body-issue-read.md]\n\n</details>\n\n## Code Review Findings\n\n### 🔴 Critical\n1. Acceptance criterion 9 unmet — `docs/internal/claude-md-tiered-suite-rationale.md` is absent from the diff and still describes the superseded two-call read-back at lines 231–234, keyed on `id`'s exit-1/exit-2 vocabulary. AC9 requires this doc rewritten to the one-call `workpad.py body --issue <n>` form (exit 2 = absent, exit 3 = read failure) and a repo-wide sweep leaving no two-call read-back descriptions outside the deliberately-kept id-consuming surfaces and two untouched workflow callers; this doc is the sole remaining offender, so both halves of AC9 fail. The passage is not a diff-added/modified line, so this is an unmet-required-deliverable / incomplete-sweep gap (a functional-coverage gap graded on its functional severity), not the Phase 4.2 self-contradicting-diff carve-out. (raised by 2/5 agents)\n\n### 🟡 Suggestion / Minor\n1. Residual argparse exit-2 asymmetry: positional `comment_id` stays `type=int`, so `body notanint` exits 2 via argparse while `--issue` was deliberately kept untyped to avoid that collision. Largely intentional — AC4 byte-compatibility requires the pre-existing type=int — and loud on stderr; no fix required. (raised by 1/5 agents)\n2. `pr-description/SKILL.md` collapses exit 2/exit 3/operand errors to an empty WORKPAD_BODY under `2>/dev/null || true`; AC7 sanctions this best-effort arm, so acceptable as designed. (raised by 1/5 agents)\n3. Argparse wiring for the `body` subparser is never integration-tested — operand assertions drive `cmd_body` with a hand-built Namespace; a single end-to-end parse assertion would harden AC10. (raised by 1/5 agents)\n4. The non-list error-envelope exit-3 sub-path (and the `_repo_full` exit-3 path) are not exercised directly on the new arm, only transitively via the shared scanner tests. (raised by 1/5 agents)\n\n## Verdict Criteria\n- Rule 1 (any verification checklist item FAIL → REJECT): VC-9 (AC9) FAILs → **REJECT**.\n- Also independently: a Critical review-agent finding at the default `critical` threshold (the AC9 gap) drives REJECT (rule 3).\n- The AC9 doc line is NOT diff-added/modified, so the threshold-independent self-contradicting-diff carve-out does not apply; the REJECT is driven by the unmet acceptance criterion (missing required deliverable), which the behavior-inert prose cap does not cover (functional-coverage gap graded on functional severity).\n- No Phase 3 agents failed (0 of 5).\n\nover-grade annotation: no finding flagged (the Critical is an unmet-deliverable / functional-coverage gap, not a suite-RED/fail-closed, diagnostic-only, or uncorroborated-empirical-over-grader shape)\ntruthfulness sweep: no finding promoted\nintra-diff contradiction scan: no contradiction found\n\n## Remedy\nUpdate `docs/internal/claude-md-tiered-suite-rationale.md` lines 231–234 to describe the read-back as the one-call `scripts/workpad.py body --issue <issue>` form, mapping the routing onto the new exit vocabulary (exit 2 = no workpad, exit 3 = read failure), then re-confirm the repo-wide two-call sweep is clean. Add the doc to the PR (and it should carry no separate changeset — the existing one already covers the feature)."
+}

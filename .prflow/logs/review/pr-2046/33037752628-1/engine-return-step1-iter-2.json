@@ -1,0 +1,76 @@
+{
+  "root_completeness": "complete: skills/review/SKILL.md read in full (341 lines, past EOF confirmed); root identity and phase references established per boundary contract for the phases executed",
+  "verdict": "APPROVE",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "requesting-code-review (final-pass)"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "severity": "Suggestion",
+      "source": "silent-failure-hunter",
+      "file": "scripts/workpad.py",
+      "line": 6944,
+      "summary": "A missing --issue value token (e.g. unset/unquoted $ISSUE_NUMBER) yields argparse usage-error exit 2, which collides with the --issue arm's 'absent workpad' exit 2. Contained: the sole in-tree consumer (phase-2-implement.md §2.0) routes both exit 2 and any argparse failure to the same gate-does-not-fire path, so no behavior breaks; contract-precision nit only."
+    },
+    {
+      "severity": "Suggestion",
+      "source": "silent-failure-hunter",
+      "file": "scripts/workpad.py",
+      "line": 596,
+      "summary": "Positional-arm operand-kind hint ('use body --issue') prints on every CalledProcessError/OSError, including genuine transport/auth failures on a valid comment id, so the advice can be misleading. Documented tradeoff in-code; real _fail detail still emitted and exit 1 preserved. Advisory noise, not a silent failure."
+    },
+    {
+      "severity": "Suggestion",
+      "source": "comment-analyzer",
+      "file": "scripts/workpad.py",
+      "line": 6941,
+      "summary": "The argparse add_parser('body') comment (6 lines) restates the exit-2-collision rationale already stated at cmd_body (lines 564-567) and exceeds the 3-physical-line comment cap; could be trimmed to a pointer keeping only the load-bearing 'never type=int' clause. Comment-discipline nit."
+    },
+    {
+      "severity": "Suggestion",
+      "source": "pr-test-analyzer",
+      "file": "lib/test/test_python_scripts.py",
+      "line": 659,
+      "summary": "_repo_full(api_fail_code=3) failure limb not exercised via cmd_body (stub always succeeds); scan-failure exit-3 path is covered, so shared api_fail_code=3 contract is partly proven. Unicode-digit --issue (isascii() term) and empty-stdout-on-exit-2/3 assertions also uncovered. Low-severity coverage gaps."
+    },
+    {
+      "severity": "Suggestion",
+      "source": "code-reviewer",
+      "file": "skills/implement/phases/phase-4-documentation.md",
+      "line": 0,
+      "summary": "phase-4-documentation.md §4.0 still uses the two-call id->body read-back; out of this PR's declared scope (its read-back is functionally fine and it is a legitimately id-consuming exemplar), a future pass could collapse it for consistency. Non-blocking."
+    }
+  ],
+  "diff_profile": {
+    "classification": "docs + agent-prompt-surface prose + python-source + tests",
+    "files_changed": 8,
+    "insertions": 248,
+    "deletions": 29,
+    "surfaces": [
+      ".changeset/issue-2040-body-issue-read.md (new)",
+      "docs/internal/claude-md-tiered-suite-rationale.md",
+      "lib/test/test_python_scripts.py",
+      "scripts/workpad.py",
+      "skills/implement/SKILL.md",
+      "skills/implement/phases/phase-2-implement.md",
+      "skills/implement/phases/phase-2-sweeps-contract.md",
+      "skills/pr-description/SKILL.md"
+    ],
+    "new_types": false,
+    "type_design_analyzer_gated_out": true
+  },
+  "cap_drops": [],
+  "report": "Iteration 2 of /prflow:review over PR #2046 (issue #2040), verifying the iteration-1 fix (commit 1dc88dffc). AC9 FIX CONFIRMED RESOLVED: (a) docs/internal/claude-md-tiered-suite-rationale.md (lines 230-233) now describes the one-call `scripts/workpad.py body --issue <issue>` form with exit 2 = no workpad and exit 3 = unestablished, matching the shipped implementation (cmd_body's --issue arm threads api_fail_code=3 through _repo_full and _find_workpad_comment); the old two-call `id`->`body <comment-id>` wording and its 'exit 1 = unestablished' claim are gone. (b) Repo-wide sweep found no further two-call id->body read-back descriptions outside deliberately-kept id-consuming surfaces: phase-1-setup.md §1.3 (three-way id exit contract for create-vs-resume, reuses captured $WORKPAD_ID), review/SKILL.md id capture (custom --marker progress comment), plus workflow/helper callers (stall-observer.yml, devflow-implement.yml, seed-review-progress.sh, flip-review-progress-failed.sh) and the byte-compatible positional `body <id>` form. The docs/internal/*.md `workpad.py id` mentions concern id's duplicate-create authorization contract, not read-back, so are correctly untouched. The fix introduces no new issue. Overall diff re-verified: exit-code partition (1 = operand error, 2 = absent, 3 = read failure) consistent across code/tests/docs; --issue is untyped string (isascii()+isdigit()) avoiding argparse exit-2 collision; positional arm byte-compatible (type=int, nargs='?'); coupled mirrors (usage block, --marker subcommand list, _find_workpad_comment docstring) reconciled; changeset's 'six sites' count accurate; test coverage thorough and RED-first. All ACs (AC1-AC11) hold. Phase-3 roster returned no Critical/Major findings; five Suggestion-level items, all non-blocking (argparse exit-2 edge on missing --issue token, always-printed positional hint, one over-cap restated comment, minor test gaps, and an out-of-scope phase-4-documentation.md §4.0 two-call residual). Verdict: APPROVE."
+}
