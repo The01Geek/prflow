@@ -66,7 +66,7 @@ tell "the harness refused nothing" from "the count could not be established".
 
 **Shape-drift warning.** When a `result` event is present but the count still resolves to
 unknown (neither carrier found), each extractor emits one warning breadcrumb — a
-`::warning::DevFlow: execution-file shape drift suspected …` line from
+`::warning::` annotation whose text is `execution-file shape drift suspected …` from
 `surface-execution-diagnostics.sh` and a `devflow: build-denial-record.sh: execution-file
 shape drift suspected …` line from `build-denial-record.sh` — so the next execution-file shape
 change announces itself instead of degrading silently to `unavailable`. The two wordings are
