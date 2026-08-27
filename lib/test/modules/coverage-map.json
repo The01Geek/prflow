@@ -48,8 +48,8 @@
       "owner": "unmodularized"
     },
     "lib/efficiency-trace.sh": {
-      "note": "",
-      "owner": "unmodularized"
+      "note": "issue #2035 telemetry.enabled master-switch --persist gate driven by the #2035 block in lib/test/modules/efficiency-trace-telemetry.sh; the broader efficiency-trace/telemetry surface remains split across lib/test/run.sh and that module",
+      "owner": "efficiency-trace-telemetry"
     },
     "lib/fetch-pr-context.sh": {
       "note": "",
@@ -280,8 +280,8 @@
       "owner": "unmodularized"
     },
     "scripts/collect-staged-telemetry.sh": {
-      "note": "",
-      "owner": "unmodularized"
+      "note": "issue #2035 telemetry.enabled master-switch push-path gate driven by the #2035 block in lib/test/modules/efficiency-trace-telemetry.sh",
+      "owner": "efficiency-trace-telemetry"
     },
     "scripts/compose-implement-prompt.sh": {
       "note": "issue #1170 implement-tier prompt composer (renderer-absent / empty-block / compose-and-publish selection extracted out of devflow-implement.yml); every arm and the arm order driven by the #1170 block in lib/test/run.sh",
@@ -867,6 +867,10 @@
     "scripts/surface-execution-diagnostics.sh": {
       "note": "",
       "owner": "unmodularized"
+    },
+    "scripts/telemetry-master-off.py": {
+      "note": "issue #2035 telemetry.enabled master-switch predicate (JSON-boolean-false); the resolver + push-path consumers and its seven-shape matrix are driven by the #2035 block in lib/test/modules/efficiency-trace-telemetry.sh",
+      "owner": "efficiency-trace-telemetry"
     },
     "scripts/telemetry-push-artifact.sh": {
       "note": "",
@@ -1739,6 +1743,10 @@
     "2025": {
       "note": "",
       "owner": "unmodularized"
+    },
+    "2035": {
+      "note": "",
+      "owner": "efficiency-trace-telemetry"
     },
     "2050": {
       "note": "",

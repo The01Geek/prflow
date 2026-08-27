@@ -1830,6 +1830,44 @@ apply_pr_less_issue_floor() {
 
 do_persist() {
   local root dir slug run_id _TELEMETRY_STAGE
+  # Telemetry master switch (issue #2035); the decision and the {0,1,2} exit
+  # contract are scripts/telemetry-master-off.py's. Inline python3 -c, NEVER an
+  # exec of it: a new exec edge here breaks the issue-#458 Stop-hook drift guard.
+  local _tel_rc
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "devflow: efficiency-trace.sh --persist: python3 not on PATH — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
+  else
+    # `|| _tel_rc=$?`, never a bare invocation then `$?`: this file runs under
+    # `set -e`, which kills the whole --persist on the predicate's non-zero exit.
+    _tel_rc=0
+    DEVFLOW_TEL_CFG="$_DEVFLOW_CONFIG" python3 -c '
+import json, os, sys
+try:
+    with open(os.environ["DEVFLOW_TEL_CFG"], encoding="utf-8") as fh:
+        data = json.load(fh)
+except FileNotFoundError:
+    sys.exit(1)
+except Exception:
+    sys.exit(2)
+if not isinstance(data, dict):
+    sys.exit(2)
+tel = data.get("telemetry")
+# `is False`, never ==: in Python 0 == False, so == would disable telemetry on a
+# config carrying the number 0, which the seven-shape matrix requires to stay ON.
+sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
+' >/dev/null 2>&1 || _tel_rc=$?
+    if [ "$_tel_rc" -eq 0 ]; then
+      echo "devflow: efficiency-trace.sh --persist: telemetry.enabled is false — skipping telemetry-branch persistence and the durable workpad copy this run (issue #2035)" >&2
+      return 0
+    elif [ "$_tel_rc" -eq 2 ]; then
+      echo "devflow: efficiency-trace.sh --persist: config '$_DEVFLOW_CONFIG' exists but could not be read or parsed — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
+    elif [ "$_tel_rc" -ne 1 ]; then
+      # Catch-all: an exit outside the predicate's {0,1,2} contract means the
+      # interpreter itself broke. Announcing it is what stops this gate failing
+      # open in silence, as the sibling collect-staged-telemetry.sh already does.
+      echo "devflow: efficiency-trace.sh --persist: the telemetry.enabled predicate exited $_tel_rc, outside its {0,1,2} contract — the master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
+    fi
+  fi
   root="$(devflow_repo_root)"
   # Resolve the telemetry branch ONCE, here in the parent, before anything forks. The
   # resolution is memoized in _DEVFLOW_TELEMETRY_BRANCH_CACHE, and a subshell inherits the
