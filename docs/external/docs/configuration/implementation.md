@@ -29,12 +29,8 @@ Tune `/prflow:implement` behavior and coordinate verification when multiple agen
 <Accordion title="Settings you rarely need to change">
   | **Setting** | **Type and accepted values** | **Fallback or scaffold** | **Tier and note** | **Example** |
   | --- | --- | --- | --- | --- |
-  | `prflow_implement.stall_observer.enabled` | Boolean | `true`; only the exact string `false` disables | Report-only observer. It never stops or restarts a run. The workflow that reads it is not installed in a consumer repository, so the value has no effect there today. | `"enabled": true` |
-  | `prflow_implement.stall_observer.advisory_threshold_minutes` | Integer zero or greater | `90`; invalid values use `90` | Report-only observer. How long a run may go without a workpad update before an advisory notice is raised. | `"advisory_threshold_minutes": 90` |
   | `verification_flight.lease_seconds` | Integer zero or greater | `900` | Reserved for future use. Changing this setting has no effect in the current release. | `"lease_seconds": 900` |
   | `verification_flight.wait_timeout_seconds` | Integer zero or greater | Scaffold: `600` | Reserved for future use. Changing this setting has no effect in the current release. | `"wait_timeout_seconds": 600` |
-
-  The stall observer and the stall backstop are different things. The backstop runs after the agent step returns and can resume a run. The observer only reports that a run has been quiet for a while.
 </Accordion>
 
 Provider and model overrides for implementation are documented in [Model Providers](/docs/configuration/providers). Implementation tool grants are documented in [Tool Permissions](/docs/configuration/tool-permissions). To give implementation runs a repository-specific rule, such as the verification command they must use, write a [prompt extension](/docs/configuration/prompt-extensions).

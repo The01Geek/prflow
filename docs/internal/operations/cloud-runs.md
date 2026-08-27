@@ -24,7 +24,6 @@ Cloud execution combines automation with repository credentials, so the workflow
 ## Source of truth
 
 - `.github/workflows/devflow.yml`, `.github/workflows/devflow-implement.yml`, and `.github/workflows/devflow-runner.yml` — cloud jobs and trust boundaries.
-- `.github/workflows/stall-observer.yml` — scheduled, report-only stalled-run observer (no writer credentials, no agent).
 - `.github/workflows/mintlify-check.yml` — advisory Mintlify validation on public-doc pull requests (not a required check).
 - `.github/workflows/telemetry-push.yml` — the telemetry relay retained for already-installed consumers of the withheld automatic-review tier.
 - `.github/actions/setup-project-env/` and `.github/actions/vendor-plugin/` — runtime setup and materialization.
