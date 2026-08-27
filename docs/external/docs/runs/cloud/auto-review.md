@@ -127,6 +127,10 @@ Three outcomes tell you something went wrong instead:
 - **The step logged a warning about a missing helper.** Your installed `prflow_version` is below `2.30.18`. Update the installation. See [Cloud Updates](/docs/runs/cloud/updates).
 - **The comment was posted but no review started.** The App's bot login is not in `prflow.allowed_bots` on your default branch. See [Cloud Triggers](/docs/runs/cloud/triggers).
 
+One outcome is intentional, not a failure:
+
+- **The pull request has GitHub auto-merge enabled, and no review was requested.** Auto-merge merges a pull request the instant its required checks pass — the same instant this trigger fires — so an armed pull request is about to merge and a review requested now would run against an already-merged target that nobody can act on. The helper detects the armed pull request and skips, logging a warning that names enabled auto-merge as the reason. If your repository *also* requires an approving review, an armed pull request does not merge at CI-green, so if you still want a review there, comment `/prflow:review` by hand — the manual path is unchanged.
+
 ## Where This Does Not Reach
 
 <Warning>
