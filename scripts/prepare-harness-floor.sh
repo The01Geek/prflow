@@ -26,8 +26,9 @@
 #   1. runs scripts/extract-execution-cost.py over the execution file → the cost JSON;
 #   2. normalizes <command> to a class and extracts an explicit trailing PR number;
 #   3. resolves/verifies the PR the record is keyed to (gh via lib/resolve-gh.sh);
-#   4. prints two eval-able env assignments to STDOUT — DEVFLOW_EXECUTION_PR and
-#      DEVFLOW_COMMAND_CLASS — for the `bash "$HELPER" --persist` line.
+#   4. prints four eval-able env assignments to STDOUT — DEVFLOW_EXECUTION_PR,
+#      DEVFLOW_COMMAND_CLASS, DEVFLOW_ISSUE_NUMBER and DEVFLOW_NO_PR_REASON — for
+#      the `bash "$HELPER" --persist` line.
 #
 # Every non-happy branch emits a SPECIFIC ::warning:: so a skipped skeleton/inert floor
 # is auditable in the step log. Best-effort: ALWAYS exits 0 (the ensure-label.sh
@@ -50,12 +51,74 @@ COMMAND="${2:-}"
 CANDIDATE="${3:-}"
 COST_OUT="${4:-}"
 
-# Emit the two eval-able env assignments and exit 0. $1 = PR (digits or empty),
-# $2 = command class (a known class or empty). Single-quoting is safe because both are
-# sanitized to a fixed shape before this is called.
+# Emit the four eval-able env assignments and exit 0. $1 = PR, $2 = command class,
+# $3 = issue number, $4 = the reason no PR resolved.
+#
+# Sanitize HERE rather than at the call sites: both workflows run
+# `eval "$(bash prepare-harness-floor.sh …)"`, so an operand carrying a single quote
+# breaks out of the quoting below and executes. The candidate number reaches this function
+# unvalidated on the implement arm — on its unusable-issue branch it is by construction
+# not a number — so the one place whose contract asserts the shape is the place that
+# enforces it. A value outside its shape is emitted EMPTY, the shape a consumer already
+# treats as "not established".
+#
+# $3 is non-empty ONLY on the `implement` arm. Every other class's <candidate_number> is
+# a PR number, so emitting it here would key the PR-less record to a PR as if it were an
+# issue. devflow.yml's trigger negates /prflow:implement, so class `implement` reaches
+# this glue only from devflow-implement.yml, whose candidate is the issue number.
+# The record-deriving command classes, and the reasons no PR resolved. Each vocabulary has
+# ONE owner used by both its producer and _emit's guard: a second literal list drifts from
+# the producer, and _emit then blanks a value this glue did in fact observe.
+_is_known_class() {
+  case "$1" in
+    review|review-and-fix|pr-description|implement) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_is_known_no_pr_reason() {
+  case "$1" in
+    issue-number-unusable|gh-lookup-failed|no-closing-pr-found|unestablished) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Announce an operand this function blanked. A silently-emptied operand reaches the record
+# as "not established" for a value the glue did in fact observe, which is the one thing the
+# reason vocabulary must never assert.
+_emit_blanked() {
+  echo "::warning::prepare-harness-floor: $1 was emitted EMPTY because the value it was given ('$2') is outside its accepted shape; the record will read it as not established" >&2
+}
+
+# The accepted shape for a number that is BOTH interpolated into a slug and passed to
+# `jq --argjson`: reject a leading zero, which jq normalizes away, leaving the slug
+# (`issue-007`) and the field (`7`) naming different things.
+_emit_number_ok() {
+  case "$1" in
+    ''|*[!0-9]*) return 1 ;;
+    0|[1-9]*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 _emit() {
-  printf "DEVFLOW_EXECUTION_PR='%s'\n" "$1"
-  printf "DEVFLOW_COMMAND_CLASS='%s'\n" "$2"
+  local pr="${1:-}" class="${2:-}" issue="${3:-}" reason="${4:-}"
+  if [ -n "$pr" ] && ! _emit_number_ok "$pr"; then
+    _emit_blanked DEVFLOW_EXECUTION_PR "$pr"; pr=""
+  fi
+  if [ -n "$issue" ] && ! _emit_number_ok "$issue"; then
+    _emit_blanked DEVFLOW_ISSUE_NUMBER "$issue"; issue=""
+  fi
+  if [ -n "$class" ] && ! _is_known_class "$class"; then
+    _emit_blanked DEVFLOW_COMMAND_CLASS "$class"; class=""
+  fi
+  if [ -n "$reason" ] && ! _is_known_no_pr_reason "$reason"; then
+    _emit_blanked DEVFLOW_NO_PR_REASON "$reason"; reason=""
+  fi
+  printf "DEVFLOW_EXECUTION_PR='%s'\n" "$pr"
+  printf "DEVFLOW_COMMAND_CLASS='%s'\n" "$class"
+  printf "DEVFLOW_ISSUE_NUMBER='%s'\n" "$issue"
+  printf "DEVFLOW_NO_PR_REASON='%s'\n" "$reason"
   exit 0
 }
 
@@ -111,12 +174,10 @@ esac
 # is a silent disarm, where a renamed namespace leaves the floor recording an empty
 # class. The downstream dispatch warning only fires on runs that get that far, so a
 # future rename must fail loud HERE rather than depend on reaching it.
-case "$CLASS" in
-  review|review-and-fix|pr-description|implement) : ;;
-  *)
+if _is_known_class "$CLASS"; then :; else
     echo "::warning::prepare-harness-floor: command '$COMMAND' did not classify (token '$CLASS' is not one of review|review-and-fix|pr-description|implement); the per-class cost floor will be recorded with NO class. If the plugin command namespace changed, the namespace set derived from lib/plugin_identity.py --plugin-names did not cover it." >&2
-    CLASS="" ;;
-esac
+    CLASS=""
+fi
 
 # ── Run the reader over the execution file → cost JSON ───────────────────────
 # An inert COST does NOT short-circuit the PR resolution below. DEVFLOW_EXECUTION_PR
@@ -173,14 +234,44 @@ _verify_pr() {
 # issue"). Uses `gh pr list --search … --json closingIssuesReferences`, the same
 # branch-naming-independent closes-issue predicate lib/scan.sh and the Phase-1 resume
 # pre-check use. Prints the PR number (or nothing). Best-effort.
+#
+# Reports WHICH failure fired through its EXIT CODE, never a variable: the sole caller
+# invokes this in a command substitution, so an assignment made here happens in a
+# subshell the parent never sees, and the reason would always read empty. 2 = the issue
+# number is unusable, 3 = the gh lookup itself failed, 4 = gh succeeded and no closing PR
+# exists. Never collapse the three onto one token: a transport failure and a genuinely
+# PR-less run are different facts, and the PR-less record's reason field must not assert
+# a cause this code did not observe.
 _resolve_pr_for_issue() {
-  local issue="$1" num
-  case "$issue" in ''|*[!0-9]*) return 1 ;; esac
+  local issue="$1" num rc
+  case "$issue" in
+    ''|*[!0-9]*) return 2 ;;
+  esac
   num="$("$DEVFLOW_GH" pr list --search "${issue} in:body" --state all \
         --json number,closingIssuesReferences \
-        --jq "map(select(any(.closingIssuesReferences[]?; .number == ${issue}))) | (.[0].number // empty)" 2>/dev/null)" || return 1
-  [ -n "$num" ] || return 1
+        --jq "map(select(any(.closingIssuesReferences[]?; .number == ${issue}))) | (.[0].number // empty)" 2>/dev/null)"
+  rc=$?
+  [ "$rc" -eq 0 ] || return 3
+  [ -n "$num" ] || return 4
   printf '%s\n' "$num"
+}
+
+# The exit code above → the fixed-vocabulary token the PR-less record carries.
+_no_pr_reason_for_rc() {
+  local token
+  case "$1" in
+    2) token="issue-number-unusable" ;;
+    3) token="gh-lookup-failed" ;;
+    4) token="no-closing-pr-found" ;;
+    *) token="unestablished" ;;
+  esac
+  # Fail loud here rather than letting _emit blank a token this function produced: a new rc
+  # arm added without registering its token would otherwise reach the record as
+  # "not established" for a cause this glue observed.
+  if ! _is_known_no_pr_reason "$token"; then
+    echo "::warning::prepare-harness-floor: _no_pr_reason_for_rc produced '$token', which _is_known_no_pr_reason does not accept; register it there" >&2
+  fi
+  printf '%s\n' "$token"
 }
 
 case "$CLASS" in
@@ -201,11 +292,14 @@ case "$CLASS" in
       _emit "" "$CLASS"
     fi ;;
   implement)
-    if PR="$(_resolve_pr_for_issue "$CANDIDATE")"; then
-      _emit "$PR" "$CLASS"
+    PR="$(_resolve_pr_for_issue "$CANDIDATE")"
+    PR_RC=$?
+    if [ "$PR_RC" -eq 0 ]; then
+      _emit "$PR" "$CLASS" "$CANDIDATE" ""
     else
-      echo "::warning::prepare-harness-floor: could not resolve the PR opened for issue '$CANDIDATE' (no closing PR found, or the gh lookup failed); DEVFLOW_EXECUTION_PR left empty (skeleton skipped)" >&2
-      _emit "" "$CLASS"
+      NO_PR_REASON="$(_no_pr_reason_for_rc "$PR_RC")"
+      echo "::warning::prepare-harness-floor: could not resolve the PR opened for issue '$CANDIDATE' (reason: $NO_PR_REASON); DEVFLOW_EXECUTION_PR left empty, DEVFLOW_ISSUE_NUMBER carries the issue so the PR-less record can still be keyed" >&2
+      _emit "" "$CLASS" "$CANDIDATE" "$NO_PR_REASON"
     fi ;;
   *)
     echo "::warning::prepare-harness-floor: unrecognized command '$COMMAND' (no record-deriving class); DEVFLOW_EXECUTION_PR left empty" >&2

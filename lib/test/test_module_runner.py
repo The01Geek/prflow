@@ -2148,6 +2148,12 @@ MODULE_DRIVEN_SUITES = (
     "test_red_on_removal_retirement_manifest.py",
     "test_residual_prose_retirement_manifest.py",
     "test_workflow_flight_recorder.py",
+    # issue #2006: the implement run evaluation instruments' focused unittests,
+    # driven by lib/test/modules/harness-python-guards.sh.
+    "test_derive_run_profile.py",
+    "test_implement_timeline.py",
+    "test_implement_run_report.py",
+    "test_implement_benchmark.py",
     "test_workflow_analyzer.py",
 )
 
