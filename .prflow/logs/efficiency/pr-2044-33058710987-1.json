@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-2044",
+  "generated_at": "2026-08-27T09:36:41Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.67",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.480303500000003,
+    "tokens": {
+      "input_tokens": 36,
+      "output_tokens": 18947,
+      "cache_read_input_tokens": 2518821,
+      "cache_creation_input_tokens": 189193,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 108,
+        "outputTokens": 48441,
+        "cacheReadInputTokens": 4735567,
+        "cacheCreationInputTokens": 510637,
+        "webSearchRequests": 0,
+        "costUSD": 7.480303500000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 25,
+    "duration_ms": 411767
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-2044/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"slug-dir-made\"",
+      "grep -n \"set -e\\|set -u\\|^set \" scripts/update-branch-checkpoint.sh | head; echo \"---check-attr sanity---\"; git check-attr merge -- lib/test/modules/coverage-map.json",
+      "git check-attr merge -- lib/test/modules/coverage-map.json"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
