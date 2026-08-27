@@ -119,5 +119,106 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.35.5",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 145.8940990500001,
+    "tokens": {
+      "input_tokens": 742,
+      "output_tokens": 322328,
+      "cache_read_input_tokens": 215372014,
+      "cache_creation_input_tokens": 882048,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1006,
+        "outputTokens": 459384,
+        "cacheReadInputTokens": 224892108,
+        "cacheCreationInputTokens": 2483465,
+        "webSearchRequests": 0,
+        "costUSD": 142.76502025000008,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 176,
+        "outputTokens": 46992,
+        "cacheReadInputTokens": 6304309,
+        "cacheCreationInputTokens": 559178,
+        "webSearchRequests": 0,
+        "costUSD": 3.1290787999999994,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "num_turns": 402,
+    "duration_ms": 8879350
+  },
+  "permission_denials": {
+    "count": 26,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT SERVER=$GITHUB_SERVER_URL REPO=$GITHUB_REPOSITORY ACTIONS=$GITHUB_ACTIONS APP_ID=$DEVFLOW_APP_ID\"; .prflow/vendor/prflow/scripts/config-get.sh base_branch 2>/dev/null || echo \"no-base\"; git branch --show-current",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 2075 --branch \"$(git branch --show-current)\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 2075 --note \"§2.2.7 coupled sites: (1) checklist_skipped 'failure' spelling — REUSE only, mint no variant (drift-pinned in lib/test/test_python_scripts*.py); (2) flip-review-progress-failed.sh behavior<->its module-header Contract docstring<->review-trigger-helpers.sh arm tests; (3) coverage-map.json entry for the new script; (4) lib/review-profile.tokens + generated devflow.yml/matcher-probe literals must stay byte-identical (add no grant); (5) th …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nT=.prflow/tmp/gate-smoke\nrm -rf \"$T\"; mkdir -p \"$T/engine\"\n# engine root WITH instruction\nprintf 'x\\nphase-entry phase=1 example\\n' > \"$T/engine/SKILL.md\"\nprintf '{\"run_roots\":[],\"review_ids\":[111]}' > \"$T/pre.json\"\n# reviews: one own-login marked verdict, id 222 (fresh), head match\nH=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nprintf '[{\"id\":222,\"state\":\"APPROVED\",\"user\":{\"login\":\"bot[bot]\"},\"body\":\"<!-- prflow:review-verdict head=%s verdict=APPROVE -->\\\\nok\"}]'  …[per-command-truncated]",
+      "which actionlint 2>/dev/null && actionlint .github/workflows/devflow.yml 2>&1 | head -30 || echo \"no actionlint\"; echo \"---yaml parse---\"; python3 -c \"import yaml,sys; yaml.safe_load(open('.github/workflows/devflow.yml')); print('YAML OK')\" 2>&1 | tail -3",
+      "command -v actionlint || echo \"NO-ACTIONLINT\"",
+      "python3 - <<'PY'\nimport yaml\nd = yaml.safe_load(open('/home/runner/work/prflow/prflow/.github/workflows/devflow.yml'))\nnames = {'Snapshot pre-engine review-evidence inventory':'pre', 'Review evidence gate':'gate'}\nfor job in d['jobs'].values():\n    for step in job.get('steps', []):\n        if step.get('name') in names:\n            open('/home/runner/work/prflow/prflow/.prflow/tmp/wf_%s.sh' % names[step['name']], 'w').write('#!/usr/bin/env bash\\n' + step['run'])\n            print('wrote', names[s …[per-command-truncated]",
+      "python3 /home/runner/work/prflow/prflow/.prflow/tmp/extract_wf.py 2>/dev/null; python3 - <<'PY'\nimport yaml\nd = yaml.safe_load(open('/home/runner/work/prflow/prflow/.github/workflows/devflow.yml'))\nnames = {'Snapshot pre-engine review-evidence inventory':'pre', 'Review evidence gate':'gate'}\nfor job in d['jobs'].values():\n    for step in job.get('steps', []):\n        if step.get('name') in names:\n            open('/home/runner/work/prflow/prflow/.prflow/tmp/wf_%s.sh' % names[step['name']], 'w'). …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/workpad.py update 2075 --note \"2.3.4b coverage-claim sweep: ran stale-prose-lint --worktree over the merge-base branch delta. Grounded (reworded to drop gratuitous universals): review-evidence-gate.py:72 (dropped 'two'), :287 (dropped 'no arm'), flip-review-progress-failed.sh:46/:268 (dropped 'exactly one case'), inventory.md:23/:25 (dropped 'only'/'no pin helper'), review_evidence_gate_test.py:241 (reworded). Treatment=scoped/pre-existing for the two remaining: SKI …[per-command-truncated]",
+      "ls /home/runner/work/prflow/prflow/.changeset/ 2>/dev/null | head; echo \"---sample---\"; cat \"$(ls /home/runner/work/prflow/prflow/.changeset/*.md 2>/dev/null | grep -v README | head -1)\" 2>/dev/null || echo \"none pending\"; echo \"---readme head---\"; head -20 /home/runner/work/prflow/prflow/.changeset/README.md 2>/dev/null",
+      "git diff --no-index -U0 /dev/null .changeset/issue-2075-review-evidence-gate.md 2>/dev/null | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | tail -8; echo \"done\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-2075-review-evidence-gate.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree",
+      ".prflow/vendor/prflow/scripts/verification-flight.py event phase3-simplify-end 2>/dev/null\n.prflow/vendor/prflow/scripts/load-prompt-extension.sh implement >/dev/null 2>&1 && echo \"extension reloaded\"\n.prflow/vendor/prflow/scripts/workpad.py update 2075 --tick-progress \"simplify\" --note \"simplify outcome: findings generated=9, applied=3, skipped-as-AC-conflict=0. Applied (quality-only, no behavior change): removed dead _MERGE_GATING_STATES constant; deferred workpad.py import to first use (no-ve …[per-command-truncated]",
+      "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)\nmkdir -p \"$ROOT/.prflow/tmp\"\n[ -n \"${ZSH_VERSION:-}\" ] && setopt nonomatch || :\nset -- \"$ROOT\"/.prflow/tmp/review/*/*/iter-*.json\nif [ -e \"$1\" ]; then printf '%s\\n' \"$@\" | sort; else echo \"(none)\"; fi",
+      "git diff origin/main...HEAD > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2077/33112002894-1/diff.patch 2>/dev/null || git diff origin/main...HEAD | tee /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2077/33112002894-1/diff.patch >/dev/null\nwc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-2077/33112002894-1/diff.patch",
+      "for f in skills/review/SKILL.md skills/review/phases/phase-1-checklist.md skills/review/phases/phase-0-3-6-blocker-recheck.md; do echo \"$(wc -c < \"$f\") $f\"; done; echo \"--- ceiling 61750\"; python3 -c \"print('grep workpad sigs')\"",
+      "cd /home/runner/work/prflow/prflow\npython3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > .prflow/tmp/fp-verify-2075.json 2>&1\ncat .prflow/tmp/fp-verify-2075.json\necho \"---\"\npython3 .prflow/vendor/prflow/scripts/verification-flight.py status --flight review-evidence-gate --current-checkout-file .prflow/tmp/fp-verify-2075.json 2>&1 | head -50",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > .prflow/tmp/fp-verify-2075.json 2>&1; cat .prflow/tmp/fp-verify-2075.json",
+      "python3 - <<'PYEOF' | tee .prflow/tmp/flight-decl-2075.json\nimport json\nfp = json.load(open('.prflow/tmp/fp-verify-2075.json'))\ndecl = {\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-module.sh\", \"review-evidence-gate\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_services\": False\n  },\n  **fp\n}\nprint(json.dumps(decl))\nPYEOF",
+      "FLIGHT_KEY=\"4a6ba71d5720df7056263b17ea626b574ddd4b411567cc34595a8b5027466abf\"\nTOKEN=\"c93e33862828e773e3918c17ec266109371d7470c4441f77ff369c703ba09564\"\nprintf '%s' '{\"outcome\":\"passed\",\"summary\":\"Module review-evidence-gate: 10 passed, 0 failed\"}' | tee .prflow/tmp/flight-evidence-2075.json\npython3 .prflow/vendor/prflow/scripts/verification-flight.py finish --flight \"$FLIGHT_KEY\" --token \"$TOKEN\" --evidence-file .prflow/tmp/flight-evidence-2075.json",
+      "scripts/prompt-surface-growth.py 2>&1 | head -c 3000; echo \"---EXIT:$?---\"",
+      "scripts/prompt-surface-growth.py",
+      ".prflow/vendor/prflow/scripts/checkout-fingerprint.py > .prflow/tmp/f.json 2>/dev/null || .prflow/vendor/prflow/scripts/checkout-fingerprint.py | tee .prflow/tmp/f.json >/dev/null\n.prflow/vendor/prflow/scripts/verification-flight.py status --flight a17dea0cab3b582815857ec34e99aadbb0c6a9af029320466454e857f9bcb5a5 --current-checkout-file .prflow/tmp/f.json 2>&1 | tail -2",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review; echo \"---exit:$?\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review"
+    ],
+    "total": 26,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  },
+  "run_profile": {
+    "phase_durations_ms": {
+      "Documentation": 3793000,
+      "Implement": 2490000,
+      "PR marked ready": 0,
+      "Review": 1483000,
+      "Setup": 375000
+    },
+    "final_status": "Complete",
+    "prior_record_count": 0,
+    "issue_number": 2075,
+    "engine_outcome": "success"
+  }
 }
