@@ -1263,6 +1263,7 @@ def _patch_comment_body(repo, comment_id, text=None, *, body_path=None):
     if body_path is None:
         if text is None:
             raise ValueError('_patch_comment_body: pass text= or body_path=')
+        _check_body_within_limit(_byte_len(text))
         tf = tempfile.NamedTemporaryFile(
             'w', suffix='.md', delete=False, encoding='utf-8')
         staged = Path(tf.name)
@@ -1273,6 +1274,11 @@ def _patch_comment_body(repo, comment_id, text=None, *, body_path=None):
             staged.unlink(missing_ok=True)
             raise
         body_path = staged
+    else:
+        # Measure the file `cmd_patch` PATCHes directly (never staged from
+        # `text`): checking `text` alone here would let this branch issue an
+        # oversize PATCH. st_size is the byte count GitHub receives.
+        _check_body_within_limit(Path(body_path).stat().st_size)
     try:
         return _run([
             GH, 'api', '-X', 'PATCH',
@@ -1352,6 +1358,11 @@ def cmd_patch(args):
             out = _patch_comment_body(repo, args.comment_id, merged)
         else:
             out = _patch_comment_body(repo, args.comment_id, body_path=body_path)
+    except _UpdateError as e:
+        # A size refusal is pre-PATCH, not a transport error — so it is handled
+        # here rather than by the CalledProcessError/OSError arm below.
+        sys.stderr.write(f"workpad.py patch: {e}\n")
+        sys.exit(1)
     except (subprocess.CalledProcessError, OSError) as e:
         _fail('patch', e)
     sys.stdout.write(out)
@@ -3565,6 +3576,15 @@ def _cmd_update_inner(args):
         except _UpdateError as e:
             sys.stderr.write(f"workpad.py update: {e}\n")
             sys.exit(1)
+    # Per-note budget (issue #2024): measured before the replay fold below, so a
+    # buffer-replayed note is never re-measured (see _check_note_within_budget) —
+    # re-measuring one would wedge the workpad permanently.
+    try:
+        for _n in _own_notes:
+            _check_note_within_budget(_n)
+    except _UpdateError as e:
+        sys.stderr.write(f"workpad.py update: {e}\n")
+        sys.exit(1)
     _buffer_safe_to_clear = _plan_buffer_replay(
         comment_id, body, args, _own_notes, _own_reflections)
 
@@ -3615,6 +3635,14 @@ def _cmd_update_inner(args):
             )
         sys.exit(1)
 
+    # Comment-size limit (issue #2024) — refuse a body over the cap BEFORE the
+    # PATCH, and before the failed-write buffer in the PATCH-failure except below,
+    # so a size-refused write leaves no buffered content to replay.
+    try:
+        _check_body_within_limit(_byte_len(body))
+    except _UpdateError as e:
+        sys.stderr.write(f"workpad.py update: {e}\n")
+        sys.exit(1)
     # Write to a temp file and PATCH. The body always carries at least the
     # refreshed `Last updated`, so the PATCH is never a no-op even when every
     # requested tick was volatile. This path needs no leading-marker merge (the
@@ -3822,6 +3850,48 @@ def _is_single_line(text: str) -> bool:
     `splitlines()` boundaries — so this guard over-covers them too, never under.
     The same `splitlines()` idiom collapses multi-line `--reflection` text above."""
     return ''.join(text.splitlines()) == text
+
+
+# Workpad size limits (issue #2024). GitHub's comment cap is 65,536 CHARACTERS;
+# enforcing it over UTF-8 BYTES is conservative (byte length >= character count).
+_NOTE_BYTE_BUDGET = 2048
+_COMMENT_BYTE_LIMIT = 65536
+
+
+def _byte_len(text: str) -> int:
+    """UTF-8 byte length of `text` (issue #2024)."""
+    return len(text.encode('utf-8'))
+
+
+def _check_note_within_budget(note: str) -> None:
+    """Refuse a single caller-supplied Progress note over `_NOTE_BYTE_BUDGET`
+    UTF-8 bytes, raising `_UpdateError` before any PATCH (issue #2024). Applied
+    only to `--note`/`--note-file` text — never a tool-composed Progress row or a
+    buffer-replayed note, which the caller cannot shorten — because the caller
+    checks it against the pre-replay caller-note list, not at the shared
+    renderer."""
+    n = _byte_len(note)
+    if n > _NOTE_BYTE_BUDGET:
+        raise _UpdateError(
+            f"a --note/--note-file Progress note is {n} bytes, over the "
+            f"{_NOTE_BYTE_BUDGET}-byte per-note budget (measured as UTF-8 bytes); "
+            f"shorten it or split it across notes. No PATCH was made."
+        )
+
+
+def _check_body_within_limit(nbytes: int) -> None:
+    """Refuse a workpad body over `_COMMENT_BYTE_LIMIT` UTF-8 bytes, raising
+    `_UpdateError` before any PATCH (issue #2024). `nbytes` is measured by the
+    caller so both PATCH routes — the in-memory update body and the file `cmd_patch`
+    hands `_patch_comment_body` — check the SAME limit and neither can issue an
+    oversize PATCH."""
+    if nbytes > _COMMENT_BYTE_LIMIT:
+        raise _UpdateError(
+            f"the resulting comment body is {nbytes} bytes, over GitHub's "
+            f"{_COMMENT_BYTE_LIMIT}-byte comment limit (the reported count is a "
+            f"byte count, measured as UTF-8 bytes); shorten the workpad. No PATCH "
+            f"was made."
+        )
 
 
 def _ends_with_post_merge(text: str) -> bool:
