@@ -1031,6 +1031,277 @@ assert_eq "pea reconcile: undeliverable-broken-symlink → unestablished/block" 
 PEA_OUT="$(printf '' | python3 "$PEA" reconcile --expected undeliverable-nonregular --arrival-marker 'x' --durable-source workpad --skill implement 2>/dev/null)"
 assert_eq "pea reconcile: undeliverable-nonregular → unestablished/block" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
 
+# issue #1971: classify-ladder-output — the positive-signal classifier the prose-side
+# tiers run on the ladder's own PROMPT-EXTENSION-STATUS: line. These assertions pin the
+# positive-signal rule (arrived⇐content-present, absent⇐present-empty, else unestablished).
+
+# arrived — a real ladder status line (the helper prefix is present but not required by the
+# classifier, which matches the PROMPT-EXTENSION-STATUS: substring anywhere) → arrived/exit 0.
+PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: content-present status → arrived/complete-ok" "final=arrived terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: arrived → exit 0" "0" "$PEA_RC"
+
+# arrived — a BARE status line (no load-prompt-extension.sh: prefix) still classifies arrived:
+# the classifier keys on the PROMPT-EXTENSION-STATUS: substring, not the emitter prefix.
+PEA_OUT="$(printf '%s\n' 'PROMPT-EXTENSION-STATUS: content-present' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"
+assert_eq "pea classify-ladder: bare (prefix-less) content-present → arrived" "final=arrived terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"
+
+# absent — a produced present-empty status (the ladder's no-op arm for an absent or empty
+# extension file) → absent / complete-ok, exit 0 (AC2 absent arm). Prior stdout bytes from
+# the extension itself precede the status line in a real capture; they are ignored.
+PEA_OUT="$(printf '%s\n%s\n' 'some earlier stdout bytes' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: present-empty' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: present-empty status → absent/complete-ok" "final=absent terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: absent → exit 0" "0" "$PEA_RC"
+
+# unestablished — NO status line at all (empty stdin, the denial-shaped no-output case) →
+# unestablished / block, exit 3, forced record emitted (AC1 positive-signal rule: a denial
+# yields no output, byte-identical to silent non-delivery, and must never read as arrival).
+PEA_OUT="$(printf '' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: no status line (denial-shaped) → unestablished/block" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: unestablished → exit 3 (block)" "3" "$PEA_RC"
+assert_eq "pea classify-ladder: unestablished emits a forced record line" "yes" \
+  "$(case "$PEA_OUT" in *"record=prompt-extension arrival unestablished"*) echo yes ;; *) echo no ;; esac)"
+
+# unestablished — a PROMPT-EXTENSION-STATUS line the ladder never produces (an unknown
+# token) is NOT a recognized produced status → unestablished, fail-closed, never arrival.
+PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: banana' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: unknown status token → unestablished/block (fail-closed)" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: unknown token → exit 3" "3" "$PEA_RC"
+
+# unestablished — the real multi-token `unestablished (<reason>)` status a ladder can emit
+# is not content-present/present-empty, so it folds to unestablished (exercises rest[0]).
+PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: unestablished (the loader ladder did not resolve it)' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: real unestablished(reason) token → unestablished/block" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: unestablished(reason) → exit 3" "3" "$PEA_RC"
+
+# unestablished — the prefix with NO token after it (a truncated/malformed status line)
+# exercises the `rest[0] if rest else ""` empty-list arm, which must fold to unestablished
+# rather than raising IndexError.
+PEA_OUT="$(printf '%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS:' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"; PEA_RC=$?
+assert_eq "pea classify-ladder: prefix with no token → unestablished/block" "final=unestablished terminal=block" "$(printf '%s' "$PEA_OUT" | head -1)"
+assert_eq "pea classify-ladder: prefix with no token → exit 3" "3" "$PEA_RC"
+
+# content-present wins over present-empty when both lines are present in the capture.
+PEA_OUT="$(printf '%s\n%s\n' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: present-empty' 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present' | python3 "$PEA" classify-ladder-output --skill review 2>/dev/null)"
+assert_eq "pea classify-ladder: content-present wins over present-empty → arrived" "final=arrived terminal=complete-ok" "$(printf '%s' "$PEA_OUT" | head -1)"
+
 rm -rf "$PEA_DIR"
+
+# ── issue #1971: devflow.yml "Reconcile prompt-extension arrival" job-level arms ──
+# The review/command tier's post-agent reconcile fails CLOSED on every expectation it
+# cannot reconcile on a successful agent run — `detector-absent` (an older vendored
+# prflow_version) included, exactly as devflow-implement.yml's #1446 pair already does.
+# Downgrading that arm to a warning would let a review run whose skill body may never
+# have loaded post a green verdict, which is the failure this surface exists to catch.
+RCN_DIR="$(mktemp -d)"
+mkdir -p "$RCN_DIR/bin"
+printf '%s\n' '#!/bin/sh' 'echo "gh $*" >> "$GH_CALLS"' 'exit 0' > "$RCN_DIR/bin/gh"
+chmod +x "$RCN_DIR/bin/gh"
+RCNPY_RC=0
+python3 - "$LIB/../.github/workflows/devflow.yml" "$RCN_DIR/reconcile.sh" <<'RCNPY' || RCNPY_RC=$?
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+body = ""
+for job in d["jobs"].values():
+    for step in job.get("steps") or []:
+        if str(step.get("name", "")).startswith("Reconcile prompt-extension"):
+            body = step["run"]
+open(sys.argv[2], "w").write(body)
+RCNPY
+# One legible failure when the extractor itself cannot run (python3/PyYAML missing or the
+# workflow unparsable), instead of four misattributed rc-127 mismatches downstream.
+assert_eq "reconcile step: extractor exited 0 (python3+PyYAML present, workflow parsed)" "0" "$RCNPY_RC"
+# A step whose run: body could not be extracted would make every assertion below pass
+# vacuously against an empty script.
+assert_eq "reconcile step: run: body extracted from devflow.yml" "yes" \
+  "$(case "$(cat "$RCN_DIR/reconcile.sh" 2>/dev/null)" in *record_non_arrival*) echo yes ;; *) echo no ;; esac)"
+
+devflow_rcn_run_cmd() {
+  # $1 CMD, $2 EXPECTED, $3 AGENT_OUTCOME; echoes the exit code, output in $RCN_DIR/out.
+  GH_CALLS="$RCN_DIR/gh-calls" \
+  PATH="$RCN_DIR/bin:$PATH" \
+  CMD="$1" EXPECTED="$2" SKILL=review AGENT_OUTCOME="$3" \
+  REPO=owner/repo GH_TOKEN=x \
+    bash "$RCN_DIR/reconcile.sh" > "$RCN_DIR/out" 2>&1
+  echo "$?"
+}
+
+devflow_rcn_run() {
+  # $1 EXPECTED, $2 AGENT_OUTCOME; echoes the exit code, leaving output in $RCN_DIR/out.
+  devflow_rcn_run_cmd "/prflow:review 2000" "$1" "$2"
+}
+
+: > "$RCN_DIR/gh-calls"
+RCN_RC="$(devflow_rcn_run detector-absent success)"
+assert_eq "reconcile: detector-absent + success → exit 1 (fails closed)" "1" "$RCN_RC"
+assert_eq "reconcile: detector-absent + success → ::error:: emitted" "yes" \
+  "$(case "$(cat "$RCN_DIR/out")" in *"::error::prompt-extension-arrival"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "reconcile: detector-absent + success → durable non-arrival record posted to the PR" "yes" \
+  "$(case "$(cat "$RCN_DIR/gh-calls")" in *"repos/owner/repo/issues/2000/comments"*) echo yes ;; *) echo no ;; esac)"
+
+# An already non-green run is not re-failed here: doing so would add no signal.
+RCN_RC="$(devflow_rcn_run detector-absent failure)"
+assert_eq "reconcile: detector-absent + non-success → exit 0 (already non-green)" "0" "$RCN_RC"
+
+# `absent` is a clean consumer state (no extension file), never a fail-closed arm.
+RCN_RC="$(devflow_rcn_run absent success)"
+assert_eq "reconcile: absent + success → exit 0 (clean consumer state)" "0" "$RCN_RC"
+
+# No expectation at all on a successful run disabled the whole check — fail closed.
+RCN_RC="$(devflow_rcn_run "" success)"
+assert_eq "reconcile: empty expectation + success → exit 1 (fails closed)" "1" "$RCN_RC"
+
+# An unclassified command has no arrival evidence at all — fail closed.
+RCN_RC="$(devflow_rcn_run skill-unresolved success)"
+assert_eq "reconcile: skill-unresolved + success → exit 1 (fails closed)" "1" "$RCN_RC"
+
+# A present-but-undeliverable extension is exactly the silent-drop class — fail closed.
+RCN_RC="$(devflow_rcn_run undeliverable-broken-symlink success)"
+assert_eq "reconcile: undeliverable-* + success → exit 1 (fails closed)" "1" "$RCN_RC"
+
+# The detector was present but its classification could not be read — fail closed with
+# the re-run remedy, never the detector-absent bump-prflow_version remedy.
+RCN_RC="$(devflow_rcn_run classify-unreadable success)"
+assert_eq "reconcile: classify-unreadable + success → exit 1 (fails closed)" "1" "$RCN_RC"
+
+# A token this step does not recognize must not pass through as arrival-by-absence.
+RCN_RC="$(devflow_rcn_run bogus-future-token success)"
+assert_eq "reconcile: unrecognized token + success → exit 1 (fails closed)" "1" "$RCN_RC"
+
+# arrived-expected + success is the clean pass: exit 0 and NO durable record posted.
+: > "$RCN_DIR/gh-calls"
+RCN_RC="$(devflow_rcn_run arrived-expected success)"
+assert_eq "reconcile: arrived-expected + success → exit 0 (documented residual pass)" "0" "$RCN_RC"
+assert_eq "reconcile: arrived-expected + success → no PR record posted" "" \
+  "$(cat "$RCN_DIR/gh-calls")"
+
+# The already-non-green early exit is ONE guard shared by every enforcing expectation, so
+# pin each arm reaching it rather than only detector-absent: a per-expectation `if` added
+# above that guard would silently re-fail a job that is already red.
+for RCN_EXP in undeliverable-broken-symlink classify-unreadable skill-unresolved arrived-expected; do
+  : > "$RCN_DIR/gh-calls"
+  RCN_RC="$(devflow_rcn_run "$RCN_EXP" failure)"
+  assert_eq "reconcile: $RCN_EXP + non-success → exit 0 (already non-green)" "0" "$RCN_RC"
+  assert_eq "reconcile: $RCN_EXP + non-success → no PR record posted" "" \
+    "$(cat "$RCN_DIR/gh-calls")"
+done
+
+# No PR number resolvable from the command: the numeric guard must reject the trailing
+# token and take the record-unrecordable warning arm, never POST to `repos/owner/repo/
+# issues//comments` — a path that would silently address the wrong resource.
+: > "$RCN_DIR/gh-calls"
+RCN_RC="$(devflow_rcn_run_cmd "/prflow:review" detector-absent success)"
+assert_eq "reconcile: no PR number + fail-closed arm → still exit 1" "1" "$RCN_RC"
+assert_eq "reconcile: no PR number → record-unrecordable warning emitted" "yes" \
+  "$(case "$(cat "$RCN_DIR/out")" in *"no PR number resolvable from command"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "reconcile: no PR number → no gh POST attempted" "" \
+  "$(cat "$RCN_DIR/gh-calls")"
+
+# A non-numeric trailing token is the same case: the guard is numeric, not merely non-empty.
+: > "$RCN_DIR/gh-calls"
+RCN_RC="$(devflow_rcn_run_cmd "/prflow:review notanumber" detector-absent success)"
+assert_eq "reconcile: non-numeric trailing token → no gh POST attempted" "" \
+  "$(cat "$RCN_DIR/gh-calls")"
+assert_eq "reconcile: non-numeric trailing token → record-unrecordable warning emitted" "yes" \
+  "$(case "$(cat "$RCN_DIR/out")" in *"no PR number resolvable from command"*) echo yes ;; *) echo no ;; esac)"
+
+rm -rf "$RCN_DIR"
+
+# ── issue #1971: devflow.yml "Classify prompt-extension arrival" job-level arms ──
+# The pre-agent classify step publishes the expectation the reconcile step above enforces,
+# so an unpinned skill-selection order or a swallowed second-extension fault would make the
+# whole pair pass while checking the wrong extension.
+CLS_DIR="$(mktemp -d)"
+mkdir -p "$CLS_DIR/work/scripts"
+# Stub detector: `classify --skill <name>` echoes whatever STUB_<skill-with-underscores>
+# holds, so each arm below drives one classify outcome per extension without a real closure.
+cat > "$CLS_DIR/work/scripts/prompt-extension-arrival.py" <<'CLSPY'
+import os, sys
+skill = sys.argv[sys.argv.index("--skill") + 1]
+out = os.environ.get("STUB_" + skill.replace("-", "_"), "")
+if out:
+    print(out)
+CLSPY
+CLSPY_RC=0
+python3 - "$LIB/../.github/workflows/devflow.yml" "$CLS_DIR/classify.sh" <<'CLSPY2' || CLSPY_RC=$?
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+body = ""
+for job in d["jobs"].values():
+    for step in job.get("steps") or []:
+        if str(step.get("name", "")).startswith("Classify prompt-extension"):
+            body = step["run"]
+open(sys.argv[2], "w").write(body)
+CLSPY2
+assert_eq "classify step: extractor exited 0 (python3+PyYAML present, workflow parsed)" "0" "$CLSPY_RC"
+# A step whose run: body could not be extracted would make every assertion below pass
+# vacuously against an empty script.
+assert_eq "classify step: run: body extracted from devflow.yml" "yes" \
+  "$(case "$(cat "$CLS_DIR/classify.sh" 2>/dev/null)" in *classify_one*) echo yes ;; *) echo no ;; esac)"
+
+devflow_cls_run() {
+  # $1 CMD, $2 primary stub output, $3 second-extension stub output, $4 cwd ("work" or
+  # "bare" — bare has no scripts/ detector, driving the detector-absent arm).
+  # Echoes "<state>|<skill>" read back from the step's own $GITHUB_OUTPUT file.
+  : > "$CLS_DIR/gh-output"
+  ( cd "$CLS_DIR/$4" && \
+    GITHUB_OUTPUT="$CLS_DIR/gh-output" CMD="$1" \
+    STUB_review_and_fix="$2" STUB_review="$2" STUB_pr_description="$2" \
+    STUB_receiving_code_review="$3" STUB_requesting_code_review="$3" \
+    bash "$CLS_DIR/classify.sh" > "$CLS_DIR/out" 2>&1 )
+  CLS_STATE=""; CLS_SKILL=""
+  while IFS= read -r _line; do
+    case "$_line" in
+      state=*) CLS_STATE="${_line#state=}" ;;
+      skill=*) CLS_SKILL="${_line#skill=}" ;;
+    esac
+  done < "$CLS_DIR/gh-output"
+  echo "$CLS_STATE|$CLS_SKILL"
+}
+mkdir -p "$CLS_DIR/bare"
+
+# Most-specific-first: `/prflow:review-and-fix` contains the substring `/prflow:review`, so
+# a case arm reordered to put `review` first would classify the wrong extension entirely.
+assert_eq "classify: review-and-fix command selects the review-and-fix skill" "arrived-expected|review-and-fix" \
+  "$(devflow_cls_run "/prflow:review-and-fix 2000" "state=arrived-expected" "state=arrived-expected" work)"
+assert_eq "classify: review command selects the review skill" "arrived-expected|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=arrived-expected" "state=arrived-expected" work)"
+assert_eq "classify: pr-description command selects the pr-description skill" "arrived-expected|pr-description" \
+  "$(devflow_cls_run "/prflow:pr-description 2000" "state=arrived-expected" "" work)"
+# The `/devflow:` transitional spelling is an accepted alias, not a separate command.
+assert_eq "classify: /devflow: alias spelling selects the same skill" "arrived-expected|review-and-fix" \
+  "$(devflow_cls_run "/devflow:review-and-fix 2000" "state=arrived-expected" "state=arrived-expected" work)"
+
+# A fault on the SECOND extension must not hide behind a deliverable primary: the promoted
+# state carries that second extension's own skill name, so the reconcile ::error:: names it.
+assert_eq "classify: second-extension fault overrides a deliverable primary" "undeliverable-nonregular|receiving-code-review" \
+  "$(devflow_cls_run "/prflow:review-and-fix 2000" "state=arrived-expected" "state=undeliverable-nonregular" work)"
+assert_eq "classify: second-extension classify-unreadable overrides a deliverable primary" "classify-unreadable|requesting-code-review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=arrived-expected" "" work)"
+# The override promotes FAULTS only: a deliverable second extension must not overwrite a
+# faulted primary, which would downgrade a real fault to a clean terminal.
+assert_eq "classify: deliverable second extension never overrides a faulted primary" "undeliverable-unreadable|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=undeliverable-unreadable" "state=arrived-expected" work)"
+# `absent` is a clean state, not a fault, so it does not promote either.
+assert_eq "classify: absent second extension never overrides the primary" "arrived-expected|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=arrived-expected" "state=absent" work)"
+
+# classify_one parses the leading `state=` token only; trailing words on the same line are
+# diagnostics, and folding them into the state would publish an unrecognized token.
+assert_eq "classify: state= parsing strips trailing diagnostic words" "absent|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=absent (no extension file)" "state=absent" work)"
+# Empty/unparsable detector output on a PRESENT detector is a run fault, never the
+# bump-prflow_version remedy detector-absent names.
+assert_eq "classify: unparsable detector output → classify-unreadable" "classify-unreadable|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "no state line here" "state=arrived-expected" work)"
+
+# No case arm matches → skill-unresolved with an EMPTY skill, never detector-absent.
+assert_eq "classify: unmatched command → skill-unresolved with empty skill" "skill-unresolved|" \
+  "$(devflow_cls_run "/prflow:docs 2000" "state=arrived-expected" "state=arrived-expected" work)"
+# Detector missing from both the vendored and repo paths → detector-absent, skill retained.
+assert_eq "classify: detector absent from both paths → detector-absent" "detector-absent|review" \
+  "$(devflow_cls_run "/prflow:review 2000" "state=arrived-expected" "state=arrived-expected" bare)"
+
+rm -rf "$CLS_DIR"
 
 rm -rf "$LPE_DIR"
