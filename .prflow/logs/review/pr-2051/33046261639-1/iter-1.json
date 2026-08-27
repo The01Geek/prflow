@@ -1,0 +1,130 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-27T00:00:00Z",
+  "fix_commit_sha": "99cbea9b4b0bd2cabb3620c1b8ba30bee66d6817",
+  "fix_files": [
+    "lib/test/run.sh",
+    ".github/actions/setup-project-env/provision-lint-tools.sh",
+    ".prflow/install-state.json"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "checklist": [],
+  "dispatch_mode": "unavailable",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "members-read fail-open could silently skip the purge on a partial manifest",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "comment-cap discipline on the purge/select_cmd/AC1 comments",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "in-family-cand1+off-family-cand2 permutation unpinned",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "empty-manifest-version purge-skip lacked a breadcrumb (asymmetric)",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "sentinel-path print shows 'manifest family unreadable' (cosmetic); unparseable --version reads as unrunnable (theoretical)",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "ed4e2e3aeebce7934b49f25752e35b44fab465fc"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "ed4e2e3aeebce7934b49f25752e35b44fab465fc"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "ed4e2e3aeebce7934b49f25752e35b44fab465fc"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "99cbea9b4b0bd2cabb3620c1b8ba30bee66d6817"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "advisory",
+      "evidence": "cosmetic/theoretical minors, non-blocking"
+    }
+  ],
+  "shadow": {
+    "dispatch_mode": "unavailable",
+    "ran_at": "2026-08-27T00:00:00Z",
+    "reviewed_sha": "ed4e2e3aeebce7934b49f25752e35b44fab465fc",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": "intentional",
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
