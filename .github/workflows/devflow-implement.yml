@@ -492,12 +492,12 @@ jobs:
             # helper is never fatal.
             RPOR=.prflow/vendor/prflow/scripts/refresh-pr-on-resume.sh
             if [ -f "$RPOR" ]; then
-              if ! bash "$RPOR" --issue "$NUMBER" --run-url "$RUN_URL" >/dev/null; then
-                # rc 2 = NO_PR (no draft PR yet — benign on an early resume) warns nothing; rc 3 = REFUSED failure.
-                RPOR_RC=$?
-                if [ "$RPOR_RC" -ge 3 ]; then
-                  echo "::warning::gate: PR-body run-link refresh + note strip failed for #$NUMBER (best-effort; the agent-side strip cleans notes on the next resume)." >&2
-                fi
+              # Capture the helper's OWN rc (before any negation, which would invert it): rc 2 =
+              # NO_PR (no draft PR yet — benign on an early resume) warns nothing; rc 3 = REFUSED.
+              RPOR_RC=0
+              bash "$RPOR" --issue "$NUMBER" --run-url "$RUN_URL" >/dev/null || RPOR_RC=$?
+              if [ "$RPOR_RC" -ge 3 ]; then
+                echo "::warning::gate: PR-body run-link refresh + note strip failed for #$NUMBER (best-effort; the agent-side strip cleans notes on the next resume)." >&2
               fi
             else
               echo "::warning::gate: refresh-pr-on-resume.sh not vendored at $RPOR; PR-body maintenance skipped (an upgraded vendor tree cleans notes via the agent-side strip on the next resume)." >&2
