@@ -290,7 +290,7 @@ This skill skips /prflow:review's Phase 4.4 entirely — no formal review and no
 }
 ```
 
-Field semantics — `loop_role`, `dispatched_effort`, `phase3_dispatched`, `expected_reviewers`, `phase3_failed_agents`, `diff_profile`, `cap_drops`, `dispatch_mode`, `shadow`, and the durable operands `current_step`/`current_substep`/`pending_dispatch` — are documented in `references/loop-control.md` (*Schema field semantics*). `ITER_EXPECTED_FIELDS` in `lib/efficiency-trace.sh` is the single-source set the unconditional top-level fields mirror.
+Field semantics — `loop_role`, `dispatched_effort`, `phase3_dispatched`, `expected_reviewers`, `phase3_failed_agents`, `diff_profile`, `cap_drops`, `dispatch_mode`, `shadow`, and the durable operands `current_step`/`current_substep`/`pending_dispatch` — are documented in `references/loop-control.md` (*Schema field semantics*). `convergence_inputs`'s three operands (`fixes_applied`, `fix_diff_lines`, `new_corroborated_critical_count`) are specified in `references/fixing.md` item 7 and `references/convergence.md` Step 4.5. `ITER_EXPECTED_FIELDS` in `lib/efficiency-trace.sh` is the single-source set the unconditional top-level fields mirror.
 
 ### Lifecycle
 
