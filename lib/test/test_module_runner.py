@@ -2095,6 +2095,9 @@ class ModuleRunnerTests(unittest.TestCase):
 POOLED_SUITES = (
     "test_module_runner.py",
     "test_python_scripts.py",
+    "test_python_scripts_part2.py",
+    "test_python_scripts_part3.py",
+    "test_python_scripts_part4.py",
 )
 # One member of the real pool invocation, as it is spelled in module-harness.sh. Held as a
 # constant because test_repository_registry_maps_the_extracted_recorder_module asserts
@@ -3150,6 +3153,9 @@ class PoolMembershipCompletenessTests(unittest.TestCase):
             {
                 "test_module_runner.py",
                 "test_python_scripts.py",
+                "test_python_scripts_part2.py",
+                "test_python_scripts_part3.py",
+                "test_python_scripts_part4.py",
             },
         )
 

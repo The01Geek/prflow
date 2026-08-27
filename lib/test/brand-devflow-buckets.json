@@ -597,6 +597,15 @@
       "path": "lib/test/test_python_scripts.py"
     },
     {
+      "path": "lib/test/test_python_scripts_part2.py"
+    },
+    {
+      "path": "lib/test/test_python_scripts_part3.py"
+    },
+    {
+      "path": "lib/test/test_python_scripts_part4.py"
+    },
+    {
       "path": "lib/test/test_verification_baseline.py"
     },
     {

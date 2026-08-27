@@ -118,7 +118,7 @@ esac
 export -n DEVFLOW_SKIP_SUITE_MODULES 2>/dev/null || true
 # Python-pool selector, the sibling of the module-tier selector above. The monolith CI
 # shard invokes this suite as `DEVFLOW_SKIP_PYTHON_POOL=1 bash lib/test/run.sh` so the
-# two heavy pooled Python suites (test_module_runner.py, test_python_scripts.py) run in
+# heavy pooled Python suites (test_module_runner.py + the four test_python_scripts parts) run in
 # their own `python-pool` shard instead — the monolith no longer sits idle at the join
 # waiting for them. `export -n` for exactly the reason above, and with more force here:
 # the pooled suites and the module meta-tests spawn nested run.sh/run-module.sh
@@ -50124,10 +50124,14 @@ assert_eq "python-pool: run-python-pool.sh exists and is executable" "yes" \
 # ── The DEVFLOW_SKIP_PYTHON_POOL selector, driven at BOTH entry points ──
 # devflow_pool_open/join are shadowed inside a subshell, so the real 275s of Python
 # never runs: the probe observes only the DECISION. `open=` is the number of pool
-# membership modes handed to devflow_pool_open (2 when the pool ran, 0 when gated);
-# `join=` is the number of verdict lines the join wrote to its private RESULTS_FILE
-# (the enabled arm reaches the reconciliation, which — with no summary captured from a
-# stubbed pool — records exactly one FAIL, so a non-zero join= is proof the body ran).
+# membership modes handed to devflow_pool_open (5 when the pool ran — one single-verdict
+# test_module_runner.py plus the four self-tally test_python_scripts parts (issue #2007);
+# 0 when gated); `join=` is the number of verdict lines the join wrote to its private
+# RESULTS_FILE (the enabled arm reaches the reconciliation, which — with no summary
+# captured from a stubbed pool — records one FAIL per self-tally member, i.e. 4, so a
+# non-zero join= is proof the body ran). The 5/4 pins couple to the pool membership; the
+# self-tally-member coupling assertion below fails RED in lockstep if a part is added or
+# dropped, forcing both to be updated together.
 _pps_selector_probe() {  # selector-value ('' = unset) -> "open=N join=N"
   (
     # Explicit templates, the convention this file and run-python-pool.sh already use:
@@ -50150,20 +50154,41 @@ _pps_selector_probe() {  # selector-value ('' = unset) -> "open=N join=N"
   ) 2>/dev/null | tail -1
 }
 assert_eq "python-pool selector: with DEVFLOW_SKIP_PYTHON_POOL unset the pool opens and the join body runs" \
-  "open=2 join=1" "$(_pps_selector_probe '')"
+  "open=5 join=4" "$(_pps_selector_probe '')"
 assert_eq "python-pool selector: DEVFLOW_SKIP_PYTHON_POOL=1 opens nothing and writes NO verdict (no double-count)" \
   "open=0 join=0" "$(_pps_selector_probe 1)"
 # Only the exact value 1 disables — the DEVFLOW_SKIP_SUITE_MODULES contract. A
 # half-set variable must not silently drop both suites from a run.
 assert_eq "python-pool selector: DEVFLOW_SKIP_PYTHON_POOL=0 still runs the pool (only the exact 1 disables)" \
-  "open=2 join=1" "$(_pps_selector_probe 0)"
+  "open=5 join=4" "$(_pps_selector_probe 0)"
 assert_eq "python-pool selector: a non-empty non-1 value still runs the pool" \
-  "open=2 join=1" "$(_pps_selector_probe yes)"
+  "open=5 join=4" "$(_pps_selector_probe yes)"
 assert_eq "python-pool selector: the predicate reports enabled when unset" "enabled" \
   "$( ( unset DEVFLOW_SKIP_PYTHON_POOL; devflow_python_pool_enabled && echo enabled || echo disabled ) )"
 assert_eq "python-pool selector: the predicate reports disabled at exactly 1" "disabled" \
   "$( ( DEVFLOW_SKIP_PYTHON_POOL=1; devflow_python_pool_enabled && echo enabled || echo disabled ) )"
 unset -f _pps_selector_probe
+
+# ── DEVFLOW_PYTHON_SELFTALLY_MEMBERS must equal the pool's self-tally registrations ──
+# The #720/#2007 reconciliation loops DEVFLOW_PYTHON_SELFTALLY_MEMBERS, a hand-maintained
+# literal decoupled from the `self-tally` triples devflow_python_suite_pool_open registers.
+# Without this pin a part added to the pool as self-tally but forgotten in the array would
+# run, contribute verdicts, and NEVER be reconciled — a silent coverage gap that fails open
+# exactly where the check claims to fail closed. Stub devflow_pool_open to emit its triples
+# as "name<TAB>mode", keep the self-tally names, and assert set-equality (both sides sorted).
+_pps_selftally_registered() {  # -> newline-sorted self-tally member names the pool registers
+  (
+    # devflow_python_suite_pool_open early-returns via devflow_python_pool_enabled when
+    # DEVFLOW_SKIP_PYTHON_POOL=1 (the monolith shard sets it), so clear it here — as the
+    # sibling probes do — or this assertion emits an empty RHS and goes RED on that shard.
+    unset DEVFLOW_SKIP_PYTHON_POOL
+    devflow_pool_open() { while [ "$#" -ge 3 ]; do printf '%s\t%s\n' "$1" "$3"; shift 3; done; }
+    devflow_python_suite_pool_open | grep '	self-tally$' | sed 's/	self-tally$//' | sort
+  ) 2>/dev/null
+}
+assert_eq "python-pool: DEVFLOW_PYTHON_SELFTALLY_MEMBERS equals the pool's registered self-tally members" \
+  "$(printf '%s\n' "${DEVFLOW_PYTHON_SELFTALLY_MEMBERS[@]}" | sort)" "$(_pps_selftally_registered)"
+unset -f _pps_selftally_registered
 
 # ── The join's POSITIVE reconciliation branch, in isolation ──
 # The selector probe above reaches only the else arm (no summary captured). The branch
@@ -50171,12 +50196,15 @@ unset -f _pps_selector_probe
 # `N passed, M failed` line, compared against the verdict lines it contributed — is the
 # one that regresses on a summary-format change, and it is otherwise exercised only end
 # to end inside a 3-minute pooled run. Drive it directly by seeding the two reap-time
-# captures and stubbing devflow_pool_join.
+# captures and stubbing devflow_pool_join. Scope DEVFLOW_PYTHON_SELFTALLY_MEMBERS to the one
+# seeded member so this probe isolates the arithmetic — the multi-member fan-out (one else-arm
+# FAIL per unseeded member) is covered by the selector probe's join=4 above, not re-tested here.
 _pps_reconcile_probe() {  # summary  lines -> "pass=N fail=N"
   (
     _pps_res="$(mktemp "${TMPDIR:-/tmp}/devflow-pps-reconcile.XXXXXX")"; : > "$_pps_res"
     RESULTS_FILE="$_pps_res"
     unset DEVFLOW_SKIP_PYTHON_POOL
+    DEVFLOW_PYTHON_SELFTALLY_MEMBERS=("test_python_scripts.py")
     devflow_pool_join() { :; }
     # Subscripts quoted: an unquoted associative-array subscript is read as a variable
     # reference in an assignment context (SC2154), unlike the read sites above.

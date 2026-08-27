@@ -68,8 +68,8 @@
       "owner": "tier1-rename-migration"
     },
     "lib/generate-install-state.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
-      "note": "issue #1388 generator for the tracked digest-bound install-state marker; the #1388 drift-gate in test_python_scripts.py drives its --check",
+      "focused_test": "lib/test/test_python_scripts_part4.py",
+      "note": "issue #1388 generator for the tracked digest-bound install-state marker; the #1388 drift-gate in test_python_scripts_part4.py drives its --check",
       "owner": "unmodularized"
     },
     "lib/generate-plugin-identity.py": {
@@ -198,7 +198,7 @@
       "owner": "unmodularized"
     },
     "scripts/apply-issue-dependencies.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part3.py",
       "note": "",
       "owner": "unmodularized"
     },
@@ -258,7 +258,7 @@
       "owner": "review-stall-backstop"
     },
     "scripts/check-verified-premises.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part2.py",
       "note": "issue #868 Verified-premise re-check helper",
       "owner": "unmodularized"
     },
@@ -275,8 +275,8 @@
       "owner": "unmodularized"
     },
     "scripts/cleanup-create-issue-run.sh": {
-      "focused_test": "lib/test/test_python_scripts.py",
-      "note": "issue #1811 per-run create-issue scratch reaper; keyed to the recorded slug (never a pattern/age sweep); behavioral cases (valid-slug reap, foreign-pointer skip, empty-handle non-destructive, unsafe-slug traversal refusal, multi-root, idempotent absent-dir) driven via subprocess by the #1811 block in lib/test/test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part4.py",
+      "note": "issue #1811 per-run create-issue scratch reaper; keyed to the recorded slug (never a pattern/age sweep); behavioral cases (valid-slug reap, foreign-pointer skip, empty-handle non-destructive, unsafe-slug traversal refusal, multi-root, idempotent absent-dir) driven via subprocess by the #1811 block in lib/test/test_python_scripts_part4.py",
       "owner": "unmodularized"
     },
     "scripts/collect-staged-telemetry.sh": {
@@ -476,7 +476,7 @@
       "owner": "unmodularized"
     },
     "scripts/focused_selection.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part3.py",
       "note": "issue #1229 focused-first selection record producer/reader",
       "owner": "unmodularized"
     },
@@ -503,7 +503,7 @@
       "owner": "installer-wiring"
     },
     "scripts/install_state.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part4.py",
       "note": "issue #1388 install-state compatibility-marker builder/validator + provisioning readiness gate",
       "owner": "unmodularized"
     },
@@ -518,17 +518,17 @@
       "owner": "issue-audit-state"
     },
     "scripts/lint_changed.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part4.py",
       "note": "issue #1389 changed-file lint layer (population/selection/receipts/base64url) behind preflight.py lint-changed/lint-full",
       "owner": "unmodularized"
     },
     "scripts/lint_manifest.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part3.py",
       "note": "issue #1276 declarative lint-manifest strict reader/validator",
       "owner": "unmodularized"
     },
     "scripts/lint_provision.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part4.py",
       "note": "issue #1388 manifest platform-resolution + cache-key + trusted download URLs for lint provisioning",
       "owner": "unmodularized"
     },
@@ -607,7 +607,7 @@
       "owner": "unmodularized"
     },
     "scripts/pretooluse-shape-guard.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part3.py",
       "note": "issue #805 PreToolUse command-shape guard",
       "owner": "unmodularized"
     },
@@ -616,7 +616,7 @@
       "owner": "prompt-extension-reader"
     },
     "scripts/prompt-surface-growth.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part3.py",
       "note": "issue #1350 static prompt-surface byte-delta table rendered into the PR description by .prflow/prompt-extensions/pr-description.md; driven end-to-end over committed git fixtures (added/deleted/new covered file, out-of-population change, unresolvable merge-base, HEAD == merge-base, agents-only change, multi-file aggregate)",
       "owner": "unmodularized"
     },
@@ -653,8 +653,8 @@
       "owner": "harness-python-guards"
     },
     "scripts/reconcile-ac-verifiers.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
-      "note": "issue #1575 Phase-3.4 two-verifier reconciliation core; every 3x3 status pairing, the no-evidence downgrade, and the #1450 command-passes-different-claim fixture are driven from the #1575 block in test_python_scripts.py, and the issue #1580 procedure-disposition gate (a missing slot forces unestablished, a stated `no` discharges) from the #1580 block beside it",
+      "focused_test": "lib/test/test_python_scripts_part3.py",
+      "note": "issue #1575 Phase-3.4 two-verifier reconciliation core; every 3x3 status pairing, the no-evidence downgrade, and the #1450 command-passes-different-claim fixture are driven from the #1575 block in test_python_scripts_part3.py, and the issue #1580 procedure-disposition gate (a missing slot forces unestablished, a stated `no` discharges) from the #1580 block beside it",
       "owner": "unmodularized"
     },
     "scripts/record-empty-branch.sh": {
@@ -686,8 +686,8 @@
       "owner": "unmodularized"
     },
     "scripts/render-pr-provenance-line.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
-      "note": "issue #1655/#1809 shared provenance-line renderer; takes the command name via a required --command argument and prints one backtick-free italic line naming it (version from the beside-helper manifest, model from the session transcript's most-recent assistant record never resolvedModel, effort from CLAUDE_EFFORT, model+effort gated by prflow.publish_model_effort). Exits 0 in every case except a missing required --command argument, which is an argparse usage error (usage to stderr, nothing to stdout, non-zero exit). Driven directly in lib/test/test_python_scripts.py over rendering for both command values, the config six-shape matrix, the transcript JSON-Lines matrix, and the phase-file lint/profile contract assertions",
+      "focused_test": "lib/test/test_python_scripts_part4.py",
+      "note": "issue #1655/#1809 shared provenance-line renderer; takes the command name via a required --command argument and prints one backtick-free italic line naming it (version from the beside-helper manifest, model from the session transcript's most-recent assistant record never resolvedModel, effort from CLAUDE_EFFORT, model+effort gated by prflow.publish_model_effort). Exits 0 in every case except a missing required --command argument, which is an argparse usage error (usage to stderr, nothing to stdout, non-zero exit). Driven directly in lib/test/test_python_scripts_part4.py over rendering for both command values, the config six-shape matrix, the transcript JSON-Lines matrix, and the phase-file lint/profile contract assertions",
       "owner": "unmodularized"
     },
     "scripts/render-prompt-extension.sh": {
@@ -781,8 +781,8 @@
       "owner": "unmodularized"
     },
     "scripts/sign-jwt-rs256.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
-      "note": "issue #1882 openssl-free RSASSA-PKCS1-v1_5 JWT signer for the credential refresher; byte-equality against openssl + malformed-input matrix in the #1882 arms of the #487 run.sh block and unit arms in test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part4.py",
+      "note": "issue #1882 openssl-free RSASSA-PKCS1-v1_5 JWT signer for the credential refresher; byte-equality against openssl + malformed-input matrix in the #1882 arms of the #487 run.sh block and unit arms in test_python_scripts_part4.py",
       "owner": "unmodularized"
     },
     "scripts/skill-body-load-probe-verdict.py": {
@@ -803,7 +803,7 @@
       "owner": "unmodularized"
     },
     "scripts/stall-observer-scan.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part4.py",
       "note": "issue #1027 out-of-band stall observer decision core (reports, never kills)",
       "owner": "unmodularized"
     },
@@ -841,8 +841,8 @@
       "owner": "unmodularized"
     },
     "scripts/validate-issue-claim-audit.py": {
-      "focused_test": "lib/test/test_python_scripts.py",
-      "note": "issue #1740 per-pass disposition validator for the ISSUE-CLAIM-AUDIT RECORD; driven from the #1740 block in test_python_scripts.py",
+      "focused_test": "lib/test/test_python_scripts_part4.py",
+      "note": "issue #1740 per-pass disposition validator for the ISSUE-CLAIM-AUDIT RECORD; driven from the #1740 block in test_python_scripts_part4.py",
       "owner": "unmodularized"
     },
     "scripts/validate-telemetry-artifact.sh": {
