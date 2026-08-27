@@ -1209,6 +1209,51 @@ because the second regenerates over the first's output:
   line as the **last line of the whole output**, below `<!-- PR_BODY_END -->`, wherever it found it,
   so it reads as the body's signature.
 
+## Stopped-run note mirror and gate-owned run-link refresh (issue #2060)
+
+A stopped cloud run recorded its reason only on the issue workpad, while the **PR** — the page a
+reviewer opens first — kept a `[View run]` link that could point at a dead run and said nothing about
+the stop. Issue #2060 mirrors the stop reason onto the PR body and makes the workflow's `gate` job the
+**single owner** of the PR's `[View run]` refresh, closing the stale-link window the former §1.4 resume
+pre-check seam left open (a resume that stopped again before reaching that in-agent step left the link
+pointing at a dead run).
+
+- **Note-block helper.** `scripts/pr-note-block.py` owns a marker-delimited stopped-run note block
+  (`<!-- prflow:stopped-run-note-start -->` … `<!-- prflow:stopped-run-note-end -->`) at the top of a
+  PR body: an **add** subcommand inserts/replaces the block, a **strip** subcommand removes every copy,
+  both stdin→stdout. It mirrors `scripts/refresh-pr-run-link.py`'s fail-closed contract — idempotent
+  (re-running with the same input reproduces the same body), a target-less body passes through
+  byte-identical (so every pre-#2060 body is untouched), and empty stdin exits non-zero with empty
+  stdout so the calling step skips its PATCH rather than blanking the body. Note text is sanitized on
+  add, so a payload containing `-->` or the block's own marker literal still emits one well-formed
+  comment block that strips exactly.
+- **Write side lives in `workpad.py`.** The mirror has a mechanical owner rather than a prose rule an
+  agent must remember post-compaction: `scripts/workpad.py`'s terminal write paths best-effort add the
+  block to the issue's open PR — a `--status Failed` and a `--status Cancelled` update (each carrying
+  the run-died note) and a `--reflection-kind blocked` reflection write (carrying the reflection text).
+  The mirror lives inside `workpad.py`'s terminal write path, so a caller that records a stop
+  through `workpad.py` (the stall backstop's arms, a dispatched agent's own Blocked write)
+  triggers it. The absorber is best-effort and never changes the workpad update's own outcome — a failing
+  PR PATCH leaves the terminal recording landed. Exactly these three stop terminals — Blocked, Failed,
+  Cancelled — write the block; a Complete terminal writes none. A stop with **no open PR** records its
+  workpad terminal exactly as before and writes no note anywhere. `workpad.py` inlines a pinned copy of
+  the note-block transform and the PR selection (open PRs for the issue, newest by `createdAt`, resolved
+  via `scripts/resolve-issue-pr.py`) because its repo-owned import edges are locked to `section_parse.py`
+  for the Stop-hook closure — it cannot import `pr-note-block.py` directly.
+- **Gate-owned refresh + strip.** On every resume trigger, the `gate` job's adopt arm runs
+  `scripts/refresh-pr-on-resume.sh` **before the `claude` job starts**: resolve the open PR closing the
+  issue, strip any stopped-run note block, refresh the `[View run]` line to the new run's URL, and
+  PATCH by REST `gh api` — best-effort, warn-and-skip when no PR resolves or the vendored helper is
+  absent, and it never PATCHes an empty body. Because it runs without the agent, a reviewer reaching
+  the PR sees the live run and no stale note even if the resumed `claude` job never starts.
+- **Three strippers.** The block is removed by the next resume's gate strip (cloud), the agent-side
+  resume pre-check in `agents/branch-setup.md` (which retired its own link rewrite in this change, so
+  the gate is the link's sole owner — local resumes), and the completion-time PR-description
+  regeneration in `skills/pr-description/SKILL.md`. The completion-time strip is load-bearing: the
+  workflow declares no cancel-in-progress concurrency group, so a dying run's backstop can write the
+  note *after* the next resume's gate already stripped, and without the final regeneration strip a
+  completed-and-merged PR would ship a permanent stale stopped-run banner.
+
 ## Phase 3.1.1 assigns the draft PR to the triggering user (issue #1165)
 
 Immediately after Phase 3.1's **CREATE** path opens a draft PR, the engine best-effort-assigns it to the developer who triggered the run, so reviewers can read ownership from the standard GitHub assignee field. This runs on the **CREATE arm only** — the **ADOPT** path (a resumed run whose PR a prior attempt created) skips it entirely and leaves the existing PR's assignees untouched.
@@ -1389,7 +1434,7 @@ Since issue #780 this pre-check is also a **provenance producer**: the landed-re
 
 The helper prints **exactly one token line** with a matching exit code — `ADOPT <n> OK` (0), `ADOPT <n> WARN:<checks>` (0), `CREATE` (2), `REFUSED` (3) — and it has no silent path, so a fence that prints *nothing at all* is a harness refusal the skill routes exactly as `REFUSED`. The arms:
 
-- **Adopt** the open PR (the newest by `createdAt` on that head), leaving its body — and its §1.4-refreshed `[View run]` line — untouched, and resolving its URL by explicit PR number rather than by branch. Adoption is **validated**, not head-branch-match alone: the helper checks that the PR lists the run's issue in `closingIssuesReferences` and that it targets the run's base, and names each failed check in the `WARN:<checks>` token (`closes-issue`, `base-ref`, in that order). Adoption still proceeds on a `WARN` — a wrong-PR adoption must be *visible*, not stopped — so §3.1 records the failed checks durably on the workpad with `--reflection-kind note` before continuing, rather than letting them vanish into stderr.
+- **Adopt** the open PR (the newest by `createdAt` on that head), leaving its body — and its gate-refreshed `[View run]` line (the gate job is the link's single owner since issue #2060; see *Stopped-run note mirror and gate-owned run-link refresh* below) — untouched, and resolving its URL by explicit PR number rather than by branch. Adoption is **validated**, not head-branch-match alone: the helper checks that the PR lists the run's issue in `closingIssuesReferences` and that it targets the run's base, and names each failed check in the `WARN:<checks>` token (`closes-issue`, `base-ref`, in that order). Adoption still proceeds on a `WARN` — a wrong-PR adoption must be *visible*, not stopped — so §3.1 records the failed checks durably on the workpad with `--reflection-kind note` before continuing, rather than letting them vanish into stderr.
 - **Create** when the query ran cleanly and found no open PR.
 - **REFUSED** when the question could not be answered at all — deliberately asymmetric: on a resume it is a terminal `Blocked` stop with a durable reflection, because creating blind risks duplicating the prior attempt's PR; on a fresh run it falls through to the create, because there is nothing to duplicate and gating the common path on a second network call would trade a real risk for a new one. `REFUSED` never collapses onto `CREATE`.
 
