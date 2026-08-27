@@ -55480,19 +55480,13 @@ assert_eq "#2009 manifest reader: a valid manifest reads its version" 0.16.4 "$(
 rm -rf "$RUFF_MAN_MTX"
 
 # ── #2050: devflow-implement.yml's ruff== install spec must stay within the manifest family ──
-# The implement workflow installs its own ruff to arm the #1621 gate for in-env verification;
-# that install spec sat outside every #1621/#2009 reconciliation, so a manifest family bump
-# could silently leave it behind. Reader mirrors devflow_ruff_pin's sentinel pattern.
-devflow_ruff_implement_spec() {  # $1 = devflow-implement.yml path; prints the ruff== spec or a sentinel
-  local _out
-  [ -s "$1" ] || { printf 'unreadable'; return; }
-  _out="$(awk 'match($0, /ruff==[0-9A-Za-z.*]+/) {print substr($0, RSTART+6, RLENGTH-6); exit}' "$1")" || { printf 'awk-failed'; return; }
-  [ -n "$_out" ] || { printf 'absent'; return; }
-  printf '%s' "$_out"
-}
-RUFF_IMPL_SPEC="$(devflow_ruff_implement_spec "$LIB/../.github/workflows/devflow-implement.yml")"
+# The implement workflow installs its own ruff (in its `claude` job) to arm the #1621 gate for
+# in-env verification; that install spec sat outside every #1621/#2009 reconciliation, so a
+# manifest family bump could silently leave it behind. Reuse devflow_ruff_pin (its own #1621
+# matrix already pins the sentinel arms) rather than forking a second reader.
+RUFF_IMPL_SPEC="$(devflow_ruff_pin claude "$LIB/../.github/workflows/devflow-implement.yml")"
 case "$RUFF_IMPL_SPEC" in [0-9]*) RUFF_IMPL_SPEC_OK=yes ;; *) RUFF_IMPL_SPEC_OK=no ;; esac
-# structural-pin-ok: cross-file-phase-contract -- positive control: a sentinel spec here would make the family assertion below pass vacuously, so a workflow that stopped installing ruff would go unnoticed
+# structural-pin-ok: cross-file-phase-contract -- positive control: a sentinel spec here would make the family assertion below pass vacuously, so a workflow that stopped installing ruff (or renamed the claude job) would go unnoticed
 assert_eq "#2050 devflow-implement.yml declares a concrete ruff== install spec (arms the assertion)" yes "$RUFF_IMPL_SPEC_OK"
 # structural-pin-ok: cross-file-phase-contract -- the implement workflow's ruff install and the lint manifest pin must share a family, or a manifest bump leaves the in-env gate installing a wrong-family ruff; editing either alone flips this
 assert_eq "#2050 devflow-implement.yml ruff install spec is within the manifest ruff family" yes "$(_ruff_fam_agree "$RUFF_IMPL_SPEC" "$RUFF_MANIFEST_VER")"
@@ -55502,26 +55496,8 @@ assert_eq "#2050 impl-spec reconciliation: matching families agree" yes "$(_ruff
 assert_eq "#2050 impl-spec reconciliation: implement-spec bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree "0.17.*" 0.16.4)"
 assert_eq "#2050 impl-spec reconciliation: manifest bumped alone across family reads as disagreement (RED)" no "$(_ruff_fam_agree "0.16.*" 0.17.0)"
 
-# Adversarial input-shape matrix over the implement-spec reader: each malformed shape fails
-# closed to a sentinel, never a spurious spec that would satisfy the reconciliation vacuously.
-mkdir -p .prflow/tmp
-RUFF_IMPL_MTX="$(mktemp -d .prflow/tmp/ruff-implspec-matrix.XXXXXX)"
-[ -n "$RUFF_IMPL_MTX" ] && [ -d "$RUFF_IMPL_MTX" ] || { printf 'FATAL: mktemp -d failed for the #2050 impl-spec matrix\n' >&2; exit 1; }
-assert_eq "#2050 impl-spec reader: a missing file reads 'unreadable'" unreadable "$(devflow_ruff_implement_spec "$RUFF_IMPL_MTX/nope.yml")"
-: > "$RUFF_IMPL_MTX/empty.yml"
-assert_eq "#2050 impl-spec reader: an empty file reads 'unreadable'" unreadable "$(devflow_ruff_implement_spec "$RUFF_IMPL_MTX/empty.yml")"
-printf 'steps:\n  - run: echo no ruff install here\n' > "$RUFF_IMPL_MTX/noruff.yml"
-assert_eq "#2050 impl-spec reader: a file with no ruff== line reads 'absent'" absent "$(devflow_ruff_implement_spec "$RUFF_IMPL_MTX/noruff.yml")"
-printf "steps:\n  - run: python3 -m pip install --quiet 'ruff==9.9.*'\n" > "$RUFF_IMPL_MTX/good.yml"
-assert_eq "#2050 impl-spec reader: a concrete ruff== line reads its spec" "9.9.*" "$(devflow_ruff_implement_spec "$RUFF_IMPL_MTX/good.yml")"
-mkdir -p "$RUFF_IMPL_MTX/adir.yml"
-RUFF_IMPL_DIRREAD="$(devflow_ruff_implement_spec "$RUFF_IMPL_MTX/adir.yml" 2>/dev/null)"
-case "$RUFF_IMPL_DIRREAD" in awk-failed|unreadable|absent) RUFF_IMPL_DIRCLOSED=yes ;; *) RUFF_IMPL_DIRCLOSED=no ;; esac
-assert_eq "#2050 impl-spec reader: a directory operand fails closed to a sentinel, never a spec" yes "$RUFF_IMPL_DIRCLOSED"
-rm -rf "$RUFF_IMPL_MTX"
-
 unset -f devflow_ruff_pin devflow_ruff_family devflow_ruff_manifest_version _ruff_fam_agree
-unset -f _devflow_ruff_probe_ver devflow_ruff_select_cmd devflow_ruff_implement_spec
+unset -f _devflow_ruff_probe_ver devflow_ruff_select_cmd
 
 # ── internal-docs structure lint (lib/test/lint-internal-docs.py) ──
 # Baseline-tolerant by design: it fails only on a violation absent from
