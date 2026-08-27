@@ -1830,13 +1830,9 @@ apply_pr_less_issue_floor() {
 
 do_persist() {
   local root dir slug run_id _TELEMETRY_STAGE
-  # Telemetry master switch (issue #2035): a JSON-false telemetry.enabled skips the
-  # whole persist, and every unconsulted path announces itself — silence here is
-  # indistinguishable from a deliberate opt-in.
-  # Inline python3 -c, NOT an exec of a repo .py: efficiency-trace.sh is a hardened
-  # Stop-hook closure member, so a source/exec edge would break the #458 drift-guard.
-  # Reads the JSON TYPE (`is False`), so 0 and "false" never disable; the {0,1,2}
-  # exit contract is scripts/telemetry-master-off.py's, carried by all three copies.
+  # Telemetry master switch (issue #2035); the decision and the {0,1,2} exit
+  # contract are scripts/telemetry-master-off.py's. Inline python3 -c, NEVER an
+  # exec of it: a new exec edge here breaks the issue-#458 Stop-hook drift guard.
   local _tel_rc
   if ! command -v python3 >/dev/null 2>&1; then
     echo "devflow: efficiency-trace.sh --persist: python3 not on PATH — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
@@ -1856,6 +1852,8 @@ except Exception:
 if not isinstance(data, dict):
     sys.exit(2)
 tel = data.get("telemetry")
+# `is False`, never ==: in Python 0 == False, so == would disable telemetry on a
+# config carrying the number 0, which the seven-shape matrix requires to stay ON.
 sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
 ' >/dev/null 2>&1 || _tel_rc=$?
     if [ "$_tel_rc" -eq 0 ]; then

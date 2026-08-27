@@ -7100,6 +7100,105 @@ cp "$T2035_ROOT/m-false.json" "$T2035_CR_BARE/root/.prflow/config.json"
 assert_eq "#2035 collect-staged resolves its anchor from a slash-free invocation name" "yes" \
   "$(grep -qF 'telemetry.enabled is false' "$T2035_CR_BARE/err.txt" && echo yes || echo no)"
 
+# AC7 — the schema declares the key and the example's value equals its default.
+# The repo's per-key pattern (see #329 in review-trigger-helpers.sh): without it
+# nothing pins the key's type, presence, or example/default agreement on drift.
+T2035_SCHEMA="$REPO_ROOT/.prflow/config.schema.json"
+T2035_EXAMPLE="$REPO_ROOT/.prflow/config.example.json"
+T2035_ENABLED_PROP='.properties.telemetry.properties.enabled'
+assert_eq "#2035 AC7 schema declares telemetry.enabled as a boolean" "boolean" \
+  "$(jq -r "$T2035_ENABLED_PROP.type" "$T2035_SCHEMA")"
+assert_eq "#2035 AC7 schema default for telemetry.enabled is true" "true" \
+  "$(jq -r "$T2035_ENABLED_PROP.default" "$T2035_SCHEMA")"
+assert_eq "#2035 AC7 schema gives telemetry.enabled a non-empty description" "yes" \
+  "$(jq -e "$T2035_ENABLED_PROP.description | type == \"string\" and (length > 0)" "$T2035_SCHEMA" >/dev/null && echo yes || echo no)"
+assert_eq "#2035 AC7 example value matches schema default" \
+  "$(jq -r "$T2035_ENABLED_PROP.default" "$T2035_SCHEMA")" \
+  "$(jq -r '.telemetry.enabled' "$T2035_EXAMPLE")"
+
+# A config whose TOP LEVEL is not a JSON object is the one predicate branch no
+# per-surface assertion above distinguishes, so it is where the three copies of
+# the {0,1,2} contract could drift apart silently. Drive it through all three.
+printf '%s' '[]' > "$T2035_ROOT/m-toplevel-array.json"
+python3 "$T2035_OFF" "$T2035_ROOT/m-toplevel-array.json" >/dev/null 2>&1
+assert_eq "#2035 drift: predicate exit for a top-level non-object is 2 (indeterminate)" "2" "$?"
+# Behaviour, not a drift pin: config-get.sh's copy is silent on 2 by design, so
+# exits 1 and 2 are indistinguishable there and no assertion can separate them.
+assert_eq "#2035 drift: config-get.sh copy leaves an enrolled key at its default for a top-level non-object" "true" \
+  "$("$T2035_CG" prflow.execution_diagnostics_enabled true "$T2035_ROOT/m-toplevel-array.json")"
+T2035_PERSIST_TLA="$(_t2035_persist "$T2035_ROOT/m-toplevel-array.json")"
+assert_eq "#2035 drift: --persist copy exits 0 for a top-level non-object" "0" "${T2035_PERSIST_TLA%%|*}"
+assert_eq "#2035 drift: --persist copy does not skip for a top-level non-object (fail-safe on)" "no" \
+  "$(printf '%s' "$T2035_PERSIST_TLA" | cut -d'|' -f3)"
+assert_eq "#2035 drift: --persist copy announces the unconsulted switch for a top-level non-object" "yes" \
+  "$(printf '%s' "$T2035_PERSIST_TLA" | cut -d'|' -f4)"
+T2035_COLLECT_TLA="$(_t2035_collect "$T2035_ROOT/m-toplevel-array.json")"
+assert_eq "#2035 drift: collect-staged copy collects for a top-level non-object (fail-safe on)" "1" "${T2035_COLLECT_TLA%%|*}"
+assert_eq "#2035 drift: collect-staged copy emits no skip breadcrumb for a top-level non-object" "no" \
+  "$(printf '%s' "$T2035_COLLECT_TLA" | cut -d'|' -f2)"
+# The collect path is the predicate script's real consumer, so this is what pins
+# its exit 2 end to end: on a 1 it would collect in silence instead of announcing.
+T2035_CR_TLA="$T2035_ROOT/collect-toplevel-array"
+mkdir -p "$T2035_CR_TLA/.prflow"
+cp "$T2035_ROOT/m-toplevel-array.json" "$T2035_CR_TLA/.prflow/config.json"
+bash "$T2035_CST" "$T2035_CR_TLA" "$T2035_CR_TLA/upload" >/dev/null 2>"$T2035_CR_TLA/err.txt"
+assert_eq "#2035 drift: collect-staged announces a top-level non-object instead of collecting silently" "yes" \
+  "$(grep -qF 'could not be read or parsed' "$T2035_CR_TLA/err.txt" && echo yes || echo no)"
+
+# --persist's python3-absent arm, the counterpart of the collect-path assertion
+# above. Without it a regression that dropped this breadcrumb, or turned the arm
+# into a skip, would pass the whole suite: the collect path proves nothing here.
+# A PATH of symlinks to every real PATH entry EXCEPT python3 is what isolates the
+# arm — an empty PATH would also take git and jq away, so --persist would fail for
+# an unrelated reason and the positive control below could not tell the two apart.
+T2035_NOPY_BIN="$T2035_ROOT/nopy-bin"
+mkdir -p "$T2035_NOPY_BIN"
+while IFS= read -r _t2035_d; do
+  [ -d "$_t2035_d" ] || continue
+  for _t2035_f in "$_t2035_d"/*; do
+    [ -x "$_t2035_f" ] && [ ! -d "$_t2035_f" ] || continue
+    _t2035_b="${_t2035_f##*/}"
+    [ "$_t2035_b" = python3 ] && continue
+    [ -e "$T2035_NOPY_BIN/$_t2035_b" ] && continue
+    ln -s "$_t2035_f" "$T2035_NOPY_BIN/$_t2035_b" 2>/dev/null || true
+  done
+done < <(printf '%s\n' "${PATH//:/$'\n'}")
+# Expectation-matched: if this host still resolves python3 under the shim PATH
+# (a python3 that is not a PATH-resolved executable), the arm cannot be reached
+# and asserting the breadcrumb unconditionally would be a false RED.
+if PATH="$T2035_NOPY_BIN" command -v python3 >/dev/null 2>&1; then
+  T2035_NOPY_EXP_ANNOUNCE="no"; T2035_NOPY_EXP_SKIP="yes"
+else
+  T2035_NOPY_EXP_ANNOUNCE="yes"; T2035_NOPY_EXP_SKIP="no"
+fi
+T2035_NOPY_PR="$T2035_ROOT/persist-nopy"
+T2035_NOPY_ROOT="$T2035_NOPY_PR/repo"
+git init -q --bare "$T2035_NOPY_PR/remote.git"
+git init -q "$T2035_NOPY_ROOT"
+git -C "$T2035_NOPY_ROOT" config user.email t@e.com
+git -C "$T2035_NOPY_ROOT" config user.name t
+git -C "$T2035_NOPY_ROOT" commit --allow-empty -qm seed
+git -C "$T2035_NOPY_ROOT" branch -M main
+git -C "$T2035_NOPY_ROOT" remote add origin "$T2035_NOPY_PR/remote.git"
+git -C "$T2035_NOPY_ROOT" push -q -u origin main
+cp "$T2035_ROOT/m-false.json" "$T2035_NOPY_ROOT/.prflow-cfg.json"
+T2035_NOPY_WD="$T2035_NOPY_ROOT/.prflow/tmp/review/pr-2035/run-1"
+mkdir -p "$T2035_NOPY_WD"
+printf '%s' '{"iter":1,"fix_commit_sha":"","loop_role":"fix"}' > "$T2035_NOPY_WD/iter-1.json"
+T2035_NOPY_ERR="$( ( cd "$T2035_NOPY_ROOT" && env -u GITHUB_ACTIONS PATH="$T2035_NOPY_BIN" \
+  DEVFLOW_CONFIG_FILE="$T2035_NOPY_ROOT/.prflow-cfg.json" "$T2035_BASH_ABS" "$T2035_ET" \
+  --persist --workpad-dir "$T2035_NOPY_WD" --slug pr-2035 ) 2>&1 )"
+T2035_NOPY_RC=$?
+assert_eq "#2035 --persist exits 0 when python3 is absent" "0" "$T2035_NOPY_RC"
+assert_eq "#2035 --persist announces an unconsulted master switch when python3 is absent" "$T2035_NOPY_EXP_ANNOUNCE" \
+  "$(printf '%s' "$T2035_NOPY_ERR" | grep -qF 'python3 not on PATH' && echo yes || echo no)"
+assert_eq "#2035 --persist does NOT skip when python3 is absent (fail-safe on, master-false config)" "$T2035_NOPY_EXP_SKIP" \
+  "$(printf '%s' "$T2035_NOPY_ERR" | grep -qF 'telemetry.enabled is false' && echo yes || echo no)"
+# Positive control: the run still reached the persist itself, so the assertions
+# above measure the master-switch arm and not a --persist that died early.
+assert_eq "#2035 --persist still persists with python3 absent (positive control)" "yes" \
+  "$(git -C "$T2035_NOPY_ROOT" rev-parse --verify --quiet refs/heads/prflow-telemetry >/dev/null 2>&1 && echo yes || echo no)"
+
 rm -rf "$T2035_ROOT"
 # ── #2006 run-profile floor and PR-less implement record ─────────────────────
 # These fixtures assert RECORD CONTENT on the local telemetry branch. The module unset

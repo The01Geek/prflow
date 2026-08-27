@@ -208,13 +208,10 @@ telemetry_master_disables_for() {
         *) return 1 ;;
     esac
     command -v python3 >/dev/null 2>&1 || return 1
-    # Inline python3 -c, NOT an exec of a repo .py: config-get.sh is a hardened
-    # Stop-hook closure member, so adding a source/exec edge to a new script would
-    # break the issue-#458 drift-guard and force a workflow edit. Reads the JSON
-    # TYPE (`is False`), so the number 0 and the string "false" never disable.
-    # A 2-way copy here would falsify the contract the other two copies state.
-    # Unlike them this copy announces nothing on 2: its stderr is byte-pinned
-    # against the pre-change resolver's, and a breadcrumb would break that.
+    # Inline python3 -c, NEVER an exec of scripts/telemetry-master-off.py (whose
+    # {0,1,2} contract this carries): a new exec edge breaks the issue-#458
+    # Stop-hook drift guard. This copy must stay SILENT on 2 — a breadcrumb here
+    # would break the AC6 byte-identical-stderr pin against the old resolver.
     PRFLOW_TEL_CFG="$config_file" python3 -c '
 import json, os, sys
 try:
@@ -227,6 +224,8 @@ except Exception:
 if not isinstance(data, dict):
     sys.exit(2)
 tel = data.get("telemetry")
+# `is False`, never ==: in Python 0 == False, so == would disable telemetry on a
+# config carrying the number 0, which the seven-shape matrix requires to stay ON.
 sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
 ' >/dev/null 2>&1
 }

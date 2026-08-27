@@ -27,12 +27,9 @@ if [ -z "$ROOT" ] || [ -z "$DEST" ]; then
   exit 0
 fi
 
-# Telemetry master switch (issue #2035): a JSON-false telemetry.enabled collects
-# nothing. Fail-safe to ON everywhere else, and every unconsulted path announces
-# itself — a silent skip of this gate is indistinguishable from a deliberate opt-in.
-# Dirname-free: `dirname` is not one of the tools lib/preflight.sh guarantees.
-# The case guard is load-bearing: `%/*` is a NO-OP on a slash-free invocation
-# name, which would `cd` to the script's own name and empty the anchor.
+# Telemetry master switch (issue #2035); contract in telemetry-master-off.py.
+# No `dirname`: lib/preflight.sh does not guarantee it. Keep the case guard —
+# `%/*` is a NO-OP on a slash-free argv0, emptying the anchor to the script name.
 case "${BASH_SOURCE[0]}" in
   */*) _CST_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)" ;;
   *)   _CST_DIR="$(pwd)" ;;

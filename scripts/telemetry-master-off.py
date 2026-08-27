@@ -14,12 +14,13 @@ or the exit contract here, change it in all three.
 
 Exit 0 (telemetry OFF) ONLY when ``telemetry.enabled`` is the JSON boolean
 ``false`` in the config file named by argv[1]. Exit 2 (INDETERMINATE) when that
-path exists but could not be read or parsed as JSON. Exit 1 (telemetry ON) for
-every other state — the key absent, ``telemetry`` not an object, ``enabled`` a
-string ("false"), a number (0), null, or any other type, an absent config, or a
-bad/missing argument. Telemetry FAILS SAFE to ON in every failure direction:
-2 is a shade of ON, split out only so a caller can say the switch was never
-consulted instead of reporting a deliberate opt-in.
+path exists but could not be read or parsed as JSON, or does not carry a JSON
+object at its top level. Exit 1 (telemetry ON) for every other state — the key
+absent, ``telemetry`` not an object, ``enabled`` a string ("false"), a number
+(0), null, or any other type, an absent config, or a bad/missing argument.
+Telemetry FAILS SAFE to ON in every failure direction: 2 is a shade of ON, split
+out only so a caller can say the switch was never consulted instead of reporting
+a deliberate opt-in.
 
 Reading the JSON TYPE here is load-bearing: config-get.sh's coerce() renders the
 JSON boolean ``false`` and the string ``"false"`` onto identical stdout
