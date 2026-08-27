@@ -1533,9 +1533,20 @@ do_persist() {
   local root dir slug run_id _TELEMETRY_STAGE
   # Telemetry master switch (issue #2035): a JSON-false telemetry.enabled skips the
   # whole persist — no record, no durable copy, no telemetry-branch commit. Fail-safe
-  # to ON: a missing helper/python3, unreadable config, or non-false master runs as before.
-  if [ -f "$HERE/../scripts/telemetry-master-off.py" ] && command -v python3 >/dev/null 2>&1 \
-     && python3 "$HERE/../scripts/telemetry-master-off.py" "$_DEVFLOW_CONFIG" >/dev/null 2>&1; then
+  # to ON: missing python3 or any read error runs as before. Inline python3 -c, NOT an
+  # exec of a repo .py: efficiency-trace.sh is a hardened Stop-hook closure member, so a
+  # source/exec edge to a new script would break the issue-#458 drift-guard and force a
+  # workflow edit. Reads the JSON TYPE (`is False`), so 0 and "false" never disable.
+  if command -v python3 >/dev/null 2>&1 && DEVFLOW_TEL_CFG="$_DEVFLOW_CONFIG" python3 -c '
+import json, os, sys
+try:
+    with open(os.environ["DEVFLOW_TEL_CFG"], encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    sys.exit(1)
+tel = data.get("telemetry") if isinstance(data, dict) else None
+sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
+' >/dev/null 2>&1; then
     echo "devflow: efficiency-trace.sh --persist: telemetry.enabled is false — skipping telemetry-branch persistence and the durable workpad copy this run (issue #2035)" >&2
     return 0
   fi

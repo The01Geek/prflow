@@ -192,8 +192,8 @@ sys.stdout.write("." + ".".join(old))
 }
 
 # Telemetry master-key inheritance (issue #2035): 0 iff "$1" is one of the five
-# enrolled default-true telemetry gates AND telemetry-master-off.py reports
-# telemetry.enabled is JSON false. Best-effort: missing python3/helper -> return 1 (on).
+# enrolled default-true telemetry gates AND telemetry.enabled is the JSON boolean
+# false. Best-effort: missing python3 or any read error -> return 1 (telemetry on).
 telemetry_master_disables_for() {
     case "$1" in
         prflow_review_and_fix.efficiency_telemetry_enabled|\
@@ -204,8 +204,20 @@ telemetry_master_disables_for() {
         *) return 1 ;;
     esac
     command -v python3 >/dev/null 2>&1 || return 1
-    [ -f "$_CONFIG_GET_DIR/telemetry-master-off.py" ] || return 1
-    python3 "$_CONFIG_GET_DIR/telemetry-master-off.py" "$config_file" >/dev/null 2>&1
+    # Inline python3 -c, NOT an exec of a repo .py: config-get.sh is a hardened
+    # Stop-hook closure member, so adding a source/exec edge to a new script would
+    # break the issue-#458 drift-guard and force a workflow edit. Reads the JSON
+    # TYPE (`is False`), so the number 0 and the string "false" never disable.
+    PRFLOW_TEL_CFG="$config_file" python3 -c '
+import json, os, sys
+try:
+    with open(os.environ["PRFLOW_TEL_CFG"], encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    sys.exit(1)
+tel = data.get("telemetry") if isinstance(data, dict) else None
+sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
+' >/dev/null 2>&1
 }
 
 emit_default_or_fail() {

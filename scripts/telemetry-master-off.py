@@ -35,7 +35,18 @@ def telemetry_master_off(config_path: str) -> bool:
     return tel.get("enabled") is False
 
 
+def _force_utf8_streams() -> None:
+    # Force stdout/stderr to UTF-8 on the CLI entry path (not at import), so every
+    # first-party command self-defends against a non-UTF-8 ambient codec (issue #1762).
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv: list[str]) -> int:
+    _force_utf8_streams()
     if len(argv) != 2:
         return 1
     return 0 if telemetry_master_off(argv[1]) else 1
