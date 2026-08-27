@@ -1942,10 +1942,14 @@ class TestSelfDocumentingHelp(unittest.TestCase):
                          "EXIT_CODE_MEANINGS keys must match the module's EXIT_* constants")
 
     def test_claim_help_states_required_declaration_keys(self):
-        help_text = self._help("claim")
+        # Anchor to the required-keys epilog section: a bare key like 'cwd' also appears in
+        # the --state-dir default help text, so an unanchored search could match vacuously.
+        marker = "required keys:"
+        keys_section = self._help("claim").split(marker, 1)
+        self.assertEqual(len(keys_section), 2, "claim --help must render a required-keys section")
         for key in (*vf._PROFILE_REQUIRED, *vf._CHECKOUT_REQUIRED):
-            self.assertIn(key, help_text,
-                          f"required declaration key {key!r} not in `claim --help`")
+            self.assertIn(key, keys_section[1],
+                          f"required declaration key {key!r} not in the required-keys section of `claim --help`")
 
     def test_claim_help_states_attach_semantics(self):
         # Collapse whitespace so a phrase split across a help line-wrap still matches.
