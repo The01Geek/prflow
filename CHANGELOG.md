@@ -4,6 +4,28 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.12] — 2026-08-28
+
+### Added
+- **Fail the cloud review job when a posted verdict lacks phase-execution evidence.** A new
+  job-level gate (`scripts/review-evidence-gate.py`, wired into `.github/workflows/devflow.yml`)
+  evaluates a cloud `/prflow:review` or `/prflow:review-and-fix` run and, when that run left a
+  marker-bearing merge-gating verdict on the head, compares it against machine-readable
+  evidence that the engine's phases ran — a run-scoped phase log the review
+  engine's entry gate now writes a per-phase line to (plus a checklist-generator double-failure
+  record and a Phase 0.3.6 fast-path hit record). A run that posted a
+  merge-gating verdict whose diff required the checklist phases, but whose attributed run root
+  holds no such phase log, turns the job red, flips its progress comment to the failed state,
+  leaves a durable comment, and dismisses the unbacked review; the legitimate skip arms stay
+  green and an unestablishable evidence state is a warning, neither pass nor failure. The gate
+  reuses `scripts/workpad.py`'s own diff classification rather than copying it, and the review
+  capability profile is unchanged. (#2077)
+
+## [2.35.11] — 2026-08-27
+
+### Added
+- **Cloud implement runs now mirror a stopped-run note into the pull request and refresh its `[View run]` link at the resume gate.** When a run stops before completion (a Blocked, Failed, or Cancelled terminal), the reason recorded on the issue workpad is also added to the top of the open PR body inside an HTML-comment-marked block, so a reviewer sees why a run halted from the PR page rather than only the issue's workpad comment. On a cloud resume the gate job — now the single owner of the PR's `[View run]` refresh — points the link at the new run and strips the stale note before the agent starts; the completion-time description regeneration and the agent-side resume pre-check strip the note too, so a completed PR carries none. (#2063)
+
 ## [2.35.10] — 2026-08-27
 
 ### Removed

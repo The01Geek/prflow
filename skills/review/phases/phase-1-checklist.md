@@ -127,7 +127,7 @@ Return an empty JSON array `[]` if a second pass surfaces nothing new.
 
 Extract the JSON array from the agent's response (look for the ```json code fence).
 
-If the agent fails or returns malformed JSON, retry once. If it fails again, log: "Verification checklist generation failed. Proceeding with existing agents only." Set `checklist_skipped = "failure"` and skip to Phase 3.
+If the agent fails or returns malformed JSON, retry once. If it fails again, log: "Verification checklist generation failed. Proceeding with existing agents only." Set `checklist_skipped = "failure"` and skip to Phase 3. On this double-failure arm append the record to the run-scoped phase log — `printf 'checklist-skip reason=failure\n' | tee -a .prflow/tmp/review/<slug>/<run-id>/phase-log` — so the workflow-side evidence gate reads this as a legitimate no-checklist arm rather than a hollow verdict.
 
 Store the parsed checklist items for Phase 1.5 (if batched) or Phase 2 (if single-batch).
 
