@@ -590,6 +590,11 @@
       "note": "#556 helper unit tests: lib/test/normalize-verdicts-test.py driven by run.sh (T-1/T-3/T-6)",
       "owner": "unmodularized"
     },
+    "scripts/page-job-log.py": {
+      "focused_test": "lib/test/test_python_scripts_part4.py",
+      "note": "issue #2098 CI job-log paging helper; download-once + slice/sanitize/cap + exit-code contract tested in the python pool",
+      "owner": "unmodularized"
+    },
     "scripts/parse-acs.py": {
       "focused_test": "lib/test/test_python_scripts.py",
       "note": "",
