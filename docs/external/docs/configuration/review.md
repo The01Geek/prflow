@@ -57,20 +57,20 @@ Expected result: a review rejects only on a critical finding, the fix loop corre
 
 To add house review rules that no setting expresses, such as a pattern your reviewers must always flag, write a [prompt extension](/docs/configuration/prompt-extensions) for `review` and `review-and-fix`.
 
-## Retained Legacy Automatic-Review Settings
+## Removed Automatic-Review Settings and the Retained Backstop
 
-Fresh installs do not include automatic pull-request-triggered review. These settings remain only so repositories that installed the withdrawn tier continue to validate. Keep them at their scaffolded values unless you are maintaining such an installation and accept its documented limitations.
+Fresh installs do not include automatic pull-request-triggered review. The `prflow_review.require_up_to_date`, `prflow_review.require_ci_green`, and every `prflow_runner` setting were removed from the shipped schema and example (issue #2071), and `install.sh` strips them from a consumer's `.prflow/config.json` on every apply. They are read only in a repository that still carries the withheld tier, and only until its next installer apply removes them. The `prflow_review.stall_backstop` settings are **not** part of that removed set — they remain, because the stall backstop is live.
 
-| **Setting** | **Type and accepted values** | **Fallback or scaffold** | **Legacy tier and security note** | **Example** |
+| **Setting** | **Type and accepted values** | **Fallback** | **Status and security note** | **Example** |
 | --- | --- | --- | --- | --- |
-| `prflow_review.require_up_to_date` | Boolean | `true` | Withheld automatic-review caller only. No effect in fresh installs. | `"require_up_to_date": true` |
-| `prflow_review.require_ci_green` | Boolean | `true` | Withheld automatic-review caller only. No effect in fresh installs. | `"require_ci_green": true` |
-| `prflow_review.stall_backstop.enabled` | Boolean | `true` | Withheld automatic-review path and limited manual failure recovery. A resume also needs an App and allowed bot identity. | `"enabled": true` |
-| `prflow_review.stall_backstop.max_resume_attempts` | Integer zero or greater | `2` | Retained review backstop. `0` disables resume while retaining detection. | `"max_resume_attempts": 2` |
-| `prflow_runner.effort` | `low`, `medium`, `high`, `xhigh` or `max` | Scaffold: `low`; absent runtime fallback: `high` | Withheld reusable runner. No effect in fresh installs. Where that runner is still installed, an absent key resolves to `high`, the same fallback the other effort settings use. | `"effort": "low"` |
-| `prflow_runner.provision_env` | Boolean | Runtime false; scaffold: `false` | Withheld runner. Enabling runs pull-request code with provisioned tools under a privileged workflow. | `"provision_env": false` |
+| `prflow_review.require_up_to_date` | Boolean | `true` | **Removed** (issue #2071): gone from the shipped schema/example and stripped on the next installer apply. Read only where the withheld tier remains installed. | `"require_up_to_date": true` |
+| `prflow_review.require_ci_green` | Boolean | `true` | **Removed** (issue #2071): gone from the shipped schema/example and stripped on the next installer apply. Read only where the withheld tier remains installed. | `"require_ci_green": true` |
+| `prflow_review.stall_backstop.enabled` | Boolean | `true` | Retained and live. Failure-recovery resume also needs an App and allowed bot identity. | `"enabled": true` |
+| `prflow_review.stall_backstop.max_resume_attempts` | Integer zero or greater | `2` | Retained and live. `0` disables resume while retaining detection. | `"max_resume_attempts": 2` |
+| `prflow_runner.effort` | `low`, `medium`, `high`, `xhigh` or `max` | absent runtime fallback: `high` | **Removed** (issue #2071): the whole `prflow_runner` section left the schema/example and is stripped on the next installer apply. Where the withheld runner is still installed, an absent key resolves to `high`. | `"effort": "low"` |
+| `prflow_runner.provision_env` | Boolean | Runtime false | **Removed** (issue #2071); stripped on the next installer apply. Where the withheld runner is still installed, enabling it runs pull-request code with provisioned tools under a privileged workflow. | `"provision_env": false` |
 
-Provider and allowed-tool settings for `prflow_runner` are listed in [Model Providers](/docs/configuration/providers) and [Tool Permissions](/docs/configuration/tool-permissions), with the same legacy label.
+The other `prflow_runner` settings — provider and allowed-tool — were removed by the same change; they are listed in [Model Providers](/docs/configuration/providers) and [Tool Permissions](/docs/configuration/tool-permissions).
 
 ## Remove the Withdrawn Automatic-Review Tier
 

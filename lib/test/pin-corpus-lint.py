@@ -4336,6 +4336,7 @@ _RENAME_MAP_KNOWN_BLOCKS = frozenset(
         "frozen",
         "retained_unshipped_workflows",
         "transitional_read_through",
+        "retained_helpers_deletion_condition",
     }
 )
 # The match semantics an ``identifiers`` entry may declare. ``token`` refuses to

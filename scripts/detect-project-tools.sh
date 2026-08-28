@@ -7,12 +7,9 @@
 # looks each match up in .prflow/tool-presets.json, and MERGES the union of the
 # matching presets into the repo's .prflow/config.json:
 #
-#   - the build/test/lint tool patterns are added to three execution paths'
-#     allowlists: prflow.allowed_tools (command), prflow_implement.allowed_tools
-#     (implement), and prflow_runner.allowed_tools (the automated reviewer). The
-#     reviewer consumes its list only when prflow_runner.provision_env is set in
-#     the trusted base config, and the runner enforces a deny-list floor over it
-#     (see config.schema.json);
+#   - the build/test/lint tool patterns are added to two execution paths'
+#     allowlists: prflow.allowed_tools (command) and prflow_implement.allowed_tools
+#     (implement);
 #   - the shared `setup` block gets node_version (only when currently empty — a
 #     pinned version is never overridden) and a lockfile-appropriate install
 #     line so the runtime the tools need actually exists before Claude runs;
@@ -30,16 +27,8 @@
 # the scaffold.
 #
 # SECURITY: the prflow / prflow_implement allowlists written here run a PR
-# author's code in their respective workflows. The automated reviewer instead
-# runs PR build code only when the maintainer sets prflow_runner.provision_env
-# (read from the BASE branch's committed config, never the PR head — see
-# the auto-review caller — so a PR cannot enable it for itself), which then runs
-# setup.install + the PR's build under a write token AND grants the freeform
-# prflow_runner.allowed_tools list (bounded by the runner's deny-list floor).
-# This script never writes a deny-listed tool — the same catastrophic tier the
-# runner strips (tree-mutation tools + raw-shell/eval/privilege Bash) is filtered
-# here too, as fast feedback; the runner's copy is the authoritative boundary.
-# Keep presets to mainstream toolchains and review the config.json before commit.
+# author's code in their respective workflows. Keep presets to mainstream
+# toolchains and review the config.json before commit.
 #
 # Usage: detect-project-tools.sh [TARGET_REPO_ROOT] [SCAN_ROOT]
 #   TARGET_REPO_ROOT  repo whose .prflow/config.json is updated — the only tree this
@@ -238,53 +227,17 @@ trap 'rm -f "$TMP"' EXIT
   --argjson extra_install "$EXTRA_INSTALL_JSON" \
   --arg nodewd "$NODE_WD" '
   def odedupe: reduce .[] as $x ([]; if any(.[]; . == $x) then . else . + [$x] end);
-  # Fast-feedback mirror of the runner deny-list floor (devflow-runner.yml is the
-  # authoritative boundary). Same rules as the runner: inspect the command-position
-  # binary (first whitespace token of the spec, before the first : or ) ) by its
-  # basename and deny a shell/eval/privilege binary or an exec-wrapper; deny a
-  # leading env-assignment; deny any shell metacharacter in the spec; deny an empty
-  # or bare command word. Non-leading arg tokens are NOT scanned, so legitimate
-  # tools whose subcommand is a deny word (docker exec, make CC=gcc) are kept.
-  def denylisted:
-    (gsub("^\\s+|\\s+$";"")) as $t
-    # File-tool tier (#402): match the tool NAME — the token before the first "(",
-    # trimmed and lowercased — so a parameterized entry (Write(**), Edit(src/**),
-    # notebookedit(x)) is stripped exactly like the bare name, mirroring the runner
-    # nocasematch name-before-paren check in scripts/filter-runner-tools.sh. NOTE:
-    # this whole jq program is inside bash single quotes, so comments stay
-    # apostrophe-free ASCII (a stray apostrophe would end the string; see CLAUDE.md).
-    | (($t | split("(")[0] | gsub("^\\s+|\\s+$";"") | ascii_downcase)) as $ftname
-    | if (["edit","write","multiedit","notebookedit"] | index($ftname)) != null then true
-      elif $t == "Bash" then true
-      elif ($t | test("^Bash\\(")) then
-        (($t | capture("^Bash\\(\\s*(?<spec>[^:)]*)") | .spec) | gsub("^\\s+|\\s+$";"")) as $cmd
-        | if $cmd == "" then true
-          elif ($cmd | test("[;|&$<>()`]")) then true
-          # ASCII-whitespace split (`[ \t]`, not `\s`) so the command-position token
-          # matches the runner shell `${cmd%%[[:space:]]*}` exactly — `\s` is Unicode
-          # in Oniguruma and would split on NBSP where the shell does not, desyncing
-          # the two filters on an entry like Bash(bash<nbsp>x:*).
-          else (($cmd | [splits("[ \t]+")][0]) // "") as $binword
-            | if ($binword | test("^[A-Za-z_][^=]*=")) then true
-              else (($binword | sub("^.*/";"")) as $b
-                    | (["bash","sh","zsh","dash","ksh","fish","eval","exec","source","sudo","doas","su","env","xargs","nice","timeout","nohup","setsid","command","chroot","runuser"] | index($b)) != null)
-              end
-          end
-      else false end;
   ($cfg[0]) as $c |
   ($pre[0].presets) as $p |
   ([ $keys[] as $k | $p[$k].allowed_tools[]? ]) as $tools |
-  ([ $tools[] | select(denylisted | not) ]) as $runner_tools |
   ([ $keys[] as $k | $p[$k].setup.install[]? ] + $extra_install) as $inst |
   ([ $keys[] as $k | $p[$k].setup.node_version? // empty ] | .[0]) as $nodever |
   $c
   | .prflow           = (.prflow           // {})
   | .prflow_implement  = (.prflow_implement  // {})
-  | .prflow_runner     = (.prflow_runner     // {})
   | .setup             = (.setup             // {})
   | .prflow.allowed_tools           = ((.prflow.allowed_tools           // []) + $tools | odedupe)
   | .prflow_implement.allowed_tools = ((.prflow_implement.allowed_tools // []) + $tools | odedupe)
-  | .prflow_runner.allowed_tools    = ((.prflow_runner.allowed_tools    // []) + $runner_tools | odedupe)
   | .setup.install                  = ((.setup.install                  // []) + $inst  | odedupe)
   | (if ($nodever != null) and ((.setup.node_version // "") == "")
        then .setup.node_version = $nodever else . end)
@@ -309,11 +262,9 @@ config_shape_ok() {
     def str_array: type == "array" and all(.[]; type == "string");
     (.prflow            // {} | type == "object")
     and (.prflow_implement // {} | type == "object")
-    and (.prflow_runner    // {} | type == "object")
     and (.setup             // {} | type == "object")
     and (.prflow.allowed_tools           // [] | str_array)
     and (.prflow_implement.allowed_tools // [] | str_array)
-    and (.prflow_runner.allowed_tools    // [] | str_array)
     and (.setup.install                   // [] | str_array)
     and (.setup.node_version              // "" | type == "string")
     and (.setup.node_working_directory    // "" | type == "string")
@@ -328,8 +279,8 @@ if "$DEVFLOW_JQ" --sort-keys . "$CONFIG" >/dev/null 2>&1 && ! diff -q \
   if config_shape_ok "$TMP"; then
     mv "$TMP" "$CONFIG"
     trap - EXIT
-    log "detected: ${ACTIVE[*]} — merged build/test tools into config.json (prflow / prflow_implement / prflow_runner) + setup."
-    log "review the additions before committing; the prflow / prflow_implement entries run PR code in their respective workflows. The prflow_runner.allowed_tools entries reach the automated reviewer only when prflow_runner.provision_env is set in the base config (see config.schema.json), which also runs PR build code under a write token; the runner enforces a deny-list floor over that list."
+    log "detected: ${ACTIVE[*]} — merged build/test tools into config.json (prflow / prflow_implement) + setup."
+    log "review the additions before committing; the prflow / prflow_implement entries run PR code in their respective workflows."
   else
     log "detected: ${ACTIVE[*]} — the merged config.json failed a best-effort shape check (a prflow/setup field has an unexpected type); your existing config.json is left unchanged. Fix the field types (see .prflow/config.schema.json) and re-run, or add the tool entries by hand."
   fi

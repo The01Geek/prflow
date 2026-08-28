@@ -73,8 +73,8 @@ names none of the four warned names logs nothing new.
 | `prflow.claude_model` | String model identifier | Top-level `claude_model` | General cloud command workflow. Use the identifier expected by the route. | `"claude_model": "provider/model"` |
 | `prflow_implement.provider` | String matching a provider name | Anthropic OAuth route | Shipped implementation path. Requires `DEVFLOW_PROVIDER_API_KEY` when set. | `"provider": "gateway"` |
 | `prflow_implement.claude_model` | String model identifier | Top-level `claude_model` | Shipped implementation path. | `"claude_model": "provider/model"` |
-| `prflow_runner.provider` | String matching a provider name | Anthropic OAuth route | **Retained legacy setting** for the withheld automatic-review runner. No effect in fresh installs. | `"provider": "gateway"` |
-| `prflow_runner.claude_model` | String model identifier | Top-level `claude_model` | **Retained legacy setting** for the withheld runner. | `"claude_model": "provider/model"` |
+| `prflow_runner.provider` | String matching a provider name | Anthropic OAuth route | **Removed** (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. Read only where the withheld runner is still installed. | `"provider": "gateway"` |
+| `prflow_runner.claude_model` | String model identifier | Top-level `claude_model` | **Removed** (issue #2071); stripped on the next installer apply. Read only where the withheld runner is still installed. | `"claude_model": "provider/model"` |
 
 ## Configure a Provider Route
 
