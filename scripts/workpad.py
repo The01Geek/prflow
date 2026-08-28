@@ -3921,9 +3921,11 @@ def _mirror_status_labels(issue, status):
     try:
         if not _status_labels_enabled():
             return
-        target = _STATUS_CLASS_TO_LABEL.get(_status_class(_status_glyph(status)))
-        if target is None:
-            return  # every class maps; never guess a label for an unknown one
+        # Every class `_status_class` produces is a key here (it defaults to
+        # 'interim'), so this subscript never misses in practice; a future
+        # unmapped class raises KeyError into the absorber below rather than
+        # silently mirroring no label.
+        target = _STATUS_CLASS_TO_LABEL[_status_class(_status_glyph(status))]
         label_defined = _reconcile_managed_label(issue, target, False)
         pr = _resolve_open_pr_for_issue(issue)
         if not pr:
