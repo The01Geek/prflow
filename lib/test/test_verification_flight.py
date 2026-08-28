@@ -2251,10 +2251,13 @@ class TestTelemetryGitignoreGuard(Harness):
     def test_guard_idempotent_leaves_existing_bytes_unchanged(self):
         Path(self.logs).mkdir(parents=True)
         guard = Path(self.logs) / ".gitignore"
-        guard.write_bytes(b"*\n")
-        before = guard.read_bytes()
+        # Seed a valid but DISTINGUISHABLE guard (the trailing comment differs from the
+        # `*\n` the writer would emit), so this catches an O_EXCL→O_TRUNC regression that
+        # would overwrite it — a byte-identical seed would pass such a regression vacuously.
+        seeded = b"*\n# pre-existing consumer edit\n"
+        guard.write_bytes(seeded)
         self.claim()  # a telemetry write into a dir that already holds the guard
-        self.assertEqual(guard.read_bytes(), before,
+        self.assertEqual(guard.read_bytes(), seeded,
                          "an existing guard's bytes must be left unchanged")
 
     def test_preexisting_untracked_telemetry_file_becomes_ignored(self):

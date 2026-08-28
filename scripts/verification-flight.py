@@ -517,12 +517,11 @@ def _ensure_telemetry_dir(base: Path) -> bool:
     The guard file's `*` pattern makes git ignore the directory's contents — the
     guard included — so a consumer repo whose PRFlow ignore rules cover .prflow/tmp/
     but not the logs dir does not surface telemetry as untracked and dirty the tree
-    the coordinator just certified (#2097; Cargo's target/.gitignore is the
-    precedent). Returns False — telemetry write skipped — when the guard cannot be
-    established; a leftover zero-byte guard would ignore nothing, so it is removed
-    rather than left to dirty the tree. Best-effort: coordination never depends on
-    telemetry. The caller applies this to the telemetry directories, not the ledger
-    state dir.
+    the coordinator just certified (#2097). Returns False — telemetry write skipped —
+    when the guard cannot be established; a leftover zero-byte guard would ignore
+    nothing, so it is removed rather than left to dirty the tree. Best-effort:
+    coordination never depends on telemetry. The caller applies this to the telemetry
+    directories, not the ledger state dir.
     """
     try:
         base.mkdir(parents=True, exist_ok=True)
@@ -542,8 +541,15 @@ def _ensure_telemetry_dir(base: Path) -> bool:
         os.close(fd)
         try:
             guard.unlink()
-        except OSError:
-            pass
+        except OSError as unlink_exc:
+            # The zero-byte guard could not be removed: it ignores nothing and now
+            # dirties the tree, so name it rather than leaving the state invisible.
+            print(
+                f"devflow verification-flight: left a zero-byte {guard} after a "
+                f"failed guard write (unlink also failed: "
+                f"{type(unlink_exc).__name__}: {unlink_exc})",
+                file=sys.stderr,
+            )
         return False
     os.close(fd)
     return True
