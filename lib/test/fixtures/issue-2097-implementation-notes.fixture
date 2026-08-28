@@ -1,0 +1,3 @@
+## Implementation Notes
+- **Documentation Needed** — `docs/internal/efficiency-trace.md` (its telemetry section records the self-ignoring guard behavior and the installed-repository reason for it).
+- Potential Gotchas — keep the PRFlow repository's root `.gitignore` carve-outs for the two directories; they stay as defense in depth. The state-directory write is load-bearing for coordination and stays outside the guard. Ignore rules do not untrack files a repository already committed; cleaning those up is that repository's own action and a non-goal here. The `event` subcommand spells its flag `--log-dir` (singular) — cover it too, not only the `--logs-dir` subcommands.

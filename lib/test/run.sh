@@ -10912,7 +10912,7 @@ assert_eq "#185A matrix: a later bullet mentioning the label in prose does NOT r
 # #2097's Potential Gotchas leaks its .gitignore mention into mandatory docs.
 assert_eq "#2097: plain same-level peer bullet closes Documentation Needed scope" \
   "docs/internal/efficiency-trace.md" \
-  "$(bash "$EXTRACT_HELPER" "$LIB/test/fixtures/issue-2097-implementation-notes.md")"
+  "$(bash "$EXTRACT_HELPER" "$LIB/test/fixtures/issue-2097-implementation-notes.fixture")"
 
 # Case 6 (PR #190 fix-loop): a bare, un-backticked filename at a sentence
 # boundary must still be extracted. The tokenizer glues the trailing sentence
