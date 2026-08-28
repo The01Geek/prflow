@@ -1160,10 +1160,9 @@ def cmd_status(args) -> int:
     # caller obligation. A read that did not verify the working tree never reports a
     # pass or exits 0 unless --allow-unverified-checkout opted into the weaker read.
     effective = _effective_pass(flight, checkout_verified, args.allow_unverified_checkout)
-    # reuse_ready ANDs the already-computed effective pass with the shared `_reusable`
-    # predicate (issue #2080), so a non-hermetic passed flight reports
-    # satisfies_verification True but reuse_ready False — and still exits 0, because
-    # the exit code keys on the pass dimension (`effective`), not reuse.
+    # reuse_ready ANDs `effective` with `_reusable` (issue #2080): a non-hermetic
+    # passed flight is satisfies_verification True, reuse_ready False, exit 0 (exit
+    # keys on `effective`, not reuse).
     _print_public(
         flight, checkout_verified=checkout_verified,
         satisfies_verification=effective,
