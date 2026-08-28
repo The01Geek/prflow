@@ -64,6 +64,13 @@ ENROLLED: tuple[tuple[str, str], ...] = (
     ("skills/review/SKILL.md", "load-prompt-extension.sh review"),
     ("skills/review-and-fix/SKILL.md", "load-prompt-extension.sh review-and-fix"),
     ("skills/review-and-fix/SKILL.md", "load-prompt-extension.sh receiving-code-review"),
+    # Enrolled at issue #2096: both vendored subagent skills are cloud-review-reachable
+    # (requesting-code-review as the dispatched final-pass reviewer; receiving-code-review's
+    # principles in the fix loop), so an anchor-only spelling would be refused there.
+    ("skills/requesting-code-review/SKILL.md",
+     "load-prompt-extension.sh requesting-code-review"),
+    ("skills/receiving-code-review/SKILL.md",
+     "load-prompt-extension.sh receiving-code-review"),
     # Enrolled at issue #1264, when the render-time injection change gave this file the
     # vendored-literal fallback arm it previously lacked: its extension load had been the
     # bare anchor alone, relying on that skill's global resolve-at-emission override
