@@ -83,7 +83,19 @@ def _sanitize(line):
     )
 
 
+def _force_utf8_streams():
+    # Force stdout/stderr to UTF-8 so a non-ASCII log byte prints rather than raising on a
+    # non-UTF-8-default locale (the repo-wide entry-path contract). Tolerate a stream with
+    # no usable reconfigure.
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv):
+    _force_utf8_streams()
     if len(argv) != 4:
         _usage_die()
     job, start_s, end_s = argv[1], argv[2], argv[3]
