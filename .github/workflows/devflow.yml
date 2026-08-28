@@ -1803,6 +1803,52 @@ jobs:
           echo "skill=$SKILL" >> "$GITHUB_OUTPUT"
           echo "prompt-extension-arrival: classified state=$STATE (skill=$SKILL)"
 
+      # Pre-engine review-evidence inventory (issue #2075). Snapshot the run-root tree
+      # under .prflow/tmp/review/ and the PR's current review IDs (all of them, unscoped —
+      # head attribution happens later in the gate via each verdict marker's own head=)
+      # immediately BEFORE the engine step, so the post-engine gate can attribute the run
+      # root and the
+      # verdict that appear DURING the engine step by set-difference — no run key from
+      # the engine, no clock comparison. Scoped to the review commands the gate evaluates
+      # (/prflow:review and /prflow:review-and-fix, and the /devflow: aliases); a
+      # /prflow:pr-description run seeds no inventory and the gate no-ops on its absence.
+      - name: Snapshot pre-engine review-evidence inventory
+        id: pre-evidence
+        if: ${{ startsWith(needs.gate.outputs.command, '/prflow:review') || startsWith(needs.gate.outputs.command, '/devflow:review') }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          REPO: ${{ github.repository }}
+          CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          COMMAND: ${{ needs.gate.outputs.command }}
+        run: |
+          set -uo pipefail
+          PR_NUMBER="${COMMAND##* }"
+          case "$PR_NUMBER" in ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;; esac
+          mkdir -p .prflow/tmp
+          # Run roots present BEFORE the engine step, as <slug>/<run-id> pairs. Never a
+          # newest-directory glob (a self-hosted runner can persist the workspace between
+          # runs) — the whole set is recorded so the gate attributes by delta.
+          ROOTS_JSON='[]'
+          if [ -d .prflow/tmp/review ]; then
+            ROOTS_JSON="$( (cd .prflow/tmp/review && find . -mindepth 2 -maxdepth 2 -type d) \
+              | sed 's#^\./##' | jq -R . | jq -s . )"
+          fi
+          # Whether the review-ID baseline was ESTABLISHED is load-bearing: if the fetch
+          # fails and we default to an empty set, a prior run's legitimate verdict would
+          # read as "fresh" and could be dismissed. So record the establishment flag and
+          # let the gate go unestablished (never dismiss) when the baseline is false.
+          IDS_JSON='[]'
+          IDS_ESTABLISHED=false
+          if [ -n "${PR_NUMBER:-}" ]; then
+            if RAW_IDS="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" --jq '.[].id' 2>/dev/null)"; then
+              IDS_JSON="$(printf '%s\n' "$RAW_IDS" | jq -R . | jq -s 'map(select(length>0) | tonumber)')"
+              IDS_ESTABLISHED=true
+            fi
+          fi
+          jq -n --argjson r "$ROOTS_JSON" --argjson i "$IDS_JSON" --argjson e "$IDS_ESTABLISHED" \
+            '{run_roots: $r, review_ids: $i, review_ids_established: $e}' > .prflow/tmp/pre-inventory.json
+          echo "review-evidence pre-inventory: $(cat .prflow/tmp/pre-inventory.json)"
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -2187,6 +2233,130 @@ jobs:
             echo "::notice::flip review-progress: could not establish marker diagnosis because the dispatcher is absent at $DIAG_RUNNER"
           fi
           # review-progress marker diagnosis END
+
+      # ── Review evidence gate (issue #2075). ──────────────────────────────────
+      # After the engine step, fail the job when a run that posted a merge-gating
+      # verdict for the reviewed head lacks phase-execution evidence — the run root
+      # attributed to this run (by the pre-engine inventory delta) holds no phase log
+      # recording that the checklist phases ran. The whole decision lives in the
+      # vendored scripts/review-evidence-gate.py (the suite drives it per arm); this
+      # step is a thin invoker that owns the helper-absent warning, and routes the fail
+      # arm to a durable comment, the progress-comment flip (the flip helper's new
+      # --evidence-gate-fail arm, for a terminal Status), and the REST review dismissal.
+      # Same command screen and PR-ness terms as the reach-record step, but WITHOUT the
+      # trailing-space form, so a /prflow:review-and-fix run is evaluated too. The fix
+      # loop skips Phase 4.4 and normally posts NO marker-bearing GitHub review, so the
+      # gate finds no verdict for it and safely no-ops; it fires only when a run left a
+      # marker-bearing verdict on the head absent from the pre-engine inventory (the
+      # /prflow:review path, or a direct gh-api bypass a review-and-fix run could leave).
+      - name: Review evidence gate
+        if: ${{ always() && (startsWith(needs.gate.outputs.command, '/prflow:review') || startsWith(needs.gate.outputs.command, '/devflow:review')) && (github.event.issue.pull_request || github.event.pull_request.number) && (github.event.issue.number || github.event.pull_request.number) }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          REPO: ${{ github.repository }}
+          CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          COMMAND: ${{ needs.gate.outputs.command }}
+          # The login of THIS run's reviewer identity (issue #1250 idiom): a human's
+          # review is never mistaken for the run's own. Identity is by command, mirroring
+          # the engine step's own github_token selection: /prflow:review runs under the
+          # downscoped reviewer token, while /prflow:review-and-fix runs under the primary
+          # app token — so the login must be resolved from the matching token's app-slug,
+          # else a review-and-fix verdict authored by the primary app reads as no verdict.
+          REVIEWER_LOGIN: ${{ startsWith(needs.gate.outputs.command, '/prflow:review ') && (steps.reviewer-token.outputs.app-slug != '' && format('{0}[bot]', steps.reviewer-token.outputs.app-slug) || 'github-actions[bot]') || (steps.app-token.outputs.app-slug != '' && format('{0}[bot]', steps.app-token.outputs.app-slug) || 'github-actions[bot]') }}
+        run: |
+          set -uo pipefail
+          # The pre-engine inventory step is what makes attribution possible; without it
+          # (a non-review command, or a race) there is nothing this run can be attributed
+          # against, so the gate no-ops rather than guessing.
+          if [ ! -f .prflow/tmp/pre-inventory.json ]; then
+            echo "::warning::review evidence gate: no pre-engine inventory was recorded for this run; the gate cannot attribute the run root, so the check is unestablished"
+            exit 0
+          fi
+          PR_NUMBER="${COMMAND##* }"
+          case "$PR_NUMBER" in ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;; esac
+          GATE=.prflow/vendor/prflow/scripts/review-evidence-gate.py
+          [ -f "$GATE" ] || GATE=scripts/review-evidence-gate.py
+          if [ ! -f "$GATE" ]; then
+            # The workflow step owns this arm because an absent script cannot report itself.
+            echo "::warning::review evidence gate: review-evidence-gate.py is absent at both the vendored and repo-root paths; the gate did not run (upgrade the vendored plugin pin)"
+            exit 0
+          fi
+          VENDOR_ROOT=.prflow/vendor/prflow/skills/review
+          [ -d "$VENDOR_ROOT" ] || VENDOR_ROOT=skills/review
+          # The reviewed head is read from the verdict marker itself inside the gate; only
+          # the base ref is supplied here, for the diff-classification recompute.
+          BASE_REF_RAW="$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .base.ref 2>/dev/null || true)"
+          BASE_REF=""
+          if [ -n "$BASE_REF_RAW" ]; then
+            git fetch --quiet origin "$BASE_REF_RAW:refs/remotes/origin/$BASE_REF_RAW" 2>/dev/null || true
+            BASE_REF="origin/$BASE_REF_RAW"
+          fi
+          REVIEWS_FILE="$RUNNER_TEMP/evidence-gate-reviews.json"
+          # A failed fetch leaves the file empty on purpose — the gate reads that as an
+          # unparseable payload (unestablished), never as an empty '[]' review set that
+          # would launder a hollow verdict into a green no-verdict.
+          gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews?per_page=100" > "$REVIEWS_FILE" 2>/dev/null || true
+          RESULT="$(python3 "$GATE" --pre-inventory .prflow/tmp/pre-inventory.json \
+            --post-tree-root . --reviews-payload "$REVIEWS_FILE" \
+            --base-ref "$BASE_REF" --repo-root . --reviewer-login "$REVIEWER_LOGIN" \
+            --vendored-engine-root "$VENDOR_ROOT")"
+          TOKEN="$(printf '%s\n' "$RESULT" | head -1)"
+          echo "review-evidence-gate: $TOKEN"
+          case "$TOKEN" in
+            pass\ *|no-verdict)
+              echo "::notice::review evidence gate: $TOKEN"
+              ;;
+            unestablished\ *)
+              echo "::warning::review evidence gate: $TOKEN (the evidence state could not be established; reported neither as a pass nor a failure)"
+              ;;
+            fail\ *)
+              echo "::error::review evidence gate: $TOKEN — this run posted a merge-gating verdict without the phase-execution evidence its diff requires"
+              # (a) durable pull-request comment naming the missing evidence. The
+              # human detail leads; the machine token is kept as a trailing footer so
+              # a reader is not met by the raw `fail missing=… review_id=…` line, and
+              # the token still stays quotable from the comment itself.
+              printf '%s\n' "$RESULT" | tail -n +2 > "$RUNNER_TEMP/evidence-gate-body.md"
+              printf '\n<!-- review-evidence-gate token -->\n`%s`\n' "$TOKEN" \
+                >> "$RUNNER_TEMP/evidence-gate-body.md"
+              if jq -n --rawfile b "$RUNNER_TEMP/evidence-gate-body.md" '{body: $b}' \
+                   | gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" --input - >/dev/null; then
+                echo "::notice::review evidence gate: posted the missing-evidence comment on #$PR_NUMBER"
+              else
+                echo "::warning::review evidence gate: the missing-evidence comment could not be posted on #$PR_NUMBER"
+              fi
+              # (b) flip this run's progress comment to its failed state — the flip
+              # helper's evidence-gate arm, taken even when the run wrote a terminal Status.
+              FLIP=.prflow/vendor/prflow/scripts/flip-review-progress-failed.sh
+              [ -f "$FLIP" ] || FLIP=scripts/flip-review-progress-failed.sh
+              # The run-keyed progress marker (a distinct variable name from the dead-run
+              # flip step's FLIP_MARKER, so the #1054 single-producer pin still finds one).
+              PROGRESS_MARKER="<!-- prflow:review-progress run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} -->"
+              if [ -f "$FLIP" ]; then
+                bash "$FLIP" "$PR_NUMBER" "$PROGRESS_MARKER" "review evidence gate failed: $TOKEN" --evidence-gate-fail || true
+              else
+                echo "::warning::review evidence gate: flip-review-progress-failed.sh absent; progress comment not flipped"
+              fi
+              # (c) dismiss the unbacked review — only a merge-gating state (APPROVED or
+              # CHANGES_REQUESTED); a COMMENTED-state verdict is left to the durable comment.
+              RID="$(printf '%s' "$TOKEN" | sed -n 's/.*review_id=\([0-9][0-9]*\).*/\1/p')"
+              RSTATE="$(printf '%s' "$TOKEN" | sed -n 's/.*review_state=\([A-Z_]*\).*/\1/p')"
+              if [ -n "$RID" ] && { [ "$RSTATE" = APPROVED ] || [ "$RSTATE" = CHANGES_REQUESTED ]; }; then
+                if gh api -X PUT "repos/$REPO/pulls/$PR_NUMBER/reviews/$RID/dismissals" \
+                     -f message="Dismissed by the PRFlow review-evidence gate: this verdict lacks phase-execution evidence ($TOKEN). See the durable comment on this pull request." >/dev/null 2>&1; then
+                  echo "::notice::review evidence gate: dismissed the unbacked review $RID"
+                else
+                  echo "::warning::review evidence gate: dismissal of review $RID failed; the durable comment stands as the recorded residual"
+                fi
+              else
+                echo "::notice::review evidence gate: review ${RID:-<none>} state ${RSTATE:-<none>} is not merge-gating; left to the durable comment (not dismissed)"
+              fi
+              exit 1
+              ;;
+            *)
+              echo "::warning::review evidence gate: unrecognized gate output '$TOKEN'; treated as unestablished"
+              ;;
+          esac
+          exit 0
 
       # ── No-verdict auto-resume backstop for the manual /prflow:review path
       # (issue #408). The review-side sibling of the devflow-review.yml
