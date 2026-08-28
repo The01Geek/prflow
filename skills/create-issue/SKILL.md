@@ -227,8 +227,10 @@ peer through the Agent tool (`subagent_type: general-purpose` on Claude Code; th
 equivalent context-isolated subagent tool elsewhere), synchronously — the normative requirement is
 behavioral: the dispatch blocks until the peer's completed findings are in hand, and a launch
 acknowledgment is never the findings report. On Claude Code, `run_in_background: false` is a current
-example of meeting it, not the definition; a background fork is excluded, since it can die on resume
-and lose the verification. The docs-verify findings report must be complete and captured before the
+example of meeting it, not the definition. Where the runner's subagent tool launches asynchronously
+and offers no such parameter, meet it by ending the turn and resuming only on the peer's completion
+notification; a background fork is excluded, since it can die on resume and lose the
+verification. The docs-verify findings report must be complete and captured before the
 first Step 2 clarification question — and, on a run so complete it asks zero clarifying questions,
 before Step 3 drafting begins. Never open Step 2 clarification or Step 3 drafting on the strength of
 "docs-verify is running".
