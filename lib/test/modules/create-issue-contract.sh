@@ -2311,8 +2311,9 @@ fi
 # The audit round is elected at Step 4 AFTER the draft is shown, so at listing time the
 # audit artifact is absent on every run; naming it made `ls -lL` emit a false not-found
 # line. This test extracts the paths the SKILL.md listing actually names and runs the
-# extracted invocation against a fixture holding only the run-state files a no-round run
-# has. RED against the old four-path listing (the extracted set includes issue-audit,
+# extracted invocation against a fixture holding the run-state files a no-round run has —
+# the run-slug pointer, the Step 1 evidence artifact, and the derivation artifact. RED
+# against the old four-path listing (the extracted set includes issue-audit,
 # whose fixture file a no-round run never wrote → not-found, and the count is 4≠3); GREEN
 # once the audit path is removed.
 _ci2092_block="$(awk '/Before the first rendered draft/{f=1} f{print} /each named individually/{if(f)exit}' "$CI_SKILL")"
