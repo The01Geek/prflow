@@ -27,7 +27,7 @@ HELPERS = (
     "_ra_conflict_red_under",
 )
 RETAINED_BOUNDARY_IDENTITIES = frozenset()
-EXPECTED_SOURCE_COUNT = 22
+EXPECTED_SOURCE_COUNT = 23
 NON_UTF8_SHELL_FIXTURES = frozenset(
     {"lib/test/fixtures/ghapi-repo-path/adversarial-nonutf8.sh"}
 )
@@ -247,9 +247,10 @@ def _audited_sources(repo_root: Path) -> tuple[str, ...]:
 # corpus adds seventeen tracked shell sources under
 # lib/test/fixtures/lint-negated-compound-redirect/, taking the swept population
 # from 80 to 97 — past the old bound of 84, tripping the same memo-reuse contract.
-# The bound is now 102: five above the swept population, the same few-files
-# headroom the raises above kept.
-_SOURCE_PARSE_CACHE_SIZE = 102
+# The bound is now 110, issue #2109 (adding lib/test/modules/review-dirty-tree.sh to
+# AUDITED_PIN_SOURCES took the swept population past 102): a few files of headroom above
+# the swept population, the same few-files headroom the raises above kept.
+_SOURCE_PARSE_CACHE_SIZE = 110
 
 
 @functools.lru_cache(maxsize=_SOURCE_PARSE_CACHE_SIZE)

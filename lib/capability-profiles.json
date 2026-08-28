@@ -1,5 +1,5 @@
 {
-  "manifest_version": 31,
+  "manifest_version": 32,
   "readme": [
     "This manifest is the single source of truth for PRFlow's cloud capability policy:",
     "which tools/commands each execution tier (review, implement, command) may run.",
@@ -80,11 +80,9 @@
       "Bash(git branch:*)",
       "Bash(git cat-file:*)",
       "Bash(git hash-object:*)",
-      "Bash(git checkout:*)",
       "Bash(mkdir:*)",
       "Bash(tee:*)",
       "Bash(mktemp:*)",
-      "Bash(cmp:*)",
       "Bash(rm -f:*)",
       "Bash(*/load-prompt-extension.sh:*)",
       "Bash(*/render-prompt-extension.sh:*)",
