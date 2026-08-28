@@ -74,6 +74,16 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
+# A non-hermetic flight — one whose declaration truthfully names an external service
+# its verification depends on (issue #2080) — is stored under a DISTINCT record
+# schema. It is completion-valid but never reusable: a pre-change reader accepts only
+# SCHEMA_VERSION, so it fails closed on this record rather than serving it as a
+# reusable pass, and `_reusable` keys reuse-eligibility on the same marker.
+SCHEMA_VERSION_NON_HERMETIC = 2
+# The record schemas `_read_flight` accepts. The declaration INPUT schema stays
+# SCHEMA_VERSION alone — a hermetic and a non-hermetic declaration both arrive as
+# schema 1; only the STORED record's schema differs.
+_RECORD_SCHEMA_VERSIONS = frozenset({SCHEMA_VERSION, SCHEMA_VERSION_NON_HERMETIC})
 DEFAULT_LEASE_SECONDS = 900  # bounded owner-token lease on a `claimed` handle
 STATE_DIRNAME = os.path.join(".prflow", "tmp", "verification-flights")
 LOGS_DIRNAME = os.path.join(".prflow", "logs", "verification-flight")
@@ -230,7 +240,12 @@ class _CodedError(Exception):
 
 
 class DeclarationError(_CodedError):
-    """An incomplete / non-hermetic declaration — reuse is disabled."""
+    """An incomplete or malformed declaration — the claim is refused.
+
+    A truthful external-service declaration is NOT this error (issue #2080): it is
+    accepted and recorded non-reusable. Only a malformed `external_services` shape
+    (non-string, blank, or a value that names no service) is refused here.
+    """
 
     # The closed reason vocabulary — coupled to every DeclarationError raise site
     # in the derive/validation path (_derive + _validate_profile + _validate_checkout).
@@ -247,7 +262,9 @@ class DeclarationError(_CodedError):
         "profile_toolchain_not_object",
         "profile_dependencies_not_object",
         "profile_output_roots_not_list",
-        "non_hermetic_profile",
+        "external_services_not_string",
+        "external_services_blank",
+        "external_services_names_no_service",
         "checkout_not_object",
         "candidate_identity_not_nonempty_string",
     })
@@ -278,11 +295,29 @@ def _validate_profile(profile: Any) -> dict:
             raise DeclarationError(f"profile_{key}_not_object")
     if not isinstance(profile["output_roots"], list):
         raise DeclarationError("profile_output_roots_not_list")
-    # Hermeticity: only external_services == "none" is reusable. A profile that
-    # declares any external service dependency is non-reusable by construction.
-    if profile["external_services"] != "none":
-        raise DeclarationError("non_hermetic_profile")
-    return profile
+    # Hermeticity (issue #2080): the field is required (the presence loop above
+    # already raised profile_missing_field:external_services when absent). Exact
+    # "none" is hermetic and reusable. Any other string that is non-empty after
+    # stripping AND not "none" after stripping truthfully names an external service
+    # the verification depends on — accepted, and recorded non-reusable by the
+    # caller. Every remaining shape names no service and is refused, so a caller can
+    # never silently key a reusable flight on an ambiguous value.
+    es = profile["external_services"]
+    if not isinstance(es, str):
+        raise DeclarationError("external_services_not_string")
+    stripped = es.strip()
+    if not stripped:
+        raise DeclarationError("external_services_blank")
+    if es == "none":
+        hermetic = True
+    elif stripped == "none":
+        # " none ", "none\t", … strip to the hermetic marker but are not it: they
+        # name no service yet are not the canonical hermetic value, so refuse rather
+        # than guess a reuse disposition.
+        raise DeclarationError("external_services_names_no_service")
+    else:
+        hermetic = False
+    return profile, hermetic
 
 
 def _validate_checkout(checkout: Any) -> dict:
@@ -322,14 +357,15 @@ def _descriptor_bytes(profile: dict) -> bytes:
 def _derive(declaration: Any) -> dict:
     """Validate a declaration and derive descriptor digest + flight key.
 
-    Raises DeclarationError on any incomplete/non-hermetic input. The helper
-    derives SHA-256 itself; a caller-supplied digest is never trusted.
+    Raises DeclarationError on incomplete or malformed input (a truthful external
+    service declaration is accepted, and threaded out as `hermetic: False`). The
+    helper derives SHA-256 itself; a caller-supplied digest is never trusted.
     """
     if not isinstance(declaration, dict):
         raise DeclarationError("declaration_not_object")
     if declaration.get("schema_version") != SCHEMA_VERSION:
         raise DeclarationError("unknown_schema_version")
-    profile = _validate_profile(declaration.get("profile"))
+    profile, hermetic = _validate_profile(declaration.get("profile"))
     checkout = _validate_checkout(declaration.get("checkout"))
     descriptor_digest = _sha256(_descriptor_bytes(profile))
     flight_key = _sha256(
@@ -357,6 +393,7 @@ def _derive(declaration: Any) -> dict:
         "profile": profile,
         "checkout": checkout,
         "candidate_identity": candidate_identity,
+        "hermetic": hermetic,
     }
 
 
@@ -462,7 +499,10 @@ def _read_flight(path: Path) -> dict:
     if not isinstance(obj, dict):
         # array / scalar top-level payloads are not a flight handle.
         raise ReadError("not_object")
-    if obj.get("schema_version") != SCHEMA_VERSION:
+    if obj.get("schema_version") not in _RECORD_SCHEMA_VERSIONS:
+        # A hermetic record carries SCHEMA_VERSION; a non-hermetic one carries
+        # SCHEMA_VERSION_NON_HERMETIC (issue #2080). Any other value — including a
+        # future schema a pre-change reader must fail closed on — is unreadable.
         raise ReadError("unknown_schema_version")
     state = obj.get("state")
     # `state` must be present and a member of the exact set; a wrong-typed value
@@ -636,6 +676,31 @@ def _effective_pass(flight: dict, checkout_verified: bool, allow_unverified: boo
     return _satisfies(flight) and (checkout_verified or allow_unverified)
 
 
+def _reusable(flight: dict) -> bool:
+    """Whether this flight may be served as a clean prior result (issue #2080).
+
+    Single source: the record schema marker IS the reuse marker. A hermetic record is
+    written under SCHEMA_VERSION and is reuse-eligible; a non-hermetic one under
+    SCHEMA_VERSION_NON_HERMETIC and is never served as a clean prior result, even
+    though it can satisfy verification and back completion evidence. `_read_flight`
+    guarantees the field is one of those two, so a non-SCHEMA_VERSION record is
+    non-reusable. Reuse-readiness is this predicate AND the pass predicate.
+    """
+    return flight.get("schema_version") == SCHEMA_VERSION
+
+
+def _effective_reuse_ready(flight: dict, checkout_verified: bool, allow_unverified: bool) -> bool:
+    """The status/wait reuse verdict: the effective pass AND the flight is reusable.
+
+    The single home shared by cmd_status and cmd_wait so the two cannot drift on the
+    non-hermetic reuse refusal (issue #2080), the twin of `_effective_pass`. A
+    non-hermetic passed flight satisfies verification (effective pass True) yet is
+    never reuse-ready, so its two fields diverge: satisfies_verification True,
+    reuse_ready False.
+    """
+    return _effective_pass(flight, checkout_verified, allow_unverified) and _reusable(flight)
+
+
 def _public_view(flight: dict) -> dict:
     """A token-redacted view for status/wait/attach output."""
     view = dict(flight)
@@ -649,10 +714,12 @@ def _public_view(flight: dict) -> dict:
     # enforced in the value, not left as a caller obligation.
     view["satisfies_verification"] = _satisfies(flight)
     # `reuse_ready` is the explicit, unambiguously-named operand a caller reads to
-    # decide reuse (issue #579 review): it mirrors `satisfies_verification` so no
-    # caller is tempted to branch on the process exit code — which is deliberately
-    # role-only on `claim`/attach (EXIT_OK regardless of the attached state).
-    view["reuse_ready"] = _satisfies(flight)
+    # decide reuse (issue #579 review), so no caller is tempted to branch on the
+    # process exit code — which is deliberately role-only on `claim`/attach (EXIT_OK
+    # regardless of the attached state). It folds in `_reusable` (issue #2080): a
+    # non-hermetic passed flight satisfies verification but is never reuse-ready, so
+    # here the two fields diverge rather than mirror.
+    view["reuse_ready"] = _satisfies(flight) and _reusable(flight)
     return view
 
 
@@ -679,8 +746,9 @@ def _print(obj: dict) -> None:
 def _derive_arg(input_file: str):
     """Load + derive a declaration file. Returns (derived, None) on success or
     (None, (payload, exit_code)) on an unreadable input or invalid declaration —
-    the single shared preamble for `descriptor` and `claim`. An incomplete /
-    non-hermetic declaration disables reuse (EXIT_INVALID)."""
+    the single shared preamble for `descriptor` and `claim`. An incomplete or
+    malformed declaration is refused (EXIT_INVALID); a truthful external service
+    declaration is accepted and recorded non-reusable."""
     try:
         decl = _load_json_arg(input_file)
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
@@ -724,10 +792,16 @@ def cmd_claim(args) -> int:
     # mis-parsed as an option flag when passed as `--token <value>` on the CLI.
     token = secrets.token_hex(32)
     handle = {
-        "schema_version": SCHEMA_VERSION,
+        # A hermetic declaration records SCHEMA_VERSION (reusable); a non-hermetic one
+        # records SCHEMA_VERSION_NON_HERMETIC (issue #2080) — the per-record marker
+        # `_reusable`/`_read_flight` key on, and a pre-change reader fails closed on.
+        "schema_version": SCHEMA_VERSION if derived["hermetic"] else SCHEMA_VERSION_NON_HERMETIC,
         "flight_key": derived["flight_key"],
         "descriptor_digest": derived["descriptor_digest"],
         "profile_version": derived["profile"]["profile_version"],
+        # Stored verbatim as data (never re-interpreted by any reader): the declared
+        # external_services value round-trips into the record for auditability.
+        "external_services": derived["profile"]["external_services"],
         "checkout": derived["checkout"],
         # Optional candidate identity carried into the handle (issue #668); a
         # declaration omitting it records the field absent (None).
@@ -1109,9 +1183,13 @@ def cmd_status(args) -> int:
     # caller obligation. A read that did not verify the working tree never reports a
     # pass or exits 0 unless --allow-unverified-checkout opted into the weaker read.
     effective = _effective_pass(flight, checkout_verified, args.allow_unverified_checkout)
+    # reuse_ready folds in `_reusable` (issue #2080), so a non-hermetic passed flight
+    # reports satisfies_verification True but reuse_ready False — and still exits 0,
+    # because the exit code keys on the pass dimension (`effective`), not reuse.
     _print_public(
         flight, checkout_verified=checkout_verified,
-        satisfies_verification=effective, reuse_ready=effective,
+        satisfies_verification=effective,
+        reuse_ready=_effective_reuse_ready(flight, checkout_verified, args.allow_unverified_checkout),
     )
     return EXIT_OK if effective else EXIT_NON_PASS
 
@@ -1151,9 +1229,15 @@ def cmd_wait(args) -> int:
                 effective = _effective_pass(
                     flight, checkout_verified, args.allow_unverified_checkout
                 )
+                # reuse_ready folds in `_reusable` (issue #2080) via the shared
+                # predicate, matching cmd_status: a non-hermetic passed flight is
+                # satisfies_verification True, reuse_ready False, exit 0.
                 _print_public(
                     flight, checkout_verified=checkout_verified,
-                    satisfies_verification=effective, reuse_ready=effective,
+                    satisfies_verification=effective,
+                    reuse_ready=_effective_reuse_ready(
+                        flight, checkout_verified, args.allow_unverified_checkout
+                    ),
                 )
                 _emit_telemetry(
                     args.logs_dir, "flight_wait_completed",

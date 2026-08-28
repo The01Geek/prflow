@@ -214,14 +214,12 @@ class TestDescriptorAndKey(Harness):
         # thus the flight key), silently defeating ALL reuse for callers that differ
         # only in `output_roots`. Assert exclusion so that regression fails RED here.
         #
-        # SCOPE (issue #579 review): this pins ONLY `output_roots`, because it is the
-        # only excluded field that can be *varied* in a valid declaration.
-        # `external_services` is also excluded from the descriptor, but a valid
-        # profile can only ever carry `external_services: "none"` (`_validate_profile`
-        # rejects every other value), so a constant field cannot churn the key and no
-        # differential test can falsify its exclusion — `test_external_services_only_none`
-        # pins that invariant instead. Do not re-widen this test's name/claim to imply
-        # a guard it cannot provide.
+        # SCOPE (issue #579 review): this pins `output_roots` exclusion. Since issue
+        # #2080 `external_services` can ALSO be varied in a valid declaration (a
+        # hermetic "none" versus a truthful service name), and it too is excluded from
+        # the descriptor — `test_descriptor_collision_hermetic_and_non_hermetic` pins
+        # that exclusion differentially. Do not re-widen this test's name/claim to
+        # imply a guard over `external_services`.
         base = self.run_cmd(["descriptor", "--input-file", self._write(_decl())])[1]
         moved_roots = self.run_cmd([
             "descriptor", "--input-file",
@@ -236,15 +234,30 @@ class TestDescriptorAndKey(Harness):
             "an output_roots-only difference must not churn the flight key",
         )
 
-    def test_external_services_only_none(self):
-        # The reason `test_output_roots_excluded_from_descriptor` cannot also pin
-        # `external_services` exclusion differentially: a valid profile's
-        # `external_services` is invariantly "none". Any other value is rejected at
-        # declaration time, so it can never reach `_descriptor_bytes` as a varying
-        # operand. Pin that gate directly.
-        code, out = self.claim(_decl(profile={"external_services": "local"}))
-        self.assertEqual(code, vf.EXIT_INVALID)
-        self.assertEqual(out["reason"], "non_hermetic_profile")
+    def test_external_services_truthful_is_accepted_non_reusable(self):
+        # issue #2080 (bug reproduction rewritten as the acceptance arm): a truthful
+        # external-service declaration is ACCEPTED (exit 0, a flight key printed), and
+        # its stored record marks the flight non-reusable under a per-record schema
+        # marker DISTINCT from the hermetic one — so a pre-change reader (which accepts
+        # only SCHEMA_VERSION) fails closed on it rather than serving it as reusable.
+        code, out = self.claim(_decl(profile={"external_services": "postgres"}))
+        self.assertEqual(code, vf.EXIT_OK)
+        self.assertEqual(out["role"], "owner")
+        self.assertIn("flight_key", out)
+        body = json.loads((Path(self.state) / f"{out['flight_key']}.json").read_text())
+        self.assertEqual(body["schema_version"], vf.SCHEMA_VERSION_NON_HERMETIC)
+        self.assertNotEqual(vf.SCHEMA_VERSION_NON_HERMETIC, vf.SCHEMA_VERSION,
+                            "the non-hermetic record marker must be distinct from the hermetic one")
+        # The declared value round-trips into the record as data (interpreted by no reader).
+        self.assertEqual(body["external_services"], "postgres")
+
+    def test_external_services_exact_none_is_hermetic_schema_one(self):
+        # The hermetic control: exact "none" stores under SCHEMA_VERSION (reusable),
+        # unchanged from before issue #2080.
+        code, out = self.claim(_decl(profile={"external_services": "none"}))
+        self.assertEqual(code, vf.EXIT_OK)
+        body = json.loads((Path(self.state) / f"{out['flight_key']}.json").read_text())
+        self.assertEqual(body["schema_version"], vf.SCHEMA_VERSION)
 
     def test_each_descriptor_operand_shifts_digest(self):
         base = self.run_cmd(["descriptor", "--input-file", self._write(_decl())])[1]["descriptor_digest"]
@@ -474,11 +487,115 @@ class TestClaimAndAttach(Harness):
         self.assertTrue(att["satisfies_verification"])
 
 
+class TestNonHermeticReuse(Harness):
+    """issue #2080: a non-hermetic passed flight satisfies verification but is never
+    reuse-ready. The refusal fires from the shared `_reusable` predicate that status,
+    wait, and the claim-attach view all consume — not from one subcommand."""
+
+    def _pass(self, decl):
+        """Claim -> mark-running -> finish passed for `decl`; returns the flight key."""
+        _, owner = self.claim(decl)
+        k, t = owner["flight_key"], owner["token"]
+        self.run_cmd(["mark-running", "--flight", k, "--token", t, "--state-dir", self.state])
+        self.run_cmd(["finish", "--flight", k, "--token", t, "--result", "passed",
+                      "--summary-file", self._write({"command": "x", "exit_status": 0, "skipped_checks": []}),
+                      "--state-dir", self.state, "--logs-dir", self.logs])
+        return k
+
+    def test_non_hermetic_passed_status_and_wait_satisfy_but_not_reuse_ready(self):
+        # A non-hermetic passed flight beside a hermetic passed flight for the SAME
+        # tree: status/wait with a matching checkout each report
+        # satisfies_verification True, reuse_ready False, and exit 0 (the exit keys on
+        # the pass dimension, not reuse); the hermetic sibling reports both True.
+        chk = self._write(_ck())
+        nh = self._pass(_decl(profile={"external_services": "postgres"}))
+        # A hermetic sibling for the same tree; a different descriptor operand (cwd)
+        # keeps it a distinct flight key so both records coexist under one state dir.
+        h = self._pass(_decl(profile={"external_services": "none", "cwd": "/other"}))
+        code, st = self.run_cmd(["status", "--flight", nh, "--state-dir", self.state,
+                                 "--current-checkout-file", chk])
+        self.assertEqual(code, vf.EXIT_OK, "a non-hermetic pass still exits 0")
+        self.assertTrue(st["satisfies_verification"])
+        self.assertFalse(st["reuse_ready"], "a non-hermetic pass is never reuse_ready")
+        self.assertTrue(st["checkout_verified"])
+        wcode, wst = self.run_cmd(["wait", "--flight", nh, "--state-dir", self.state,
+                                   "--timeout", "1", "--current-checkout-file", chk])
+        self.assertEqual(wcode, vf.EXIT_OK)
+        self.assertTrue(wst["satisfies_verification"])
+        self.assertFalse(wst["reuse_ready"], "wait shares the same reuse predicate")
+        hcode, hst = self.run_cmd(["status", "--flight", h, "--state-dir", self.state,
+                                   "--current-checkout-file", chk])
+        self.assertEqual(hcode, vf.EXIT_OK)
+        self.assertTrue(hst["satisfies_verification"])
+        self.assertTrue(hst["reuse_ready"], "the hermetic sibling is fully reuse-ready")
+
+    def test_descriptor_collision_hermetic_and_non_hermetic(self):
+        # A later hermetic declaration carrying the SAME descriptor identity as the
+        # recorded non-hermetic flight — external_services is excluded from the
+        # descriptor, so identical identity operands + checkout collide on the flight
+        # key. The hermetic claim attaches to the stored non-hermetic passed flight and
+        # must NOT be served it as reusable: the refusal fires from the RECORDED
+        # flight's schema, not the attacher's declaration.
+        nh_decl = _decl(profile={"external_services": "postgres"})
+        h_decl = _decl(profile={"external_services": "none"})
+        _, dnh = self.run_cmd(["descriptor", "--input-file", self._write(nh_decl)])
+        _, dh = self.run_cmd(["descriptor", "--input-file", self._write(h_decl)])
+        self.assertEqual(dnh["descriptor_digest"], dh["descriptor_digest"],
+                         "external_services must stay excluded from the descriptor")
+        self.assertEqual(dnh["flight_key"], dh["flight_key"],
+                         "the same tree collides on the flight key")
+        k = self._pass(nh_decl)
+        code, att = self.claim(h_decl)
+        self.assertEqual(code, vf.EXIT_OK)
+        self.assertEqual(att["role"], "attacher")
+        self.assertEqual(att["flight_key"], k,
+                         "the hermetic claim attaches to the stored non-hermetic flight")
+        self.assertTrue(att["satisfies_verification"], "the stored flight is a pass")
+        self.assertFalse(att["reuse_ready"],
+                         "the stored non-hermetic flight is never served as a reusable pass")
+
+
 class TestDeclarationValidation(Harness):
-    def test_non_hermetic_profile_rejected(self):
-        code, out = self.claim(_decl(profile={"external_services": "network"}))
+    def _flight_files(self):
+        p = Path(self.state)
+        return sorted(p.glob("*.json")) if p.exists() else []
+
+    def test_external_services_malformed_shapes_refused(self):
+        # issue #2080 AC2: the nine malformed `external_services` shapes are each
+        # refused with a non-zero exit and NO state write. Complete by construction
+        # over JSON's value types plus the string arms that name no service:
+        #   not-a-string: boolean, number, list, object, JSON null
+        #   blank string: empty, whitespace-only
+        #   names-no-service: a string that strips to "none" but is not exactly "none"
+        #   missing field (handled separately below, deleting the key)
+        cases = [
+            (True, "external_services_not_string"),
+            (1, "external_services_not_string"),
+            ([], "external_services_not_string"),
+            ({}, "external_services_not_string"),
+            (None, "external_services_not_string"),
+            ("", "external_services_blank"),
+            ("   ", "external_services_blank"),
+            (" none ", "external_services_names_no_service"),
+        ]
+        for value, reason in cases:
+            with self.subTest(external_services=value):
+                code, out = self.claim(_decl(profile={"external_services": value}))
+                self.assertNotEqual(code, vf.EXIT_OK, f"{value!r} must be refused")
+                self.assertEqual(code, vf.EXIT_INVALID)
+                self.assertEqual(out["reason"], reason)
+                self.assertEqual(self._flight_files(), [],
+                                 f"{value!r} must write no flight state")
+
+    def test_external_services_missing_field_refused(self):
+        # The ninth shape: an absent field. Refused with no state write, via the
+        # existing required-field presence guard.
+        d = _decl()
+        del d["profile"]["external_services"]
+        code, out = self.claim(d)
         self.assertEqual(code, vf.EXIT_INVALID)
-        self.assertEqual(out["reason"], "non_hermetic_profile")
+        self.assertEqual(out["reason"], "profile_missing_field:external_services")
+        self.assertEqual(self._flight_files(), [], "a missing field must write no flight state")
 
     def test_incomplete_fingerprint_disables_reuse(self):
         code, out = self.claim(_decl(checkout={"head": ""}))
@@ -1301,7 +1418,9 @@ class TestReasonVocabulary(unittest.TestCase):
 
     def test_declaration_error_known_codes_accepted(self):
         # Bare literals and prefix:detail codes from real raise sites construct.
-        vf.DeclarationError("non_hermetic_profile")
+        vf.DeclarationError("external_services_not_string")
+        vf.DeclarationError("external_services_blank")
+        vf.DeclarationError("external_services_names_no_service")
         vf.DeclarationError("profile_missing_field:toolchain")
         vf.DeclarationError("checkout_incomplete_fingerprint:head")
 
