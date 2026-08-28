@@ -1,6 +1,0 @@
----
-bump: patch
-type: Changed
----
-
-- **Reconcile the independent-tool-call batching disposition with the review engine's sequential phase-entry gate.** The injected grounding block's batching section (single-sourced in `scripts/render-grounding-block.sh`, so the wording renders in the review, implement, and generic modes) now classifies a read that a governing protocol sequences and gates — a phase-reference entry read among them — as dependent: issued one per protocol step, never batched together or ahead of its step, while the batches the protocol itself groups at a single step (a phase's ordered reference set at entry, a phase's launched verifier dispatches) stay batchable there. The review engine's entry-gate paragraph (`skills/review/SKILL.md`) and the implement orchestrator's phase entry-gate statement (`skills/implement/SKILL.md`) now say a phase reference is read only at its own phase entry, never earlier in a batch, and the review entry gate places the Phase 0 phase-entry append after Phase 0.2 creates the run-scoped directory. The `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` mirror passages are updated to match. This stops a review run from pre-reading phase references in one batch, skipping the phase-entry records, and losing its verdict to the review-evidence gate. (#2118)
