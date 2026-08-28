@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.2] — 2026-08-28
+
+### Added
+- **Changesets can drive the release-notes page at merge time.** A changeset marked
+  `customer-visible: true` now has its prose reused verbatim as an entry in
+  `docs/external/release-notes.md` under the merge date's heading, written in the same
+  `chore: bump version` commit that updates the CHANGELOG. An unmarked changeset is unchanged
+  (CHANGELOG only), and this repository's docs pass no longer authors release-notes entries.
+  (#2086)
+
 ## [2.36.1] — 2026-08-28
 
 ### Changed
