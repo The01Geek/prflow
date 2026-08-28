@@ -158,8 +158,12 @@ if [ -d "$DT_D2" ]; then
   ( cd "$DT_D2" && GIT_SNAP_BEFORE="$DT_D2_B" GIT_SNAP_AFTER="$DT_D2_AF" bash "$RDT" compare-and-restore "$DT_D2_OID" ) >/dev/null 2>"$DT_D2_ERR"
   assert_eq "#192 backstop: an untracked dispatch-window file is never auto-deleted" \
     "agent-created" "$(cat "$DT_D2/untracked.txt")"
+  # Two single-quoted greps (never one double-quoted literal wrapping the single-quoted path,
+  # which the mutation-routing classifier mis-parses as a raw source-presence pin): together they
+  # verify the breadcrumb NAMES the offending path — a broken/empty $p interpolation fails the
+  # untracked.txt grep, which the suffix-only check alone would pass GREEN.
   assert_eq "#192 backstop: failed restore is detected from live tree state and breadcrumbed" "yes" \
-    "$(grep -qF 'still dirty after restore attempt' "$DT_D2_ERR" && echo yes || echo no)"
+    "$(grep -qF untracked.txt "$DT_D2_ERR" && grep -qF 'still dirty after restore attempt' "$DT_D2_ERR" && echo yes || echo no)"
   rm -rf "$DT_D2" "$DT_D2_B" "$DT_D2_AF" "$DT_D2_ERR"
 fi
 # Case E — a truncated non-NUL BEFORE record must fail closed (leftover-record check).
