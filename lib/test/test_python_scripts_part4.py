@@ -7376,6 +7376,19 @@ assert_eq("#2098 store-guard: mkdir failure (.prflow is a file) -> exit 1", 1, _
 assert_eq("#2098 store-guard: mkdir-failure breadcrumb names the log store", True,
           'log store' in _pb.stderr)
 
+# --- a downstream reader closing the pipe early (| head) must not emit a traceback ---
+# Small output is stdout-block-buffered, so without an in-guard flush() the broken pipe
+# would surface as an "Exception ignored ... BrokenPipeError" at interpreter shutdown.
+_bp_cwd = tempfile.mkdtemp(prefix='pjlbp2098-')
+_bp_stub = _pjl_stub(os.path.join(_bp_cwd, 'cnt'),
+                     log_bytes=('\n'.join(f'l{i}' for i in range(1, 21)) + '\n').encode('utf-8'))
+_bp = _sp2098.run(
+    f"{sys.executable} {_PJL} 990 1 20 | head -c 15",
+    shell=True, capture_output=True, encoding='utf-8', errors='replace',
+    env=dict(os.environ, DEVFLOW_GH=_bp_stub), cwd=_bp_cwd)
+assert_eq("#2098 broken-pipe: no BrokenPipeError traceback on early pipe close", True,
+          'BrokenPipeError' not in _bp.stderr and 'Traceback' not in _bp.stderr)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

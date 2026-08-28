@@ -186,6 +186,9 @@ def main(argv):
         sys.stdout.write(header + "\n")
         for ln in out_lines:
             sys.stdout.write(ln + "\n")
+        # Flush inside the guard so a broken pipe on a small (buffered) output is caught
+        # here, not re-raised as a traceback at interpreter shutdown.
+        sys.stdout.flush()
     except BrokenPipeError:
         # A downstream reader closed the pipe (e.g. `| head`); the slice WAS served, so this
         # is success, not a fetch failure. Redirect stdout to devnull so the interpreter's
