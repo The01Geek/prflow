@@ -363,7 +363,7 @@ ${ALLOWED_TOOLS}
 > **A read a governing protocol sequences and gates is dependent for this test — never
 > batched with another such read, and never issued ahead of its protocol step.** A
 > phase-reference read an entry gate sequences and a review gate scores is the case: read
-> it at its own protocol step, one per step, not in a batch of a later step's references.
+> it at its own protocol step, not in a batch of a later step's references.
 > What the protocol itself groups at a single step stays batchable there — a phase's own
 > ordered reference set read at that phase's entry, or a batch of verifier dispatches a
 > phase launches.
