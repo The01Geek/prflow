@@ -150,6 +150,10 @@ def _force_utf8_streams():
 VERDICT_ENUM = ("PASS", "FAIL", "INCONCLUSIVE")
 SCOPE_ENUM = ("generated_claim_text", "source_authored_text", "none")
 NORMALIZED_PREFIX = "NORMALIZED (wording-only): "
+# Single-sourced so the contradiction detection below compares against the SAME literal
+# the blocker assembly appends — a renamed string here can never silently stop the
+# is_contradiction match firing.
+PROPERTY_NOT_PROVEN_BLOCKER = "property not proven"
 # issue #2099 — the well-typed contradiction: inaccuracy_scope generated_claim_text
 # asserts the code is correct, yet property_proven false leaves the intended property
 # unproven. Not a settled verdict; it draws one pinned auxiliary re-ask (see _process_pair).
@@ -400,7 +404,7 @@ def _process_pair(pair):
         else:
             field_defect_blockers.append("claim_provenance invalid")
     if pp_state == "real":
-        real_blockers.append("property not proven")
+        real_blockers.append(PROPERTY_NOT_PROVEN_BLOCKER)
     elif pp_state == "defect":
         field_defect_blockers.append("property_proven field defect")
     if scope_state == "real":
@@ -451,7 +455,7 @@ def _process_pair(pair):
     # That singleton also implies mode==agent and provenance==generated_paraphrase.
     is_contradiction = (
         raw == "FAIL"
-        and real_blockers == ["property not proven"]
+        and real_blockers == [PROPERTY_NOT_PROVEN_BLOCKER]
         and not field_defect_blockers
     )
 
@@ -479,7 +483,10 @@ def _process_pair(pair):
         result["defect"] = CONTRADICTION_DEFECT
         result["defect_class"] = "auxiliary"
         result["normalization_ineligible"] = CONTRADICTION_INELIGIBLE
-        if not is_pinned and provenance == "generated_paraphrase" and mode == "agent":
+        # is_contradiction already implies mode==agent and provenance==generated_paraphrase
+        # (the singleton real_blockers forces both), so the only remaining gate is that this
+        # pair is not itself the pinned re-ask.
+        if not is_pinned:
             retry = {"id": item_id, "kind": "auxiliary", "defect": CONTRADICTION_DEFECT}
 
     if trusted_channel_lost:
