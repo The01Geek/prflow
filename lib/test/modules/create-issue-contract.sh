@@ -2306,16 +2306,9 @@ else
     "busybox is not on this host, so no BSD-shaped ls implementation can be exercised" 2
 fi
 
-# ── #2092 item A: the Step 4 run-state listing names three run-state paths, not the ──
-# ── audit artifact, so a run that opened no round prints no not-found diagnostic.    ──
-# The audit round is elected at Step 4 AFTER the draft is shown, so at listing time the
-# audit artifact is absent on every run; naming it made `ls -lL` emit a false not-found
-# line. This test extracts the paths the SKILL.md listing actually names and runs the
-# extracted invocation against a fixture holding the run-state files a no-round run has —
-# the run-slug pointer, the Step 1 evidence artifact, and the derivation artifact. RED
-# against the old four-path listing (the extracted set includes issue-audit,
-# whose fixture file a no-round run never wrote → not-found, and the count is 4≠3); GREEN
-# once the audit path is removed.
+# ── #2092 item A: the Step 4 listing names exactly the three run-state paths, not the ──
+# audit artifact. Extracts the paths SKILL.md names and runs the listing over a no-round
+# fixture; RED if the audit path returns (4 != 3, and its absent file draws not-found).
 _ci2092_block="$(awk '/Before the first rendered draft/{f=1} f{print} /each named individually/{if(f)exit}' "$CI_SKILL")"
 _ci2092_paths="$(printf '%s\n' "$_ci2092_block" | grep -oE '\.prflow/tmp/create-issue/[^`]*')"
 _ci2092_count="$(printf '%s\n' "$_ci2092_paths" | grep -c .)"
