@@ -111,6 +111,7 @@ states above and no row report accompanies it.
 import argparse
 import collections
 import importlib.util
+import json
 import os
 import signal
 import subprocess
@@ -164,6 +165,66 @@ ROW_TIMEOUT_OVERRIDE_ENV = "DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS"
 # grandchildren, so the bounded launch sessions the child and signals the group. These APIs are
 # absent off POSIX, so every use is guarded on this flag.
 _POSIX = os.name == "posix"
+
+# The whole read-only preflight is bounded by this aggregate wall-clock deadline (issue #2121),
+# measured with time.perf_counter_ns(); each launched row is additionally bounded by the lesser
+# of its declared timeout_seconds and the remaining aggregate budget. A fail-open availability
+# bound, never a licence to convert a detected drift into an uncheckable result.
+AGGREGATE_DEADLINE_MS = 5000
+
+# The clean-path coupling receipt line (issue #2121). Anchored like PREFLIGHT_VERDICT_PREFIX so
+# lib/test/run-parallel.sh can pick it out by a line-START bash scan and re-emit exactly it on
+# stdout. COUPLED CONTRACT, edited with run-parallel.sh.
+COUPLING_RECEIPT_PREFIX = "regenerate-artifacts: coupling-receipt: "
+
+# ── Generated-artifact lifecycle inventory (issue #2121) ─────────────────────
+# Authoritative lifecycle class per artifact/check, keyed by stable identifier. A tuple of
+# (id, value) pairs, NOT a dict literal, so `_validate_lifecycles` catches a DUPLICATE
+# identifier — a dict literal silently collapses a repeated key before any validator runs (the
+# fail-open AUDITED_PIN_SOURCES avoids by AST-parsing rather than trusting a literal).
+#   branch-generated — a feature branch regenerates and commits it (this batched pass writes it).
+#   by-hand          — a human maintains it; the pass runs a non-writing check only.
+#   main-side        — written on `main` alone (never on a feature branch); preflight only reports it.
+# The join is bidirectional (`_validate_lifecycles`): every executable ROWS row resolves to
+# exactly one lifecycle entry, and every non-metadata lifecycle entry resolves back to exactly
+# one row. The metadata-only artifacts below are the sole exception — a real record with no
+# executable branch row.
+LIFECYCLE_CLASSES = ("branch-generated", "by-hand", "main-side")
+_METADATA_ONLY_ARTIFACTS = frozenset({"scripts/devflow-cloud-writer-contract.json"})
+ARTIFACT_LIFECYCLES = (
+    ("capability-profile-literals", "branch-generated"),
+    ("plugin-identity-regions", "branch-generated"),
+    ("coverage-map-ratchet", "by-hand"),
+    ("exact-module-floors", "by-hand"),
+    ("env-freeze-advisory-region", "branch-generated"),
+    ("module-coupling", "by-hand"),
+    ("install-state", "branch-generated"),
+    ("scripts/devflow-cloud-writer-contract.json", "main-side"),
+)
+
+# ── Module-coupling surface inventory (issue #2121) ──────────────────────────
+# The authoritative tier partition for the module-coupling surfaces. `preflight` entries are
+# validated read-only before the suite by lib/test/module_coupling.py; `suite-only` entries are
+# named in the receipt but never executed here (they are minutes-scale suite tests). A tuple of
+# per-surface dicts, NOT a dict keyed by id, so `_validate_module_coupling_surfaces` catches a
+# duplicate id — which is exactly the "a surface named by both tiers" failure AC38 requires.
+MODULE_COUPLING_SURFACE_TIERS = ("preflight", "suite-only")
+MODULE_COUPLING_SURFACES = (
+    {"id": "registry-membership", "gate_tier": "preflight"},
+    {"id": "full-suite-invocation", "gate_tier": "preflight"},
+    {"id": "shard-membership", "gate_tier": "preflight"},
+    {"id": "coverage-ownership", "gate_tier": "preflight"},
+    {"id": "ci-shellcheck-membership", "gate_tier": "preflight"},
+    {"id": "provenance-inventory", "gate_tier": "preflight"},
+    {"id": "mutation-pin-fixture-membership", "gate_tier": "preflight"},
+    {"id": "exact-policy-population-membership", "gate_tier": "preflight"},
+    {"id": "module-body-contract", "gate_tier": "preflight"},
+    {
+        "id": "exact-floor-execution",
+        "gate_tier": "suite-only",
+        "owner": "test_exact_floor_modules_run_green_through_the_real_runner",
+    },
+)
 
 # Ordered registry. `argv` is resolved under the target root and run with that root as
 # the working directory, so a fixture root exercises the fixture's own generators.
@@ -421,6 +482,59 @@ ROWS = (
         # row exists to surface — matching it would hide the drift it reports.
         "infra_markers": ("Traceback (most recent call last)",),
         # Preflight (issue #1244): `--check` is read-only and sub-second (~0.04 s).
+        "preflight_eligible": True,
+    },
+    {
+        # Module-coupling gate (issue #2121). A read-only judgment check: every on-disk focused
+        # module is wired across the preflight coupling surfaces (lib/test/module_coupling.py).
+        # Exit 1 = a positively-identified coupling omission (drift); exit 2 (outside the
+        # declared set) = an input failure the preflight routes to UNCHECKABLE; exit 0 = clean.
+        "name": "module-coupling",
+        "timeout_seconds": 30,
+        "kind": "judgment",
+        "argv": ("python3", "lib/test/module_coupling.py", "--check"),
+        "clean": (0,),
+        "exits": (0, 1),
+        "policy": (
+            "wire every on-disk lib/test/modules/*.sh module across the coupled surfaces named "
+            "above (registry, run.sh floor, shard, ci.yml, inventory, module body) and commit"
+        ),
+        # by-hand: the coupling has no single generated artifact; a merge conflict in the
+        # checker file itself is hand-merged like any normal source.
+        "conflict_class": "by-hand",
+        "conflict_paths": ("lib/test/module_coupling.py",),
+        # A crash exits 1 with a traceback; the input-error marker exits 2 (outside the set).
+        # Both must route to UNCHECKABLE, not drift — the traceback marker is added universally
+        # by run_preflight_row, so only the input-error marker is declared here.
+        "infra_markers": ("module-coupling: [input-error]",),
+        "preflight_eligible": True,
+    },
+    {
+        # Install-state marker (issue #2121). A generated artifact: the batch form (this row's
+        # argv) regenerates .prflow/install-state.json, and the read-only preflight_argv `--check`
+        # detects drift without writing. AC41's repair entry point is this batched helper — no
+        # direct lib/generate-install-state.py grant is required.
+        "name": "install-state",
+        "timeout_seconds": 30,
+        "kind": "mechanical",
+        "argv": ("python3", "lib/generate-install-state.py"),
+        "preflight_argv": ("python3", "lib/generate-install-state.py", "--check"),
+        "writes": (".prflow/install-state.json",),
+        "clean": (0,),
+        # (0, 1): `--check` exits 1 on drift (the preflight's DRIFT arm). The write form exits 0
+        # on success; a bind/read failure surfaces as a traceback (exit 1) which the mechanical
+        # classifier routes to INFRASTRUCTURE via its no-marker arm.
+        "exits": (0, 1),
+        "policy": (
+            "regenerate the marker by rerunning the granted batch form "
+            "`lib/test/regenerate-artifacts.py` (its install-state row runs "
+            "`python3 lib/generate-install-state.py`), then commit .prflow/install-state.json"
+        ),
+        "conflict_class": "regenerate",
+        # The mechanical exit-1 arm keys on `cloud-writer-contract:`; install-state never emits
+        # that, so a genuine exit-1 (a traceback) correctly routes to INFRASTRUCTURE. Its
+        # `--check` drift is exit 1 in the PREFLIGHT path only (run_preflight_row), where the
+        # generic judgment arm applies.
         "preflight_eligible": True,
     },
 )
@@ -689,14 +803,16 @@ _BoundedResult = collections.namedtuple(
 )
 
 
-def _terminate_tree(proc):
+def _terminate_tree(proc, posix=_POSIX):
     """Kill the child and, on POSIX, its whole process group (issue #1457 AC6).
 
     A bare `subprocess.run(timeout=)` kills only the direct child and orphans grandchildren
     (exact-module-floors spawns python3 -> bash run-module.sh -> …). The child leads its own
     session (`start_new_session`), so signalling its process group reaches the whole tree.
+    `posix` is an injection seam (issue #2121): a termination-boundary test forces the
+    non-POSIX direct-child arm on a real POSIX host by passing posix=False.
     """
-    if _POSIX:
+    if posix:
         try:
             os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
             return
@@ -710,16 +826,17 @@ def _terminate_tree(proc):
         pass
 
 
-def _run_bounded(argv, root, timeout_seconds):
+def _run_bounded(argv, root, timeout_seconds, posix=_POSIX):
     """Run `argv` under a wall-clock bound, terminating the whole process tree on timeout.
 
     Returns a `_BoundedResult`. Raises OSError if the command cannot launch, exactly as
     subprocess.run does, so run_row's existing launch-failure arm still catches it. On POSIX
     the child leads its own session so a timeout signals the entire group (AC6); the guards on
-    `_POSIX` keep the helper runnable on a non-POSIX host (AC8).
+    `posix` keep the helper runnable on a non-POSIX host (AC8). `posix` is an injection seam
+    (issue #2121): a test forces the non-POSIX direct-child arm on a POSIX host.
     """
     popen_kwargs = {}
-    if _POSIX:
+    if posix:
         popen_kwargs["start_new_session"] = True
         popen_kwargs["preexec_fn"] = _restore_default_signals
     proc = subprocess.Popen(
@@ -737,7 +854,7 @@ def _run_bounded(argv, root, timeout_seconds):
             proc.returncode, stdout, stderr, False, time.monotonic() - start
         )
     except subprocess.TimeoutExpired:
-        _terminate_tree(proc)
+        _terminate_tree(proc, posix=posix)
         try:
             stdout, stderr = proc.communicate(timeout=10)
         except subprocess.TimeoutExpired:
@@ -1004,7 +1121,7 @@ def _monotonic_outcome(row, proc, output, before, after, report):
     return False, True
 
 
-def run_preflight_row(row, root, report):
+def run_preflight_row(row, root, report, timeout_seconds, posix=_POSIX):
     """Run ONE eligible row read-only for the preflight. Returns (drift, uncheckable).
 
     Distinct from `run_row` in two load-bearing ways (issue #1244):
@@ -1024,11 +1141,24 @@ def run_preflight_row(row, root, report):
     joined = " ".join(argv)
     target_rel = next((a for a in argv[1:] if not a.startswith("-")), None)
     try:
-        proc = subprocess.run(
-            argv, cwd=str(root), capture_output=True, text=True, check=False
-        )
+        proc = _run_bounded(argv, root, timeout_seconds, posix=posix)
     except OSError as error:
         report.append(f"[{name}] UNCHECKABLE the preflight command failed to launch: {joined} ({error})")
+        return False, True
+    # A bounded-out row established nothing — UNCHECKABLE, never drift (issue #2121). On a
+    # non-POSIX host only the direct child is reaped, so the degraded termination scope is
+    # stated on that channel rather than asserted silently.
+    if proc.timed_out:
+        degraded = (
+            ""
+            if posix
+            else " (non-POSIX host: only the direct child was reaped — "
+            "descendant termination is unestablished)"
+        )
+        report.append(
+            f"[{name}] UNCHECKABLE `{joined}` exceeded its bound of "
+            f"{timeout_seconds:.3f}s and was terminated{degraded} — nothing was established"
+        )
         return False, True
     output = (proc.stdout + proc.stderr).strip()
     declared = row["exits"]
@@ -1087,39 +1217,99 @@ def run_preflight_row(row, root, report):
     return True, False
 
 
-def run_preflight(root):
-    """Read-only preflight over the eligible rows only (issue #1244).
+def _load_helper_module(root, rel, name):
+    """Import a bundled (possibly hyphenated) helper module by path (issue #2121)."""
+    path = Path(root) / rel
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {name} from {path}")
+    module = importlib.util.module_from_spec(spec)
+    # Register before exec so a module-level @dataclass resolves its own __module__.
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
-    Writes nothing, prints one line per row it ran, then a machine verdict line
-    (`PREFLIGHT_VERDICT_PREFIX` + one of `clean` / `drift` / `uncheckable`) followed by
-    the human remedy sentence, and exits:
-      0 — every eligible row is clean;
-      1 — at least one eligible row DRIFTED (a positively-attributed, reconcilable drift);
-      2 — no drift, but at least one eligible row could not be checked.
-    The verdict line is the contract `lib/test/run-parallel.sh` reads; the sentence beside
-    it is for a human and carries no consumer.
-    DRIFT takes precedence over UNCHECKABLE: a positively-detected drift must fail closed
-    (the coordinator refuses to launch) and must never be masked by an unrelated row that
-    happened to be uncheckable. Exit 2 is therefore the purely-unestablished case, which
-    the coordinator treats as fail-open (warn and proceed). This precedence is the reverse
-    of the batched pass's infra-over-drift ordering, deliberately: the batched pass writes
-    and its exit 2 means "nothing was reconciled", whereas the preflight's exit 1 is a
-    refusal signal that a caught drift must dominate.
+
+def build_coupling_receipt(root, elapsed_ms, deadline_ms):
+    """The clean-path typed coupling receipt line (issue #2121, AC47).
+
+    Names the preflight coupling surfaces, the lifecycle classes, the checked eligible-row
+    population, the suite-only surfaces (named, never executed), and the mutation-census
+    cache-capacity numbers derived from the single swept-population source. List/dict fields
+    are compact JSON so the line stays single-line-parseable.
+    """
+    mc = _load_helper_module(root, "lib/test/module_coupling.py", "_module_coupling_receipt")
+    census = mc.census_cache_receipt(root)
+    checks = ",".join(module_coupling_surfaces_by_tier("preflight"))
+    lifecycles = json.dumps(dict(ARTIFACT_LIFECYCLES), separators=(",", ":"))
+    checked_population = json.dumps(
+        [row["name"] for row in ROWS if row.get("preflight_eligible")],
+        separators=(",", ":"),
+    )
+    suite_only = json.dumps(
+        [
+            f"{s['id']}:{s['owner']}"
+            for s in MODULE_COUPLING_SURFACES
+            if s["gate_tier"] == "suite-only"
+        ],
+        separators=(",", ":"),
+    )
+    return (
+        f"{COUPLING_RECEIPT_PREFIX}state=clean checks={checks} lifecycles={lifecycles} "
+        f"checked_population={checked_population} suite_only={suite_only} "
+        f"tracked_shell_count={census['tracked_shell_count']} "
+        f"cache_capacity={census['cache_capacity']} "
+        f"required_minimum={census['required_minimum']} headroom={census['headroom']} "
+        f"elapsed_ms={elapsed_ms} deadline_ms={deadline_ms}"
+    )
+
+
+def run_preflight(root, *, deadline_ns=None, clock=time.perf_counter_ns, posix=_POSIX):
+    """Read-only preflight over the eligible rows only (issues #1244, #2121).
+
+    Writes nothing, prints one line per row it ran, then — on the clean path — a typed coupling
+    receipt line (`COUPLING_RECEIPT_PREFIX`) and finally a machine verdict line
+    (`PREFLIGHT_VERDICT_PREFIX` + one of `clean` / `drift` / `uncheckable`) with a human remedy
+    sentence, and exits 0 (all clean) / 1 (drift) / 2 (uncheckable).
+
+    Bounded by a 5000 ms aggregate deadline measured with `time.perf_counter_ns()`; each
+    launched row is additionally bounded by the lesser of its declared `timeout_seconds` and the
+    remaining aggregate budget. Deadline exhaustion records the unfinished rows as UNCHECKABLE.
+    `deadline_ns`/`clock`/`posix` are injection seams (a test forces the deadline-exhaustion and
+    non-POSIX termination arms without a host-speed dependency); `main()` passes none.
+
+    DRIFT takes precedence over UNCHECKABLE: a positively-detected drift must fail closed (the
+    coordinator refuses to launch) and must never be masked by an unrelated uncheckable row.
+    The aggregate deadline is a fail-open availability bound, never a licence to convert a
+    detected drift into an uncheckable result.
     """
     report = []
     drift = False
     uncheckable = False
+    start = clock()
+    budget_ns = deadline_ns if deadline_ns is not None else AGGREGATE_DEADLINE_MS * 1_000_000
+    deadline = start + budget_ns
     for row in ROWS:
         if not row.get("preflight_eligible"):
             continue
-        # A row's classification must never abort the whole preflight: an unexpected raise
-        # AFTER an earlier row already set drift would otherwise propagate to the top-level
-        # net, exit 2 with no report and no drift summary, and the coordinator would then
-        # fail OPEN — losing a positively-detected drift (the fail-closed contract this
-        # function documents). Catch per row → that row is UNCHECKABLE, the loop continues,
-        # and any already-detected drift survives the drift-precedence check below.
+        remaining_ns = deadline - clock()
+        if remaining_ns <= 0:
+            report.append(
+                f"[{row['name']}] UNCHECKABLE not measured — the aggregate preflight deadline "
+                "was exhausted before this row ran"
+            )
+            uncheckable = True
+            continue
+        # Each row is bounded by the lesser of its declared wall and the remaining budget.
+        row_timeout = min(row["timeout_seconds"], remaining_ns / 1_000_000_000)
+        # A row's classification must never abort the whole preflight: an unexpected raise AFTER
+        # an earlier row already set drift would propagate to the top-level net, exit 2 with no
+        # drift summary, and the coordinator would then fail OPEN — losing a positively-detected
+        # drift. Catch per row → that row is UNCHECKABLE and any prior drift survives below.
         try:
-            row_drift, row_uncheckable = run_preflight_row(row, root, report)
+            row_drift, row_uncheckable = run_preflight_row(
+                row, root, report, row_timeout, posix=posix
+            )
         except Exception as error:
             report.append(
                 f"[{row['name']}] UNCHECKABLE the preflight row raised "
@@ -1128,6 +1318,8 @@ def run_preflight(root):
             row_drift, row_uncheckable = False, True
         drift = row_drift or drift
         uncheckable = row_uncheckable or uncheckable
+    elapsed_ms = (clock() - start) // 1_000_000
+    deadline_ms = budget_ns // 1_000_000
     for line in report:
         print(line)
     if drift:
@@ -1143,6 +1335,15 @@ def run_preflight(root):
             "regenerate-artifacts: preflight could not check at least one eligible "
             "artifact — exit 2"
         )
+        return 2
+    # Clean — emit the typed receipt BEFORE the verdict line. A receipt that cannot be built on
+    # an otherwise-clean tree routes to UNCHECKABLE rather than emitting a false clean verdict.
+    try:
+        print(build_coupling_receipt(root, elapsed_ms, deadline_ms))
+    except Exception as error:
+        print(f"[coupling-receipt] UNCHECKABLE could not build the receipt: {error}")
+        print(f"{PREFLIGHT_VERDICT_PREFIX}uncheckable")
+        print("regenerate-artifacts: preflight could not build the coupling receipt — exit 2")
         return 2
     print(f"{PREFLIGHT_VERDICT_PREFIX}clean")
     print("regenerate-artifacts: preflight — every eligible artifact reconciled — exit 0")
@@ -1224,6 +1425,13 @@ def _validate_registry():
             raise ValueError(
                 f"registry row {row['name']!r} declares timeout_seconds "
                 f"{bound!r}, which is not an int"
+            )
+        # A non-positive bound is a mis-typed field, not a zero/negative timeout (issue #2121):
+        # a 0 or negative wall would terminate the row before it could establish anything.
+        if bound <= 0:
+            raise ValueError(
+                f"registry row {row['name']!r} declares timeout_seconds "
+                f"{bound!r}, which is not a positive int"
             )
         # Enforce the "preflight writes nothing" invariant in DATA, not prose (issue #1244).
         # The coordinator's fail-closed refusal rests on the preflight being read-only, so a
@@ -1358,12 +1566,117 @@ def _coupled_site_path_failures(sites, root):
     return failures
 
 
+def _validate_lifecycles(lifecycles=None, metadata_only=None):
+    """Fail closed on a malformed ARTIFACT_LIFECYCLES inventory (issue #2121).
+
+    Built from a tuple of `(id, value)` pairs rather than trusting a dict literal, so a
+    DUPLICATE identifier is caught here rather than silently collapsed. Enforces the
+    bidirectional join with ROWS: every executable row resolves to exactly one lifecycle
+    entry, and every non-metadata lifecycle entry resolves back to exactly one row. The
+    metadata-only artifacts (a real record with no branch row) are the sole exception.
+    Raises ValueError; the import-time net routes a script run to exit 2.
+    """
+    if lifecycles is None:
+        lifecycles = ARTIFACT_LIFECYCLES
+    if metadata_only is None:
+        metadata_only = _METADATA_ONLY_ARTIFACTS
+    seen = {}
+    for entry in lifecycles:
+        if not isinstance(entry, (list, tuple)) or len(entry) != 2:
+            raise ValueError(
+                f"ARTIFACT_LIFECYCLES entry {entry!r} must be an (id, value) pair"
+            )
+        key, value = entry
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError(f"ARTIFACT_LIFECYCLES declares a missing/empty identifier: {key!r}")
+        if key in seen:
+            raise ValueError(f"ARTIFACT_LIFECYCLES declares {key!r} more than once")
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"ARTIFACT_LIFECYCLES[{key!r}] has a missing/empty value")
+        if value not in LIFECYCLE_CLASSES:
+            raise ValueError(
+                f"ARTIFACT_LIFECYCLES[{key!r}] declares unknown value {value!r}, "
+                f"outside {LIFECYCLE_CLASSES}"
+            )
+        seen[key] = value
+    row_names = {row["name"] for row in ROWS}
+    lifecycle_keys = set(seen)
+    non_metadata = lifecycle_keys - set(metadata_only)
+    missing_refs = row_names - non_metadata
+    orphans = non_metadata - row_names
+    if missing_refs or orphans:
+        raise ValueError(
+            "ARTIFACT_LIFECYCLES / ROWS mismatch — executable rows with no lifecycle entry: "
+            f"{sorted(missing_refs)}; lifecycle entries with no executable row: {sorted(orphans)}"
+        )
+    also_rows = set(metadata_only) & row_names
+    if also_rows:
+        raise ValueError(
+            f"metadata-only artifact(s) {sorted(also_rows)} must never also be executable rows"
+        )
+    return seen
+
+
+_MODULE_COUPLING_REQUIRED_STR_FIELDS = ("id", "gate_tier")
+
+
+def _validate_module_coupling_surfaces(surfaces=None):
+    """Fail closed on a malformed MODULE_COUPLING_SURFACES inventory (issue #2121).
+
+    Each entry must be a MAPPING before any field lookup (a non-mapping raises the attributed
+    schema failure AC38 requires). `id` unique and non-empty, `gate_tier` present and in the
+    tier vocabulary, and a `suite-only` surface names a non-empty owner. A duplicate id is the
+    "surface named by both tiers" failure. Raises ValueError; the net routes a script run to
+    exit 2.
+    """
+    if surfaces is None:
+        surfaces = MODULE_COUPLING_SURFACES
+    seen_ids = set()
+    for index, entry in enumerate(surfaces):
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"module-coupling surface at index {index} must be a dict, got {entry!r}"
+            )
+        for field in _MODULE_COUPLING_REQUIRED_STR_FIELDS:
+            value = entry.get(field)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(
+                    f"module-coupling surface {entry.get('id')!r} field {field!r} must be a "
+                    f"non-empty string, got {value!r}"
+                )
+        surface_id = entry["id"]
+        if entry["gate_tier"] not in MODULE_COUPLING_SURFACE_TIERS:
+            raise ValueError(
+                f"module-coupling surface {surface_id!r} declares gate_tier "
+                f"{entry['gate_tier']!r}, outside {MODULE_COUPLING_SURFACE_TIERS}"
+            )
+        if entry["gate_tier"] == "suite-only":
+            owner = entry.get("owner")
+            if not isinstance(owner, str) or not owner.strip():
+                raise ValueError(
+                    f"module-coupling surface {surface_id!r} is suite-only but names no owner"
+                )
+        if surface_id in seen_ids:
+            raise ValueError(
+                f"module-coupling surface id {surface_id!r} is declared more than once; a "
+                "surface named by both tiers (or twice) is a defect"
+            )
+        seen_ids.add(surface_id)
+
+
+def module_coupling_surfaces_by_tier(tier):
+    """The surface ids declared for `tier`, in declaration order (issue #2121)."""
+    return tuple(s["id"] for s in MODULE_COUPLING_SURFACES if s["gate_tier"] == tier)
+
+
 # Validate at import — but route a script run's failure to exit 2 (INFRASTRUCTURE), never the
 # exit 1 a bare module-level raise would produce. An IMPORTING caller still gets the raw
 # ValueError, so a test can assert the exception itself.
 try:
     _validate_registry()
     _validate_coupled_sites()
+    _validate_lifecycles()
+    _validate_module_coupling_surfaces()
 except ValueError as _bind_error:
     if __name__ != "__main__":
         raise

@@ -61,11 +61,13 @@
 #                                 run-shard.sh (fixtures only).
 #   DEVFLOW_ARTIFACT_PREFLIGHT    command for the read-only generated-artifact preflight
 #                                 (issue #1244); defaults to the bundled
-#                                 `regenerate-artifacts.py --preflight`. Set empty to skip
-#                                 the preflight. Fixtures inject a stub here to drive its
-#                                 clean/drift/uncheckable arms; the DEFAULT binding and the
-#                                 verdict contract are driven end-to-end against the real
-#                                 helper from lib/test/modules/regenerate-artifacts.sh.
+#                                 `regenerate-artifacts.py --preflight`. Set empty to DISABLE
+#                                 the preflight — no longer silent (issue #2121): it emits a
+#                                 typed disabled receipt and a warn-and-proceed line to stderr.
+#                                 Fixtures inject a stub here to drive its clean/drift/uncheckable
+#                                 arms; the DEFAULT binding and the verdict contract are driven
+#                                 end-to-end against the real helper from
+#                                 lib/test/modules/regenerate-artifacts.sh.
 #   DEVFLOW_RUFF_VERSION_PROBE    command behaving like `ruff --version` for the cheap-lint
 #                                 ruff-version check (issue #2009); defaults to `ruff
 #                                 --version`. Set empty to disable the check. Fixtures inject
@@ -185,11 +187,30 @@ die() { # message
 _artifact_preflight() {
   local preflight_cmd preflight_out preflight_rc drift line
   preflight_cmd="${DEVFLOW_ARTIFACT_PREFLIGHT-$SCRIPT_DIR/regenerate-artifacts.py --preflight}"
-  [ -n "$preflight_cmd" ] || return 0
+  if [ -z "$preflight_cmd" ]; then
+    # Explicitly-empty override DISABLES the preflight. It is a test seam, but no longer silent
+    # (issue #2121, AC48): emit a typed disabled receipt and the warn-and-proceed class to
+    # stderr, then proceed. This arm never emits a clean receipt.
+    printf 'run-parallel: coupling-receipt: state=uncheckable reason=empty-override checked_population=none\n' >&2
+    printf 'run-parallel: WARNING: the generated-artifact preflight is disabled (DEVFLOW_ARTIFACT_PREFLIGHT explicitly empty); proceeding\n' >&2
+    return 0
+  fi
   # shellcheck disable=SC2086  # deliberate word-split: a command plus its argument(s)
   preflight_out="$($preflight_cmd 2>&1)"
   preflight_rc=$?
-  [ "$preflight_rc" -eq 0 ] && return 0
+  if [ "$preflight_rc" -eq 0 ]; then
+    # Re-emit the typed clean coupling receipt on STDOUT before shard output (issue #2121,
+    # AC47). Pick out exactly the receipt line with a bash-builtin read/case scan (never a
+    # PATH tool per CLAUDE.md guard-class 2), so stdout carries the typed receipt and none of
+    # the row narrative. A clean helper that emits no receipt line (an older helper) prints
+    # nothing here — the same silent-clean posture as before.
+    while IFS= read -r line; do
+      case "$line" in
+        "regenerate-artifacts: coupling-receipt: "*) printf '%s\n' "$line" ;;
+      esac
+    done <<< "$preflight_out"
+    return 0
+  fi
   # Refuse ONLY on a positively-attributed drift: exit 1 AND the preflight's own MACHINE
   # verdict line. Keying the refusal on the verdict (a bash-builtin read/case, never a
   # non-preflight PATH tool per CLAUDE.md guard-class 2) rather than on the exit code alone
