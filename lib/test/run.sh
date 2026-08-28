@@ -4294,8 +4294,10 @@ fi
 
 # Case SC (#2082) — the scratch-allocation-failure guard fails CLOSED: when the repo-local scratch
 # files cannot be allocated, NOTHING is restored (never a fall-through that clobbers a concurrent
-# edit) and the distinct breadcrumb fires. Forced by making `.prflow` a regular file so `.prflow/tmp`
-# cannot be a directory (root-safe: unlike a chmod, a file-vs-directory conflict binds every uid).
+# edit) and the distinct breadcrumb fires. Isolate the INNER changed-paths-write guard specifically
+# by leaving `.prflow/tmp` creatable but making the changed-paths TARGET a directory, so `printf '' >
+# file` fails on it (root-safe: a file-vs-directory conflict binds every uid). A whole-.prflow
+# blocker would instead trip the function-entry mkdir guard (Case MK below), not this inner one.
 DT_SC="$(dt_make_repo)"
 if [ -d "$DT_SC" ]; then
   DT_SC_B="$(probe_tmp "#2082 scratch-alloc before")"; DT_SC_AF="$(probe_tmp "#2082 scratch-alloc after")"
@@ -4303,13 +4305,70 @@ if [ -d "$DT_SC" ]; then
   git -C "$DT_SC" status --porcelain -z > "$DT_SC_B"
   DT_SC_OID="$(git hash-object "$DT_SC_B")"
   printf 'agent edit' > "$DT_SC/plain.txt"
-  printf blocker > "$DT_SC/.prflow"   # a regular file where the helper needs the .prflow/tmp dir
+  mkdir -p "$DT_SC/.prflow/tmp/review-dirty-tree-changed-paths"   # a dir where the helper needs to write a file
   ( cd "$DT_SC" && GIT_SNAP_BEFORE="$DT_SC_B" GIT_SNAP_AFTER="$DT_SC_AF" bash "$RDT" compare-and-restore "$DT_SC_OID" ) >/dev/null 2>"$DT_SC_ERR"
   assert_eq "#2082 backstop: scratch-allocation failure fails closed (agent edit NOT restored)" \
     "agent edit" "$(cat "$DT_SC/plain.txt" 2>/dev/null)"
   assert_eq "#2082 backstop: scratch-allocation failure emits the distinct breadcrumb" "yes" \
     "$(grep -qF 'could not allocate repo-local scratch files' "$DT_SC_ERR" && echo yes || echo no)"
   rm -rf "$DT_SC" "$DT_SC_B" "$DT_SC_AF" "$DT_SC_ERR"
+fi
+# Case MK (#2082) — the function-entry `mkdir -p .prflow/tmp` guard fails CLOSED with its own
+# distinct breadcrumb: a regular file at `.prflow` makes the directory uncreatable, so
+# compare-and-restore returns early, restores NOTHING, and attributes the fault to the filesystem
+# rather than misreporting it downstream as an after-snapshot or scratch-alloc failure (root-safe:
+# a file-vs-directory conflict binds every uid).
+DT_MK="$(dt_make_repo)"
+if [ -d "$DT_MK" ]; then
+  DT_MK_B="$(probe_tmp "#2082 mkdir-guard before")"; DT_MK_AF="$(probe_tmp "#2082 mkdir-guard after")"
+  DT_MK_ERR="$(probe_tmp "#2082 mkdir-guard stderr")"
+  git -C "$DT_MK" status --porcelain -z > "$DT_MK_B"
+  DT_MK_OID="$(git hash-object "$DT_MK_B")"
+  printf 'agent edit' > "$DT_MK/plain.txt"
+  printf blocker > "$DT_MK/.prflow"   # a regular file where the helper needs the .prflow/tmp dir
+  ( cd "$DT_MK" && GIT_SNAP_BEFORE="$DT_MK_B" GIT_SNAP_AFTER="$DT_MK_AF" bash "$RDT" compare-and-restore "$DT_MK_OID" ) >/dev/null 2>"$DT_MK_ERR"
+  assert_eq "#2082 backstop: uncreatable .prflow/tmp fails closed (agent edit NOT restored)" \
+    "agent edit" "$(cat "$DT_MK/plain.txt" 2>/dev/null)"
+  assert_eq "#2082 backstop: uncreatable .prflow/tmp emits the distinct mkdir-guard breadcrumb" "yes" \
+    "$(grep -qF 'could not create .prflow/tmp for the dirty-tree compare/restore' "$DT_MK_ERR" && echo yes || echo no)"
+  rm -rf "$DT_MK" "$DT_MK_B" "$DT_MK_AF" "$DT_MK_ERR"
+fi
+# Case CE (#2082) — the cmp-error (rc>=2) branch fails CLOSED: when `cmp` cannot compare the two
+# snapshots it must NOT be read as "the tree diverged" and drive a restore off a comparison that
+# never succeeded. A PATH-shimmed `cmp` that exits 2 forces the error branch; nothing is restored
+# and the distinct rc-bearing breadcrumb fires.
+DT_CE="$(dt_make_repo)"
+if [ -d "$DT_CE" ]; then
+  DT_CE_B="$(probe_tmp "#2082 cmp-error before")"; DT_CE_AF="$(probe_tmp "#2082 cmp-error after")"
+  DT_CE_ERR="$(probe_tmp "#2082 cmp-error stderr")"; DT_CE_BIN="$DT_CE/bin"; mkdir -p "$DT_CE_BIN"
+  git -C "$DT_CE" status --porcelain -z > "$DT_CE_B"
+  DT_CE_OID="$(git hash-object "$DT_CE_B")"
+  printf 'agent edit' > "$DT_CE/plain.txt"          # a real divergence, so the branch is reached
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 2' > "$DT_CE_BIN/cmp"   # comparison ERROR, not "differ"
+  chmod +x "$DT_CE_BIN/cmp"
+  ( cd "$DT_CE" && PATH="$DT_CE_BIN:$PATH" GIT_SNAP_BEFORE="$DT_CE_B" GIT_SNAP_AFTER="$DT_CE_AF" bash "$RDT" compare-and-restore "$DT_CE_OID" ) >/dev/null 2>"$DT_CE_ERR"
+  assert_eq "#2082 backstop: a cmp comparison error fails closed (agent edit NOT restored)" \
+    "agent edit" "$(cat "$DT_CE/plain.txt" 2>/dev/null)"
+  assert_eq "#2082 backstop: a cmp comparison error emits the distinct rc-bearing breadcrumb" "yes" \
+    "$(grep -qF 'could not compare the before/after working-tree snapshots (cmp errored' "$DT_CE_ERR" && echo yes || echo no)"
+  rm -rf "$DT_CE" "$DT_CE_B" "$DT_CE_AF" "$DT_CE_ERR"
+fi
+# Case MB (#2082) — the genuinely-MISSING before-snapshot disjunct (distinct from Case H's symlink
+# disjunct) fails CLOSED: a non-existent BEFORE path with no disabled sentinel skips comparison and
+# restoration and emits the missing/tampered breadcrumb.
+DT_MB="$(dt_make_repo)"
+if [ -d "$DT_MB" ]; then
+  DT_MB_B="$DT_MB/nonexistent-before"; DT_MB_AF="$(probe_tmp "#2082 missing-before after")"
+  DT_MB_ERR="$(probe_tmp "#2082 missing-before stderr")"
+  git -C "$DT_MB" status --porcelain -z > "$DT_MB_AF"   # produce a real OID from a real snapshot
+  DT_MB_OID="$(git hash-object "$DT_MB_AF")"
+  printf 'agent edit' > "$DT_MB/plain.txt"
+  ( cd "$DT_MB" && GIT_SNAP_BEFORE="$DT_MB_B" GIT_SNAP_AFTER="$DT_MB_AF" bash "$RDT" compare-and-restore "$DT_MB_OID" ) >/dev/null 2>"$DT_MB_ERR"
+  assert_eq "#2082 backstop: a genuinely-missing before-snapshot fails closed (agent edit NOT restored)" \
+    "agent edit" "$(cat "$DT_MB/plain.txt" 2>/dev/null)"
+  assert_eq "#2082 backstop: a genuinely-missing before-snapshot emits the missing/tampered breadcrumb" "yes" \
+    "$(grep -qF 'the before-dispatch snapshot is missing or no longer a regular non-symlink file' "$DT_MB_ERR" && echo yes || echo no)"
+  rm -rf "$DT_MB" "$DT_MB_AF" "$DT_MB_ERR"
 fi
 # Guard the SKILL-side schema statement that detect_all_audit is not persisted.
 assert_pin_unique "#167 coupled-site: SKILL.md states detect_all_audit is intentionally not persisted" \

@@ -47,7 +47,12 @@ SNAP_AFTER="${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}"
 DISABLED_SENTINEL=".prflow/tmp/review-dirty-tree-disabled"
 
 cmd_snapshot() {
-  mkdir -p .prflow/tmp
+  if ! mkdir -p .prflow/tmp 2>/dev/null; then
+    # Distinct root-cause breadcrumb: without this, an unwritable .prflow/tmp surfaces only as the
+    # generic snapshot-creation failure below, misattributing a filesystem fault to git/status.
+    echo "::warning::devflow review: could not create .prflow/tmp (permissions/read-only-fs/disk-full?); working-tree snapshot not taken, dirty-tree backstop DISABLED for this dispatch — no after-compare, no auto-restore" >&2
+    return 0
+  fi
   # Snapshot to a NUL-delimited (`-z`) FILE with UNQUOTED paths: plain `--porcelain` C-quotes a
   # spaced path (`"my file.txt"`) into a silent `git checkout` no-op, and `-z` NUL bytes cannot
   # live in a `$(...)` variable — so use a file, not a variable.
@@ -65,11 +70,20 @@ cmd_snapshot() {
     rm -f "$SNAP_BEFORE" 2>/dev/null
     printf '%s\n' disabled > "$DISABLED_SENTINEL"
   fi
+  # Enforce the documented "exit 0 on failure" contract explicitly: without this the function's
+  # status is the last command's (the sentinel-write redirect), so a failed redirect would return
+  # non-zero and diverge from the guarantee callers rely on.
+  return 0
 }
 
 cmd_compare_and_restore() {
   local OID="$1"
-  mkdir -p .prflow/tmp
+  if ! mkdir -p .prflow/tmp 2>/dev/null; then
+    # Distinct root-cause breadcrumb (mirrors cmd_snapshot): an unwritable .prflow/tmp would
+    # otherwise surface only as the generic after-snapshot failure, misattributing a filesystem fault.
+    echo "::warning::devflow review: could not create .prflow/tmp for the dirty-tree compare/restore (permissions/read-only-fs/disk-full?); comparison SKIPPED this dispatch — nothing auto-restored" >&2
+    return 0
+  fi
   if [ -f "$DISABLED_SENTINEL" ]; then
     : # before-snapshot failed in snapshot (already surfaced there); backstop disabled this dispatch
   elif [ ! -f "$SNAP_BEFORE" ] ||
