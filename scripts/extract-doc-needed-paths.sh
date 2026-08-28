@@ -21,8 +21,10 @@
 #     list item, a bare blank-line-preceded `**…**` bold paragraph — the shape an
 #     LLM-drafted `## Implementation Notes` section, and the real issue #304 body,
 #     uses; issue #309 — OR a `### Documentation Needed` level-3 heading, issue
-#     #380) and the next top-level bold bullet of the same shapes, the next `## `
-#     heading, or (for a heading-opened scope) the next level-3+ heading (or EOF).
+#     #380) and the next peer item: for a list-item opener, a same-indentation list
+#     item closes even when its label is not bold; path-led deliverable items stay
+#     in scope. A top-level bold peer, the next `## ` heading, or (for a
+#     heading-opened scope) the next level-3+ heading also closes (or EOF).
 #     A `### Documentation Needed` heading only opens inside `## Implementation
 #     Notes`; a deeper `#### …` heading or a bullet that merely mentions the label
 #     does not open. A bold-emphasis
@@ -125,7 +127,8 @@ doc_ext_alt='md|markdown|sh|json|py|ya?ml|rst|txt|adoc|mdx|toml|cfg|ini'
 # prose paragraph can close the scope without ever dropping a primary/intervening
 # prose deliverable (the fail-open guard: prose can never arm the close). awk
 # state: 0 = outside Implementation Notes; 1 = inside the section but outside the
-# bullet; 2 = inside the Documentation Needed bullet.
+# bullet; 2 = inside the Documentation Needed bullet. `list_scope` marks a
+# list-item opener for the same-level-peer close arm.
 #
 # Stage A is invoked TWICE-capable via `-v fence_aware` (issue #644): the primary
 # fence-AWARE pass tracks fence state (a single tracker, from the top of the body)
@@ -271,7 +274,7 @@ run_stage_a() {
       # #1663): without this a `none` block silently suppresses a later block
       # deliverable — a fail-open across blocks. Unlike emitted, this is not gated
       # on state!=2, so back-to-back openers (already state 2) still re-examine.
-      decl = 0; decl_examined = 0
+      decl = 0; decl_examined = 0; list_scope = 0
       state = 2
       entered_scope = 1
     } else if (state == 2) {
@@ -334,10 +337,16 @@ run_stage_a() {
     # Reset the declaration latch on EVERY Documentation Needed opener (issue
     # #1663): a `none` block must not suppress a later block deliverable. Not gated
     # on state!=2, so back-to-back openers (already state 2) still re-examine.
-    if (ns == 2) { decl = 0; decl_examined = 0 }
+    if (ns == 2) { decl = 0; decl_examined = 0; list_scope = ($0 ~ /^- /) }
     if (ns == 2) entered_scope = 1
     entered_section = 1
     state = ns
+  }
+  # A list-item scope ends at its next same-level peer. Preserve the two explicit
+  # path-led deliverable-list shapes; indented items and wrapped lines stay nested.
+  state == 2 && list_scope && /^- / && $0 !~ /^- \*\*Documentation Needed\*\*/ && $0 !~ /^- (\*\*)?`/ {
+    state = 1
+    list_scope = 0
   }
   # SHAPE 2 (issue #327): a blank-line-PRECEDED PLAIN-PROSE paragraph (not blank,
   # not a list item, not a bold bullet) inside an open bullet closes the scope so
