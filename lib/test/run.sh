@@ -4275,6 +4275,42 @@ if [ -d "$DT_J" ]; then
     "target sentinel" "$(cat "$DT_J_TARGET")"
   rm -rf "$DT_J" "$DT_J_B" "$DT_J_AF" "$DT_J_TARGET" "$DT_J_ERR"
 fi
+
+# Case SK (#2082) — a disabled sentinel short-circuits compare-and-restore: a tree carrying the
+# fixed repo-local sentinel is the snapshot-failed disabled state, so NO agent mutation is
+# restored (a regression flipping the sentinel check to a fall-through would clobber the tree).
+DT_SK="$(dt_make_repo)"
+if [ -d "$DT_SK" ]; then
+  DT_SK_B="$(probe_tmp "#2082 sentinel-skip before")"; DT_SK_AF="$(probe_tmp "#2082 sentinel-skip after")"
+  git -C "$DT_SK" status --porcelain -z > "$DT_SK_B"
+  DT_SK_OID="$(git hash-object "$DT_SK_B")"
+  printf 'agent edit' > "$DT_SK/plain.txt"
+  mkdir -p "$DT_SK/.prflow/tmp"; printf '%s\n' disabled > "$DT_SK/.prflow/tmp/review-dirty-tree-disabled"
+  ( cd "$DT_SK" && GIT_SNAP_BEFORE="$DT_SK_B" GIT_SNAP_AFTER="$DT_SK_AF" bash "$RDT" compare-and-restore "$DT_SK_OID" ) >/dev/null 2>&1
+  assert_eq "#2082 backstop: a disabled sentinel short-circuits compare-and-restore (agent edit NOT restored)" \
+    "agent edit" "$(cat "$DT_SK/plain.txt" 2>/dev/null)"
+  rm -rf "$DT_SK" "$DT_SK_B" "$DT_SK_AF"
+fi
+
+# Case SC (#2082) — the scratch-allocation-failure guard fails CLOSED: when the repo-local scratch
+# files cannot be allocated, NOTHING is restored (never a fall-through that clobbers a concurrent
+# edit) and the distinct breadcrumb fires. Forced by making `.prflow` a regular file so `.prflow/tmp`
+# cannot be a directory (root-safe: unlike a chmod, a file-vs-directory conflict binds every uid).
+DT_SC="$(dt_make_repo)"
+if [ -d "$DT_SC" ]; then
+  DT_SC_B="$(probe_tmp "#2082 scratch-alloc before")"; DT_SC_AF="$(probe_tmp "#2082 scratch-alloc after")"
+  DT_SC_ERR="$(probe_tmp "#2082 scratch-alloc stderr")"
+  git -C "$DT_SC" status --porcelain -z > "$DT_SC_B"
+  DT_SC_OID="$(git hash-object "$DT_SC_B")"
+  printf 'agent edit' > "$DT_SC/plain.txt"
+  printf blocker > "$DT_SC/.prflow"   # a regular file where the helper needs the .prflow/tmp dir
+  ( cd "$DT_SC" && GIT_SNAP_BEFORE="$DT_SC_B" GIT_SNAP_AFTER="$DT_SC_AF" bash "$RDT" compare-and-restore "$DT_SC_OID" ) >/dev/null 2>"$DT_SC_ERR"
+  assert_eq "#2082 backstop: scratch-allocation failure fails closed (agent edit NOT restored)" \
+    "agent edit" "$(cat "$DT_SC/plain.txt" 2>/dev/null)"
+  assert_eq "#2082 backstop: scratch-allocation failure emits the distinct breadcrumb" "yes" \
+    "$(grep -qF 'could not allocate repo-local scratch files' "$DT_SC_ERR" && echo yes || echo no)"
+  rm -rf "$DT_SC" "$DT_SC_B" "$DT_SC_AF" "$DT_SC_ERR"
+fi
 # Guard the SKILL-side schema statement that detect_all_audit is not persisted.
 assert_pin_unique "#167 coupled-site: SKILL.md states detect_all_audit is intentionally not persisted" \
   'detect_all_audit`, is intentionally **not** persisted here' "$MAXI_SKILL"

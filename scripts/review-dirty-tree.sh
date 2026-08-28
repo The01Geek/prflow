@@ -48,10 +48,9 @@ DISABLED_SENTINEL=".prflow/tmp/review-dirty-tree-disabled"
 
 cmd_snapshot() {
   mkdir -p .prflow/tmp
-  # Snapshot captured to a NUL-delimited (`-z`) temp FILE — UNQUOTED paths, so a
-  # spaced/special filename is a real pathspec compare-and-restore can restore (plain
-  # `--porcelain` C-quotes it — `"my file.txt"` — a silent `git checkout` no-op). `-z`
-  # NUL bytes can't live in a bash `$(...)` variable, so the snapshot is a file.
+  # Snapshot to a NUL-delimited (`-z`) FILE with UNQUOTED paths: plain `--porcelain` C-quotes a
+  # spaced path (`"my file.txt"`) into a silent `git checkout` no-op, and `-z` NUL bytes cannot
+  # live in a `$(...)` variable — so use a file, not a variable.
   if rm -f "$SNAP_BEFORE" "$DISABLED_SENTINEL" 2>/dev/null &&
      git status --porcelain -z > "$SNAP_BEFORE" &&
      [ -f "$SNAP_BEFORE" ] &&
@@ -59,12 +58,9 @@ cmd_snapshot() {
      git hash-object "$SNAP_BEFORE"; then
     :
   else
-    # Snapshot failed (index.lock, corrupt index, FS/OOM). Do NOT fall through with an
-    # empty baseline — an empty BEFORE reads every dirtied path as "agent-introduced" and
-    # authorizes `git checkout` against the orchestrator's OWN live edits. Fail closed:
-    # disable the backstop for this dispatch (compare-and-restore short-circuits on the
-    # sentinel) with an attributable breadcrumb. A fixed repo-local sentinel survives the
-    # Agent-tool boundary; shell variables do not.
+    # Snapshot failed: do NOT fall through with an empty baseline — an empty BEFORE reads every
+    # dirty path as agent-introduced and would `git checkout` the orchestrator's own edits. Fail
+    # closed via the fixed repo-local sentinel (it survives the Agent boundary; a variable would not).
     echo "::warning::devflow review: could not create a regular working-tree snapshot before dispatch (stale-path removal, git status, or regular-file validation failed); dirty-tree backstop DISABLED for this dispatch — no after-compare, no auto-restore" >&2
     rm -f "$SNAP_BEFORE" 2>/dev/null
     printf '%s\n' disabled > "$DISABLED_SENTINEL"
@@ -97,14 +93,9 @@ cmd_compare_and_restore() {
     if [ "$cmp_rc" -ge 2 ]; then
       echo "::warning::devflow review: could not compare the before/after working-tree snapshots (cmp errored, rc=$cmp_rc); dirty-tree comparison SKIPPED this dispatch — this is NOT an agent mutation, nothing auto-restored" >&2
     elif [ "$cmp_rc" -eq 1 ]; then
-      # The snapshots differ — the tree changed during the dispatch window. The restore set is
-      # computed BY PATH COLUMN (status prefix stripped from each `-z` record), NOT by whole
-      # record: a path the orchestrator had ALREADY modified before dispatch is never checked out
-      # even if an agent changed its status byte (` M f` -> `MM f`). Each `-z` record is `XY <path>`
-      # (NUL-terminated, UNQUOTED); a rename/copy emits TWO records — `R  <new>` then a bare `<old>`
-      # continuation — which the read loops consume rather than mis-stripping. The restore set is
-      # `paths in AFTER, absent from BEFORE, NOT rename/copy entries`; rename/copy entries are
-      # surfaced separately, never auto-restored (index surgery needed).
+      # Restore set computed BY PATH COLUMN (status prefix stripped), never by whole record — so a
+      # path the orchestrator already modified is never checked out even if an agent flips its status
+      # byte. Rename/copy (`R`/`C`, a two-record shape) is surfaced, never auto-restored.
       mkdir -p .prflow/tmp
       rm -f ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
       if ! printf '%s' '' > ".prflow/tmp/review-dirty-tree-changed-paths" ||
@@ -116,10 +107,9 @@ cmd_compare_and_restore() {
         echo "::warning::devflow review: could not allocate repo-local scratch files for the dirty-tree restore; dirty-tree restore SKIPPED this dispatch — this is NOT an agent mutation, nothing auto-restored" >&2
         rm -f ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
       else
-        # 1. BEFORE membership set: every path (incl. rename new + orig), prefix stripped and NUL-
-        #    delimited. `read -r -d ''` reads NUL records so a spaced/special path never splits.
-        #    Indexed array + linear scan, never `declare -A`: the associative form is bash 4+ and
-        #    this must run under bash 3.2.
+        # BEFORE membership set: every path (incl. rename new+orig), prefix-stripped. `read -r -d ''`
+        # reads NUL records so a spaced/special path never splits. Indexed array + linear scan, never
+        # `declare -A` (the associative form is bash 4+; this must run under bash 3.2).
         before_extract_rc=0
         before_orig=0
         before_paths=()
@@ -137,13 +127,9 @@ cmd_compare_and_restore() {
         if [ "$before_extract_rc" -ne 0 ]; then
           echo "::warning::devflow review: could not extract the before-snapshot path set (rc=$before_extract_rc); dirty-tree restore SKIPPED this dispatch — nothing auto-restored" >&2
         else
-          # 2. AFTER: rename/copy → surfaced-not-restored (renamed-paths file); a normal entry
-          #    classified by its BEFORE membership. Membership is a whole-record exact-string scan
-          #    over the `before_paths` array built above — `[ "$bp" = "${rec:3}" ]` compares the
-          #    complete path, so a spaced/newline/glob-character pathname matches itself and
-          #    nothing else. TWO outcomes only: present in BEFORE (already dirty) → never restore;
-          #    absent from BEFORE → newly dirtied → restore set. The scan is bash builtins, so it
-          #    cannot fail while the pipeline keeps running and misreport "absent → restore".
+          # AFTER: a rename/copy is surfaced-not-restored; a normal entry is classified by a
+          # whole-record exact-string scan of `before_paths` (`[ "$bp" = "${rec:3}" ]`), so a
+          # spaced/newline/glob path matches only itself. Present in BEFORE → never restore; absent → restore set.
           after_extract_rc=0
           after_orig=0
           rec=
@@ -178,14 +164,9 @@ cmd_compare_and_restore() {
                 echo "::warning::devflow review: a Phase 3.1 review-agent dispatch diverged the working tree but the by-path restore set is empty (an already-dirty path's status byte changed, or a dirty->clean transition — the cause cannot be determined here); nothing auto-restored — left for the Step 2.6 shadow and the human" >&2
               fi
             else
-              # The changed-paths file holds the snapshot delta (paths clean at snapshot, now dirty,
-              # non-rename), NUL-delimited and UNQUOTED so a spaced/special path is a real pathspec.
-              # Restore is best-effort, per-path, fed via `read -r -d ''` so a special-char pathname
-              # never word-splits. Restore from HEAD (NOT `git checkout -- "$p"`, which restores from
-              # the INDEX and re-materializes a STAGED agent mutation while exiting 0 — a fail-open).
-              # Then trust the TREE STATE, not the exit code: re-run `git status --porcelain -- "$p"`
-              # and emit the per-path breadcrumb iff STILL dirty, so an untracked or staged-new file
-              # the agent created is surfaced per-path and never falsely reported as restored.
+              # Restore the snapshot-delta paths per-path from HEAD — NOT `git checkout -- "$p"`, which
+              # restores from the INDEX and re-materializes a STAGED mutation while exiting 0 (fail-open).
+              # Trust the TREE STATE not the exit code: re-check `git status` and breadcrumb iff still dirty (an untracked file is never auto-deleted).
               CHANGED_NAMES=$(tr '\0' ' ' < ".prflow/tmp/review-dirty-tree-changed-paths")
               echo "::warning::devflow review: a Phase 3.1 review-agent dispatch modified the working tree (advisory review agents must never mutate it); affected paths: [ ${CHANGED_NAMES}]${RENAMED_NAMES:+ (plus surfaced-not-restored rename/copy: [ ${RENAMED_NAMES}])}; recording an Important finding and attempting best-effort restore of the snapshot delta (per-path outcome in the warnings below)" >&2
               while IFS= read -r -d '' p; do
