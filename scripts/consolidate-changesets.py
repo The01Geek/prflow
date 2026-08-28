@@ -18,7 +18,12 @@ time (push to ``main``) from the ``version-consolidate`` workflow at
     ``DEVFLOW_REF=`` payload ref in the docs) to ``v<new version>`` — see
     ``scripts/version_pins.py``, which owns the derivation — so the tagged tree is
     self-consistent and the docs at tag ``vN`` say ``vN`` (issue #953),
-  * prepends a dated, PR-cited Keep-a-Changelog entry assembled from all the prose, and
+  * prepends a dated, PR-cited Keep-a-Changelog entry assembled from all the prose,
+  * for every changeset marked ``customer-visible: true`` (issue #2070), reuses its prose
+    verbatim as an entry in ``docs/external/release-notes.md`` under the merge date's
+    ``## Month Day, Year`` heading — so a customer-facing release note is written once, in
+    the reviewed changeset, instead of by a second per-PR authoring pass; an unmarked set
+    leaves that page byte-identical, and
   * deletes the consumed changeset files.
 
 It writes nothing else into the repository — staging and the ``chore: bump version`` commit
@@ -56,6 +61,7 @@ exit code is 0.
 from __future__ import annotations
 
 import argparse
+import calendar
 import os
 import re
 import sys
@@ -96,11 +102,13 @@ class Frontmatter(NamedTuple):
 
 
 class Changeset(NamedTuple):
-    """One parsed changeset: its bump kind, CHANGELOG section, and prose body."""
+    """One parsed changeset: its bump kind, CHANGELOG section, prose body, and
+    customer-visibility marker."""
 
     bump: str
     section: str
     prose: str
+    customer_visible: bool
 
 
 def _fatal(msg: str) -> int:
@@ -138,7 +146,7 @@ def _split_frontmatter(path: str) -> Frontmatter:
 
 
 def _parse_changeset(path: str) -> Changeset:
-    """Parse one changeset → ``Changeset(bump, section, prose)``; raise on malformed input."""
+    """Parse one changeset → ``Changeset(bump, section, prose, customer_visible)``; raise on malformed input."""
     try:
         import yaml
     except ImportError as exc:  # pragma: no cover - environment guard
@@ -182,7 +190,23 @@ def _parse_changeset(path: str) -> Changeset:
             f"{path}: empty prose body — a changeset must describe the change "
             "(one or more '-' bullets, PR-cited)"
         )
-    return Changeset(bump, section, prose)
+
+    # customer-visible marker (issue #2070): only the parsed Python bool True marks; any
+    # other PRESENT value raises. Detect key-PRESENCE (`in fm`, not `.get()`) so an explicit
+    # null is caught here, never silently read as an absent (not-customer-visible) key.
+    customer_visible = False
+    if "customer-visible" in fm:
+        marker = fm["customer-visible"]
+        if marker is True:
+            customer_visible = True
+        else:
+            raise ChangesetError(
+                f"{path}: invalid customer-visible value {marker!r} — the only accepted "
+                "value is the boolean true (spell it 'customer-visible: true'); omit the "
+                "key entirely for a change with no customer-visible impact"
+            )
+
+    return Changeset(bump, section, prose, customer_visible)
 
 
 def _bump_version(current: str, kind: str) -> str:
@@ -351,6 +375,77 @@ def _render_changelog(changelog_path: str, entry: str) -> str:
     return "".join(lines[:insert_at]) + block + "".join(lines[insert_at:])
 
 
+def _render_release_notes(release_notes_path: str, proses: list[str], date: str) -> str:
+    """Read the release-notes page and return its new text with one entry per marked
+    changeset prose inserted under the merge-date heading (issue #2070).
+
+    Pure read + assemble (no write), so ``consolidate`` can prove the output is
+    writable-in-memory before touching disk. Reproduces the ``docs-release-notes`` skill's
+    Step 4 placement — the shipped skill body stays byte-untouched, so this is a
+    deliberate reproduction, not a shared call:
+
+      * the merge date is formatted ``## Month Day, Year`` (built from the date parts via
+        ``calendar`` to avoid the GNU-only ``%-d`` strftime directive),
+      * when that heading is absent it is created at the top of the page's date sections —
+        immediately before the most recent existing ``## Month Day, Year`` heading, so any
+        page preamble between the H1 and the first date section is preserved — or directly
+        below the file's first ``# `` H1 when the page has no date section yet (a
+        ``# Release Notes`` H1 is created first when the file has none),
+      * when the heading is already present each entry is appended under it, after any
+        existing entries for that date.
+    """
+    # `date` is the already-validated YYYY-MM-DD. calendar.month_name (not strptime) avoids
+    # both the naive-datetime lint and the GNU-only %-d directive for a leading-zero-free day.
+    year, month, day = (int(part) for part in date.split("-"))
+    heading = f"## {calendar.month_name[month]} {day}, {year}"
+    entry_lines = [line for prose in proses for line in prose.split("\n")]
+
+    text = _read_text(release_notes_path, "release notes")
+    had_final_newline = text.endswith("\n")
+    lines = text.split("\n")
+    if had_final_newline and lines and lines[-1] == "":
+        lines.pop()  # drop the empty tail split() leaves after a final newline
+
+    existing = next((i for i, ln in enumerate(lines) if ln.strip() == heading), None)
+    if existing is not None:
+        # Append under the existing same-date heading, after its current entries: find the
+        # next heading (or EOF) and back up over trailing blank lines to the section's end.
+        section_end = len(lines)
+        for j in range(existing + 1, len(lines)):
+            if lines[j].startswith("## ") or lines[j].startswith("# "):
+                section_end = j
+                break
+        while section_end > existing + 1 and lines[section_end - 1].strip() == "":
+            section_end -= 1
+        new_lines = lines[:section_end] + entry_lines + lines[section_end:]
+    else:
+        block = [heading, "", *entry_lines]
+        first_section = next(
+            (i for i, ln in enumerate(lines) if ln.startswith("## ")), None
+        )
+        h1 = next((i for i, ln in enumerate(lines) if ln.startswith("# ")), None)
+        if first_section is not None:
+            # Deviates from issue #2070's literal "directly below the first H1": on a page
+            # with preamble prose that would split; insert at the TOP of the date-section
+            # list (before the most recent existing one) instead. See the workpad AC-rewrite.
+            new_lines = lines[:first_section] + [*block, ""] + lines[first_section:]
+        elif h1 is None:
+            tail = lines[1:] if lines and lines[0].strip() == "" else lines
+            new_lines = ["# Release Notes", "", *block, "", *tail]
+        else:
+            # No date section yet: fall back to directly below the H1. Drop one leading
+            # blank from the remainder so the trailing blank we add is not doubled.
+            rest = lines[h1 + 1 :]
+            if rest and rest[0].strip() == "":
+                rest = rest[1:]
+            new_lines = lines[: h1 + 1] + ["", *block, "", *rest]
+
+    out = "\n".join(new_lines)
+    if had_final_newline:
+        out += "\n"
+    return out
+
+
 def consolidate(
     root: str,
     date: str,
@@ -363,6 +458,7 @@ def consolidate(
     changelog_path = os.path.join(root, "CHANGELOG.md")
     citation_path = os.path.join(root, "CITATION.cff")
     marketplace_path = os.path.join(root, ".claude-plugin", "marketplace.json")
+    release_notes_path = os.path.join(root, "docs", "external", "release-notes.md")
 
     if not os.path.isdir(changeset_dir):
         print("no .changeset/ directory — nothing to consolidate")
@@ -423,12 +519,24 @@ def consolidate(
     except version_pins.VersionPinError as exc:
         raise ChangesetError(f"pinned release-tag sites: {exc}") from exc
 
+    # Customer-visible release-note entries (issue #2070): a `customer-visible: true`
+    # changeset's prose is reused verbatim, in pending order. Rendered only when at least one
+    # is marked, so an unmarked consolidation leaves release-notes.md byte-identical (AC2).
+    marked_proses = [cs.prose for cs in parsed if cs.customer_visible]
+    new_release_notes = (
+        _render_release_notes(release_notes_path, marked_proses, date)
+        if marked_proses
+        else None
+    )
+
     _write_text(manifest_path, new_manifest)
     _write_text(changelog_path, new_changelog)
     if new_citation is not None:
         _write_text(citation_path, new_citation)
     if new_marketplace is not None:
         _write_text(marketplace_path, new_marketplace)
+    if new_release_notes is not None:
+        _write_text(release_notes_path, new_release_notes)
     for pin_path in sorted(pin_rewrites):
         _write_text(pin_path, pin_rewrites[pin_path])
     for path in pending:
@@ -448,6 +556,8 @@ def consolidate(
             written.append(citation_path)
         if new_marketplace is not None:
             written.append(marketplace_path)
+        if new_release_notes is not None:
+            written.append(release_notes_path)
         written.extend(pin_rewrites)
         rels = sorted(os.path.relpath(p, root) for p in written)
         _write_text(write_set_out, "".join(f"{r}\n" for r in rels))
@@ -523,6 +633,17 @@ def main(argv: list[str] | None = None) -> int:
     date = args.date or datetime.now(timezone.utc).date().isoformat()
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
         return _fatal(f"--date {date!r} is not YYYY-MM-DD")
+    # Validate the calendar date, not just its digit shape: a bad month (13) would otherwise
+    # raise an uncaught IndexError from calendar.month_name[month] in _render_release_notes,
+    # and a bad day would render a garbage heading — both escaping the fail-loud exit-2
+    # contract. monthrange raises IllegalMonthError (a ValueError) for a bad month.
+    _y, _m, _d = (int(part) for part in date.split("-"))
+    try:
+        _, _days_in_month = calendar.monthrange(_y, _m)
+    except calendar.IllegalMonthError:
+        return _fatal(f"--date {date!r} names an invalid month")
+    if not 1 <= _d <= _days_in_month:
+        return _fatal(f"--date {date!r} names a day outside its month")
     try:
         return consolidate(
             args.root,

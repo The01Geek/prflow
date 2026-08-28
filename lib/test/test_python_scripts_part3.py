@@ -6784,6 +6784,21 @@ try:
     assert_eq("#1087 replay: still exactly one completion marker (no duplicate)", 1,
               _patched2.count('completion-verification:' + _key))
 
+    # ── issue #2080: a NON-HERMETIC passed flight (schema_version 2, external_services
+    #    naming a live service) is completion-valid. The completion gate reads the flight
+    #    as a plain object with no schema/hermeticity gate, so recording it writes the
+    #    marker and a following --status Complete passes exactly as a hermetic flight does.
+    _NH_REC = dict(_PASS_REC, schema_version=2, external_services="postgres")
+    _rootN, _keyN = _write_flight(_NH_REC)
+    _codeN, _oN, _eN, _patchedN = _drive_cmd_update(
+        GATE_BODY, status='Complete', record_completion_evidence=_keyN,
+        repo_root=_rootN, claim_identity="treeX")
+    assert_eq("#2080 Complete with a non-hermetic passed flight exits 0", None, _codeN)
+    assert_eq("#2080 a non-hermetic passed flight PATCHes (🎉 Complete)", True,
+              _patchedN is not None and '🎉 Complete' in _patchedN)
+    assert_eq("#2080 exactly one completion marker for the non-hermetic flight", 1,
+              _patchedN.count('completion-verification:' + _keyN))
+
     # Recording a STALE record aborts before PATCH (the suite-failed/stale regressions).
     _rootS, _keyS = _write_flight(dict(_PASS_REC, candidate_identity="OLD-TREE"))
     _codeS, _oS, _eS, _patchedS = _drive_cmd_update(
