@@ -5,6 +5,13 @@
 # engine's per-run live-progress comment, and print an outcome line plus the
 # authoritative marker on success (issues #857, #1054).
 #
+# CALLERS (issue #2073): the review engine's own Phase 0.3.5 seed, AND — on the
+# devflow.yml command tier — the command job's seeding step, which invokes this helper
+# BEFORE the agent starts and hands the reported id/marker/run link into the agent's
+# prompt. The helper's find-or-resume arm makes the later agent-side invocation adopt
+# the workflow-seeded comment rather than duplicating it, so the two callers converge on
+# one comment. This helper is unchanged by that split.
+#
 # WHY A HELPER, not an inline fence (issue #857): the review engine's old seed was a
 # `case` + `if`/`elif` compound in skills/review/SKILL.md carrying three screens
 # (S1/S2/S3). The cloud review matcher refuses that compound outright — measured 8/8

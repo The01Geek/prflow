@@ -1144,8 +1144,8 @@ jobs:
       # agent), it hands the seeded comment id, marker, and run link to that step. The
       # engine's Phase 0 seed arm stays the fallback for installs whose workflow predates
       # this step; the helper's find-or-resume arm makes a later agent-side invocation adopt
-      # this comment instead of duplicating it. Every failure arm warns and continues, so a
-      # seeding failure degrades to today's agent-side behavior rather than failing the run.
+      # this comment instead of duplicating it. A seeding failure warns and continues, so it
+      # degrades to today's agent-side behavior rather than failing the run.
       - name: Seed review-progress comment (early acknowledgement)
         id: seedreview
         if: ${{ github.event.issue.pull_request || github.event.pull_request.number }}

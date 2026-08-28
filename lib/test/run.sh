@@ -38372,7 +38372,7 @@ _SEED2073_BLOCK="$(awk '
 assert_eq "#2073 the seeding step block is locatable (content pins below are not vacuous)" "yes" \
   "$([ -n "$_SEED2073_BLOCK" ] && echo yes || echo no)"
 # Its command screen must match the dead-run flip step's screen verbatim — a divergence
-# between the two is RED. Extract each step's review-command case label and compare.
+# between the two is RED. Extract the seed step's case label and the flip step's, and compare.
 _FLIP2073_SCREEN="$(awk '
   /^      - name: Flip review-progress comment on dead run[[:space:]]*$/ {f=1}
   f && /\/prflow:review\*\|\/devflow:review\*\)/ {print; exit}
@@ -38396,7 +38396,7 @@ assert_eq "#2073 the seed body carries the review_dedupe in-flight status key" "
   "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -qF '**Status:** 🚀 Reviewing' && echo yes || echo no)"
 assert_eq "#2073 the seed body carries the review-seeded-head key" "yes" \
   "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -qF '<!-- prflow:review-seeded-head' && echo yes || echo no)"
-# AC2: each failure arm warns and continues rather than failing the review run.
+# AC2: a seeding failure warns and continues rather than failing the review run.
 assert_eq "#2073 the seeding step warns rather than fails on a seed failure arm" "yes" \
   "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -q '::warning::' && echo yes || echo no)"
 # AC1: the step is gated on PR context (the verdict-emitter step's PR-context expression).
