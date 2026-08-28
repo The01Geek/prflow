@@ -1353,6 +1353,7 @@ class ModuleRunnerTests(unittest.TestCase):
                 "prompt-extension-reader",
                 "review-and-fix-contract",
                 "review-contract",
+                "review-dirty-tree",
                 "review-evidence-gate",
                 "review-stall-backstop",
                 "review-trigger-helpers",
