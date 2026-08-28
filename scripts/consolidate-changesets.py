@@ -191,12 +191,9 @@ def _parse_changeset(path: str) -> Changeset:
             "(one or more '-' bullets, PR-cited)"
         )
 
-    # customer-visible marker (issue #2070). Absent means not customer-visible; the only
-    # accepted present value is the Python boolean True (an `is True` identity test, so
-    # yaml.safe_load's `true`/`yes`/`on` spellings all qualify while the string "true",
-    # a bare `false`, an explicit null, a list, or an int each raise). Key-PRESENCE is
-    # detected (`in fm`, never `.get()`): an explicit-null value is present and must take
-    # the fail arm rather than reading as absent.
+    # customer-visible marker (issue #2070): only the parsed Python bool True marks; any
+    # other PRESENT value raises. Detect key-PRESENCE (`in fm`, not `.get()`) so an explicit
+    # null is caught here, never silently read as an absent (not-customer-visible) key.
     customer_visible = False
     if "customer-visible" in fm:
         marker = fm["customer-visible"]
@@ -395,10 +392,8 @@ def _render_release_notes(release_notes_path: str, proses: list[str], date: str)
       * when the heading is already present each entry is appended under it, after any
         existing entries for that date.
     """
-    # `date` is the already-validated YYYY-MM-DD (main() rejects any other shape). Format the
-    # heading from its parts via calendar rather than datetime.strptime: no time-of-day or
-    # timezone is involved, and calendar.month_name sidesteps the GNU-only %-d strftime
-    # directive for a day number without a leading zero.
+    # `date` is the already-validated YYYY-MM-DD. calendar.month_name (not strptime) avoids
+    # both the naive-datetime lint and the GNU-only %-d directive for a leading-zero-free day.
     year, month, day = (int(part) for part in date.split("-"))
     heading = f"## {calendar.month_name[month]} {day}, {year}"
     entry_lines = [line for prose in proses for line in prose.split("\n")]
@@ -514,12 +509,9 @@ def consolidate(
     except version_pins.VersionPinError as exc:
         raise ChangesetError(f"pinned release-tag sites: {exc}") from exc
 
-    # Customer-visible release-note entries (issue #2070). A changeset marked
-    # `customer-visible: true` has its prose reused verbatim as a release-note entry, in
-    # pending (filename-sorted) order. Same read-before-write treatment as the outputs
-    # above: _render_release_notes only reads and assembles, so a read fault aborts before
-    # the first write. Rendered only when at least one changeset is marked, so an ordinary
-    # (unmarked) consolidation leaves docs/external/release-notes.md byte-identical.
+    # Customer-visible release-note entries (issue #2070): a `customer-visible: true`
+    # changeset's prose is reused verbatim, in pending order. Rendered only when at least one
+    # is marked, so an unmarked consolidation leaves release-notes.md byte-identical (AC2).
     marked_proses = [cs.prose for cs in parsed if cs.customer_visible]
     new_release_notes = (
         _render_release_notes(release_notes_path, marked_proses, date)

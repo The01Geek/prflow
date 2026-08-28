@@ -7837,6 +7837,8 @@ receiving-code-review.md:command implement
 create-issue.md:command
 pr-description.md:command implement
 docs-bootstrap-external.md:command
+docs.md:command implement
+docs-release-notes.md:command implement
 docs-sync-external.md:command implement
 docs-sync-internal.md:command implement"
 
