@@ -3804,9 +3804,7 @@ def _status_labels_enabled():
     value = section.get('enabled', True)
     # `value is False` matches only the actual JSON boolean false — never a
     # number 0 (0 is not False), so a `0` correctly leaves the feature enabled.
-    if value is False or value == 'false':
-        return False
-    return True
+    return not (value is False or value == 'false')
 
 
 def _list_issue_labels(number):
