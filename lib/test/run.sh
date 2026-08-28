@@ -2553,10 +2553,11 @@ assert_pin_unique "#374 copy-based verification: review-and-fix instructs mutati
   "$_MC_COPYBASED" "$MAXI_SKILL"
 assert_pin_unique "#374 copy-based verification: implement Phase 2.3 test-guard rule instructs mutating a copy, never the working-tree file in place" \
   "$_MC_COPYBASED" "$DEF_SKILL"  # structural-pin-ok: helper-contract -- #374 the mutation check runs on a copy, never on the working-tree file
-# #374: Implement Phase 2.3 must state that `git checkout -- <file>` cannot restore
-# an UNTRACKED file and silently appears to succeed (the fabricated-RED failure mode
-# from issue #372).
-_MC_UNTRACKED='`git checkout -- <file>`: it cannot restore an untracked file and silently appears to succeed'
+# #374: Both mutation-check instructions must state the true untracked-file failure:
+# checkout exits non-zero and leaves the mutation in place (issue #372).
+_MC_UNTRACKED='`git checkout -- <file>` cannot restore an untracked file: it exits non-zero and leaves the mutation in place'
+assert_pin_unique "#374 untracked-file warning: review-and-fix states checkout fails and leaves an untracked mutation in place" \
+  "$_MC_UNTRACKED" "$MAXI_SKILL"  # structural-pin-ok: helper-contract -- #374 git checkout cannot restore an untracked file
 assert_pin_unique "#374 untracked-file warning: implement Phase 2.3 states git checkout cannot restore an untracked file" \
   "$_MC_UNTRACKED" "$DEF_SKILL"  # structural-pin-ok: helper-contract -- #374 git checkout cannot restore an untracked file
 # AC3(g): the GENERALIZED (issue #159 B3) region meta-test detects a raw SKILL guard injected
@@ -10913,6 +10914,39 @@ assert_eq "#185A matrix: a later bullet mentioning the label in prose does NOT r
 assert_eq "#2097: plain same-level peer bullet closes Documentation Needed scope" \
   "docs/internal/efficiency-trace.md" \
   "$(bash "$EXTRACT_HELPER" "$LIB/test/fixtures/issue-2097-implementation-notes.fixture")"
+
+# Non-vacuous synthetic companion to the byte-exact #2097 fixture: both paths use
+# recognized extensions, so deleting the plain-peer close arm leaks docs/leak.md
+# regardless of cwd or whether an extensionless repository file exists.
+fx_2110_plain_peer="## Implementation Notes
+
+- **Documentation Needed** — update \`docs/required.md\`.
+- Potential Gotchas — do not extract \`docs/leak.md\`."
+assert_eq "#2110: plain label-and-em-dash peer closes list scope with an extension-bearing leak token" \
+  "docs/required.md" \
+  "$(printf '%s\n' "$fx_2110_plain_peer" | bash "$EXTRACT_HELPER")"
+
+# A heading-form scope closes at a heading, not at a label-and-em-dash list item.
+# This makes list_scope load-bearing: forcing it on for heading openers drops docs/b.md.
+fx_2110_heading_scope="## Implementation Notes
+
+### Documentation Needed
+
+- update \`docs/a.md\`
+- Supporting Detail — retain \`docs/b.md\` in this heading scope."
+assert_eq "#2110: label-and-em-dash content remains in a heading-opened scope" \
+  "$(printf 'docs/a.md\ndocs/b.md')" \
+  "$(printf '%s\n' "$fx_2110_heading_scope" | bash "$EXTRACT_HELPER")"
+
+# Only the historical U+2014 peer shape closes a list-form scope. Widening the
+# separator to ASCII hyphen would drop docs/b.md and turn this assertion RED.
+fx_2110_ascii_hyphen="## Implementation Notes
+
+- **Documentation Needed** — update \`docs/a.md\`.
+- Supporting Detail - retain \`docs/b.md\` in this list scope."
+assert_eq "#2110: ASCII-hyphen content does not satisfy the em-dash peer boundary" \
+  "$(printf 'docs/a.md\ndocs/b.md')" \
+  "$(printf '%s\n' "$fx_2110_ascii_hyphen" | bash "$EXTRACT_HELPER")"
 
 # Case 6 (PR #190 fix-loop): a bare, un-backticked filename at a sentence
 # boundary must still be extracted. The tokenizer glues the trailing sentence

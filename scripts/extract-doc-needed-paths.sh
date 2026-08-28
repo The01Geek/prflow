@@ -343,8 +343,8 @@ run_stage_a() {
     state = ns
   }
   # A list-item scope ends at its next same-level plain peer: the label-and-em-dash
-  # shape used by issue prose. Content list items, indented items, and wrapped lines
-  # remain inside the Documentation Needed scope.
+  # shape used by issue prose. Items with a backtick before the em dash, indented
+  # items, and wrapped lines remain inside the Documentation Needed scope.
   state == 2 && list_scope && /^- [^`]* — / && $0 !~ /^- \*\*Documentation Needed\*\*/ {
     state = 1
     list_scope = 0
