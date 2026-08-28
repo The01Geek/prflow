@@ -1360,6 +1360,7 @@ AUDITED_PIN_SOURCES = frozenset(
         "lib/test/modules/tier1-rename-migration.sh",
         "lib/test/modules/parallel-suite-runner.sh",
         "lib/test/modules/phase2-durability-checkpoint.sh",
+        "lib/test/modules/review-dirty-tree.sh",
         "lib/test/modules/review-contract.sh",
         "lib/test/modules/workpad-cli.sh",
         "lib/test/modules/implement-contract.sh",

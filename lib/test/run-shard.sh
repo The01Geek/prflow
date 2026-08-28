@@ -55,7 +55,7 @@ _shard_modules() { # shard-name -> prints module ids (empty for the non-module s
     python-pool)   printf '' ;;
     modules-pin)   printf '%s' 'harness-python-guards' ;;
     modules-large) printf '%s' 'retrospective-lifecycle review-trigger-helpers create-issue-contract review-stall-backstop efficiency-trace-telemetry installer-wiring parallel-suite-runner tier1-rename-migration experiment-records' ;;
-    modules-rest)  printf '%s' 'workflow-flight-recorder review-and-fix-contract capability-profiles regenerate-artifacts prompt-extension-reader issue-audit-state phase2-durability-checkpoint review-contract workpad-cli implement-contract review-evidence-gate' ;;
+    modules-rest)  printf '%s' 'workflow-flight-recorder review-and-fix-contract capability-profiles regenerate-artifacts prompt-extension-reader issue-audit-state phase2-durability-checkpoint review-dirty-tree review-contract workpad-cli implement-contract review-evidence-gate' ;;
     *) return 2 ;;
   esac
 }
