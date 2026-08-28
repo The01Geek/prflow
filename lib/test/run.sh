@@ -38347,6 +38347,72 @@ unset _GB363_GEN _GB363_REV _GB363_IMPL _GB363_REV_NOHP
 assert_pin_unique "#363 devflow.yml falls back to the bare command when no block is composed" \
   'prompt: ${{ steps.reviewcompose.outputs.prompt || needs.gate.outputs.command }}' "$DEVFLOW_YML"
 
+# ── issue #2073: the command job seeds the review-progress comment BEFORE the agent ──
+# The workflow, not the agent, creates the run-keyed live-progress comment on a review
+# command (mirrors devflow-implement.yml's early-workpad step), so the durable progress
+# record no longer depends on the agent following a prose step. The regression boundary is
+# the workflow file the Actions runner consumes, so these assert its executable structure:
+# RED against a tree with no seeding step; GREEN once the seeding step lands ordered before
+# the reviewcompose prompt step, screening the same review commands the dead-run flip step
+# screens, gating on live_progress_comment_enabled, composing a seed body carrying the two
+# review_dedupe machine-read keys, and handing its outputs to the reviewcompose step.
+_SEED2073_LN="$(grep -n '^      - name: Seed review-progress comment (early acknowledgement)' "$DEVFLOW_YML" | head -1 | cut -d: -f1)"
+_COMPOSE2073_LN="$(grep -n '^      - name: Compose engine grounding block' "$DEVFLOW_YML" | head -1 | cut -d: -f1)"
+assert_eq "#2073 devflow.yml command job carries a review-progress seeding step" "yes" \
+  "$([ -n "$_SEED2073_LN" ] && echo yes || echo no)"
+assert_eq "#2073 the seeding step is ordered before the reviewcompose prompt-composition step" "yes" \
+  "$([ -n "$_SEED2073_LN" ] && [ -n "$_COMPOSE2073_LN" ] && [ "$_SEED2073_LN" -lt "$_COMPOSE2073_LN" ] && echo yes || echo no)"
+# Scope every content pin below to the seeding step's own block — its name line through
+# the next step's name line — so no other step can satisfy them.
+_SEED2073_BLOCK="$(awk '
+  /^      - name: Seed review-progress comment \(early acknowledgement\)[[:space:]]*$/ {f=1; print; next}
+  f && /^      - name: / {exit}
+  f {print}
+' "$DEVFLOW_YML")"
+assert_eq "#2073 the seeding step block is locatable (content pins below are not vacuous)" "yes" \
+  "$([ -n "$_SEED2073_BLOCK" ] && echo yes || echo no)"
+# Its command screen must match the dead-run flip step's screen verbatim — a divergence
+# between the two is RED. Extract each step's review-command case label and compare.
+_FLIP2073_SCREEN="$(awk '
+  /^      - name: Flip review-progress comment on dead run[[:space:]]*$/ {f=1}
+  f && /\/prflow:review\*\|\/devflow:review\*\)/ {print; exit}
+' "$DEVFLOW_YML" | sed -E 's/^[[:space:]]*//; s/\).*$/)/')"
+_SEED2073_SCREEN="$(printf '%s\n' "$_SEED2073_BLOCK" | awk '/\/prflow:review\*\|\/devflow:review\*\)/ {print; exit}' | sed -E 's/^[[:space:]]*//; s/\).*$/)/')"
+assert_eq "#2073 the seeding step's command screen matches the dead-run flip step's screen" "yes" \
+  "$([ -n "$_FLIP2073_SCREEN" ] && [ "$_SEED2073_SCREEN" = "$_FLIP2073_SCREEN" ] && echo yes || echo no)"
+# Its enable gate resolves live_progress_comment_enabled through config-get.sh and compares
+# the resolved value with a bash `case`, honoring an explicit false.
+assert_eq "#2073 the seeding step resolves live_progress_comment_enabled via config-get.sh" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -q 'prflow_review.live_progress_comment_enabled' \
+     && printf '%s\n' "$_SEED2073_BLOCK" | grep -q 'config-get.sh' && echo yes || echo no)"
+assert_eq "#2073 the seeding step gates the seed on a case comparison honoring an explicit false" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -qE 'case[[:space:]]' \
+     && printf '%s\n' "$_SEED2073_BLOCK" | grep -qE '^[[:space:]]*false\)' && echo yes || echo no)"
+# Only-when-true: the helper invocation is present (guarded true; false arm seeds nothing).
+assert_eq "#2073 the seeding step invokes seed-review-progress.sh" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -q 'seed-review-progress.sh' && echo yes || echo no)"
+# AC8: the composed seed body carries the two review_dedupe machine-read keys.
+assert_eq "#2073 the seed body carries the review_dedupe in-flight status key" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -qF '**Status:** 🚀 Reviewing' && echo yes || echo no)"
+assert_eq "#2073 the seed body carries the review-seeded-head key" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -qF '<!-- prflow:review-seeded-head' && echo yes || echo no)"
+# AC2: each failure arm warns and continues rather than failing the review run.
+assert_eq "#2073 the seeding step warns rather than fails on a seed failure arm" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -q '::warning::' && echo yes || echo no)"
+# AC1: the step is gated on PR context (the verdict-emitter step's PR-context expression).
+_SEED2073_IF="$(awk '
+  /^      - name: Seed review-progress comment \(early acknowledgement\)[[:space:]]*$/ {f=1; next}
+  f && /^[[:space:]]*if:/ {print; exit}
+' "$DEVFLOW_YML")"
+assert_eq "#2073 the seeding step is gated on PR context" "yes" \
+  "$([ -n "$_SEED2073_IF" ] && printf '%s' "$_SEED2073_IF" | grep -q 'pull_request' && echo yes || echo no)"
+# AC3: the reviewcompose step receives the seeding step's comment id, marker, and run link.
+assert_eq "#2073 the reviewcompose step receives the seeding step's comment id / marker / run link" "yes" \
+  "$(grep -q 'steps.seedreview.outputs.comment_id' "$DEVFLOW_YML" \
+     && grep -q 'steps.seedreview.outputs.marker' "$DEVFLOW_YML" \
+     && grep -q 'steps.seedreview.outputs.run_link' "$DEVFLOW_YML" && echo yes || echo no)"
+unset _SEED2073_LN _COMPOSE2073_LN _SEED2073_BLOCK _FLIP2073_SCREEN _SEED2073_SCREEN _SEED2073_IF
+
 # ── #1170 implement-tier grounding block. The implement tier now carries the exact
 # ── resolved allowed-command list in its own prompt, rendered by the SAME shared
 # ── helper (MODE=implement) — no second copy of the allowed-tools text. Asserted at

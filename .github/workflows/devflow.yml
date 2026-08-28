@@ -1136,6 +1136,136 @@ jobs:
       # prompt CONTENT for a block every command now receives; the two are not the same
       # edit, and changing them together is how the reviewer token reaches a command
       # that pushes.
+      # ── Seed the review-progress comment before the agent (issue #2073) ──────
+      # The workflow, not the agent, creates the run-keyed live-progress comment for a
+      # review command in PR mode — mirroring devflow-implement.yml's early-workpad step —
+      # so the durable progress record no longer depends on the agent following Phase 0's
+      # prose seed step. Ordered before the reviewcompose prompt step (hence before the
+      # agent), it hands the seeded comment id, marker, and run link to that step. The
+      # engine's Phase 0 seed arm stays the fallback for installs whose workflow predates
+      # this step; the helper's find-or-resume arm makes a later agent-side invocation adopt
+      # this comment instead of duplicating it. Every failure arm warns and continues, so a
+      # seeding failure degrades to today's agent-side behavior rather than failing the run.
+      - name: Seed review-progress comment (early acknowledgement)
+        id: seedreview
+        if: ${{ github.event.issue.pull_request || github.event.pull_request.number }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          COMMAND: ${{ needs.gate.outputs.command }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          # Publish the handoff outputs as a neutral token BEFORE any fallible work, so the
+          # reviewcompose step always reads a defined value (the implement early-workpad
+          # neutral-init pattern). A later write of the same key wins, so a successful seed
+          # overrides these.
+          {
+            echo "comment_id=none"
+            echo "marker=none"
+            echo "run_link=none"
+          } >> "$GITHUB_OUTPUT"
+          # Only the review commands seed a review-progress comment — the SAME screen the
+          # dead-run flip step uses (bash builtins only: a selection value must not flow
+          # through a non-preflight-guaranteed PATH tool).
+          case "${COMMAND:-}" in
+            /prflow:review*|/devflow:review*) : ;;
+            *)
+              echo "::notice::seed review-progress: command '${COMMAND:-}' seeds no review-progress comment; nothing to seed"
+              exit 0
+              ;;
+          esac
+          # PR number: the command's own trailing number, else the thread's number — the
+          # SAME derivation the dead-run flip step uses (bash builtins only).
+          PR_NUMBER="${COMMAND##* }"
+          case "$PR_NUMBER" in
+            ''|*[!0-9]*) PR_NUMBER="${CONTEXT_NUMBER:-}" ;;
+          esac
+          if [ -z "$PR_NUMBER" ]; then
+            echo "::warning::seed review-progress: no PR number resolvable from command '${COMMAND:-}' or event context; not seeding (the agent-side Phase 0 seed remains the fallback)"
+            exit 0
+          fi
+          # Resolve the enable flag through config-get.sh (vendored, then repo). Default true;
+          # a bash `case` honors an explicit false and seeds nothing.
+          CFG=.prflow/vendor/prflow/scripts/config-get.sh
+          [ -f "$CFG" ] || CFG=scripts/config-get.sh
+          SEED_ENABLED=true
+          if [ -f "$CFG" ]; then
+            SEED_ENABLED="$(bash "$CFG" .prflow_review.live_progress_comment_enabled true 2>/dev/null || echo true)"
+          fi
+          case "$SEED_ENABLED" in
+            false)
+              echo "::notice::seed review-progress: prflow_review.live_progress_comment_enabled is false; seeding nothing"
+              exit 0
+              ;;
+          esac
+          # Resolve the reviewed head sha the way review_dedupe does, for the seed-time head
+          # key (issue #1010).
+          HEAD_SHA="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefOid -q .headRefOid 2>/dev/null || true)"
+          if [ -z "$HEAD_SHA" ]; then
+            echo "::warning::seed review-progress: could not resolve the head sha for PR #$PR_NUMBER (gh pr view failed); not seeding (the agent-side Phase 0 seed remains the fallback)"
+            exit 0
+          fi
+          # Compose a minimal in-progress seed body carrying the two review_dedupe machine-read
+          # keys — the `**Status:** 🚀 Reviewing` line and the seed-time head key — so a
+          # workflow-seeded run stays visible to in-flight dedupe detection. The helper stamps
+          # the run-keyed marker (line one) and rewrites the `**Run:**` line itself; the
+          # engine's first phase-boundary rewrite replaces the rest with the full checklist.
+          BODY_FILE="$(mktemp 2>/dev/null)" || BODY_FILE=""
+          if [ -z "$BODY_FILE" ]; then
+            echo "::warning::seed review-progress: could not create a scratch file for the seed body; not seeding (the agent-side Phase 0 seed remains the fallback)"
+            exit 0
+          fi
+          {
+            printf '%s\n' "# Review in progress"
+            printf '%s\n' ""
+            printf '%s\n' "**Status:** 🚀 Reviewing"
+            printf '%s\n' "**Run:** _(pending)_"
+            printf '%s\n' ""
+            printf '%s\n' "<!-- prflow:review-seeded-head $HEAD_SHA -->"
+          } > "$BODY_FILE"
+          # Invoke the seeding helper (vendored, then repo) with an EMPTY marker slot — on the
+          # cloud tier the helper derives the run-keyed marker from GITHUB_RUN_ID itself.
+          SEED_HELPER=.prflow/vendor/prflow/scripts/seed-review-progress.sh
+          [ -f "$SEED_HELPER" ] || SEED_HELPER=scripts/seed-review-progress.sh
+          if [ ! -f "$SEED_HELPER" ]; then
+            echo "::warning::seed review-progress: seed-review-progress.sh absent at $SEED_HELPER; not seeding (the agent-side Phase 0 seed remains the fallback)"
+            rm -f "$BODY_FILE"
+            exit 0
+          fi
+          SEED_OUT="$(bash "$SEED_HELPER" "$PR_NUMBER" "" "$BODY_FILE")" || true
+          rm -f "$BODY_FILE"
+          # Only a RESUME/CREATED outcome hands off; a SKIP token or empty result leaves the
+          # neutral tokens in place (warn-and-continue → agent-side fallback owns recovery).
+          case "$SEED_OUT" in
+            RESUME\ *|CREATED\ *) : ;;
+            *)
+              echo "::warning::seed review-progress: seed-review-progress.sh created no comment (output: ${SEED_OUT:-<none>}); not handing off (the agent-side Phase 0 seed remains the fallback)"
+              exit 0
+              ;;
+          esac
+          # Parse the helper's outcome / MARKER / RUNLINK lines with bash builtins only (a
+          # handed-off value must not flow through a non-preflight-guaranteed PATH tool).
+          CID=""; MK=""; RL=""
+          while IFS= read -r line; do
+            case "$line" in
+              RESUME\ *) CID="${line#RESUME }" ;;
+              CREATED\ *) CID="${line#CREATED }" ;;
+              MARKER\ *) MK="${line#MARKER }" ;;
+              RUNLINK\ *) RL="${line#RUNLINK }" ;;
+            esac
+          done <<< "$SEED_OUT"
+          if [ -z "$CID" ] || [ -z "$MK" ]; then
+            echo "::warning::seed review-progress: helper reported success but no comment id/marker; not handing off (the agent-side Phase 0 seed remains the fallback)"
+            exit 0
+          fi
+          {
+            echo "comment_id=$CID"
+            echo "marker=$MK"
+            echo "run_link=$RL"
+          } >> "$GITHUB_OUTPUT"
+          echo "::notice::seed review-progress: seeded comment #$CID for PR #$PR_NUMBER (marker $MK)"
+
       - name: Compose engine grounding block
         id: reviewcompose
         env:
@@ -1145,6 +1275,9 @@ jobs:
           ALLOWED_TOOLS: ${{ steps.tools.outputs.tools }}
           CMD: ${{ needs.gate.outputs.command }}
           MODE: ${{ startsWith(needs.gate.outputs.command, '/prflow:review ') && 'review' || 'generic' }}
+          SEED_COMMENT_ID: ${{ steps.seedreview.outputs.comment_id }}
+          SEED_MARKER: ${{ steps.seedreview.outputs.marker }}
+          SEED_RUN_LINK: ${{ steps.seedreview.outputs.run_link }}
         run: |
           set -euo pipefail
           # The CI section exists only in `review` mode, so resolve its inputs only
@@ -1205,7 +1338,21 @@ jobs:
             echo "::error::devflow: render-grounding-block.sh produced no output — this run's prompt would carry no engine-ground-truth block, its only statement of the headless-run discipline and of the commands it may execute. The renderer resolved at '$RGB' but printed nothing or exited non-zero: repair that copy, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
             exit 1
           fi
-          PROMPT="${GROUNDING}
+          # When the seeding step (issue #2073) handed off a pre-seeded review-progress
+          # comment, carry its id/marker/run link into the agent prompt as authoritative
+          # facts, so the engine's step 0.3.5 holds them and composes no second marker. A
+          # skipped or failed seed leaves the outputs neutral (`none`/empty), so this block
+          # is empty and the engine seeds the comment itself as before.
+          SEED_HANDOFF=""
+          if [ -n "${SEED_COMMENT_ID:-}" ] && [ "${SEED_COMMENT_ID:-none}" != none ]; then
+            SEED_HANDOFF="
+
+          This run's live review-progress comment was already seeded by the workflow before you started. Hold these as the authoritative live-progress values; do NOT seed a second comment or compose a second marker:
+          - Pre-seeded progress comment id: ${SEED_COMMENT_ID}
+          - Pre-seeded progress comment marker: ${SEED_MARKER}
+          - Pre-seeded run link: ${SEED_RUN_LINK}"
+          fi
+          PROMPT="${GROUNDING}${SEED_HANDOFF}
 
           ${CMD}"
           delim="PROMPT_EOF_$(date +%s%N)_$$"
