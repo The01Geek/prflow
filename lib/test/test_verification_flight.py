@@ -2103,5 +2103,176 @@ class TestSelfDocumentingHelp(unittest.TestCase):
         self.assertEqual(proc.returncode, vf.EXIT_INVALID, proc.stderr)
 
 
+class TestTelemetryGitignoreGuard(Harness):
+    """issue #2097: the telemetry directories are self-ignoring, so a consumer
+    repo's own coordinator telemetry does not dirty or self-invalidate the tree it
+    just certified. The PRFlow repo hides this behind its root .gitignore; an
+    installed consumer ships a .prflow/.gitignore of /tmp/ and nothing for the logs
+    dir."""
+
+    _SCRIPT = str(ROOT / "scripts" / "verification-flight.py")
+    _CF_SCRIPT = str(ROOT / "scripts" / "checkout-fingerprint.py")
+
+    def _make_consumer_repo(self) -> str:
+        repo = tempfile.mkdtemp()
+        subprocess.run(["git", "init", "-q", repo], check=True)
+        subprocess.run(["git", "-C", repo, "config", "user.email", "t@example.com"], check=True)
+        subprocess.run(["git", "-C", repo, "config", "user.name", "t"], check=True)
+        prflow = Path(repo) / ".prflow"
+        prflow.mkdir()
+        # The scaffolder-shipped ignore file an installed consumer has: only /tmp/.
+        (prflow / ".gitignore").write_text("/tmp/\n", encoding="utf-8")
+        subprocess.run(["git", "-C", repo, "add", "-A"], check=True)
+        subprocess.run(["git", "-C", repo, "commit", "-q", "-m", "init"], check=True)
+        return repo
+
+    def _run_in(self, repo, argv):
+        """Run the CLI in-process with cwd=repo so default telemetry dirs resolve
+        under repo/.prflow/logs/… (no --logs-dir/--state-dir overrides)."""
+        prev = os.getcwd()
+        os.chdir(repo)
+        try:
+            return self.run_cmd(argv)
+        finally:
+            os.chdir(prev)
+
+    def _porcelain(self, repo) -> str:
+        return subprocess.run(["git", "-C", repo, "status", "--porcelain"],
+                              capture_output=True, text=True, check=True).stdout
+
+    def _untracked(self, repo, prefix):
+        out = subprocess.run(["git", "-C", repo, "ls-files", "-o", "--exclude-standard"],
+                             capture_output=True, text=True, check=True).stdout
+        return [ln for ln in out.splitlines() if ln.startswith(prefix)]
+
+    def _fingerprint(self, repo) -> dict:
+        out = subprocess.run([sys.executable, self._CF_SCRIPT], cwd=repo,
+                             capture_output=True, text=True, check=True).stdout
+        return json.loads(out)
+
+    # ── AC1: every telemetry directory holds a `.gitignore` guard, default and override ──
+    def test_default_telemetry_dir_has_gitignore_guard(self):
+        repo = self._make_consumer_repo()
+        code, out = self._run_in(repo, ["claim", "--input-file", self._write(_decl())])
+        self.assertEqual(code, vf.EXIT_OK, out)
+        guard = Path(repo) / ".prflow" / "logs" / "verification-flight" / ".gitignore"
+        self.assertTrue(guard.exists(), "telemetry dir must hold a .gitignore guard")
+        self.assertEqual(guard.read_text().strip(), "*")
+        self.assertEqual(self._untracked(repo, ".prflow/logs/"), [],
+                         "no telemetry file may show as untracked after the guarded write")
+
+    def test_overridden_logs_dir_has_gitignore_guard(self):
+        # AC1's "explicitly overridden path alike": the --logs-dir target self-ignores too.
+        self.claim()  # passes --logs-dir self.logs
+        guard = Path(self.logs) / ".gitignore"
+        self.assertTrue(guard.exists())
+        self.assertEqual(guard.read_text().strip(), "*")
+
+    def test_event_default_log_dir_has_gitignore_guard(self):
+        # The `event` subcommand's --log-dir directory is the second telemetry dir.
+        repo = self._make_consumer_repo()
+        code, _ = self._run_in(repo, ["event", "simplify-start"])
+        self.assertEqual(code, vf.EXIT_OK)
+        guard = Path(repo) / ".prflow" / "logs" / "phase-events" / ".gitignore"
+        self.assertTrue(guard.exists(), "phase-events dir must hold a .gitignore guard")
+        self.assertEqual(guard.read_text().strip(), "*")
+        self.assertEqual(self._untracked(repo, ".prflow/logs/"), [])
+
+    # ── AC2: claim then finish with default dirs leaves the tree clean ──
+    def test_claim_then_finish_leaves_tree_clean(self):
+        repo = self._make_consumer_repo()
+        _, owner = self._run_in(repo, ["claim", "--input-file", self._write(_decl())])
+        k, t = owner["flight_key"], owner["token"]
+        self._run_in(repo, ["mark-running", "--flight", k, "--token", t])
+        self._run_in(repo, ["finish", "--flight", k, "--token", t, "--result", "passed",
+                            "--summary-file", self._write(
+                                {"command": "x", "exit_status": 0, "skipped_checks": []})])
+        self.assertEqual(self._porcelain(repo), "",
+                         "coordinator telemetry must leave git status --porcelain empty")
+
+    # ── AC3: a fingerprint taken after claim's telemetry write does not self-invalidate ──
+    def test_status_after_claim_reports_no_checkout_drift(self):
+        repo = self._make_consumer_repo()
+        before = self._fingerprint(repo)
+        _, owner = self._run_in(repo, ["claim", "--input-file", self._write(_decl(checkout=before))])
+        after = self._fingerprint(repo)
+        _, out = self._run_in(repo, ["status", "--flight", owner["flight_key"],
+                                     "--current-checkout-file", self._write(after)])
+        self.assertNotEqual(out.get("invalidation_reason"), "checkout_drift", out)
+        self.assertNotEqual(out.get("state"), "stale", out)
+
+    # ── AC4: an uncreatable guard skips the write with today's failure value/exit/JSON ──
+    def test_ensure_guard_returns_false_when_dir_uncreatable(self):
+        base = Path(self.tmp) / "as-file"
+        base.write_text("x")  # a FILE where the dir must be: mkdir/guard cannot succeed
+        self.assertFalse(vf._ensure_telemetry_dir(base))
+
+    def test_emit_telemetry_returns_false_when_guard_uncreatable(self):
+        base = os.path.join(self.tmp, "logs-as-file")
+        Path(base).write_text("x")
+        result = vf._emit_telemetry(base, "some_event", {"k": "v"})
+        self.assertFalse(result, "a guard that cannot be created returns False, as a failed write does")
+
+    def test_claim_still_exits_ok_when_telemetry_guard_uncreatable(self):
+        logs_as_file = os.path.join(self.tmp, "logs-file")
+        Path(logs_as_file).write_text("x")
+        code, out = self.run_cmd(["claim", "--input-file", self._write(_decl()),
+                                  "--state-dir", self.state, "--logs-dir", logs_as_file])
+        self.assertEqual(code, vf.EXIT_OK, out)
+        self.assertEqual(out["role"], "owner")
+
+    def test_event_still_exits_ok_when_guard_uncreatable(self):
+        log_as_file = os.path.join(self.tmp, "events-file")
+        Path(log_as_file).write_text("x")
+        code, _ = self.run_cmd(["event", "some-event", "--log-dir", log_as_file])
+        self.assertEqual(code, vf.EXIT_OK)
+
+    # ── AC5: the ledger state write path does not consult the guard ──
+    def test_state_recorded_even_when_telemetry_dir_unwritable(self):
+        logs_as_file = os.path.join(self.tmp, "logs-file2")
+        Path(logs_as_file).write_text("x")
+        code, owner = self.run_cmd(["claim", "--input-file", self._write(_decl()),
+                                    "--state-dir", self.state, "--logs-dir", logs_as_file])
+        self.assertEqual(code, vf.EXIT_OK, owner)
+        files = list(Path(self.state).glob("*.json"))
+        self.assertEqual(len(files), 1, "claim must still record ledger state despite unwritable telemetry")
+        k, t = owner["flight_key"], owner["token"]
+        self.run_cmd(["mark-running", "--flight", k, "--token", t,
+                      "--state-dir", self.state, "--logs-dir", logs_as_file])
+        code2, _ = self.run_cmd(["finish", "--flight", k, "--token", t, "--result", "passed",
+                                 "--summary-file", self._write(
+                                     {"command": "x", "exit_status": 0, "skipped_checks": []}),
+                                 "--state-dir", self.state, "--logs-dir", logs_as_file])
+        self.assertEqual(code2, vf.EXIT_OK)
+        rec = json.loads(next(iter(Path(self.state).glob("*.json"))).read_text())
+        self.assertEqual(rec["state"], "passed", "finish must still record its state transition")
+
+    # ── AC6: a write into a dir already holding the guard leaves its bytes unchanged ──
+    def test_guard_idempotent_leaves_existing_bytes_unchanged(self):
+        Path(self.logs).mkdir(parents=True)
+        guard = Path(self.logs) / ".gitignore"
+        # Seed a valid but DISTINGUISHABLE guard (the trailing comment differs from the
+        # `*\n` the writer would emit), so this catches an O_EXCL→O_TRUNC regression that
+        # would overwrite it — a byte-identical seed would pass such a regression vacuously.
+        seeded = b"*\n# pre-existing consumer edit\n"
+        guard.write_bytes(seeded)
+        self.claim()  # a telemetry write into a dir that already holds the guard
+        self.assertEqual(guard.read_bytes(), seeded,
+                         "an existing guard's bytes must be left unchanged")
+
+    def test_preexisting_untracked_telemetry_file_becomes_ignored(self):
+        # Coexistence case (Testing Strategy): a stray untracked telemetry file present
+        # before the write is ignored once the guarded write lands.
+        repo = self._make_consumer_repo()
+        logdir = Path(repo) / ".prflow" / "logs" / "verification-flight"
+        logdir.mkdir(parents=True)
+        (logdir / "flight_claimed-deadbeef.json").write_text("{}")
+        self.assertTrue(self._untracked(repo, ".prflow/logs/"),
+                        "precondition: the seeded telemetry file is untracked before the guard")
+        self._run_in(repo, ["claim", "--input-file", self._write(_decl())])
+        self.assertEqual(self._untracked(repo, ".prflow/logs/"), [],
+                         "the whole telemetry dir is ignored after one guarded write")
+
+
 if __name__ == "__main__":
     unittest.main()
