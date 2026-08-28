@@ -3948,6 +3948,43 @@ assert_eq "#2082 AC1 finder guard: an expansion+redirect fence is flagged EXPANS
   "EXPANSION REDIRECT" \
   "$(python3 "$LIB/test/extract-command-shapes.py" --profile no-expansion-redirect "$DT_XR" | awk '{print $2}' | sort -u | tr '\n' ' ' | sed 's/ *$//')"
 rm -f "$DT_XR"
+# #2082 finder discrimination (negative): a `$(…)` command substitution is NOT the parameter-
+# expansion shape, and a single-quoted `$VAR` is literal text the single-quote mask hides — so a
+# fence carrying only those is clean, proving the finder does not over-flag the helper-invocation form.
+DT_XR2="$(probe_tmp "#2082 no-expansion-redirect clean fixture")"
+printf '%s\n' '```bash' 'review-dirty-tree.sh compare-and-restore $(git hash-object f)' "echo '\$NOT_AN_EXPANSION'" '```' > "$DT_XR2"
+assert_eq "#2082 AC1 finder: a \$(…) capture and a single-quoted \$VAR are not flagged" "" \
+  "$(python3 "$LIB/test/extract-command-shapes.py" --profile no-expansion-redirect "$DT_XR2" 2>&1 | tr '\n' ' ' | sed 's/ *$//')"
+rm -f "$DT_XR2"
+# #2082 finder discrimination (positive): every redirect operator variant beyond `>` — input `<`,
+# append `>>`, and an fd-prefixed `2>` — is flagged REDIRECT, so a fence smuggling one back in is caught.
+DT_XR3="$(probe_tmp "#2082 no-expansion-redirect redirect-variants fixture")"
+printf '%s\n' '```bash' 'cat < in.txt' 'echo hi >> out.txt' 'cmd 2> err.txt' '```' > "$DT_XR3"
+assert_eq "#2082 AC1 finder: input/append/fd redirect variants are all flagged REDIRECT" \
+  "REDIRECT REDIRECT REDIRECT" \
+  "$(python3 "$LIB/test/extract-command-shapes.py" --profile no-expansion-redirect "$DT_XR3" | awk '{print $2}' | tr '\n' ' ' | sed 's/ *$//')"
+rm -f "$DT_XR3"
+# #2082 fence-to-helper wiring: the §3.1/§3.2 fences must invoke the helper with the exact
+# subcommand spelling and the {GIT_SNAP_BEFORE_OID} argument. A partial break — a wrong subcommand or
+# a dropped OID arg — would otherwise ship green, since the AC1 shape scan passes vacuously on a fence
+# whose helper line was removed and the #363 head-count pin fires only on full head removal.
+assert_pin_unique "#2082 fence wiring: §3.1 invokes the snapshot subcommand" \
+  '.prflow/vendor/prflow/scripts/review-dirty-tree.sh snapshot' "$REVIEW_SKILL"  # structural-pin-ok: routing-dispatch-contract -- the skill->helper snapshot subcommand wiring
+assert_pin_unique "#2082 fence wiring: §3.2 invokes compare-and-restore with the recorded OID arg" \
+  '.prflow/vendor/prflow/scripts/review-dirty-tree.sh compare-and-restore {GIT_SNAP_BEFORE_OID}' "$REVIEW_SKILL"  # structural-pin-ok: routing-dispatch-contract -- the skill->helper compare-and-restore + OID-arg wiring
+# #2082 helper main() dispatch + AC4 CLI enforcement: a missing/empty restore-authorising OID, an
+# unknown subcommand, and a wrong argument count each exit 2 — no restore is ever authorised from a
+# malformed invocation (AC4: the OID comes from argv, and an empty one is rejected).
+assert_eq "#2082 helper main(): no subcommand exits 2" "2" \
+  "$(bash "$RDT" 2>/dev/null; echo $?)"
+assert_eq "#2082 helper main(): an unknown subcommand exits 2" "2" \
+  "$(bash "$RDT" bogus-subcommand 2>/dev/null; echo $?)"
+assert_eq "#2082 helper main(): compare-and-restore with an empty OID exits 2 (AC4 authorizer required)" "2" \
+  "$(bash "$RDT" compare-and-restore '' 2>/dev/null; echo $?)"
+assert_eq "#2082 helper main(): compare-and-restore with no OID exits 2" "2" \
+  "$(bash "$RDT" compare-and-restore 2>/dev/null; echo $?)"
+assert_eq "#2082 helper main(): snapshot with an extra argument exits 2" "2" \
+  "$(bash "$RDT" snapshot extra-arg 2>/dev/null; echo $?)"
 
 # Extract and execute the real Phase 3.1 snapshot behaviour via the helper. These checks
 # catch three concrete production breaks: stale snapshot symlinks clobbering their targets,
@@ -35982,7 +36019,7 @@ assert_eq "#363 every already-pinned arm shape (incl. optional-leading-paren) st
 # Regression guard: the arm-position fix is a NO-OP on today's Review engine BUNDLE
 # (root + skills/review/phases/*.md — #529 split the engine, so the reviewed surface
 # is every source, not just the root).
-assert_eq "#363 the review-skill head set matches the reviewed count (32 distinct names over the whole bundle; #857 added seed-review-progress.sh; #1054 moved marker derivation out of the cloud fence, removing date; #1059 added post-review-verdict.sh as the Phase 4.4 verdict-post head; #1536 added compose-run-url.sh as the run-link composer; #2082 moved the dirty-tree snapshot/restore fences into scripts/review-dirty-tree.sh — dropping the cmp and tr heads unique to those fences and adding review-dirty-tree.sh)" \
+assert_eq "#363 the review-skill head set matches the reviewed count (32 distinct names over the whole bundle; #857 added seed-review-progress.sh; #1054 moved marker derivation out of the cloud fence, removing date; #1059 added post-review-verdict.sh as the Phase 4.4 verdict-post head; #1536 added compose-run-url.sh as the run-link composer; #2082 moved the dirty-tree snapshot/restore fences into scripts/review-dirty-tree.sh — dropping the cmp, tr, and git-checkout heads unique to those fences and adding review-dirty-tree.sh)" \
   "32" "$(python3 -c 'import importlib.util,sys
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 h=m.extract_heads(open(sys.argv[2],encoding="utf-8").read());print(len({m.name_of(x) for x in h}))' "$ECH" "$REVIEW_BUNDLE")"
