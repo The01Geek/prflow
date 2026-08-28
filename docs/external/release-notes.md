@@ -9,6 +9,10 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## August 28, 2026
+
+- **Catch vacuous preservation tests and documentation-scope leaks earlier.** Implement runs now require distinguishable preservation fixtures, classify cleanup failures, and stop plain label-and-em-dash issue peers from becoming mandatory documentation. ([#2110](https://github.com/The01Geek/prflow/pull/2110))
+
 ## August 27, 2026
 
 - **Implement runs author tests in proportion to the change.** On a small change, an `/prflow:implement` run can now skip extra test ceremony that would be out of proportion to the change, while still writing a covering test for each behavior change and recording what it waived on a `Test authoring waived:` line in the pull request's Test Plan. The coverage reviewer honors a recorded waiver — lowering only lesser-severity findings on the named surfaces while keeping its most serious findings at full strength — and a fresh install runs that reviewer only on the first fix-loop iteration. You get this through the normal plugin update. [#2031](https://github.com/The01Geek/prflow/issues/2031)
