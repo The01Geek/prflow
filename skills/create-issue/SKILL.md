@@ -125,7 +125,7 @@ If `references/degradation-routing.md` itself fails to load, its routing row is 
 
 These five hold on every path, including every degraded arm above, and are load-independent of any reference:
 
-1. **The issue is created only after the user explicitly approves the full rendered draft in chat.** The full title and body are rendered verbatim in your message first; an earlier "just create it", a complete Step 2, or a paused pipeline is never a substitute for approval of *this* draft.
+1. **The issue is created only after the user explicitly approves the draft as presented.** The draft is presented as a saved file whose path is shown; its full title and body are printed verbatim in your message only when the user asks (or on a forced-render arm — a write-failed run, a `bound=none` run, or a non-interactive run). An earlier "just create it", a complete Step 2, or a paused pipeline is never a substitute for approval of *this* draft.
 2. **The no-options gate** (stated under Step 3 below) passes on the body that is shown and on every revision of it.
 3. **The audit summary line is mandatory and always renders** — even on a run that elected no audit round (rounds run: zero) or a clean `VERDICT: FILE` with zero findings. A declined, skipped, or degraded audit is never silent.
 4. The reserved `PRFlow` provenance label is applied best-effort after creation, and any degradation is reported explicitly — a label hiccup never blocks creation, and a `PRFlow` label that could not be applied is named in the final outcome rather than passed over.
