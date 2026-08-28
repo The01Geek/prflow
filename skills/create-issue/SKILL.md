@@ -281,15 +281,15 @@ Load `references/step-3-6-audit.md` per the *Reference routing* rules above and 
 ### Step 4: Review with the user, then create
 
 Before the first rendered draft, and not again while iterating on feedback, run one `ls -lL … 2>&1`
-over `.prflow/tmp/create-issue/issue-run-slug`, `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`,
-`.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md` and `.prflow/tmp/create-issue/<slug>/issue-audit-<slug>.md` — exactly those
-four, each named individually — and show its raw output, error lines included, in the message that
+over `.prflow/tmp/create-issue/issue-run-slug`, `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`
+and `.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md` — exactly those
+three, each named individually — and show its raw output, error lines included, in the message that
 renders the draft. With the slug unestablished, list
 `.prflow/tmp` itself instead on plain `ls -l` — never `-L` — state that nothing there is
 attributable to this run, and re-enter nothing.
 
 Classify each path from that one invocation, running no second probe, from what the shell shows
-rather than what you infer. A not-found message naming one of the four paths — by the whole path or
+rather than what you infer. A not-found message naming one of the three paths — by the whole path or
 by its final segment alone — is absent, and decides that path even when the same invocation also printed a row for it.
 A path is present only when the invocation prints a row for that path itself describing an ordinary
 file of at least one byte — its name field the path, its type character `-`, its size column
@@ -312,13 +312,13 @@ Step 2 whole, reporting any genuine clarification deficit in the draft message �
 Step 3.5's steelman pass afterwards. The run
 bootstrap's re-entry belongs to the Step 4 presentation gate alone (`references/step-4-present-create.md`),
 which stops and runs it when this run holds no nonce or bound draft; a run that elected no audit round
-has no audit artifact, and the gate admits it rather than re-entering Step 3.6 to dispatch an unasked round.
-This listing reports that path's class and re-enters no step for it. Where any step was re-entered,
+has no audit artifact, and the gate admits it rather than re-entering Step 3.6 to dispatch an unasked round —
+the audit artifact is the presentation gate's alone, named by no arm of this listing. Where any step was re-entered,
 that message names the steps re-run and any finding of theirs the draft does not already reflect. A
 producing step that cannot run gets an in-chat breadcrumb naming the file and the failure kind; this
-listing never blocks issue creation. These four paths are the run-state files this listing covers; it
-leaves out the user-facing draft `issue-draft-<slug>.md`, written under the main repo root rather than
-these cwd-anchored paths, and the `steelman-projection-<slug>.json` gate operand — both owned by the
+listing never blocks issue creation. These three paths are the run-state files this listing covers; it
+leaves out the user-facing draft `issue-draft-<slug>.md` (written under the main repo root rather than
+these cwd-anchored paths), the `issue-audit-<slug>.md` audit artifact, and the `steelman-projection-<slug>.json` gate operand — all owned by the
 presentation gate, which reads them for itself.
 
 Load `references/step-4-present-create.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
