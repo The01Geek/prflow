@@ -73,14 +73,17 @@ NON-GOALS (review profile, stated so a limit is never mistaken for coverage):
     question (matcher-probe.yml's review rows), not a static one this guard can answer.
 
 CLI:
-    extract-command-shapes.py [--profile review|implement|command] FILE...
+    extract-command-shapes.py [--profile review|implement|command|no-expansion-redirect] FILE...
         -> one `FILE:LINE  RULE  statement` per denied-shape hit, across every FILE
            (a reviewed surface is a BUNDLE — a skill root plus its phase references,
            issue #529 — and each hit stays attributed to the file it came from);
            exit 1 if any hit, exit 0 when every file is clean. The `review` profile applies R1-R4
            (read-only review allowlist). `--profile implement` applies the implement-
            tier rules (issue #455), keyed to the SEPARATE devflow-implement matcher
-           probe (matcher-probe.yml's implement-probe job):
+           probe (matcher-probe.yml's implement-probe job). `--profile no-expansion-redirect`
+           (issue #2082) is tier-independent and flags EXPANSION (a `$VAR`/`${VAR}` parameter
+           expansion) and REDIRECT (any shell redirect), used by the suite to prove a rewritten
+           fence region carries neither:
 
   IR1 a `for` loop — any SYNTACTIC spelling of the loop itself, including C-style
       `for ((i=0;…))` — whose do…done span invokes a label helper BY NAME (probe row I4).

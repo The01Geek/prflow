@@ -1125,7 +1125,7 @@ cause 1 — none below is, because none rewrites anything.
   Recorded by the mechanical adjudication as above, and subsequently **rewritten in issue #2082**: the
   whole snapshot/authenticate/compare/restore loop now lives in the committed helper
   `scripts/review-dirty-tree.sh`, which the §3.1/§3.2 fences invoke by its granted vendored literal as a
-  leading token with literal arguments — no `${GIT_SNAP_*:-…}` expansion and no `>`/`<` redirect, so this
+  leading token with literal arguments — no `${GIT_SNAP_*:-…}` expansion and no shell redirect, so this
   population no longer teaches a denied shape. The `GIT_SNAP_BEFORE`/`GIT_SNAP_AFTER` seam moved inside the
   helper, so the suite's per-test temp-path fixtures (the symlink-attack security tests included) keep
   working, and the object ID that authorises the Phase 3.2 restore is passed to the helper as a literal

@@ -3918,15 +3918,10 @@ assert_pin_unique "#192 agent-mandate: primary write-prohibition from the reques
 # helper prints the object ID and the orchestrator records it as {GIT_SNAP_BEFORE_OID}.
 assert_pin_unique "#484 backstop: external digest handoff contract" \
   'Record the single object ID printed by `git hash-object` as `{GIT_SNAP_BEFORE_OID}` in orchestrator state' "$REVIEW_SKILL"
-# Issue #2082 moved the whole snapshot/compare/restore loop out of the inline §3.1/§3.2
-# fences into the committed helper scripts/review-dirty-tree.sh. The count-based drift
-# pins that used to guard the fence's NUL read loops, the absence of `sort -z`, and the
-# fixed sentinel path (all counted in the review skill bundle) are RETIRED with that
-# cutover — the helper is now the sole owner of that logic, so those regressions are
-# re-anchored to the helper-behavior battery below (spaced/glob/newline-path restore
-# cases prove the NUL-safe reads; the disabled-sentinel and snapshot-failure cases prove
-# the sentinel path; the untracked-file case D2 proves the never-auto-deleted rule) and
-# to the #2082 AC1 no-expansion-redirect shape assertion.
+# Do not re-add the pre-#2082 count-based fence pins (NUL read loops / `sort -z` / sentinel
+# path in the review bundle): #2082 moved that logic into scripts/review-dirty-tree.sh, so
+# their regressions are re-anchored to the helper-behavior battery below and the no-expansion-
+# redirect shape check named in AC1.
 # ── #2082: dirty-tree backstop — committed-helper integration proof ────────────────────
 # The snapshot/compare/restore logic now lives in scripts/review-dirty-tree.sh (issue
 # #2082), invoked by the §3.1/§3.2 fences as a leading token. The battery below drives
@@ -3944,6 +3939,15 @@ assert_eq "#2082 backstop: the committed helper exists and is executable" "yes" 
 # expansion/redirect-free, so the file scan covers exactly the two rewritten regions.
 assert_eq "#2082 AC1: the dirty-tree fences carry no expansion/redirect (helper-invocation form)" "" \
   "$(python3 "$LIB/test/extract-command-shapes.py" --profile no-expansion-redirect "$LIB/../skills/review/phases/phase-3-agents.md" 2>&1 | tr '\n' ' ' | sed 's/ *$//')"
+# Mutation-guard the no-expansion-redirect finder itself: the assertion above asserts EMPTY, so
+# a broken/no-op finder would pass it vacuously. Prove the finder DOES flag a fence carrying both
+# a `${VAR}` expansion and a `>` redirect (the exact shapes the rewrite removed).
+DT_XR="$(probe_tmp "#2082 no-expansion-redirect finder fixture")"
+printf '%s\n' '```bash' 'git status -z > "${GIT_SNAP_BEFORE:-x}"' '```' > "$DT_XR"
+assert_eq "#2082 AC1 finder guard: an expansion+redirect fence is flagged EXPANSION and REDIRECT" \
+  "EXPANSION REDIRECT" \
+  "$(python3 "$LIB/test/extract-command-shapes.py" --profile no-expansion-redirect "$DT_XR" | awk '{print $2}' | sort -u | tr '\n' ' ' | sed 's/ *$//')"
+rm -f "$DT_XR"
 
 # Extract and execute the real Phase 3.1 snapshot behaviour via the helper. These checks
 # catch three concrete production breaks: stale snapshot symlinks clobbering their targets,
@@ -4124,14 +4128,14 @@ fi
 # DEFERRAL (#1470 review, Important 2 — `set -u` guard coverage): the `${before_paths[@]+…}`
 # guard still carries no dedicated RED-mutation test. Its context changed with issue #2082:
 # the logic is now the committed helper scripts/review-dirty-tree.sh, which DOES `set -u`, so
-# the guard is exercised on every empty-restore-set invocation (not the "no set -u caller"
-# premise the pre-#2082 note recorded). (1) Bash stopped erroring on `"${empty[@]}"` under
+# the guard is exercised whenever the restore set is empty (the pre-#2082 note assumed
+# otherwise). (1) Bash stopped erroring on `"${empty[@]}"` under
 # `set -u` in 4.4, so the guard is a no-op on every bash the suite runs (CI ubuntu 5.x;
 # maintainer host PATH bash 5.3) — a committed case cannot go RED there, and a vacuous guard
 # is what this suite's mutation-check discipline forbids. (2) Measured on bash 3.2.57, removing
 # the guard fails CLOSED and loud under the helper's `set -u`: `unbound variable` on stderr and
 # the helper aborts before restoring anything, so no concurrent edit is clobbered.
-# #484: exercise the COMPLETE compare-and-restore path via the helper, including the
+# #484: exercise compare-and-restore's OID-authentication path via the helper — the
 # regular-file/OID authentication the restore cases above pass through with an authentic OID.
 # Case F — positive control: the authentic object ID passed as the helper argument proceeds into
 # restore, preserving an already-dirty path while restoring the agent-introduced path.
