@@ -587,8 +587,9 @@ leading-token helper forms and the Write tool for scratch, not a broadened permi
   unconditionally (`if: always()`, best-effort) in a workflow step **after** `Run Claude Code`. As of
   issue #441 the helper owns the entire write: it commits to the telemetry branch via git plumbing
   and pushes it with a fetch/re-parent retry loop, so the former before/after-`HEAD` gate and bare
-  `git push` are gone — the step is just `bash "$HELPER" --persist`. (`devflow-runner.yml` is the
-  read-only `review` profile — it runs no fix loop and cannot write, so it is intentionally
+  `git push` are gone — the step is just `bash "$HELPER" --persist`. (`devflow-runner.yml` — part of
+  the withheld automatic-review tier (issue #936), retained without a caller — is the
+  read-only `review` profile: it runs no fix loop and cannot write, so it is intentionally
   **excluded**: there is nothing to persist there.) Because a GitHub App token cannot self-modify
   `.github/workflows/`, a maintainer committed this step after `Run Claude Code` in each of those two
   workflows; it now ships committed in both:
@@ -672,8 +673,9 @@ leading-token helper forms and the Write tool for scratch, not a broadened permi
   `--persist` keeps retained roots from accumulating. On a **local** filesystem this makes a failed
   branch write recoverable; on an **ephemeral CI runner** the filesystem does not survive teardown, so
   on-disk retention is moot there — the trusted telemetry-push relay (`telemetry-push.yml`, issue
-  #489) is the cloud recovery path, consuming the **uploaded workflow artifact** the auto-review tier
-  stages and uploads rather than any on-disk copy the ephemeral runner cannot retain. This uncovered surface is still surfaced only by the helper's own stderr
+  #489 — part of the withheld automatic-review tier (issue #936), retained without a caller) is the
+  cloud recovery path where that tier is still installed, consuming the **uploaded workflow artifact**
+  the auto-review tier stages and uploads rather than any on-disk copy the ephemeral runner cannot retain. This uncovered surface is still surfaced only by the helper's own stderr
   breadcrumb, which Phase 3.3 captures but does not currently grep for. And because the `APPROVE WITH UNRESOLVED
   SHADOW FINDINGS` path can drive a **second**, separate inline `review-and-fix` invocation (the
   bounded re-review), Phase 3.3 re-runs the whole snapshot-then-backstop procedure — a fresh
@@ -918,8 +920,8 @@ so the floor is buildable on the cloud tier without the agent's cooperation.
 - *Coverage boundaries (explicit, so `harness_cost` presence is never read as complete cloud-cost
   coverage).* A hard-death run that never produced an execution file stays uncovered (a named inert
   breadcrumb in the backstop log, never silent). The read-only auto-review tier
-  (`devflow-runner.yml`) is **cost-unmeasured** by this floor — it has no persist step (following-up
-  scope, once #469's artifact-staged pusher lands).
+  (`devflow-runner.yml`) — part of the withheld automatic-review tier (issue #936), retained without
+  a caller — is **cost-unmeasured** by this floor: it has no persist step.
 
 ## The unified experiment record (`experiment-records.jsonl`)
 
