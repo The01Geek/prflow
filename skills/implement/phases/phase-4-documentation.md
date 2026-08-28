@@ -292,16 +292,7 @@ On any reading a vendored path did not run — `command not found`, `No such fil
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/verification-flight.py
 ```
 
-Author the declaration from this template — substitute the `<…>` placeholders, and set `external_services` truthfully: the live service the verification depends on when one exists (recorded non-reusable), or the literal `"none"` when it depends on none; `schema_version` stays `1`, and the four `checkout` object-id fields keep example hex replaced from `checkout-fingerprint.py`:
-
-```json
-{"schema_version": 1, "candidate_identity": "<candidate_identity>",
- "profile": {"profile_version": "<ver>", "argv": ["<cmd+args>"], "cwd": "<cwd>",
-   "environment": {}, "toolchain": {}, "dependencies": {}, "output_roots": [], "external_services": "none"},
- "checkout": {"checkout_id": "<checkout_id>",
-   "head": "1111111111111111111111111111111111111111", "index_digest": "2222222222222222222222222222222222222222",
-   "tracked_digest": "3333333333333333333333333333333333333333", "untracked_digest": "4444444444444444444444444444444444444444"}}
-```
+Author the declaration from the worked example `verification-flight.py claim --help` prints — the single copyable template PRFlow ships — substituting its `<…>` placeholders and replacing the example hex from `checkout-fingerprint.py`. `schema_version` stays `1`; `external_services` stays `"none"` (or the live service, recorded non-reusable); the `checkout` object comes from `checkout-fingerprint.py`; and `candidate_identity` comes from `reception-record.py`.
 2. Record the validated flight key on the workpad: `workpad.py update $ISSUE_NUMBER --record-completion-evidence <flight-key>` (the `<flight-key>` is the `flight_key` value `claim`/`finish` printed). This validates the record under the implement-completion policy and, only on a pass, writes the hidden `completion-verification:<flight-key>` marker (replacing any prior one). A non-pass record aborts this call before any PATCH — do not proceed to Complete; take the Blocked path below.
 3. On a non-pass or unrunnable suite → Blocked, never Complete. A failed suite, a non-empty skip population, or a verification command that is not locally re-runnable on this tier means there is no in-env pass, so the run cannot honestly finalize: `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "Phase 4.3: final-tree verification did not establish a clean in-env pass (<token/cause>) — cannot record completion evidence; not publishing/completing"`, emit the 👎 reaction, and stop. This step is the sole owner of the unrunnable-verification case: a tier-refused verification routes to Blocked here rather than publishing-and-completing.
 

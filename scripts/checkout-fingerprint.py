@@ -42,6 +42,7 @@ network call.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -219,8 +220,45 @@ def _force_utf8_streams():
             pass
 
 
+def _help_epilog() -> str:
+    """Describe the five emitted fields and the ledger relationship for `--help`
+    (issue #2095). The exact git derivation of each field stays in this file's module
+    header (its single source of truth); this states each field's meaning to a caller."""
+    return (
+        "fields emitted (one JSON object, sorted keys, on a no-argument run):\n"
+        "  checkout_id       opaque identity of THIS checkout's git directory.\n"
+        "  head              the checked-out commit.\n"
+        "  index_digest      tree object of the staged index.\n"
+        "  tracked_digest    working-tree content of tracked files (staged + unstaged).\n"
+        "  untracked_digest  content of untracked, non-ignored files.\n"
+        "(the exact git derivation of each field is in this file's module header.)\n"
+        "\n"
+        "relationship to the ledger: this object is the `checkout` half of a\n"
+        "scripts/verification-flight.py `claim` declaration, and a freshly-produced one is\n"
+        "each `status`/`wait` re-anchor's --current-checkout-file. See\n"
+        "`verification-flight.py claim --help` for the full declaration and its constraints."
+    )
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    return argparse.ArgumentParser(
+        prog="checkout-fingerprint.py",
+        description=(
+            "Print the five-field checkout fingerprint the scripts/verification-flight.py "
+            "single-flight ledger keys on. With no arguments it emits the fingerprint JSON "
+            "to stdout; --help describes the fields instead of emitting one."
+        ),
+        epilog=_help_epilog(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
+    # A minimal parser: it accepts only the help flags (which exit 0 without a
+    # fingerprint) and refuses any other argument (exit 2, no fingerprint); the
+    # no-argument path falls straight through unchanged.
+    _build_parser().parse_args(argv)
     try:
         fp = build_fingerprint()
     except _GitError as exc:
