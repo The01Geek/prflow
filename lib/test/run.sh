@@ -54328,9 +54328,10 @@ assert_eq "#1402 lint: no tracked skills/**+agents/** line names a never-shipped
 # so a test asserts the class runs against a non-empty constant rather than silently
 # auditing an empty set. The scan shares the audited population and the fence-aware
 # pruned-path-ok marker family through _scan (issue #2114).
-# Comparand-shape pin: the constant is non-empty and covers the required floor. Without it
-# an edit emptying _INTERNAL_IDENTIFIERS would audit the shipped surface against nothing and
-# every fixture assertion below would pass over a scan that fires on no line.
+# Comparand-shape pin: the constant covers the required floor. The import-time guard already
+# refuses an EMPTY _INTERNAL_IDENTIFIERS, but not one that DROPPED a required member while
+# staying non-empty — this pin is what fails RED on that floor regression, which would silently
+# stop auditing the dropped identifier while every fixture assertion below still passed.
 SP_II_CONST="$(cd "$LIB/.." && python3 - "$SP_LINT" <<'PY'
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("sp", sys.argv[1])
@@ -54363,6 +54364,12 @@ assert_eq "#2114 lint: a marker with an empty reason is reported" "yes" \
 # reference. Dropping the filename-boundary lookarounds turns this fixture RED.
 assert_eq "#2114 lint: an identifier inside a longer word is not reported (substring safety)" "rc=0|lint-shipped-pruned-path: audited 1 of 1 files; prune set: lib/test" \
   "$(sp_run "$SP_SIMPLE" skills/internal-ident-substring.md)"
+# Dot/.sh-adjacency positive control (the docstring promises run-parallel.sh is caught): a
+# non-word boundary char (dot, slash) adjacent to the identifier still matches, so a real
+# reference to the coordinator script is reported. Pairs with the substring-safety negative
+# above to pin BOTH directions of the filename-boundary lookaround.
+assert_eq "#2114 lint: a dot/.sh-adjacent internal identifier is reported (filename-boundary match)" "yes" \
+  "$(case "$(sp_run "$SP_SIMPLE" skills/internal-ident-dot-adjacent.md)" in "rc=1|"*"skills/internal-ident-dot-adjacent.md:1:"*"'run-parallel'"*) echo yes ;; *) echo no ;; esac)"
 # Fence-conditional marker (issue #2114 shares _scan's fence family): a # marker inside a
 # fence suppresses; an unmarked fenced reference is reported.
 assert_eq "#2114 lint fence-state: a # marker inside a fence suppresses an internal identifier" "rc=0|lint-shipped-pruned-path: audited 1 of 1 files; prune set: lib/test" \
