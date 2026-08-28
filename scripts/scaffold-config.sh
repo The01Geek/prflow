@@ -611,7 +611,7 @@ done
 
 # Backfill newly-introduced keys into an EXISTING config.json. A recursive
 # deep-merge ($example * $config) adds any key present in the example but absent
-# from the repo's config — at any nesting depth (e.g. prflow_runner.provision_env)
+# from the repo's config — at any nesting depth (e.g. prflow_implement.update_branch_checkpoints)
 # — so an in-place upgrade (re-run install.sh / /devflow:init) lets adopters
 # discover and opt into new features instead of silently drifting behind the
 # example. jq's `*` recurses objects with the RIGHT operand winning, so a value

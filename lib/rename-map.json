@@ -284,6 +284,15 @@
     "telemetry-push.yml"
   ],
 
+  "retained_helpers_deletion_condition": {
+    "helpers": [
+      "scripts/derive-review-preconditions.sh",
+      "scripts/describe-skip-title.sh",
+      "scripts/derive-review-verdict.sh"
+    ],
+    "condition": "These helpers were called only by the withheld auto-review tier's workflows (devflow-review.yml -> devflow-runner.yml). Issue #936 withheld the tier and issue #2071 removed its dead config settings, but the helpers stay in the tree so an installed consumer copy that still carries devflow-review.yml keeps resolving them. They are deleted in the first release after the maintainer has confirmed no installed consumer still carries a devflow-review.yml/devflow-runner.yml that calls them -- for example by walking every known consumer through the --remove-withheld-review-tier removal. Until that is confirmed the helpers stay; this is a confirmation to be made, not a date to wait for."
+  },
+
   "transitional_read_through": {
     "applies_to": "state_dir",
     "rule": "A reader resolves the current state directory first. Only when that path is absent AND the superseded one is present does it fall back, and every such resolution writes a stderr breadcrumb naming /prflow:init. The fallback exists because a consumer's plugin can auto-update ahead of any migration run (init registers the marketplace with autoUpdate: true), so without it the very next plugin update would resolve an absent config and silently revert every `// default` extraction.",

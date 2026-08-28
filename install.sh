@@ -976,6 +976,81 @@ devflow_disable_review_key() {
     *) log "warning: could not turn the withheld review-tier config key off in .prflow/config.json (it is missing, malformed, or holds a non-object at that key); set it by hand."; return 1 ;;
   esac
 }
+# Strip the withheld auto-review tier's dead config settings (issue #2071) from a
+# consumer's .prflow/config.json. Nothing a fresh install ships reads
+# prflow_review.require_up_to_date, prflow_review.require_ci_green, or the whole
+# prflow_runner section, so they can never take effect there. Fail closed like
+# devflow_disable_review_key: a config this cannot safely edit — unparseable JSON
+# (caught and reported as exit 1), a non-object top level (exit 3), a non-object
+# prflow_review (exit 5), or a write failure (exit 2) — is left untouched and reported,
+# never rewritten half-way (this edits a file the consumer owns and hand-edits); every
+# non-zero path routes to the shell case's rc-1 arm below. Emits the removed key list,
+# or a one-line failure reason, to stdout so the caller names what it touched or why not.
+DEVFLOW_STRIP_WITHHELD_PY='
+import json, os, sys
+path = sys.argv[1]
+try:
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception as e:
+    sys.stdout.write("malformed JSON: " + str(e).replace("\n", " ")[:200])
+    sys.exit(1)
+if not isinstance(data, dict):
+    sys.stdout.write("top-level value is not a JSON object")
+    sys.exit(3)
+pr = data.get("prflow_review")
+if pr is not None and not isinstance(pr, dict):
+    sys.stdout.write("prflow_review is not a JSON object")
+    sys.exit(5)
+removed = []
+if "prflow_runner" in data:
+    del data["prflow_runner"]
+    removed.append("prflow_runner")
+if isinstance(pr, dict):
+    for k in ("require_up_to_date", "require_ci_green"):
+        if k in pr:
+            del pr[k]
+            removed.append("prflow_review." + k)
+if not removed:
+    sys.exit(4)
+tmp = path + ".tmp"
+try:
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\n")
+    os.replace(tmp, path)
+except Exception:
+    try:
+        os.remove(tmp)
+    except OSError:
+        pass
+    sys.stdout.write("could not rewrite the file")
+    sys.exit(2)
+sys.stdout.write(" ".join(removed))
+'
+# RETURN CODE, like devflow_disable_review_key: 0 = removed the settings, they were
+# already absent (exit 4), or there is no config to strip; 1 = could not be established —
+# no working python3, or a shape this cannot safely edit (malformed JSON, a non-object
+# top level, a non-object prflow_review, or a write failure), each named in the warning.
+# Runs on EVERY apply, never gated on --remove-withheld-review-tier: the settings are dead
+# in a fresh install whether or not the consumer keeps the tier itself.
+devflow_strip_withheld_review_settings() {
+  local rc diag
+  if [ ! -f .prflow/config.json ]; then
+    return 0   # nothing to strip
+  fi
+  if ! devflow_resolve_python; then
+    log "warning: no working python3 — could not strip the withheld review-tier settings (prflow_review.require_up_to_date/require_ci_green, prflow_runner) from .prflow/config.json; remove them by hand."
+    return 1
+  fi
+  rc=0
+  diag="$("$DEVFLOW_PY" -c "$DEVFLOW_STRIP_WITHHELD_PY" .prflow/config.json 2>/dev/null)" || rc=$?
+  case "$rc" in
+    0) log "removed the withheld review-tier settings ($diag) from .prflow/config.json"; return 0 ;;
+    4) return 0 ;;
+    *) log "warning: could not strip the withheld review-tier settings from .prflow/config.json ($diag); left the file untouched — remove them by hand."; return 1 ;;
+  esac
+}
 # INSTALL-TIME HALF of the #1041 silent-disable skew guard. The trigger-time ::error::
 # baked into both shipped workflows is the AUTHORITATIVE signal — it fires on every later
 # trigger and needs no installer run to reach the operator. This warns at the moment the
@@ -1577,6 +1652,14 @@ JSON
   #    the dry run hands over the real repository so its preview of the detection step
   #    matches what the apply would write.
   bash "$SRC/scripts/scaffold-config.sh" "$PWD" "$scan"
+
+  # 5a. Strip the withheld auto-review tier's dead config settings (issue #2071) on
+  #     every apply, independent of --remove-withheld-review-tier. scaffold-config.sh
+  #     above only backfills; this is the one step that DELETES, so a consumer stops
+  #     carrying settings nothing in a fresh install can read. Best-effort like the rest
+  #     of the apply: a fail-closed rc 1 (no python3 / unsafe shape) is already logged and
+  #     must not abort the whole install under set -e, so the non-zero is tolerated here.
+  devflow_strip_withheld_review_settings || true
 
   # 5b. Gitignore the runtime-vendored tree for thin installs (and un-ignore it for
   #     DEVFLOW_VENDOR=1, which commits it). Runs after scaffold so .prflow/.gitignore exists.
