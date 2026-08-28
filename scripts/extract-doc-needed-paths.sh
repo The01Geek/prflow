@@ -21,9 +21,9 @@
 #     list item, a bare blank-line-preceded `**…**` bold paragraph — the shape an
 #     LLM-drafted `## Implementation Notes` section, and the real issue #304 body,
 #     uses; issue #309 — OR a `### Documentation Needed` level-3 heading, issue
-#     #380) and the next peer item: for a list-item opener, a same-indentation list
-#     item closes even when its label is not bold; path-led deliverable items stay
-#     in scope. A top-level bold peer, the next `## ` heading, or (for a
+#     #380) and the next peer item: for a list-item opener, a same-indentation
+#     label-and-em-dash item closes even when its label is not bold. A top-level
+#     bold peer, the next `## ` heading, or (for a
 #     heading-opened scope) the next level-3+ heading also closes (or EOF).
 #     A `### Documentation Needed` heading only opens inside `## Implementation
 #     Notes`; a deeper `#### …` heading or a bullet that merely mentions the label
@@ -342,9 +342,10 @@ run_stage_a() {
     entered_section = 1
     state = ns
   }
-  # A list-item scope ends at its next same-level peer. Preserve the two explicit
-  # path-led deliverable-list shapes; indented items and wrapped lines stay nested.
-  state == 2 && list_scope && /^- / && $0 !~ /^- \*\*Documentation Needed\*\*/ && $0 !~ /^- (\*\*)?`/ {
+  # A list-item scope ends at its next same-level plain peer: the label-and-em-dash
+  # shape used by issue prose. Content list items, indented items, and wrapped lines
+  # remain inside the Documentation Needed scope.
+  state == 2 && list_scope && /^- [^`]* — / && $0 !~ /^- \*\*Documentation Needed\*\*/ {
     state = 1
     list_scope = 0
   }
