@@ -192,7 +192,7 @@ cmd_compare_and_restore() {
                 # `git status` prints nothing and would otherwise read as "clean, restore confirmed"
                 # (fail-open). `if !` fails closed — an unverifiable state is reported, never assumed OK.
                 if ! post_status=$(git status --porcelain -- "$p" 2>/dev/null) || [ -n "$post_status" ]; then
-                  echo "::warning::devflow review: path '$p' still dirty, or its post-restore state could not be confirmed (git status rc≠0), after restore attempt (e.g. an untracked or staged-new file the agent created — never auto-deleted; git said: ${restore_err:-none}) — left as-is for human inspection" >&2
+                  echo "::warning::devflow review: path '$p' still dirty after restore attempt, or its post-restore state could not be confirmed (git status rc≠0) (e.g. an untracked or staged-new file the agent created — never auto-deleted; git said: ${restore_err:-none}) — left as-is for human inspection" >&2
                 fi
               done < ".prflow/tmp/review-dirty-tree-changed-paths"
             fi
