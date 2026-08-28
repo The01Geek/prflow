@@ -4349,6 +4349,34 @@ if [ -d "$DT_MKS" ]; then
     "$(grep -qF 'working-tree snapshot not taken' "$DT_MKS_ERR" && echo yes || echo no)"
   rm -rf "$DT_MKS" "$DT_MKS_B" "$DT_MKS_ERR"
 fi
+# Case PR (#2082) — the post-restore confirmation read fails CLOSED on its OWN exit status: a
+# `git status --porcelain -- <path>` that ERRORS (rc≠0) must be reported as unverifiable, never
+# read as "clean, restore confirmed". A PATH-shimmed git fails only that per-path status call (the
+# one without `-z`, with a `--` pathspec) while letting the `-z` snapshots and `git checkout`
+# succeed. NON-VACUITY: the pre-fix fail-open form `[ -n "$(git status …)" ]` reads the errored
+# call's empty output as clean and emits NO breadcrumb, so this assertion goes RED against it.
+DT_PR="$(dt_make_repo)"
+if [ -d "$DT_PR" ]; then
+  DT_PR_B="$(probe_tmp "#2082 post-restore-confirm before")"; DT_PR_AF="$(probe_tmp "#2082 post-restore-confirm after")"
+  DT_PR_ERR="$(probe_tmp "#2082 post-restore-confirm stderr")"; DT_PR_BIN="$DT_PR/bin"; mkdir -p "$DT_PR_BIN"
+  git -C "$DT_PR" status --porcelain -z > "$DT_PR_B"
+  DT_PR_OID="$(git hash-object "$DT_PR_B")"
+  printf 'agent edit' > "$DT_PR/plain.txt"          # a real divergence, so the restore loop is reached
+  git -C "$DT_PR" status --porcelain -z > "$DT_PR_AF"
+  DT_REAL_GIT="$(command -v git)"
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'if [ "${1:-}" = status ]; then' \
+    '  for a in "$@"; do [ "$a" = "-z" ] && exec "$DT_REAL_GIT" "$@"; done' \
+    '  for a in "$@"; do [ "$a" = "--" ] && exit 3; done' \
+    'fi' \
+    'exec "$DT_REAL_GIT" "$@"' > "$DT_PR_BIN/git"
+  chmod +x "$DT_PR_BIN/git"
+  ( cd "$DT_PR" && PATH="$DT_PR_BIN:$PATH" DT_REAL_GIT="$DT_REAL_GIT" \
+      GIT_SNAP_BEFORE="$DT_PR_B" GIT_SNAP_AFTER="$DT_PR_AF" bash "$RDT" compare-and-restore "$DT_PR_OID" ) >/dev/null 2>"$DT_PR_ERR"
+  assert_eq "#2082 backstop: an unverifiable post-restore git status (rc≠0) fails closed with the distinct breadcrumb" "yes" \
+    "$(grep -qF 'post-restore state could not be confirmed (git status rc' "$DT_PR_ERR" && echo yes || echo no)"
+  rm -rf "$DT_PR" "$DT_PR_B" "$DT_PR_AF" "$DT_PR_ERR"
+fi
 # Case CE (#2082) — the cmp-error (rc>=2) branch fails CLOSED: when `cmp` cannot compare the two
 # snapshots it must NOT be read as "the tree diverged" and drive a restore off a comparison that
 # never succeeded. A PATH-shimmed `cmp` that exits 2 forces the error branch; nothing is restored
