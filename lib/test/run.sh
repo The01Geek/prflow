@@ -54353,6 +54353,16 @@ AF_NEITHER_OUT="$(python3 "$AF_LINT" --root "$AF_FX/neither" 2>&1)"; AF_NEITHER_
 assert_eq "#1124 lint: an enrolled site carrying neither form fails closed (stale inventory)" "1" "$AF_NEITHER_RC"
 assert_eq "#1124 lint: the neither-form report names the stale enrolled site" "yes" \
   "$(case "$AF_NEITHER_OUT" in *"carries NEITHER the anchor nor the vendored-literal"*) echo yes ;; *) echo no ;; esac)"
+# issue #2096: the two vendored subagent skills are cloud-review-reachable, so pin their
+# enrollment positively — a silent un-enrollment drops the matcher-denial backstop for the
+# final-pass reviewer and fix-loop skills while every tuple-derived check stays GREEN. Match the
+# (path, invocation-suffix) PAIR, as the #1557 sibling above does: the path alone would pass for a
+# row enrolling some other helper at this file.
+AF_INV_OUT="$(python3 "$AF_LINT" --print-inventory)"
+assert_eq "#2096 the anchor-fallback lint enrolls requesting-code-review's loader site" "yes" \
+  "$(printf '%s' "$AF_INV_OUT" | grep -qxF "$(printf 'skills/requesting-code-review/SKILL.md\tload-prompt-extension.sh requesting-code-review')" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the enrolled row carries the helper's literal argument as every sibling row does, so the ladder is checked per CALL SITE
+assert_eq "#2096 the anchor-fallback lint enrolls receiving-code-review's loader site" "yes" \
+  "$(printf '%s' "$AF_INV_OUT" | grep -qxF "$(printf 'skills/receiving-code-review/SKILL.md\tload-prompt-extension.sh receiving-code-review')" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- second cloud-review-reachable loader site enrolled by issue #2096
 
 # ── #1633 worktree-fence-shapes lint (lib/test/lint-worktree-fence-shapes.py) ─────
 # A worktree-isolated Claude Code session refuses a bash fence carrying command
