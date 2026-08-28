@@ -29491,9 +29491,9 @@ python3 "$CS_SCRIPT" --root "$CS_U" --date 2026-08-28 >/dev/null 2>&1
 assert_eq "#2070 CHANGELOG byte-identical marked vs unmarked" "$(cat "$CS_U/CHANGELOG.md")" "$(cat "$CS_M/CHANGELOG.md")"
 rm -rf "$CS_M" "$CS_U"
 
-# The .changeset/README.md documents the marked-changeset authoring contract (AC7).
-assert_eq "#2070 .changeset/README documents the customer-visible marker" "yes" \
-  "$(grep -qF 'customer-visible' "$FDROOT/.changeset/README.md" && echo yes || echo no)"
+# AC7 (.changeset/README.md states the marked-changeset authoring contract) is a prose
+# deliverable verified by the review pass, not a documentation-presence pin here — the
+# executable-evidence policy (#810) prohibits grepping README prose for a literal.
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "#1373 repo's own pending changesets validate against the consolidator's parser"
