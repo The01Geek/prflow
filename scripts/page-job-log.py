@@ -126,13 +126,15 @@ def main(argv):
     empty_window = start > total
     if empty_window:
         served_lines = []
-        served_first = served_last = 0
+        served = "empty"
+        line_cap = False
     else:
         clamp_end = min(end, total)
+        requested = clamp_end - start + 1
         window = all_lines[start - 1:clamp_end][:MAX_LINES]
         served_lines = window
-        served_first = start
-        served_last = start + len(window) - 1
+        served = f"{start}-{start + len(window) - 1}"
+        line_cap = requested > MAX_LINES
 
     char_cap = False
     out_lines = []
@@ -143,8 +145,6 @@ def main(argv):
             char_cap = True
         out_lines.append(san)
 
-    line_cap = (not empty_window) and (min(end, total) - start + 1) > MAX_LINES
-    served = "empty" if empty_window else f"{served_first}-{served_last}"
     header = (
         f"{PROG} job={job} total_lines={total} served={served} "
         f"count={len(out_lines)} "

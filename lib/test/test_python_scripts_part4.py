@@ -7118,8 +7118,8 @@ def _pjl_stub(counter_path, log_bytes=None, fail=False):
 
 def _run_pjl(argv, log_bytes=None, fail=False, cwd=None, stub=None, counter=None):
     """Run the helper in a fresh temp cwd with a stubbed gh. Returns
-    (rc, stdout, stderr, cwd, counter_path). Reuse a prior (cwd, stub, counter) to
-    exercise the cache path (a second call for the same job id)."""
+    (rc, stdout, stderr, cwd, counter_path, stub). Reuse a prior (cwd, stub, counter)
+    to exercise the cache path (a second call for the same job id)."""
     own_cwd = cwd is None
     if own_cwd:
         cwd = tempfile.mkdtemp(prefix='pjlcwd2098-')
