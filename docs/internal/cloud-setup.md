@@ -45,17 +45,21 @@ the comment.** A consumer can *additionally* opt into having that comment posted
 is **suppressed once that review has published its live `prflow:review-progress` comment** —
 the second run's `command` job is skipped and a notice naming the reason is
 posted — so a commit receives one review rather than several billed engine runs and
-duplicate verdicts. That published comment is the only in-flight signal, and it is seeded inside
-the peer's agent job (Phase 0.3.5), so a request arriving before the peer seeds it — a pre-seed
-window measured at 141 s on PR #1469 (2026-08-09) — is not suppressed and the detector fails
-open through it (issue #1479). The check is **commit-scoped** (issue #1010): the engine stamps the head it
-is reviewing into the progress comment it seeds, so a `/prflow:review` requested after pushing a
+duplicate verdicts. That published comment is the only in-flight signal. On the
+`devflow.yml` command tier it is now seeded by the `command` job **before the agent starts**
+(issue #2073), so it appears seconds into the job; a request arriving in the shrunken window
+before that seeding step runs is still not suppressed and the detector fails open through it
+(issue #1479, measured at 141 s on PR #1469 (2026-08-09) against the older agent-side seed;
+an installed workflow predating the seeding step keeps that agent-side timing). The check is
+**commit-scoped** (issue #1010): the head being reviewed is stamped into the seeded progress
+comment, so a `/prflow:review` requested after pushing a
 new commit — with the review of the *previous* commit still running — proceeds and reviews the
 new head. An in-flight review seeded before this change carries no such head and is never
 suppressed against.
-`devflow.yml`'s `review_dedupe` job detects the in-flight review from the review
-engine's own seeded live progress comment (`prflow:review-progress`, `🚀 Reviewing`,
-bot-authored, fresh) via the bundled `scripts/dedupe-review-command.sh` helper. It **fails
+`devflow.yml`'s `review_dedupe` job detects the in-flight review from the seeded live
+progress comment (`prflow:review-progress`, `🚀 Reviewing`, bot-authored, fresh) — written by
+the command job's seeding step or, as the fallback, by the review engine — via the bundled
+`scripts/dedupe-review-command.sh` helper. It **fails
 open** in every failure direction (a missed suppression only reproduces a recoverable
 double-comment; a wrong one would swallow a review you asked for), never suppresses a
 `/prflow:review-and-fix` or a `prflow:review-backstop` auto-resume, and does nothing when
@@ -112,9 +116,9 @@ writes changes into your repository, so download it, read it, then run the file 
 read:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.36.2/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.36.3/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.36.2 bash devflow-install.sh
+DEVFLOW_REF=v2.36.3 bash devflow-install.sh
 ```
 
 Both refs are pinned to the same **release tag**, so the install is reproducible.
