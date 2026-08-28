@@ -49321,7 +49321,7 @@ rm -rf "$D487"
 # hand-edited workflow — driven end to end and joined to the shipped workflow's own
 # trigger-time guard.
 if ! devflow_run_full_suite_module "$LIB/test/modules/installer-wiring.sh" \
-  "installer-wiring" 314; then
+  "installer-wiring" 315; then
   printf 'ERROR: installer-wiring boundary could not record its result\n'
   exit 1
 fi
