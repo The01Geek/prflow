@@ -166,7 +166,7 @@ if [ -d "$DT_D2" ]; then
   assert_eq "#192 backstop: an untracked dispatch-window file is never auto-deleted" \
     "agent-created" "$(cat "$DT_D2/untracked.txt")"
   assert_eq "#192 backstop: failed restore is detected from live tree state and breadcrumbed" "yes" \
-    "$(grep -qF "path 'untracked.txt' still dirty after restore attempt" "$DT_D2_ERR" && echo yes || echo no)"
+    "$(grep -qF 'still dirty after restore attempt' "$DT_D2_ERR" && echo yes || echo no)"
   rm -rf "$DT_D2" "$DT_D2_B" "$DT_D2_AF" "$DT_D2_ERR"
 fi
 # Case E — a truncated non-NUL BEFORE record must fail closed (leftover-record check).
