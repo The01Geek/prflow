@@ -21,24 +21,17 @@
 # lib/test/run.sh: those assert the review bundle's prose, not the helper's behaviour.
 
 REPO_ROOT="$LIB/.."
-# DEVFLOW_TEST_RDT_PATH lets a copy-based mutation-check point the battery at a mutated
-# copy of the helper (never the working-tree file in place); it defaults to the committed
-# helper, so an ordinary run is unaffected.
-RDT="${DEVFLOW_TEST_RDT_PATH:-$REPO_ROOT/scripts/review-dirty-tree.sh}"
+RDT="$REPO_ROOT/scripts/review-dirty-tree.sh"
 
 # Host-capability probe: several arms drive symlink-attack scenarios (a stale/raced
 # symlink at the snapshot path). A host that cannot create symlinks genuinely cannot run
 # those arms, so they route through module_host_capability_skip rather than a raw skip.
-# DEVFLOW_TEST_RDT_NO_SYMLINK forces the absent branch so the sanctioned-skip path can be
-# positive-controlled.
 _RDT_SYMLINK_OK=0
-if [ -z "${DEVFLOW_TEST_RDT_NO_SYMLINK:-}" ]; then
-  _rdt_probe="$(mktemp -d 2>/dev/null)" || _rdt_probe=""
-  if [ -n "$_rdt_probe" ] && ln -s target "$_rdt_probe/link" 2>/dev/null && [ -L "$_rdt_probe/link" ]; then
-    _RDT_SYMLINK_OK=1
-  fi
-  [ -n "$_rdt_probe" ] && rm -rf "$_rdt_probe"
+_rdt_probe="$(mktemp -d 2>/dev/null)" || _rdt_probe=""
+if [ -n "$_rdt_probe" ] && ln -s target "$_rdt_probe/link" 2>/dev/null && [ -L "$_rdt_probe/link" ]; then
+  _RDT_SYMLINK_OK=1
 fi
+[ -n "$_rdt_probe" ] && rm -rf "$_rdt_probe"
 
 # ── Helper existence + main() CLI dispatch (AC4: a malformed invocation never restores) ──
 assert_eq "#2082 backstop: the committed helper exists and is executable" "yes" \
