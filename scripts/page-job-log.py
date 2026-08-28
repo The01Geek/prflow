@@ -87,11 +87,9 @@ def main(argv):
     if len(argv) != 4:
         _usage_die()
     job, start_s, end_s = argv[1], argv[2], argv[3]
-    # `[0-9]` is ASCII-only (never a Unicode digit that would pass but make int() raise) and
-    # `-?` admits at most one leading dash, so a value accepted here always converts — a
-    # "--5" or a superscript "²" reaches _usage_die (exit 2) instead of raising
-    # ValueError out of int() below (which would exit 1 with a traceback, mis-signalling a
-    # download failure).
+    # ASCII-only `[0-9]` (never a Unicode digit int() rejects) with `-?` for at most one
+    # leading dash: a value accepted here always converts, so a malformed operand exits 2
+    # here rather than raising ValueError from int() below (exit 1 + traceback).
     if not (re.fullmatch(r"[0-9]+", job)
             and re.fullmatch(r"-?[0-9]+", start_s)
             and re.fullmatch(r"-?[0-9]+", end_s)):
@@ -129,13 +127,17 @@ def main(argv):
                 file=sys.stderr,
             )
             return 1
-        # A store-write failure must not leave the canonical stored file: write the temp
-        # then rename, and on any OSError exit 1 with a named cause (never a traceback).
+        # Write the temp then rename, so a store-write failure leaves no partial file at
+        # all — the temp is unlinked on any OSError, and exit 1 names the cause.
+        tmp = store_dir / f".job-log-{job}.log.partial"
         try:
-            tmp = store_dir / f".job-log-{job}.log.partial"
             tmp.write_bytes(proc.stdout)
             tmp.replace(stored)
         except OSError as exc:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
             print(f"{PROG}: could not write the log store for job {job}: {exc}",
                   file=sys.stderr)
             return 1
@@ -180,9 +182,19 @@ def main(argv):
         f"empty_window={'yes' if empty_window else 'no'} "
         f"stored={stored}"
     )
-    sys.stdout.write(header + "\n")
-    for ln in out_lines:
-        sys.stdout.write(ln + "\n")
+    try:
+        sys.stdout.write(header + "\n")
+        for ln in out_lines:
+            sys.stdout.write(ln + "\n")
+    except BrokenPipeError:
+        # A downstream reader closed the pipe (e.g. `| head`); the slice WAS served, so this
+        # is success, not a fetch failure. Redirect stdout to devnull so the interpreter's
+        # flush-on-exit does not re-raise, then exit 0.
+        try:
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        except OSError:
+            pass
+        return 0
     return 0
 
 

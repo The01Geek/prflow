@@ -7328,6 +7328,54 @@ assert_eq("#2098 gha fixture: tab-prefixed failing line served", True,
 assert_eq("#2098 gha fixture: ANSI in the real log is stripped", True, '\x1b' not in _out)
 assert_eq("#2098 gha fixture: tab prefixes preserved", True, 'build\tRun tests\t' in _out)
 
+# --- served-range header under line-cap truncation clamps to the served window ---
+_rc, _out, _err, _, _, _ = _run_pjl(['970', '1', '400'], log_bytes=_big)
+assert_eq("#2098 line-cap: served range names the truncated window (1-300)", '1-300',
+          _header_field(_out, 'served'))
+
+# --- OSC escape sequence stripped (a separate _ANSI_RE alternation branch) ---
+_osc = (b'\x1b]0;terminal-title\x07visible text\n')
+_rc, _out, _err, _, _, _ = _run_pjl(['971', '1', '1'], log_bytes=_osc)
+assert_eq("#2098 sanitize: OSC escape bytes removed", True, '\x1b' not in _out)
+assert_eq("#2098 sanitize: OSC-wrapped surrounding text survives", True, 'visible text' in _out)
+
+# --- a genuinely empty (0-line) log ---
+_rc, _out, _err, _, _, _ = _run_pjl(['972', '1', '5'], log_bytes=b'')
+assert_eq("#2098 empty log: exit 0", 0, _rc)
+assert_eq("#2098 empty log: total_lines=0", '0', _header_field(_out, 'total_lines'))
+assert_eq("#2098 empty log: labelled empty_window", 'yes', _header_field(_out, 'empty_window'))
+
+# --- store-guard exit-1 paths (the OSError guards, previously untested) ---
+# (a) DEVFLOW_GH points at a non-existent binary -> subprocess.run raises OSError -> exit 1.
+def _run_pjl_env(argv, gh):
+    cwd = tempfile.mkdtemp(prefix='pjlcwd2098g-')
+    p = _sp2098.run(
+        [sys.executable, str(_PJL)] + argv,
+        capture_output=True, encoding='utf-8', errors='replace',
+        env=dict(os.environ, DEVFLOW_GH=gh), cwd=cwd)
+    return p.returncode, p.stderr, cwd
+
+_rc, _err, _cwd = _run_pjl_env(['980', '1', '5'], '/nonexistent/gh-binary-2098')
+assert_eq("#2098 store-guard: non-executable DEVFLOW_GH -> exit 1", 1, _rc)
+assert_eq("#2098 store-guard: exit-1 breadcrumb names the GitHub CLI cause", True,
+          'GitHub CLI' in _err)
+assert_eq("#2098 store-guard: no stored file after the gh-run OSError", [],
+          [f for f in (os.listdir(os.path.join(_cwd, '.prflow', 'tmp'))
+                       if os.path.isdir(os.path.join(_cwd, '.prflow', 'tmp')) else [])
+           if 'job-log' in f and '980' in f])
+
+# (b) .prflow exists as a regular FILE, so store_dir.mkdir(.prflow/tmp) raises -> exit 1.
+_cwd_b = tempfile.mkdtemp(prefix='pjlcwd2098m-')
+open(os.path.join(_cwd_b, '.prflow'), 'w').close()  # a file where a dir is needed
+_pb = _sp2098.run(
+    [sys.executable, str(_PJL), '981', '1', '5'],
+    capture_output=True, encoding='utf-8', errors='replace',
+    env=dict(os.environ, DEVFLOW_GH=_pjl_stub(
+        os.path.join(_cwd_b, 'cnt'), log_bytes=b'x\n')), cwd=_cwd_b)
+assert_eq("#2098 store-guard: mkdir failure (.prflow is a file) -> exit 1", 1, _pb.returncode)
+assert_eq("#2098 store-guard: mkdir-failure breadcrumb names the log store", True,
+          'log store' in _pb.stderr)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
