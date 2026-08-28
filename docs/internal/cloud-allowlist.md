@@ -1122,7 +1122,14 @@ cause 1 — none below is, because none rewrites anything.
   and it is recorded with the rest of the fence; the 3 scratch-init writes the Write tool cannot reach
   either, because the `if !` compound reads each write's exit status to fail the restore closed on a
   scratch-allocation failure — the same exit-status dependency that disqualifies `| tee` for population C.
-  Recorded, not rewritten.
+  Recorded by the mechanical adjudication as above, and subsequently **rewritten in issue #2082**: the
+  whole snapshot/authenticate/compare/restore loop now lives in the committed helper
+  `scripts/review-dirty-tree.sh`, which the §3.1/§3.2 fences invoke by its granted vendored literal as a
+  leading token with literal arguments — no `${GIT_SNAP_*:-…}` expansion and no shell redirect, so this
+  population no longer teaches a denied shape. The `GIT_SNAP_BEFORE`/`GIT_SNAP_AFTER` seam moved inside the
+  helper, so the suite's per-test temp-path fixtures (the symlink-attack security tests included) keep
+  working, and the object ID that authorises the Phase 3.2 restore is passed to the helper as a literal
+  argument rather than substituted into the fence.
 - **B. `skills/implement/phases/phase-3-fix-loop.md` — the `--persist` stderr captures.** The two
   sites are `2>"$PERSIST_ERR"` and `2>>"$PERSIST_ERR"` (append), where `PERSIST_ERR=$(mktemp)` —
   **cause 2** (a `/tmp` target). Crucially, each statement *also* leads with the unexpanded

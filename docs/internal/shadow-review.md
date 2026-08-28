@@ -137,7 +137,9 @@ verification; it uses granted read-only history commands and reports the verific
 to the orchestrator instead.
 
 **The deterministic backstop (shared engine — the Phase 3 reference under `skills/review/phases/`,
-steps 3.1/3.2).** Independently of agent
+steps 3.1/3.2, which invoke the committed helper `scripts/review-dirty-tree.sh` — `snapshot` before
+the batch, `compare-and-restore <OID>` after — so the fences carry no `${GIT_SNAP_*:-…}` expansion or
+shell redirect the cloud matcher would deny; issue #2082).** Independently of agent
 compliance, the shared engine snapshots the tree with `git status --porcelain -z` immediately
 **before** the Phase 3.1 batch (into a temp file — `-z` output carries NUL bytes a bash `$(...)`
 variable cannot hold). The snapshot is a fixed repo-local `.prflow/tmp/` file so it survives
