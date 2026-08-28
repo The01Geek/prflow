@@ -15,6 +15,14 @@ python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports 
 
 #### Write the canonical draft, then run Step 3.5's two gates here
 
+**Append the provenance signature into the body first — before this first canonical write.** Ensure the shared provenance line for `/prflow:create-issue` is the body's last line before the canonical draft is written, so the run's *first* landed canonical-draft write already carries it — one staged write and one digest, not a second Step-4 append of the same line. Render it in its own fence, the same bare portable-anchor form every other bundled-helper call in this skill uses:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-pr-provenance-line.py --command /prflow:create-issue
+```
+
+Read the printed line from the tool result and make it the body's last line, appending it only when the body does not already carry it (so a re-bootstrap or a later Step 4 re-presentation leaves exactly one copy). The renderer returns the finished italic line (`_Generated via /prflow:create-issue (vX, <model>, <effort>)_`), so paste it verbatim — never add or strip the italics. If the renderer produces no readable output at all — a refusal, empty output, or a non-zero exit — OMIT the provenance line entirely (no line, no placeholder, no empty parenthetical), exactly as the pull-request-side call site does. Appending it after this write, or after creation, would land it outside the bytes the issue digest covers and read as tampering.
+
 Write the canonical draft as part of the run bootstrap, before Step 4's pause and regardless of whether a round is elected (the audit input, when a round is elected, is this draft file, not a hand-condensed copy). Write the current rendered draft title + body to the canonical draft file, reusing this run's `<slug>` and the identical Step 4 sub-step 2 recipe (resolve `MAIN_ROOT` with `resolve-main-root.sh` via the portable anchor, `mkdir -p "$MAIN_ROOT/.prflow/tmp/create-issue/<slug>"`, title as a top `# ` heading above the body). This is normally the run's first landed canonical-draft write, so it is the run's draft-root binding site (that procedure is directly below, not deferred to Step 4). Perform it through the Staged canonical-draft write shared procedure below; there is no delete-first step. Confirming the write landed is an observation you report to the tool: pass the procedure's `agree=` answer as `--write-landed yes|no` to `query-arm`, which decides the arm — confirm it explicitly from that `agree=` report, not from the absence of an error. Step 4 sub-step 2 keeps writing this same absolute path.
 
 Run the Verified-premise handle check on the bytes that write landed (Step 3.5's obligation, executed here as part of the run bootstrap, regardless of any election). Once the write is confirmed landed, run:
