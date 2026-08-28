@@ -77,6 +77,8 @@ Compare the claim against the source of truth. Report your verdict as JSON:
 - `source_authored_text` — some source-authored assertion in the verified scope (a comment, documentation line, test, example, or help string — the item's `source_excerpt` when present) is itself false. **This value takes precedence** whenever a source-authored assertion is false at the same time as a generated-wording mismatch.
 - `none` — nothing mismatches.
 
+Reporting `generated_claim_text` asserts the code is correct, which requires the property to be positively established (`property_proven: true` with file:line evidence); pairing `generated_claim_text` with `property_proven: false` is contradictory — do not emit that pair as a settled answer, as it draws exactly one re-ask.
+
 **Report the facts; never self-normalize.** You grade strictly (see Rules) and report these structured operands. Do **not** soften a FAIL to a PASS because the wording is merely inaccurate — an executable downstream helper owns that decision from your `property_proven` / `inaccuracy_scope` fields.
 
 ## Verdicts
