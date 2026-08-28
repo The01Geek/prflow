@@ -1,5 +1,5 @@
 {
-  "manifest_version": 29,
+  "manifest_version": 30,
   "readme": [
     "This manifest is the single source of truth for PRFlow's cloud capability policy:",
     "which tools/commands each execution tier (review, implement, command) may run.",
@@ -130,6 +130,7 @@
       "Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/workpad.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*)",
+      "Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/config-get.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*)",
@@ -194,6 +195,7 @@
       "Bash(.prflow/vendor/prflow/scripts/config-get.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/workpad.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*)",
+      "Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/reception-record.py:*)",
@@ -329,6 +331,7 @@
       "Bash(.prflow/vendor/prflow/scripts/config-get.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/workpad.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*)",
+      "Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/reception-record.py:*)",

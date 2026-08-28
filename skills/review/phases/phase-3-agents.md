@@ -8,31 +8,12 @@ Output: `Phase 3/4: Running review agents...`
 Dirty-tree backstop — snapshot before dispatch (mandatory). Review/analysis agents are advisory and must never modify the working tree. Independently of agent compliance, snapshot the working tree immediately before launching the Phase 3.1 batch — Phase 3.2 compares against it after the batch returns and restores any agent-introduced change:
 
 ```bash
-mkdir -p .prflow/tmp
-if rm -f "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" ".prflow/tmp/review-dirty-tree-disabled" 2>/dev/null &&
-   git status --porcelain -z > "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" &&
-   [ -f "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" ] &&
-   [ ! -L "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" ] &&
-   git hash-object "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}"; then
-  : # Snapshot captured to a NUL-delimited (`-z`) temp FILE — UNQUOTED paths, so a
-    # spaced/special filename is a real pathspec Phase 3.2 can restore (plain `--porcelain`
-    # C-quotes it — `"my file.txt"` — a silent `git checkout` no-op). `-z` NUL bytes can't
-    # live in a bash `$(...)` variable, so the snapshot is a file, not a variable.
-else
-  # Snapshot failed (index.lock, corrupt index, FS/OOM). Do NOT fall through with an empty
-  # baseline — an empty BEFORE reads every dirtied path as "agent-introduced" and authorizes
-  # `git checkout` against the orchestrator's OWN live edits. Fail closed: disable the backstop
-  # for this dispatch (3.2 short-circuits on the sentinel) with an attributable breadcrumb. A
-  # fixed repo-local sentinel survives the Agent-tool boundary; shell variables do not.
-  echo "::warning::devflow review: could not create a regular working-tree snapshot before dispatch (stale-path removal, git status, or regular-file validation failed); dirty-tree backstop DISABLED for this dispatch — no after-compare, no auto-restore" >&2
-  rm -f "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" 2>/dev/null
-  printf '%s\n' disabled > ".prflow/tmp/review-dirty-tree-disabled"
-fi
+.prflow/vendor/prflow/scripts/review-dirty-tree.sh snapshot
 ```
 
-Record the single object ID printed by `git hash-object` as `{GIT_SNAP_BEFORE_OID}` in orchestrator state (not a workspace file), and do not include it in any review-agent prompt. Phase 3.2 substitutes that exact value below. If none was established, treat the before-snapshot as failed and leave the sentinel in place; never invent or recover the value from agent-writable scratch after dispatch.
+The helper captures an authenticated NUL-delimited (`-z`) working-tree snapshot to a fixed repo-local file and prints its object ID on stdout; on a snapshot failure it writes the fixed repo-local disabled sentinel with a `::warning::` breadcrumb and prints no object ID. Record the single object ID printed by `git hash-object` as `{GIT_SNAP_BEFORE_OID}` in orchestrator state (not a workspace file), and do not include it in any review-agent prompt. Phase 3.2 substitutes that exact value below. If none was established, treat the before-snapshot as failed and leave the sentinel in place; never invent or recover the value from agent-writable scratch after dispatch.
 
-Execute the fence on every tier — the write-enabled `/prflow:review-and-fix` and `/prflow:implement` tiers and the Step 2.6 shadow pass included.
+Execute the fence on every tier — the write-enabled `/prflow:review-and-fix` and `/prflow:implement` tiers and the Step 2.6 shadow pass included. If this tier's permission matcher refuses the helper invocation (it produces no output at all), write `disabled` to the fixed repo-local sentinel file `.prflow/tmp/review-dirty-tree-disabled` with the runner's file-write tool and continue — Phase 3.2 then skips compare and restore exactly as it does on a snapshot failure, so the backstop is recorded as disabled rather than lost silently.
 
 Dispatch barrier. Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there; if your prompt carries no such block, collect every dispatch before the turn ends anyway.
 
@@ -223,163 +204,12 @@ The completeness critic is a finding-producing pass, not a verdict override: it 
 **Dirty-tree backstop — compare after dispatch (mandatory).** Before extracting findings, confirm the Phase 3.1 review-agent batch left the working tree unchanged. Compare against the fixed repo-local NUL-delimited snapshot file taken before dispatch; on any divergence the dispatch violated the advisory contract, so record it as a finding (never discard it silently) and restore only the snapshot-delta paths — those whose **path** was clean at snapshot time and became dirty during the dispatch window. The restore set is computed by **path column** (status prefix stripped from each `-z` record, not whole porcelain line): any path the orchestrator had **already** modified before dispatch is left to the human — its `git checkout` is never run even if an agent changes its status byte. **Residuals the backstop does NOT auto-restore:** (1) a **true rename/copy** (status `R`/`C`) — a staged rename needs index surgery to undo safely, so it is *surfaced* (named in a breadcrumb) but left for the human; (2) an agent's further edit to an **already-dirty path that does not change its status byte** — it produces an identical `-z` record, so the divergence test never fires and the path is never auto-restored. The Step 2.6 shadow + the post-shadow edit gate cover those residuals.
 
 ```bash
-# devflow:dirty-tree-compare BEGIN (the marked region is the complete compare/authenticate/
-# restore wrapper, extracted and exercised as one unit by the project's own test suite)
-mkdir -p .prflow/tmp
-if [ -f ".prflow/tmp/review-dirty-tree-disabled" ]; then
-  : # before-snapshot failed in 3.1 (already surfaced there); backstop disabled this dispatch
-elif [ ! -f "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" ] ||
-     [ -L "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" ]; then
-  echo "::warning::devflow review: the before-dispatch snapshot is missing or no longer a regular non-symlink file; dirty-tree verification SKIPPED this dispatch — possible scratch tampering, nothing auto-restored" >&2
-elif [ "$(git hash-object "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" 2>/dev/null)" != "{GIT_SNAP_BEFORE_OID}" ]; then
-  echo "::warning::devflow review: the before-dispatch snapshot no longer matches its orchestrator-held object ID; dirty-tree verification SKIPPED this dispatch — scratch integrity failure, nothing auto-restored" >&2
-elif ! rm -f "${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}" 2>/dev/null ||
-     ! git status --porcelain -z > "${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}" ||
-     [ ! -f "${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}" ] ||
-     [ -L "${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}" ]; then
-  # After-snapshot failed. Do NOT misattribute a git failure as an agent mutation or restore
-  # off an empty AFTER — surface a DISTINCT, attributable breadcrumb instead.
-  echo "::warning::devflow review: could not create a regular working-tree snapshot after the Phase 3.1 dispatch (stale-path removal, git status, or regular-file validation failed); dirty-tree verification SKIPPED this dispatch — this is NOT an agent mutation" >&2
-  rm -f "${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}" 2>/dev/null
-else
-  # Compare the two NUL-delimited (`-z`) snapshots. `cmp` rc: 0 identical, 1 differ, >=2 ERROR.
-  # An error must NOT be read as "the tree diverged" and drive a restore off a comparison that
-  # never succeeded — fail closed with a distinct, attributable breadcrumb.
-  cmp -s "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" "${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}"; cmp_rc=$?
-  if [ "$cmp_rc" -ge 2 ]; then
-    echo "::warning::devflow review: could not compare the before/after working-tree snapshots (cmp errored, rc=$cmp_rc); dirty-tree comparison SKIPPED this dispatch — this is NOT an agent mutation, nothing auto-restored" >&2
-  elif [ "$cmp_rc" -eq 1 ]; then
-    # The snapshots differ — the tree changed during the dispatch window. The restore set is
-    # computed BY PATH COLUMN (status prefix stripped from each `-z` record), NOT by whole
-    # record: a path the orchestrator had ALREADY modified before dispatch is never checked out
-    # even if an agent changed its status byte (` M f` -> `MM f`). Each `-z` record is `XY <path>`
-    # (NUL-terminated, UNQUOTED); a rename/copy emits TWO records — `R  <new>` then a bare `<old>`
-    # continuation — which the read loops consume rather than mis-stripping. The restore set is
-    # `paths in AFTER, absent from BEFORE, NOT rename/copy entries`; rename/copy entries are
-    # surfaced separately, never auto-restored (index surgery needed).
-    # devflow:dirty-tree-restore BEGIN (self-contained given the fixed before/after snapshot
-    # files and cwd=repo; extracted + exercised as one unit by the project's own test suite)
-    mkdir -p .prflow/tmp
-    # NOTE (portability): the membership test below is pure bash (an exact-string scan over an
-    # in-memory array), so this region carries NO GNU-only flag and no non-preflight PATH tool
-    # decides which paths get restored. The earlier rationale for keeping the region inline —
-    # that its NUL-mode membership test needed a GNU-only grep flag a committed helper under lib/
-    # or scripts/ could not carry — is therefore retired; relocating it is out of scope here, but
-    # the portability objection to doing so no longer applies.
-    rm -f ".prflow/tmp/review-dirty-tree-before-paths" ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
-    if ! printf '%s' '' > ".prflow/tmp/review-dirty-tree-before-paths" ||
-       ! printf '%s' '' > ".prflow/tmp/review-dirty-tree-changed-paths" ||
-       ! printf '%s' '' > ".prflow/tmp/review-dirty-tree-renamed-paths"; then
-      # Repo-local scratch allocation failed (quota/perms). Do NOT proceed: an unbuilt BEFORE
-      # membership set reports every path absent and fails OPEN (every dirty path, incl.
-      # the orchestrator's own edits, treated as newly-dirty and restored). Fail closed with a
-      # distinct breadcrumb and restore nothing.
-      echo "::warning::devflow review: could not allocate repo-local scratch files for the dirty-tree restore; dirty-tree restore SKIPPED this dispatch — this is NOT an agent mutation, nothing auto-restored" >&2
-      rm -f ".prflow/tmp/review-dirty-tree-before-paths" ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
-    else
-      # 1. BEFORE membership set: every path (incl. rename new + orig), prefix stripped and NUL-
-      #    delimited. `read -r -d ''` reads NUL records so a spaced/special path never splits.
-      #    Each path is collected BOTH into the repo-local scratch file (whose rc-checked writes
-      #    detect a scratch failure mid-loop) and into the `before_paths` array the AFTER pass
-      #    scans — building it here, once, keeps the AFTER pass free of a nested read loop that
-      #    would consume its own input. Indexed array + linear scan, never `declare -A`: the
-      #    associative form is bash 4+ and this region must run under bash 3.2.
-      before_extract_rc=0
-      before_orig=0
-      before_paths=()
-      rec=
-      while IFS= read -r -d '' rec; do
-        if [ "$before_orig" = 1 ]; then
-          before_orig=0
-          before_paths+=("$rec")
-          printf '%s\0' "$rec" >> ".prflow/tmp/review-dirty-tree-before-paths" || { before_extract_rc=$?; break; }
-          continue
-        fi
-        case "${rec:0:1}" in [RC]) before_orig=1 ;; esac   # index column (X) only: the two-record shape is emitted iff X is R/C
-        before_paths+=("${rec:3}")
-        printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-before-paths" || { before_extract_rc=$?; break; }
-      done < "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" || before_extract_rc=$?
-      [ -z "$rec" ] || before_extract_rc=65
-      if [ "$before_extract_rc" -ne 0 ]; then
-        echo "::warning::devflow review: could not extract the before-snapshot path set (rc=$before_extract_rc); dirty-tree restore SKIPPED this dispatch — nothing auto-restored" >&2
-      else
-        # 2. AFTER: rename/copy → surfaced-not-restored (renamed-paths file); a normal entry
-        #    classified by its BEFORE membership. Membership is a whole-record exact-string scan
-        #    over the `before_paths` array built above — `[ "$bp" = "${rec:3}" ]` compares the
-        #    complete path, so a spaced/newline/glob-character pathname matches itself and
-        #    nothing else, exactly as the NUL-delimited snapshot intends. TWO outcomes only:
-        #      present in BEFORE (already dirty) → never restore (left to the human);
-        #      absent from BEFORE → newly dirtied → restore set.
-        #    There is no third error outcome to fail closed on: the scan is bash builtins, so
-        #    unlike the external membership tool it replaced it cannot fail while the pipeline
-        #    keeps running and misreport "absent → restore" against a live orchestrator edit.
-        after_extract_rc=0
-        after_orig=0
-        rec=
-        while IFS= read -r -d '' rec; do
-          if [ "$after_orig" = 1 ]; then after_orig=0; continue; fi
-          case "${rec:0:1}" in   # index column (X) only: a rename/copy (X = R/C) emits the two-record shape
-            [RC]) printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-renamed-paths" || { after_extract_rc=$?; break; }; after_orig=1; continue ;;
-          esac
-          member=0
-          for bp in ${before_paths[@]+"${before_paths[@]}"}; do   # `${a[@]+…}` so an empty set is not an unbound-variable error under `set -u`
-            if [ "$bp" = "${rec:3}" ]; then member=1; break; fi
-          done
-          if [ "$member" -eq 1 ]; then
-            : # present in BEFORE (already dirty) → never restore
-          else
-            printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-changed-paths" || { after_extract_rc=$?; break; } # absent from BEFORE → newly dirtied → restore set
-          fi
-        done < "${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}" || after_extract_rc=$?
-        [ -z "$rec" ] || after_extract_rc=65
-        if [ "$after_extract_rc" -ne 0 ]; then
-          echo "::warning::devflow review: could not extract the after-snapshot restore set (rc=$after_extract_rc); dirty-tree restore SKIPPED this dispatch — nothing auto-restored" >&2
-        else
-          RENAMED_NAMES=$(tr '\0' ' ' < ".prflow/tmp/review-dirty-tree-renamed-paths")
-          if [ ! -s ".prflow/tmp/review-dirty-tree-changed-paths" ]; then
-            if [ -n "$RENAMED_NAMES" ]; then
-              # The only divergence is a rename/copy: surfaced, never auto-restored (index surgery needed).
-              echo "::warning::devflow review: a Phase 3.1 review-agent dispatch renamed/copied tracked path(s) [ ${RENAMED_NAMES}]; not auto-restored (a staged rename needs index surgery) — left for the Step 2.6 shadow and the human" >&2
-            else
-              # Divergence with an EMPTY restore set and no rename — the cause cannot be determined
-              # here (`cmp` cannot distinguish an already-dirty path's status-byte change from a
-              # dirty->clean / removed-path transition). Nothing auto-restored.
-              echo "::warning::devflow review: a Phase 3.1 review-agent dispatch diverged the working tree but the by-path restore set is empty (an already-dirty path's status byte changed, or a dirty->clean transition — the cause cannot be determined here); nothing auto-restored — left for the Step 2.6 shadow and the human" >&2
-            fi
-          else
-            # The changed-paths file holds the snapshot delta (paths clean at snapshot, now dirty,
-            # non-rename), NUL-delimited and UNQUOTED so a spaced/special path is a real pathspec.
-            # Restore is best-effort, per-path, fed via `read -r -d ''` so a special-char pathname
-            # never word-splits. Restore from HEAD (NOT `git checkout -- "$p"`, which restores from
-            # the INDEX and re-materializes a STAGED agent mutation while exiting 0 — a fail-open).
-            # Then trust the TREE STATE, not the exit code: re-run `git status --porcelain -- "$p"`
-            # and emit the per-path breadcrumb iff STILL dirty, so an untracked or staged-new file
-            # the agent created is surfaced per-path and never falsely reported as restored.
-            CHANGED_NAMES=$(tr '\0' ' ' < ".prflow/tmp/review-dirty-tree-changed-paths")
-            echo "::warning::devflow review: a Phase 3.1 review-agent dispatch modified the working tree (advisory review agents must never mutate it); affected paths: [ ${CHANGED_NAMES}]${RENAMED_NAMES:+ (plus surfaced-not-restored rename/copy: [ ${RENAMED_NAMES}])}; recording an Important finding and attempting best-effort restore of the snapshot delta (per-path outcome in the warnings below)" >&2
-            while IFS= read -r -d '' p; do
-              [ -n "$p" ] || continue
-              restore_err=$(git checkout HEAD -- "$p" 2>&1)
-              if [ -n "$(git status --porcelain -- "$p")" ]; then
-                echo "::warning::devflow review: path '$p' still dirty after restore attempt (e.g. an untracked or staged-new file the agent created — never auto-deleted; git said: ${restore_err:-none}) — left as-is for human inspection" >&2
-              fi
-            done < ".prflow/tmp/review-dirty-tree-changed-paths"
-          fi
-        fi
-      fi
-      rm -f ".prflow/tmp/review-dirty-tree-before-paths" ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
-    fi
-    # devflow:dirty-tree-restore END
-  fi
-  # cmp_rc == 0: the snapshots are identical — nothing changed during the dispatch window.
-  rm -f "${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}" 2>/dev/null
-fi
-# Clean up fixed repo-local snapshot state after the dispatch.
-rm -f "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" ".prflow/tmp/review-dirty-tree-disabled" 2>/dev/null
-# devflow:dirty-tree-compare END
+.prflow/vendor/prflow/scripts/review-dirty-tree.sh compare-and-restore {GIT_SNAP_BEFORE_OID}
 ```
 
-When this fires (the non-empty changed-paths branch), add an Important finding to the Phase 3 findings set — attributed to the Phase 3.1 review-agent dispatch, naming the affected paths (`CHANGED_NAMES`) it attempted to restore (best-effort; an untracked or staged-new file it could not restore is named in its own per-path warning) — carrying a `defect_signature` (`kind: "other"`, `file` the first affected path) so it flows through Phase 4 aggregation. A true rename/copy (status `R`/`C`) is surfaced-not-restored: named in the aggregate breadcrumb's `surfaced-not-restored rename/copy` list (`RENAMED_NAMES`), left for the human.
+The recorded `{GIT_SNAP_BEFORE_OID}` is passed as the helper's literal argument — the value that authorizes a restore is held by the orchestrator, never read from agent-writable scratch. The helper short-circuits on the disabled sentinel (a refused or failed snapshot), authenticates the before-snapshot against that object ID, captures the after-snapshot the same way, compares the two `-z` snapshots, and restores only the snapshot-delta paths — those clean at snapshot time and dirty after dispatch — surfacing a rename/copy without restoring it and never touching a path the orchestrator had already modified. If this helper invocation is itself refused by the matcher, skip compare and restore for this dispatch.
+
+When the helper reports a working-tree modification (its `modified the working tree` breadcrumb names the affected paths it attempted to restore), add an Important finding to the Phase 3 findings set — attributed to the Phase 3.1 review-agent dispatch, naming those affected paths, carrying a `defect_signature` (`kind: "other"`, `file` the first affected path) so it flows through Phase 4 aggregation. A true rename/copy (status `R`/`C`) is surfaced-not-restored in the helper's `surfaced-not-restored rename/copy` breadcrumb, left for the human.
 
 Collect all agent responses. Extract findings, their severity labels (Critical, Important/Major, Suggestion/Minor), and their `defect_signature` blocks. If the Phase 3.1.5 completeness-critic pass ran and produced a finding, include it here as a single-source finding (flag it like any N=1 finding); it carries a `defect_signature`, so it corroborates mechanically with any agent independently flagging the same coverage gap.
 
