@@ -160,7 +160,7 @@ Scope the summary line's final-byte phrase to the body, and report the record's 
      python3 -c 'import sys; print(len(open(sys.argv[1],"rb").read()))' "<record-file>"
      ```
 
-     When that count exceeds 65536, truncate the folded blocks — the criterion disposition record, the steelman record, and the evidence bundle, largest first, never the line-1 marker — until the body fits, name each block that was truncated inside the posted comment, and re-write the file so the neutralization check below runs over the truncated bytes.
+     When that count exceeds 65536 — or cannot be established at all (no readable output from the measurement), which fails closed toward a postable comment — truncate the folded blocks — the criterion disposition record, the steelman record, and the evidence bundle, largest first, never the line-1 marker — until the body fits, name each block that was truncated inside the posted comment, and re-write the file so the neutralization check below runs over the truncated bytes. Failing closed here keeps the record postable rather than losing it to a refused over-limit POST followed by the 5d cleanup.
 
      Verify neutralization mechanically before posting — do not trust the hand-rewrite alone. After writing the file, run this one status-preserving check:
 
