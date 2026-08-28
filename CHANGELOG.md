@@ -4,6 +4,12 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.9] — 2026-08-28
+
+### Changed
+- **`verification-flight.py claim --help` is now the single source of the declaration example.** The claim help epilog renders a complete, copyable declaration (built from the required-key constants so it cannot drift from the validator) plus the four constraints the validator enforces but the help never stated — `schema_version` is the integer 1, `external_services` must be `"none"`, the four checkout object-id fields are lowercase hex (length 40 for SHA-1, 64 for SHA-256) from `checkout-fingerprint.py`, and `candidate_identity` comes from `reception-record.py`. `checkout-fingerprint.py` gains a minimal argument parser: `--help` describes its five fingerprint fields and their ledger relationship instead of printing a fingerprint, an unrecognized argument is refused, and the no-argument path is unchanged. The duplicated JSON template in the implement phase file is replaced by a pointer to the help output. (#2108)
+- **Record the Phase 4.1.5 inertness enumeration and require it before the self-contradicting-diff carve-out fires.** The review engine now writes a structured inertness annotation (`first-conjunct`/`limb-one`/`limb-two` dispositions plus an evidence clause) on every finding the Phase 4.1.5 behavior-inert prose cap evaluates, and Phase 4.2 treats that annotation as a precondition for a carve-out REJECT — a carve-out candidate lacking it triggers the enumeration on the spot rather than defaulting to the harsher outcome invisibly. The fail-closed routing is unchanged; the record only makes a skipped enumeration auditable in the posted report. (#2105)
+
 ## [2.36.8] — 2026-08-28
 
 ### Fixed
