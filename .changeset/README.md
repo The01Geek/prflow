@@ -22,7 +22,7 @@ type: Fixed
 ---
 
 - **One-line summary of the change.** A short paragraph of Keep-a-Changelog prose describing
-  what changed and why, ending with the PR citation. (#290)
+  what changed and why, ending with the issue or PR citation. (#290)
 ```
 
 ### Frontmatter
@@ -56,8 +56,8 @@ only, no release-notes entry — and keeps today's maintainer-register contract.
 ### Body
 
 Everything after the closing `---` is the changelog prose, copied verbatim into the entry.
-Write it as one or more `-` bullets and cite the PR number (`(#123)`) so the assembled
-CHANGELOG entry stays PR-cited.
+Write it as one or more `-` bullets and cite the issue or PR number (`(#123)`) so the assembled
+CHANGELOG entry stays cited.
 
 ## What happens on merge
 
@@ -70,7 +70,7 @@ When your PR merges to `main`, the `version-consolidate` GitHub Action
    the run loudly rather than being silently skipped),
 2. bumps `plugin.json`'s `version` by the **highest** pending bump type (patch < minor < major)
    — one increment even when several changesets are pending,
-3. prepends a dated, PR-cited Keep-a-Changelog entry assembled from all the pending prose, and
+3. prepends a dated, issue- or PR-cited Keep-a-Changelog entry assembled from all the pending prose, and
 4. deletes the consumed changeset files.
 
 The workflow then stages those changes and commits them back to `main` with a

@@ -17,10 +17,13 @@ FAILs on an engine-surface change that carries **no** changeset file.
 issue's body explicitly authorizes the larger step — never infer one from the change's size or
 feature-ness.
 
-**Write it after the draft PR exists but before the review pass**, named after the branch or issue
-(e.g. `issue-290-<slug>.md`) so it never collides with a concurrent PR's. That way the prose can
-cite the PR number and the changeset lands inside the diff `/simplify` and `/prflow:review-and-fix`
-review; record the increment decision in the workpad so it survives context compaction.
+**Write it during Phase 2, before the §2.3 prose sweeps run**, named after the issue
+(e.g. `issue-<N>-<slug>.md`) so it never collides with a concurrent PR's. That way the prose cites
+the issue number and the §2.3.4b sweep grades the changeset as an ordinary new file; record
+the increment decision in the workpad so it survives context compaction. A run that reaches the
+Phase 3 existence gate with no changeset — a compacted context that lost this policy, or a change
+whose consumer-facing nature surfaced late — writes it there instead and runs the same §2.3.4b
+leg-2 stale-prose check, with its three-outcome recording, over the new file before committing it.
 
 **Commit-message contract (load-bearing — do not drift).** The merge-time consolidation commit's
 subject begins with the literal `chore: bump version`, and `skills/docs-release-notes/SKILL.md`
@@ -32,8 +35,8 @@ a coupling pin in `lib/test/run.sh`.
 
 **Step 4b legitimately no-ops during `/prflow:implement`.** The bump commit is created at merge
 time on `main` rather than on the feature branch, so its `origin/main..HEAD` scan finds none — here
-CHANGELOG correctness rests on the in-diff changeset prose, which the Phase 2.3.4a self-claim sweep
-and Phase 4.2 keep aligned with the shipped diff.
+CHANGELOG correctness rests on the in-diff changeset prose, which the Phase 2 §2.3.4b coverage-claim
+sweep and Phase 4.2 keep aligned with the shipped diff.
 
 ## The project's preflight-guaranteed tool set (for §2.3.6's un-guaranteed-tool sweep)
 

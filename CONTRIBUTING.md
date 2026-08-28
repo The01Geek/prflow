@@ -914,7 +914,7 @@ resolve the portable `${CLAUDE_SKILL_DIR:-…}` anchor at runtime.
    `skills/`, `agents/`, `lib/`, `scripts/`, the workflows, the config schema), add a
    **changeset** instead of editing `CHANGELOG.md` or `.claude-plugin/plugin.json`: create a
    uniquely-named `.changeset/<slug>.md` with a `bump: patch|minor|major` frontmatter key and
-   your Keep-a-Changelog prose (PR-cited). See [`.changeset/README.md`](.changeset/README.md).
+   your Keep-a-Changelog prose (issue- or PR-cited). See [`.changeset/README.md`](.changeset/README.md).
    Internal-only changes (tests, CI, dev-only docs) need no changeset.
 3. Be kind in review (see `CODE_OF_CONDUCT.md`).
 
@@ -925,7 +925,7 @@ or the top of `CHANGELOG.md`. Each PR adds a `.changeset/*.md`; when it merges t
 `version-consolidate` GitHub Action (`.github/workflows/version-consolidate.yml`),
 running `scripts/consolidate-changesets.py`, bumps
 `.claude-plugin/plugin.json` by the **highest**
-pending bump type, prepends one dated, PR-cited CHANGELOG entry assembled from all the pending
+pending bump type, prepends one dated, issue- or PR-cited CHANGELOG entry assembled from all the pending
 prose, deletes the consumed changesets, and commits to `main` with a `chore: bump version`
 subject. A malformed changeset fails the Action loudly; with no pending changesets it is a
 clean no-op. Cadence stays per-merge — every merged *engine-surface* change (one carrying a
