@@ -1,0 +1,8 @@
+{
+  "pairs": [
+    {
+      "item": {"id": "VC-CIA", "category": "issue_acceptance", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "response_text": "```json\n{\"id\": \"VC-CIA\", \"verdict\": \"FAIL\", \"evidence\": \"criterion not satisfied\", \"property_proven\": false, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
+    }
+  ]
+}
