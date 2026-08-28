@@ -17,6 +17,7 @@ Tune `/prflow:implement` behavior and coordinate verification when multiple agen
 | `prflow_implement.stall_backstop.max_resume_attempts` | Integer zero or greater | `2`; invalid values use `2` | Cloud implementation. `0` detects and fails without resuming. Each resume can incur another run. | `"max_resume_attempts": 2` |
 | `prflow.attribute_commits_to_triggerer` | Boolean | Runtime and scaffold: `false` | Cloud writer jobs. Applies only to verified human users and changes Git metadata, not the push credential. Trigger-time and post-merge-only. | `"attribute_commits_to_triggerer": true` |
 | `verification_flight.enabled` | Boolean | `true` | Local implementation and inline review-and-fix. Disabling reuse does not turn a missing or stale record into a pass. | `"enabled": true` |
+| `status_labels.enabled` | Boolean | `true`; only the JSON boolean `false` or the string `"false"` disables | Local and cloud implementation. Mirrors the run's status onto one managed label — `PRFlow:Implementing`, `PRFlow:Stuck` or `PRFlow:Complete` — on the issue and its open pull request, so a running or stalled run is visible from the issue and pull-request lists. Best-effort: label errors never change a run's outcome, and unmanaged labels are left in place. | `"status_labels": { "enabled": true }` |
 
 <Note>
   `prflow_implement.effort` has no default in the schema, so the scaffolded value and the fallback differ. `/prflow:init` writes `"effort": "low"`. When the key is absent, the shipped implementation workflow resolves it to `high`, the same fallback `prflow.effort` uses. Removing the key raises effort rather than lowering it.
@@ -56,8 +57,15 @@ Provider and model overrides for implementation are documented in [Model Provide
     "enabled": true,
     "lease_seconds": 900,
     "wait_timeout_seconds": 600
+  },
+  "status_labels": {
+    "enabled": true
   }
 }
 ```
 
-Expected result: an implementation run works at low effort, keeps the feature branch current with the base branch at checkpoints, publishes the finished pull request for review and resumes at most twice if a cloud run stalls.
+Expected result: an implementation run works at low effort, keeps the feature branch current with the base branch at checkpoints, publishes the finished pull request for review, resumes at most twice if a cloud run stalls, and keeps a `PRFlow:Implementing` / `PRFlow:Stuck` / `PRFlow:Complete` status label in sync on the issue and its pull request.
+
+<Note>
+  `status_labels.enabled` creates the three managed labels in your repository on first use and matches them by exact name, so your bare `PRFlow` provenance label and any other labels are never touched. Because the label follows the workpad status automatically — including the statuses written after the agent has stopped — a stalled run shows `PRFlow:Stuck` in the issue list without anyone opening the ticket. Set it to `false` (or the string `"false"`) to keep exactly today's behavior, applying no labels.
+</Note>

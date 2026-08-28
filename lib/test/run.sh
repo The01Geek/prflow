@@ -6996,8 +6996,12 @@ print('yes' if si and ii and ni and si[0]<ni[0]<ii[0] else 'no')
 # The tuple ends in 🛑 (🛑 Cancelled, issue #498); 💥 is no longer the last element.
 assert_eq "#356: workpad.py _STATUS_GLYPHS includes 💥 and 🛑 (extended tuple)" "yes" \
   "$(grep -q "💥.*🛑')" "$WP_PY" && echo yes || echo no)"
+# The negative grep matches the _STATUS_TO_PROGRESS_PHASE form `'failed': '<phase>'`
+# (a quoted phase-label value), NOT a `'failed':` key mapped to a bare identifier
+# such as _STATUS_CLASS_TO_LABEL's `'failed': _STATUS_LABEL_STUCK` (issue #2117) —
+# broadening it back to `'failed':` re-fails on that unrelated status-class map.
 assert_eq "#356: workpad.py maps 'failed' → 💥 (write path) and leaves it out of _STATUS_TO_PROGRESS_PHASE" "yes" \
-  "$(grep -q "return '💥'" "$WP_PY" && ! grep -q "'failed':" "$WP_PY" && echo yes || echo no)"
+  "$(grep -q "return '💥'" "$WP_PY" && ! grep -q "'failed': '" "$WP_PY" && echo yes || echo no)"
 
 # ── flip-review-progress-failed.sh unit tests ─────────────────────────────────
 FLIP_SH="$LIB/../scripts/flip-review-progress-failed.sh"

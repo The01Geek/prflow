@@ -89,6 +89,9 @@
   "deferred": {
     "labels": "PRFlow,Deferred"
   },
+  "status_labels": {
+    "enabled": true
+  },
   "telemetry": {
     "enabled": true,
     "branch": "prflow-telemetry"
