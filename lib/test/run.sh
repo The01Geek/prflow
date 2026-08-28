@@ -37727,8 +37727,8 @@ assert_eq "#363 the duplicate fixture would otherwise pass vacuously (first line
 RUNNER_YML="$LIB/../.github/workflows/devflow-runner.yml"
 DEVFLOW_YML="$LIB/../.github/workflows/devflow.yml"
 DDC_SH="$LIB/../scripts/describe-denial-count.sh"
-for _g363 in 'Bash(mkdir:*)' 'Bash(tee:*)' 'Bash(git cat-file:*)' 'Bash(git hash-object:*)' 'Bash(git checkout:*)' \
-             'Bash(mktemp:*)' 'Bash(cmp:*)' 'Bash(rm -f:*)'; do
+for _g363 in 'Bash(mkdir:*)' 'Bash(tee:*)' 'Bash(git cat-file:*)' 'Bash(git hash-object:*)' \
+             'Bash(mktemp:*)' 'Bash(rm -f:*)'; do
   assert_pin_unique "#363 review profile grants $_g363" "$_g363" "$RUNNER_YML"
 done
 # The manual /devflow:review comment path runs the SAME skill under devflow.yml's
@@ -37833,7 +37833,6 @@ done
 {
   printf '%s\n' '```bash'
   printf '%s\n' 'git cat-file -e "$REJECTED_HEAD"'
-  printf '%s\n' 'git checkout HEAD -- "$p"'
   printf '%s\n' 'git merge-base --is-ancestor "$REJECTED_HEAD" "$PR_HEAD_SHA"'
   printf '%s\n' 'git rev-parse HEAD'
   printf '%s\n' 'gh pr comment 1 --body "$REPORT"'
@@ -37851,7 +37850,7 @@ done
 # list down to one word, so the 2-word `Bash(gh api:*)` spec still grants it (proven by the
 # two `ungranted` assertions below returning empty against the real allowlists).
 assert_eq "#363 the explicit prose-head floor yields exactly its pinned head set (anti-vacuity)" \
-  "gh api --paginate gh pr comment git cat-file git checkout git merge-base git rev-parse jq rg" \
+  "gh api --paginate gh pr comment git cat-file git merge-base git rev-parse jq rg" \
   "$(python3 "$ECH" heads "$E363/prose-heads.md" | tr '\n' ' ' | sed 's/ *$//')"
 for _w363 in "$RUNNER_YML" "$DEVFLOW_YML"; do
   assert_eq "#363 $(basename "$_w363")'s TOOLS grant covers the explicit prose-head floor" "" \
