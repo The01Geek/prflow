@@ -1151,12 +1151,21 @@ _UPDATE_ISSUE_URL = 'https://api.github.com/repos/owner/repo/issues/999'
 def _drive_cmd_update(body, patch_fails=False, patch_response=None,
                       id_response=None, fail_at=None,
                       seed_cache_id=None, verify_fails=False, verify_response=None,
-                      cache_dir=None, **arg_overrides):
+                      cache_dir=None, keep_status_label_mirror=False, **arg_overrides):
     global _LAST_GH_CALLS
     _LAST_GH_CALLS = []
     marker = '<!-- devflow:workpad -->'
     saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
-             workpad._workpad_id_cache_path, workpad._workpad_buffer_path)
+             workpad._workpad_id_cache_path, workpad._workpad_buffer_path,
+             workpad._mirror_status_labels)
+    # Issue #2117: the status-label mirror fires on every `--status` update. It is a
+    # best-effort absorber whose own coverage is driven directly (the #2117 block
+    # below), so by default this harness stubs it to a no-op — otherwise every
+    # status-bearing drive would issue label API calls through this stub's `_run`,
+    # polluting _LAST_GH_CALLS. A caller that IS testing the mirror's call-site
+    # integration passes keep_status_label_mirror=True and installs its own stub.
+    if not keep_status_label_mirror:
+        workpad._mirror_status_labels = lambda _issue, _status: None
     # Retained for compatibility though the update path no longer calls it: a stub
     # that still answered `gh repo view` would let a regression re-introducing the
     # call pass silently, so we DON'T stub _run to answer it (a repo-view call now
@@ -1231,7 +1240,8 @@ def _drive_cmd_update(body, patch_fails=False, patch_response=None,
         code = e.code
     finally:
         (workpad._run, workpad._repo_full, workpad._workpad_marker,
-         workpad._workpad_id_cache_path, workpad._workpad_buffer_path) = saved
+         workpad._workpad_id_cache_path, workpad._workpad_buffer_path,
+         workpad._mirror_status_labels) = saved
         if _owns_cache_dir:
             shutil.rmtree(_cache_dir, ignore_errors=True)
     return code, out.getvalue(), err.getvalue(), state['patched']
@@ -21373,6 +21383,322 @@ assert_eq('#2029 frozen records still read back their constructed values',
           ('ruff', 'linux', 'x86_64', 'verified', True, 1),
           (_vlm_ctl_ar.tool, _vlm_ctl_ar.os, _vlm_ctl_ar.arch,
            _vlm_ctl_ar.status, _vlm_ctl_vr.ok, len(_vlm_ctl_vr.results)))
+
+# ── issue #2117: mirror the workpad Status onto issue/PR labels ───────────────
+print("issue #2117: status-label mirror")
+
+# AC2: the managed label set is exactly the three constants (complete by construction).
+assert_eq("#2117 AC2: managed label set is exactly the three constants",
+          frozenset({'PRFlow:Implementing', 'PRFlow:Stuck', 'PRFlow:Complete'}),
+          workpad._MANAGED_STATUS_LABELS)
+# AC18: the status vocabulary is unchanged (value-pinned to today's values).
+assert_eq("#2117 AC18: _STATUS_GLYPHS unchanged",
+          ('🚀', '🎉', '👎', '💥', '🛑'), workpad._STATUS_GLYPHS)
+assert_eq("#2117 AC18: _TERMINAL_STATUS_CLASS_BY_GLYPH unchanged",
+          {'🎉': 'complete', '👎': 'blocked', '💥': 'failed', '🛑': 'cancelled'},
+          workpad._TERMINAL_STATUS_CLASS_BY_GLYPH)
+assert_eq("#2117 AC18: _STATUS_TO_PROGRESS_PHASE unchanged",
+          {'setup': 'Setup', 'discovering': 'Implement', 'reproducing': 'Implement',
+           'planning': 'Implement', 'implementing': 'Implement', 'reviewing': 'Review',
+           'documenting': 'Documentation', 'complete': 'PR marked ready'},
+          workpad._STATUS_TO_PROGRESS_PHASE)
+
+# AC3: each status class maps to one managed label, driven word-by-word over the
+# closed set of status words the workpad accepts (all 7 in-progress words share
+# the interim class; blocked/failed/cancelled share Stuck; complete is Complete).
+_STATUS_LABEL_BY_WORD = {
+    'Setup': 'PRFlow:Implementing', 'Discovering': 'PRFlow:Implementing',
+    'Reproducing': 'PRFlow:Implementing', 'Planning': 'PRFlow:Implementing',
+    'Implementing': 'PRFlow:Implementing', 'Reviewing': 'PRFlow:Implementing',
+    'Documenting': 'PRFlow:Implementing',
+    'Blocked': 'PRFlow:Stuck', 'Failed': 'PRFlow:Stuck', 'Cancelled': 'PRFlow:Stuck',
+    'Complete': 'PRFlow:Complete',
+}
+for _word, _lbl in _STATUS_LABEL_BY_WORD.items():
+    assert_eq(f"#2117 AC3: status {_word!r} -> {_lbl}", _lbl,
+              workpad._STATUS_CLASS_TO_LABEL[
+                  workpad._status_class(workpad._status_glyph(_word))])
+
+
+def _mk_label_gh(*, issue=42, issue_labels, pr_labels=None, pr_number=101,
+                 defined=None, add_undefined_raises=True, delete_404_labels=(),
+                 all_fail=False):
+    """A recording fake gh `_run` for the status-label mirror. `defined` is the
+    set of label names the repo defines; adding an undefined label RAISES (the
+    issue's proven premise) when add_undefined_raises. Returns (run, state)."""
+    _pr_labels = list(pr_labels) if pr_labels is not None else []
+    state = {
+        'calls': [],
+        'labels': {str(issue): list(issue_labels), str(pr_number): _pr_labels},
+        'defined': set(defined) if defined is not None
+                   else set(issue_labels) | set(_pr_labels),
+        'creates': [],
+    }
+
+    def _endpoint(cmd):
+        return next((t for t in cmd if isinstance(t, str) and t.startswith('repos/')), '')
+
+    def _method(cmd):
+        return cmd[cmd.index('-X') + 1] if '-X' in cmd else 'GET'
+
+    def _fields(cmd):
+        return [cmd[i + 1] for i, t in enumerate(cmd) if t == '-f' and i + 1 < len(cmd)]
+
+    def _run(cmd, **kw):
+        if len(cmd) > 1 and cmd[1] == 'pr':          # _resolve_open_pr_for_issue
+            if pr_number is None:
+                return _FakeRun('[]')
+            return _FakeRun(_json.dumps([{
+                'number': pr_number,
+                'closingIssuesReferences': [{'number': int(issue)}],
+                'createdAt': '2026-01-01T00:00:00Z'}]))
+        ep, method = _endpoint(cmd), _method(cmd)
+        state['calls'].append((method, ep, _fields(cmd)))
+        if all_fail:
+            raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 500 forced')
+        if method == 'POST' and ep.endswith('/labels') and '/issues/' not in ep:
+            name = next((f.split('=', 1)[1] for f in _fields(cmd)
+                         if f.startswith('name=')), '')
+            state['defined'].add(name)
+            state['creates'].append(name)
+            return _FakeRun('{}')
+        m_add = re.search(r'/issues/(\d+)/labels$', ep)
+        if method == 'POST' and m_add:
+            n = m_add.group(1)
+            for a in [f.split('=', 1)[1] for f in _fields(cmd)
+                      if f.startswith('labels[]=')]:
+                if add_undefined_raises and a not in state['defined']:
+                    raise _subprocess.CalledProcessError(
+                        1, cmd, stderr='gh: HTTP 422 label does not exist')
+                if a not in state['labels'].setdefault(n, []):
+                    state['labels'][n].append(a)
+            return _FakeRun('{}')
+        m_del = re.search(r'/issues/(\d+)/labels/(.+)$', ep)
+        if method == 'DELETE' and m_del:
+            n, name = m_del.group(1), m_del.group(2)
+            if name in delete_404_labels or name not in state['labels'].get(n, []):
+                raise _subprocess.CalledProcessError(
+                    1, cmd, stderr='gh: HTTP 404 Not Found')
+            state['labels'][n].remove(name)
+            return _FakeRun('{}')
+        m_list = re.search(r'/issues/(\d+)/labels$', ep)
+        if method == 'GET' and m_list:
+            n = m_list.group(1)
+            return _FakeRun(_json.dumps([{'name': x} for x in state['labels'].get(n, [])]))
+        raise AssertionError(f"#2117 test: unexpected gh call: {cmd}")
+
+    return _run, state
+
+
+def _drive_mirror(status, *, enabled_cfg=None, **gh_kwargs):
+    """Run workpad._mirror_status_labels(issue, status) against a fake gh and a
+    config dir. enabled_cfg is the raw .prflow/config.json text; pass None to
+    write none (the feature then defaults on). Returns (state, stderr, raised)."""
+    issue = gh_kwargs.get('issue', 42)
+    run, state = _mk_label_gh(**gh_kwargs)
+    saved = (workpad._run, workpad._repo_root)
+    _cfgdir = tempfile.mkdtemp(prefix='wp-statuslabel-')
+    os.mkdir(os.path.join(_cfgdir, '.prflow'))
+    if enabled_cfg is not None:
+        with open(os.path.join(_cfgdir, '.prflow', 'config.json'), 'w',
+                  encoding='utf-8') as _f:
+            _f.write(enabled_cfg)
+    err = io.StringIO()
+    raised = None
+    try:
+        workpad._run = run
+        workpad._repo_root = lambda: _cfgdir
+        with contextlib.redirect_stderr(err):
+            workpad._mirror_status_labels(issue, status)
+    except BaseException as _e:   # the mirror must ABSORB — a raise is a failure
+        raised = _e
+    finally:
+        workpad._run, workpad._repo_root = saved
+        shutil.rmtree(_cfgdir, ignore_errors=True)
+    return state, err.getvalue(), raised
+
+
+# AC1/AC4: a status write applies exactly the mapped managed label and touches no
+# other; the provenance label and any other unmanaged label survive.
+_state, _err, _raised = _drive_mirror(
+    'Setup', issue=42, issue_labels=['PRFlow', 'bug'], defined=['PRFlow', 'bug'],
+    pr_number=None)
+assert_eq("#2117 AC1: the mirror never raises", None, _raised)
+assert_eq("#2117 AC1: the mapped managed label is applied to the issue",
+          True, 'PRFlow:Implementing' in _state['labels']['42'])
+assert_eq("#2117 AC1: exactly one managed label on the issue",
+          ['PRFlow:Implementing'],
+          [x for x in _state['labels']['42'] if x in workpad._MANAGED_STATUS_LABELS])
+assert_eq("#2117 AC4: the provenance label and other unmanaged labels are preserved",
+          (True, True),
+          ('PRFlow' in _state['labels']['42'], 'bug' in _state['labels']['42']))
+assert_eq("#2117 AC4: no unmanaged label is deleted",
+          [], [c for c in _state['calls'] if c[0] == 'DELETE'])
+
+# A status change removes the stale managed label and adds the new one; the bare
+# PRFlow provenance label (a string PREFIX of the managed set) is never removed.
+_state, _err, _raised = _drive_mirror(
+    'Blocked', issue=42, issue_labels=['PRFlow', 'PRFlow:Implementing'],
+    defined=['PRFlow', 'PRFlow:Implementing', 'PRFlow:Stuck'], pr_number=None)
+assert_eq("#2117: a status change swaps the managed label (Implementing->Stuck)",
+          (False, True),
+          ('PRFlow:Implementing' in _state['labels']['42'],
+           'PRFlow:Stuck' in _state['labels']['42']))
+assert_eq("#2117 AC4: the PRFlow provenance label survives the managed-label swap",
+          True, 'PRFlow' in _state['labels']['42'])
+
+# AC6: already-correct managed label and nothing else managed -> no writing request.
+_state, _err, _raised = _drive_mirror(
+    'Setup', issue=42, issue_labels=['PRFlow', 'PRFlow:Implementing'],
+    defined=['PRFlow', 'PRFlow:Implementing'], pr_number=None)
+assert_eq("#2117 AC6: already-correct label -> no label-writing API request",
+          [], [c for c in _state['calls'] if c[0] in ('POST', 'DELETE')])
+
+# AC13: first run in a repo defining none of the managed labels creates + applies.
+_state, _err, _raised = _drive_mirror(
+    'Complete', issue=42, issue_labels=['PRFlow'], defined=['PRFlow'], pr_number=None)
+assert_eq("#2117 AC13: first run creates the managed label definition",
+          True, 'PRFlow:Complete' in _state['creates'])
+assert_eq("#2117 AC13: and applies it to the issue",
+          True, 'PRFlow:Complete' in _state['labels']['42'])
+
+# AC14: once the label is defined, applying it makes no creation request.
+_state, _err, _raised = _drive_mirror(
+    'Complete', issue=42, issue_labels=['PRFlow'],
+    defined=['PRFlow', 'PRFlow:Complete'], pr_number=None)
+assert_eq("#2117 AC14: a defined label triggers no creation request", [], _state['creates'])
+assert_eq("#2117 AC14: and is still applied", True, 'PRFlow:Complete' in _state['labels']['42'])
+
+# AC16: a 404 on the removal request does not abort the add of the target.
+_state, _err, _raised = _drive_mirror(
+    'Blocked', issue=42, issue_labels=['PRFlow', 'PRFlow:Implementing'],
+    defined=['PRFlow', 'PRFlow:Implementing', 'PRFlow:Stuck'],
+    delete_404_labels=('PRFlow:Implementing',), pr_number=None)
+assert_eq("#2117 AC16: a 404 removal does not abort adding the target", True,
+          'PRFlow:Stuck' in _state['labels']['42'] and _raised is None)
+
+# AC11: when an open PR closes the issue, the PR carries the same managed label.
+_state, _err, _raised = _drive_mirror(
+    'Setup', issue=42, issue_labels=['PRFlow'], pr_labels=['PRFlow'], pr_number=101,
+    defined=['PRFlow', 'PRFlow:Implementing'])
+assert_eq("#2117 AC11: the open PR carries the same managed label as the issue",
+          True, 'PRFlow:Implementing' in _state['labels']['101'])
+
+# AC12: no open PR -> the call completes and writes a breadcrumb naming that.
+_state, _err, _raised = _drive_mirror(
+    'Setup', issue=42, issue_labels=['PRFlow'], defined=['PRFlow', 'PRFlow:Implementing'],
+    pr_number=None)
+assert_eq("#2117 AC12: no open PR -> stderr breadcrumb naming no PR resolved",
+          True, 'no open PR resolved' in _err)
+
+# AC7: every label API request failing -> the mirror still returns without raising.
+_state, _err, _raised = _drive_mirror(
+    'Setup', issue=42, issue_labels=['PRFlow'], defined=['PRFlow', 'PRFlow:Implementing'],
+    pr_number=101, all_fail=True)
+assert_eq("#2117 AC7: all label requests failing -> mirror returns without raising",
+          None, _raised)
+
+# AC9/AC10: the two disabling values suppress ALL label API requests; every other
+# config shape leaves the feature enabled (a request is made).
+for _cfg, _lbl in [('{"status_labels": {"enabled": false}}', 'JSON boolean false'),
+                   ('{"status_labels": {"enabled": "false"}}', 'JSON string "false"')]:
+    _state, _err, _raised = _drive_mirror(
+        'Setup', issue=42, issue_labels=['PRFlow'],
+        defined=['PRFlow', 'PRFlow:Implementing'], pr_number=101, enabled_cfg=_cfg)
+    assert_eq(f"#2117 AC9/AC10: disabled ({_lbl}) -> no label API request at all",
+              [], _state['calls'])
+    assert_eq(f"#2117 AC10: disabled ({_lbl}) -> mirror does not raise", None, _raised)
+for _cfg, _lbl in [
+        (None, 'no config file'),
+        ('{}', 'missing key (empty object)'),
+        ('{"status_labels": {}}', 'missing enabled key'),
+        ('{"status_labels": {"enabled": true}}', 'explicit true'),
+        ('{"status_labels": {"enabled": ""}}', 'empty string'),
+        ('{"status_labels": {"enabled": 0}}', 'number 0'),
+        ('{"status_labels": {"enabled": []}}', 'array'),
+        ('{"status_labels": {"enabled": {}}}', 'object'),
+        ('{"status_labels": "false"}', 'status_labels wrong-type scalar'),
+        ('{not json', 'unparseable config file')]:
+    _state, _err, _raised = _drive_mirror(
+        'Setup', issue=42, issue_labels=['PRFlow'],
+        defined=['PRFlow', 'PRFlow:Implementing'], pr_number=None, enabled_cfg=_cfg)
+    assert_eq(f"#2117 AC9: enabled shape ({_lbl}) -> the mirror makes a label API request",
+              True, len(_state['calls']) > 0)
+
+# AC5 (call-site gating): cmd_update with no --status calls the mirror 0 times; an
+# update carrying --status calls it exactly once, with the issue and status word.
+_status_label_spy = {'n': 0, 'args': []}
+def _status_label_spy_fn(_issue, _status):
+    _status_label_spy['n'] += 1
+    _status_label_spy['args'].append((_issue, _status))
+_saved_mirror_spy = workpad._mirror_status_labels
+try:
+    workpad._mirror_status_labels = _status_label_spy_fn
+    _drive_cmd_update(IDX_BODY, note=['n'], keep_status_label_mirror=True)
+    assert_eq("#2117 AC5: an update with no --status calls the label mirror 0 times",
+              0, _status_label_spy['n'])
+    _status_label_spy['n'] = 0
+    _status_label_spy['args'] = []
+    _drive_cmd_update(IDX_BODY, status='Reviewing', keep_status_label_mirror=True)
+    assert_eq("#2117 AC1: an update carrying --status calls the label mirror once",
+              1, _status_label_spy['n'])
+    assert_eq("#2117 AC1: the mirror is called with the issue number and status word",
+              (999, 'Reviewing'), _status_label_spy['args'][0])
+finally:
+    workpad._mirror_status_labels = _saved_mirror_spy
+
+# AC7 (call-site isolation): the update's exit code, stdout, and patched comment
+# body are invariant to what the best-effort mirror does — a silent all-succeed
+# and a noisy all-absorb yield identical (code, stdout, patched).
+_saved_mirror_iso = workpad._mirror_status_labels
+try:
+    workpad._mirror_status_labels = lambda _i, _s: None
+    _r_ok = _drive_cmd_update(IDX_BODY, status='Reviewing', keep_status_label_mirror=True)
+
+    def _absorbing_noisy_mirror(_i, _s):
+        sys.stderr.write('workpad.py update: forced label failure absorbed\n')
+    workpad._mirror_status_labels = _absorbing_noisy_mirror
+    _r_fail = _drive_cmd_update(IDX_BODY, status='Reviewing', keep_status_label_mirror=True)
+finally:
+    workpad._mirror_status_labels = _saved_mirror_iso
+assert_eq("#2117 AC7: exit/stdout/comment body identical whether label calls succeed or fail",
+          (_r_ok[0], _r_ok[1], _r_ok[3]), (_r_fail[0], _r_fail[1], _r_fail[3]))
+
+# AC15: scripts/workpad.py starts no subprocess running a `.sh` file — no string
+# passed to a `_run`/`subprocess.run`/`subprocess.Popen` call ends in `.sh`.
+_wp_src = (SCRIPTS / 'workpad.py').read_text(encoding='utf-8')
+_wp_tree = ast.parse(_wp_src)
+_sh_subprocess_args = []
+for _node in ast.walk(_wp_tree):
+    if not isinstance(_node, ast.Call):
+        continue
+    _fn = _node.func
+    _is_run = (isinstance(_fn, ast.Name) and _fn.id == '_run') or (
+        isinstance(_fn, ast.Attribute) and _fn.attr in ('run', 'Popen', 'call',
+        'check_call', 'check_output'))
+    if not _is_run:
+        continue
+    for _sub in ast.walk(_node):
+        if isinstance(_sub, ast.Constant) and isinstance(_sub.value, str) \
+                and _sub.value.endswith('.sh'):
+            _sh_subprocess_args.append(_sub.value)
+assert_eq("#2117 AC15: workpad.py starts no subprocess running a .sh file",
+          [], _sh_subprocess_args)
+
+# AC8: the schema defines status_labels.enabled as a boolean whose default is true.
+_SCHEMA_ROOT = Path(__file__).resolve().parents[2] / '.prflow'
+with (_SCHEMA_ROOT / 'config.schema.json').open(encoding='utf-8') as _f:
+    _schema = _json.load(_f)
+_enabled_schema = (_schema.get('properties', {}).get('status_labels', {})
+                   .get('properties', {}).get('enabled', {}))
+assert_eq("#2117 AC8: schema defines status_labels.enabled as boolean, default true",
+          ('boolean', True),
+          (_enabled_schema.get('type'), _enabled_schema.get('default')))
+# The shipped example config is valid JSON and carries the key ON (discoverability).
+with (_SCHEMA_ROOT / 'config.example.json').open(encoding='utf-8') as _f:
+    _example = _json.load(_f)
+assert_eq("#2117 AC8: config.example.json carries status_labels.enabled = true",
+          True, _example.get('status_labels', {}).get('enabled'))
 
 print()
 print(f"{PASS} passed, {FAIL} failed")

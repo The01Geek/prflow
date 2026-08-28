@@ -65,6 +65,18 @@
         }
       }
     },
+    "status_labels": {
+      "type": "object",
+      "description": "Mirror the /prflow:implement run status onto managed GitHub labels on the issue and its open PR (issue #2117), so a maintainer sees a stalled or finished run from the issue/PR LIST without opening the workpad comment. Three managed labels track the workpad Status: PRFlow:Implementing (a run is in progress), PRFlow:Stuck (a run stopped and needs attention), PRFlow:Complete (a run finished). The labels are a derived mirror of the workpad Status, which stays the source of truth, and are applied best-effort by scripts/workpad.py after each status write (including the ones written after the agent has stopped). ON by default.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the status-label mirror is active. true (the default) keeps the managed labels in sync on every status change; set to an explicit JSON false (or the JSON string \"false\") to turn the whole feature off, keeping exactly today's no-label behaviour. Read directly from the checked-out working-tree config in Python (mirroring scripts/workpad.py's workpad_marker read), NOT via config-get.sh: only the JSON boolean false and the JSON string \"false\" disable it; every other shape — a missing key, a missing/unreadable/unparseable config file, an empty string, a number, an array, an object — leaves the feature enabled (the truthy-default direction).",
+          "default": true
+        }
+      }
+    },
     "prflow": {
       "type": "object",
       "description": "Shared PRFlow settings. allowed_bots/allowed_users gate triggering across ALL PRFlow workflows (devflow.yml, devflow-implement.yml, devflow-review.yml, devflow-runner.yml); workpad_marker is used by /prflow:implement; effort and allowed_tools apply specifically to the light /prflow:* command path (devflow.yml). WITHHELD: the automatic pull-request-triggered review tier is not shipped in this release (see issues #930 and #920) \u2014 a fresh installation receives none of devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so this setting has no effect there; it remains live for a repository that already installed those three files, which stays exposed to those defects while workflows[\"prflow-review\"] (or workflows[\"devflow-review\"] on an unmigrated config) is true. Use /prflow:review by collaborator comment instead.",

@@ -2394,6 +2394,29 @@ def _status_class(glyph: str) -> str:
     return _TERMINAL_STATUS_CLASS_BY_GLYPH.get(glyph, 'interim')
 
 
+# ── Managed status-mirror labels (issue #2117) ───────────────────────────────
+# A closed three-label set mirrored onto the issue and its open PR so a run's
+# state is visible from the issue/PR LIST without opening the workpad comment.
+# The names are constants, not configurable, and are matched by EXACT membership
+# — NOT by the `PRFlow` prefix, which is `lib/scan.sh`'s provenance label and a
+# string prefix of all three: a prefix match would strip that provenance label
+# and silently break the weekly retrospective's candidate selection.
+_STATUS_LABEL_IMPLEMENTING = 'PRFlow:Implementing'
+_STATUS_LABEL_STUCK = 'PRFlow:Stuck'
+_STATUS_LABEL_COMPLETE = 'PRFlow:Complete'
+# The status CLASS (`_status_class`) → managed label. `interim` covers every
+# in-progress status word (all seven share it, via `_status_class`'s default
+# arm); the three stopped classes share `PRFlow:Stuck`; `complete` is Complete.
+_STATUS_CLASS_TO_LABEL = {
+    'interim': _STATUS_LABEL_IMPLEMENTING,
+    'blocked': _STATUS_LABEL_STUCK,
+    'failed': _STATUS_LABEL_STUCK,
+    'cancelled': _STATUS_LABEL_STUCK,
+    'complete': _STATUS_LABEL_COMPLETE,
+}
+_MANAGED_STATUS_LABELS = frozenset(_STATUS_CLASS_TO_LABEL.values())
+
+
 # The canonical ## Progress top-level phase labels, in order — the single
 # source of truth that `_STATUS_TO_PROGRESS_PHASE` (below) and the `new-body`
 # checklist (cmd_new_body) must both agree with. A note is nested under one of
@@ -3756,6 +3779,165 @@ def _stopped_note_text_for_mirror(args, own_notes, own_reflections):
     return None
 
 
+def _status_labels_enabled():
+    """Whether the status-label mirror is enabled (issue #2117).
+
+    Reads `.status_labels.enabled` from `.prflow/config.json` IN-PROCESS — never
+    by exec-ing config-get.sh, which Windows cannot run ([WinError 193]), the
+    same reason `_workpad_marker` reads config in-process. ON by default: only
+    two values disable it — the JSON boolean `false` and the JSON string
+    "false". EVERY other shape leaves it enabled: a missing key, a missing or
+    unreadable or unparseable config file, an empty string, a number, an array,
+    an object. Failing toward enabled matches the documented default (`true`)
+    and never turns the feature off on a shape the operator did not choose.
+    """
+    _root = _repo_root()
+    base = _root if _root is not None else str(Path.cwd())
+    config_file = Path(_resolve_state_dir(base)) / 'config.json'
+    try:
+        with config_file.open(encoding='utf-8') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return True
+    except (OSError, ValueError):
+        # Unreadable/malformed config is indistinguishable from "not configured";
+        # both leave the feature enabled (the documented default direction).
+        return True
+    section = data.get('status_labels') if isinstance(data, dict) else None
+    if not isinstance(section, dict):
+        return True
+    value = section.get('enabled', True)
+    # `value is False` matches only the actual JSON boolean false — never a
+    # number 0 (0 is not False), so a `0` correctly leaves the feature enabled.
+    if value is False or value == 'false':
+        return False
+    return True
+
+
+def _list_issue_labels(number):
+    """Return the label-name strings currently on issue/PR `number` (issue #2117).
+
+    Parses the labels-endpoint response in Python so a malformed shape degrades
+    to an empty list rather than a bad managed-label decision: a non-array
+    response, an entry with no string `name`, all resolve to "" contributing
+    nothing. Raises on a gh/JSON failure — the caller absorbs it best-effort."""
+    r = _run([GH, 'api', f'repos/{{owner}}/{{repo}}/issues/{number}/labels'])
+    data = json.loads(r.stdout or '[]')
+    if not isinstance(data, list):
+        return []
+    names = []
+    for item in data:
+        if isinstance(item, dict):
+            name = item.get('name')
+            if isinstance(name, str) and name:
+                names.append(name)
+    return names
+
+
+def _add_managed_label(number, target, label_defined):
+    """Add `target` to issue/PR `number`, creating its repo definition first when
+    the add is refused because the label is undefined (issue #2117).
+
+    Returns the updated `label_defined` flag so a caller reconciling both the
+    issue and its PR makes at most ONE creation request across them. Each request
+    is isolated: a failure breadcrumbs and returns rather than propagating."""
+    def _post_add():
+        _run([GH, 'api', '-X', 'POST',
+              f'repos/{{owner}}/{{repo}}/issues/{number}/labels',
+              '-f', f'labels[]={target}'])
+    try:
+        _post_add()
+        return label_defined
+    except Exception:
+        # Adding a label the repo does not define is refused. Create the label
+        # definition (once per run) and retry the add exactly once. A repo that
+        # already defines the label never reaches here — the add above succeeds.
+        if not label_defined:
+            try:
+                _run([GH, 'api', '-X', 'POST', 'repos/{owner}/{repo}/labels',
+                      '-f', f'name={target}',
+                      '-f', 'description=PRFlow run status (issue #2117)'])
+            except Exception as exc:
+                # An "already exists" race or a genuine create failure: retry the
+                # add regardless — the definition may now exist.
+                sys.stderr.write(
+                    f"workpad.py update: could not create managed label "
+                    f"{target!r} ({exc.__class__.__name__}); retrying the add\n")
+            label_defined = True
+        try:
+            _post_add()
+        except Exception as exc:
+            sys.stderr.write(
+                f"workpad.py update: could not add managed label {target!r} to "
+                f"#{number} ({exc.__class__.__name__}); status label not applied\n")
+        return label_defined
+
+
+def _reconcile_managed_label(number, target, label_defined):
+    """Reconcile issue/PR `number`'s managed labels to exactly `target` (issue
+    #2117). Removes every managed label that is not the target, then adds the
+    target when missing. Best-effort PER REQUEST — a 404 removing a label that is
+    not applied (the ordinary case for two of the three managed labels) must not
+    abort the add that follows, so each call is caught on its own, never one
+    catch around the whole reconciliation. Returns the updated `label_defined`."""
+    try:
+        current = _list_issue_labels(number)
+    except Exception as exc:
+        sys.stderr.write(
+            f"workpad.py update: could not list labels on #{number} "
+            f"({exc.__class__.__name__}); status label not reconciled there\n")
+        return label_defined
+    managed = [n for n in current if n in _MANAGED_STATUS_LABELS]
+    # Already correct — the target present and nothing else managed: no write.
+    if managed == [target]:
+        return label_defined
+    for lbl in managed:
+        if lbl != target:
+            try:
+                _run([GH, 'api', '-X', 'DELETE',
+                      f'repos/{{owner}}/{{repo}}/issues/{number}/labels/{lbl}'])
+            except Exception as exc:
+                # Per-request isolation: a removal failure (a 404 when the label
+                # is not applied, or any transient error) must NOT abort the add
+                # that follows. Breadcrumb it — a stale managed label left behind
+                # is the only degradation, never a changed update outcome.
+                sys.stderr.write(
+                    f"workpad.py update: could not remove managed label {lbl!r} "
+                    f"from #{number} ({exc.__class__.__name__}); continuing\n")
+    if target not in current:
+        label_defined = _add_managed_label(number, target, label_defined)
+    return label_defined
+
+
+def _mirror_status_labels(issue, status):
+    """Best-effort: mirror the workpad Status onto managed labels on the issue and
+    its open PR (issue #2117).
+
+    Modelled on `_mirror_stopped_note_to_pr`: it runs AFTER the workpad PATCH has
+    landed and MUST never change that update's own outcome, so every failure is
+    swallowed with a breadcrumb. Makes NO API request when the feature is
+    disabled. The managed labels are a DERIVED mirror of the Status; the workpad
+    comment stays the source of truth."""
+    try:
+        if not _status_labels_enabled():
+            return
+        target = _STATUS_CLASS_TO_LABEL.get(_status_class(_status_glyph(status)))
+        if target is None:
+            return  # every class maps; never guess a label for an unknown one
+        label_defined = _reconcile_managed_label(issue, target, False)
+        pr = _resolve_open_pr_for_issue(issue)
+        if not pr:
+            sys.stderr.write(
+                f"workpad.py update: no open PR resolved for issue #{issue}; "
+                f"status label not mirrored to a PR\n")
+            return
+        _reconcile_managed_label(pr, target, label_defined)
+    except Exception as exc:  # intentional best-effort absorber (see docstring)
+        sys.stderr.write(
+            f"workpad.py update: best-effort status-label mirror failed "
+            f"({exc.__class__.__name__}); the workpad update itself is unaffected\n")
+
+
 def _cmd_update_inner(args):
     # Resolve the workpad comment id AND its live body together. A cached id is
     # trusted only after a direct fetch verifies it; every miss falls back to the
@@ -3993,6 +4175,12 @@ def _cmd_update_inner(args):
     _mirror_text = _stopped_note_text_for_mirror(args, _own_notes, _own_reflections)
     if _mirror_text:
         _mirror_stopped_note_to_pr(args.issue, _mirror_text)
+    # Best-effort mirror of the workpad Status onto managed issue/PR labels (issue
+    # #2117). Gated on --status (the only input that changes the mirrored class)
+    # and placed after the PATCH landed, next to the stopped-note mirror, so a
+    # label failure cannot change this update's own exit status, stdout, or body.
+    if args.status:
+        _mirror_status_labels(args.issue, args.status)
     # Issue #814: the patched body is echoed only under `--print-body`, or on the
     # volatile-tick-miss path below. This one statement is reached by BOTH the clean
     # return and the miss exit (the `failed_ticks` branch is evaluated after it), so
