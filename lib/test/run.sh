@@ -19277,6 +19277,7 @@ docs/internal/cloud-setup.md
 docs/internal/execution-file-shape.md
 docs/internal/implement-skill.md
 docs/internal/install.md
+docs/internal/operations/installation.md
 docs/internal/workflow-triggers.md
 install.sh
 lib/rename-map.json
