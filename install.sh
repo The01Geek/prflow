@@ -981,21 +981,27 @@ devflow_disable_review_key() {
 # prflow_review.require_up_to_date, prflow_review.require_ci_green, or the whole
 # prflow_runner section, so they can never take effect there. Fail closed like
 # devflow_disable_review_key: a config this cannot safely edit — unparseable JSON
-# (json.load raises, so Python exits 1) or a non-object top-level / non-object
-# prflow_review (a dedicated exit 3) — is left untouched and reported, never rewritten
-# half-way (this edits a file the consumer owns and hand-edits); both non-zero paths
-# route to the shell case's rc-1 arm below. Emits the removed key list to stdout so
-# the caller names exactly what it touched.
+# (caught and reported as exit 1), a non-object top level (exit 3), a non-object
+# prflow_review (exit 5), or a write failure (exit 2) — is left untouched and reported,
+# never rewritten half-way (this edits a file the consumer owns and hand-edits); every
+# non-zero path routes to the shell case's rc-1 arm below. Emits the removed key list,
+# or a one-line failure reason, to stdout so the caller names what it touched or why not.
 DEVFLOW_STRIP_WITHHELD_PY='
 import json, os, sys
 path = sys.argv[1]
-with open(path, encoding="utf-8") as fh:
-    data = json.load(fh)
+try:
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception as e:
+    sys.stdout.write("malformed JSON: " + str(e).replace("\n", " ")[:200])
+    sys.exit(1)
 if not isinstance(data, dict):
+    sys.stdout.write("top-level value is not a JSON object")
     sys.exit(3)
 pr = data.get("prflow_review")
 if pr is not None and not isinstance(pr, dict):
-    sys.exit(3)
+    sys.stdout.write("prflow_review is not a JSON object")
+    sys.exit(5)
 removed = []
 if "prflow_runner" in data:
     del data["prflow_runner"]
@@ -1008,19 +1014,28 @@ if isinstance(pr, dict):
 if not removed:
     sys.exit(4)
 tmp = path + ".tmp"
-with open(tmp, "w", encoding="utf-8") as fh:
-    json.dump(data, fh, indent=2)
-    fh.write("\n")
-os.replace(tmp, path)
+try:
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\n")
+    os.replace(tmp, path)
+except Exception:
+    try:
+        os.remove(tmp)
+    except OSError:
+        pass
+    sys.stdout.write("could not rewrite the file")
+    sys.exit(2)
 sys.stdout.write(" ".join(removed))
 '
 # RETURN CODE, like devflow_disable_review_key: 0 = removed the settings, they were
-# already absent, or there is no config to strip; 1 = could not be established (no
-# working python3, or a shape this cannot safely edit). Runs on EVERY apply, never
-# gated on --remove-withheld-review-tier: the settings are dead in a fresh install
-# whether or not the consumer keeps the tier itself.
+# already absent (exit 4), or there is no config to strip; 1 = could not be established —
+# no working python3, or a shape this cannot safely edit (malformed JSON, a non-object
+# top level, a non-object prflow_review, or a write failure), each named in the warning.
+# Runs on EVERY apply, never gated on --remove-withheld-review-tier: the settings are dead
+# in a fresh install whether or not the consumer keeps the tier itself.
 devflow_strip_withheld_review_settings() {
-  local rc removed
+  local rc diag
   if [ ! -f .prflow/config.json ]; then
     return 0   # nothing to strip
   fi
@@ -1029,11 +1044,11 @@ devflow_strip_withheld_review_settings() {
     return 1
   fi
   rc=0
-  removed="$("$DEVFLOW_PY" -c "$DEVFLOW_STRIP_WITHHELD_PY" .prflow/config.json 2>/dev/null)" || rc=$?
+  diag="$("$DEVFLOW_PY" -c "$DEVFLOW_STRIP_WITHHELD_PY" .prflow/config.json 2>/dev/null)" || rc=$?
   case "$rc" in
-    0) log "removed the withheld review-tier settings ($removed) from .prflow/config.json"; return 0 ;;
+    0) log "removed the withheld review-tier settings ($diag) from .prflow/config.json"; return 0 ;;
     4) return 0 ;;
-    *) log "warning: could not strip the withheld review-tier settings from .prflow/config.json (it is missing, malformed, or holds a non-object at prflow_review); left the file untouched — remove them by hand."; return 1 ;;
+    *) log "warning: could not strip the withheld review-tier settings from .prflow/config.json ($diag); left the file untouched — remove them by hand."; return 1 ;;
   esac
 }
 # INSTALL-TIME HALF of the #1041 silent-disable skew guard. The trigger-time ::error::

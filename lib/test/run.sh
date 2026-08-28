@@ -1963,8 +1963,7 @@ assert_pin_unique "263(A5): receiving-code-review carries the shared 'contradict
 # deliberate, reviewed edit here: #408 added stall_backstop (the review no-verdict
 # auto-resume backstop — a distinct feature, not the carve-out, which remains knob-free);
 # #423 added stale_prose (the Phase 0.6 deterministic stale-counted-prose lint gate — a
-# distinct feature too). #304's require_up_to_date + require_ci_green (the withheld
-# auto-trigger preconditions) were removed by #2071 with the rest of that dead tier.
+# distinct feature too).
 assert_eq "263(A6): prflow_review schema key set is the reviewed list (carve-out adds no config key)" \
   "agent_overrides live_progress_comment_enabled stale_prose stall_backstop verdict_severity_threshold" \
   "$(jq -r '.properties.prflow_review.properties | keys | join(" ")' "$ST_SCHEMA")"
@@ -13156,7 +13155,6 @@ printf '{"prflow":{"allowed_tools":["Bash(make:*)"]},"setup":{"node_version":"",
 bash "$DPT" "$DT1" >/dev/null 2>&1
 assert_eq "detect: npm tool in devflow path"   "yes" "$(dpt_has .prflow.allowed_tools           'Bash(npm:*)' "$DT1/.prflow/config.json")"
 assert_eq "detect: npm tool in implement path" "yes" "$(dpt_has .prflow_implement.allowed_tools 'Bash(npm:*)' "$DT1/.prflow/config.json")"
-# issue #2071 removed the withheld auto-review tier's config: detect writes no prflow_runner path.
 assert_eq "detect: no prflow_runner path written (issue #2071)" "no" "$(dpt_has .prflow_runner.allowed_tools 'Bash(npm:*)' "$DT1/.prflow/config.json")"
 assert_eq "detect: no stray prflow_runner key written at all (issue #2071)" "true" \
   "$(jq -e '.prflow_runner == null' "$DT1/.prflow/config.json" >/dev/null && echo true || echo false)"
@@ -37732,9 +37730,6 @@ line = next(l for l in open(sys.argv[1], encoding="utf-8") if re.match(r"^\s*TOO
 print("yes" if "lib/test/run.sh" in line else "no")
 PY
 )"
-# (issue #2071 removed the prflow_runner block from config.example.json, so there is
-# no longer a provision_env entry to pin false here.)
-
 # ── checks: read is a COUPLED PAIR. A reusable workflow requesting a permission its
 # ── caller did not grant aborts the run at graph-build time (startup_failure), so
 # ── landing one alone breaks every review. Asserted per-JOB rather than by counting

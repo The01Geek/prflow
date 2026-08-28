@@ -2489,8 +2489,8 @@ printf '%s' '{not valid json' > "$IU_C2071C/.prflow/config.json"
 IU_B2071C="$(_iu_digest "$IU_C2071C/.prflow/config.json")"
 # shellcheck disable=SC1090  # sources install.sh at runtime under DEVFLOW_SELFTEST
 IU_O2071C="$( cd "$IU_C2071C" && DEVFLOW_SELFTEST=1 . "$IU_INSTALL" >/dev/null 2>&1; if devflow_strip_withheld_review_settings 2>&1; then echo 'rc=0'; else echo "rc=$?"; fi )"
-assert_eq "#2071 strip: a malformed config is left byte-unchanged and the failure is reported (rc 1, no truncated write)" "yes yes yes" \
-  "$([ "$IU_B2071C" = "$(_iu_digest "$IU_C2071C/.prflow/config.json")" ] && echo yes || echo no) $(printf '%s' "$IU_O2071C" | grep -qF 'could not strip the withheld review-tier settings' && echo yes || echo no) $(printf '%s' "$IU_O2071C" | grep -qF 'rc=1' && echo yes || echo no)"
+assert_eq "#2071 strip: a malformed config is left byte-unchanged, the parse-error location is surfaced, and the failure is reported (rc 1, no truncated write)" "yes yes yes yes" \
+  "$([ "$IU_B2071C" = "$(_iu_digest "$IU_C2071C/.prflow/config.json")" ] && echo yes || echo no) $(printf '%s' "$IU_O2071C" | grep -qF 'could not strip the withheld review-tier settings' && echo yes || echo no) $(printf '%s' "$IU_O2071C" | grep -qF 'malformed JSON' && echo yes || echo no) $(printf '%s' "$IU_O2071C" | grep -qF 'rc=1' && echo yes || echo no)"
 # No working python3 → left untouched and reported (fail-closed, matching devflow_disable_review_key).
 IU_C2071D="$_iw_tmp_root/strip-nopy"; mkdir -p "$IU_C2071D/.prflow"
 printf '%s' '{"prflow_runner":{"effort":"low"},"prflow_review":{"require_ci_green":true}}' > "$IU_C2071D/.prflow/config.json"
@@ -2499,21 +2499,33 @@ IU_B2071D="$(_iu_digest "$IU_C2071D/.prflow/config.json")"
 IU_O2071D="$( cd "$IU_C2071D" && export PATH="$IU_NOPY:$PATH" && DEVFLOW_SELFTEST=1 . "$IU_INSTALL" >/dev/null 2>&1; if devflow_strip_withheld_review_settings 2>&1; then echo 'rc=0'; else echo "rc=$?"; fi )"
 assert_eq "#2071 strip: no working python3 leaves the config untouched and reports the failure (rc 1)" "yes yes yes" \
   "$([ "$IU_B2071D" = "$(_iu_digest "$IU_C2071D/.prflow/config.json")" ] && echo yes || echo no) $(printf '%s' "$IU_O2071D" | grep -qF 'no working python3' && echo yes || echo no) $(printf '%s' "$IU_O2071D" | grep -qF 'rc=1' && echo yes || echo no)"
-# The two dedicated exit(3) fail-closed guards: a top-level non-object (valid JSON that is
-# not a dict) and a non-object prflow_review (the type there is load-bearing — an isinstance
-# gate, not deleted-by-presence like prflow_runner). Each must leave the consumer-owned file
-# byte-unchanged and report rc 1 (exit 3 routes through the shell case's `*` arm).
+# The two fail-closed type guards: a top-level non-object (exit 3, valid JSON that is not
+# a dict) and a non-object prflow_review (exit 5 — the type there is load-bearing, an
+# isinstance gate, not deleted-by-presence like prflow_runner). Each must leave the
+# consumer-owned file byte-unchanged, name the offending key, and report rc 1 (both route
+# through the shell case's `*` arm).
 IU_C2071E="$_iw_tmp_root/strip-toplevel-array"; mkdir -p "$IU_C2071E/.prflow"
 printf '%s' '[1, 2, 3]' > "$IU_C2071E/.prflow/config.json"
 IU_B2071E="$(_iu_digest "$IU_C2071E/.prflow/config.json")"
 # shellcheck disable=SC1090  # sources install.sh at runtime under DEVFLOW_SELFTEST
 IU_O2071E="$( cd "$IU_C2071E" && DEVFLOW_SELFTEST=1 . "$IU_INSTALL" >/dev/null 2>&1; if devflow_strip_withheld_review_settings 2>&1; then echo 'rc=0'; else echo "rc=$?"; fi )"
-assert_eq "#2071 strip: a top-level non-object config (JSON array) is left byte-unchanged and reports rc 1 (exit-3 guard)" "yes yes yes" \
-  "$([ "$IU_B2071E" = "$(_iu_digest "$IU_C2071E/.prflow/config.json")" ] && echo yes || echo no) $(printf '%s' "$IU_O2071E" | grep -qF 'could not strip the withheld review-tier settings' && echo yes || echo no) $(printf '%s' "$IU_O2071E" | grep -qF 'rc=1' && echo yes || echo no)"
+assert_eq "#2071 strip: a top-level non-object config (JSON array) is left byte-unchanged, names the top level (not prflow_review), and reports rc 1 (exit-3 guard)" "yes yes yes yes" \
+  "$([ "$IU_B2071E" = "$(_iu_digest "$IU_C2071E/.prflow/config.json")" ] && echo yes || echo no) $(printf '%s' "$IU_O2071E" | grep -qF 'could not strip the withheld review-tier settings' && echo yes || echo no) $(printf '%s' "$IU_O2071E" | grep -qF 'top-level value is not a JSON object' && echo yes || echo no) $(printf '%s' "$IU_O2071E" | grep -qF 'rc=1' && echo yes || echo no)"
 IU_C2071F="$_iw_tmp_root/strip-nonobject-review"; mkdir -p "$IU_C2071F/.prflow"
 printf '%s' '{"prflow_review": [1, 2], "workflows": {"prflow-review": true}}' > "$IU_C2071F/.prflow/config.json"
 IU_B2071F="$(_iu_digest "$IU_C2071F/.prflow/config.json")"
 # shellcheck disable=SC1090  # sources install.sh at runtime under DEVFLOW_SELFTEST
 IU_O2071F="$( cd "$IU_C2071F" && DEVFLOW_SELFTEST=1 . "$IU_INSTALL" >/dev/null 2>&1; if devflow_strip_withheld_review_settings 2>&1; then echo 'rc=0'; else echo "rc=$?"; fi )"
-assert_eq "#2071 strip: a non-object prflow_review (JSON array) is left byte-unchanged and reports rc 1 (exit-3 guard, load-bearing type)" "yes yes yes" \
-  "$([ "$IU_B2071F" = "$(_iu_digest "$IU_C2071F/.prflow/config.json")" ] && echo yes || echo no) $(printf '%s' "$IU_O2071F" | grep -qF 'could not strip the withheld review-tier settings' && echo yes || echo no) $(printf '%s' "$IU_O2071F" | grep -qF 'rc=1' && echo yes || echo no)"
+assert_eq "#2071 strip: a non-object prflow_review (JSON array) is left byte-unchanged, names prflow_review, and reports rc 1 (exit-5 guard, load-bearing type)" "yes yes yes yes" \
+  "$([ "$IU_B2071F" = "$(_iu_digest "$IU_C2071F/.prflow/config.json")" ] && echo yes || echo no) $(printf '%s' "$IU_O2071F" | grep -qF 'could not strip the withheld review-tier settings' && echo yes || echo no) $(printf '%s' "$IU_O2071F" | grep -qF 'prflow_review is not a JSON object' && echo yes || echo no) $(printf '%s' "$IU_O2071F" | grep -qF 'rc=1' && echo yes || echo no)"
+# exit(4) no-op: a config carrying none of the removed settings strips nothing, stays
+# byte-unchanged, and stays SILENT — no "removed..." log, the idempotency invariant the
+# exit(4) arm guards on every apply. A direct assertion (the idempotency digest above
+# only infers it from the byte-identical result).
+IU_C2071G="$_iw_tmp_root/strip-noop"; mkdir -p "$IU_C2071G/.prflow"
+printf '%s' '{"workflows":{"prflow-review":true},"agent_overrides":{"claude_model":"x"}}' > "$IU_C2071G/.prflow/config.json"
+IU_B2071G="$(_iu_digest "$IU_C2071G/.prflow/config.json")"
+# shellcheck disable=SC1090  # sources install.sh at runtime under DEVFLOW_SELFTEST
+IU_O2071G="$( cd "$IU_C2071G" && DEVFLOW_SELFTEST=1 . "$IU_INSTALL" >/dev/null 2>&1; if devflow_strip_withheld_review_settings 2>&1; then echo 'rc=0'; else echo "rc=$?"; fi )"
+assert_eq "#2071 strip: a config with none of the removed settings is a silent no-op (exit 4 suppresses the removed-log, byte-unchanged)" "yes yes yes" \
+  "$([ "$IU_B2071G" = "$(_iu_digest "$IU_C2071G/.prflow/config.json")" ] && echo yes || echo no) $(printf '%s' "$IU_O2071G" | grep -qF 'removed the withheld review-tier settings' && echo no || echo yes) $(printf '%s' "$IU_O2071G" | grep -qF 'rc=0' && echo yes || echo no)"
