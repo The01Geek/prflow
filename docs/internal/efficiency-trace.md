@@ -281,7 +281,16 @@ the union commit (the case where a consumer's same-named branch exists only on t
 surfaces as the push rejection) — so it never commits onto a same-named branch a consumer uses for
 something else, on either the local-append or the push-reconcile path. The ref advance is a compare-and-swap that
 re-reads the tip and rebuilds on it when a sibling worktree/process advanced it first, so two
-parallel local worktrees sharing `.git/refs` both survive with no lost commit. The read-only
+parallel local worktrees sharing `.git/refs` both survive with no lost commit.
+
+> **Withheld tier.** The read-only auto-review runner (`devflow-runner.yml`) and the trusted
+> telemetry-push relay (`telemetry-push.yml`) described in the rest of this section are part of the
+> automatic pull-request-triggered review tier **withheld from this release (issue #936)**. They are
+> retained in the tree without a caller for already-installed consumers and reach no fresh
+> installation, so the cloud-tier persistence path below runs only in a repository that still carries
+> that tier. The writable-tier and local persistence paths above are unaffected.
+
+The read-only
 cloud `review` profile (`devflow-runner.yml`, `contents: read`) **does** run `--persist` — the
 base-branch `.claude/settings.json` Stop hook is restored into every `claude-code-action` job (this
 rests on the same **unverified platform premise** the writable-tier workflow-env comments flag: that
