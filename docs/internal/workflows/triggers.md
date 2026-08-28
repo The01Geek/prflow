@@ -24,7 +24,7 @@ Event routing is a security and cost boundary. Restricting the accepted event an
 ## Source of truth
 
 - `.github/workflows/devflow.yml` and `.github/workflows/devflow-implement.yml` — event and command routing.
-- `.github/workflows/devflow-runner.yml` — the read-only review runner the command tier dispatches.
+- `.github/workflows/devflow-runner.yml` — the read-only review runner; part of the withheld automatic-review tier, retained in the tree without a caller for already-installed consumers.
 - `.github/workflows/ci.yml` — pull-request verification jobs.
 - `.github/workflows/mintlify-check.yml` — advisory Mintlify validation for pull requests that change the public docs source.
 - `.github/workflows/version-consolidate.yml` — the merge-to-main changeset consolidation job.
