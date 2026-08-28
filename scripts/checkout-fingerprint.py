@@ -257,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     # A minimal parser: it accepts only the help flags (which exit 0 without a
     # fingerprint) and refuses any other argument (exit 2, no fingerprint); the
-    # no-argument path every in-tree caller uses falls straight through unchanged.
+    # no-argument path falls straight through unchanged.
     _build_parser().parse_args(argv)
     try:
         fp = build_fingerprint()

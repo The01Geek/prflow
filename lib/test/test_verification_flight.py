@@ -2208,11 +2208,11 @@ class TestCheckoutFingerprintArgParser(unittest.TestCase):
                           "tracked_digest", "untracked_digest"):
                 self.assertIn(field, proc.stdout, f"{flag} omits field {field!r}")
             self.assertIn("verification-flight.py", proc.stdout)
-            # It describes, it does not emit a fingerprint (no JSON member on stdout).
+            # AC4: --help describes the fields; it must not print the fingerprint JSON.
             self.assertNotIn('"tracked_digest":', proc.stdout)
 
     def test_no_argument_run_still_prints_five_field_fingerprint(self):
-        # AC5: the no-argument contract every existing caller relies on is unchanged.
+        # AC5: the no-argument five-field output contract is unchanged.
         proc = subprocess.run([sys.executable, self._SCRIPT],
                               capture_output=True, text=True, cwd=str(ROOT))
         self.assertEqual(proc.returncode, 0, proc.stderr)
