@@ -23,7 +23,8 @@ python callers read the env var and do not probe).
 Exit codes (complete by construction):
     0  a slice was served — including an explicitly labelled empty window when the
        requested range lies wholly past the end of the log.
-    1  the log download failed; stderr names the cause and no partial stored file remains.
+    1  the log download (or a store read/write) failed; stderr names the cause and no
+       partial stored file remains.
     2  the argument list is not a job id plus a valid line range; stderr prints usage.
 """
 
@@ -66,14 +67,16 @@ def _gh():
 
 def _store_dir():
     # Anchored to the process cwd, which the working-directory contract fixes at the
-    # repository root on every tier; the store is the gitignored `.prflow/tmp/`.
+    # repository root on the cloud review tiers (where this helper runs); a local run
+    # anchors to the cwd it was invoked from. The store is the gitignored `.prflow/tmp/`.
     return Path.cwd() / ".prflow" / "tmp"
 
 
 def _sanitize(line):
     line = _ANSI_RE.sub("", line)
     # Drop every control/format character (Unicode category starting with "C" — C0/C1
-    # controls, DEL, format chars) except the tab, which the header criterion preserves.
+    # controls, DEL, format chars) except the tab, which is kept because `gh run view
+    # --log` emits tab-separated group/step/timestamp prefixes worth preserving.
     # Bytes that were not valid UTF-8 arrived as U+FFFD (category So) and pass through inert.
     return "".join(
         ch for ch in line if ch == "\t" or not unicodedata.category(ch).startswith("C")
@@ -84,7 +87,14 @@ def main(argv):
     if len(argv) != 4:
         _usage_die()
     job, start_s, end_s = argv[1], argv[2], argv[3]
-    if not (job.isdigit() and start_s.lstrip("-").isdigit() and end_s.lstrip("-").isdigit()):
+    # `[0-9]` is ASCII-only (never a Unicode digit that would pass but make int() raise) and
+    # `-?` admits at most one leading dash, so a value accepted here always converts — a
+    # "--5" or a superscript "²" reaches _usage_die (exit 2) instead of raising
+    # ValueError out of int() below (which would exit 1 with a traceback, mis-signalling a
+    # download failure).
+    if not (re.fullmatch(r"[0-9]+", job)
+            and re.fullmatch(r"-?[0-9]+", start_s)
+            and re.fullmatch(r"-?[0-9]+", end_s)):
         _usage_die()
     start, end = int(start_s), int(end_s)
     if start < 1 or end < 1 or start > end:
@@ -96,7 +106,12 @@ def main(argv):
     if not stored.is_file():
         # First call for this job id: download the whole log exactly once. Write only on
         # success and via a temp-then-rename, so a failed fetch leaves no partial file.
-        store_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            store_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            print(f"{PROG}: could not create the log store {store_dir}: {exc}",
+                  file=sys.stderr)
+            return 1
         try:
             proc = subprocess.run(
                 [_gh(), "run", "view", "--job", job, "--log"],
@@ -114,11 +129,23 @@ def main(argv):
                 file=sys.stderr,
             )
             return 1
-        tmp = store_dir / f".job-log-{job}.log.partial"
-        tmp.write_bytes(proc.stdout)
-        tmp.replace(stored)
+        # A store-write failure must not leave the canonical stored file: write the temp
+        # then rename, and on any OSError exit 1 with a named cause (never a traceback).
+        try:
+            tmp = store_dir / f".job-log-{job}.log.partial"
+            tmp.write_bytes(proc.stdout)
+            tmp.replace(stored)
+        except OSError as exc:
+            print(f"{PROG}: could not write the log store for job {job}: {exc}",
+                  file=sys.stderr)
+            return 1
 
-    text = stored.read_bytes().decode("utf-8", errors="replace")
+    try:
+        text = stored.read_bytes().decode("utf-8", errors="replace")
+    except OSError as exc:
+        print(f"{PROG}: could not read the stored log for job {job}: {exc}",
+              file=sys.stderr)
+        return 1
     all_lines = text.splitlines()
     total = len(all_lines)
 

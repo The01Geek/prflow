@@ -7273,6 +7273,44 @@ assert_eq("#2098 args: zero line number -> exit 2", 2, _bad(['800', '0', '2'])[0
 assert_eq("#2098 args: negative line number -> exit 2", 2, _bad(['800', '-1', '2'])[0])
 assert_eq("#2098 args: usage printed to stderr on bad args", True,
           'usage' in _bad(['800', '1'])[1].lower())
+# Multi-dash and non-ASCII-digit operands pass a naive lstrip('-').isdigit() guard but make
+# int() raise; they must reach exit 2 (usage), not exit 1 with a traceback (review finding).
+assert_eq("#2098 args: multi-dash operand -> exit 2 (not int() crash)", 2, _bad(['800', '--5', '9'])[0])
+assert_eq("#2098 args: leading-plus operand -> exit 2", 2, _bad(['800', '+5', '9'])[0])
+assert_eq("#2098 args: superscript unicode digit -> exit 2 (not int() crash)", 2,
+          _bad(['800', '²', '9'])[0])
+assert_eq("#2098 args: non-ascii-digit job id -> exit 2", 2, _bad(['²', '1', '9'])[0])
+
+# --- header count= and empty_window=no on a normal window ---
+_rc, _out, _err, _, _, _ = _run_pjl(['950', '2', '4'], log_bytes=_lines_10)
+assert_eq("#2098 header: count equals served line total", '3', _header_field(_out, 'count'))
+assert_eq("#2098 header: empty_window=no on a normal window", 'no', _header_field(_out, 'empty_window'))
+
+# --- cap BOUNDARIES (strict-greater comparisons: exactly-at-limit must NOT clip) ---
+_exact300 = ('\n'.join(f'e{i}' for i in range(1, 301)) + '\n').encode('utf-8')
+_rc, _out, _err, _, _, _ = _run_pjl(['960', '1', '300'], log_bytes=_exact300)
+assert_eq("#2098 line-cap boundary: exactly 300 requested reports line_cap none", 'none',
+          _header_field(_out, 'line_cap'))
+assert_eq("#2098 line-cap boundary: exactly 300 lines served", 300,
+          len([ln for ln in _out.split('\n')[1:] if ln != '']))
+_exact500 = (('B' * 500) + '\n').encode('utf-8')
+_rc, _out, _err, _, _, _ = _run_pjl(['961', '1', '1'], log_bytes=_exact500)
+assert_eq("#2098 char-cap boundary: exactly 500 chars reports char_cap none", 'none',
+          _header_field(_out, 'char_cap'))
+assert_eq("#2098 char-cap boundary: exactly-500 line served intact", 500, len(_out.split('\n')[1]))
+
+# --- carriage return handled, and invalid UTF-8 surrounding text survives ---
+# A lone \r is a Python splitlines() line boundary (spec-mandated line counting), so
+# 'carriage\rreturn' becomes two served lines and no \r reaches the served output; the
+# invalid-UTF-8 bytes decode to U+FFFD (inert) with their surrounding text intact.
+_cr = (b'carriage\rreturn\n' + b'\xff\xfe keep this text\n')
+_rc, _out, _err, _, _, _ = _run_pjl(['962', '1', '3'], log_bytes=_cr)
+assert_eq("#2098 sanitize: no carriage return in served output", True, '\r' not in _out)
+assert_eq("#2098 sanitize: CR splits into two served lines", True,
+          'carriage' in _out and 'return' in _out)
+assert_eq("#2098 sanitize: total_lines counts the CR-split lines (3)", '3',
+          _header_field(_out, 'total_lines'))
+assert_eq("#2098 sanitize: invalid-UTF-8 line's surrounding text survives", True, 'keep this text' in _out)
 
 # --- production-realistic fixture: a GitHub Actions job-log excerpt with the
 #     tab-separated group/step/timestamp prefixes a real `gh run view --log` emits ---
