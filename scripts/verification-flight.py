@@ -80,9 +80,9 @@ SCHEMA_VERSION = 1
 # SCHEMA_VERSION, so it fails closed on this record rather than serving it as a
 # reusable pass, and `_reusable` keys reuse-eligibility on the same marker.
 SCHEMA_VERSION_NON_HERMETIC = 2
-# The record schemas `_read_flight` accepts. The declaration INPUT schema stays
-# SCHEMA_VERSION alone — a hermetic and a non-hermetic declaration both arrive as
-# schema 1; only the STORED record's schema differs.
+# The record schemas `_read_flight` accepts. A claim's declaration is always
+# submitted under SCHEMA_VERSION; hermeticity changes only the STORED record's
+# schema, never the declaration input.
 _RECORD_SCHEMA_VERSIONS = frozenset({SCHEMA_VERSION, SCHEMA_VERSION_NON_HERMETIC})
 DEFAULT_LEASE_SECONDS = 900  # bounded owner-token lease on a `claimed` handle
 STATE_DIRNAME = os.path.join(".prflow", "tmp", "verification-flights")
@@ -695,8 +695,8 @@ def _effective_reuse_ready(flight: dict, checkout_verified: bool, allow_unverifi
     The single home shared by cmd_status and cmd_wait so the two cannot drift on the
     non-hermetic reuse refusal (issue #2080), the twin of `_effective_pass`. A
     non-hermetic passed flight satisfies verification (effective pass True) yet is
-    never reuse-ready, so its two fields diverge: satisfies_verification True,
-    reuse_ready False.
+    never reuse-ready, so satisfies_verification stays True while reuse_ready is
+    False.
     """
     return _effective_pass(flight, checkout_verified, allow_unverified) and _reusable(flight)
 
@@ -714,11 +714,12 @@ def _public_view(flight: dict) -> dict:
     # enforced in the value, not left as a caller obligation.
     view["satisfies_verification"] = _satisfies(flight)
     # `reuse_ready` is the explicit, unambiguously-named operand a caller reads to
-    # decide reuse (issue #579 review), so no caller is tempted to branch on the
-    # process exit code — which is deliberately role-only on `claim`/attach (EXIT_OK
-    # regardless of the attached state). It folds in `_reusable` (issue #2080): a
-    # non-hermetic passed flight satisfies verification but is never reuse-ready, so
-    # here the two fields diverge rather than mirror.
+    # decide reuse (issue #579 review), so a caller reads this field rather than
+    # branching on the process exit code — which is deliberately role-only on
+    # `claim`/attach (EXIT_OK regardless of the attached state). It folds in
+    # `_reusable` (issue #2080): a non-hermetic passed flight satisfies verification
+    # but is never reuse-ready, so here reuse_ready is False while
+    # satisfies_verification stays True.
     view["reuse_ready"] = _satisfies(flight) and _reusable(flight)
     return view
 
