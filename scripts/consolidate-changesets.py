@@ -18,7 +18,7 @@ time (push to ``main``) from the ``version-consolidate`` workflow at
     ``DEVFLOW_REF=`` payload ref in the docs) to ``v<new version>`` — see
     ``scripts/version_pins.py``, which owns the derivation — so the tagged tree is
     self-consistent and the docs at tag ``vN`` say ``vN`` (issue #953),
-  * prepends a dated, PR-cited Keep-a-Changelog entry assembled from all the prose,
+  * prepends a dated, issue- or PR-cited Keep-a-Changelog entry assembled from all the prose,
   * for every changeset marked ``customer-visible: true`` (issue #2070), reuses its prose
     verbatim as an entry in ``docs/external/release-notes.md`` under the merge date's
     ``## Month Day, Year`` heading — so a customer-facing release note is written once, in
@@ -188,7 +188,7 @@ def _parse_changeset(path: str) -> Changeset:
     if not prose:
         raise ChangesetError(
             f"{path}: empty prose body — a changeset must describe the change "
-            "(one or more '-' bullets, PR-cited)"
+            "(one or more '-' bullets, issue- or PR-cited)"
         )
 
     # customer-visible marker (issue #2070): only the parsed Python bool True marks; any
