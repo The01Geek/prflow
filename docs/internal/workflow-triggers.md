@@ -363,6 +363,12 @@ the manual collaborator-comment path — a repository collaborator comments
 > **Withheld from this release (issues #930 and #920) — see the section above.** This
 > section describes the tier as it behaves in a repository that installed it before the
 > withholding. A fresh installation has no such workflow.
+>
+> **The config keys named below no longer ship (issue #2071).** `prflow_review.require_up_to_date`,
+> `prflow_review.require_ci_green`, and the `prflow_runner` section have been removed from the
+> shipped schema, example, and config, and every `install.sh --apply` strips them from a
+> consumer's `.prflow/config.json`. A retained tier therefore runs on the built-in defaults
+> these keys once overrode — nothing here is a live, tunable config surface any more.
 
 The automated reviewer runs `/prflow:review` as a **required** status check on a
 PR. Its trigger policy (issue #304):

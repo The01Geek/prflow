@@ -76,22 +76,22 @@ A name containing `<name>`, such as `providers.<name>.auth`, means you choose th
 | `prflow_retrospective.watched_authors` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | Whose pull requests the weekly loop scans. |
 | `prflow_review.agent_overrides` | [Review Agents](/docs/configuration/review-agents) | Per-agent `model`, `effort` and `iterations` overrides, plus a `default` entry. |
 | `prflow_review.live_progress_comment_enabled` | [Review](/docs/configuration/review) | Whether a run keeps a live progress comment. |
-| `prflow_review.require_ci_green` | [Review](/docs/configuration/review) | Retained legacy setting for the withdrawn automatic-review tier. |
-| `prflow_review.require_up_to_date` | [Review](/docs/configuration/review) | Retained legacy setting for the withdrawn automatic-review tier. |
+| `prflow_review.require_ci_green` | [Review](/docs/configuration/review) | Removed (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. |
+| `prflow_review.require_up_to_date` | [Review](/docs/configuration/review) | Removed (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. |
 | `prflow_review.stale_prose.enabled` | [Review](/docs/configuration/review) | Whether the stale-prose check runs. |
 | `prflow_review.stale_prose.severity` | [Review](/docs/configuration/review) | The severity a stale-prose finding carries. |
-| `prflow_review.stall_backstop.enabled` | [Review](/docs/configuration/review) | Retained legacy setting for the withdrawn automatic-review tier. |
+| `prflow_review.stall_backstop.enabled` | [Review](/docs/configuration/review) | Whether the live no-verdict stall backstop is enabled (retained; not part of the removed tier). |
 | `prflow_review.stall_backstop.max_resume_attempts` | [Review](/docs/configuration/review) | How many times a stalled review may be resumed. |
 | `prflow_review.verdict_severity_threshold` | [Review](/docs/configuration/review) | The severity at which findings turn the verdict into a rejection. |
 | `prflow_review_and_fix.efficiency_cut_candidate_min_dispatch` | [Review](/docs/configuration/review) | A threshold recorded for later cross-run analysis. |
 | `prflow_review_and_fix.efficiency_telemetry_enabled` | [Review](/docs/configuration/review) and [Observability and Privacy](/docs/configuration/observability-and-privacy) | Whether the effectiveness record is written. |
 | `prflow_review_and_fix.fix_severity_threshold` | [Review](/docs/configuration/review) | The severity at which a finding is eligible for a fix. |
 | `prflow_review_and_fix.max_iterations` | [Review](/docs/configuration/review) | How many fix-loop iterations may run. |
-| `prflow_runner.allowed_tools` | [Tool Permissions](/docs/configuration/tool-permissions) | Retained legacy setting for the withdrawn automatic-review tier. |
-| `prflow_runner.claude_model` | [Model Providers](/docs/configuration/providers) | Retained legacy setting for the withdrawn automatic-review tier. |
-| `prflow_runner.effort` | [Review](/docs/configuration/review) | Retained legacy setting for the withdrawn automatic-review tier. |
-| `prflow_runner.provider` | [Model Providers](/docs/configuration/providers) | Retained legacy setting for the withdrawn automatic-review tier. |
-| `prflow_runner.provision_env` | [Review](/docs/configuration/review) | Retained legacy setting for the withdrawn automatic-review tier. |
+| `prflow_runner.allowed_tools` | [Tool Permissions](/docs/configuration/tool-permissions) | Removed (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. |
+| `prflow_runner.claude_model` | [Model Providers](/docs/configuration/providers) | Removed (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. |
+| `prflow_runner.effort` | [Review](/docs/configuration/review) | Removed (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. |
+| `prflow_runner.provider` | [Model Providers](/docs/configuration/providers) | Removed (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. |
+| `prflow_runner.provision_env` | [Review](/docs/configuration/review) | Removed (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. |
 | `prflow_version` | [Core Settings](/docs/configuration/core-settings) | The plugin version a thin cloud install fetches. |
 | `providers.<name>.auth` | [Model Providers](/docs/configuration/providers) | How the route authenticates. |
 | `providers.<name>.base_url` | [Model Providers](/docs/configuration/providers) | The endpoint that receives model requests. |

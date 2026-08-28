@@ -5,7 +5,7 @@
 
 #### Run bootstrap: `init`, the nonce, and recovery
 
-The `init` call, the nonce it mints, the canonical-draft write with its two Step 3.5 gates, and the draft-root binding below are the run's bootstrap — they run on the path to Step 4's pre-approval pause regardless of whether any audit round is elected, because a run that elects none still needs a state document and a nonce to record its decline, bind creation, and emit the body. A dispatched round (offered and accepted at that pause) reuses that already-minted nonce and bound draft; it never re-bootstraps. Open the bootstrap with a cold-start `init` — no `--nonce`, that omission being what selects the delete-leftover-first wipe; a `--nonce` on `init` is only for a same-run re-init and needs `--force` over recorded rounds:
+The `init` call, the nonce it mints, the canonical-draft write with its two Step 3.5 gates, and the draft-root binding below are the run's bootstrap — they run on the path to Step 4's pre-approval pause regardless of whether any audit round is elected. A dispatched round (offered and accepted at that pause) reuses that already-minted nonce and bound draft; it never re-bootstraps. Open the bootstrap with a cold-start `init` — no `--nonce`, that omission being what selects the delete-leftover-first wipe; a `--nonce` on `init` is only for a same-run re-init and needs `--force` over recorded rounds:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py init "<slug>"
@@ -15,7 +15,13 @@ python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports 
 
 #### Write the canonical draft, then run Step 3.5's two gates here
 
-Write the canonical draft as part of the run bootstrap, before Step 4's pause and regardless of whether a round is elected (the audit input, when a round is elected, is this draft file, not a hand-condensed copy). Write the current rendered draft title + body to the canonical draft file, reusing this run's `<slug>` and the identical Step 4 sub-step 2 recipe (resolve `MAIN_ROOT` with `resolve-main-root.sh` via the portable anchor, `mkdir -p "$MAIN_ROOT/.prflow/tmp/create-issue/<slug>"`, title as a top `# ` heading above the body). This is normally the run's first landed canonical-draft write, so it is the run's draft-root binding site (that procedure is directly below, not deferred to Step 4). Perform it through the Staged canonical-draft write shared procedure below; there is no delete-first step. Confirming the write landed is an observation you report to the tool: pass the procedure's `agree=` answer as `--write-landed yes|no` to `query-arm`, which decides the arm — confirm it explicitly from that `agree=` report, not from the absence of an error. Step 4 sub-step 2 keeps writing this same absolute path.
+**Append the provenance signature as the body's last line before this first canonical write** (one write, not a second Step-4 append), rendering it in the fence below and appending only when the body lacks it; paste the printed italic line verbatim, and on no readable output omit it. A later append lands outside the digest-covered bytes.
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-pr-provenance-line.py --command /prflow:create-issue
+```
+
+Write the canonical draft as part of the run bootstrap, before Step 4's pause and regardless of whether a round is elected (the audit input, when a round is elected, is this draft file, not a hand-condensed copy). Write the current rendered draft title + body to the canonical draft file, reusing this run's `<slug>` and the identical Step 4 sub-step 2 recipe (resolve `MAIN_ROOT` with `resolve-main-root.sh` via the portable anchor, `mkdir -p "$MAIN_ROOT/.prflow/tmp/create-issue/<slug>"`, title as a top `# ` heading above the body). This is normally the run's first landed canonical-draft write, so it is the run's draft-root binding site. Perform it through the Staged canonical-draft write shared procedure below; there is no delete-first step. Confirming the write landed is an observation you report to the tool: pass the procedure's `agree=` answer as `--write-landed yes|no` to `query-arm`, which decides the arm — confirm it explicitly from that `agree=` report, not from the absence of an error. Step 4 sub-step 2 keeps writing this same absolute path.
 
 Run the Verified-premise handle check on the bytes that write landed (Step 3.5's obligation, executed here as part of the run bootstrap, regardless of any election). Once the write is confirmed landed, run:
 

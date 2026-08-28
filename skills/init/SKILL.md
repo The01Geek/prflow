@@ -155,7 +155,7 @@ This is the single shared scaffolder, the same script `install.sh` uses. With no
 - creates `.prflow/config.json` from the shipped `config.example.json` only if it does not already exist — it never clobbers a config you've already filled in. When the config already exists it's kept and re-running backfills any newly-added keys from the example (at any nesting depth) so you can opt into new features; values you've already set always win and arrays you've tuned (e.g. `allowed_tools`) are left as-is;
 - always refreshes `.prflow/config.schema.json` so your editor validates against the current field set;
 - scaffolds `.prflow/prompt-extensions/` with a commented, inert `<skill-name>.md.example` for every skill (each with a skill-specific hint), so you discover the consumer prompt-extension convention and which skills it covers. Each example is created only if absent (a per-file backfill, so re-running picks up newly added examples while never overwriting an example you edited or a live `<skill-name>.md` you authored); the `.example` suffix keeps every scaffolded file inert until you deliberately rename it;
-- auto-detects the repo's language(s) (Node, Go, Rust, Java, Ruby, PHP, .NET, Make, Docker) and merges the matching build/test/lint tools into `config.json` — into all three allowlists (`prflow.allowed_tools`, `prflow_implement.allowed_tools`, and `prflow_runner.allowed_tools`, which the automated reviewer consumes when `prflow_runner.provision_env: true` — see below) plus the `setup` block (`node_version` + a lockfile-appropriate install line, and a `composer install` line for PHP). When the Node `package.json`/lockfile lives in a subdirectory (a monorepo `frontend/` package, or a PHP/Rails app with a co-located `/jsx` or `/resources/js` bundle), it is auto-detected into `setup.node_working_directory` and the generated Node install line is scoped into that directory (a subshell `cd`) so caching and the build target the right place; a root-level build leaves `node_working_directory` empty. The `setup` block is what lets the automated reviewer build/test a PR — but only once the maintainer opts in with `prflow_runner.provision_env: true` (see that property's description in `config.schema.json`). The merge is an idempotent union: it never removes your custom entries and never duplicates, so re-running after adding a language picks up only the new tools.
+- auto-detects the repo's language(s) (Node, Go, Rust, Java, Ruby, PHP, .NET, Make, Docker) and merges the matching build/test/lint tools into `config.json` — into both allowlists (`prflow.allowed_tools` and `prflow_implement.allowed_tools`) plus the `setup` block (`node_version` + a lockfile-appropriate install line, and a `composer install` line for PHP). When the Node `package.json`/lockfile lives in a subdirectory (a monorepo `frontend/` package, or a PHP/Rails app with a co-located `/jsx` or `/resources/js` bundle), it is auto-detected into `setup.node_working_directory` and the generated Node install line is scoped into that directory (a subshell `cd`) so caching and the build target the right place; a root-level build leaves `node_working_directory` empty. The `setup` block feeds `/prflow:implement`'s cloud tier. The merge is an idempotent union: it never removes your custom entries and never duplicates, so re-running after adding a language picks up only the new tools.
 
 It resolves the templates from the installed plugin (`"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../.prflow/`), so it works whether DevFlow was installed via the marketplace or vendored by `install.sh`.
 
@@ -230,23 +230,16 @@ The scaffolder's language detection is a deterministic floor (marker file → to
 
 Don't re-add what detection already wrote. Tell the user to review every addition before committing and flag the security implication (next section).
 
-## Then: enrich the three allowlists by exploring the repo's real build/test/lint setup
+## Then: enrich the two allowlists by exploring the repo's real build/test/lint setup
 
-The preset floor (`detect-project-tools.sh` + `tool-presets.json`) is a conservative marker→tool lookup and will miss project-specific tooling. Explore the repo's actual build/test/lint setup — `Makefile`, `package.json`/`composer.json` scripts, `pyproject.toml`/`tox.ini`, `justfile`/`Taskfile.yml`, CI workflows — and add anything the presets missed to all three allowlists, editing `.prflow/config.json` directly:
+The preset floor (`detect-project-tools.sh` + `tool-presets.json`) is a conservative marker→tool lookup and will miss project-specific tooling. Explore the repo's actual build/test/lint setup — `Makefile`, `package.json`/`composer.json` scripts, `pyproject.toml`/`tox.ini`, `justfile`/`Taskfile.yml`, CI workflows — and add anything the presets missed to both allowlists, editing `.prflow/config.json` directly:
 
 - `prflow.allowed_tools` — the light `/devflow:*` command path.
 - `prflow_implement.allowed_tools` — `/prflow:implement` (legitimately needs `Edit`/`Write`; it writes code).
-- `prflow_runner.allowed_tools` — the automated reviewer's build/verify tools, appended to its read-only profile only when `prflow_runner.provision_env: true`, read from the trusted base ref.
 
-Attach a one-line justification to every entry you add, and **grant *enough* access for the automations to be effective** — a reviewer that can't run the project's real `make test`/`cargo test`/`go build` is crippled and will punt build-dependent claims.
+Attach a one-line justification to every entry you add, and **grant *enough* access for the automations to be effective** — an implement run that can't run the project's real `make test`/`cargo test`/`go build` is crippled and will punt build-dependent claims.
 
-### Security — the `pull_request_target` + write-token threat model
-
-The automated reviewer fires on `pull_request_target` with a `pull-requests: write` token, and when `provision_env` is on it runs the PR author's build code. When enriching `prflow_runner.allowed_tools`:
-
-- Prefer narrow scoped patterns. `Bash(go test:*)` is safer than `Bash(go:*)` when only test is needed; scope to the subcommand the reviewer actually uses.
-- **Never add a deny-listed tool to *any* allowlist.** The runner deterministically strips file-mutation tools (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`) and raw-shell/eval/privilege Bash (`Bash(bash:*)`, `Bash(sh:*)`, `Bash(zsh:*)`, `Bash(eval:*)`, `Bash(exec:*)`, `Bash(source:*)`, `Bash(sudo:*)`) from the reviewer's profile and warns — proposing one is pointless there and dangerous everywhere else.
-- Tell the maintainer to review `config.json` before committing, and to keep `provision_env` off (the default) unless they accept running untrusted PR build steps.
+**Never add a deny-listed tool to either allowlist.** File-mutation tools (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`) and raw-shell/eval/privilege Bash (`Bash(bash:*)`, `Bash(sh:*)`, `Bash(zsh:*)`, `Bash(eval:*)`, `Bash(exec:*)`, `Bash(source:*)`, `Bash(sudo:*)`) are stripped from a read-only review profile and warned on — proposing one there is pointless and dangerous everywhere else. Tell the maintainer to review `config.json` before committing.
 
 ## After running
 
@@ -281,9 +274,9 @@ Apply it with your file-edit tool, and hold to all of these:
 
 The scaffolder also prints `devflow-detect:` lines from the language auto-detection. Read them and respond:
 
-- `detected: <langs> — merged …` — build/test tools for those languages were added to `config.json`. Tell the user to review the additions before committing. The `prflow_runner.allowed_tools` entries reach the automated reviewer only when `prflow_runner.provision_env: true` is set in the base-branch config, which runs the PR author's `setup.install` + build steps on `pull_request_target` with a write token. The flag and the freeform allowlist are read only from the base branch, so a PR can't enable it or grant itself tools, and the runner strips the deny-listed tier regardless; but enabling `provision_env` is opting into running untrusted build steps. If they want the reviewer read-only (the default), leave `provision_env` unset/false. The `prflow.allowed_tools` / `prflow_implement.allowed_tools` entries take effect in their own workflows.
+- `detected: <langs> — merged …` — build/test tools for those languages were added to `config.json`'s `prflow.allowed_tools` and `prflow_implement.allowed_tools`. Tell the user to review the additions before committing; each takes effect in its own workflow.
 - `detected: <langs> — config.json already covers them` — idempotent re-run, nothing changed.
-- `no known language markers detected` or `no usable jq (missing or not executable) …` — no auto-population happened; the reviewer stays read-only. To make the reviewer build/test PRs they must set `prflow_runner.provision_env: true` and populate the `setup` block (see `config.schema.json`).
+- `no known language markers detected` or `no usable jq (missing or not executable) …` — no auto-population happened; populate the allowlists and the `setup` block by hand if needed (see `config.schema.json`).
 
 Read the settings provisioner's `devflow-settings:` line and respond:
 

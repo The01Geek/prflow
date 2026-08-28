@@ -123,11 +123,6 @@
       "max_resume_attempts": 2
     }
   },
-  "prflow_runner": {
-    "effort": "low",
-    "provision_env": false,
-    "allowed_tools": []
-  },
   "prflow_review_and_fix": {
     "fix_severity_threshold": "suggestion",
     "max_iterations": 5,
@@ -142,8 +137,6 @@
       "enabled": false,
       "severity": "suggestion"
     },
-    "require_up_to_date": true,
-    "require_ci_green": true,
     "stall_backstop": {
       "enabled": true,
       "max_resume_attempts": 2
