@@ -49,10 +49,53 @@ r=res0(o)
 check("conj4 string-true not normalized", not r["normalized"] and r["verdict"]=="FAIL")
 check("conj4 string-true is field-defect-fail", o["counts"]["field_defect_fail_count"]==1, str(r))
 
+# issue #2099 — the reported consumer shape: a well-typed FAIL asserting the code is
+# correct (inaccuracy_scope generated_claim_text) while leaving property_proven false.
+# Previously terminal (needs_retry empty); now draws exactly one pinned auxiliary re-ask.
 o,_=run("conj4-property-false.json")
 r=res0(o)
-check("conj4 false not normalized", not r["normalized"] and r["verdict"]=="FAIL")
-check("conj4 false NOT field-defect-fail", o["counts"]["field_defect_fail_count"]==0)
+check("contradiction: not normalized, stays FAIL", not r["normalized"] and r["verdict"]=="FAIL", str(r))
+check("contradiction: NOT a field-defect fail", o["counts"]["field_defect_fail_count"]==0, str(o["counts"]))
+check("contradiction: fires one auxiliary re-ask naming the contradiction",
+      len(o["needs_retry"])==1 and o["needs_retry"][0]["kind"]=="auxiliary"
+      and "contradiction" in o["needs_retry"][0]["defect"], str(o["needs_retry"]))
+check("contradiction: defect_class auxiliary, ineligible names the contradiction",
+      r["defect_class"]=="auxiliary" and "contradiction" in (r["normalization_ineligible"] or ""), str(r))
+
+# A resolving re-ask (pinned FAIL, property true + generated_claim_text) normalizes exactly
+# as a first-response wording-only FAIL does.
+o,_=run("contradiction-resolved.json")
+r=res0(o)
+check("contradiction resolved: normalizes wording-only",
+      r["normalized"] and r["verdict"]=="PASS" and r["raw_verdict"]=="FAIL"
+      and r["evidence"].startswith("NORMALIZED (wording-only): "), str(r))
+check("contradiction resolved: counted normalized", o["counts"]["normalized_count"]==1, str(o["counts"]))
+check("contradiction resolved: not re-dispatched again", o["needs_retry"]==[], str(o["needs_retry"]))
+
+# A persisting contradiction (pinned FAIL, re-ask STILL property false + generated_claim_text)
+# leaves the raw FAIL standing, names the contradiction, and is never re-dispatched again.
+o,_=run("contradiction-persisting.json")
+r=res0(o)
+check("contradiction persisting: stays FAIL",
+      r["raw_verdict"]=="FAIL" and r["verdict"]=="FAIL" and r["normalized"] is False, str(r))
+check("contradiction persisting: ineligible names the contradiction",
+      "contradiction" in (r["normalization_ineligible"] or ""), str(r["normalization_ineligible"]))
+check("contradiction persisting: fires at most once (no second dispatch)",
+      o["needs_retry"]==[], str(o["needs_retry"]))
+
+# Each of the four OTHER real-value blockers suppresses the contradiction re-ask and keeps
+# today's terminal behavior — no auxiliary contradiction re-ask fires.
+for _fx,_lbl in [("contradiction-suppressed-not-agent.json", "not-agent"),
+                 ("contradiction-suppressed-issue-acceptance.json", "issue_acceptance"),
+                 ("contradiction-suppressed-source-authored.json", "source_authored"),
+                 ("contradiction-suppressed-trusted-unreadable.json", "trusted-unreadable")]:
+    o,_=run(_fx)
+    r=res0(o)
+    check("contradiction suppressed (" + _lbl + "): not normalized",
+          not r["normalized"] and r["verdict"]=="FAIL", str(r))
+    check("contradiction suppressed (" + _lbl + "): no auxiliary contradiction re-ask",
+          not any(x["kind"] == "auxiliary" and "contradiction" in str(x.get("defect", ""))
+                  for x in o["needs_retry"]), str(o["needs_retry"]))
 
 o,_=run("conj5-scope-source.json")
 r=res0(o)

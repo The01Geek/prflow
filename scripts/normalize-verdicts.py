@@ -82,6 +82,19 @@ pair whose raw verdict is the byte-exact token ``FAIL`` **and** that is not
 itself already a pinned re-ask (the re-ask fires at most once); a PASS or
 INCONCLUSIVE with a defective auxiliary field is never re-dispatched.
 
+A raw FAIL whose auxiliary fields are BOTH well-typed can still be a contradiction
+(issue #2099): ``inaccuracy_scope == "generated_claim_text"`` asserts the code is
+correct while boolean ``property_proven`` is ``false`` leaves the intended property
+unproven. When the property-not-proven real blocker is the SOLE normalization blocker
+(no field defect, and none of the four other real blockers below), that pair is not a
+settled answer — it enters ``needs_retry`` with kind ``auxiliary`` for the same
+one-shot pinned re-ask, at most once per item across the field-defect and contradiction
+classes together. A re-ask that positively proves the property normalizes through the
+unchanged five-conjunct predicate; any other re-ask outcome leaves the raw FAIL
+standing. The four other real blockers that instead keep the terminal behavior are:
+``mode != "agent"``, ``category == "issue_acceptance"``, ``source_authored``
+provenance, and a trusted verdict file present but unreadable.
+
 Reading the verdict bytes off the fallback ``response_text`` channel when the
 named nonce file was PRESENT but unreadable is a real-value normalization blocker
 (the trusted binding was abandoned), distinct from the legitimate absent-file
@@ -137,6 +150,14 @@ def _force_utf8_streams():
 VERDICT_ENUM = ("PASS", "FAIL", "INCONCLUSIVE")
 SCOPE_ENUM = ("generated_claim_text", "source_authored_text", "none")
 NORMALIZED_PREFIX = "NORMALIZED (wording-only): "
+# issue #2099 — the well-typed contradiction: inaccuracy_scope generated_claim_text
+# asserts the code is correct, yet property_proven false leaves the intended property
+# unproven. Not a settled verdict; it draws one pinned auxiliary re-ask (see _process_pair).
+CONTRADICTION_DEFECT = "contradiction:generated_claim_text_but_property_unproven"
+CONTRADICTION_INELIGIBLE = (
+    "contradiction: inaccuracy_scope generated_claim_text asserts the code is correct "
+    "but property_proven is false"
+)
 
 
 def _brace_objects(text):
@@ -421,6 +442,19 @@ def _process_pair(pair):
         and not real_blockers
     )
 
+    # issue #2099 — the contradiction: both auxiliary fields are well-typed, yet
+    # generated_claim_text (code asserted correct) is paired with property_proven false
+    # (property left unproven). It is detected as property-not-proven being the SOLE
+    # real-value blocker with no field defect: any OTHER real blocker (not-agent,
+    # issue_acceptance, source_authored, trusted-file-unreadable) makes real_blockers a
+    # non-singleton, which is what suppresses the re-ask and keeps the terminal behavior.
+    # That singleton also implies mode==agent and provenance==generated_paraphrase.
+    is_contradiction = (
+        raw == "FAIL"
+        and real_blockers == ["property not proven"]
+        and not field_defect_blockers
+    )
+
     # auxiliary re-ask: only for a raw FAIL + generated_paraphrase agent item with a
     # defective auxiliary field (never re-roll a PASS/INCONCLUSIVE — a bookkeeping
     # defect must not re-roll a decided verdict). The common defect stamp is hoisted;
@@ -429,14 +463,24 @@ def _process_pair(pair):
     if aux_defects:
         result["defect"] = "aux:" + ",".join(aux_defects)
         result["defect_class"] = "auxiliary"
-        # A pinned pair IS the field-completion re-ask (fires at most once), so it is
-        # never re-dispatched again — its persisting aux defect leaves the raw FAIL
-        # standing with the marker. A real-value blocker also disqualifies the re-ask:
-        # completing the fields cannot make an item normalize that a real blocker
-        # already refuses, so dispatching one would only burn budget.
+        # A pinned pair IS the re-ask (fires at most once), so it is never re-dispatched
+        # again — its persisting aux defect leaves the raw FAIL standing with the marker.
+        # A real-value blocker OTHER than the property-not-proven contradiction below also
+        # disqualifies the re-ask: completing the fields cannot make an item normalize that
+        # such a blocker already refuses, so dispatching one would only burn budget.
         if (not is_pinned and raw == "FAIL" and provenance == "generated_paraphrase"
                 and mode == "agent" and not real_blockers):
             retry = {"id": item_id, "kind": "auxiliary", "defect": ",".join(aux_defects)}
+    elif is_contradiction:
+        # No auxiliary FIELD defect — both fields are well-typed — so the field-defect arm
+        # above does not fire; the defect is the contradiction between them. Stamp it and,
+        # unless this pair is already the pinned re-ask, draw exactly one through the same
+        # auxiliary channel (at most one re-ask per item across both classes together).
+        result["defect"] = CONTRADICTION_DEFECT
+        result["defect_class"] = "auxiliary"
+        result["normalization_ineligible"] = CONTRADICTION_INELIGIBLE
+        if not is_pinned and provenance == "generated_paraphrase" and mode == "agent":
+            retry = {"id": item_id, "kind": "auxiliary", "defect": CONTRADICTION_DEFECT}
 
     if trusted_channel_lost:
         # Stamped LAST so it takes precedence over an auxiliary stamp, and stamped in
