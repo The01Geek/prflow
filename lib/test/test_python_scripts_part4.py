@@ -4925,30 +4925,57 @@ _f1702_real, _r1702_real = _rsz1702.check_step36_set(
 assert_eq("#1702: the shipped Step 3.6 set is within the per-member limit and aggregate baseline",
           [], _f1702_real)
 
-# ── #1560: the phase-4 §4.3 claim-declaration template is a VALID hermetic declaration ──
-# skills/implement/phases/phase-4-documentation.md §4.3 carries a fenced `json` claim
-# declaration template a run substitutes and feeds to scripts/verification-flight.py. It
-# must be a valid declaration the real `claim` accepts, not merely a field list: a template
-# naming every required field with an unacceptable value would pass a membership check yet be
-# refused by the first `claim`, which is the defect this template exists to remove. Extract
-# the shipped template, substitute only its <…> placeholders, and assert the real helper's
-# `descriptor` (the same validation `claim` runs) accepts it — then prove RED-on-drift with
-# the two planted defects the helper refuses: external_services set to a malformed value
-# (an empty string, which names no service — issue #2080; a truthful non-"none" service
-# name is now ACCEPTED as a non-hermetic declaration and is NOT a drift defect), and an
-# object-id field off the 40/64-hex shape _validate_checkout requires.
+# ── #1560 / #2095: the copyable `claim` declaration example is a VALID hermetic declaration ──
+# Issue #2095 relocated the single copyable `claim` declaration out of
+# skills/implement/phases/phase-4-documentation.md and into `verification-flight.py claim
+# --help` (the phase file now carries a pointer, not a template). The guarantee is unchanged:
+# the shipped example must be a valid declaration the real `claim` accepts, not merely a field
+# list — an example naming every required field with an unacceptable value would pass a
+# membership check yet be refused by the first `claim`, the defect this example exists to
+# remove. Assert both halves of the relocation: the phase file embeds no ```json template, and
+# the example the help prints is accepted by the real `descriptor` (the same validation `claim`
+# runs) — then prove RED-on-drift with the planted defects the helper refuses: external_services
+# set to a malformed value (an empty string, which names no service — issue #2080; a truthful
+# non-"none" service name is ACCEPTED as a non-hermetic declaration and is NOT a drift defect),
+# and an object-id field off the 40/64-hex shape _validate_checkout requires.
 import subprocess as _sp1560
 
 _PHASE4_1560 = SCRIPTS.parent / "skills" / "implement" / "phases" / "phase-4-documentation.md"
 _VFLIGHT_1560 = SCRIPTS / "verification-flight.py"
 
+# The relocation's other half (issue #2095 AC7): the phase file no longer embeds a json
+# template — a re-introduced ```json fence there would resurrect the drift this change removed.
+assert_eq("#2095: phase-4-documentation.md embeds no ```json declaration template (it points at `claim --help`)",
+          [], re.findall(r"```json\n", _PHASE4_1560.read_text(encoding="utf-8")))
 
-def _extract_json_template_1560(text):
-    # Fail closed on the fence count: the file must carry EXACTLY ONE ```json fence, so a
-    # second json fence added later cannot silently change what is validated.
-    blocks = re.findall(r"```json\n(.*?)\n```", text, re.DOTALL)
-    assert len(blocks) == 1, f"expected exactly one ```json fence in phase-4-documentation.md, found {len(blocks)}"
-    return blocks[0]
+
+def _extract_json_object_1560(text):
+    # `claim --help` prints exactly one JSON object (the worked declaration) as plain text,
+    # not a fenced block; return the first balanced-brace object so a caller can copy it.
+    start = text.find("{")
+    while start != -1:
+        depth = 0
+        for _i1560 in range(start, len(text)):
+            if text[_i1560] == "{":
+                depth += 1
+            elif text[_i1560] == "}":
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start:_i1560 + 1]
+                    try:
+                        json.loads(candidate)
+                        return candidate
+                    except ValueError:
+                        break
+        start = text.find("{", start + 1)
+    raise AssertionError("no JSON object found in `verification-flight.py claim --help` output")
+
+
+def _claim_help_text_1560():
+    proc = _sp1560.run([sys.executable, str(_VFLIGHT_1560), "claim", "--help"],
+                       capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout
 
 
 def _descriptor_rc_1560(decl_text):
@@ -4963,17 +4990,17 @@ def _descriptor_rc_1560(decl_text):
         os.unlink(_p1560)
 
 
-# Substitute ONLY the <…> placeholders (each sits inside a JSON string), leaving the literals
+# Substitute ONLY the <…> placeholder (candidate_identity, a JSON string), leaving the literals
 # (schema_version 1, external_services "none", the four object-id hex) intact.
-_tpl1560 = _extract_json_template_1560(_PHASE4_1560.read_text(encoding="utf-8"))
+_tpl1560 = _extract_json_object_1560(_claim_help_text_1560())
 _decl1560 = re.sub(r"<[^>]*>", "x", _tpl1560)
-assert_eq("#1560: the shipped phase-4 claim template is accepted by verification-flight descriptor",
+assert_eq("#2095: the `claim --help` example declaration is accepted by verification-flight descriptor",
           0, _descriptor_rc_1560(_decl1560))
-assert_eq("#1560: the template with a malformed external_services (empty string) is refused",
+assert_eq("#2095: the example with a malformed external_services (empty string) is refused",
           True, _descriptor_rc_1560(_decl1560.replace('"none"', '""')) != 0)
-assert_eq("#1560: the template with a truthful non-\"none\" external_services is accepted (non-hermetic, issue #2080)",
+assert_eq("#2095: the example with a truthful non-\"none\" external_services is accepted (non-hermetic, issue #2080)",
           0, _descriptor_rc_1560(_decl1560.replace('"none"', '"postgres"')))
-assert_eq("#1560: the template with an object-id field off the 40/64-hex shape is refused",
+assert_eq("#2095: the example with an object-id field off the 40/64-hex shape is refused",
           True, _descriptor_rc_1560(_decl1560.replace("1111111111111111111111111111111111111111", "nothex")) != 0)
 
 # ── issue #1882: the openssl-free JWT signer refuses every non-(PKCS#1|PKCS#8-RSA)

@@ -175,6 +175,29 @@ _CHECKOUT_REQUIRED = (
 _OBJECT_ID_FIELDS = ("head", "index_digest", "tracked_digest", "untracked_digest")
 _OBJECT_ID_RE = re.compile(r"\A(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
 
+# Example values for the worked declaration `claim --help` renders (issue #2095). The
+# builder pulls the KEYS from _PROFILE_REQUIRED/_CHECKOUT_REQUIRED, then each key's value
+# from here — so a required key added to those tuples without an example value here raises
+# KeyError at help-render, which is what keeps the rendered example from silently omitting
+# a key the validator requires.
+_EXAMPLE_PROFILE_VALUES = {
+    "profile_version": 1,
+    "argv": ["lib/test/run.sh"],
+    "cwd": "/path/to/repo",
+    "environment": {},
+    "toolchain": {},
+    "dependencies": {},
+    "output_roots": [],
+    "external_services": "none",
+}
+_EXAMPLE_CHECKOUT_VALUES = {
+    "checkout_id": "/path/to/repo/.git",
+    "head": "1111111111111111111111111111111111111111",
+    "index_digest": "2222222222222222222222222222222222222222",
+    "tracked_digest": "3333333333333333333333333333333333333333",
+    "untracked_digest": "4444444444444444444444444444444444444444",
+}
+
 
 def _validate_reason_code(
     reason: str, exact: frozenset[str], prefixes: frozenset[str]
@@ -1387,13 +1410,38 @@ def _exit_code_epilog() -> str:
 
 
 def _claim_epilog() -> str:
-    """Render the claim declaration's required keys from the same in-module constants
-    the validator reads, plus the attach semantics, so `claim --help` answers what the
-    declaration file must contain and how an already-claimed key behaves."""
+    """Render the claim declaration's required keys, a complete copyable example, and the
+    constraints the validator enforces — all from the same in-module constants the
+    validator reads — so one read of `claim --help` is enough to author a declaration that
+    validates on the first submission (issue #2095), plus the attach semantics."""
+    example = {
+        "schema_version": SCHEMA_VERSION,
+        "candidate_identity": "<value scripts/reception-record.py prints>",
+        "profile": {k: _EXAMPLE_PROFILE_VALUES[k] for k in _PROFILE_REQUIRED},
+        "checkout": {k: _EXAMPLE_CHECKOUT_VALUES[k] for k in _CHECKOUT_REQUIRED},
+    }
+    example_json = json.dumps(example, indent=2)
     return (
         "declaration file (--input-file) required keys:\n"
         f"  profile object: {', '.join(_PROFILE_REQUIRED)}\n"
         f"  checkout fingerprint object: {', '.join(_CHECKOUT_REQUIRED)}\n"
+        "\n"
+        "constraints the validator enforces:\n"
+        "  schema_version must be the integer 1.\n"
+        '  external_services must be the string "none" for a hermetic (reusable) flight;\n'
+        "    a truthful service name is accepted but recorded non-reusable.\n"
+        "  the four checkout object-id fields (head, index_digest, tracked_digest,\n"
+        "    untracked_digest) are lowercase hex, length 40 for SHA-1 or length 64 for\n"
+        "    SHA-256, produced by scripts/checkout-fingerprint.py; checkout_id is that\n"
+        "    producer's opaque git-dir path (any non-empty string).\n"
+        "  candidate_identity is an OPTIONAL top-level field the validator accepts as\n"
+        "    absent, but a PRFlow implement run and a fix-loop run must set it to the value\n"
+        "    scripts/reception-record.py prints, because scripts/check-completion-evidence.py\n"
+        "    refuses a completion record whose candidate_identity is not a non-empty string.\n"
+        "\n"
+        "copyable declaration (substitute the <…> placeholder and the example hex, which\n"
+        "scripts/checkout-fingerprint.py produces):\n"
+        f"{example_json}\n"
         "\n"
         "attach semantics:\n"
         "  Claiming an already-claimed key ATTACHES to the existing flight, exits 0,\n"
