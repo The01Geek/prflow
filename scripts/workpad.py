@@ -2394,19 +2394,14 @@ def _status_class(glyph: str) -> str:
     return _TERMINAL_STATUS_CLASS_BY_GLYPH.get(glyph, 'interim')
 
 
-# ── Managed status-mirror labels (issue #2117) ───────────────────────────────
-# A closed three-label set mirrored onto the issue and its open PR so a run's
-# state is visible from the issue/PR LIST without opening the workpad comment.
-# The names are constants, not configurable, and are matched by EXACT membership
-# — NOT by the `PRFlow` prefix, which is `lib/scan.sh`'s provenance label and a
-# string prefix of all three: a prefix match would strip that provenance label
-# and silently break the weekly retrospective's candidate selection.
+# Managed status-mirror labels (issue #2117). Match by EXACT membership, never
+# the `PRFlow` prefix (lib/scan.sh's provenance label, a prefix of all three) —
+# a prefix match strips it and breaks the retrospective's candidate selection.
 _STATUS_LABEL_IMPLEMENTING = 'PRFlow:Implementing'
 _STATUS_LABEL_STUCK = 'PRFlow:Stuck'
 _STATUS_LABEL_COMPLETE = 'PRFlow:Complete'
-# The status CLASS (`_status_class`) → managed label. `interim` covers every
-# in-progress status word (all seven share it, via `_status_class`'s default
-# arm); the three stopped classes share `PRFlow:Stuck`; `complete` is Complete.
+# Status CLASS → managed label. `interim` covers every in-progress word (all
+# seven, via `_status_class`'s default arm) — not visible from the map below.
 _STATUS_CLASS_TO_LABEL = {
     'interim': _STATUS_LABEL_IMPLEMENTING,
     'blocked': _STATUS_LABEL_STUCK,
@@ -3917,7 +3912,9 @@ def _mirror_status_labels(issue, status):
     landed and MUST never change that update's own outcome, so every failure is
     swallowed with a breadcrumb. Makes NO API request when the feature is
     disabled. The managed labels are a DERIVED mirror of the Status; the workpad
-    comment stays the source of truth."""
+    comment stays the source of truth. The label REST calls are issued in-process
+    here rather than via scripts/apply-labels.sh / ensure-label.sh, which
+    workpad.py must not exec on Windows ([WinError 193])."""
     try:
         if not _status_labels_enabled():
             return
@@ -4177,10 +4174,9 @@ def _cmd_update_inner(args):
     _mirror_text = _stopped_note_text_for_mirror(args, _own_notes, _own_reflections)
     if _mirror_text:
         _mirror_stopped_note_to_pr(args.issue, _mirror_text)
-    # Best-effort mirror of the workpad Status onto managed issue/PR labels (issue
-    # #2117). Gated on --status (the only input that changes the mirrored class)
-    # and placed after the PATCH landed, next to the stopped-note mirror, so a
-    # label failure cannot change this update's own exit status, stdout, or body.
+    # Best-effort mirror of the workpad Status onto managed issue/PR labels
+    # (issue #2117), after the PATCH and gated on --status, so a label failure
+    # cannot change this update's own exit status, stdout, or body.
     if args.status:
         _mirror_status_labels(args.issue, args.status)
     # Issue #814: the patched body is echoed only under `--print-body`, or on the

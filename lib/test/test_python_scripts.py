@@ -21422,7 +21422,8 @@ for _word, _lbl in _STATUS_LABEL_BY_WORD.items():
 
 def _mk_label_gh(*, issue=42, issue_labels, pr_labels=None, pr_number=101,
                  defined=None, add_undefined_raises=True, delete_404_labels=(),
-                 all_fail=False):
+                 all_fail=False, list_response=None, add_fails=False,
+                 create_fails=False):
     """A recording fake gh `_run` for the status-label mirror. `defined` is the
     set of label names the repo defines; adding an undefined label RAISES (the
     issue's proven premise) when add_undefined_raises. Returns (run, state)."""
@@ -21457,6 +21458,9 @@ def _mk_label_gh(*, issue=42, issue_labels, pr_labels=None, pr_number=101,
         if all_fail:
             raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 500 forced')
         if method == 'POST' and ep.endswith('/labels') and '/issues/' not in ep:
+            if create_fails:
+                raise _subprocess.CalledProcessError(
+                    1, cmd, stderr='gh: HTTP 422 create failed')
             name = next((f.split('=', 1)[1] for f in _fields(cmd)
                          if f.startswith('name=')), '')
             state['defined'].add(name)
@@ -21467,6 +21471,9 @@ def _mk_label_gh(*, issue=42, issue_labels, pr_labels=None, pr_number=101,
             n = m_add.group(1)
             for a in [f.split('=', 1)[1] for f in _fields(cmd)
                       if f.startswith('labels[]=')]:
+                if add_fails:
+                    raise _subprocess.CalledProcessError(
+                        1, cmd, stderr='gh: HTTP 500 add failed')
                 if add_undefined_raises and a not in state['defined']:
                     raise _subprocess.CalledProcessError(
                         1, cmd, stderr='gh: HTTP 422 label does not exist')
@@ -21484,6 +21491,8 @@ def _mk_label_gh(*, issue=42, issue_labels, pr_labels=None, pr_number=101,
         m_list = re.search(r'/issues/(\d+)/labels$', ep)
         if method == 'GET' and m_list:
             n = m_list.group(1)
+            if list_response is not None:
+                return _FakeRun(list_response)
             return _FakeRun(_json.dumps([{'name': x} for x in state['labels'].get(n, [])]))
         raise AssertionError(f"#2117 test: unexpected gh call: {cmd}")
 
@@ -21598,6 +21607,48 @@ _state, _err, _raised = _drive_mirror(
 assert_eq("#2117 AC7: all label requests failing -> mirror returns without raising",
           None, _raised)
 
+# Robustness: a malformed label-list response degrades to no reconciliation
+# rather than raising — a non-array object, an entry with no name field, and an
+# unparseable body each exercise a distinct branch of `_list_issue_labels`.
+for _resp, _lbl in [('{"message":"Bad credentials"}', 'non-array object'),
+                    ('[{"color":"red"}]', 'entry with no name field'),
+                    ('not json', 'unparseable body')]:
+    _state, _err, _raised = _drive_mirror(
+        'Setup', issue=42, issue_labels=['PRFlow'],
+        defined=['PRFlow', 'PRFlow:Implementing'], pr_number=None,
+        list_response=_resp)
+    assert_eq(f"#2117: malformed label-list ({_lbl}) -> mirror does not raise",
+              None, _raised)
+    assert_eq(f"#2117: malformed label-list ({_lbl}) -> no DELETE issued",
+              [], [c for c in _state['calls'] if c[0] == 'DELETE'])
+
+# `_add_managed_label` failure arms: when the list read succeeds but the add and
+# its create-retry both fail, the mirror breadcrumbs and returns without raising.
+_state, _err, _raised = _drive_mirror(
+    'Complete', issue=42, issue_labels=['PRFlow'], defined=['PRFlow'],
+    pr_number=None, add_fails=True, create_fails=True)
+assert_eq("#2117: add+create both failing -> mirror does not raise, breadcrumb names the label",
+          (None, True), (_raised, 'PRFlow:Complete' in _err))
+# create succeeds but the add retry still fails: the label is defined, no raise.
+_state, _err, _raised = _drive_mirror(
+    'Complete', issue=42, issue_labels=['PRFlow'], defined=['PRFlow'],
+    pr_number=None, add_fails=True)
+assert_eq("#2117: add fails, create succeeds -> label defined, mirror does not raise",
+          (True, None), ('PRFlow:Complete' in _state['creates'], _raised))
+
+# The `label_defined` thread bounds creation to ONE request across the issue and
+# its open PR: an undefined label with both an issue and a closing PR creates the
+# definition exactly once and applies it to both.
+_state, _err, _raised = _drive_mirror(
+    'Complete', issue=42, issue_labels=['PRFlow'], pr_labels=['PRFlow'],
+    pr_number=101, defined=['PRFlow'])
+assert_eq("#2117: exactly one label-creation request across the issue and its PR",
+          (1, None), (_state['creates'].count('PRFlow:Complete'), _raised))
+assert_eq("#2117: the created label is applied to both the issue and the PR",
+          (True, True),
+          ('PRFlow:Complete' in _state['labels']['42'],
+           'PRFlow:Complete' in _state['labels']['101']))
+
 # AC9/AC10: the two disabling values suppress ALL label API requests; every other
 # config shape leaves the feature enabled (a request is made).
 for _cfg, _lbl in [('{"status_labels": {"enabled": false}}', 'JSON boolean false'),
@@ -21661,7 +21712,9 @@ try:
     _r_fail = _drive_cmd_update(IDX_BODY, status='Reviewing', keep_status_label_mirror=True)
 finally:
     workpad._mirror_status_labels = _saved_mirror_iso
-assert_eq("#2117 AC7: exit/stdout/comment body identical whether label calls succeed or fail",
+assert_eq("#2117 AC7: cmd_update exit/stdout/body are invariant to the label mirror's "
+          "behavior (complements the direct all_fail no-raise test above, which covers the "
+          "real label calls failing)",
           (_r_ok[0], _r_ok[1], _r_ok[3]), (_r_fail[0], _r_fail[1], _r_fail[3]))
 
 # AC15: scripts/workpad.py starts no subprocess running a `.sh` file — no string
