@@ -29334,6 +29334,20 @@ assert_eq "#2070 append-at-EOF: both entries present" "yes" \
   "$([ "$(grep -cF '**Earlier.**' "$CSD/docs/external/release-notes.md")" = 1 ] && [ "$(grep -cF '**Appended at EOF.**' "$CSD/docs/external/release-notes.md")" = 1 ] && echo yes || echo no)"
 rm -rf "$CSD"
 
+# An UNMARKED changeset with a MISSING release-notes.md still exits 0 with no write — the
+# state of every consumer repo, which has no such page. The release-notes read is gated behind
+# marked-proses, so a missing page must never fail an ordinary internal-only bump; this pins
+# that gating so a refactor hoisting the read out of it is caught rather than shipping RED to
+# every consumer.
+CSD="$(cs_repo)"; rm -f "$CSD/docs/external/release-notes.md"
+printf -- '---\nbump: patch\n---\n\n- internal only (#2070)\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1; CS_RC=$?
+assert_eq "#2070 unmarked + missing page: exit 0 (no release-notes read attempted)" "0" "$CS_RC"
+assert_eq "#2070 unmarked + missing page: version still bumped" "2.8.65" "$(cs_ver "$CSD")"
+assert_eq "#2070 unmarked + missing page: no release-notes.md created" "no" \
+  "$([ -e "$CSD/docs/external/release-notes.md" ] && echo yes || echo no)"
+rm -rf "$CSD"
+
 # A missing release-notes.md is a fail-loud exit-2 naming the file (the consolidator does not
 # silently create the page in an unknown location for a marked changeset).
 CSD="$(cs_repo)"; rm -f "$CSD/docs/external/release-notes.md"

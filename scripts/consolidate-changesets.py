@@ -146,7 +146,7 @@ def _split_frontmatter(path: str) -> Frontmatter:
 
 
 def _parse_changeset(path: str) -> Changeset:
-    """Parse one changeset → ``Changeset(bump, section, prose)``; raise on malformed input."""
+    """Parse one changeset → ``Changeset(bump, section, prose, customer_visible)``; raise on malformed input."""
     try:
         import yaml
     except ImportError as exc:  # pragma: no cover - environment guard
