@@ -1830,6 +1830,37 @@ Both runs reported `2.1.222`. **Re-probe the arms in the table above after any
 new authoring: those jobs are on `main` since PR #1308, and `matcher-probe.yml` triggers on
 `workflow_dispatch` as well as on a same-repo `pull_request` filtered to its own path.
 
+## Field reports — consumer cloud review runs (issue #2096)
+
+**These two entries are field reports, not matcher-probe verdicts.** Each was read from a
+consumer repository's cloud review-tier run log (the two runs are called REV-A and REV-B in
+the report), so it is a reviewer-reported observation of what a real run emitted, not a
+shape measured under the controlled conditions of `matcher-probe.yml`. They do not carry a
+probe row's weight and never populate the verdict tables above; they are recorded here as
+the field motivation for the issue #2096 shipped-prose fix. The consumer's installed plugin
+version is unestablished — the run logs do not state the vendored version.
+
+- **Family one — run-telemetry parameter expansion (three denials across REV-A and REV-B).**
+  Agents composed run-telemetry commands containing `${GITHUB_RUN_ID:-unset}` /
+  `${GITHUB_RUN_ATTEMPT:-unset}` expansions; each was refused before it ran, with no output,
+  and one refusal cost a full turn. The reporter's retry with only the expansion segment
+  removed (same pipeline otherwise) succeeded. This corroborates the probe-measured row 8
+  above (**argument-position defaulted anchor expansion `${VAR:-default}` — DENIED**): a bare
+  or defaulted `$GITHUB_RUN_ID`-style expansion is refused the same way, so the reporter's
+  own suggested fix — plain `$GITHUB_RUN_ID` with no default — would not have removed the
+  denial. The issue #2096 fix rewrote the review skill's helper-never-ran fallback arm to
+  build the run-keyed marker by literal substitution from already-observed
+  `compose-run-url.sh` output, emitting no parameter expansion.
+- **Family two — subagent loader variants (three denials in a row).** Inside a dispatched
+  `requesting-code-review` subagent, three prompt-extension loader variants were refused in
+  sequence: the `${CLAUDE_SKILL_DIR:-…}` anchor form, the plain absolute vendored path, and a
+  `bash <path>` wrapper. The subagent receives no `$CLAUDE_SKILL_DIR`, so the anchor form
+  cannot resolve there in the first place. The issue #2096 fix gave both vendored subagent
+  skills (`skills/requesting-code-review/SKILL.md`, `skills/receiving-code-review/SKILL.md`)
+  the vendored-literal-first conditional loader ladder the fix loop already uses, so the
+  first attempt now uses a granted form; `lib/test/lint-anchor-fallback-arm.py` enrolls both
+  sites as the executable backstop.
+
 ## Denial-population audit — the 2026-08-02 implement runs (issue #1135)
 
 **This section is a past-time observation of two specific runs, not a re-derivable
