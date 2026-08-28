@@ -385,7 +385,7 @@ Between workpad hydration (**1.3**) and branch work (**1.4**), `/prflow:implemen
   - **2.3.2** Stranded-dependents sweep
   - **2.3.3** Convention-compliance sweep
   - **2.3.4** Boundary-assumption verification sweep (claims the diff *depends on* about boundaries it doesn't own)
-  - **2.3.4a** Self-authored-claim reconciliation sweep (every behavioral claim the diff *authors* in internal/external docs and code comments, reconciled against the shipped code path before commit; the code is the fact)
+  - **2.3.4a** Self-authored-claim reconciliation sweep (every behavioral claim the diff *authors* in internal/external docs, code comments, and test prose, reconciled against the shipped code path before commit; the code is the fact)
   - **2.3.4b** Coverage-claim enumeration sweep (every **coverage universal** the diff's *added prose* asserts — a sentence claiming a universal about the change's own coverage, "every call site is updated" — grounded before commit one of three ways: pinned by an executed enumeration of the set the quantifier ranges over, scoped to what the change actually covers, or removed. Reading the sentence back does not discharge it. Seeded by `scripts/stale-prose-lint.py`'s recognition-only coverage-universal tier run in its `--worktree` mode over the uncommitted delta; the detector's rows are a floor, not the population. Its twin 2.3.4a owns claims about what the shipped *code* does — a coverage universal describes the *change*, so that trace never selects it)
   - **2.3.5** Simplification & efficiency sweep
   - **2.3.6** Error-handling & silent-failure sweep
