@@ -38411,6 +38411,13 @@ assert_eq "#2073 the reviewcompose step receives the seeding step's comment id /
   "$(grep -q 'steps.seedreview.outputs.comment_id' "$DEVFLOW_YML" \
      && grep -q 'steps.seedreview.outputs.marker' "$DEVFLOW_YML" \
      && grep -q 'steps.seedreview.outputs.run_link' "$DEVFLOW_YML" && echo yes || echo no)"
+# Guard the PR-number derivation coupling too, not only the command screen: the seed step
+# derives the PR number the dead-run flip step's way — the command's trailing token with a
+# numeric fallback to the thread number — so a divergence between the two silently targets a
+# different comment/PR. Pin the drift-sensitive derivation shape in the seed step's block.
+assert_eq "#2073 the seeding step derives the PR number the flip-step way (trailing token + numeric fallback)" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -qF '${COMMAND##* }' \
+     && printf '%s\n' "$_SEED2073_BLOCK" | grep -qE "''\|\*\[!0-9\]\*\)" && echo yes || echo no)"
 unset _SEED2073_LN _COMPOSE2073_LN _SEED2073_BLOCK _FLIP2073_SCREEN _SEED2073_SCREEN _SEED2073_IF
 
 # ── #1170 implement-tier grounding block. The implement tier now carries the exact
