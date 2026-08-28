@@ -1,5 +1,5 @@
 ---
-"prflow": minor
+bump: minor
 ---
 
 Record a truthful externally-dependent verification as non-reusable completion evidence (#2084).
