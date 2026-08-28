@@ -150,12 +150,12 @@ fi
 DT_D2="$(dt_make_repo)"
 if [ -d "$DT_D2" ]; then
   DT_D2_B="$(probe_tmp "#192 case-D2 before")"; DT_D2_AF="$(probe_tmp "#192 case-D2 after")"
-  DT_D2_ERR="$(probe_tmp "#192 case-D2 stderr")"
+  TMP_D2_ERR="$(probe_tmp "#192 case-D2 stderr")"
   git -C "$DT_D2" status --porcelain -z > "$DT_D2_B"
   DT_D2_OID="$(git hash-object "$DT_D2_B")"
   printf 'agent-created' > "$DT_D2/untracked.txt"
   git -C "$DT_D2" status --porcelain -z > "$DT_D2_AF"
-  ( cd "$DT_D2" && GIT_SNAP_BEFORE="$DT_D2_B" GIT_SNAP_AFTER="$DT_D2_AF" bash "$RDT" compare-and-restore "$DT_D2_OID" ) >/dev/null 2>"$DT_D2_ERR"
+  ( cd "$DT_D2" && GIT_SNAP_BEFORE="$DT_D2_B" GIT_SNAP_AFTER="$DT_D2_AF" bash "$RDT" compare-and-restore "$DT_D2_OID" ) >/dev/null 2>"$TMP_D2_ERR"
   assert_eq "#192 backstop: an untracked dispatch-window file is never auto-deleted" \
     "agent-created" "$(cat "$DT_D2/untracked.txt")"
   # Two single-quoted greps (never one double-quoted literal wrapping the single-quoted path,
@@ -163,8 +163,8 @@ if [ -d "$DT_D2" ]; then
   # verify the breadcrumb NAMES the offending path — a broken/empty $p interpolation fails the
   # untracked.txt grep, which the suffix-only check alone would pass GREEN.
   assert_eq "#192 backstop: failed restore is detected from live tree state and breadcrumbed" "yes" \
-    "$(grep -qF untracked.txt "$DT_D2_ERR" && grep -qF 'still dirty after restore attempt' "$DT_D2_ERR" && echo yes || echo no)"
-  rm -rf "$DT_D2" "$DT_D2_B" "$DT_D2_AF" "$DT_D2_ERR"
+    "$(grep -qF untracked.txt "$TMP_D2_ERR" && grep -qF 'still dirty after restore attempt' "$TMP_D2_ERR" && echo yes || echo no)"
+  rm -rf "$DT_D2" "$DT_D2_B" "$DT_D2_AF" "$TMP_D2_ERR"
 fi
 # Case E — a truncated non-NUL BEFORE record must fail closed (leftover-record check).
 DT_E="$(dt_make_repo)"
