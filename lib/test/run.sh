@@ -16824,11 +16824,13 @@ assert_eq "#332 gotcha: Step 2 derivation artifact stays cwd-relative (not main-
 # real skill dir, as on Claude Code) as a command head and assert the resolved helper is
 # actually reached — catching a quoting/expansion defect in the literal (a moved quote, a
 # glob-active placeholder char) that would break all 22 files in lockstep while every
-# static pin stayed GREEN. The repo tracks only docs.md.example (no live docs.md), so the
-# helper takes its whole-file no-op arm; since issue #1299 that arm emits a
-# `PROMPT-EXTENSION-STATUS: present-empty` line, which is the positive reached-the-helper observable.
-PA_BEHAV_CMD="$PORTABLE_ANCHOR_LITERAL"'scripts/load-prompt-extension.sh docs'
-PA_BEHAV_OUT="$(cd "$LIB/.." && CLAUDE_SKILL_DIR="$PWD/skills/docs" bash -c "$PA_BEHAV_CMD" 2>&1)"; PA_BEHAV_RC=$?
+# static pin stayed GREEN. The repo tracks only docs-verify.md.example (no live
+# docs-verify.md — issue #2070 gave the docs/docs-release-notes skills live extensions, so
+# this exemplar must stay one with none), so the helper takes its whole-file no-op arm; since
+# issue #1299 that arm emits a `PROMPT-EXTENSION-STATUS: present-empty` line, the positive
+# reached-the-helper observable.
+PA_BEHAV_CMD="$PORTABLE_ANCHOR_LITERAL"'scripts/load-prompt-extension.sh docs-verify'
+PA_BEHAV_OUT="$(cd "$LIB/.." && CLAUDE_SKILL_DIR="$PWD/skills/docs-verify" bash -c "$PA_BEHAV_CMD" 2>&1)"; PA_BEHAV_RC=$?
 assert_eq "#275 behavioral: the no-extension helper run reaches the helper (present-empty token, clean no-op)" "yes" \
   "$(case "$PA_BEHAV_OUT" in *'PROMPT-EXTENSION-STATUS: present-empty'*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#275 behavioral: the canonical anchor literal executes and reaches the helper (CLAUDE_SKILL_DIR set)" "0" "$PA_BEHAV_RC"
@@ -29308,8 +29310,10 @@ CSD="$(cs_repo)"
 printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **First marked.** ([#1](u))\n' > "$CSD/.changeset/a.md"
 printf -- '---\nbump: minor\ncustomer-visible: true\n---\n\n- **Second marked.** ([#2](u))\n' > "$CSD/.changeset/b.md"
 python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1
-assert_eq "#2070 two marked: both entries present under one merge-date heading" "yes" \
-  "$(grep -qF '**First marked.**' "$CSD/docs/external/release-notes.md" && grep -qF '**Second marked.**' "$CSD/docs/external/release-notes.md" && echo yes || echo no)"
+assert_eq "#2070 two marked: first entry written verbatim" "1" \
+  "$(grep -cF '**First marked.**' "$CSD/docs/external/release-notes.md")"
+assert_eq "#2070 two marked: second entry written verbatim" "1" \
+  "$(grep -cF '**Second marked.**' "$CSD/docs/external/release-notes.md")"
 assert_eq "#2070 two marked: exactly one merge-date heading" "1" \
   "$(grep -cxF '## August 28, 2026' "$CSD/docs/external/release-notes.md")"
 rm -rf "$CSD"
@@ -29322,8 +29326,10 @@ printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **Later today.** (
 python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1
 assert_eq "#2070 same-day append: still exactly one merge-date heading (no duplicate)" "1" \
   "$(grep -cxF '## August 28, 2026' "$CSD/docs/external/release-notes.md")"
-assert_eq "#2070 same-day append: both the earlier and the appended entry are present" "yes" \
-  "$(grep -qF '**Earlier today.**' "$CSD/docs/external/release-notes.md" && grep -qF '**Later today.**' "$CSD/docs/external/release-notes.md" && echo yes || echo no)"
+assert_eq "#2070 same-day append: the earlier entry survives" "1" \
+  "$(grep -cF '**Earlier today.**' "$CSD/docs/external/release-notes.md")"
+assert_eq "#2070 same-day append: the appended entry lands" "1" \
+  "$(grep -cF '**Later today.**' "$CSD/docs/external/release-notes.md")"
 rm -rf "$CSD"
 
 # AC3: the marker shape matrix on this agent-mutable input. Only the parsed Python bool True
@@ -29335,8 +29341,10 @@ for cs_bad in 'false' '"true"' '' '1'; do
   printf -- '---\nbump: patch\ncustomer-visible: %s\n---\n\n- x (#2070)\n' "$cs_bad" > "$CSD/.changeset/a.md"
   python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >"$CSD/out" 2>&1; CS_RC=$?
   assert_eq "#2070 bad marker [$cs_bad]: exits non-zero (fail-loud)" "yes" "$([ "$CS_RC" -ne 0 ] && echo yes || echo no)"
-  assert_eq "#2070 bad marker [$cs_bad]: diagnostic names the offending file" "yes" \
-    "$(grep -qF 'a.md' "$CSD/out" && grep -qiF 'customer-visible' "$CSD/out" && echo yes || echo no)"
+  assert_eq "#2070 bad marker [$cs_bad]: diagnostic names the customer-visible key" "1" \
+    "$(grep -ciF 'customer-visible' "$CSD/out")"
+  assert_eq "#2070 bad marker [$cs_bad]: diagnostic names the offending file" "1" \
+    "$(grep -cF 'a.md' "$CSD/out")"
   assert_eq "#2070 bad marker [$cs_bad]: version unchanged (no partial write)" "2.8.64" "$(cs_ver "$CSD")"
   assert_eq "#2070 bad marker [$cs_bad]: release notes byte-identical" "$CS_RN0" "$(cs_rn "$CSD")"
   rm -rf "$CSD"
@@ -29345,8 +29353,10 @@ done
 CSD="$(cs_repo)"; printf -- '---\nbump: patch\ncustomer-visible:\n  - a\n  - b\n---\n\n- x (#2070)\n' > "$CSD/.changeset/a.md"
 python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >"$CSD/out" 2>&1; CS_RC=$?
 assert_eq "#2070 list marker: exits non-zero (fail-loud)" "yes" "$([ "$CS_RC" -ne 0 ] && echo yes || echo no)"
-assert_eq "#2070 list marker: diagnostic names the file + key" "yes" \
-  "$(grep -qF 'a.md' "$CSD/out" && grep -qiF 'customer-visible' "$CSD/out" && echo yes || echo no)"
+assert_eq "#2070 list marker: diagnostic names the customer-visible key" "1" \
+  "$(grep -ciF 'customer-visible' "$CSD/out")"
+assert_eq "#2070 list marker: diagnostic names the offending file" "1" \
+  "$(grep -cF 'a.md' "$CSD/out")"
 rm -rf "$CSD"
 # Absent marker: parses fine, customer_visible False, no release-notes write (covered by the
 # unmarked AC2 case above; this asserts the absent key does not itself raise).
@@ -29472,8 +29482,10 @@ printf -- '---\nbump: patch\ncustomer-visible: "true"\n---\n\n- x (#2070)\n' > "
 python3 "$CS_CHECK" "$CS2070/badmark.md" >"$CS2070/out" 2>&1; CS_RC=$?
 assert_eq "#2070 pre-merge check: a string-valued marker turns the check RED" "yes" \
   "$([ "$CS_RC" -ne 0 ] && echo yes || echo no)"
-assert_eq "#2070 pre-merge check: the RED message names the offending file + the key" "yes" \
-  "$(grep -qF 'badmark.md' "$CS2070/out" && grep -qiF 'customer-visible' "$CS2070/out" && echo yes || echo no)"
+assert_eq "#2070 pre-merge check: the RED message names the offending file" "1" \
+  "$(grep -cF 'badmark.md' "$CS2070/out")"
+assert_eq "#2070 pre-merge check: the RED message names the customer-visible key" "1" \
+  "$(grep -ciF 'customer-visible' "$CS2070/out")"
 rm -rf "$CS2070"
 
 # ────────────────────────────────────────────────────────────────────────────
