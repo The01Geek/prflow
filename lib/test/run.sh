@@ -54360,9 +54360,9 @@ assert_eq "#1124 lint: the neither-form report names the stale enrolled site" "y
 # row enrolling some other helper at this file.
 AF_INV_OUT="$(python3 "$AF_LINT" --print-inventory)"
 assert_eq "#2096 the anchor-fallback lint enrolls requesting-code-review's loader site" "yes" \
-  "$(printf '%s' "$AF_INV_OUT" | grep -qxF "$(printf 'skills/requesting-code-review/SKILL.md\tload-prompt-extension.sh requesting-code-review')" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the enrolled row carries the helper's literal argument as every sibling row does, so the ladder is checked per CALL SITE
+  "$(printf '%s' "$AF_INV_OUT" | grep -qxF "$(printf 'skills/requesting-code-review/SKILL.md\tload-prompt-extension.sh requesting-code-review')" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract -- greps the lint's --print-inventory OUTPUT (not SKILL content) to assert the ENROLLED inventory carries this cloud-review-reachable (path, suffix) row; #157 flags it only because the enrolled path is a SKILL.md path
 assert_eq "#2096 the anchor-fallback lint enrolls receiving-code-review's loader site" "yes" \
-  "$(printf '%s' "$AF_INV_OUT" | grep -qxF "$(printf 'skills/receiving-code-review/SKILL.md\tload-prompt-extension.sh receiving-code-review')" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- second cloud-review-reachable loader site enrolled by issue #2096
+  "$(printf '%s' "$AF_INV_OUT" | grep -qxF "$(printf 'skills/receiving-code-review/SKILL.md\tload-prompt-extension.sh receiving-code-review')" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract -- second cloud-review-reachable loader row; greps the lint's --print-inventory OUTPUT, not SKILL content (see the sibling pin above)
 
 # ── #1633 worktree-fence-shapes lint (lib/test/lint-worktree-fence-shapes.py) ─────
 # A worktree-isolated Claude Code session refuses a bash fence carrying command
