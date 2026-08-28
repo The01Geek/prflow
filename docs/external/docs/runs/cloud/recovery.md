@@ -37,7 +37,7 @@ The workpad's `Status` line starts with one glyph. The glyph is the authoritativ
 
 <Steps>
   <Step title="Read the Last Workpad Note and the Matching Actions Step">
-    The workpad names the phase it stopped in. Open the linked Actions run and read the step that failed or was still running.
+    The workpad names the phase it stopped in. Open the linked Actions run and read the step that failed or was still running. When a run stops before completion, PRFlow also mirrors that reason to the top of the open pull request, so you can see why it halted from the PR page. On a resume the run's `[View run]` link on the PR is refreshed to the new run and the stale note removed before the resumed run starts, so a completed PR carries none.
   </Step>
   <Step title="Check the Environment Before You Change Code">
     Most stopped runs are environment problems, not code problems. Check model authentication, runner prerequisites and `.prflow/config.json` first. See [Cloud Setup](/docs/runs/cloud/setup) and [Cloud Runners](/docs/runs/cloud/runners).

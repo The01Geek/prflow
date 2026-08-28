@@ -623,6 +623,10 @@
       "note": "#1059 formal-review-verdict poster, extended by #1030 into the producer of the prflow:review-verdict marker; driven directly from lib/test/run.sh's 'post-review-verdict.sh' block over the verdict-token-to-channel matrix, the marker line-1 stamp, the comment-channel fallback, the progress-comment stamp and every SKIP/FAILED arm under a faithful gh+jq stub, plus two guarantee-class controls.",
       "owner": "unmodularized"
     },
+    "scripts/pr-note-block.py": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "scripts/preflight.py": {
       "note": "",
       "owner": "unmodularized"
@@ -694,6 +698,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/refresh-pr-on-resume.sh": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "scripts/refresh-pr-run-link.py": {
       "note": "",
       "owner": "unmodularized"
@@ -748,6 +756,10 @@
       "owner": "unmodularized"
     },
     "scripts/resolve-implement-trigger.sh": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "scripts/resolve-issue-pr.py": {
       "note": "",
       "owner": "unmodularized"
     },
@@ -1732,6 +1744,10 @@
       "owner": "efficiency-trace-telemetry"
     },
     "2050": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "2060": {
       "note": "",
       "owner": "unmodularized"
     },
