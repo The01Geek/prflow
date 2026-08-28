@@ -689,18 +689,6 @@ def _reusable(flight: dict) -> bool:
     return flight.get("schema_version") == SCHEMA_VERSION
 
 
-def _effective_reuse_ready(flight: dict, checkout_verified: bool, allow_unverified: bool) -> bool:
-    """The status/wait reuse verdict: the effective pass AND the flight is reusable.
-
-    The single home shared by cmd_status and cmd_wait so the two cannot drift on the
-    non-hermetic reuse refusal (issue #2080), the twin of `_effective_pass`. A
-    non-hermetic passed flight satisfies verification (effective pass True) yet is
-    never reuse-ready, so satisfies_verification stays True while reuse_ready is
-    False.
-    """
-    return _effective_pass(flight, checkout_verified, allow_unverified) and _reusable(flight)
-
-
 def _public_view(flight: dict) -> dict:
     """A token-redacted view for status/wait/attach output."""
     view = dict(flight)
@@ -1184,13 +1172,14 @@ def cmd_status(args) -> int:
     # caller obligation. A read that did not verify the working tree never reports a
     # pass or exits 0 unless --allow-unverified-checkout opted into the weaker read.
     effective = _effective_pass(flight, checkout_verified, args.allow_unverified_checkout)
-    # reuse_ready folds in `_reusable` (issue #2080), so a non-hermetic passed flight
-    # reports satisfies_verification True but reuse_ready False — and still exits 0,
-    # because the exit code keys on the pass dimension (`effective`), not reuse.
+    # reuse_ready ANDs the already-computed effective pass with the shared `_reusable`
+    # predicate (issue #2080), so a non-hermetic passed flight reports
+    # satisfies_verification True but reuse_ready False — and still exits 0, because
+    # the exit code keys on the pass dimension (`effective`), not reuse.
     _print_public(
         flight, checkout_verified=checkout_verified,
         satisfies_verification=effective,
-        reuse_ready=_effective_reuse_ready(flight, checkout_verified, args.allow_unverified_checkout),
+        reuse_ready=effective and _reusable(flight),
     )
     return EXIT_OK if effective else EXIT_NON_PASS
 
@@ -1230,15 +1219,13 @@ def cmd_wait(args) -> int:
                 effective = _effective_pass(
                     flight, checkout_verified, args.allow_unverified_checkout
                 )
-                # reuse_ready folds in `_reusable` (issue #2080) via the shared
-                # predicate, matching cmd_status: a non-hermetic passed flight is
+                # reuse_ready ANDs effective with the shared `_reusable` predicate
+                # (issue #2080), matching cmd_status: a non-hermetic passed flight is
                 # satisfies_verification True, reuse_ready False, exit 0.
                 _print_public(
                     flight, checkout_verified=checkout_verified,
                     satisfies_verification=effective,
-                    reuse_ready=_effective_reuse_ready(
-                        flight, checkout_verified, args.allow_unverified_checkout
-                    ),
+                    reuse_ready=effective and _reusable(flight),
                 )
                 _emit_telemetry(
                     args.logs_dir, "flight_wait_completed",
