@@ -28842,10 +28842,14 @@ assert_eq "#290 consolidate-changesets.py exists" "yes" "$([ -f "$CS_SCRIPT" ] &
 # Build an isolated fake repo root with a plugin.json + CHANGELOG.md; echo its path.
 cs_repo() {  # -> prints the repo root
   local d; d="$(mktemp -d)"
-  mkdir -p "$d/.changeset" "$d/.claude-plugin"
+  mkdir -p "$d/.changeset" "$d/.claude-plugin" "$d/docs/external"
   printf '{\n  "name": "devflow",\n  "version": "2.8.64"\n}\n' > "$d/.claude-plugin/plugin.json"
   printf '# Changelog\n\nPreamble.\n\n## [2.8.64] — 2026-07-03\n\n### Fixed\n- old (#288)\n' > "$d/CHANGELOG.md"
   printf '# Changesets\ndocs\n' > "$d/.changeset/README.md"
+  # #2070: the release-notes page the consolidator writes customer-visible entries into.
+  # Present in every fixture so the marked-changeset cases have a target; unmarked runs
+  # never write it, so its presence leaves every pre-#2070 assertion unaffected.
+  printf '# Release Notes\n\nUser-visible changes.\n\n## July 3, 2026\n\n- **Old note.** ([#1](https://github.com/x/y/issues/1))\n' > "$d/docs/external/release-notes.md"
   printf '%s\n' "$d"
 }
 cs_ver() { grep -oE '"version": "[0-9]+\.[0-9]+\.[0-9]+"' "$1/.claude-plugin/plugin.json" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'; }
@@ -29055,8 +29059,8 @@ assert_eq "#671 marketplace plugins[0].version tracks plugin.json version" "$CIT
 assert_eq "#298 single-source: VALID_BUMPS and _BUMP_RANK keys match exactly" "ok" \
   "$(python3 -c "import importlib.util as u; s=u.spec_from_file_location('c','$CS_SCRIPT'); m=u.module_from_spec(s); s.loader.exec_module(m); print('ok' if set(m.VALID_BUMPS)==set(m._BUMP_RANK) and len(m._BUMP_RANK)==len(m.VALID_BUMPS) else 'drift')")"
 # AC: the two parse helpers return NamedTuples whose fields are addressable by name.
-assert_eq "#298 NamedTuple: parse helpers expose bump/section/prose + frontmatter/body fields" "ok" \
-  "$(python3 -c "import importlib.util as u; s=u.spec_from_file_location('c','$CS_SCRIPT'); m=u.module_from_spec(s); s.loader.exec_module(m); print('ok' if m.Changeset._fields==('bump','section','prose') and m.Frontmatter._fields==('frontmatter','body') else 'bad')")"
+assert_eq "#298 NamedTuple: parse helpers expose bump/section/prose/customer_visible + frontmatter/body fields" "ok" \
+  "$(python3 -c "import importlib.util as u; s=u.spec_from_file_location('c','$CS_SCRIPT'); m=u.module_from_spec(s); s.loader.exec_module(m); print('ok' if m.Changeset._fields==('bump','section','prose','customer_visible') and m.Frontmatter._fields==('frontmatter','body') else 'bad')")"
 
 # AC: the five previously-untested defensive branches each gain a named assertion.
 # (1) _render_changelog no-prior-`## [`-heading append branch: entry is appended after preamble.
@@ -29256,6 +29260,127 @@ assert_eq "#290 .changeset/README documents the bump frontmatter key" "yes" \
   "$(grep -qiF 'bump' "$FDROOT/.changeset/README.md" && echo yes || echo no)"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "#2070 customer-visible changesets → merge-time release-note entries"
+# ────────────────────────────────────────────────────────────────────────────
+# scripts/consolidate-changesets.py reuses a `customer-visible: true` changeset's prose
+# verbatim as a release-note entry in docs/external/release-notes.md at merge time, so the
+# customer-facing note is written once (in the reviewed changeset) instead of by a second
+# per-PR authoring pass. The merge date for these cases is 2026-08-28 → `## August 28, 2026`.
+cs_rn() { cat "$1/docs/external/release-notes.md"; }
+
+# AC1: a marked changeset writes its prose verbatim under the merge-date heading, created
+# directly below the file's first H1.
+CSD="$(cs_repo)"
+printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **Marked outcome.** Users see it. ([#2070](https://github.com/The01Geek/prflow/issues/2070))\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1; CS_RC=$?
+assert_eq "#2070 marked: exit 0" "0" "$CS_RC"
+assert_eq "#2070 marked: merge-date heading present in release notes" "1" \
+  "$(grep -cxF '## August 28, 2026' "$CSD/docs/external/release-notes.md")"
+assert_eq "#2070 marked: prose reused verbatim as an entry" "1" \
+  "$(grep -cF '**Marked outcome.** Users see it. ([#2070](https://github.com/The01Geek/prflow/issues/2070))' "$CSD/docs/external/release-notes.md")"
+# The new heading sits directly below the first H1 (the two lines are adjacent modulo one blank).
+assert_eq "#2070 marked: new date heading created directly below the first H1" "yes" \
+  "$(awk '/^# Release Notes$/{h1=NR} /^## August 28, 2026$/{if(NR-h1<=2) print "yes"; else print "no"; exit}' "$CSD/docs/external/release-notes.md")"
+rm -rf "$CSD"
+
+# AC1: a PyYAML-truthy spelling (`yes`) also marks — the decided semantics is the parsed
+# Python bool, so this documents that `customer-visible: true` is the canonical spelling but
+# not the only one that parses True.
+CSD="$(cs_repo)"; printf -- '---\nbump: patch\ncustomer-visible: yes\n---\n\n- **Yes-spelled.** ([#2070](u))\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1; CS_RC=$?
+assert_eq "#2070 yes-spelling: exit 0" "0" "$CS_RC"
+assert_eq "#2070 yes-spelling: still writes the release-note entry" "1" \
+  "$(grep -cF '**Yes-spelled.**' "$CSD/docs/external/release-notes.md")"
+rm -rf "$CSD"
+
+# AC2: an unmarked changeset leaves docs/external/release-notes.md byte-identical.
+CSD="$(cs_repo)"; CS_RN0="$(cs_rn "$CSD")"
+printf -- '---\nbump: patch\n---\n\n- internal only (#2070)\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1; CS_RC=$?
+assert_eq "#2070 unmarked: exit 0" "0" "$CS_RC"
+assert_eq "#2070 unmarked: release notes byte-identical (no write)" "$CS_RN0" "$(cs_rn "$CSD")"
+rm -rf "$CSD"
+
+# AC1: two marked changesets each produce their own entry (pending, filename-sorted order).
+CSD="$(cs_repo)"
+printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **First marked.** ([#1](u))\n' > "$CSD/.changeset/a.md"
+printf -- '---\nbump: minor\ncustomer-visible: true\n---\n\n- **Second marked.** ([#2](u))\n' > "$CSD/.changeset/b.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1
+assert_eq "#2070 two marked: both entries present under one merge-date heading" "yes" \
+  "$(grep -qF '**First marked.**' "$CSD/docs/external/release-notes.md" && grep -qF '**Second marked.**' "$CSD/docs/external/release-notes.md" && echo yes || echo no)"
+assert_eq "#2070 two marked: exactly one merge-date heading" "1" \
+  "$(grep -cxF '## August 28, 2026' "$CSD/docs/external/release-notes.md")"
+rm -rf "$CSD"
+
+# AC1: a second same-day merge appends under the EXISTING date heading rather than duplicating
+# it. Seed the page with the merge-date heading already present, then consolidate a marked one.
+CSD="$(cs_repo)"
+printf '# Release Notes\n\nUser-visible changes.\n\n## August 28, 2026\n\n- **Earlier today.** ([#0](u))\n' > "$CSD/docs/external/release-notes.md"
+printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **Later today.** ([#2070](u))\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1
+assert_eq "#2070 same-day append: still exactly one merge-date heading (no duplicate)" "1" \
+  "$(grep -cxF '## August 28, 2026' "$CSD/docs/external/release-notes.md")"
+assert_eq "#2070 same-day append: both the earlier and the appended entry are present" "yes" \
+  "$(grep -qF '**Earlier today.**' "$CSD/docs/external/release-notes.md" && grep -qF '**Later today.**' "$CSD/docs/external/release-notes.md" && echo yes || echo no)"
+rm -rf "$CSD"
+
+# AC3: the marker shape matrix on this agent-mutable input. Only the parsed Python bool True
+# is accepted (absent → not marked, no write); every other PRESENT value fails loud naming the
+# file, leaving the release-notes page and the version untouched. Key-presence detection is
+# what makes the explicit-null case (present, value None) take the fail arm.
+for cs_bad in 'false' '"true"' '' '1'; do
+  CSD="$(cs_repo)"; CS_RN0="$(cs_rn "$CSD")"
+  printf -- '---\nbump: patch\ncustomer-visible: %s\n---\n\n- x (#2070)\n' "$cs_bad" > "$CSD/.changeset/a.md"
+  python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >"$CSD/out" 2>&1; CS_RC=$?
+  assert_eq "#2070 bad marker [$cs_bad]: exits non-zero (fail-loud)" "yes" "$([ "$CS_RC" -ne 0 ] && echo yes || echo no)"
+  assert_eq "#2070 bad marker [$cs_bad]: diagnostic names the offending file" "yes" \
+    "$(grep -qF 'a.md' "$CSD/out" && grep -qiF 'customer-visible' "$CSD/out" && echo yes || echo no)"
+  assert_eq "#2070 bad marker [$cs_bad]: version unchanged (no partial write)" "2.8.64" "$(cs_ver "$CSD")"
+  assert_eq "#2070 bad marker [$cs_bad]: release notes byte-identical" "$CS_RN0" "$(cs_rn "$CSD")"
+  rm -rf "$CSD"
+done
+# A non-scalar (YAML list) marker likewise fails loud (the value is present and not True).
+CSD="$(cs_repo)"; printf -- '---\nbump: patch\ncustomer-visible:\n  - a\n  - b\n---\n\n- x (#2070)\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >"$CSD/out" 2>&1; CS_RC=$?
+assert_eq "#2070 list marker: exits non-zero (fail-loud)" "yes" "$([ "$CS_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "#2070 list marker: diagnostic names the file + key" "yes" \
+  "$(grep -qF 'a.md' "$CSD/out" && grep -qiF 'customer-visible' "$CSD/out" && echo yes || echo no)"
+rm -rf "$CSD"
+# Absent marker: parses fine, customer_visible False, no release-notes write (covered by the
+# unmarked AC2 case above; this asserts the absent key does not itself raise).
+CSD="$(cs_repo)"; printf -- '---\nbump: patch\n---\n\n- x (#2070)\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1; CS_RC=$?
+assert_eq "#2070 absent marker: exit 0 (absence is never a fail)" "0" "$CS_RC"
+rm -rf "$CSD"
+
+# AC4: --emit-write-set-to names release-notes.md when marked, and omits it when unmarked
+# (so the workflow's existing dynamic staging loop stages it iff it was written).
+CSD="$(cs_repo)"; printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **WS marked.** ([#2070](u))\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 --emit-write-set-to "$CSD/ws.out" >/dev/null 2>&1
+assert_eq "#2070 write-set (marked): names docs/external/release-notes.md" "1" \
+  "$(grep -cxF 'docs/external/release-notes.md' "$CSD/ws.out")"
+rm -rf "$CSD"
+CSD="$(cs_repo)"; printf -- '---\nbump: patch\n---\n\n- internal (#2070)\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 --emit-write-set-to "$CSD/ws.out" >/dev/null 2>&1
+assert_eq "#2070 write-set (unmarked): does NOT name release-notes.md" "0" \
+  "$(grep -cxF 'docs/external/release-notes.md' "$CSD/ws.out")"
+rm -rf "$CSD"
+
+# AC6: a marked changeset produces a CHANGELOG entry byte-identical to the same changeset
+# without the marker — the marker only routes prose to release-notes, never into CHANGELOG.
+CS_M="$(cs_repo)"; CS_U="$(cs_repo)"
+printf -- '---\nbump: patch\ntype: Fixed\ncustomer-visible: true\n---\n\n- **Same prose.** ([#2070](u))\n' > "$CS_M/.changeset/a.md"
+printf -- '---\nbump: patch\ntype: Fixed\n---\n\n- **Same prose.** ([#2070](u))\n' > "$CS_U/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CS_M" --date 2026-08-28 >/dev/null 2>&1
+python3 "$CS_SCRIPT" --root "$CS_U" --date 2026-08-28 >/dev/null 2>&1
+assert_eq "#2070 CHANGELOG byte-identical marked vs unmarked" "$(cat "$CS_U/CHANGELOG.md")" "$(cat "$CS_M/CHANGELOG.md")"
+rm -rf "$CS_M" "$CS_U"
+
+# The .changeset/README.md documents the marked-changeset authoring contract (AC7).
+assert_eq "#2070 .changeset/README documents the customer-visible marker" "yes" \
+  "$(grep -qF 'customer-visible' "$FDROOT/.changeset/README.md" && echo yes || echo no)"
+
+# ────────────────────────────────────────────────────────────────────────────
 echo "#1373 repo's own pending changesets validate against the consolidator's parser"
 # ────────────────────────────────────────────────────────────────────────────
 # A .changeset/*.md using the npm form (`"prflow": patch`) instead of the required
@@ -29333,6 +29458,21 @@ git -C "$CSRD" add .changeset/README.md .changeset/good.md >/dev/null 2>&1
 python3 "$CS_CHECK" --root "$CSRD" >/dev/null 2>&1; CS_RC=$?
 assert_eq "#1373 README.md is exempt from the changeset audit" "0" "$CS_RC"
 rm -rf "$CSRD"
+
+# #2070: the customer-visible marker's validation reaches the pre-merge check by construction
+# (it shares the consolidator's _parse_changeset). A validly-marked changeset stays green; a
+# string-valued `customer-visible: "true"` marker turns the check RED naming the offending file.
+CS2070="$(mktemp -d)"
+printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **Marked, valid.** ([#2070](u))\n' > "$CS2070/marked.md"
+python3 "$CS_CHECK" "$CS2070/marked.md" >/dev/null 2>&1; CS_RC=$?
+assert_eq "#2070 pre-merge check: a validly-marked changeset stays green" "0" "$CS_RC"
+printf -- '---\nbump: patch\ncustomer-visible: "true"\n---\n\n- x (#2070)\n' > "$CS2070/badmark.md"
+python3 "$CS_CHECK" "$CS2070/badmark.md" >"$CS2070/out" 2>&1; CS_RC=$?
+assert_eq "#2070 pre-merge check: a string-valued marker turns the check RED" "yes" \
+  "$([ "$CS_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "#2070 pre-merge check: the RED message names the offending file + the key" "yes" \
+  "$(grep -qF 'badmark.md' "$CS2070/out" && grep -qiF 'customer-visible' "$CS2070/out" && echo yes || echo no)"
+rm -rf "$CS2070"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "#953 pinned release-tag sites: derivation, drift guard, bump rewrite, tag/release"

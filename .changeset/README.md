@@ -32,6 +32,25 @@ type: Fixed
   package name — PRFlow ships one plugin, so the npm `"pkg": patch` form is not used.
 - `type` (optional, default `Changed`) — the Keep-a-Changelog section the prose lands under:
   `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or `Security`.
+- `customer-visible` (optional, absent by default) — set `customer-visible: true` when the
+  change has customer-visible impact. A marked changeset's prose is reused verbatim at merge
+  time as an entry in `docs/external/release-notes.md` (see **Customer-visible release notes**
+  below). `true` is the canonical spelling; omit the key entirely for an internal-only change.
+  The only accepted value is the boolean `true` — a present `false`, the quoted string
+  `"true"`, an empty value, a list, or any other present value fails the run loudly, naming the
+  file, so the marker can never be set ambiguously.
+
+### Customer-visible release notes
+
+A changeset marked `customer-visible: true` has its body reused **verbatim** as a release-note
+entry on the published docs site, so write that body in the **customer-facing register** — the
+outcome a user sees, not the maintainer-facing internals — and cite its issue or PR as a **full
+markdown link** (`[#123](https://github.com/<owner>/<repo>/issues/123)`), never a bare `(#123)`.
+A bare citation renders as plain text on the docs site, so the link form is what makes the
+derived entry's reference clickable. The merge-time consolidation writes the entry under the
+merge date's `## Month Day, Year` heading in `docs/external/release-notes.md`; nothing else in
+this repository authors that page. An unmarked changeset behaves exactly as before — CHANGELOG
+only, no release-notes entry — and keeps today's maintainer-register contract.
 
 ### Body
 
