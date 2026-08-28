@@ -4,6 +4,42 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.2] — 2026-08-28
+
+### Added
+- **Changesets can drive the release-notes page at merge time.** A changeset marked
+  `customer-visible: true` now has its prose reused verbatim as an entry in
+  `docs/external/release-notes.md` under the merge date's heading, written in the same
+  `chore: bump version` commit that updates the CHANGELOG. An unmarked changeset is unchanged
+  (CHANGELOG only), and this repository's docs pass no longer authors release-notes entries.
+  (#2086)
+
+## [2.36.1] — 2026-08-28
+
+### Changed
+- **Extend the Phase 2 self-authored-claim census (§2.3.4a) to test prose, and record its
+  counts on the workpad.** The claim-census surface list in
+  `skills/implement/phases/phase-2-sweeps-quality.md` now names test prose — test names, test
+  titles, and assertion messages that promise behavior — alongside internal docs, external
+  docs, and code comments, so a false behavioral claim carried by a test name is reconciled in
+  Phase 2 rather than surfacing later as a review-time `documented_falsehood` finding. The
+  census also logs one workpad note per run recording the count of claims listed and the count
+  traced, including on the clean path where nothing diverges, so a skipped shallow census is
+  distinguishable from a clean one. The fix loop inherits both changes through
+  `skills/review-and-fix/references/fixing.md` §3b's existing pointer, unedited. The
+  `docs/internal/implement-skill.md` and `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` descriptions
+  of the sweep are reconciled to match. (#2091)
+
+### Fixed
+- **`/prflow:create-issue` now requires a Verified bullet asserting a data value's semantics to cite the code that establishes them.** A Verified premise claiming what a value *means* — an on/off pair, its wider state set, an enumeration's admitted values, nullability, or units — must now be grounded in a code site that reads the value and branches on it (a definition site such as a schema column, field declaration, or form binding no longer suffices), and the drafter must search the value's consuming sites for a wider domain before writing the claim. It narrows one claim class in the verified-claims quality group and is re-applied in the Step 3.5 steelman pass. (#2090)
+
+## [2.36.0] — 2026-08-28
+
+### Changed
+Record a truthful externally-dependent verification as non-reusable completion evidence (#2084).
+
+`scripts/verification-flight.py` now accepts a `claim` whose `external_services` truthfully names a live service the verification depends on, storing the flight under a distinct non-reusable record schema instead of refusing it at claim time. Such a flight satisfies verification and backs completion evidence, so an implement run that verified its change against a live external service can finish Complete honestly; but `status`, `wait`, and the claim-attach view report `reuse_ready: false`, so the reuse path never serves it as a clean prior result. A malformed `external_services` value (not a string, blank, or a value that names no service) is still refused, and an exact `"none"` declaration behaves exactly as before.
+
 ## [2.35.13] — 2026-08-28
 
 ### Fixed
