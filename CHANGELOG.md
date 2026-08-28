@@ -4,6 +4,34 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.8] — 2026-08-28
+
+### Fixed
+- **Move the review engine's dirty-tree snapshot/restore fences into a committed helper the cloud matcher permits.** The Phase 3.1/3.2 backstop fences in the review engine were written with `${GIT_SNAP_BEFORE:-…}` variable expansions and shell redirects, which the cloud permission matcher denies — so on the cloud tier the whole statement was refused before it ran, the dirty-tree backstop was silently absent, and every review iteration paid a denial. The snapshot/authenticate/compare/restore loop now lives in the committed `scripts/review-dirty-tree.sh`, invoked by the fences as a granted leading token with literal arguments (no expansion, no redirect); the backstop's observable behavior is unchanged, and a tier that still refuses the helper records the backstop as disabled instead of losing it silently. (#2094)
+
+## [2.36.7] — 2026-08-28
+
+### Fixed
+- **Hardened the review fallback marker recipe and the vendored subagent skills' extension loader against cloud matcher expansion denials.** The review skill's helper-never-ran fallback arm now composes its run-keyed progress marker by literal substitution from the already-observed `compose-run-url.sh` output instead of a `${GITHUB_RUN_ID}`/`${...:-1}` shell parameter expansion the cloud permission matcher silently denies, and both vendored subagent skills (`requesting-code-review`, `receiving-code-review`) now load their prompt extension through the vendored-literal-first conditional ladder — enrolled in `lint-anchor-fallback-arm.py` — so a cloud review run no longer loses turns to refusals that produce no output. `receiving-code-review` also gains the dispatcher-supplied-command override paragraph. (#2100)
+
+## [2.36.6] — 2026-08-28
+
+### Changed
+Re-ask the checklist verifier once when a FAIL asserts the code is correct but leaves the property unproven (#2099).
+
+`scripts/normalize-verdicts.py` now treats a well-typed `inaccuracy_scope: "generated_claim_text"` paired with boolean `property_proven: false` as a contradiction rather than a settled verdict: when property-not-proven is the sole real-value blocker, the item draws exactly one pinned auxiliary re-ask through the existing channel instead of terminating as normalization-ineligible. A re-ask that positively proves the property normalizes the FAIL through the unchanged five-conjunct predicate; any other outcome leaves the raw FAIL standing, so review strictness is unchanged for every real defect. The two verifier-contract mirrors (`skills/review/phases/phase-2-verification.md`, `agents/checklist-verifier.md`) now state the coherence rule so verifiers stop emitting the contradictory pair as a settled answer.
+
+## [2.36.5] — 2026-08-28
+
+### Fixed
+- **The verification-flight coordinator's telemetry directories are now self-ignoring.** Both
+  telemetry write paths (`scripts/verification-flight.py`'s shared `_emit_telemetry` and the
+  `event` subcommand's appender) drop a `.gitignore` containing `*` into the output directory
+  before the first telemetry file lands there, so an installed consumer whose scaffolded ignore
+  rule covers `.prflow/tmp/` but not the logs dir no longer sees the coordinator dirty — and
+  self-invalidate — the tree it just certified. When the guard cannot be written the telemetry write is skipped rather than
+  left to dirty the tree; the ledger state directory is deliberately untouched. (#2101)
+
 ## [2.36.4] — 2026-08-28
 
 ### Changed

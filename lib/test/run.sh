@@ -3913,49 +3913,88 @@ assert_pin_unique "#192 agent-mandate: unavailable-mutation refusal from the req
   'Do not attempt `git worktree add`, `mktemp`, or a mutation/half-revert' "$LIB/../skills/requesting-code-review/code-reviewer.md"
 assert_pin_unique "#192 agent-mandate: primary write-prohibition from the requesting-code-review final-pass" \
   'Do not mutate the working tree, the index, HEAD, or branch state in any way' "$LIB/../skills/requesting-code-review/code-reviewer.md"
-# Retained textual boundaries describe the external digest handoff and the
-# untracked-file-never-auto-deleted rule.
-# Executable commands are covered below by running the Phase 3.1 snapshot block, the
-# Phase 3.2 compare wrapper, and its restore region in real sandbox repositories.
+# The external digest handoff contract remains a SKILL-resident directive: the §3.1
+# helper prints the object ID and the orchestrator records it as {GIT_SNAP_BEFORE_OID}.
 assert_pin_unique "#484 backstop: external digest handoff contract" \
   'Record the single object ID printed by `git hash-object` as `{GIT_SNAP_BEFORE_OID}` in orchestrator state' "$REVIEW_SKILL"
-assert_pin_unique "#192 backstop: untracked-file-never-auto-deleted safety rule" \
-  'never auto-deleted; git said' "$REVIEW_SKILL"
-# AC3 (#216) drift guards — coupled multi-site operative directives, pinned by occurrence
-# count so dropping any one site drifts the count RED:
-#  - the pathname-safe NUL read loop `IFS= read -r -d ''` at all THREE sites (BEFORE extract,
-#    AFTER extract, restore loop) — a regression to a newline `read -r` at any site drops the count;
-#  - no unchecked `sort -z` pipeline remains — records append directly and each write is rc-checked;
-#  - the fixed repo-local fail-closed sentinel PATH at all FOUR sites (success cleanup, failure
-#    producer, 3.2 short-circuit read, final cleanup). This file survives the Agent boundary;
-#    a shell variable would not.
-assert_eq "#216 backstop: the pathname-safe NUL read loop is present at all three sites" "yes" \
-  "$([ "$(grep -cF 'IFS= read -r -d' "$REVIEW_SKILL")" -eq 3 ] && echo yes || echo no)"  # raw-guard-ok: count-based: asserts ==3 NUL read loops (BEFORE/AFTER extract + restore)
-assert_eq "#484 backstop: no unchecked sort -z extraction pipeline remains" "yes" \
-  "$([ "$(grep -cF 'sort -z' "$REVIEW_SKILL")" -eq 0 ] && echo yes || echo no)"  # raw-guard-ok: count-based: asserts ==0 unchecked sort -z pipelines
-assert_eq "#216 backstop: the fixed fail-closed sentinel path stays coupled across its four sites" "yes" \
-  "$([ "$(grep -cF '.prflow/tmp/review-dirty-tree-disabled' "$REVIEW_SKILL")" -eq 4 ] && echo yes || echo no)"  # raw-guard-ok: count-based: asserts ==4 occurrences (success cleanup + failure producer + 3.2 read + final cleanup)
-# ── #216: dirty-tree backstop -z rework — git_sandbox integration proof ────────────────
-# Extract and execute the real Phase 3.1 snapshot block. These checks catch three concrete
-# production breaks: stale snapshot symlinks clobbering their targets, a missing `git status
-# --porcelain -z` capture leaving the backstop disabled, and a race-swapped symlink being
-# accepted as an authenticated baseline.
-DT_SNAPSHOT="$(probe_tmp "#484 before-snapshot block extraction")"
-awk '
-  /Dirty-tree backstop — snapshot before dispatch/ { wanted=1; next }
-  wanted && /^```bash$/ { block=1; next }
-  block && /^```$/ { exit }
-  block { print }
-' "$REVIEW_SKILL" > "$DT_SNAPSHOT"
-assert_eq "#484 before-snapshot: executable Phase 3.1 block extracted" "yes" \
-  "$([ -s "$DT_SNAPSHOT" ] && echo yes || echo no)"
+# Do not re-add the pre-#2082 count-based fence pins (NUL read loops / `sort -z` / sentinel
+# path in the review bundle): #2082 moved that logic into scripts/review-dirty-tree.sh, so
+# their regressions are re-anchored to the helper-behavior battery below and the no-expansion-
+# redirect shape check named in AC1.
+# ── #2082: dirty-tree backstop — committed-helper integration proof ────────────────────
+# The snapshot/compare/restore logic now lives in scripts/review-dirty-tree.sh (issue
+# #2082), invoked by the §3.1/§3.2 fences as a leading token. The battery below drives
+# that committed helper directly (setting the GIT_SNAP_BEFORE/GIT_SNAP_AFTER env seam the
+# helper retains internally, and passing the recorded object ID as the compare-and-restore
+# argument), so a regression in the helper's real behaviour turns these RED.
+RDT="$LIB/../scripts/review-dirty-tree.sh"
+assert_eq "#2082 backstop: the committed helper exists and is executable" "yes" \
+  "$([ -f "$RDT" ] && [ -x "$RDT" ] && echo yes || echo no)"
+# AC1 (#2082): the rewritten §3.1/§3.2 fences carry NO $VAR/${VAR} expansion and NO shell
+# redirect — the shapes the cloud matcher denies. Measured by extract-command-shapes.py's
+# no-expansion-redirect profile over the review member that holds them (RED against the old
+# inline fences, GREEN against the helper-invocation form). phase-3-agents.md's only bash
+# fences are the two dirty-tree helper calls and the load-prompt-extension call, all
+# expansion/redirect-free, so the file scan covers exactly the two rewritten regions.
+assert_eq "#2082 AC1: the dirty-tree fences carry no expansion/redirect (helper-invocation form)" "" \
+  "$(python3 "$LIB/test/extract-command-shapes.py" --profile no-expansion-redirect "$LIB/../skills/review/phases/phase-3-agents.md" 2>&1 | tr '\n' ' ' | sed 's/ *$//')"
+# Mutation-guard the no-expansion-redirect finder itself: the assertion above asserts EMPTY, so
+# a broken/no-op finder would pass it vacuously. Prove the finder DOES flag a fence carrying both
+# a `${VAR}` expansion and a `>` redirect (the exact shapes the rewrite removed).
+DT_XR="$(probe_tmp "#2082 no-expansion-redirect finder fixture")"
+printf '%s\n' '```bash' 'git status -z > "${GIT_SNAP_BEFORE:-x}"' '```' > "$DT_XR"
+assert_eq "#2082 AC1 finder guard: an expansion+redirect fence is flagged EXPANSION and REDIRECT" \
+  "EXPANSION REDIRECT" \
+  "$(python3 "$LIB/test/extract-command-shapes.py" --profile no-expansion-redirect "$DT_XR" | awk '{print $2}' | sort -u | tr '\n' ' ' | sed 's/ *$//')"
+rm -f "$DT_XR"
+# #2082 finder discrimination (negative): a `$(…)` command substitution is NOT the parameter-
+# expansion shape, and a single-quoted `$VAR` is literal text the single-quote mask hides — so a
+# fence carrying only those is clean, proving the finder does not over-flag the helper-invocation form.
+DT_XR2="$(probe_tmp "#2082 no-expansion-redirect clean fixture")"
+printf '%s\n' '```bash' 'review-dirty-tree.sh compare-and-restore $(git hash-object f)' "echo '\$NOT_AN_EXPANSION'" '```' > "$DT_XR2"
+assert_eq "#2082 AC1 finder: a \$(…) capture and a single-quoted \$VAR are not flagged" "" \
+  "$(python3 "$LIB/test/extract-command-shapes.py" --profile no-expansion-redirect "$DT_XR2" 2>&1 | tr '\n' ' ' | sed 's/ *$//')"
+rm -f "$DT_XR2"
+# #2082 finder discrimination (positive): every redirect operator variant beyond `>` — input `<`,
+# append `>>`, and an fd-prefixed `2>` — is flagged REDIRECT, so a fence smuggling one back in is caught.
+DT_XR3="$(probe_tmp "#2082 no-expansion-redirect redirect-variants fixture")"
+printf '%s\n' '```bash' 'cat < in.txt' 'echo hi >> out.txt' 'cmd 2> err.txt' '```' > "$DT_XR3"
+assert_eq "#2082 AC1 finder: input/append/fd redirect variants are all flagged REDIRECT" \
+  "REDIRECT REDIRECT REDIRECT" \
+  "$(python3 "$LIB/test/extract-command-shapes.py" --profile no-expansion-redirect "$DT_XR3" | awk '{print $2}' | tr '\n' ' ' | sed 's/ *$//')"
+rm -f "$DT_XR3"
+# #2082 fence-to-helper wiring: the §3.1/§3.2 fences must invoke the helper with the exact
+# subcommand spelling and the {GIT_SNAP_BEFORE_OID} argument. A partial break — a wrong subcommand or
+# a dropped OID arg — would otherwise ship green, since the AC1 shape scan passes vacuously on a fence
+# whose helper line was removed and the #363 head-count pin fires only on full head removal.
+assert_pin_unique "#2082 fence wiring: §3.1 invokes the snapshot subcommand" \
+  '.prflow/vendor/prflow/scripts/review-dirty-tree.sh snapshot' "$REVIEW_SKILL"  # structural-pin-ok: routing-dispatch-contract -- the skill->helper snapshot subcommand wiring
+assert_pin_unique "#2082 fence wiring: §3.2 invokes compare-and-restore with the recorded OID arg" \
+  '.prflow/vendor/prflow/scripts/review-dirty-tree.sh compare-and-restore {GIT_SNAP_BEFORE_OID}' "$REVIEW_SKILL"  # structural-pin-ok: routing-dispatch-contract -- the skill->helper compare-and-restore + OID-arg wiring
+# #2082 helper main() dispatch + AC4 CLI enforcement: a missing/empty restore-authorising OID, an
+# unknown subcommand, and a wrong argument count each exit 2 — no restore is ever authorised from a
+# malformed invocation (AC4: the OID comes from argv, and an empty one is rejected).
+assert_eq "#2082 helper main(): no subcommand exits 2" "2" \
+  "$(bash "$RDT" 2>/dev/null; echo $?)"
+assert_eq "#2082 helper main(): an unknown subcommand exits 2" "2" \
+  "$(bash "$RDT" bogus-subcommand 2>/dev/null; echo $?)"
+assert_eq "#2082 helper main(): compare-and-restore with an empty OID exits 2 (AC4 authorizer required)" "2" \
+  "$(bash "$RDT" compare-and-restore '' 2>/dev/null; echo $?)"
+assert_eq "#2082 helper main(): compare-and-restore with no OID exits 2" "2" \
+  "$(bash "$RDT" compare-and-restore 2>/dev/null; echo $?)"
+assert_eq "#2082 helper main(): snapshot with an extra argument exits 2" "2" \
+  "$(bash "$RDT" snapshot extra-arg 2>/dev/null; echo $?)"
 
+# Extract and execute the real Phase 3.1 snapshot behaviour via the helper. These checks
+# catch three concrete production breaks: stale snapshot symlinks clobbering their targets,
+# a missing `git status --porcelain -z` capture leaving the backstop disabled, and a
+# race-swapped symlink being accepted as an authenticated baseline.
 DT_S="$(git_sandbox "#484 before-snapshot stale-symlink repo")"
 if [ -d "$DT_S" ]; then
   git -C "$DT_S" init -q
   DT_S_B="$DT_S/before"; DT_S_V="$(probe_tmp "#484 before-snapshot stale-symlink target")"
   printf 'target sentinel' > "$DT_S_V"; ln -s "$DT_S_V" "$DT_S_B"
-  DT_S_OID="$(cd "$DT_S" && GIT_SNAP_BEFORE="$DT_S_B" bash "$DT_SNAPSHOT" 2>/dev/null)"
+  DT_S_OID="$(cd "$DT_S" && GIT_SNAP_BEFORE="$DT_S_B" bash "$RDT" snapshot 2>/dev/null)"
   assert_eq "#484 before-snapshot: stale symlink is removed without clobbering its target" \
     "target sentinel" "$(cat "$DT_S_V")"
   assert_eq "#216 before-snapshot: real -z capture produces an authenticated regular file" "yes" \
@@ -3979,30 +4018,20 @@ if [ -d "$DT_SR" ]; then
     'exec "$DT_REAL_GIT" "$@"' > "$DT_SR_BIN/git"
   chmod +x "$DT_SR_BIN/git"
   ( cd "$DT_SR" && PATH="$DT_SR_BIN:$PATH" DT_REAL_GIT="$DT_REAL_GIT" \
-      DT_RACE_TARGET="$DT_SR_V" GIT_SNAP_BEFORE="$DT_SR_B" bash "$DT_SNAPSHOT" ) >/dev/null 2>&1
+      DT_RACE_TARGET="$DT_SR_V" GIT_SNAP_BEFORE="$DT_SR_B" bash "$RDT" snapshot ) >/dev/null 2>&1
   assert_eq "#484 before-snapshot: a race-swapped symlink disables the backstop" "yes" \
     "$([ -f "$DT_SR/.prflow/tmp/review-dirty-tree-disabled" ] && echo yes || echo no)"
   assert_eq "#484 before-snapshot: symlink-race target remains untouched" \
     "target sentinel" "$(cat "$DT_SR_V")"
   rm -rf "$DT_SR" "$DT_SR_V"
 fi
-rm -f "$DT_SNAPSHOT"
 
-# AC2 (#216): a spaced-path agent mutation is correctly RESTORED (no silent no-op), a true
-# rename is SURFACED-not-restored, and the spaced-path restore is COUPLED to the `-z` rework
-# (RED with quoted plain-porcelain snapshots, GREEN with `-z`). The proof EXTRACTS the
-# self-contained restore region from skills/review/SKILL.md and runs it against a real
-# throwaway git repo (git_sandbox), so a regression of the region's NUL-handling back to the
-# quoting-vulnerable shape turns this RED. The markers are referenced via vars so this source
-# line never carries the contiguous marker string the extractor scans for.
-DT_REGION="$(probe_tmp "#216 backstop region extraction")"
-DT_BEGIN="devflow:dirty-tree-restore ""BEGIN"
-DT_END="devflow:dirty-tree-restore ""END"
-# Reuse the single-source-of-truth region extractor (markers excluded the same way every
-# other region scanner excludes them) rather than re-rolling the region awk inline.
-region_lines "$REVIEW_SKILL" "$DT_BEGIN" "$DT_END" > "$DT_REGION"
-assert_eq "#216 backstop: restore region extracted from SKILL.md is non-empty" "yes" \
-  "$([ -s "$DT_REGION" ] && echo yes || echo no)"
+# AC2 (#216) / AC3 (#2082): a spaced-path agent mutation is correctly RESTORED (no silent
+# no-op), a true rename is SURFACED-not-restored, and the spaced-path restore is COUPLED to
+# the `-z` rework (RED with quoted plain-porcelain snapshots, GREEN with `-z`). The proof
+# drives the committed helper's `compare-and-restore` against a real throwaway git repo
+# (git_sandbox), passing the authentic before-snapshot object ID as its argument, so a
+# regression of the helper's NUL-handling back to the quoting-vulnerable shape turns this RED.
 # Build a fresh sandbox repo with a committed spaced-path file + a plain file (fail-closed on
 # mktemp -d failure via git_sandbox's /dev/null sentinel — a caller's `[ -d ]` guard then skips).
 dt_make_repo() {  # -> prints repo dir
@@ -4017,34 +4046,29 @@ DT_A="$(dt_make_repo)"
 if [ -d "$DT_A" ]; then
   DT_A_B="$(probe_tmp "#216 case-A before")"; DT_A_AF="$(probe_tmp "#216 case-A after")"
   git -C "$DT_A" status --porcelain -z > "$DT_A_B"
+  DT_A_OID="$(git hash-object "$DT_A_B")"
   printf changed > "$DT_A/my file.txt"
   git -C "$DT_A" status --porcelain -z > "$DT_A_AF"
-  ( cd "$DT_A" && GIT_SNAP_BEFORE="$DT_A_B" GIT_SNAP_AFTER="$DT_A_AF" bash "$DT_REGION" ) >/dev/null 2>&1
+  ( cd "$DT_A" && GIT_SNAP_BEFORE="$DT_A_B" GIT_SNAP_AFTER="$DT_A_AF" bash "$RDT" compare-and-restore "$DT_A_OID" ) >/dev/null 2>&1
   assert_eq "#216 backstop: a spaced-path agent modification is restored (-z snapshots)" \
     "orig" "$(cat "$DT_A/my file.txt" 2>/dev/null)"
   rm -rf "$DT_A" "$DT_A_B" "$DT_A_AF"
 fi
-# Case B — SAME mutation but QUOTED plain-porcelain snapshots: NOT restored. This is the
-# pre-rework (RED) state — it proves the `-z` capture is load-bearing, not incidental.
-DT_BR="$(dt_make_repo)"
-if [ -d "$DT_BR" ]; then
-  DT_BR_B="$(probe_tmp "#216 case-B before")"; DT_BR_AF="$(probe_tmp "#216 case-B after")"
-  git -C "$DT_BR" status --porcelain > "$DT_BR_B"     # no -z: the spaced path is C-quoted
-  printf changed > "$DT_BR/my file.txt"
-  git -C "$DT_BR" status --porcelain > "$DT_BR_AF"
-  ( cd "$DT_BR" && GIT_SNAP_BEFORE="$DT_BR_B" GIT_SNAP_AFTER="$DT_BR_AF" bash "$DT_REGION" ) >/dev/null 2>&1
-  assert_eq "#216 backstop: quoted (non--z) snapshots do NOT restore the spaced path (why -z is required)" \
-    "changed" "$(cat "$DT_BR/my file.txt" 2>/dev/null)"
-  rm -rf "$DT_BR" "$DT_BR_B" "$DT_BR_AF"
-fi
+# Case B (the pre-#2082 "quoted plain-porcelain does NOT restore, why -z is required" RED
+# counterfactual) is RETIRED with the helper cutover. The helper's `compare-and-restore`
+# captures its OWN after-snapshot with `git status --porcelain -z` internally, so a test can
+# no longer feed it a quoted (non--z) after-snapshot to exercise the failure path — the `-z`
+# requirement is now guaranteed by the helper's source, and case A positively proves it
+# (a spaced-path restore succeeds, which a plain-porcelain capture would silently no-op).
 # Case C — true staged rename: SURFACED, NOT auto-restored (the file stays renamed).
 DT_C="$(dt_make_repo)"
 if [ -d "$DT_C" ]; then
   DT_C_B="$(probe_tmp "#216 case-C before")"; DT_C_AF="$(probe_tmp "#216 case-C after")"
   git -C "$DT_C" status --porcelain -z > "$DT_C_B"
+  DT_C_OID="$(git hash-object "$DT_C_B")"
   git -C "$DT_C" mv "plain.txt" "renamed plain.txt"
   git -C "$DT_C" status --porcelain -z > "$DT_C_AF"
-  ( cd "$DT_C" && GIT_SNAP_BEFORE="$DT_C_B" GIT_SNAP_AFTER="$DT_C_AF" bash "$DT_REGION" ) >/dev/null 2>&1
+  ( cd "$DT_C" && GIT_SNAP_BEFORE="$DT_C_B" GIT_SNAP_AFTER="$DT_C_AF" bash "$RDT" compare-and-restore "$DT_C_OID" ) >/dev/null 2>&1
   assert_eq "#216 backstop: a true rename is surfaced-not-restored (renamed file remains)" \
     "plain" "$(cat "$DT_C/renamed plain.txt" 2>/dev/null)"
   assert_eq "#216 backstop: a true rename leaves the original path removed (not auto-recreated)" \
@@ -4062,9 +4086,10 @@ if [ -d "$DT_D" ]; then
   DT_D_B="$(probe_tmp "#216 case-D before")"; DT_D_AF="$(probe_tmp "#216 case-D after")"
   printf 'concurrent edit' > "$DT_D/my file.txt"   # orchestrator's OWN edit — dirty BEFORE dispatch
   git -C "$DT_D" status --porcelain -z > "$DT_D_B"
+  DT_D_OID="$(git hash-object "$DT_D_B")"
   printf 'agent edit' > "$DT_D/plain.txt"          # a DIFFERENT path an agent dirties DURING the window
   git -C "$DT_D" status --porcelain -z > "$DT_D_AF"
-  ( cd "$DT_D" && GIT_SNAP_BEFORE="$DT_D_B" GIT_SNAP_AFTER="$DT_D_AF" bash "$DT_REGION" ) >/dev/null 2>&1
+  ( cd "$DT_D" && GIT_SNAP_BEFORE="$DT_D_B" GIT_SNAP_AFTER="$DT_D_AF" bash "$RDT" compare-and-restore "$DT_D_OID" ) >/dev/null 2>&1
   assert_eq "#216 backstop: an already-dirty path (clean->dirty BEFORE dispatch) is NOT clobbered by the restore" \
     "concurrent edit" "$(cat "$DT_D/my file.txt" 2>/dev/null)"
   assert_eq "#216 backstop: a newly-dirtied path (dirtied DURING the window) IS restored to HEAD" \
@@ -4081,9 +4106,10 @@ if [ -d "$DT_D2" ]; then
   # No membership shim: the region's BEFORE-membership test is pure bash (issue #1470), so this
   # behavioral check reaches the restore/re-check boundary unaided on GNU and BSD/macOS alike.
   git -C "$DT_D2" status --porcelain -z > "$DT_D2_B"
+  DT_D2_OID="$(git hash-object "$DT_D2_B")"
   printf 'agent-created' > "$DT_D2/untracked.txt"
   git -C "$DT_D2" status --porcelain -z > "$DT_D2_AF"
-  ( cd "$DT_D2" && GIT_SNAP_BEFORE="$DT_D2_B" GIT_SNAP_AFTER="$DT_D2_AF" bash "$DT_REGION" ) >/dev/null 2>"$DT_D2_ERR"
+  ( cd "$DT_D2" && GIT_SNAP_BEFORE="$DT_D2_B" GIT_SNAP_AFTER="$DT_D2_AF" bash "$RDT" compare-and-restore "$DT_D2_OID" ) >/dev/null 2>"$DT_D2_ERR"
   assert_eq "#192 backstop: an untracked dispatch-window file is never auto-deleted" \
     "agent-created" "$(cat "$DT_D2/untracked.txt")"
   assert_eq "#192 backstop: failed restore is detected from live tree state and breadcrumbed" "yes" \
@@ -4097,10 +4123,11 @@ DT_E="$(dt_make_repo)"
 if [ -d "$DT_E" ]; then
   DT_E_B="$(probe_tmp "#484 case-E before")"; DT_E_AF="$(probe_tmp "#484 case-E after")"
   printf ' M my file.txt' > "$DT_E_B"                 # deliberately missing the required NUL
+  DT_E_OID="$(git hash-object "$DT_E_B")"
   printf 'concurrent edit' > "$DT_E/my file.txt"      # must never be restored from HEAD
   printf 'agent edit' > "$DT_E/plain.txt"
   git -C "$DT_E" status --porcelain -z > "$DT_E_AF"
-  ( cd "$DT_E" && GIT_SNAP_BEFORE="$DT_E_B" GIT_SNAP_AFTER="$DT_E_AF" bash "$DT_REGION" ) >/dev/null 2>&1
+  ( cd "$DT_E" && GIT_SNAP_BEFORE="$DT_E_B" GIT_SNAP_AFTER="$DT_E_AF" bash "$RDT" compare-and-restore "$DT_E_OID" ) >/dev/null 2>&1
   assert_eq "#484 backstop: truncated BEFORE snapshot fails closed without clobbering an existing edit" \
     "concurrent edit" "$(cat "$DT_E/my file.txt" 2>/dev/null)"
   assert_eq "#484 backstop: truncated BEFORE snapshot skips all restoration" \
@@ -4122,9 +4149,10 @@ if [ -d "$DT_D3" ]; then
   printf 'concurrent edit' > "$DT_D3/g[ab].txt"   # orchestrator's OWN edit — glob metacharacters
   printf 'concurrent nl' > "$DT_D3/$DT_D3_NL"     # orchestrator's OWN edit — embedded newline
   git -C "$DT_D3" status --porcelain -z > "$DT_D3_B"
+  DT_D3_OID="$(git hash-object "$DT_D3_B")"
   printf 'agent edit' > "$DT_D3/f*.txt"           # a DIFFERENT glob path dirtied DURING the window
   git -C "$DT_D3" status --porcelain -z > "$DT_D3_AF"
-  ( cd "$DT_D3" && GIT_SNAP_BEFORE="$DT_D3_B" GIT_SNAP_AFTER="$DT_D3_AF" bash "$DT_REGION" ) >/dev/null 2>&1
+  ( cd "$DT_D3" && GIT_SNAP_BEFORE="$DT_D3_B" GIT_SNAP_AFTER="$DT_D3_AF" bash "$RDT" compare-and-restore "$DT_D3_OID" ) >/dev/null 2>&1
   assert_eq "#1470 backstop: an already-dirty GLOB-metacharacter path is NOT clobbered by the restore" \
     "concurrent edit" "$(cat "$DT_D3/g[ab].txt" 2>/dev/null)"
   assert_eq "#1470 backstop: an already-dirty NEWLINE-containing path is NOT clobbered by the restore" \
@@ -4133,29 +4161,19 @@ if [ -d "$DT_D3" ]; then
     "star" "$(cat "$DT_D3/f*.txt" 2>/dev/null)"
   rm -rf "$DT_D3" "$DT_D3_B" "$DT_D3_AF"
 fi
-# DEFERRAL (#1470 review, Important 2 — `set -u` guard coverage): deliberately NOT tested.
-# The `${before_paths[@]+…}` guard in the extracted region is defensive only. (1) No production
-# path runs that region under `set -u`: it is agent-executed prose from a Read-loaded phase
-# reference (never sourced into a workflow `run:` step), and no
-# `set -u` appears anywhere in the review prompt surface. (2) Bash stopped erroring on
-# `"${empty[@]}"` under `set -u` in 4.4, so the guard is a no-op on every bash the suite runs
-# (CI ubuntu 5.x; maintainer host PATH bash 5.3) — a committed case cannot go RED there, and a
-# vacuous guard is what this suite's mutation-check discipline forbids. (3) Measured on bash
-# 3.2.57, removing the guard fails CLOSED and loud: `unbound variable` on stderr and the region
-# aborts before restoring anything, so no concurrent edit is clobbered.
-# Revisit if the region ever gains a caller that sets `set -u`, or is relocated into a helper.
-rm -f "$DT_REGION"
-# #484: exercise the COMPLETE Phase 3.2 wrapper, including regular-file/OID authentication.
-# The older region above intentionally starts after those guards and cannot prove their behavior.
-DT_COMPARE="$(probe_tmp "#484 dirty-tree compare wrapper extraction")"
-DT_COMPARE_RUN="$(probe_tmp "#484 dirty-tree compare wrapper substituted")"
-DT_COMPARE_BEGIN="devflow:dirty-tree-compare ""BEGIN"
-DT_COMPARE_END="devflow:dirty-tree-compare ""END"
-region_lines "$REVIEW_SKILL" "$DT_COMPARE_BEGIN" "$DT_COMPARE_END" > "$DT_COMPARE"
-assert_eq "#484 backstop: complete authenticated compare wrapper extracted" "yes" \
-  "$([ -s "$DT_COMPARE" ] && echo yes || echo no)"
-
-# Case F — positive control: the authentic baseline + substituted external OID proceeds into
+# DEFERRAL (#1470 review, Important 2 — `set -u` guard coverage): the `${before_paths[@]+…}`
+# guard still carries no dedicated RED-mutation test. Its context changed with issue #2082:
+# the logic is now the committed helper scripts/review-dirty-tree.sh, which DOES `set -u`, so
+# the guard is exercised whenever the restore set is empty (the pre-#2082 note assumed
+# otherwise). (1) Bash stopped erroring on `"${empty[@]}"` under
+# `set -u` in 4.4, so the guard is a no-op on every bash the suite runs (CI ubuntu 5.x;
+# maintainer host PATH bash 5.3) — a committed case cannot go RED there, and a vacuous guard
+# is what this suite's mutation-check discipline forbids. (2) Measured on bash 3.2.57, removing
+# the guard fails CLOSED and loud under the helper's `set -u`: `unbound variable` on stderr and
+# the helper aborts before restoring anything, so no concurrent edit is clobbered.
+# #484: exercise compare-and-restore's OID-authentication path via the helper — the
+# regular-file/OID authentication the restore cases above pass through with an authentic OID.
+# Case F — positive control: the authentic object ID passed as the helper argument proceeds into
 # restore, preserving an already-dirty path while restoring the agent-introduced path.
 DT_F="$(dt_make_repo)"
 if [ -d "$DT_F" ]; then
@@ -4164,8 +4182,7 @@ if [ -d "$DT_F" ]; then
   git -C "$DT_F" status --porcelain -z > "$DT_F_B"
   DT_F_OID="$(git hash-object "$DT_F_B")"
   printf 'agent edit' > "$DT_F/plain.txt"
-  sed "s/{GIT_SNAP_BEFORE_OID}/$DT_F_OID/g" "$DT_COMPARE" > "$DT_COMPARE_RUN"
-  ( cd "$DT_F" && GIT_SNAP_BEFORE="$DT_F_B" GIT_SNAP_AFTER="$DT_F_AF" bash "$DT_COMPARE_RUN" ) >/dev/null 2>&1
+  ( cd "$DT_F" && GIT_SNAP_BEFORE="$DT_F_B" GIT_SNAP_AFTER="$DT_F_AF" bash "$RDT" compare-and-restore "$DT_F_OID" ) >/dev/null 2>&1
   assert_eq "#484 backstop auth positive control: authentic OID preserves the pre-existing edit" \
     "concurrent edit" "$(cat "$DT_F/my file.txt" 2>/dev/null)"
   assert_eq "#484 backstop auth positive control: authentic OID permits snapshot-delta restore" \
@@ -4185,8 +4202,7 @@ if [ -d "$DT_G" ]; then
   DT_G_OID="$(git hash-object "$DT_G_B")"
   printf 'agent edit' > "$DT_G/plain.txt"
   printf '' > "$DT_G_B"  # forged regular-file baseline
-  sed "s/{GIT_SNAP_BEFORE_OID}/$DT_G_OID/g" "$DT_COMPARE" > "$DT_COMPARE_RUN"
-  ( cd "$DT_G" && GIT_SNAP_BEFORE="$DT_G_B" GIT_SNAP_AFTER="$DT_G_AF" bash "$DT_COMPARE_RUN" ) >/dev/null 2>"$DT_G_ERR"
+  ( cd "$DT_G" && GIT_SNAP_BEFORE="$DT_G_B" GIT_SNAP_AFTER="$DT_G_AF" bash "$RDT" compare-and-restore "$DT_G_OID" ) >/dev/null 2>"$DT_G_ERR"
   assert_eq "#484 backstop auth: forged regular baseline cannot clobber the pre-existing edit" \
     "concurrent edit" "$(cat "$DT_G/my file.txt" 2>/dev/null)"
   assert_eq "#484 backstop auth: forged regular baseline skips all restoration" \
@@ -4204,8 +4220,7 @@ if [ -d "$DT_H" ]; then
   printf 'target sentinel' > "$DT_H_TARGET"; ln -s "$DT_H_TARGET" "$DT_H_B"
   DT_H_OID="$(git hash-object "$DT_H_TARGET")"
   printf 'agent edit' > "$DT_H/plain.txt"
-  sed "s/{GIT_SNAP_BEFORE_OID}/$DT_H_OID/g" "$DT_COMPARE" > "$DT_COMPARE_RUN"
-  ( cd "$DT_H" && GIT_SNAP_BEFORE="$DT_H_B" GIT_SNAP_AFTER="$DT_H_AF" bash "$DT_COMPARE_RUN" ) >/dev/null 2>"$DT_H_ERR"
+  ( cd "$DT_H" && GIT_SNAP_BEFORE="$DT_H_B" GIT_SNAP_AFTER="$DT_H_AF" bash "$RDT" compare-and-restore "$DT_H_OID" ) >/dev/null 2>"$DT_H_ERR"
   assert_eq "#484 backstop auth: symlink baseline skips restoration" \
     "agent edit" "$(cat "$DT_H/plain.txt" 2>/dev/null)"
   assert_eq "#484 backstop auth: symlink baseline target is never modified" \
@@ -4224,8 +4239,7 @@ if [ -d "$DT_I" ]; then
   git -C "$DT_I" status --porcelain -z > "$DT_I_B"
   DT_I_OID="$(git hash-object "$DT_I_B")"
   printf 'target sentinel' > "$DT_I_TARGET"; ln -s "$DT_I_TARGET" "$DT_I_AF"
-  sed "s/{GIT_SNAP_BEFORE_OID}/$DT_I_OID/g" "$DT_COMPARE" > "$DT_COMPARE_RUN"
-  ( cd "$DT_I" && GIT_SNAP_BEFORE="$DT_I_B" GIT_SNAP_AFTER="$DT_I_AF" bash "$DT_COMPARE_RUN" ) >/dev/null 2>&1
+  ( cd "$DT_I" && GIT_SNAP_BEFORE="$DT_I_B" GIT_SNAP_AFTER="$DT_I_AF" bash "$RDT" compare-and-restore "$DT_I_OID" ) >/dev/null 2>&1
   assert_eq "#484 after-snapshot: stale symlink is removed before capture, so its target is not clobbered" \
     "target sentinel" "$(cat "$DT_I_TARGET")"
   rm -rf "$DT_I" "$DT_I_B" "$DT_I_AF" "$DT_I_TARGET"
@@ -4249,10 +4263,9 @@ if [ -d "$DT_J" ]; then
     'fi' \
     'exec "$DT_REAL_GIT" "$@"' > "$DT_J_BIN/git"
   chmod +x "$DT_J_BIN/git"
-  sed "s/{GIT_SNAP_BEFORE_OID}/$DT_J_OID/g" "$DT_COMPARE" > "$DT_COMPARE_RUN"
   ( cd "$DT_J" && PATH="$DT_J_BIN:$PATH" DT_REAL_GIT="$DT_REAL_GIT" \
       DT_RACE_TARGET="$DT_J_TARGET" GIT_SNAP_BEFORE="$DT_J_B" GIT_SNAP_AFTER="$DT_J_AF" \
-      bash "$DT_COMPARE_RUN" ) >/dev/null 2>"$DT_J_ERR"
+      bash "$RDT" compare-and-restore "$DT_J_OID" ) >/dev/null 2>"$DT_J_ERR"
   assert_eq "#484 after-snapshot: race-swapped symlink skips restoration" \
     "agent edit" "$(cat "$DT_J/plain.txt")"
   assert_eq "#484 after-snapshot: race-swapped symlink emits the attributable capture-failure breadcrumb" "yes" \
@@ -4261,7 +4274,145 @@ if [ -d "$DT_J" ]; then
     "target sentinel" "$(cat "$DT_J_TARGET")"
   rm -rf "$DT_J" "$DT_J_B" "$DT_J_AF" "$DT_J_TARGET" "$DT_J_ERR"
 fi
-rm -f "$DT_COMPARE" "$DT_COMPARE_RUN"
+
+# Case SK (#2082) — a disabled sentinel short-circuits compare-and-restore: a tree carrying the
+# fixed repo-local sentinel is the snapshot-failed disabled state, so NO agent mutation is
+# restored (a regression flipping the sentinel check to a fall-through would clobber the tree).
+DT_SK="$(dt_make_repo)"
+if [ -d "$DT_SK" ]; then
+  DT_SK_B="$(probe_tmp "#2082 sentinel-skip before")"; DT_SK_AF="$(probe_tmp "#2082 sentinel-skip after")"
+  git -C "$DT_SK" status --porcelain -z > "$DT_SK_B"
+  DT_SK_OID="$(git hash-object "$DT_SK_B")"
+  printf 'agent edit' > "$DT_SK/plain.txt"
+  mkdir -p "$DT_SK/.prflow/tmp"; printf '%s\n' disabled > "$DT_SK/.prflow/tmp/review-dirty-tree-disabled"
+  ( cd "$DT_SK" && GIT_SNAP_BEFORE="$DT_SK_B" GIT_SNAP_AFTER="$DT_SK_AF" bash "$RDT" compare-and-restore "$DT_SK_OID" ) >/dev/null 2>&1
+  assert_eq "#2082 backstop: a disabled sentinel short-circuits compare-and-restore (agent edit NOT restored)" \
+    "agent edit" "$(cat "$DT_SK/plain.txt" 2>/dev/null)"
+  rm -rf "$DT_SK" "$DT_SK_B" "$DT_SK_AF"
+fi
+
+# Case SC (#2082) — the scratch-allocation-failure guard fails CLOSED: when the repo-local scratch
+# files cannot be allocated, NOTHING is restored (never a fall-through that clobbers a concurrent
+# edit) and the distinct breadcrumb fires. Isolate the INNER changed-paths-write guard specifically
+# by leaving `.prflow/tmp` creatable but making the changed-paths TARGET a directory, so `printf '' >
+# file` fails on it (root-safe: a file-vs-directory conflict binds every uid). A whole-.prflow
+# blocker would instead trip the function-entry mkdir guard (Case MK below), not this inner one.
+DT_SC="$(dt_make_repo)"
+if [ -d "$DT_SC" ]; then
+  DT_SC_B="$(probe_tmp "#2082 scratch-alloc before")"; DT_SC_AF="$(probe_tmp "#2082 scratch-alloc after")"
+  DT_SC_ERR="$(probe_tmp "#2082 scratch-alloc stderr")"
+  git -C "$DT_SC" status --porcelain -z > "$DT_SC_B"
+  DT_SC_OID="$(git hash-object "$DT_SC_B")"
+  printf 'agent edit' > "$DT_SC/plain.txt"
+  mkdir -p "$DT_SC/.prflow/tmp/review-dirty-tree-changed-paths"   # a dir where the helper needs to write a file
+  ( cd "$DT_SC" && GIT_SNAP_BEFORE="$DT_SC_B" GIT_SNAP_AFTER="$DT_SC_AF" bash "$RDT" compare-and-restore "$DT_SC_OID" ) >/dev/null 2>"$DT_SC_ERR"
+  assert_eq "#2082 backstop: scratch-allocation failure fails closed (agent edit NOT restored)" \
+    "agent edit" "$(cat "$DT_SC/plain.txt" 2>/dev/null)"
+  assert_eq "#2082 backstop: scratch-allocation failure emits the distinct breadcrumb" "yes" \
+    "$(grep -qF 'could not allocate repo-local scratch files' "$DT_SC_ERR" && echo yes || echo no)"
+  rm -rf "$DT_SC" "$DT_SC_B" "$DT_SC_AF" "$DT_SC_ERR"
+fi
+# Case MK (#2082) — the function-entry `mkdir -p .prflow/tmp` guard fails CLOSED with its own
+# distinct breadcrumb: a regular file at `.prflow` makes the directory uncreatable, so
+# compare-and-restore returns early, restores NOTHING, and attributes the fault to the filesystem
+# rather than misreporting it downstream as an after-snapshot or scratch-alloc failure (root-safe:
+# a file-vs-directory conflict binds every uid).
+DT_MK="$(dt_make_repo)"
+if [ -d "$DT_MK" ]; then
+  DT_MK_B="$(probe_tmp "#2082 mkdir-guard before")"; DT_MK_AF="$(probe_tmp "#2082 mkdir-guard after")"
+  DT_MK_ERR="$(probe_tmp "#2082 mkdir-guard stderr")"
+  git -C "$DT_MK" status --porcelain -z > "$DT_MK_B"
+  DT_MK_OID="$(git hash-object "$DT_MK_B")"
+  printf 'agent edit' > "$DT_MK/plain.txt"
+  printf blocker > "$DT_MK/.prflow"   # a regular file where the helper needs the .prflow/tmp dir
+  ( cd "$DT_MK" && GIT_SNAP_BEFORE="$DT_MK_B" GIT_SNAP_AFTER="$DT_MK_AF" bash "$RDT" compare-and-restore "$DT_MK_OID" ) >/dev/null 2>"$DT_MK_ERR"
+  assert_eq "#2082 backstop: uncreatable .prflow/tmp fails closed (agent edit NOT restored)" \
+    "agent edit" "$(cat "$DT_MK/plain.txt" 2>/dev/null)"
+  assert_eq "#2082 backstop: uncreatable .prflow/tmp emits the distinct mkdir-guard breadcrumb" "yes" \
+    "$(grep -qF 'could not create .prflow/tmp for the dirty-tree compare/restore' "$DT_MK_ERR" && echo yes || echo no)"
+  rm -rf "$DT_MK" "$DT_MK_B" "$DT_MK_AF" "$DT_MK_ERR"
+fi
+# Case MKS (#2082) — the SNAPSHOT-side function-entry mkdir guard fails CLOSED: a regular file at
+# `.prflow` makes .prflow/tmp uncreatable, so `snapshot` prints NO object ID (a failed snapshot the
+# orchestrator reads as disabled) and emits its own distinct breadcrumb. No sentinel is possible when
+# the scratch dir itself cannot be created; compare-and-restore then fails closed via its
+# missing-before-snapshot arm (Case MB). This is the cmd_snapshot counterpart to Case MK.
+DT_MKS="$(dt_make_repo)"
+if [ -d "$DT_MKS" ]; then
+  DT_MKS_B="$(probe_tmp "#2082 snapshot mkdir-guard before")"; DT_MKS_ERR="$(probe_tmp "#2082 snapshot mkdir-guard stderr")"
+  printf blocker > "$DT_MKS/.prflow"   # a regular file where the helper needs the .prflow/tmp dir
+  DT_MKS_OUT="$( cd "$DT_MKS" && GIT_SNAP_BEFORE="$DT_MKS_B" bash "$RDT" snapshot 2>"$DT_MKS_ERR" )"
+  assert_eq "#2082 snapshot: uncreatable .prflow/tmp prints NO object ID (failed snapshot)" \
+    "" "$DT_MKS_OUT"
+  assert_eq "#2082 snapshot: uncreatable .prflow/tmp emits the distinct mkdir-guard breadcrumb" "yes" \
+    "$(grep -qF 'working-tree snapshot not taken' "$DT_MKS_ERR" && echo yes || echo no)"
+  rm -rf "$DT_MKS" "$DT_MKS_B" "$DT_MKS_ERR"
+fi
+# Case PR (#2082) — the post-restore confirmation read fails CLOSED on its OWN exit status: a
+# `git status --porcelain -- <path>` that ERRORS (rc≠0) must be reported as unverifiable, never
+# read as "clean, restore confirmed". A PATH-shimmed git fails only that per-path status call (the
+# one without `-z`, with a `--` pathspec) while letting the `-z` snapshots and `git checkout`
+# succeed. NON-VACUITY: the pre-fix fail-open form `[ -n "$(git status …)" ]` reads the errored
+# call's empty output as clean and emits NO breadcrumb, so this assertion goes RED against it.
+DT_PR="$(dt_make_repo)"
+if [ -d "$DT_PR" ]; then
+  DT_PR_B="$(probe_tmp "#2082 post-restore-confirm before")"; DT_PR_AF="$(probe_tmp "#2082 post-restore-confirm after")"
+  DT_PR_ERR="$(probe_tmp "#2082 post-restore-confirm stderr")"; DT_PR_BIN="$DT_PR/bin"; mkdir -p "$DT_PR_BIN"
+  git -C "$DT_PR" status --porcelain -z > "$DT_PR_B"
+  DT_PR_OID="$(git hash-object "$DT_PR_B")"
+  printf 'agent edit' > "$DT_PR/plain.txt"          # a real divergence, so the restore loop is reached
+  git -C "$DT_PR" status --porcelain -z > "$DT_PR_AF"
+  DT_REAL_GIT="$(command -v git)"
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'if [ "${1:-}" = status ]; then' \
+    '  for a in "$@"; do [ "$a" = "-z" ] && exec "$DT_REAL_GIT" "$@"; done' \
+    '  for a in "$@"; do [ "$a" = "--" ] && exit 3; done' \
+    'fi' \
+    'exec "$DT_REAL_GIT" "$@"' > "$DT_PR_BIN/git"
+  chmod +x "$DT_PR_BIN/git"
+  ( cd "$DT_PR" && PATH="$DT_PR_BIN:$PATH" DT_REAL_GIT="$DT_REAL_GIT" \
+      GIT_SNAP_BEFORE="$DT_PR_B" GIT_SNAP_AFTER="$DT_PR_AF" bash "$RDT" compare-and-restore "$DT_PR_OID" ) >/dev/null 2>"$DT_PR_ERR"
+  assert_eq "#2082 backstop: an unverifiable post-restore git status (rc≠0) fails closed with the distinct breadcrumb" "yes" \
+    "$(grep -qF 'post-restore state could not be confirmed (git status rc' "$DT_PR_ERR" && echo yes || echo no)"
+  rm -rf "$DT_PR" "$DT_PR_B" "$DT_PR_AF" "$DT_PR_ERR"
+fi
+# Case CE (#2082) — the cmp-error (rc>=2) branch fails CLOSED: when `cmp` cannot compare the two
+# snapshots it must NOT be read as "the tree diverged" and drive a restore off a comparison that
+# never succeeded. A PATH-shimmed `cmp` that exits 2 forces the error branch; nothing is restored
+# and the distinct rc-bearing breadcrumb fires.
+DT_CE="$(dt_make_repo)"
+if [ -d "$DT_CE" ]; then
+  DT_CE_B="$(probe_tmp "#2082 cmp-error before")"; DT_CE_AF="$(probe_tmp "#2082 cmp-error after")"
+  DT_CE_ERR="$(probe_tmp "#2082 cmp-error stderr")"; DT_CE_BIN="$DT_CE/bin"; mkdir -p "$DT_CE_BIN"
+  git -C "$DT_CE" status --porcelain -z > "$DT_CE_B"
+  DT_CE_OID="$(git hash-object "$DT_CE_B")"
+  printf 'agent edit' > "$DT_CE/plain.txt"          # a real divergence, so the branch is reached
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 2' > "$DT_CE_BIN/cmp"   # comparison ERROR, not "differ"
+  chmod +x "$DT_CE_BIN/cmp"
+  ( cd "$DT_CE" && PATH="$DT_CE_BIN:$PATH" GIT_SNAP_BEFORE="$DT_CE_B" GIT_SNAP_AFTER="$DT_CE_AF" bash "$RDT" compare-and-restore "$DT_CE_OID" ) >/dev/null 2>"$DT_CE_ERR"
+  assert_eq "#2082 backstop: a cmp comparison error fails closed (agent edit NOT restored)" \
+    "agent edit" "$(cat "$DT_CE/plain.txt" 2>/dev/null)"
+  assert_eq "#2082 backstop: a cmp comparison error emits the distinct rc-bearing breadcrumb" "yes" \
+    "$(grep -qF 'could not compare the before/after working-tree snapshots (cmp errored' "$DT_CE_ERR" && echo yes || echo no)"
+  rm -rf "$DT_CE" "$DT_CE_B" "$DT_CE_AF" "$DT_CE_ERR"
+fi
+# Case MB (#2082) — the genuinely-MISSING before-snapshot disjunct (distinct from Case H's symlink
+# disjunct) fails CLOSED: a non-existent BEFORE path with no disabled sentinel skips comparison and
+# restoration and emits the missing/tampered breadcrumb.
+DT_MB="$(dt_make_repo)"
+if [ -d "$DT_MB" ]; then
+  DT_MB_B="$DT_MB/nonexistent-before"; DT_MB_AF="$(probe_tmp "#2082 missing-before after")"
+  DT_MB_ERR="$(probe_tmp "#2082 missing-before stderr")"
+  git -C "$DT_MB" status --porcelain -z > "$DT_MB_AF"   # produce a real OID from a real snapshot
+  DT_MB_OID="$(git hash-object "$DT_MB_AF")"
+  printf 'agent edit' > "$DT_MB/plain.txt"
+  ( cd "$DT_MB" && GIT_SNAP_BEFORE="$DT_MB_B" GIT_SNAP_AFTER="$DT_MB_AF" bash "$RDT" compare-and-restore "$DT_MB_OID" ) >/dev/null 2>"$DT_MB_ERR"
+  assert_eq "#2082 backstop: a genuinely-missing before-snapshot fails closed (agent edit NOT restored)" \
+    "agent edit" "$(cat "$DT_MB/plain.txt" 2>/dev/null)"
+  assert_eq "#2082 backstop: a genuinely-missing before-snapshot emits the missing/tampered breadcrumb" "yes" \
+    "$(grep -qF 'the before-dispatch snapshot is missing or no longer a regular non-symlink file' "$DT_MB_ERR" && echo yes || echo no)"
+  rm -rf "$DT_MB" "$DT_MB_AF" "$DT_MB_ERR"
+fi
 # Guard the SKILL-side schema statement that detect_all_audit is not persisted.
 assert_pin_unique "#167 coupled-site: SKILL.md states detect_all_audit is intentionally not persisted" \
   'detect_all_audit`, is intentionally **not** persisted here' "$MAXI_SKILL"
@@ -36201,8 +36352,8 @@ assert_eq "#363 every already-pinned arm shape (incl. optional-leading-paren) st
 # Regression guard: the arm-position fix is a NO-OP on today's Review engine BUNDLE
 # (root + skills/review/phases/*.md — #529 split the engine, so the reviewed surface
 # is every source, not just the root).
-assert_eq "#363 the review-skill head set matches the reviewed count (34 distinct names over the whole bundle; #529 moved fences into references and added only already-counted heads (git hash-object, echo); #857 added seed-review-progress.sh; #1054 moved marker derivation out of the cloud fence, removing date; #1059 added post-review-verdict.sh as the Phase 4.4 verdict-post head; #1536 added compose-run-url.sh as the run-link composer)" \
-  "34" "$(python3 -c 'import importlib.util,sys
+assert_eq "#363 the review-skill head set matches the reviewed count (32 distinct names over the whole bundle; #857 added seed-review-progress.sh; #1054 moved marker derivation out of the cloud fence, removing date; #1059 added post-review-verdict.sh as the Phase 4.4 verdict-post head; #1536 added compose-run-url.sh as the run-link composer; #2082 moved the dirty-tree snapshot/restore fences into scripts/review-dirty-tree.sh — dropping the cmp, tr, and git-checkout heads unique to those fences and adding review-dirty-tree.sh)" \
+  "32" "$(python3 -c 'import importlib.util,sys
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 h=m.extract_heads(open(sys.argv[2],encoding="utf-8").read());print(len({m.name_of(x) for x in h}))' "$ECH" "$REVIEW_BUNDLE")"
 
@@ -54359,6 +54510,16 @@ AF_NEITHER_OUT="$(python3 "$AF_LINT" --root "$AF_FX/neither" 2>&1)"; AF_NEITHER_
 assert_eq "#1124 lint: an enrolled site carrying neither form fails closed (stale inventory)" "1" "$AF_NEITHER_RC"
 assert_eq "#1124 lint: the neither-form report names the stale enrolled site" "yes" \
   "$(case "$AF_NEITHER_OUT" in *"carries NEITHER the anchor nor the vendored-literal"*) echo yes ;; *) echo no ;; esac)"
+# issue #2096: the two vendored subagent skills are cloud-review-reachable, so pin their
+# enrollment positively — a silent un-enrollment drops the matcher-denial backstop for the
+# final-pass reviewer and fix-loop skills while every tuple-derived check stays GREEN. Match the
+# (path, invocation-suffix) PAIR, as the #1557 sibling above does: the path alone would pass for a
+# row enrolling some other helper at this file.
+AF_INV_OUT="$(python3 "$AF_LINT" --print-inventory)"
+assert_eq "#2096 the anchor-fallback lint enrolls requesting-code-review's loader site" "yes" \
+  "$(printf '%s' "$AF_INV_OUT" | grep -qxF "$(printf 'skills/requesting-code-review/SKILL.md\tload-prompt-extension.sh requesting-code-review')" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract -- greps the lint's --print-inventory OUTPUT (not SKILL content) to assert the ENROLLED inventory carries this cloud-review-reachable (path, suffix) row; #157 flags it only because the enrolled path is a SKILL.md path
+assert_eq "#2096 the anchor-fallback lint enrolls receiving-code-review's loader site" "yes" \
+  "$(printf '%s' "$AF_INV_OUT" | grep -qxF "$(printf 'skills/receiving-code-review/SKILL.md\tload-prompt-extension.sh receiving-code-review')" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract -- second cloud-review-reachable loader row; greps the lint's --print-inventory OUTPUT, not SKILL content (see the sibling pin above)
 
 # ── #1633 worktree-fence-shapes lint (lib/test/lint-worktree-fence-shapes.py) ─────
 # A worktree-isolated Claude Code session refuses a bash fence carrying command

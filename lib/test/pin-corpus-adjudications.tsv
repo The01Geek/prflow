@@ -465,7 +465,6 @@ literal:ca64f01ac62ecfb6adbedc48fc979f33417a8b37aa55ffff814b443bafe6674e	boundar
 literal:ca98b9ff3f65d82789f59a8a0354a2b7df7d49a2b7af2747ea946c9301362c97	boundary	Shared read-only review-agent safety boundary; target expands across the review-agent roster.
 literal:cae8f9d9a9f3b7e2448128badd1dddfb4653d52b1c26dc9dcf84f6f5f420de36	boundary	maintainer adjudication: declared security or interface boundary
 literal:cb2d28fa6c9af1e64476a9535f782e7c386739be982c0260cd588927e5cacf7b	boundary	Retain executable/helper contract: #600: Step 2 evidence-axes forwarding consumes the renderer extract mode.
-literal:cb64ecf5488cbfdf96a95a6c9dcfda480f24470c1d35c01fa0746593862127e5	boundary	maintainer adjudication: review DT: dirty-tree safety boundary: #192 backstop: deleting the untracked-file-never-auto-deleted safety rule turns its pin RED
 literal:cbc8cb5377deb2d71b0e0422a808836f90e478fd7b66a017df4377f04af5d5f2	boundary	maintainer adjudication: declared security or interface boundary
 literal:cbcb459543069378cef946433f395222607b66723dfe7367a3ac2ddf2c76fac7	boundary	maintainer adjudication: targeted efficiency persistence call is an external-helper boundary
 literal:cc1164d672b5cca8a67b796161aa34b71423eba0d82f16981d8fe0ab148024aa	boundary	Retain operative cross-surface contract: #194 (B) implement: confirm-guard-registered directive.

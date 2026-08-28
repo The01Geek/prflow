@@ -510,6 +510,51 @@ def _read_flight(path: Path) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # Telemetry (best-effort, local, hermetic)
 # ─────────────────────────────────────────────────────────────────────────────
+def _ensure_telemetry_dir(base: Path) -> bool:
+    """Ensure `base` carries a self-ignoring `.gitignore` before the first
+    telemetry file lands in it.
+
+    The guard file's `*` pattern makes git ignore the directory's contents — the
+    guard included — so a consumer repo whose PRFlow ignore rules cover .prflow/tmp/
+    but not the logs dir does not surface telemetry as untracked and dirty the tree
+    the coordinator just certified (#2097). Returns False — telemetry write skipped —
+    when the guard cannot be established; a leftover zero-byte guard would ignore
+    nothing, so it is removed rather than left to dirty the tree. Best-effort:
+    coordination never depends on telemetry. The caller applies this to the telemetry
+    directories, not the ledger state dir.
+    """
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return False
+    guard = base / ".gitignore"
+    try:
+        # O_EXCL so an existing guard's bytes are left unchanged (idempotent).
+        fd = os.open(guard, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return True
+    except OSError:
+        return False
+    try:
+        os.write(fd, b"*\n")
+    except OSError:
+        os.close(fd)
+        try:
+            guard.unlink()
+        except OSError as unlink_exc:
+            # The zero-byte guard could not be removed: it ignores nothing and now
+            # dirties the tree, so name it rather than leaving the state invisible.
+            print(
+                f"devflow verification-flight: left a zero-byte {guard} after a "
+                f"failed guard write (unlink also failed: "
+                f"{type(unlink_exc).__name__}: {unlink_exc})",
+                file=sys.stderr,
+            )
+        return False
+    os.close(fd)
+    return True
+
+
 def _emit_telemetry(logs_dir: str | None, event: str, payload: dict) -> bool:
     """Append a per-event JSON record under .prflow/logs/verification-flight/.
 
@@ -526,7 +571,10 @@ def _emit_telemetry(logs_dir: str | None, event: str, payload: dict) -> bool:
     """
     try:
         base = Path(logs_dir) if logs_dir else Path.cwd() / LOGS_DIRNAME
-        base.mkdir(parents=True, exist_ok=True)
+        if not _ensure_telemetry_dir(base):
+            # Guard could not be established: skip the write and return the same
+            # False a failed telemetry write already returns (#2097).
+            return False
         rec = {"event": event, "recorded_at": _iso(_now()), **payload}
         name = f"{event}-{secrets.token_hex(8)}.json"
         _atomic_replace(base / name, rec)
@@ -1280,8 +1328,17 @@ def cmd_event(args) -> int:
             )
     base = Path(args.log_dir) if args.log_dir else Path.cwd() / PHASE_EVENTS_DIRNAME
     line = json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n"
+    if not _ensure_telemetry_dir(base):
+        # Guard could not be established: skip the write (a dirty tree is worse than
+        # a missing event) and continue — a failed event write already exits 0 (#2097).
+        print(
+            f"devflow verification-flight event: could not establish the .gitignore "
+            f"guard in {base}; skipping the phase event {args.name!r} write "
+            f"(the run continues)",
+            file=sys.stderr,
+        )
+        return EXIT_OK
     try:
-        base.mkdir(parents=True, exist_ok=True)
         # O_APPEND positions each write at EOF atomically, so concurrent runs sharing
         # a checkout append at distinct offsets rather than overwriting one another.
         fd = os.open(base / PHASE_EVENTS_FILENAME, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
