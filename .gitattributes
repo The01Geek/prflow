@@ -36,6 +36,10 @@ lib/test/fixtures/ghapi-repo-path/adversarial-nonutf8.sh -text -diff
 # read_source skip path is exercised — mark it binary so no text normalization strips it.
 lib/test/fixtures/shipped-pruned-path/skills/nul.md -text -diff
 
+# Preserve issue #2097's exact captured bytes and keep frozen issue prose out of
+# authored-prose diff gates; the extractor still reads the working-tree bytes.
+lib/test/fixtures/issue-2097-implementation-notes.fixture -text -diff whitespace=-blank-at-eof
+
 # issue #1194: the coverage map stores two large string-sorted JSON objects, so two
 # branches that each ADD a distinct key at an adjacent sort position conflict textually
 # even though they never semantically conflict — and resolving by taking one side
