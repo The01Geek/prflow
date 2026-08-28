@@ -192,6 +192,37 @@ revocation removes the authoring affordance, and the leading-`cd` ban is enforce
 as a desk lint (`IR4`) rather than as a claimed matcher refusal. See
 [`docs/internal/working-directory-contract.md`](working-directory-contract.md).
 
+### The CI job-log paging helper `scripts/page-job-log.py` (issue #2098)
+
+`Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*)` is granted as a leading
+token on **all three** profiles (`review`, `implement`, `command`) — added to
+`lib/capability-profiles.json`, regenerated into the four workflow allowlist
+literals, and reflected in the `lib/review-profile.tokens` lock. It exists **because
+of the argument-position variable-expansion denial recorded below** (*Heads vs
+shapes* → the `${CLAUDE_SKILL_DIR:-…}` argument-position subsection, measured
+generally for bare parameter expansion in run `30956039324`): a reviewing agent
+cannot slice a fetched CI job log in one pass, because the shapes that would do so —
+`$VAR` expansions, ANSI-C quoting, and redirects outside `.prflow/tmp/` — are all
+matcher-denied, so before this helper the agent re-downloaded the whole log on each
+attempted slice (one measured consumer review spent six full-log downloads and ~5 of
+37 turns reading a single ~60-line window).
+
+The helper takes a **flat, plain-word argument list** — `<job-id> <start> <end>`, no
+redirects, no expansions, no quoting — and does the slicing **internally**: the first
+call for a job downloads its log once via `gh run view --job <id> --log` into
+`.prflow/tmp/`, and every later call for that job id slices the stored copy without
+re-invoking the GitHub CLI. It prints one header line (job id, total line count, range
+served, stored path, truncation flags) then capped (≤300 lines, ≤500 chars/line) and
+sanitized (ANSI escapes + control chars stripped, tab kept) lines. Exit codes: 0
+(slice served, including an empty window past end of log), 1 (download or store
+read/write failure — cause named on stderr, no partial file left), 2 (bad args,
+usage). The review engine names it in `skills/review/phases/phase-0-setup.md` §0.1.6
+as the best-effort way to read job-log content, degrading to the direct
+`gh run view --job <id> --log` fetch when the grant or the helper file is absent
+(mixed-version install). The grant is inert for this shipping PR's own cloud runs —
+cloud allowlists resolve from the default branch and installer-copied workflows, so
+live behavior lands post-merge.
+
 ---
 
 ## Heads vs shapes (issue #401)
