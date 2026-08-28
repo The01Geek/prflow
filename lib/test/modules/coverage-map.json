@@ -787,8 +787,8 @@
       "owner": "unmodularized"
     },
     "scripts/review-dirty-tree.sh": {
-      "note": "issue #2082 review-engine dirty-tree backstop helper: owns the whole snapshot/authenticate/compare/restore loop the §3.1/§3.2 fences used to carry inline; driven directly from lib/test/run.sh's #2082/#484/#216/#1470 dirty-tree blocks over the snapshot, spaced/glob/newline-path restore, rename-surfacing, OID-authentication, symlink-attack, scratch-alloc, truncated-snapshot and disabled-sentinel arms in real git_sandbox repos.",
-      "owner": "unmodularized"
+      "note": "issue #2082 review-engine dirty-tree backstop helper: owns the whole snapshot/authenticate/compare/restore loop the §3.1/§3.2 fences used to carry inline; its behavioural battery is the focused module lib/test/modules/review-dirty-tree.sh (extracted from lib/test/run.sh by issue #2109), driving the helper directly over the snapshot, spaced/glob/newline-path restore, rename-surfacing, OID-authentication, symlink-attack, scratch-alloc, truncated-snapshot and disabled-sentinel arms in real git_sandbox repos.",
+      "owner": "review-dirty-tree"
     },
     "scripts/review-evidence-gate.py": {
       "note": "issue #2075 cloud review-evidence gate: reuses scripts/workpad.py's diff classification (no re-copied constants) to decide whether a posted verdict owed the checklist phases and checks the engine's run-scoped phase log; driven end to end by lib/test/review_evidence_gate_test.py in the review-evidence-gate module",
@@ -1346,7 +1346,7 @@
     },
     "1470": {
       "note": "",
-      "owner": "unmodularized"
+      "owner": "review-dirty-tree"
     },
     "1479": {
       "note": "",
@@ -1806,7 +1806,7 @@
     },
     "216": {
       "note": "",
-      "owner": "unmodularized"
+      "owner": "review-dirty-tree"
     },
     "222": {
       "note": "",
