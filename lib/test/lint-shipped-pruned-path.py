@@ -4,8 +4,17 @@
 """Fail the suite when a shipped prompt surface references a path the vendor slice
 prunes (issue #1072), cites a PRFlow-internal issue/PR number or acceptance criterion
 (issue #1241), names a `.github/workflows/` file the installer never ships (issue
-#1402), or — inside a vendored-skill body — names PRFlow's own `CLAUDE.md` (issue
-#1401).
+#1402), names a PRFlow-internal development-harness identifier (issue #2114), or —
+inside a vendored-skill body — names PRFlow's own `CLAUDE.md` (issue #1401).
+
+Internal-identifier denylist (issue #2114): unlike the derived sets above, the forbidden
+identifiers are a hardcoded module constant (`_INTERNAL_IDENTIFIERS`) — there is no
+producer file to derive them from, so an empty list is a bug guarded against at import
+rather than an unestablished derivation. Each identifier names a PRFlow development-harness
+contract (the `structural-pin-ok` pin-corpus marker, the `CEILING_TRIPWIRE_FRACTION`
+tripwire constant, the `run-parallel` coordinator log-line stem) that resolves against
+nothing in a consumer's checkout. It shares the audited population and the fence-aware
+`pruned-path-ok` marker discharge with the other classes.
 
 Every forbidden class below shares one cause: `skills/**` / `agents/**` ships verbatim
 into every consumer repo, so a reference that only resolves against THIS repository's
@@ -709,6 +718,28 @@ _PROVENANCE_SENTENCE = "MIT-licensed `superpowers` plugin"
 #: token as a substring, so it is never a match.
 _VENDORED_CLAUDE_MD_TOKEN = "CLAUDE.md"
 
+#: PRFlow-internal identifiers forbidden anywhere on the shipped prompt surface (issue
+#: #2114). Each names a PRFlow development-harness contract no consumer's tree carries:
+#: `structural-pin-ok` is the pin-corpus declaration marker read by `pin-corpus-lint.py`
+#: (which the installer prunes); `CEILING_TRIPWIRE_FRACTION` and `run-parallel` are the
+#: retrospective suite-runtime tripwire's own constant and the whole-suite coordinator's
+#: log-line stem. A shipped body naming one instructs a consumer's agent about a marker or
+#: tool their repository does not have.
+#:
+#: This is a **module constant**, not a derivation: unlike the four classes above it has no
+#: producer file to read, so there is no unestablished state to fail closed on. An empty
+#: list would silently audit nothing, so it is guarded non-empty at import. The set is a
+#: minimum floor; a future internal identifier is added here. Substring safety comes from
+#: the filename-boundary-aware matcher below: an identifier embedded inside a longer
+#: alphanumeric word (`xrun-parallelism`) is not a reference and is never reported.
+_INTERNAL_IDENTIFIERS = ("structural-pin-ok", "CEILING_TRIPWIRE_FRACTION", "run-parallel")
+
+if not _INTERNAL_IDENTIFIERS:
+    raise SystemExit(
+        "lint-shipped-pruned-path: _INTERNAL_IDENTIFIERS is empty; refusing to audit the "
+        "shipped surface against no internal-identifier denylist"
+    )
+
 
 def derive_vendored_skill_dirs(root: Path) -> set[str]:
     """Return the set of `skills/<name>/` prefixes whose `SKILL.md` carries the
@@ -743,6 +774,27 @@ def scan_vendored_claude_md(text: str) -> list[tuple[int, str]]:
         text,
         lambda line: _VENDORED_CLAUDE_MD_TOKEN if _VENDORED_CLAUDE_MD_TOKEN in line else None,
     )
+
+
+#: A denylisted internal identifier, filename-boundary-aware (issue #2114). The boundary
+#: alphabet is `[A-Za-z0-9_]` only — a hyphen, dot, slash, colon, or backtick adjacent to
+#: the identifier still matches, so a real reference (`run-parallel.sh`, `run-parallel:`,
+#: `.github/.../run-parallel`) is caught while an identifier embedded inside a longer
+#: alphanumeric word (`xrun-parallelism`, `astructural-pin-okz`) is not. Built once from
+#: the module constant and reused across the audited population, like `_never_shipped_matcher`.
+_INTERNAL_IDENT_RE = re.compile(
+    r"(?<![A-Za-z0-9_])(" + "|".join(re.escape(i) for i in _INTERNAL_IDENTIFIERS) + r")(?![A-Za-z0-9_])"
+)
+
+
+def scan_internal_identifiers(text: str) -> list[tuple[int, str]]:
+    """Return (1-based line, matched identifier) for each unmarked internal-identifier
+    reference, sharing the fence-aware `pruned-path-ok` marker discharge through `_scan`."""
+    def match(line: str) -> str | None:
+        found = _INTERNAL_IDENT_RE.search(line)
+        return found.group(0) if found else None
+
+    return _scan(text, match)
 
 
 def _never_shipped_matcher(basenames: list[str]):
@@ -1053,6 +1105,17 @@ def main(argv: list[str] | None = None) -> int:
                 f"{relative}:{number}: references never-shipped workflow '{workflow}' "
                 "(PRFlow's own, which the installer copies into no consumer, so this "
                 "cannot point at a file the installer put there) with no "
+                "pruned-path-ok marker"
+            )
+        # The internal-identifier ban (issue #2114) applies to the whole audited
+        # population, not only the vendored-skill dirs: any shipped body naming a
+        # PRFlow development-harness identifier resolves against a marker or tool the
+        # consumer's tree does not carry.
+        for number, identifier in scan_internal_identifiers(text):
+            findings.append(
+                f"{relative}:{number}: references PRFlow-internal identifier "
+                f"'{identifier}' (a development-harness marker or tool the installer "
+                "ships into no consumer, so it names nothing in their tree) with no "
                 "pruned-path-ok marker"
             )
         # The CLAUDE.md-token ban applies only inside the derived vendored-skill dirs
