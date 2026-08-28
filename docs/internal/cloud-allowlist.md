@@ -195,8 +195,8 @@ as a desk lint (`IR4`) rather than as a claimed matcher refusal. See
 ### The CI job-log paging helper `scripts/page-job-log.py` (issue #2098)
 
 `Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*)` is granted as a leading
-token on **all three** profiles (`review`, `implement`, `command`) — added to the
-manifest in `manifest_version` 30, regenerated into the four workflow allowlist
+token on **all three** profiles (`review`, `implement`, `command`) — added to
+`lib/capability-profiles.json`, regenerated into the four workflow allowlist
 literals, and reflected in the `lib/review-profile.tokens` lock. It exists **because
 of the argument-position variable-expansion denial recorded below** (*Heads vs
 shapes* → the `${CLAUDE_SKILL_DIR:-…}` argument-position subsection, measured
