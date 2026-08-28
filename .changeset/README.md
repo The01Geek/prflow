@@ -70,7 +70,7 @@ When your PR merges to `main`, the `version-consolidate` GitHub Action
    the run loudly rather than being silently skipped),
 2. bumps `plugin.json`'s `version` by the **highest** pending bump type (patch < minor < major)
    — one increment even when several changesets are pending,
-3. prepends a dated, PR-cited Keep-a-Changelog entry assembled from all the pending prose, and
+3. prepends a dated, issue- or PR-cited Keep-a-Changelog entry assembled from all the pending prose, and
 4. deletes the consumed changeset files.
 
 The workflow then stages those changes and commits them back to `main` with a
