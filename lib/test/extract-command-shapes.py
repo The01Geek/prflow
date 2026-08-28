@@ -667,6 +667,63 @@ def find_violations(text: str) -> list[tuple[int, str, str]]:
     return hits
 
 
+# ── The `no-expansion-redirect` profile (issue #2082) ─────────────────────────
+# A profile independent of the three cloud-tier profiles above, used by the suite to
+# prove a fence region carries NO `$VAR`/`${VAR}` parameter expansion and NO shell
+# redirect — the shapes the cloud matcher denies in the "Contains expansion" /
+# redirect classes. The review engine's dirty-tree snapshot/restore fences were
+# rewritten to plain granted-helper invocations (issue #2082) precisely so this scan
+# reports clean over them; run over the two fence regions it fails against the old
+# expansion/redirect-bearing text and passes against the helper-invocation form.
+#
+# The rule ids are DELIBERATELY outside the `R\d+`/`IR\d+`/`CR\d+` namespaces so the
+# #678 AC8 source-reconciliation (which regex-scans this module for those id shapes)
+# and cloud_writer_contract.PROFILE_SHAPE_TABLES (keyed on the three cloud tiers) are
+# untouched — this profile governs no cloud tier and grants nothing.
+_PARAM_EXPANSION_START = frozenset("_?@*#!-0123456789")
+_ANY_REDIR = re.compile(r"^&?[0-9]*(?:>>|>\||>|<<-|<<|<)")
+
+
+def _expansion_violation(statement: str) -> bool:
+    """A `$VAR` / `${VAR}` parameter expansion in the statement — NOT a `$(…)` command
+    substitution (a different shape). Single-quoted spans are masked first so a literal
+    `$` inside `'…'` is not read as an expansion."""
+    masked = _mask_single_quoted(statement)
+    for match in re.finditer(r"\$", masked):
+        nxt = masked[match.start() + 1 : match.start() + 2]
+        if nxt == "(":
+            continue  # command substitution — not the parameter-expansion shape this flags
+        if nxt == "{" or (nxt and (nxt.isalpha() or nxt in _PARAM_EXPANSION_START)):
+            return True
+    return False
+
+
+def _any_redirect_violation(statement: str) -> bool:
+    """Any shell redirect operator (`>`/`>>`/`>|`/`<`/`<<`, with an optional fd or `&`),
+    attached or space-separated, to ANY target — the whole redirect class, not just the
+    `/tmp` target R3/IR5 flag."""
+    return any(_ANY_REDIR.match(tok) for tok in _heads._tokenize(statement))
+
+
+def find_expansion_redirect_violations(text: str) -> list[tuple[int, str, str]]:
+    """Every (approx line, rule, statement) `EXPANSION`/`REDIRECT` hit in the file's fences."""
+    lines = text.splitlines()
+    hits: list[tuple[int, str, str]] = []
+    for start, block in _fence_line_offsets(text):
+        for statement in _statements(block):
+            rules: list[str] = []
+            if _expansion_violation(statement):
+                rules.append("EXPANSION")
+            if _any_redirect_violation(statement):
+                rules.append("REDIRECT")
+            if not rules:
+                continue
+            lineno = _attribute_line(statement, start, len(block.split("\n")), lines)
+            for rule in rules:
+                hits.append((lineno, rule, statement.strip()))
+    return hits
+
+
 # ── Implement-tier rules (issue #450 -> #455) ────────────────────────────────
 # The read-write `devflow-implement` profile is a SEPARATE allowlist from the
 # read-only `review` profile the rules above target, with its OWN empirically
@@ -1265,7 +1322,7 @@ def find_command_violations(text: str) -> list[tuple[int, str, str]]:
     return hits
 
 
-_USAGE = "usage: extract-command-shapes.py [--profile review|implement|command] FILE..."
+_USAGE = "usage: extract-command-shapes.py [--profile review|implement|command|no-expansion-redirect] FILE..."
 
 
 def main(argv: list[str]) -> int:
@@ -1277,7 +1334,7 @@ def main(argv: list[str]) -> int:
             return 2
         profile = args[1]
         args = args[2:]
-    if len(args) < 1 or profile not in ("review", "implement", "command"):
+    if len(args) < 1 or profile not in ("review", "implement", "command", "no-expansion-redirect"):
         print(_USAGE, file=sys.stderr)
         return 2
     # The reviewed surface is a bundle (a skill root plus its phase references),
@@ -1287,6 +1344,7 @@ def main(argv: list[str]) -> int:
         "review": find_violations,
         "implement": find_implement_violations,
         "command": find_command_violations,
+        "no-expansion-redirect": find_expansion_redirect_violations,
     }
     finder = _FINDERS[profile]
     hits: list[tuple[str, int, str, str]] = []
