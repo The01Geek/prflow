@@ -1351,6 +1351,7 @@ AUDITED_PIN_SOURCES = frozenset(
         "lib/test/modules/harness-python-guards.sh",
         "lib/test/modules/prompt-extension-reader.sh",
         "lib/test/modules/review-trigger-helpers.sh",
+        "lib/test/modules/review-evidence-gate.sh",
         "lib/test/modules/review-stall-backstop.sh",
         "lib/test/modules/retrospective-lifecycle.sh",
         "lib/test/modules/experiment-records.sh",

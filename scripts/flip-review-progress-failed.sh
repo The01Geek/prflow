@@ -42,6 +42,14 @@
 #     write). That is also what makes the upsert idempotent across job retries:
 #     the second invocation resolves the comment the first one created, reads
 #     its terminal Status, and writes nothing.
+#   - The `--evidence-gate-fail` 4th argument (issue #2075) is the review-evidence
+#     gate's arm: it overrides the interim-only guard for the evidence-gate case — a
+#     run that DID write a terminal verdict but whose posted verdict lacks
+#     phase-execution evidence — rewriting that terminal Status to `❌ Review
+#     failed` and reporting the `evidence-gate-flip` arm. Without it a hollow
+#     verdict's terminal comment would keep reading as a pass. A re-run finds the
+#     Status already `❌ Review failed` and leaves it failed (the Status is
+#     convergent; the appended cause line is best-effort and not deduped).
 #   - The run-keyed marker (`<!-- prflow:review-progress run=<id>-<attempt> -->`)
 #     matches ONLY the current run's comment, so an earlier run's comment is
 #     never read or modified — on the create path too, where the marker is
@@ -61,6 +69,22 @@ set -uo pipefail
 PR="${1:-}"
 MARKER="${2:-}"
 CAUSE="${3:-review run ended without a verdict}"
+# Optional 4th token (issue #2075). The default (absent) is the dead-run backstop above:
+# flip ONLY an interim (🚀) Status, leave a terminal one untouched. `--evidence-gate-fail`
+# is the review-evidence gate's arm — a run that DID write a terminal verdict but whose
+# posted verdict lacks phase-execution evidence, so its terminal Status must still be
+# rewritten to the failed state (the interim-only guard would otherwise leave the hollow
+# verdict's comment reading as a pass). Any other 4th value is refused as a no-op so a
+# typo cannot silently take the wrong arm.
+EVIDENCE_GATE_FAIL=""
+case "${4:-}" in
+  '') ;;
+  --evidence-gate-fail) EVIDENCE_GATE_FAIL=1 ;;
+  *)
+    echo "flip-review-progress-failed: unrecognized 4th argument '${4}' (expected --evidence-gate-fail or nothing) — no-op" >&2
+    exit 0
+    ;;
+esac
 
 # `workpad.py id` declares its issue arg `type=int`, so ARGPARSE also exits 2 on a
 # usage error — the same code `cmd_id` uses for "scanned cleanly, no match". Keep the
@@ -225,20 +249,26 @@ TMP="$(mktemp 2>/dev/null)" || {
   exit 0
 }
 RESULT="$(DEVFLOW_BODY="$BODY" DEVFLOW_CAUSE="$CAUSE" DEVFLOW_RUN_URL="$RUN_URL" \
+  DEVFLOW_EVIDENCE_GATE_FAIL="$EVIDENCE_GATE_FAIL" \
   python3 - "$TMP" <<'PYEOF'
 import os, re, sys
 body = os.environ.get('DEVFLOW_BODY', '')
 cause = os.environ.get('DEVFLOW_CAUSE', '')
 run_url = os.environ.get('DEVFLOW_RUN_URL', '')
+evidence_gate_fail = os.environ.get('DEVFLOW_EVIDENCE_GATE_FAIL', '') != ''
 out_path = sys.argv[1]
 m = re.search(r'^\*\*Status:\*\*[ \t]*(.*)$', body, re.MULTILINE)
 if not m:
     print('NOSTATUS')
     sys.exit(0)
-# Fail closed: flip only an interim (🚀-prefixed) Status. Anything else — a
-# written verdict, an agent-side ❌ Review failed, any terminal glyph — is
-# treated as terminal and left untouched.
-if not m.group(1).lstrip().startswith('🚀'):
+interim = m.group(1).lstrip().startswith('🚀')
+# Default (dead-run backstop): fail closed and flip ONLY an interim (🚀) Status;
+# anything else — a written verdict, an agent-side ❌ Review failed, any terminal
+# glyph — is treated as terminal and left untouched. The --evidence-gate-fail arm
+# (issue #2075) overrides that guard for the evidence-gate case: a run that DID reach a
+# terminal verdict but whose posted verdict lacks phase-execution evidence, so its
+# terminal Status must still be rewritten to the failed state.
+if not interim and not evidence_gate_fail:
     print('TERMINAL')
     sys.exit(0)
 one_line_cause = ' '.join(cause.splitlines())
@@ -247,7 +277,7 @@ new_body = new_body.rstrip('\n') + '\n\n' + \
     f'_Review run failed: {one_line_cause} — {run_url}_\n'
 with open(out_path, 'w', encoding='utf-8') as f:
     f.write(new_body)
-print('FLIP')
+print('EVIDENCE_GATE_FLIP' if (not interim and evidence_gate_fail) else 'FLIP')
 PYEOF
 )"
 
@@ -257,6 +287,13 @@ case "$RESULT" in
       echo "flip-review-progress-failed: flipped PR #${PR} review-progress comment #${CID} to '❌ Review failed' (${CAUSE})" >&2
     else
       echo "flip-review-progress-failed: patch of comment #${CID} for PR #${PR} failed — read/patch-failure no-op (Status left unchanged)" >&2
+    fi
+    ;;
+  EVIDENCE_GATE_FLIP)
+    if python3 "$WORKPAD" patch "$CID" "$TMP" >/dev/null 2>&1; then
+      echo "flip-review-progress-failed: flipped PR #${PR} review-progress comment #${CID} from a terminal verdict to '❌ Review failed' via the evidence-gate arm (${CAUSE})" >&2
+    else
+      echo "flip-review-progress-failed: evidence-gate patch of comment #${CID} for PR #${PR} failed — read/patch-failure no-op (Status left unchanged)" >&2
     fi
     ;;
   TERMINAL)
