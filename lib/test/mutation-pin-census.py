@@ -395,10 +395,16 @@ def _lexical_helper_count(segment: str) -> int:
     return sum(token in HELPERS for token in _unquoted_shell_tokens(segment))
 
 
-def _definition_counts(
-    repo_root: Path, audited_sources: frozenset[str]
-) -> dict[str, int]:
-    counts = dict.fromkeys(HELPERS, 0)
+def swept_shell_population(repo_root: Path) -> list[str]:
+    """The tracked shell sources under lib/test the definition sweep visits.
+
+    `git ls-files -z -- lib/test` filtered to `lib/test/**/*.sh`, sorted, returned as
+    repo-relative posix strings. This is the single authoritative population both
+    `_definition_counts` here and the module-coupling preflight surface
+    (`lib/test/module_coupling.py`, issue #2121) read, so the cache-capacity headroom
+    bound is sized against exactly the set the sweep parses — never `AUDITED_PIN_SOURCES`,
+    a fixed set unrelated to it.
+    """
     try:
         result = subprocess.run(
             ["git", "ls-files", "-z", "--", "lib/test"],
@@ -439,15 +445,23 @@ def _definition_counts(
             "tracked helper-definition enumeration contains malformed or "
             "duplicate paths"
         )
-    paths = [
-        repo_root / relative
-        for relative in sorted(relative_paths)
+    swept = sorted(
+        relative
+        for relative in relative_paths
         if relative.startswith("lib/test/") and relative.endswith(".sh")
-    ]
-    if not paths:
+    )
+    if not swept:
         raise CensusError(
             "tracked helper-definition enumeration selected no shell sources"
         )
+    return swept
+
+
+def _definition_counts(
+    repo_root: Path, audited_sources: frozenset[str]
+) -> dict[str, int]:
+    counts = dict.fromkeys(HELPERS, 0)
+    paths = [repo_root / relative for relative in swept_shell_population(repo_root)]
     for path in paths:
         relative = path.relative_to(repo_root).as_posix()
         try:
