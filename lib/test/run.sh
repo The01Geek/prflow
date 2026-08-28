@@ -2058,7 +2058,7 @@ assert_pin_unique "347(AC4): fast path is gated off when head_override is set (f
 # literal (this very PR's review findings do). Fix: the producer pins the marker's POSITION (immediately
 # after the `(raised by N/M agents)` agent-count suffix, in the line's trailing bracketed-annotation region)
 # and the consumer matches it there, never as a bare substring. Note the marker is NOT line-final — the
-# deferral and 4.1.5 over-grade annotations append after it — so a `$`-anchored match would break the
+# deferral, 4.1.5 over-grade, and 4.1.5 inertness annotations append after it — so a `$`-anchored match would break the
 # deferred self-contradicting finding Phase 4.2 REJECTs on. Pin BOTH sides of the coupled contract.
 assert_pin_unique "347(AC4/producer): the marker's position is fixed to the agent-count suffix (anchorable)" \
   'immediately after that line'"'"'s `(raised by N/M agents)` agent-count suffix' "$ST_REV"
