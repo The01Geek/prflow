@@ -1503,8 +1503,10 @@ does two extra things before launching Claude:
    `prflow_runner.allowed_tools`** list from your base-branch config — read
    verbatim from the trusted base ref. This is **language-agnostic**: a Go shop
    lists `Bash(go:*)`, a Rust shop `Bash(cargo:*)`, and so on — no PRFlow
-   release is needed per language. `/prflow:init` auto-populates it from your
-   detected toolchain.
+   release is needed per language. Since issue #2071 `/prflow:init` no longer
+   auto-populates `prflow_runner.allowed_tools` (the whole `prflow_runner`
+   section left the shipped schema/example), so where this withheld tier is
+   still installed the list must be hand-maintained.
 
    Before appending, the runner enforces a deterministic **deny-list floor**: it
    strips file-mutation tools (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`) —

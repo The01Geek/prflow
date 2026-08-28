@@ -2420,6 +2420,17 @@ assert_eq "#1388 4b end-to-end: unreadable bound component -> 'could not publish
 # workflows.prflow-review loses exactly the three and keeps everything else.
 IU_C2071="$(_iu_consumer withheld-settings)"
 _iu_run "$IU_C2071" >/dev/null
+# AC3 (issue #2071): scaffolding a consumer that had no .prflow/config.json produces one
+# containing none of the three removed names — asserted directly on the fresh scaffold,
+# before the mutation below adds them back to drive the --apply strip path.
+assert_eq "#2071: a fresh scaffold contains none of require_up_to_date/require_ci_green/prflow_runner" "null null null" \
+  "$(python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+pr = d.get("prflow_review", {})
+print(json.dumps(d.get("prflow_runner")), json.dumps(pr.get("require_up_to_date")),
+      json.dumps(pr.get("require_ci_green")))
+' "$IU_C2071/.prflow/config.json")"
 python3 -c '
 import json, sys
 p = sys.argv[1]
