@@ -555,6 +555,19 @@ class TestNonHermeticReuse(Harness):
                          "the stored non-hermetic flight is never served as a reusable pass")
 
 
+class TestReusablePredicate(unittest.TestCase):
+    """issue #2080: `_reusable` is fail-closed — reuse-eligible only for the hermetic
+    record schema; a non-hermetic, missing, foreign, or None schema_version is
+    non-reusable, so a caller that reads a flight dict from any path denies reuse."""
+
+    def test_reusable_by_schema(self):
+        self.assertTrue(vf._reusable({"schema_version": vf.SCHEMA_VERSION}))
+        self.assertFalse(vf._reusable({"schema_version": vf.SCHEMA_VERSION_NON_HERMETIC}))
+        self.assertFalse(vf._reusable({}), "a record missing schema_version is non-reusable")
+        self.assertFalse(vf._reusable({"schema_version": None}))
+        self.assertFalse(vf._reusable({"schema_version": 999}))
+
+
 class TestDeclarationValidation(Harness):
     def _flight_files(self):
         p = Path(self.state)

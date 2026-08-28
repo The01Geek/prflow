@@ -277,7 +277,7 @@ class DeclarationError(_CodedError):
 
 
 
-def _validate_profile(profile: Any) -> dict:
+def _validate_profile(profile: Any) -> tuple[dict, bool]:
     if not isinstance(profile, dict):
         raise DeclarationError("profile_not_object")
     for key in _PROFILE_REQUIRED:
