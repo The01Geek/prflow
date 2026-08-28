@@ -1055,21 +1055,22 @@ verdict.
 
 ### Step 8.6 — Suite-runtime ceiling tripwire
 
-The whole-suite coordinator's cloud runtime is trending toward the cloud tier's
-per-command execution ceiling; when it crosses, every cloud implement run pays the
-shard-decomposition fallback instead of one coordinator run.
+Step 8.6 reads the whole-suite coordinator's recent cloud runtime and compares it against
+a fraction of the cloud tier's per-command execution ceiling. When the reading crosses that
+fraction, every cloud implement run risks paying the shard-decomposition fallback instead of
+one coordinator run, so the step files (or annotates) a maintenance issue while there is still
+headroom to act.
 
 **Non-goal (read first):** this step never gates a run on suite duration. No suite
 run, CI job, or completion gate is failed on duration — a duration gate flakes under
-host contention, and this repository treats every FAIL as a real failure to diagnose.
-The tripwire only reads a figure and files (or annotates) an issue; it never turns a
-run red.
+host contention. The tripwire only reads a figure and files (or annotates) an issue; it
+never turns a run red.
 
-Two operands decide it: the latest coordinator `run-parallel: elapsed <N>s` reading
+Two operands decide it: the latest whole-suite-coordinator elapsed reading
 (seconds) from recent cloud run logs, and the ceiling `BASH_MAX_TIMEOUT_MS`
 (milliseconds) read **by name** from `.github/workflows/devflow-implement.yml` —
 never copied as a number, so the threshold tracks the setting when it moves. They are
-compared against the named `CEILING_TRIPWIRE_FRACTION = 85%`, which leaves enough
+compared against a fixed 85% fraction of that ceiling, which leaves enough
 headroom to notice and act — retire or extract slow checks — before a run reaches the
 ceiling and drops to the shard-decomposition fallback. On breach the step files one
 suite-runtime maintenance issue naming the reading and the threshold, or records the
@@ -1084,7 +1085,7 @@ every week, silently never tripping.
 # line yields the reading. ELAPSED_S is empty when no recent run logged one.
 ELAPSED_S=""
 for RID in $(gh run list --workflow devflow-implement.yml --limit 15 --json databaseId --jq '.[].databaseId'); do
-  ELAPSED_S="$(gh run view "$RID" --log 2>/dev/null | grep -oE 'run-parallel: elapsed [0-9]+s' | tail -1 | grep -oE '[0-9]+')"
+  ELAPSED_S="$(gh run view "$RID" --log 2>/dev/null | grep -oE 'run-parallel: elapsed [0-9]+s' | tail -1 | grep -oE '[0-9]+')"  # pruned-path-ok: this repository's own whole-suite-coordinator log-line stem; the grep degrades to empty in a consumer whose tree carries no such coordinator
   [ -n "$ELAPSED_S" ] && break
 done
 CEILING_MS="$(grep -oE '"BASH_MAX_TIMEOUT_MS": *"[0-9]+"' .github/workflows/devflow-implement.yml | grep -oE '[0-9]+' | tail -1)"
