@@ -2103,5 +2103,131 @@ class TestSelfDocumentingHelp(unittest.TestCase):
         self.assertEqual(proc.returncode, vf.EXIT_INVALID, proc.stderr)
 
 
+class TestClaimHelpWorkedExample(unittest.TestCase):
+    """issue #2095: `claim --help` prints a complete, copyable declaration and states
+    the four constraints the validator enforces that the help did not mention, so a
+    caller authors a declaration that validates on the first submission."""
+
+    _SCRIPT = str(ROOT / "scripts" / "verification-flight.py")
+
+    def _claim_help(self) -> str:
+        proc = subprocess.run(
+            [sys.executable, self._SCRIPT, "claim", "--help"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return proc.stdout
+
+    @staticmethod
+    def _extract_json(text):
+        """The first balanced-brace JSON object parsed from `text`, or None. The help
+        prints exactly one JSON object (the worked declaration); brace-matching handles
+        its nested empty objects."""
+        start = text.find("{")
+        while start != -1:
+            depth = 0
+            for i in range(start, len(text)):
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(text[start:i + 1])
+                        except json.JSONDecodeError:
+                            break
+            start = text.find("{", start + 1)
+        return None
+
+    def test_help_example_is_accepted_by_the_validator(self):
+        # AC1 + the reported defect: the example printed by `claim --help`, extracted and
+        # parsed as JSON, is accepted by the helper's OWN declaration validator (_derive)
+        # without raising. Against pre-#2095 code the help carries no JSON object at all.
+        example = self._extract_json(self._claim_help())
+        self.assertIsNotNone(example, "claim --help printed no copyable JSON declaration")
+        derived = vf._derive(example)
+        self.assertIn("flight_key", derived)
+
+    def test_help_example_declaration_is_claim_accepted(self):
+        # AC11: a declaration copied from the help example, with only its placeholder
+        # values substituted, is accepted by `claim` end-to-end.
+        example = self._extract_json(self._claim_help())
+        self.assertIsNotNone(example)
+        example["candidate_identity"] = "reception-record-value"
+        example["checkout"]["checkout_id"] = "/tmp/repo/.git"
+        with tempfile.TemporaryDirectory() as td:
+            decl = Path(td) / "c.json"
+            decl.write_text(json.dumps(example), encoding="utf-8")
+            proc = subprocess.run(
+                [sys.executable, self._SCRIPT, "claim", "--input-file", str(decl),
+                 "--state-dir", str(Path(td) / "state"),
+                 "--logs-dir", str(Path(td) / "logs")],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(proc.returncode, vf.EXIT_OK, proc.stderr)
+            self.assertEqual(json.loads(proc.stdout)["role"], "owner")
+
+    def test_help_example_renders_every_required_key(self):
+        # AC3 (example side): the example is built from the required-key constants, so a
+        # key added later cannot appear in the key list while the example omits it.
+        example = self._extract_json(self._claim_help())
+        self.assertIsNotNone(example)
+        for key in vf._PROFILE_REQUIRED:
+            self.assertIn(key, example["profile"], f"example profile omits {key!r}")
+        for key in vf._CHECKOUT_REQUIRED:
+            self.assertIn(key, example["checkout"], f"example checkout omits {key!r}")
+
+    def test_help_states_the_four_undocumented_constraints(self):
+        # AC2: the four constraints Current Behavior named must now be stated.
+        help_text = " ".join(self._claim_help().split())
+        self.assertIn("integer 1", help_text)
+        self.assertIn('"none"', help_text)
+        self.assertIn("length 40 for SHA-1", help_text)
+        self.assertIn("length 64 for SHA-256", help_text)
+        self.assertIn("checkout-fingerprint.py", help_text)
+        self.assertIn("candidate_identity", help_text)
+        self.assertIn("reception-record.py", help_text)
+        self.assertIn("check-completion-evidence.py", help_text)
+
+
+class TestCheckoutFingerprintArgParser(unittest.TestCase):
+    """issue #2095: the producer gains a minimal argument parser — `--help` describes
+    its five-field output and its relationship to the ledger instead of printing a
+    fingerprint, an unrecognized argument is refused, and the no-argument path is
+    unchanged. The matrix is closed by construction: no args, -h, --help, one bad arg."""
+
+    _SCRIPT = str(ROOT / "scripts" / "checkout-fingerprint.py")
+
+    def test_help_describes_fields_and_ledger_without_a_fingerprint(self):
+        # AC4
+        for flag in ("--help", "-h"):
+            proc = subprocess.run([sys.executable, self._SCRIPT, flag],
+                                  capture_output=True, text=True, cwd=str(ROOT))
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            for field in ("checkout_id", "head", "index_digest",
+                          "tracked_digest", "untracked_digest"):
+                self.assertIn(field, proc.stdout, f"{flag} omits field {field!r}")
+            self.assertIn("verification-flight.py", proc.stdout)
+            # It describes, it does not emit a fingerprint (no JSON member on stdout).
+            self.assertNotIn('"tracked_digest":', proc.stdout)
+
+    def test_no_argument_run_still_prints_five_field_fingerprint(self):
+        # AC5: the no-argument contract every existing caller relies on is unchanged.
+        proc = subprocess.run([sys.executable, self._SCRIPT],
+                              capture_output=True, text=True, cwd=str(ROOT))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        fp = json.loads(proc.stdout)
+        self.assertEqual(set(fp), {"checkout_id", "head", "index_digest",
+                                   "tracked_digest", "untracked_digest"})
+
+    def test_unrecognized_argument_is_refused_with_no_fingerprint(self):
+        # AC6
+        proc = subprocess.run([sys.executable, self._SCRIPT, "--bogus"],
+                              capture_output=True, text=True, cwd=str(ROOT))
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertEqual(proc.stdout.strip(), "",
+                         "must print no fingerprint on an unrecognized argument")
+
+
 if __name__ == "__main__":
     unittest.main()
