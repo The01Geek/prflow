@@ -363,6 +363,12 @@ the manual collaborator-comment path — a repository collaborator comments
 > **Withheld from this release (issues #930 and #920) — see the section above.** This
 > section describes the tier as it behaves in a repository that installed it before the
 > withholding. A fresh installation has no such workflow.
+>
+> **The config keys named below no longer ship (issue #2071).** `prflow_review.require_up_to_date`,
+> `prflow_review.require_ci_green`, and the `prflow_runner` section have been removed from the
+> shipped schema, example, and config, and every `install.sh --apply` strips them from a
+> consumer's `.prflow/config.json`. A retained tier therefore runs on the built-in defaults
+> these keys once overrode — nothing here is a live, tunable config surface any more.
 
 The automated reviewer runs `/prflow:review` as a **required** status check on a
 PR. Its trigger policy (issue #304):
@@ -774,6 +780,18 @@ marker derivation and marker/body agreement.
   inserts it as line 1 of the body passed to `workpad.py create` and reports the
   exact literal. The engine holds that reported value for each later rewrite.
   It never composes a second cloud marker after a successful helper call.
+- On the `devflow.yml` command tier that invocation now runs in the command job
+  **before the agent starts** (issue #2073), mirroring the implement workflow's
+  early-workpad step. A seeding step, ordered before the prompt-composition step,
+  composes a minimal in-progress body carrying the two `review_dedupe` producer
+  keys (`**Status:** 🚀 Reviewing` and `<!-- prflow:review-seeded-head <sha> -->`),
+  invokes this helper, and hands the reported comment id, marker, and run link into
+  the agent's prompt; the agent holds them as authoritative and re-seeds nothing.
+  The agent-side Phase 0.3.5 seed stays the fallback for a local run, an installed
+  workflow predating the seeding step, or a compacted context — where the helper's
+  find-or-resume arm re-adopts this run's own comment instead of duplicating it.
+  A failure in the seeding step warns and continues, so it degrades to the
+  agent-side seed rather than failing the review run.
 - A local run is the explicit exception. The engine computes one timestamp-based
   marker before invoking the helper and passes it through the helper's existing
   marker slot. The helper uses and reports that literal unchanged. If the helper
@@ -933,10 +951,12 @@ has published its live `prflow:review-progress` comment** — the second run's
 `command` job is skipped and a notice naming the reason is posted, so a pull
 request receives one review rather than several billed engine runs and duplicate
 verdicts. Suppression is **conditioned on that published comment**: it is the only
-in-flight signal the detector reads, and the engine seeds it inside the peer's
-agent job (Phase 0.3.5), so a request arriving in the window after the peer starts
-but before it seeds is **not** suppressed — the detector fails open through that
-window (see *The pre-seed window* below). The scope is the **pull request**, not
+in-flight signal the detector reads. On the `devflow.yml` command tier the peer's
+`command` job now seeds it **before the agent starts** (issue #2073), so it appears
+seconds into the job rather than deep in the agent's Phase 0.3.5; a request arriving
+in the shrunken window after the peer's `command` job starts but before its seeding
+step runs is still **not** suppressed — the detector fails open through that window
+(see *The pre-seed window* below). The scope is the **pull request**, not
 the commit (see the accepted costs below). This is the
 command path's analogue of the implement-path dedupe above, and it follows the same
 gate-stage doctrine (native `concurrency` cannot express "ignore the duplicate,
@@ -944,11 +964,12 @@ leave the in-flight run untouched"). The branch-selecting decision lives in the
 bundled helper `scripts/dedupe-review-command.sh`, invoked at its vendored path by
 the `review_dedupe` job in `devflow.yml`.
 
-- **How "already in flight" is detected (Candidate C, issue #989).** The review
-  engine seeds a **live progress comment** at Phase 0.3.5 — before any review work
-  — carrying a run-keyed `prflow:review-progress` marker and `**Status:** 🚀
-  Reviewing`. Only the review engine writes that comment, so the candidate
-  population is *reviews*, not conversation. The helper suppresses when the PR
+- **How "already in flight" is detected (Candidate C, issue #989).** A **live
+  progress comment** is seeded — on the `devflow.yml` command tier by the command
+  job before the agent starts (issue #2073), and otherwise by the review engine at
+  Phase 0.3.5 — carrying a run-keyed `prflow:review-progress` marker and
+  `**Status:** 🚀 Reviewing`. Only the workflow seeding step and the review engine
+  write that comment, so the candidate population is *reviews*, not conversation. The helper suppresses when the PR
   carries such a comment that is **bot-authored** (a forged marker from an ordinary
   commenter is not trusted), **not this workflow run's own** (excluded by the
   `run=<workflow-run-id>-` prefix, deliberately ignoring the attempt suffix),
@@ -963,8 +984,9 @@ the `review_dedupe` job in `devflow.yml`.
   suppressed, so the resume still fires.
 - **Commit scope, via a seed-time head key (issue #1010).** The suppression is
   **commit-scoped**: a review requested while a review of a *different* head is in
-  flight proceeds. The engine stamps the head into the comment it seeds at Phase
-  0.3.5, as its own machine-only producer key — the HTML-comment marker
+  flight proceeds. The head is stamped into the seeded comment as a machine-only
+  producer key — on the command tier by the command job's seeding step, otherwise by
+  the engine at Phase 0.3.5 — the HTML-comment marker
   `<!-- prflow:review-seeded-head <sha> -->`, carried in the progress-comment
   template so every in-place rewrite re-emits it, and invisible in the rendered
   comment. It is deliberately **not** the comment's `Reviewed HEAD:` line, whose
@@ -1007,14 +1029,20 @@ the `review_dedupe` job in `devflow.yml`.
   duplicate run, never a swallowed review. Like the pre-seed window, it is an accepted
   fail-open exposure, deliberately **not** a numbered member of the two accepted costs
   above.
-- **The pre-seed window (issue #1479).** The seeded progress comment is published
-  inside the peer run's *agent* job (Phase 0.3.5), so it does not exist for a period
-  after that run starts; a request arriving in that window sees no in-flight comment
-  and the detector **fails open** — a second full review of the same head runs and
-  is billed. Measured once as a dated observation, not a standing property: **141
-  seconds** between the peer's `command` job starting and its progress comment
-  appearing on **PR #1469 (2026-08-09)**. Fail-open through the window is the
-  **decided** behavior (issue #1479), kept unchanged: keying suppression on the
+- **The pre-seed window (issues #1479 and #2073).** On the `devflow.yml` command
+  tier the seeded progress comment is now published by the command job's seeding
+  step **before the agent starts** (issue #2073), so the window shrinks to the
+  interval between the peer's `command` job starting and that step running —
+  seconds, not the deep-in-the-agent delay it was. It does not fully close: the
+  comment still appears only once the seeding step runs, so a request arriving in
+  that shorter window sees no in-flight comment and the detector **fails open** — a
+  second full review of the same head runs and is billed. The old delay was measured
+  once as a dated observation, not a standing property: **141 seconds** between the
+  peer's `command` job starting and its Phase 0.3.5 agent-side comment appearing on
+  **PR #1469 (2026-08-09)**, before the workflow-side seed retired that path. An
+  installed workflow predating the seeding step keeps the old agent-side timing.
+  Fail-open through the window is the **decided** behavior (issue #1479), kept
+  unchanged: keying suppression on the
   comment's *absence* has no `updated_at` to age out and would wedge every later
   request at that head forever if a peer's seed silently failed, and a head-blind
   thread scope suppresses unrelated conversation and legitimate re-requests. So the

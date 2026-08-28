@@ -1960,13 +1960,12 @@ assert_pin_unique "263(A5): receiving-code-review carries the shared 'contradict
   'stale, contradicts HEAD, or contradicts another part of this change' "$ST_RCV"
 # A6 (no-new-key AC): the carve-out is unconditional, not a knob — the #263 change added
 # no config key. The pin holds the FULL prflow_review key set so any addition is a
-# deliberate, reviewed edit here: #304 later added require_up_to_date + require_ci_green
-# (the auto-trigger preconditions — unrelated to the carve-out, which remains knob-free);
-# #408 added stall_backstop (the review no-verdict auto-resume backstop — also a
-# distinct feature, not the carve-out, which remains knob-free); #423 added stale_prose
-# (the Phase 0.6 deterministic stale-counted-prose lint gate — a distinct feature too).
+# deliberate, reviewed edit here: #408 added stall_backstop (the review no-verdict
+# auto-resume backstop — a distinct feature, not the carve-out, which remains knob-free);
+# #423 added stale_prose (the Phase 0.6 deterministic stale-counted-prose lint gate — a
+# distinct feature too).
 assert_eq "263(A6): prflow_review schema key set is the reviewed list (carve-out adds no config key)" \
-  "agent_overrides live_progress_comment_enabled require_ci_green require_up_to_date stale_prose stall_backstop verdict_severity_threshold" \
+  "agent_overrides live_progress_comment_enabled stale_prose stall_backstop verdict_severity_threshold" \
   "$(jq -r '.properties.prflow_review.properties | keys | join(" ")' "$ST_SCHEMA")"
 # ────────────────────────────────────────────────────────────────────────────
 echo "blocker-recheck fast path (Phase 0.3.6, standalone-review re-verdict) (#347)"
@@ -12361,21 +12360,21 @@ assert_eq "scaffold: missing templates → exit 2" "2" "$?"
 #    values and arrays. No language markers in these throwaway dirs, so the
 #    detect step is a no-op and only the backfill is under test.
 SC_BF="$(mktemp -d)"; mkdir -p "$SC_BF/.prflow"
-# An old config predating prflow_runner.provision_env: a custom top-level value,
-# a custom nested value, and a user-tuned array we must not touch.
-printf '%s' '{"base_branch":"release","prflow_runner":{"effort":"high"},"prflow":{"allowed_tools":["Bash(make:*)","Bash(npm:*)"]}}' \
+# An old config predating prflow_implement.update_branch_checkpoints: a custom
+# top-level value, a custom nested value, and a user-tuned array we must not touch.
+printf '%s' '{"base_branch":"release","prflow_implement":{"effort":"high"},"prflow":{"allowed_tools":["Bash(make:*)","Bash(npm:*)"]}}' \
   > "$SC_BF/.prflow/config.json"
 # Capture stdout so we can also assert the backfill log line the /devflow:init
 # skill (skills/init/SKILL.md) keys its "After running" guidance off of.
 SC_BF_OUT="$(bash "$SC" "$SC_BF" 2>&1)"
-assert_eq "scaffold-backfill: nested missing key added (prflow_runner.provision_env)" \
-  "false" "$(jq -r '.prflow_runner.provision_env' "$SC_BF/.prflow/config.json")"
+assert_eq "scaffold-backfill: nested missing key added (prflow_implement.update_branch_checkpoints)" \
+  "true" "$(jq -r '.prflow_implement.update_branch_checkpoints' "$SC_BF/.prflow/config.json")"
 assert_eq "scaffold-backfill: top-level missing key added (claude_model)" \
   "claude-opus-5" "$(jq -r '.claude_model' "$SC_BF/.prflow/config.json")"
 assert_eq "scaffold-backfill: existing top-level value preserved (base_branch)" \
   "release" "$(jq -r '.base_branch' "$SC_BF/.prflow/config.json")"
-assert_eq "scaffold-backfill: existing nested value preserved (prflow_runner.effort)" \
-  "high" "$(jq -r '.prflow_runner.effort' "$SC_BF/.prflow/config.json")"
+assert_eq "scaffold-backfill: existing nested value preserved (prflow_implement.effort)" \
+  "high" "$(jq -r '.prflow_implement.effort' "$SC_BF/.prflow/config.json")"
 # jq `*` replaces arrays with the right operand (the user's), never merging or
 # deduping — so the user's array survives with its exact elements and order
 # (read back via `jq -c`, which normalizes whitespace but not contents).
@@ -13297,7 +13296,7 @@ DPT="$LIB/../scripts/detect-project-tools.sh"
 # Helper: does an allowlist contain a tool pattern?
 dpt_has() { jq -e --arg t "$2" "$1 | index(\$t) != null" "$3" >/dev/null 2>&1 && echo yes || echo no; }
 
-# 1. Node + npm lockfile → tools land in ALL THREE paths; node_version filled;
+# 1. Node + npm lockfile → tools land in BOTH remaining paths; node_version filled;
 #    `npm ci` chosen from package-lock.json; an existing custom entry is kept
 #    at the front (ordered union, not alphabetical); install order preserved.
 DT1="$(mktemp -d)"; mkdir -p "$DT1/.prflow"
@@ -13307,7 +13306,9 @@ printf '{"prflow":{"allowed_tools":["Bash(make:*)"]},"setup":{"node_version":"",
 bash "$DPT" "$DT1" >/dev/null 2>&1
 assert_eq "detect: npm tool in devflow path"   "yes" "$(dpt_has .prflow.allowed_tools           'Bash(npm:*)' "$DT1/.prflow/config.json")"
 assert_eq "detect: npm tool in implement path" "yes" "$(dpt_has .prflow_implement.allowed_tools 'Bash(npm:*)' "$DT1/.prflow/config.json")"
-assert_eq "detect: npm tool in runner path"    "yes" "$(dpt_has .prflow_runner.allowed_tools    'Bash(npm:*)' "$DT1/.prflow/config.json")"
+assert_eq "detect: no prflow_runner path written (issue #2071)" "no" "$(dpt_has .prflow_runner.allowed_tools 'Bash(npm:*)' "$DT1/.prflow/config.json")"
+assert_eq "detect: no stray prflow_runner key written at all (issue #2071)" "true" \
+  "$(jq -e '.prflow_runner == null' "$DT1/.prflow/config.json" >/dev/null && echo true || echo false)"
 assert_eq "detect: node_version filled from empty" "20" \
   "$(jq -r '.setup.node_version' "$DT1/.prflow/config.json")"
 assert_eq "detect: npm ci chosen from package-lock.json" "yes" \
@@ -13352,15 +13353,15 @@ printf '<Project/>' > "$DT4/App.csproj"
 printf '{}' > "$DT4/.prflow/config.json"
 bash "$DPT" "$DT4" >/dev/null 2>&1
 assert_eq "detect: *.csproj glob matches dotnet" "yes" \
-  "$(dpt_has .prflow_runner.allowed_tools 'Bash(dotnet:*)' "$DT4/.prflow/config.json")"
+  "$(dpt_has .prflow.allowed_tools 'Bash(dotnet:*)' "$DT4/.prflow/config.json")"
 
-# 6. PHP (composer.json) → php tools in all paths AND a composer install line.
+# 6. PHP (composer.json) → php tools land AND a composer install line is added.
 DT5="$(mktemp -d)"; mkdir -p "$DT5/.prflow"
 printf '{"require":{"php":">=8.2"}}' > "$DT5/composer.json"
 printf '{}' > "$DT5/.prflow/config.json"
 bash "$DPT" "$DT5" >/dev/null 2>&1
-assert_eq "detect: composer tool in runner path" "yes" \
-  "$(dpt_has .prflow_runner.allowed_tools 'Bash(composer:*)' "$DT5/.prflow/config.json")"
+assert_eq "detect: composer tool in command path" "yes" \
+  "$(dpt_has .prflow.allowed_tools 'Bash(composer:*)' "$DT5/.prflow/config.json")"
 assert_eq "detect: composer install line added" "yes" \
   "$(jq -e '.setup.install | index("composer install --no-interaction --prefer-dist --no-progress") != null' "$DT5/.prflow/config.json" >/dev/null && echo yes || echo no)"
 
@@ -19429,6 +19430,7 @@ docs/internal/cloud-setup.md
 docs/internal/execution-file-shape.md
 docs/internal/implement-skill.md
 docs/internal/install.md
+docs/internal/operations/installation.md
 docs/internal/workflow-triggers.md
 install.sh
 lib/rename-map.json
@@ -21929,39 +21931,6 @@ assert_eq "provision: PROVISION_ENV env wired to baseprovision output" "1" \
 # review silently regresses to read-only and this fails.
 assert_eq "provision: runner consumes prflow_runner.allowed_tools" "1" \
   "$(grep -cE 'prflow_runner\.allowed_tools' "$RUNNER" | awk '{print ($1>=1)?1:0}')"
-# The schema must no longer mark the key deprecated (it is live again).
-assert_eq "provision: schema does not mark allowed_tools deprecated" "null" \
-  "$(jq -r '.properties.prflow_runner.properties.allowed_tools.deprecated' "$LIB/../.prflow/config.schema.json")"
-
-# Fast-feedback deny-list guard in detect-project-tools.sh: the runner write must
-# go through the filtered $runner_tools var (not raw $tools), and a `denylisted`
-# filter must be defined — so /devflow:init never writes a deny-listed tool into
-# prflow_runner.allowed_tools.
-DETECT="$LIB/../scripts/detect-project-tools.sh"
-assert_eq "provision: detect defines a denylisted jq filter" "1" \
-  "$(grep -c 'def denylisted:' "$DETECT" || true)"
-assert_eq "provision: detect filters runner write through denylisted" "1" \
-  "$(grep -cF 'select(denylisted | not)' "$DETECT" || true)"
-assert_eq "provision: detect runner write uses filtered \$runner_tools" "1" \
-  "$(grep -cF '.prflow_runner.allowed_tools    = ((.prflow_runner.allowed_tools    // []) + $runner_tools' "$DETECT" || true)"
-
-# ── #409 item 10: behavioral — drive the jq `denylisted` mirror over lookalikes ──
-# The static greps above only prove the filter is DEFINED and WIRED, not that it
-# keeps near-miss names. Extract the `denylisted` def from the script and run it
-# directly via jq, mirroring the runner-helper lookalike assertions (item 9) so the
-# two filters cannot drift: a near-miss name (Editor(x)) and a no-parenthesis
-# malformed entry (WriteLog) are both KEPT (denylisted → false).
-DENY_JQ="$(awk '/def denylisted:/{f=1} f{print} f&&/end;/{exit}' "$DETECT")"
-assert_eq "#409 item10: jq mirror is denylisted-def extractable" "yes" \
-  "$([ -n "$DENY_JQ" ] && echo yes || echo no)"
-assert_eq "#409 item10: jq mirror keeps Editor(x) lookalike (near-miss name)" "false" \
-  "$(printf '%s' 'Editor(x)' | jq -R "$DENY_JQ denylisted")"
-assert_eq "#409 item10: jq mirror keeps WriteLog no-parenthesis malformed entry" "false" \
-  "$(printf '%s' 'WriteLog' | jq -R "$DENY_JQ denylisted")"
-# And confirms the mirror still STRIPS the real thing (so the lookalike-kept test
-# above is not vacuously green because the whole filter stopped denying anything).
-assert_eq "#409 item10: jq mirror still strips a real parameterized file tool (Write(**))" "true" \
-  "$(printf '%s' 'Write(**)' | jq -R "$DENY_JQ denylisted")"
 
 # Behavioral: actually RUN the 'tools' step's deny-list filter. The static greps
 # above only prove the deny-list STRINGS exist, not that filtering works — and
@@ -22656,34 +22625,6 @@ STUB
   assert_eq "#404 vendor-plugin action: exposes vendor_source from the slice step" "1" \
     "$(grep -cF 'value: ${{ steps.slice.outputs.vendor_source }}' "$LIB/../.github/actions/vendor-plugin/action.yml" || true)"
 
-  # Behavioral test of the detect-project-tools.sh jq deny mirror: extract the
-  # `denylisted` def from the script (so this tracks the real filter, not a copy)
-  # and assert it agrees with the runner on the same evasion corpus.
-  DENYDEF=$(awk '/def denylisted:/{f=1} f{print} f&&/end;/{exit}' "$DETECT")
-  jq_deny() { jq -rn --arg e "$1" "$DENYDEF"' ($e | denylisted)'; }
-  assert_eq "provision(jq-mirror): Edit denied" "true" "$(jq_deny 'Edit')"
-  assert_eq "provision(jq-mirror): Bash(sudo rm:*) denied" "true" "$(jq_deny 'Bash(sudo rm:*)')"
-  assert_eq "provision(jq-mirror): Bash(env bash:*) denied" "true" "$(jq_deny 'Bash(env bash:*)')"
-  assert_eq "provision(jq-mirror): Bash(/bin/bash:*) denied" "true" "$(jq_deny 'Bash(/bin/bash:*)')"
-  assert_eq "provision(jq-mirror): Bash(FOO=1 bash:*) denied" "true" "$(jq_deny 'Bash(FOO=1 bash:*)')"
-  assert_eq "provision(jq-mirror): bare Bash denied" "true" "$(jq_deny 'Bash')"
-  assert_eq "provision(jq-mirror): Bash(go;sudo:*) metachar denied" "true" "$(jq_deny 'Bash(go;sudo:*)')"
-  assert_eq "provision(jq-mirror): Bash(sh):* denied (paren-before-colon)" "true" "$(jq_deny 'Bash(sh):*')"
-  assert_eq "provision(jq-mirror): Bash(go:*) allowed" "false" "$(jq_deny 'Bash(go:*)')"
-  assert_eq "provision(jq-mirror): Bash(go build:*) allowed" "false" "$(jq_deny 'Bash(go build:*)')"
-  assert_eq "provision(jq-mirror): Bash(shellcheck:*) allowed (lookalike)" "false" "$(jq_deny 'Bash(shellcheck:*)')"
-  assert_eq "provision(jq-mirror): Bash(docker exec:*) allowed (subcommand)" "false" "$(jq_deny 'Bash(docker exec:*)')"
-  assert_eq "provision(jq-mirror): Bash(make CC=gcc:*) allowed (arg assignment)" "false" "$(jq_deny 'Bash(make CC=gcc:*)')"
-  # Env-assignment regex aligned with the runner's `[A-Za-z_]*=*` glob: a leading
-  # assignment whose name has non-identifier chars (go.x=1) must deny in BOTH.
-  assert_eq "provision(jq-mirror): Bash(go.x=1:*) leading-assignment denied" "true" "$(jq_deny 'Bash(go.x=1:*)')"
-  # #402: the jq mirror gains the same parameterized file-tool check — a tool NAME
-  # before the first "(" matching Edit/Write/MultiEdit/NotebookEdit (case-insensitive)
-  # is denied bare AND parameterized, matching the runner helper.
-  assert_eq "provision(jq-mirror #402): Write(**) denied (parameterized)" "true" "$(jq_deny 'Write(**)')"
-  assert_eq "provision(jq-mirror #402): Edit(src/**) denied (parameterized)" "true" "$(jq_deny 'Edit(src/**)')"
-  assert_eq "provision(jq-mirror #402): notebookedit(x) denied (case-insensitive parameterized)" "true" "$(jq_deny 'notebookedit(x)')"
-  assert_eq "provision(jq-mirror #402): Read(src/**) allowed (read-only file tool)" "false" "$(jq_deny 'Read(src/**)')"
 else
   echo "  SKIP  provision(behavior): python3+pyyaml unavailable; static assertions only"
 fi
@@ -22743,14 +22684,10 @@ assert_eq "provision: flag read from base config (BASE_JSON), not PR-head CONFIG
 assert_eq "provision: flag read uses the '== true' clamp" "yes" \
   "$(printf '%s\n' "$PROV_READS" | grep -q 'provision_env == true' && echo yes || echo no)"
 
-# Schema + example: the property is declared (boolean, default false) and the
-# example config carries it so editors and adopters see it.
-assert_eq "provision: schema declares provision_env boolean" "boolean" \
-  "$(jq -r '.properties.prflow_runner.properties.provision_env.type' "$LIB/../.prflow/config.schema.json")"
-assert_eq "provision: schema default is false" "false" \
-  "$(jq -r '.properties.prflow_runner.properties.provision_env.default' "$LIB/../.prflow/config.schema.json")"
-assert_eq "provision: config.example.json sets provision_env false" "false" \
-  "$(jq -r '.prflow_runner.provision_env' "$LIB/../.prflow/config.example.json")"
+# Issue #2071 removed the withheld auto-review tier's prflow_runner schema block and
+# its config.example.json entry, so the reviewer workflow reads the key (still pinned
+# above against the retained devflow-runner.yml) from a consumer config that carries it
+# only if that consumer kept the tier — the schema/example no longer declare it.
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "#874 materialize-trusted-prompt-extensions.sh (trusted base-ref prompt-extension closure)"
@@ -37944,10 +37881,6 @@ line = next(l for l in open(sys.argv[1], encoding="utf-8") if re.match(r"^\s*TOO
 print("yes" if "lib/test/run.sh" in line else "no")
 PY
 )"
-assert_eq "#363 prflow_runner.provision_env stays false in config.example.json" "false" \
-  "$(python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))["prflow_runner"]["provision_env"]))' \
-      "$LIB/../.prflow/config.example.json")"
-
 # ── checks: read is a COUPLED PAIR. A reusable workflow requesting a permission its
 # ── caller did not grant aborts the run at graph-build time (startup_failure), so
 # ── landing one alone breaks every review. Asserted per-JOB rather than by counting
@@ -38754,6 +38687,79 @@ unset _GB363_GEN _GB363_REV _GB363_IMPL _GB363_REV_NOHP
 
 assert_pin_unique "#363 devflow.yml falls back to the bare command when no block is composed" \
   'prompt: ${{ steps.reviewcompose.outputs.prompt || needs.gate.outputs.command }}' "$DEVFLOW_YML"
+
+# ── issue #2073: the command job seeds the review-progress comment BEFORE the agent ──
+# The workflow, not the agent, creates the run-keyed live-progress comment on a review
+# command (mirrors devflow-implement.yml's early-workpad step), so the durable progress
+# record no longer depends on the agent following a prose step. The regression boundary is
+# the workflow file the Actions runner consumes, so these assert its executable structure:
+# RED against a tree with no seeding step; GREEN once the seeding step lands ordered before
+# the reviewcompose prompt step, screening the same review commands the dead-run flip step
+# screens, gating on live_progress_comment_enabled, composing a seed body carrying the two
+# review_dedupe machine-read keys, and handing its outputs to the reviewcompose step.
+_SEED2073_LN="$(grep -n '^      - name: Seed review-progress comment (early acknowledgement)' "$DEVFLOW_YML" | head -1 | cut -d: -f1)"
+_COMPOSE2073_LN="$(grep -n '^      - name: Compose engine grounding block' "$DEVFLOW_YML" | head -1 | cut -d: -f1)"
+assert_eq "#2073 devflow.yml command job carries a review-progress seeding step" "yes" \
+  "$([ -n "$_SEED2073_LN" ] && echo yes || echo no)"
+assert_eq "#2073 the seeding step is ordered before the reviewcompose prompt-composition step" "yes" \
+  "$([ -n "$_SEED2073_LN" ] && [ -n "$_COMPOSE2073_LN" ] && [ "$_SEED2073_LN" -lt "$_COMPOSE2073_LN" ] && echo yes || echo no)"
+# Scope every content pin below to the seeding step's own block — its name line through
+# the next step's name line — so no other step can satisfy them.
+_SEED2073_BLOCK="$(awk '
+  /^      - name: Seed review-progress comment \(early acknowledgement\)[[:space:]]*$/ {f=1; print; next}
+  f && /^      - name: / {exit}
+  f {print}
+' "$DEVFLOW_YML")"
+assert_eq "#2073 the seeding step block is locatable (content pins below are not vacuous)" "yes" \
+  "$([ -n "$_SEED2073_BLOCK" ] && echo yes || echo no)"
+# Its command screen must match the dead-run flip step's screen verbatim — a divergence
+# between the two is RED. Extract the seed step's case label and the flip step's, and compare.
+_FLIP2073_SCREEN="$(awk '
+  /^      - name: Flip review-progress comment on dead run[[:space:]]*$/ {f=1}
+  f && /\/prflow:review\*\|\/devflow:review\*\)/ {print; exit}
+' "$DEVFLOW_YML" | sed -E 's/^[[:space:]]*//; s/\).*$/)/')"
+_SEED2073_SCREEN="$(printf '%s\n' "$_SEED2073_BLOCK" | awk '/\/prflow:review\*\|\/devflow:review\*\)/ {print; exit}' | sed -E 's/^[[:space:]]*//; s/\).*$/)/')"
+assert_eq "#2073 the seeding step's command screen matches the dead-run flip step's screen" "yes" \
+  "$([ -n "$_FLIP2073_SCREEN" ] && [ "$_SEED2073_SCREEN" = "$_FLIP2073_SCREEN" ] && echo yes || echo no)"
+# Its enable gate resolves live_progress_comment_enabled through config-get.sh and compares
+# the resolved value with a bash `case`, honoring an explicit false.
+assert_eq "#2073 the seeding step resolves live_progress_comment_enabled via config-get.sh" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -q 'prflow_review.live_progress_comment_enabled' \
+     && printf '%s\n' "$_SEED2073_BLOCK" | grep -q 'config-get.sh' && echo yes || echo no)"
+assert_eq "#2073 the seeding step gates the seed on a case comparison honoring an explicit false" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -qE 'case[[:space:]]' \
+     && printf '%s\n' "$_SEED2073_BLOCK" | grep -qE '^[[:space:]]*false\)' && echo yes || echo no)"
+# Only-when-true: the helper invocation is present (guarded true; false arm seeds nothing).
+assert_eq "#2073 the seeding step invokes seed-review-progress.sh" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -q 'seed-review-progress.sh' && echo yes || echo no)"
+# AC8: the composed seed body carries the two review_dedupe machine-read keys.
+assert_eq "#2073 the seed body carries the review_dedupe in-flight status key" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -qF '**Status:** 🚀 Reviewing' && echo yes || echo no)"
+assert_eq "#2073 the seed body carries the review-seeded-head key" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -qF '<!-- prflow:review-seeded-head' && echo yes || echo no)"
+# AC2: a seeding failure warns and continues rather than failing the review run.
+assert_eq "#2073 the seeding step warns rather than fails on a seed failure arm" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -q '::warning::' && echo yes || echo no)"
+# AC1: the step is gated on PR context (the verdict-emitter step's PR-context expression).
+_SEED2073_IF="$(awk '
+  /^      - name: Seed review-progress comment \(early acknowledgement\)[[:space:]]*$/ {f=1; next}
+  f && /^[[:space:]]*if:/ {print; exit}
+' "$DEVFLOW_YML")"
+assert_eq "#2073 the seeding step is gated on PR context" "yes" \
+  "$([ -n "$_SEED2073_IF" ] && printf '%s' "$_SEED2073_IF" | grep -q 'pull_request' && echo yes || echo no)"
+# AC3: the reviewcompose step receives the seeding step's comment id, marker, and run link.
+assert_eq "#2073 the reviewcompose step receives the seeding step's comment id / marker / run link" "yes" \
+  "$(grep -q 'steps.seedreview.outputs.comment_id' "$DEVFLOW_YML" \
+     && grep -q 'steps.seedreview.outputs.marker' "$DEVFLOW_YML" \
+     && grep -q 'steps.seedreview.outputs.run_link' "$DEVFLOW_YML" && echo yes || echo no)"
+# Guard the PR-number derivation coupling too, not only the command screen: the seed step
+# derives the PR number the dead-run flip step's way — the command's trailing token with a
+# numeric fallback to the thread number — so a divergence between the two silently targets a
+# different comment/PR. Pin the drift-sensitive derivation shape in the seed step's block.
+assert_eq "#2073 the seeding step derives the PR number the flip-step way (trailing token + numeric fallback)" "yes" \
+  "$(printf '%s\n' "$_SEED2073_BLOCK" | grep -qF '${COMMAND##* }' \
+     && printf '%s\n' "$_SEED2073_BLOCK" | grep -qE "''\|\*\[!0-9\]\*\)" && echo yes || echo no)"
+unset _SEED2073_LN _COMPOSE2073_LN _SEED2073_BLOCK _FLIP2073_SCREEN _SEED2073_SCREEN _SEED2073_IF
 
 # ── #1170 implement-tier grounding block. The implement tier now carries the exact
 # ── resolved allowed-command list in its own prompt, rendered by the SAME shared
@@ -49466,7 +49472,7 @@ rm -rf "$D487"
 # hand-edited workflow — driven end to end and joined to the shipped workflow's own
 # trigger-time guard.
 if ! devflow_run_full_suite_module "$LIB/test/modules/installer-wiring.sh" \
-  "installer-wiring" 305; then
+  "installer-wiring" 315; then
   printf 'ERROR: installer-wiring boundary could not record its result\n'
   exit 1
 fi
@@ -49500,7 +49506,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 397; then
+  "create-issue-contract" 400; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi

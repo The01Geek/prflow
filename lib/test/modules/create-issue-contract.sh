@@ -2306,6 +2306,36 @@ else
     "busybox is not on this host, so no BSD-shaped ls implementation can be exercised" 2
 fi
 
+# ── #2092 item A: the Step 4 listing names exactly the three run-state paths, not the ──
+# audit artifact. Extracts the paths SKILL.md names and runs the listing over a no-round
+# fixture; RED if the audit path returns (4 != 3, and its absent file draws not-found).
+_ci2092_block="$(awk '/Before the first rendered draft/{f=1} f{print} /each named individually/{if(f)exit}' "$CI_SKILL")"
+_ci2092_paths="$(printf '%s\n' "$_ci2092_block" | grep -oE '\.prflow/tmp/create-issue/[^`]*')"
+_ci2092_count="$(printf '%s\n' "$_ci2092_paths" | grep -c .)"
+assert_eq "#2092 AC1: the Step 4 run-state listing names exactly three paths" "3" "$_ci2092_count"
+assert_eq "#2092 AC2: the Step 4 run-state listing names no audit-artifact path" "none" \
+  "$(printf '%s\n' "$_ci2092_paths" | grep -q 'issue-audit' && echo has-audit || echo none)"
+
+# AC3 reproduction: build the run-state files a no-round run has (run-slug pointer, the
+# Step 1 evidence artifact, the derivation artifact) and run the extracted listing over
+# the paths the skill names; a healthy run prints no not-found diagnostic.
+_ci2092_fix="$_ci1733_dir/ci2092"
+mkdir -p "$_ci2092_fix"
+printf 'add-csv-export\n' > "$_ci2092_fix/issue-run-slug"
+printf 'evidence\n'       > "$_ci2092_fix/issue-step1-s.md"
+printf 'derivation\n'     > "$_ci2092_fix/issue-derivation-s.md"
+_ci2092_operands=()
+while IFS= read -r _ci2092_p; do
+  [ -n "$_ci2092_p" ] || continue
+  _ci2092_b="${_ci2092_p##*/}"
+  _ci2092_b="${_ci2092_b//<slug>/s}"
+  _ci2092_operands+=("$_ci2092_fix/$_ci2092_b")
+done <<< "$_ci2092_paths"
+_ci2092_out="$_ci2092_fix/listing.out"
+ls -lL "${_ci2092_operands[@]}" > "$_ci2092_out" 2>&1 || true
+assert_eq "#2092 AC3: the Step 4 listing over a no-round run's files prints no not-found diagnostic" "clean" \
+  "$(grep -qE 'cannot access|No such file' "$_ci2092_out" && echo not-found || echo clean)"
+
 # Complete normal cleanup explicitly so a removal or marker failure changes the
 # module status. EXIT remains a fallback for earlier returns and shell errors.
 if ! _ci_cleanup; then

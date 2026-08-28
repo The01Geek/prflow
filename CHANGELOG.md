@@ -4,6 +4,39 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.6] — 2026-08-28
+
+### Changed
+Re-ask the checklist verifier once when a FAIL asserts the code is correct but leaves the property unproven (#2099).
+
+`scripts/normalize-verdicts.py` now treats a well-typed `inaccuracy_scope: "generated_claim_text"` paired with boolean `property_proven: false` as a contradiction rather than a settled verdict: when property-not-proven is the sole real-value blocker, the item draws exactly one pinned auxiliary re-ask through the existing channel instead of terminating as normalization-ineligible. A re-ask that positively proves the property normalizes the FAIL through the unchanged five-conjunct predicate; any other outcome leaves the raw FAIL standing, so review strictness is unchanged for every real defect. The two verifier-contract mirrors (`skills/review/phases/phase-2-verification.md`, `agents/checklist-verifier.md`) now state the coherence rule so verifiers stop emitting the contradictory pair as a settled answer.
+
+## [2.36.5] — 2026-08-28
+
+### Fixed
+- **The verification-flight coordinator's telemetry directories are now self-ignoring.** Both
+  telemetry write paths (`scripts/verification-flight.py`'s shared `_emit_telemetry` and the
+  `event` subcommand's appender) drop a `.gitignore` containing `*` into the output directory
+  before the first telemetry file lands there, so an installed consumer whose scaffolded ignore
+  rule covers `.prflow/tmp/` but not the logs dir no longer sees the coordinator dirty — and
+  self-invalidate — the tree it just certified. When the guard cannot be written the telemetry write is skipped rather than
+  left to dirty the tree; the ledger state directory is deliberately untouched. (#2101)
+
+## [2.36.4] — 2026-08-28
+
+### Changed
+Remove the withheld automatic-review tier's dead configuration settings and correct the internal documentation that still described that tier as live (issue #2071, PR #2081).
+
+`prflow_review.require_up_to_date`, `prflow_review.require_ci_green`, and the whole `prflow_runner` section are not read by anything a fresh install ships, so they are deleted from `.prflow/config.schema.json`, `.prflow/config.example.json`, and this repository's own `.prflow/config.json`. `scripts/detect-project-tools.sh` no longer writes a `prflow_runner` allowlist, and `install.sh` now strips those three settings from a consumer's `.prflow/config.json` on every apply run — fail-closed on a malformed config (surfacing the JSON parse-error location), a non-object top level, or a non-object `prflow_review`, and on a host with no working python3, while preserving every other key including `workflows.prflow-review`. The retained review-trigger helper scripts and `devflow-runner.yml` are unchanged; `lib/rename-map.json` keeps its `devflow_runner` → `prflow_runner` migration mapping and now records the confirmation-gated condition under which those retained helpers may finally be deleted.
+
+### Fixed
+- **Fixed the closing-step defects in `/prflow:create-issue` reported from a consumer repo.** The Step 4 run-state listing no longer names the audit artifact — it was absent on every run at listing time, so `ls -lL` printed a false not-found diagnostic; the presentation gate remains the sole owner of that artifact. The investigation-record comment now folds the run's decision record (the criterion disposition record, the steelman record, and the evidence bundle) so the reasoning behind each criterion survives the closing cleanup, which now reports the blocks it deletes; the folded comment is neutralized against workflow-trigger tokens and truncated when it exceeds GitHub's 65,536-byte comment limit. The shared provenance line is now appended in the run bootstrap so the run's first canonical draft write carries it, saving a second staged write and digest per run, and the internal documentation now describes that ordering. (#2093)
+
+## [2.36.3] — 2026-08-28
+
+### Changed
+Seed the review run's live-progress comment from the `devflow.yml` command job before the agent starts (issue #2073). The command job now runs a seeding step — ordered before the prompt-composition step, screening the same review commands the dead-run flip step screens, gated on `prflow_review.live_progress_comment_enabled`, and composing a seed body carrying the two `review_dedupe` machine-read keys — that invokes `scripts/seed-review-progress.sh` and hands the seeded comment id, marker, and run link into the agent's prompt. The review engine holds those pre-seeded values and composes no second marker; its Phase 0.3.5 seed stays the fallback for installs whose workflow predates the step. A failure in the seeding step warns and continues, so it degrades to the prior agent-side behavior instead of failing the review run.
+
 ## [2.36.2] — 2026-08-28
 
 ### Added

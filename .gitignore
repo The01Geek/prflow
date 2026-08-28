@@ -17,12 +17,16 @@
 !/.prflow/logs/
 # Single-flight verification coordinator telemetry (issue #528) is LOCAL,
 # per-checkout diagnostics, not a relayed record (see docs/internal/efficiency-trace.md) —
-# keep it out of the tree so a run's flight events are never committed.
+# keep it out of the tree so a run's flight events are never committed. Since issue
+# #2097 verification-flight.py drops a `.gitignore` containing `*` into this directory
+# itself, so an adopter repo (which lacks this negation) stays clean too; this entry is
+# now defense-in-depth for the PRFlow repo, whose !/.prflow/logs/ negation would else re-include it.
 /.prflow/logs/verification-flight/
 # Phase-boundary event log (issue #1853): LOCAL per-run diagnostics written by
 # verification-flight.py's `event` subcommand. Must come AFTER the !/.prflow/logs/
 # negation, which would otherwise re-include it and let a run's transient phase
-# events be committed.
+# events be committed. Since issue #2097 the writer self-ignores this directory too, so
+# this entry is likewise defense-in-depth here.
 /.prflow/logs/phase-events/
 # Per-run review workpads. These lived in the tree before issue #441 moved the
 # durable copies to the prflow-telemetry branch, which is now their canonical
