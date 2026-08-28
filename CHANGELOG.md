@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.4] — 2026-08-28
+
+### Changed
+Remove the withheld automatic-review tier's dead configuration settings and correct the internal documentation that still described that tier as live (issue #2071, PR #2081).
+
+`prflow_review.require_up_to_date`, `prflow_review.require_ci_green`, and the whole `prflow_runner` section are not read by anything a fresh install ships, so they are deleted from `.prflow/config.schema.json`, `.prflow/config.example.json`, and this repository's own `.prflow/config.json`. `scripts/detect-project-tools.sh` no longer writes a `prflow_runner` allowlist, and `install.sh` now strips those three settings from a consumer's `.prflow/config.json` on every apply run — fail-closed on a malformed config (surfacing the JSON parse-error location), a non-object top level, or a non-object `prflow_review`, and on a host with no working python3, while preserving every other key including `workflows.prflow-review`. The retained review-trigger helper scripts and `devflow-runner.yml` are unchanged; `lib/rename-map.json` keeps its `devflow_runner` → `prflow_runner` migration mapping and now records the confirmation-gated condition under which those retained helpers may finally be deleted.
+
+### Fixed
+- **Fixed the closing-step defects in `/prflow:create-issue` reported from a consumer repo.** The Step 4 run-state listing no longer names the audit artifact — it was absent on every run at listing time, so `ls -lL` printed a false not-found diagnostic; the presentation gate remains the sole owner of that artifact. The investigation-record comment now folds the run's decision record (the criterion disposition record, the steelman record, and the evidence bundle) so the reasoning behind each criterion survives the closing cleanup, which now reports the blocks it deletes; the folded comment is neutralized against workflow-trigger tokens and truncated when it exceeds GitHub's 65,536-byte comment limit. The shared provenance line is now appended in the run bootstrap so the run's first canonical draft write carries it, saving a second staged write and digest per run, and the internal documentation now describes that ordering. (#2093)
+
 ## [2.36.3] — 2026-08-28
 
 ### Changed

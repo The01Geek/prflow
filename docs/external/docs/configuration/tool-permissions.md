@@ -15,7 +15,7 @@ Installation and runtime provisioning do not grant command execution. PRFlow app
 | --- | --- | --- | --- | --- |
 | `prflow.allowed_tools` | Array of claude-code-action tool strings | Empty array adds nothing | General cloud command workflow. It does not apply to implementation. | `["Bash(npm test:*)"]` |
 | `prflow_implement.allowed_tools` | Array of claude-code-action tool strings | Empty array adds nothing | Shipped implementation path. It does not inherit `prflow.allowed_tools`. | `["Bash(npm test:*)"]` |
-| `prflow_runner.allowed_tools` | Array of claude-code-action tool strings | Empty array adds nothing | **Retained legacy setting** for the withheld runner. It is used only when `prflow_runner.provision_env` is true. Built-in restrictions still apply and cannot be loosened by this setting. | `["Bash(npm test:*)"]` |
+| `prflow_runner.allowed_tools` | Array of claude-code-action tool strings | Empty array adds nothing | **Removed** (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. Where the withheld runner is still installed it is read only when `prflow_runner.provision_env` is true, and built-in restrictions still apply. | `["Bash(npm test:*)"]` |
 
 ## Grant Commands per Path
 
