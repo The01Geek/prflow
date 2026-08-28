@@ -633,10 +633,10 @@ def main(argv: list[str] | None = None) -> int:
     date = args.date or datetime.now(timezone.utc).date().isoformat()
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
         return _fatal(f"--date {date!r} is not YYYY-MM-DD")
-    # Validate the calendar date too, not just its digit shape: a regex-valid but
-    # nonexistent date (month 13, day 32) would otherwise reach _render_release_notes and
-    # raise an uncaught IndexError from calendar.month_name[month], escaping the fail-loud
-    # exit-2 contract. monthrange raises IllegalMonthError (a ValueError) for a bad month.
+    # Validate the calendar date, not just its digit shape: a bad month (13) would otherwise
+    # raise an uncaught IndexError from calendar.month_name[month] in _render_release_notes,
+    # and a bad day would render a garbage heading — both escaping the fail-loud exit-2
+    # contract. monthrange raises IllegalMonthError (a ValueError) for a bad month.
     _y, _m, _d = (int(part) for part in date.split("-"))
     try:
         _, _days_in_month = calendar.monthrange(_y, _m)

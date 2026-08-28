@@ -29314,6 +29314,26 @@ assert_eq "#2070 no-H1: the entry is written under the merge-date heading" "1" \
   "$(grep -cF '**Bootstrapped.**' "$CSD/docs/external/release-notes.md")"
 rm -rf "$CSD"
 
+# The YAML-truthy `on` spelling also marks (the decided semantics is the parsed Python bool).
+CSD="$(cs_repo)"; printf -- '---\nbump: patch\ncustomer-visible: on\n---\n\n- **On-spelled.** ([#2070](u))\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1; CS_RC=$?
+assert_eq "#2070 on-spelling: exit 0" "0" "$CS_RC"
+assert_eq "#2070 on-spelling: still writes the release-note entry" "1" \
+  "$(grep -cF '**On-spelled.**' "$CSD/docs/external/release-notes.md")"
+rm -rf "$CSD"
+
+# Same-day append where the merge-date heading is the LAST section (no following heading):
+# the entry appends at EOF under the existing heading, still exactly one heading.
+CSD="$(cs_repo)"
+printf '# Release Notes\n\nUser-visible changes.\n\n## August 28, 2026\n\n- **Earlier.** ([#0](u))\n' > "$CSD/docs/external/release-notes.md"
+printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **Appended at EOF.** ([#2070](u))\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1
+assert_eq "#2070 append-at-EOF: still exactly one merge-date heading" "1" \
+  "$(grep -cxF '## August 28, 2026' "$CSD/docs/external/release-notes.md")"
+assert_eq "#2070 append-at-EOF: both entries present" "yes" \
+  "$([ "$(grep -cF '**Earlier.**' "$CSD/docs/external/release-notes.md")" = 1 ] && [ "$(grep -cF '**Appended at EOF.**' "$CSD/docs/external/release-notes.md")" = 1 ] && echo yes || echo no)"
+rm -rf "$CSD"
+
 # A missing release-notes.md is a fail-loud exit-2 naming the file (the consolidator does not
 # silently create the page in an unknown location for a marked changeset).
 CSD="$(cs_repo)"; rm -f "$CSD/docs/external/release-notes.md"
