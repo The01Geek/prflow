@@ -28,10 +28,12 @@
 #   snapshot
 #     Capture the authenticated `-z` before-snapshot to $GIT_SNAP_BEFORE. On success
 #     print the snapshot's git object ID on stdout and exit 0; the orchestrator records
-#     it as {GIT_SNAP_BEFORE_OID}. On failure write the fixed repo-local disabled
-#     sentinel (.prflow/tmp/review-dirty-tree-disabled) plus a `::warning::` breadcrumb
-#     on stderr and exit 0 with NO object ID on stdout (the orchestrator treats an
-#     absent OID as a failed snapshot).
+#     it as {GIT_SNAP_BEFORE_OID}. On failure emit a `::warning::` breadcrumb on stderr,
+#     print NO object ID on stdout, and exit 0 (the orchestrator treats an absent OID as a
+#     failed snapshot). It also writes the fixed repo-local disabled sentinel
+#     (.prflow/tmp/review-dirty-tree-disabled) WHEN the scratch dir is writable — the sole
+#     exception is a failure to create .prflow/tmp itself, where no sentinel is possible;
+#     compare-and-restore then still fails closed via its missing-before-snapshot arm.
 #   compare-and-restore OID
 #     Compare the after-snapshot against the before-snapshot authenticated to OID and
 #     restore only the snapshot-delta paths. Short-circuits on the disabled sentinel.
@@ -186,8 +188,11 @@ cmd_compare_and_restore() {
               while IFS= read -r -d '' p; do
                 [ -n "$p" ] || continue
                 restore_err=$(git checkout HEAD -- "$p" 2>&1)
-                if [ -n "$(git status --porcelain -- "$p")" ]; then
-                  echo "::warning::devflow review: path '$p' still dirty after restore attempt (e.g. an untracked or staged-new file the agent created — never auto-deleted; git said: ${restore_err:-none}) — left as-is for human inspection" >&2
+                # Check the confirmation read's OWN exit status, not just its output: a failed
+                # `git status` prints nothing and would otherwise read as "clean, restore confirmed"
+                # (fail-open). `if !` fails closed — an unverifiable state is reported, never assumed OK.
+                if ! post_status=$(git status --porcelain -- "$p" 2>/dev/null) || [ -n "$post_status" ]; then
+                  echo "::warning::devflow review: path '$p' still dirty, or its post-restore state could not be confirmed (git status rc≠0), after restore attempt (e.g. an untracked or staged-new file the agent created — never auto-deleted; git said: ${restore_err:-none}) — left as-is for human inspection" >&2
                 fi
               done < ".prflow/tmp/review-dirty-tree-changed-paths"
             fi

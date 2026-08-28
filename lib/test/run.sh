@@ -4333,6 +4333,22 @@ if [ -d "$DT_MK" ]; then
     "$(grep -qF 'could not create .prflow/tmp for the dirty-tree compare/restore' "$DT_MK_ERR" && echo yes || echo no)"
   rm -rf "$DT_MK" "$DT_MK_B" "$DT_MK_AF" "$DT_MK_ERR"
 fi
+# Case MKS (#2082) — the SNAPSHOT-side function-entry mkdir guard fails CLOSED: a regular file at
+# `.prflow` makes .prflow/tmp uncreatable, so `snapshot` prints NO object ID (a failed snapshot the
+# orchestrator reads as disabled) and emits its own distinct breadcrumb. No sentinel is possible when
+# the scratch dir itself cannot be created; compare-and-restore then fails closed via its
+# missing-before-snapshot arm (Case MB). This is the cmd_snapshot counterpart to Case MK.
+DT_MKS="$(dt_make_repo)"
+if [ -d "$DT_MKS" ]; then
+  DT_MKS_B="$(probe_tmp "#2082 snapshot mkdir-guard before")"; DT_MKS_ERR="$(probe_tmp "#2082 snapshot mkdir-guard stderr")"
+  printf blocker > "$DT_MKS/.prflow"   # a regular file where the helper needs the .prflow/tmp dir
+  DT_MKS_OUT="$( cd "$DT_MKS" && GIT_SNAP_BEFORE="$DT_MKS_B" bash "$RDT" snapshot 2>"$DT_MKS_ERR" )"
+  assert_eq "#2082 snapshot: uncreatable .prflow/tmp prints NO object ID (failed snapshot)" \
+    "" "$DT_MKS_OUT"
+  assert_eq "#2082 snapshot: uncreatable .prflow/tmp emits the distinct mkdir-guard breadcrumb" "yes" \
+    "$(grep -qF 'working-tree snapshot not taken' "$DT_MKS_ERR" && echo yes || echo no)"
+  rm -rf "$DT_MKS" "$DT_MKS_B" "$DT_MKS_ERR"
+fi
 # Case CE (#2082) — the cmp-error (rc>=2) branch fails CLOSED: when `cmp` cannot compare the two
 # snapshots it must NOT be read as "the tree diverged" and drive a restore off a comparison that
 # never succeeded. A PATH-shimmed `cmp` that exits 2 forces the error branch; nothing is restored
