@@ -384,11 +384,13 @@ def _render_release_notes(release_notes_path: str, proses: list[str], date: str)
     Step 4 placement — the shipped skill body stays byte-untouched, so this is a
     deliberate reproduction, not a shared call:
 
-      * the merge date is formatted ``## Month Day, Year`` (a portable ``dt.day`` avoids the
-        GNU-only ``%-d`` strftime directive),
-      * when that heading is absent it is created directly below the file's first ``# `` H1
-        (a ``# Release Notes`` H1 is created first when the file has none), with a blank line
-        before and after,
+      * the merge date is formatted ``## Month Day, Year`` (built from the date parts via
+        ``calendar`` to avoid the GNU-only ``%-d`` strftime directive),
+      * when that heading is absent it is created at the top of the page's date sections —
+        immediately before the most recent existing ``## Month Day, Year`` heading, so any
+        page preamble between the H1 and the first date section is preserved — or directly
+        below the file's first ``# `` H1 when the page has no date section yet (a
+        ``# Release Notes`` H1 is created first when the file has none),
       * when the heading is already present each entry is appended under it, after any
         existing entries for that date.
     """
@@ -418,13 +420,21 @@ def _render_release_notes(release_notes_path: str, proses: list[str], date: str)
         new_lines = lines[:section_end] + entry_lines + lines[section_end:]
     else:
         block = [heading, "", *entry_lines]
+        first_section = next(
+            (i for i, ln in enumerate(lines) if ln.startswith("## ")), None
+        )
         h1 = next((i for i, ln in enumerate(lines) if ln.startswith("# ")), None)
-        if h1 is None:
+        if first_section is not None:
+            # Deviates from issue #2070's literal "directly below the first H1": on a page
+            # with preamble prose that would split; insert at the TOP of the date-section
+            # list (before the most recent existing one) instead. See the workpad AC-rewrite.
+            new_lines = lines[:first_section] + [*block, ""] + lines[first_section:]
+        elif h1 is None:
             tail = lines[1:] if lines and lines[0].strip() == "" else lines
             new_lines = ["# Release Notes", "", *block, "", *tail]
         else:
-            # Drop one leading blank from the remainder so the trailing blank we add is not
-            # doubled against the blank that usually already follows the H1.
+            # No date section yet: fall back to directly below the H1. Drop one leading
+            # blank from the remainder so the trailing blank we add is not doubled.
             rest = lines[h1 + 1 :]
             if rest and rest[0].strip() == "":
                 rest = rest[1:]
@@ -623,6 +633,17 @@ def main(argv: list[str] | None = None) -> int:
     date = args.date or datetime.now(timezone.utc).date().isoformat()
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
         return _fatal(f"--date {date!r} is not YYYY-MM-DD")
+    # Validate the calendar date too, not just its digit shape: a regex-valid but
+    # nonexistent date (month 13, day 32) would otherwise reach _render_release_notes and
+    # raise an uncaught IndexError from calendar.month_name[month], escaping the fail-loud
+    # exit-2 contract. monthrange raises IllegalMonthError (a ValueError) for a bad month.
+    _y, _m, _d = (int(part) for part in date.split("-"))
+    try:
+        _, _days_in_month = calendar.monthrange(_y, _m)
+    except calendar.IllegalMonthError:
+        return _fatal(f"--date {date!r} names an invalid month")
+    if not 1 <= _d <= _days_in_month:
+        return _fatal(f"--date {date!r} names a day outside its month")
     try:
         return consolidate(
             args.root,

@@ -29272,8 +29272,9 @@ echo "#2070 customer-visible changesets → merge-time release-note entries"
 # per-PR authoring pass. The merge date for these cases is 2026-08-28 → `## August 28, 2026`.
 cs_rn() { cat "$1/docs/external/release-notes.md"; }
 
-# AC1: a marked changeset writes its prose verbatim under the merge-date heading, created
-# directly below the file's first H1.
+# AC1: a marked changeset writes its prose verbatim under the merge-date heading, created at
+# the TOP of the page's date sections (before the pre-existing '## July 3, 2026' section) so the
+# page preamble between the H1 and the first date section is preserved, not split.
 CSD="$(cs_repo)"
 printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **Marked outcome.** Users see it. ([#2070](https://github.com/The01Geek/prflow/issues/2070))\n' > "$CSD/.changeset/a.md"
 python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1; CS_RC=$?
@@ -29282,9 +29283,71 @@ assert_eq "#2070 marked: merge-date heading present in release notes" "1" \
   "$(grep -cxF '## August 28, 2026' "$CSD/docs/external/release-notes.md")"
 assert_eq "#2070 marked: prose reused verbatim as an entry" "1" \
   "$(grep -cF '**Marked outcome.** Users see it. ([#2070](https://github.com/The01Geek/prflow/issues/2070))' "$CSD/docs/external/release-notes.md")"
-# The new heading sits directly below the first H1 (the two lines are adjacent modulo one blank).
-assert_eq "#2070 marked: new date heading created directly below the first H1" "yes" \
-  "$(awk '/^# Release Notes$/{h1=NR} /^## August 28, 2026$/{if(NR-h1<=2) print "yes"; else print "no"; exit}' "$CSD/docs/external/release-notes.md")"
+# The new date section is inserted at the top of the date-section list: above the pre-existing
+# '## July 3, 2026' heading (newest-first), not directly below the H1.
+assert_eq "#2070 marked: new date section is above the pre-existing older date section" "yes" \
+  "$(awk '/^## August 28, 2026$/{a=NR} /^## July 3, 2026$/{b=NR} END{print (a>0 && b>0 && a<b) ? "yes" : "no"}' "$CSD/docs/external/release-notes.md")"
+# The page preamble (the 'User-visible changes.' intro between the H1 and the first date
+# section) survives and still sits above the new date section — it was not split or displaced.
+assert_eq "#2070 marked: page preamble preserved above the new date section" "yes" \
+  "$(awk '/^User-visible changes\.$/{p=NR} /^## August 28, 2026$/{h=NR} END{print (p>0 && h>0 && p<h) ? "yes" : "no"}' "$CSD/docs/external/release-notes.md")"
+rm -rf "$CSD"
+
+# AC1 (no date section yet): a page with an H1 but no '## ' date section falls back to
+# inserting the new heading directly below the H1.
+CSD="$(cs_repo)"; printf '# Release Notes\n\nOnly a preamble, no date sections yet.\n' > "$CSD/docs/external/release-notes.md"
+printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **First ever note.** ([#2070](u))\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1; CS_RC=$?
+assert_eq "#2070 no-date-section: exit 0" "0" "$CS_RC"
+assert_eq "#2070 no-date-section: heading created directly below the H1" "yes" \
+  "$(awk '/^# Release Notes$/{h1=NR} /^## August 28, 2026$/{print (NR-h1<=2) ? "yes" : "no"; exit}' "$CSD/docs/external/release-notes.md")"
+rm -rf "$CSD"
+
+# AC1 (no H1): a page with neither an H1 nor a date section gains a '# Release Notes' H1.
+CSD="$(cs_repo)"; printf 'Loose prose, no heading at all.\n' > "$CSD/docs/external/release-notes.md"
+printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **Bootstrapped.** ([#2070](u))\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1; CS_RC=$?
+assert_eq "#2070 no-H1: exit 0" "0" "$CS_RC"
+assert_eq "#2070 no-H1: a '# Release Notes' H1 is created" "1" \
+  "$(grep -cxF '# Release Notes' "$CSD/docs/external/release-notes.md")"
+assert_eq "#2070 no-H1: the entry is written under the merge-date heading" "1" \
+  "$(grep -cF '**Bootstrapped.**' "$CSD/docs/external/release-notes.md")"
+rm -rf "$CSD"
+
+# A missing release-notes.md is a fail-loud exit-2 naming the file (the consolidator does not
+# silently create the page in an unknown location for a marked changeset).
+CSD="$(cs_repo)"; rm -f "$CSD/docs/external/release-notes.md"
+printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **Marked but no page.** ([#2070](u))\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >"$CSD/out" 2>&1; CS_RC=$?
+assert_eq "#2070 missing release-notes: exit 2 (fail-loud)" "2" "$CS_RC"
+assert_eq "#2070 missing release-notes: diagnostic names release-notes.md" "1" \
+  "$(grep -cF 'release-notes.md' "$CSD/out")"
+assert_eq "#2070 missing release-notes: version unchanged (no partial write)" "2.8.64" "$(cs_ver "$CSD")"
+rm -rf "$CSD"
+
+# A marked changeset with multi-line prose lands every line verbatim under the heading.
+CSD="$(cs_repo)"
+printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **Multi-line note.** First sentence.\n  Continuation line of the same bullet.\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1
+assert_eq "#2070 multi-line prose: the bullet's first line lands" "1" \
+  "$(grep -cF '**Multi-line note.** First sentence.' "$CSD/docs/external/release-notes.md")"
+assert_eq "#2070 multi-line prose: the continuation line lands" "1" \
+  "$(grep -cF 'Continuation line of the same bullet.' "$CSD/docs/external/release-notes.md")"
+rm -rf "$CSD"
+
+# A regex-valid but calendrically-invalid --date fails loud (exit 2) rather than raising an
+# uncaught IndexError from calendar.month_name — the fail-loud contract holds even with a
+# marked changeset present. Guards the release-notes date path added in #2070.
+CSD="$(cs_repo)"; printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- x (#2070)\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-13-01 >"$CSD/out" 2>&1; CS_RC=$?
+assert_eq "#2070 invalid month --date: exit 2 (fail-loud, not a traceback)" "2" "$CS_RC"
+assert_eq "#2070 invalid month --date: no bare traceback" "0" \
+  "$(grep -cF 'Traceback' "$CSD/out")"
+assert_eq "#2070 invalid month --date: version unchanged" "2.8.64" "$(cs_ver "$CSD")"
+rm -rf "$CSD"
+CSD="$(cs_repo)"; printf -- '---\nbump: patch\n---\n\n- x (#2070)\n' > "$CSD/.changeset/a.md"
+python3 "$CS_SCRIPT" --root "$CSD" --date 2026-02-30 >"$CSD/out" 2>&1; CS_RC=$?
+assert_eq "#2070 invalid day --date: exit 2 (Feb 30 rejected)" "2" "$CS_RC"
 rm -rf "$CSD"
 
 # AC1: a PyYAML-truthy spelling (`yes`) also marks — the decided semantics is the parsed
@@ -29321,7 +29384,9 @@ rm -rf "$CSD"
 # AC1: a second same-day merge appends under the EXISTING date heading rather than duplicating
 # it. Seed the page with the merge-date heading already present, then consolidate a marked one.
 CSD="$(cs_repo)"
-printf '# Release Notes\n\nUser-visible changes.\n\n## August 28, 2026\n\n- **Earlier today.** ([#0](u))\n' > "$CSD/docs/external/release-notes.md"
+# Seed the merge-date heading AND a following older date section, so the append must land
+# inside the merge-date section (before the following heading), not at EOF.
+printf '# Release Notes\n\nUser-visible changes.\n\n## August 28, 2026\n\n- **Earlier today.** ([#0](u))\n\n## July 3, 2026\n\n- **Older.** ([#9](u))\n' > "$CSD/docs/external/release-notes.md"
 printf -- '---\nbump: patch\ncustomer-visible: true\n---\n\n- **Later today.** ([#2070](u))\n' > "$CSD/.changeset/a.md"
 python3 "$CS_SCRIPT" --root "$CSD" --date 2026-08-28 >/dev/null 2>&1
 assert_eq "#2070 same-day append: still exactly one merge-date heading (no duplicate)" "1" \
@@ -29330,6 +29395,10 @@ assert_eq "#2070 same-day append: the earlier entry survives" "1" \
   "$(grep -cF '**Earlier today.**' "$CSD/docs/external/release-notes.md")"
 assert_eq "#2070 same-day append: the appended entry lands" "1" \
   "$(grep -cF '**Later today.**' "$CSD/docs/external/release-notes.md")"
+# The appended entry stays INSIDE the merge-date section — after 'Earlier today' and before
+# the following '## July 3, 2026' heading — not dumped at EOF under the wrong section.
+assert_eq "#2070 same-day append: appended entry lands inside the merge-date section" "yes" \
+  "$(awk '/^- \*\*Later today\.\*\*/{l=NR} /^## July 3, 2026$/{j=NR} END{print (l>0 && j>0 && l<j) ? "yes" : "no"}' "$CSD/docs/external/release-notes.md")"
 rm -rf "$CSD"
 
 # AC3: the marker shape matrix on this agent-mutable input. Only the parsed Python bool True

@@ -35,10 +35,11 @@ type: Fixed
 - `customer-visible` (optional, absent by default) — set `customer-visible: true` when the
   change has customer-visible impact. A marked changeset's prose is reused verbatim at merge
   time as an entry in `docs/external/release-notes.md` (see **Customer-visible release notes**
-  below). `true` is the canonical spelling; omit the key entirely for an internal-only change.
-  The only accepted value is the boolean `true` — a present `false`, the quoted string
-  `"true"`, an empty value, a list, or any other present value fails the run loudly, naming the
-  file, so the marker can never be set ambiguously.
+  below). `customer-visible: true` is the canonical spelling; omit the key entirely for an
+  internal-only change. The accepted value is whatever YAML parses to the boolean `True` (so
+  `true`, and equivalently `yes`/`on`, all qualify). Any other present value — a `false`, the
+  quoted string `"true"`, an empty value, a list — fails the run loudly, naming the file, so
+  the marker can never be set ambiguously.
 
 ### Customer-visible release notes
 
