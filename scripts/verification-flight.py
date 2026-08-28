@@ -74,15 +74,11 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
-# A non-hermetic flight — one whose declaration truthfully names an external service
-# its verification depends on (issue #2080) — is stored under a DISTINCT record
-# schema. It is completion-valid but never reusable: a pre-change reader accepts only
-# SCHEMA_VERSION, so it fails closed on this record rather than serving it as a
-# reusable pass, and `_reusable` keys reuse-eligibility on the same marker.
+# A non-hermetic flight (issue #2080) MUST store under a DISTINCT schema so a
+# pre-change reader — which accepts only SCHEMA_VERSION — fails closed on it rather
+# than serving it as a reusable pass; `_reusable` keys reuse on the same marker.
 SCHEMA_VERSION_NON_HERMETIC = 2
-# The record schemas `_read_flight` accepts. A claim's declaration is always
-# submitted under SCHEMA_VERSION; hermeticity changes only the STORED record's
-# schema, never the declaration input.
+# `_read_flight` accepts both stored schemas; the declaration input stays SCHEMA_VERSION.
 _RECORD_SCHEMA_VERSIONS = frozenset({SCHEMA_VERSION, SCHEMA_VERSION_NON_HERMETIC})
 DEFAULT_LEASE_SECONDS = 900  # bounded owner-token lease on a `claimed` handle
 STATE_DIRNAME = os.path.join(".prflow", "tmp", "verification-flights")
@@ -295,13 +291,9 @@ def _validate_profile(profile: Any) -> tuple[dict, bool]:
             raise DeclarationError(f"profile_{key}_not_object")
     if not isinstance(profile["output_roots"], list):
         raise DeclarationError("profile_output_roots_not_list")
-    # Hermeticity (issue #2080): the field is required (the presence loop above
-    # already raised profile_missing_field:external_services when absent). Exact
-    # "none" is hermetic and reusable. Any other string that is non-empty after
-    # stripping AND not "none" after stripping truthfully names an external service
-    # the verification depends on — accepted, and recorded non-reusable by the
-    # caller. Every remaining shape names no service and is refused, so a caller can
-    # never silently key a reusable flight on an ambiguous value.
+    # Hermeticity (issue #2080): exact "none" is hermetic; any other non-blank,
+    # non-"none"-stripping string truthfully names a service (accepted, recorded
+    # non-reusable); every other shape names no service and MUST be refused — never guess.
     es = profile["external_services"]
     if not isinstance(es, str):
         raise DeclarationError("external_services_not_string")
@@ -701,13 +693,9 @@ def _public_view(flight: dict) -> dict:
     # in the checkout dimension (issue #1243) — so on those paths the AND is already
     # enforced in the value, not left as a caller obligation.
     view["satisfies_verification"] = _satisfies(flight)
-    # `reuse_ready` is the explicit, unambiguously-named operand a caller reads to
-    # decide reuse (issue #579 review), so a caller reads this field rather than
-    # branching on the process exit code — which is deliberately role-only on
-    # `claim`/attach (EXIT_OK regardless of the attached state). It folds in
-    # `_reusable` (issue #2080): a non-hermetic passed flight satisfies verification
-    # but is never reuse-ready, so here reuse_ready is False while
-    # satisfies_verification stays True.
+    # `reuse_ready` (NOT the exit code — role-only on claim/attach) is the operand a
+    # caller reads to decide reuse (issue #579); it folds in `_reusable` (issue #2080),
+    # so a non-hermetic passed flight is satisfies_verification True but reuse_ready False.
     view["reuse_ready"] = _satisfies(flight) and _reusable(flight)
     return view
 
