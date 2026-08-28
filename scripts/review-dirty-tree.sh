@@ -106,16 +106,15 @@ cmd_compare_and_restore() {
       # `paths in AFTER, absent from BEFORE, NOT rename/copy entries`; rename/copy entries are
       # surfaced separately, never auto-restored (index surgery needed).
       mkdir -p .prflow/tmp
-      rm -f ".prflow/tmp/review-dirty-tree-before-paths" ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
-      if ! printf '%s' '' > ".prflow/tmp/review-dirty-tree-before-paths" ||
-         ! printf '%s' '' > ".prflow/tmp/review-dirty-tree-changed-paths" ||
+      rm -f ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
+      if ! printf '%s' '' > ".prflow/tmp/review-dirty-tree-changed-paths" ||
          ! printf '%s' '' > ".prflow/tmp/review-dirty-tree-renamed-paths"; then
         # Repo-local scratch allocation failed (quota/perms). Do NOT proceed: an unbuilt BEFORE
         # membership set reports every path absent and fails OPEN (every dirty path, incl.
         # the orchestrator's own edits, treated as newly-dirty and restored). Fail closed with a
         # distinct breadcrumb and restore nothing.
         echo "::warning::devflow review: could not allocate repo-local scratch files for the dirty-tree restore; dirty-tree restore SKIPPED this dispatch — this is NOT an agent mutation, nothing auto-restored" >&2
-        rm -f ".prflow/tmp/review-dirty-tree-before-paths" ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
+        rm -f ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
       else
         # 1. BEFORE membership set: every path (incl. rename new + orig), prefix stripped and NUL-
         #    delimited. `read -r -d ''` reads NUL records so a spaced/special path never splits.
@@ -129,12 +128,10 @@ cmd_compare_and_restore() {
           if [ "$before_orig" = 1 ]; then
             before_orig=0
             before_paths+=("$rec")
-            printf '%s\0' "$rec" >> ".prflow/tmp/review-dirty-tree-before-paths" || { before_extract_rc=$?; break; }
             continue
           fi
           case "${rec:0:1}" in [RC]) before_orig=1 ;; esac   # index column (X) only: the two-record shape is emitted iff X is R/C
           before_paths+=("${rec:3}")
-          printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-before-paths" || { before_extract_rc=$?; break; }
         done < "$SNAP_BEFORE" || before_extract_rc=$?
         [ -z "$rec" ] || before_extract_rc=65
         if [ "$before_extract_rc" -ne 0 ]; then
@@ -201,7 +198,7 @@ cmd_compare_and_restore() {
             fi
           fi
         fi
-        rm -f ".prflow/tmp/review-dirty-tree-before-paths" ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
+        rm -f ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
       fi
     fi
     # cmp_rc == 0: the snapshots are identical — nothing changed during the dispatch window.
