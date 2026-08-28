@@ -16,6 +16,8 @@ phrase — is **graded by nothing**: the marker never sees it, so nothing re-che
 is later implemented, and a premise wearing the costume of a verified one without being graded is
 worse than no premise at all.
 
+**Value-semantics grounding is a separate, drafting-time sufficiency rule, not a grading arm (issue #2083).** The grading duty above only decides whether a `Verified:` bullet's *shape* is machine-checkable; it says nothing about which code site the bullet may cite. `skills/create-issue/references/quality-group-premises.md` requires that a bullet asserting what a data value *means* — an on/off pair, a wider state set, an enumeration's admitted values, nullability, or units — be grounded in a code site that reads the value and branches on it, because a definition site alone (a schema column, a field declaration, a form binding) is consistent with the claim without establishing it. The drafter searches the value's consuming sites before writing the claim and withholds it when a found site admits more states than the claim does. The rule is mirrored into `skills/create-issue/references/step-3-5-steelman.md`, which re-applies it to the assembled draft. `scripts/check-verified-premises.py` grades the bullet's shape exactly as before; it does not grade which site was cited.
+
 The helper's second, **non-adjudicating** pass surfaces these: it reports every collocation-family
 phrase ("verified against", "confirmed against", "checked against", "verified at drafting time") in a
 premise-bearing region — and every blockquote-prefixed `> Verified:` line, which no grading arm

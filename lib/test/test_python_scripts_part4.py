@@ -4933,8 +4933,10 @@ assert_eq("#1702: the shipped Step 3.6 set is within the per-member limit and ag
 # refused by the first `claim`, which is the defect this template exists to remove. Extract
 # the shipped template, substitute only its <…> placeholders, and assert the real helper's
 # `descriptor` (the same validation `claim` runs) accepts it — then prove RED-on-drift with
-# the two planted defects the helper refuses: external_services off the only accepted "none",
-# and an object-id field off the 40/64-hex shape _validate_checkout requires.
+# the two planted defects the helper refuses: external_services set to a malformed value
+# (an empty string, which names no service — issue #2080; a truthful non-"none" service
+# name is now ACCEPTED as a non-hermetic declaration and is NOT a drift defect), and an
+# object-id field off the 40/64-hex shape _validate_checkout requires.
 import subprocess as _sp1560
 
 _PHASE4_1560 = SCRIPTS.parent / "skills" / "implement" / "phases" / "phase-4-documentation.md"
@@ -4967,8 +4969,10 @@ _tpl1560 = _extract_json_template_1560(_PHASE4_1560.read_text(encoding="utf-8"))
 _decl1560 = re.sub(r"<[^>]*>", "x", _tpl1560)
 assert_eq("#1560: the shipped phase-4 claim template is accepted by verification-flight descriptor",
           0, _descriptor_rc_1560(_decl1560))
-assert_eq("#1560: the template with external_services != \"none\" is refused (non-hermetic)",
-          True, _descriptor_rc_1560(_decl1560.replace('"none"', '"github"')) != 0)
+assert_eq("#1560: the template with a malformed external_services (empty string) is refused",
+          True, _descriptor_rc_1560(_decl1560.replace('"none"', '""')) != 0)
+assert_eq("#1560: the template with a truthful non-\"none\" external_services is accepted (non-hermetic, issue #2080)",
+          0, _descriptor_rc_1560(_decl1560.replace('"none"', '"postgres"')))
 assert_eq("#1560: the template with an object-id field off the 40/64-hex shape is refused",
           True, _descriptor_rc_1560(_decl1560.replace("1111111111111111111111111111111111111111", "nothex")) != 0)
 

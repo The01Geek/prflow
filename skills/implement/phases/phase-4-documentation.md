@@ -292,7 +292,7 @@ On any reading a vendored path did not run — `command not found`, `No such fil
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/verification-flight.py
 ```
 
-Author the declaration from this template — substitute only the `<…>` placeholders; `schema_version` stays `1`, `external_services` `"none"`, the four `checkout` object-id fields keep example hex replaced from `checkout-fingerprint.py`:
+Author the declaration from this template — substitute the `<…>` placeholders, and set `external_services` truthfully: the live service the verification depends on when one exists (recorded non-reusable), or the literal `"none"` when it depends on none; `schema_version` stays `1`, and the four `checkout` object-id fields keep example hex replaced from `checkout-fingerprint.py`:
 
 ```json
 {"schema_version": 1, "candidate_identity": "<candidate_identity>",
