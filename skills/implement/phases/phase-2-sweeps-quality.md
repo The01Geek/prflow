@@ -71,7 +71,7 @@ A self-authored claim is any behavioral assertion the diff introduces about what
 - Internal docs the diff adds or edits (`[[INTERNAL_DOC_LOCATION]]…` and the like) — a described behavior, flow, "it does X then Y", or guarantee.
 - External docs the diff adds or edits — the same, in customer-facing prose.
 - Code comments the diff adds or changes — an inline claim about what the adjacent or called code does (e.g. "returns the deduped set", "never retries", "matches the reference query exactly").
-- Test prose the diff adds or changes — a test name, test title, or assertion message that promises behavior (e.g. a test named for the deduping it asserts, or an assertion message stating what the code returns).
+- Test prose the diff adds or changes — a test name, test title, or assertion message that promises behavior.
 
 (The PR-body claims are reconciled separately in Phase 4.2, where the body is authored — the body does not exist at commit time. This sweep covers every claim that *does* exist before commit.)
 
