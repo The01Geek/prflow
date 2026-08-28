@@ -154,9 +154,8 @@ NORMALIZED_PREFIX = "NORMALIZED (wording-only): "
 # the blocker assembly appends — a renamed string here can never silently stop the
 # is_contradiction match firing.
 PROPERTY_NOT_PROVEN_BLOCKER = "property not proven"
-# issue #2099 — the well-typed contradiction: inaccuracy_scope generated_claim_text
-# asserts the code is correct, yet property_proven false leaves the intended property
-# unproven. Not a settled verdict; it draws one pinned auxiliary re-ask (see _process_pair).
+# issue #2099 — the well-typed contradiction (generated_claim_text + property_proven false);
+# see the module docstring. Drives one pinned auxiliary re-ask (see _process_pair).
 CONTRADICTION_DEFECT = "contradiction:generated_claim_text_but_property_unproven"
 CONTRADICTION_INELIGIBLE = (
     "contradiction: inaccuracy_scope generated_claim_text asserts the code is correct "
@@ -446,13 +445,9 @@ def _process_pair(pair):
         and not real_blockers
     )
 
-    # issue #2099 — the contradiction: both auxiliary fields are well-typed, yet
-    # generated_claim_text (code asserted correct) is paired with property_proven false
-    # (property left unproven). It is detected as property-not-proven being the SOLE
-    # real-value blocker with no field defect: any OTHER real blocker (not-agent,
-    # issue_acceptance, source_authored, trusted-file-unreadable) makes real_blockers a
-    # non-singleton, which is what suppresses the re-ask and keeps the terminal behavior.
-    # That singleton also implies mode==agent and provenance==generated_paraphrase.
+    # issue #2099 — property-not-proven as the SOLE real blocker with no field defect. Any
+    # OTHER real blocker makes real_blockers non-singleton, which is what suppresses the
+    # re-ask and keeps the terminal behavior; the singleton also forces agent/generated.
     is_contradiction = (
         raw == "FAIL"
         and real_blockers == [PROPERTY_NOT_PROVEN_BLOCKER]
@@ -467,25 +462,20 @@ def _process_pair(pair):
     if aux_defects:
         result["defect"] = "aux:" + ",".join(aux_defects)
         result["defect_class"] = "auxiliary"
-        # A pinned pair IS the re-ask (fires at most once), so it is never re-dispatched
-        # again — its persisting aux defect leaves the raw FAIL standing with the marker.
-        # A real-value blocker OTHER than the property-not-proven contradiction below also
-        # disqualifies the re-ask: completing the fields cannot make an item normalize that
-        # such a blocker already refuses, so dispatching one would only burn budget.
+        # A pinned pair is the re-ask and never re-dispatches again. A real-value blocker
+        # other than the property-not-proven contradiction below also disqualifies the
+        # re-ask — completing fields cannot normalize what a real blocker already refuses.
         if (not is_pinned and raw == "FAIL" and provenance == "generated_paraphrase"
                 and mode == "agent" and not real_blockers):
             retry = {"id": item_id, "kind": "auxiliary", "defect": ",".join(aux_defects)}
     elif is_contradiction:
-        # No auxiliary FIELD defect — both fields are well-typed — so the field-defect arm
-        # above does not fire; the defect is the contradiction between them. Stamp it and,
-        # unless this pair is already the pinned re-ask, draw exactly one through the same
-        # auxiliary channel (at most one re-ask per item across both classes together).
+        # Both fields well-typed, so the field-defect arm did not fire — draw one re-ask
+        # through the same auxiliary channel (at most one per item across both classes).
         result["defect"] = CONTRADICTION_DEFECT
         result["defect_class"] = "auxiliary"
         result["normalization_ineligible"] = CONTRADICTION_INELIGIBLE
-        # is_contradiction already implies mode==agent and provenance==generated_paraphrase
-        # (the singleton real_blockers forces both), so the only remaining gate is that this
-        # pair is not itself the pinned re-ask.
+        # is_contradiction already forces mode==agent and provenance==generated_paraphrase,
+        # so the only remaining gate is that this pair is not itself the pinned re-ask.
         if not is_pinned:
             retry = {"id": item_id, "kind": "auxiliary", "defect": CONTRADICTION_DEFECT}
 

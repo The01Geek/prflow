@@ -80,6 +80,8 @@ check("contradiction persisting: stays FAIL",
       r["raw_verdict"]=="FAIL" and r["verdict"]=="FAIL" and r["normalized"] is False, str(r))
 check("contradiction persisting: ineligible names the contradiction",
       "contradiction" in (r["normalization_ineligible"] or ""), str(r["normalization_ineligible"]))
+check("contradiction persisting: stamps the contradiction defect on the pinned arm",
+      "contradiction" in (r["defect"] or "") and r["defect_class"] == "auxiliary", str(r))
 check("contradiction persisting: fires at most once (no second dispatch)",
       o["needs_retry"]==[], str(o["needs_retry"]))
 
@@ -93,9 +95,8 @@ for _fx,_lbl in [("contradiction-suppressed-not-agent.json", "not-agent"),
     r=res0(o)
     check("contradiction suppressed (" + _lbl + "): not normalized",
           not r["normalized"] and r["verdict"]=="FAIL", str(r))
-    check("contradiction suppressed (" + _lbl + "): no auxiliary contradiction re-ask",
-          not any(x["kind"] == "auxiliary" and "contradiction" in str(x.get("defect", ""))
-                  for x in o["needs_retry"]), str(o["needs_retry"]))
+    check("contradiction suppressed (" + _lbl + "): no auxiliary re-ask at all",
+          not any(x["kind"] == "auxiliary" for x in o["needs_retry"]), str(o["needs_retry"]))
 
 o,_=run("conj5-scope-source.json")
 r=res0(o)
