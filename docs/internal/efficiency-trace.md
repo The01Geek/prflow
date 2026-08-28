@@ -1174,3 +1174,29 @@ genuine attach-and-consume of a `passed` flight is a suppressed launch, so the s
 count the cross-run analyzer derives from these events excludes non-pass handles. And telemetry is
 **best-effort and hermetic**: the helper writes these records locally with no network or `git`, and a
 failure to write a record never fails the coordination operation or the verification run itself.
+
+**The telemetry directories are self-ignoring (issue #2097).** Before the first telemetry file
+lands in a telemetry directory, the writer drops a `.gitignore` containing `*` into it — via a
+shared `_ensure_telemetry_dir(base)` helper wired into both telemetry write paths: `_emit_telemetry`
+(the `--logs-dir` subcommands `descriptor`/`claim`/`mark-running`/`finish`/`status`/`wait`, default
+`.prflow/logs/verification-flight/`) and the `event` subcommand's appender (`--log-dir`, default
+`.prflow/logs/phase-events/`). The guard is created with `os.open` `O_CREAT|O_EXCL`, so it is
+idempotent: an existing guard is left byte-for-byte untouched, and a zero-byte guard from a failed
+write is removed and retried. When the guard cannot be established the writer returns `False` on the
+`OSError` and **skips** the telemetry write rather than dirtying the tree — the same best-effort,
+never-fails-coordination discipline above. The **ledger state directory** (`--state-dir`,
+`.prflow/tmp/verification-flights/`) is deliberately **not** guarded: its writes are load-bearing for
+coordination, and an installed consumer's scaffolded `.prflow/.gitignore` already covers `.prflow/tmp/`.
+
+The guard lives in the **writer**, not the scaffolder, because a scaffolder-shipped ignore line
+(`scripts/scaffold-config.sh` writes the consumer's `.prflow/.gitignore` "only when absent") can
+never reach an **already-installed** repository — that file is created once at adoption and an
+adopter's edits are preserved on re-runs, so a new ignore rule added there would only benefit fresh
+installs. A repository that installed PRFlow has ignore rules covering only `.prflow/tmp/`, so
+without the writer-side guard every telemetry write shows up as an untracked file: the dirty tree
+then feeds back into the coordinator's own checkout fingerprint (`untracked_digest`) and
+**self-invalidates** the very flight it just recorded (`invalidation_reason: checkout_drift`). A
+self-ignoring directory keeps ignored files out of the fingerprint entirely, closing that loop. The
+PRFlow repository itself is unaffected — its root `.gitignore` already ignores both telemetry
+directories, so those guard files are now defense-in-depth. (Cargo's `target/.gitignore` is the
+well-known precedent for a tool making its own output directory self-ignoring.)

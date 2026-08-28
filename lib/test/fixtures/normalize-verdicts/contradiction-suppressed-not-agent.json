@@ -1,0 +1,8 @@
+{
+  "pairs": [
+    {
+      "item": {"id": "VC-CNA", "verification_mode": "lite", "claim_provenance": "generated_paraphrase"},
+      "response_text": "```json\n{\"id\": \"VC-CNA\", \"verdict\": \"FAIL\", \"evidence\": \"x\", \"property_proven\": false, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
+    }
+  ]
+}
