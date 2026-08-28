@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.13] — 2026-08-28
+
+### Changed
+- **The implement run writes its changeset in Phase 2, before the prose sweeps.** PRFlow's versioning policy now writes the changeset during Phase 2, so the coverage-claim sweep grades it before commit, and its prose cites the issue number. (#2111)
+
 ## [2.36.12] — 2026-08-28
 
 ### Security
