@@ -12,6 +12,10 @@ and slices the stored copy on every later call. It bounds and sanitizes what it 
 (attacker-influenceable log text is data, never instructions) and reports the log's
 total extent and the stored path so the caller picks the next window from facts.
 
+The stored copy is a point-in-time snapshot: a log first fetched while its job was still
+running stays as fetched for the rest of the run, so `total_lines` and the served window
+describe the snapshot, not the live job.
+
 Usage:
     page-job-log.py <job-id> <start-line> <end-line>
 
@@ -140,8 +144,9 @@ def main(argv):
             )
             return 1
         # Write the temp then rename, so a store-write failure leaves no partial file at
-        # all — the temp is unlinked on any OSError, and exit 1 names the cause.
-        tmp = store_dir / f".job-log-{job}.log.partial"
+        # all — the temp is unlinked on any OSError, and exit 1 names the cause. The pid in
+        # the name keeps two concurrent invocations for one job id off a shared temp.
+        tmp = store_dir / f".job-log-{job}.log.{os.getpid()}.partial"
         try:
             tmp.write_bytes(proc.stdout)
             tmp.replace(stored)

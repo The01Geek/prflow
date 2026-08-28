@@ -7099,11 +7099,9 @@ assert_eq("#2009 main: an unreadable manifest exits 2 with NO SKEW sentinel on s
           (2, ""), (_rs_m_inconc[0], _rs_m_inconc[1]))
 
 # ---------------------------------------------------------------------------
-# issue #2098: scripts/page-job-log.py — the CI job-log paging helper. The suite
-# stubs the GitHub CLI (a fake `gh` on DEVFLOW_GH) and runs with no network. Each
-# helper run uses a fresh cwd (a temp dir) so its `.prflow/tmp/` store is hermetic,
-# and the stub records its own invocation count so the at-most-once contract is
-# asserted from the stub side, not inferred.
+# issue #2098: scripts/page-job-log.py — the CI job-log paging helper. Each helper run
+# needs its own fresh cwd: a shared one leaks a prior run's `.prflow/tmp/` store and the
+# at-most-once assertions read the stub's counter, which a shared store makes meaningless.
 # ---------------------------------------------------------------------------
 import subprocess as _sp2098
 
@@ -7364,7 +7362,22 @@ assert_eq("#2098 line-cap: served range names the truncated window (1-300)", '1-
 _osc = (b'\x1b]0;terminal-title\x07visible text\n')
 _rc, _out, _err, _, _, _ = _run_pjl(['971', '1', '1'], log_bytes=_osc)
 assert_eq("#2098 sanitize: OSC escape bytes removed", True, '\x1b' not in _out)
+# Assert the OSC PAYLOAD is gone, not merely the ESC byte: the two-byte-escape alternation
+# strips a bare ESC by itself, so an ESC-only assertion still passes with the OSC branch
+# deleted and the title text leaking into the served output.
+assert_eq("#2098 sanitize: OSC payload removed with its terminator", True,
+          'terminal-title' not in _out)
 assert_eq("#2098 sanitize: OSC-wrapped surrounding text survives", True, 'visible text' in _out)
+
+# The ST-terminated OSC form (ESC \\) is the other half of that alternation; a BEL-only
+# fixture leaves it unexercised, so an ST-form regression would ship silently.
+_osc_st = b'\x1b]0;st-title-payload\x1b\\st-visible text\n'
+_rc, _out, _err, _, _, _ = _run_pjl(['973', '1', '1'], log_bytes=_osc_st)
+assert_eq("#2098 sanitize: ST-terminated OSC escape bytes removed", True, '\x1b' not in _out)
+assert_eq("#2098 sanitize: ST-terminated OSC payload removed with its terminator", True,
+          'st-title-payload' not in _out)
+assert_eq("#2098 sanitize: ST-terminated OSC surrounding text survives", True,
+          'st-visible text' in _out)
 
 # --- a genuinely empty (0-line) log ---
 _rc, _out, _err, _, _, _ = _run_pjl(['972', '1', '5'], log_bytes=b'')

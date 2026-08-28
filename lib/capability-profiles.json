@@ -1,5 +1,5 @@
 {
-  "manifest_version": 30,
+  "manifest_version": 31,
   "readme": [
     "This manifest is the single source of truth for PRFlow's cloud capability policy:",
     "which tools/commands each execution tier (review, implement, command) may run.",
