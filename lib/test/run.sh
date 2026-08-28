@@ -53885,6 +53885,75 @@ PY
 assert_eq "#1402 lint: no tracked skills/**+agents/** line names a never-shipped workflow" "rc=0|" \
   "$(printf 'rc=%s|%s' "$SP_NS_LIVE_RC" "$SP_NS_LIVE")"
 
+# ── #2114 internal-identifier denylist (lib/test/lint-shipped-pruned-path.py) ──
+# skills/** and agents/** ship verbatim into a consumer, so a body naming a PRFlow
+# development-harness identifier (the structural-pin-ok pin-corpus marker, the
+# CEILING_TRIPWIRE_FRACTION tripwire constant, the run-parallel coordinator log-line stem)
+# resolves against a marker or tool the consumer's tree does not carry. Unlike the four
+# classes above, the forbidden set is a MODULE CONSTANT (no producer file to derive from),
+# so a test asserts the class runs against a non-empty constant rather than silently
+# auditing an empty set. The scan shares the audited population and the fence-aware
+# pruned-path-ok marker family through _scan (issue #2114).
+# Comparand-shape pin: the constant covers the required floor. The import-time guard already
+# refuses an EMPTY _INTERNAL_IDENTIFIERS, but not one that DROPPED a required member while
+# staying non-empty — this pin is what fails RED on that floor regression, which would silently
+# stop auditing the dropped identifier while every fixture assertion below still passed.
+SP_II_CONST="$(cd "$LIB/.." && python3 - "$SP_LINT" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("sp", sys.argv[1])
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+required = {"structural-pin-ok", "CEILING_TRIPWIRE_FRACTION", "run-parallel"}
+ident = set(mod._INTERNAL_IDENTIFIERS)
+print("ok" if ident and required <= ident else f"bad({sorted(ident)})")
+PY
+)"
+assert_eq "#2114 lint: the internal-identifier denylist constant is non-empty and covers the required floor" "ok" "$SP_II_CONST"
+# An unmarked reference is reported.
+assert_eq "#2114 lint: an unmarked internal-identifier reference is reported" "yes" \
+  "$(case "$(sp_run "$SP_SIMPLE" skills/internal-ident-unmarked.md)" in "rc=1|"*"skills/internal-ident-unmarked.md:1:"*"references PRFlow-internal identifier 'structural-pin-ok'"*) echo yes ;; *) echo no ;; esac)"
+# All three denylisted identifiers fire (the class runs against the FULL constant, not just
+# its first member). Each on its own line, so a matcher that stopped after one member is RED.
+SP_II_ALL="$(sp_run "$SP_SIMPLE" skills/internal-ident-all-three.md)"
+assert_eq "#2114 lint: the structural-pin-ok member is reported (all-three)" "yes" \
+  "$(case "$SP_II_ALL" in *"internal-ident-all-three.md:1:"*"'structural-pin-ok'"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2114 lint: the CEILING_TRIPWIRE_FRACTION member is reported (all-three)" "yes" \
+  "$(case "$SP_II_ALL" in *"internal-ident-all-three.md:2:"*"'CEILING_TRIPWIRE_FRACTION'"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2114 lint: the run-parallel member is reported (all-three)" "yes" \
+  "$(case "$SP_II_ALL" in *"internal-ident-all-three.md:3:"*"'run-parallel'"*) echo yes ;; *) echo no ;; esac)"
+# The shared declaration marker discharges the reference (HTML form), and an empty-reason
+# marker does NOT (the marker regexes require a non-empty reason) — the discriminating pair.
+assert_eq "#2114 lint: an HTML-marked internal-identifier reference is not reported" "rc=0|lint-shipped-pruned-path: audited 1 of 1 files; prune set: lib/test" \
+  "$(sp_run "$SP_SIMPLE" skills/internal-ident-marked-html.md)"
+assert_eq "#2114 lint: a marker with an empty reason is reported" "yes" \
+  "$(case "$(sp_run "$SP_SIMPLE" skills/internal-ident-marked-empty.md)" in "rc=1|"*"skills/internal-ident-marked-empty.md:1:"*"'structural-pin-ok'"*) echo yes ;; *) echo no ;; esac)"
+# Substring safety: an identifier embedded inside a longer alphanumeric word is NOT a
+# reference. Dropping the filename-boundary lookarounds turns this fixture RED.
+assert_eq "#2114 lint: an identifier inside a longer word is not reported (substring safety)" "rc=0|lint-shipped-pruned-path: audited 1 of 1 files; prune set: lib/test" \
+  "$(sp_run "$SP_SIMPLE" skills/internal-ident-substring.md)"
+# Dot/.sh-adjacency positive control (the docstring promises run-parallel.sh is caught): a
+# non-word boundary char (dot, slash) adjacent to the identifier still matches, so a real
+# reference to the coordinator script is reported. Pairs with the substring-safety negative
+# above to pin BOTH directions of the filename-boundary lookaround.
+assert_eq "#2114 lint: a dot/.sh-adjacent internal identifier is reported (filename-boundary match)" "yes" \
+  "$(case "$(sp_run "$SP_SIMPLE" skills/internal-ident-dot-adjacent.md)" in "rc=1|"*"skills/internal-ident-dot-adjacent.md:1:"*"'run-parallel'"*) echo yes ;; *) echo no ;; esac)"
+# Fence-conditional marker (issue #2114 shares _scan's fence family): a # marker inside a
+# fence suppresses; an unmarked fenced reference is reported.
+assert_eq "#2114 lint fence-state: a # marker inside a fence suppresses an internal identifier" "rc=0|lint-shipped-pruned-path: audited 1 of 1 files; prune set: lib/test" \
+  "$(sp_run "$SP_SIMPLE" skills/internal-ident-fence-shell-marked.md)"
+assert_eq "#2114 lint fence-state: an unmarked internal identifier inside a fence is reported" "yes" \
+  "$(case "$(sp_run "$SP_SIMPLE" skills/internal-ident-fence-unmarked.md)" in "rc=1|"*"skills/internal-ident-fence-unmarked.md:4:"*"'run-parallel'"*) echo yes ;; *) echo no ;; esac)"
+# The agents/** half of the audited population (this class rides the same is_audited() prefix
+# set as its siblings, but only skills/ fixtures pinned it above).
+assert_eq "#2114 lint: an internal identifier in an agents/ body is reported (second audited prefix)" "yes" \
+  "$(case "$(sp_run "$SP_SIMPLE" agents/internal-ident-agent.md)" in "rc=1|"*"agents/internal-ident-agent.md:1:"*"'structural-pin-ok'"*) echo yes ;; *) echo no ;; esac)"
+# Two identifiers on one line report the FIRST only (the shared _scan first-match-per-line
+# semantic, pinned for this class as #1241 pins it for citations). Exact output, so a change
+# to per-match reporting emits a second finding line and turns this RED.
+assert_eq "#2114 lint: two identifiers on one line report the first only" \
+  "rc=1|skills/internal-ident-two-on-line.md:1: references PRFlow-internal identifier 'structural-pin-ok' (a development-harness marker or tool the installer ships into no consumer, so it names nothing in their tree) with no pruned-path-ok marker
+lint-shipped-pruned-path: audited 1 of 1 files; prune set: lib/test" \
+  "$(sp_run "$SP_SIMPLE" skills/internal-ident-two-on-line.md)"
+
 # ── #1248 ungranted-helper-spelling lint (lib/test/lint-ungranted-helper-spelling.py) ──
 # The cloud matcher grants each bundled helper ONLY at the vendored literal
 # .prflow/vendor/prflow/scripts/<name>, so a shipped prompt sentence spelling a
