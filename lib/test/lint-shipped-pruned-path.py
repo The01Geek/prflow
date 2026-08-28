@@ -724,14 +724,10 @@ _VENDORED_CLAUDE_MD_TOKEN = "CLAUDE.md"
 #: (which the installer prunes); `CEILING_TRIPWIRE_FRACTION` and `run-parallel` are the
 #: retrospective suite-runtime tripwire's own constant and the whole-suite coordinator's
 #: log-line stem. A shipped body naming one instructs a consumer's agent about a marker or
-#: tool their repository does not have.
-#:
-#: This is a **module constant**, not a derivation: unlike the four classes above it has no
-#: producer file to read, so there is no unestablished state to fail closed on. An empty
-#: list would silently audit nothing, so it is guarded non-empty at import. The set is a
-#: minimum floor; a future internal identifier is added here. Substring safety comes from
-#: the filename-boundary-aware matcher below: an identifier embedded inside a longer
-#: alphanumeric word (`xrun-parallelism`) is not a reference and is never reported.
+#: tool their repository does not have. A module constant (not a derivation) guarded
+#: non-empty at import below, for the reason the module docstring gives; a minimum floor a
+#: future internal identifier is added to. Substring safety is the filename-boundary-aware
+#: matcher's (an identifier inside a longer alphanumeric word is not a reference).
 _INTERNAL_IDENTIFIERS = ("structural-pin-ok", "CEILING_TRIPWIRE_FRACTION", "run-parallel")
 
 if not _INTERNAL_IDENTIFIERS:

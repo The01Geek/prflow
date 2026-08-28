@@ -53938,6 +53938,17 @@ assert_eq "#2114 lint fence-state: a # marker inside a fence suppresses an inter
   "$(sp_run "$SP_SIMPLE" skills/internal-ident-fence-shell-marked.md)"
 assert_eq "#2114 lint fence-state: an unmarked internal identifier inside a fence is reported" "yes" \
   "$(case "$(sp_run "$SP_SIMPLE" skills/internal-ident-fence-unmarked.md)" in "rc=1|"*"skills/internal-ident-fence-unmarked.md:4:"*"'run-parallel'"*) echo yes ;; *) echo no ;; esac)"
+# The agents/** half of the audited population (this class rides the same is_audited() prefix
+# set as its siblings, but only skills/ fixtures pinned it above).
+assert_eq "#2114 lint: an internal identifier in an agents/ body is reported (second audited prefix)" "yes" \
+  "$(case "$(sp_run "$SP_SIMPLE" agents/internal-ident-agent.md)" in "rc=1|"*"agents/internal-ident-agent.md:1:"*"'structural-pin-ok'"*) echo yes ;; *) echo no ;; esac)"
+# Two identifiers on one line report the FIRST only (the shared _scan first-match-per-line
+# semantic, pinned for this class as #1241 pins it for citations). Exact output, so a change
+# to per-match reporting emits a second finding line and turns this RED.
+assert_eq "#2114 lint: two identifiers on one line report the first only" \
+  "rc=1|skills/internal-ident-two-on-line.md:1: references PRFlow-internal identifier 'structural-pin-ok' (a development-harness marker or tool the installer ships into no consumer, so it names nothing in their tree) with no pruned-path-ok marker
+lint-shipped-pruned-path: audited 1 of 1 files; prune set: lib/test" \
+  "$(sp_run "$SP_SIMPLE" skills/internal-ident-two-on-line.md)"
 
 # ── #1248 ungranted-helper-spelling lint (lib/test/lint-ungranted-helper-spelling.py) ──
 # The cloud matcher grants each bundled helper ONLY at the vendored literal
