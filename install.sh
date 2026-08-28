@@ -980,10 +980,12 @@ devflow_disable_review_key() {
 # consumer's .prflow/config.json. Nothing a fresh install ships reads
 # prflow_review.require_up_to_date, prflow_review.require_ci_green, or the whole
 # prflow_runner section, so they can never take effect there. Fail closed like
-# devflow_disable_review_key: a malformed config or non-object prflow_review is left
-# untouched and reported (exit 3), never rewritten half-way (this edits a file the
-# consumer owns and hand-edits). Emits the removed key list to stdout so the caller
-# names exactly what it touched.
+# devflow_disable_review_key: a config this cannot safely edit — unparseable JSON
+# (json.load raises, so Python exits 1) or a non-object top-level / non-object
+# prflow_review (a dedicated exit 3) — is left untouched and reported, never rewritten
+# half-way (this edits a file the consumer owns and hand-edits); both non-zero paths
+# route to the shell case's rc-1 arm below. Emits the removed key list to stdout so
+# the caller names exactly what it touched.
 DEVFLOW_STRIP_WITHHELD_PY='
 import json, os, sys
 path = sys.argv[1]
