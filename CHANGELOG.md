@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.11] — 2026-08-28
+
+### Fixed
+- **Catch vacuous preservation tests and documentation-scope leaks earlier.** Implement runs now require distinguishable preservation fixtures, classify cleanup failures, and stop plain label-and-em-dash issue peers from becoming mandatory documentation. ([#2110](https://github.com/The01Geek/prflow/pull/2110))
+
 ## [2.36.10] — 2026-08-28
 
 ### Added
