@@ -201,6 +201,9 @@ cmd_compare_and_restore() {
   fi
   # Clean up fixed repo-local snapshot state after the dispatch.
   rm -f "$SNAP_BEFORE" "$DISABLED_SENTINEL" 2>/dev/null
+  # Enforce the documented always-exit-0 contract explicitly (symmetric with cmd_snapshot): without
+  # this the function's status is the cleanup rm's, which can return non-zero (RO fs / immutable bit).
+  return 0
 }
 
 main() {
