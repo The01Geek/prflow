@@ -147,7 +147,9 @@ outright. Richer detail about a result that may be an artifact of the host is no
 gate; it is a better debugger.
 
 The `#456` skip accounting is unchanged on either reading: a nonempty skip tally is not clean,
-and a focused module may not self-skip (`run-module.sh` makes `skip()` fatal).
+and a focused module may not call the raw `skip` helper (`run-module.sh` makes a raw `skip()`
+fatal), though it may declare a host-capability condition through `module_host_capability_skip`,
+which the focused runner records and folds into a visible skip with its assertion credit applied.
 
 ### Why the tiers must not be merged, and what the CI reading costs
 

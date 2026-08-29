@@ -1111,7 +1111,9 @@ grant history.
 
 **None of this weakens the gate.** The final completion claim still takes a whole-suite
 result, and the #456 skip accounting is unchanged — a nonempty skip tally is not clean, and a
-focused module may not self-skip. Which result counts is tier-scoped since issue #1607: the
+focused module may not call the raw `skip` helper (though it may declare a host-capability
+condition through `module_host_capability_skip`, which the focused runner records and folds into
+a visible skip with its assertion credit applied). Which result counts is tier-scoped since issue #1607: the
 cloud implement tier runs the suite in its own environment, while this repository's
 local/interactive tier commits, pushes, and reads CI for that pushed commit, treating an
 absent run or an unestablished reading as a stop rather than a pass. A suite result is
