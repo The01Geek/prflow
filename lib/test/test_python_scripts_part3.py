@@ -7191,6 +7191,120 @@ finally:
     workpad._completion_evidence_verdict = lambda args, prog_content: None
 
 
+# ── issue #2131: --record-verification-evidence owns the Verification evidence row ──
+# The record's field set now lives in the tool (not CLAUDE.md prose): a validated call
+# appends one note-kind reflection row; a missing required field or an aggregate outcome
+# recorded with run-root=none is refused before any PATCH; each launch adds its own row.
+print("workpad --record-verification-evidence (issue #2131)")
+
+# A valid call appends one `### ℹ️ Notes` row beginning `Verification evidence:` and
+# carrying command=, outcome=, run-root=, recorded-at=, head=<40 hex from HEAD>.
+_c, _o, _e, _p = _drive_cmd_update(
+    WORKPAD_BODY, record_verification_evidence=True,
+    command='lib/test/run-parallel.sh', outcome='run-parallel: aggregate CLEAN',
+    run_root=['.prflow/tmp/parallel-suite/run-1-0/logs'],
+    tallies='22835 passed / 0 failed / 0 skipped', elapsed='964s',
+    started_at='2026-08-29T02:10:00Z', repo_root=_ci_root)
+assert_eq("#2131 a valid verification-evidence call exits 0", None, _c)
+assert_eq("#2131 the call PATCHes", True, _p is not None)
+assert_eq("#2131 the row begins with the Verification evidence: literal", True,
+          'Verification evidence:' in _p)
+assert_eq("#2131 the row files under the Notes sub-section", True,
+          '### ℹ️ Notes' in _p)
+for _field in ('command=lib/test/run-parallel.sh',
+               'outcome=run-parallel: aggregate CLEAN',
+               'run-root=.prflow/tmp/parallel-suite/run-1-0/logs',
+               'tallies=22835 passed / 0 failed / 0 skipped',
+               'elapsed=964s', 'started-at=2026-08-29T02:10:00Z',
+               'recorded-at=', f'head={_ci_head}'):
+    assert_eq(f"#2131 the row carries {_field.split('=')[0]}=", True, _field in _p)
+
+# The optional fields are omitted when not supplied (only the required + stamped set).
+_c2, _o2, _e2, _p2 = _drive_cmd_update(
+    WORKPAD_BODY, record_verification_evidence=True,
+    command='lib/test/run-parallel.sh', outcome='ran',
+    run_root=['/tmp/logs'], repo_root=_ci_root)
+assert_eq("#2131 a minimal call PATCHes", True, _p2 is not None)
+assert_eq("#2131 tallies omitted when unsupplied", False, 'tallies=' in _p2)
+assert_eq("#2131 elapsed omitted when unsupplied", False, 'elapsed=' in _p2)
+assert_eq("#2131 started-at omitted when unsupplied", False, 'started-at=' in _p2)
+
+# Missing each required field in turn → no PATCH, named breadcrumb.
+for _over, _flag in [({'outcome': 'x', 'run_root': ['r']}, '--command'),
+                     ({'command': 'c', 'run_root': ['r']}, '--outcome'),
+                     ({'command': 'c', 'outcome': 'x'}, '--run-root')]:
+    _cM, _oM, _eM, _pM = _drive_cmd_update(
+        WORKPAD_BODY, record_verification_evidence=True, repo_root=_ci_root, **_over)
+    assert_eq(f"#2131 a call missing {_flag} makes NO PATCH", None, _pM)
+    assert_eq(f"#2131 the missing-{_flag} refusal names it", True, _flag in _eM)
+
+# An aggregate outcome with run-root=none is refused before any PATCH.
+for _agg in ('run-parallel: aggregate CLEAN', 'run-parallel: aggregate FAILED (3)'):
+    _cA, _oA, _eA, _pA = _drive_cmd_update(
+        WORKPAD_BODY, record_verification_evidence=True,
+        command='lib/test/run-parallel.sh', outcome=_agg, run_root=['none'],
+        repo_root=_ci_root)
+    assert_eq(f"#2131 aggregate outcome {_agg!r} with run-root=none makes NO PATCH",
+              None, _pA)
+
+# A run-root=none with a non-aggregate outcome records run-root=none verbatim, PATCHes.
+_cN, _oN, _eN, _pN = _drive_cmd_update(
+    WORKPAD_BODY, record_verification_evidence=True,
+    command='lib/test/run-parallel.sh',
+    outcome='refused by the matcher (no output)', run_root=['none'],
+    repo_root=_ci_root)
+assert_eq("#2131 a non-aggregate run-root=none call PATCHes", True, _pN is not None)
+assert_eq("#2131 run-root=none recorded verbatim", True, 'run-root=none' in _pN)
+
+# A second launch appends its own row rather than replacing the first.
+_c3, _o3, _e3, _p3 = _drive_cmd_update(
+    _p, record_verification_evidence=True, command='lib/test/run-parallel.sh',
+    outcome='run-parallel: aggregate CLEAN', run_root=['/tmp/logs2'],
+    repo_root=_ci_root)
+assert_eq("#2131 a second launch keeps both rows", 2,
+          _p3.count('Verification evidence:'))
+
+# git-unavailable at record time stamps head=unestablished and still succeeds.
+_cU, _oU, _eU, _pU = _drive_cmd_update(
+    WORKPAD_BODY, record_verification_evidence=True,
+    command='lib/test/run-parallel.sh', outcome='ran', run_root=['/tmp/logs'],
+    repo_root=_nongit)
+assert_eq("#2131 a verification-evidence call over a non-git root PATCHes", True,
+          _pU is not None)
+assert_eq("#2131 the non-git head is recorded unestablished", True,
+          'head=unestablished' in _pU)
+
+# The CI-evidence option, on a pass, ALSO appends one Verification evidence: row built
+# from its validated operands (command=gh pr checks, outcome=name=conclusion pairs,
+# run-root=run URL), so a local CI reading records with one call.
+_ve_ci_ok = [_ci_head, 'local', 'https://github.com/o/r/actions/runs/9']
+_ve_ci_checks = [[_CI_REQUIRED_A, 'success'], [_CI_REQUIRED_B, 'success']]
+_GATE_BODY_REFL = GATE_BODY + '\n## Devflow Reflection\n'
+workpad._completion_evidence_verdict = lambda args, prog_content: None
+_cC, _oC, _eC, _pC = _drive_cmd_update(
+    _GATE_BODY_REFL, record_completion_evidence_ci=_ve_ci_ok,
+    completion_ci_check=_ve_ci_checks, repo_root=_ci_root)
+assert_eq("#2131 a CI-evidence pass PATCHes", True, _pC is not None)
+
+# A CI-evidence pass over a workpad LACKING the Devflow Reflection section still PATCHes
+# the completion-ci marker (best-effort row append — no regression to the CI contract).
+_cG, _oG, _eG, _pG = _drive_cmd_update(
+    GATE_BODY, record_completion_evidence_ci=_ve_ci_ok,
+    completion_ci_check=_ve_ci_checks, repo_root=_ci_root)
+assert_eq("#2131 a CI pass over a reflection-less workpad still PATCHes", True,
+          _pG is not None)
+assert_eq("#2131 the reflection-less CI pass still records the completion-ci marker",
+          True, 'completion-ci:' in _pG)
+assert_eq("#2131 the CI pass appends one Verification evidence: row", 1,
+          _pC.count('Verification evidence:'))
+assert_eq("#2131 the CI-derived row names the gh pr checks command", True,
+          'command=gh pr checks' in _pC)
+assert_eq("#2131 the CI-derived row's run-root is the run URL", True,
+          'run-root=https://github.com/o/r/actions/runs/9' in _pC)
+assert_eq("#2131 the CI-derived row names the checks and conclusions", True,
+          f'{_CI_REQUIRED_A}=success' in _pC)
+
+
 # ── issue #1898: the --context-mode direct/loop CI route reaches the SAME check ──
 # The reception (direct) and fix-loop (loop) passes reach the CI validation through
 # check-completion-evidence.py's own CLI, supplying a --ci-record. Drive cce.main(argv)
