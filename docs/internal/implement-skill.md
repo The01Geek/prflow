@@ -1783,8 +1783,9 @@ tracked file (`` `docs/a.md docs/b.md` ``, `` `docs/a.md LICENSE` ``). Any other
 `(`, `:`, `*`, or any non-path character (a grant `` `Bash(x.sh:*)` ``), or a bare command word like
 `` `bash lib/test/run.sh` `` (`bash` is extensionless and not an in-tree file) — is a command/grant
 literal: it contributes no tokens, and a **one-time stderr breadcrumb** names the first suppressed span
-(disclosed by Phase 4.1 as ephemeral on the cloud tier — the gate does not capture that stderr, so a
-suppressed span leaves no run-record trace there; see the phase file's cloud-tier residual note). (2) Outside
+(the read boundary `read-doc-needed-deliverables.sh` captures that stderr, forwards it unchanged, and
+relays the span onto stdout as a `docgate-suppressed: ` line that Phase 4.1 Stage 1 records on the
+workpad — see that helper's contract below). (2) Outside
 spans, a `Word(...)` **call group** (a word immediately followed by a parenthesized group, e.g. an
 un-backticked `Bash(lib/test/run.sh:*)`) contributes no tokens. (3) A **fenced code block** — opened and
 closed by a line whose first non-whitespace characters are three-plus backticks or three-plus tildes (the
@@ -1810,7 +1811,9 @@ Stage B emits.
 
 `scripts/read-doc-needed-deliverables.sh <issue-number>` owns the read both stages perform — the
 `gh issue view` fetch, its scratch file, the invocation of `extract-doc-needed-paths.sh` over it, and
-a retry on each. It prints an **outcome token** on a `docgate-outcome: ` line and, on success with
+a retry on each. It prints an **outcome token** on a `docgate-outcome: ` line; on a success token, one
+`docgate-suppressed: ` line when the extractor suppressed a span (the first suppressed span, its
+surrounding backticks removed, which Phase 4.1 Stage 1 records on the workpad); and, on success with
 paths, one `docgate-path: ` line per deliverable. **That helper's own header is the canonical
 statement of its token vocabulary and the exit status paired with each; read it there rather than
 from a copy.** Each token has its own status, and the success statuses are disjoint from the failure
@@ -1956,7 +1959,14 @@ Phase 3.4 gate deferred as Phase-4.1-owned (a `docs/…` deliverable, recorded i
 Phase 4.1: {AC text}` workpad note — see the Phase 3.4 gate above) is this phase's obligation to close.
 Once the docs pass has run and its changes are committed, for **each** such deferred doc-AC the
 orchestrator confirms the required docs actually landed in this run's diff (Stage 2 already verified the
-named deliverable paths) and ticks the criterion by its 1-based position, citing the deferral note. This
+named deliverable paths) and ticks the criterion by its 1-based position, citing the deferral note. When a
+deferred criterion instead **names a check command**, the orchestrator discharges it only after the docs
+commit by running that command itself, in its own tool call over the landed docs — and when the tier does
+not grant the command, the covering run `lib/test/modules/coverage-map.json` names for that unit — then
+quotes the result line of the command it actually ran in the tick note; a subagent's report that it ran the
+command does not discharge the criterion, and a tick note names no result of a gate that has not yet run.
+When the tier refuses both the named command and its covering run, the criterion is left unticked and takes
+the `Blocked` arm below, its reflection naming `prflow_implement.allowed_tools` as the remedy. This
 tick **must** happen before §4.3's terminal `--status Complete` write, because `workpad.py`'s terminal
 Complete gate hard-fails a Complete write while any non-post-merge acceptance-criteria row is still
 unticked — a doc-AC left unticked would abort the finalize. A deferred doc-AC that genuinely cannot be

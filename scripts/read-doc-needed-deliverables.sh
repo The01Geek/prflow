@@ -37,6 +37,10 @@
 # STDOUT SHAPE — each line is SELF-IDENTIFYING BY PREFIX, never by position:
 #
 #   docgate-outcome: <token>     exactly one, on every non-usage exit
+#   docgate-suppressed: <span>   at most one, after the outcome line and only on a
+#                                success token — the FIRST span the extractor
+#                                suppressed, with the breadcrumb's surrounding
+#                                backticks removed (issue #2129)
 #   docgate-path: <path>         zero or more, one per deliverable, after the
 #                                outcome line and only on `deliverables`
 #
@@ -45,7 +49,12 @@
 # extractor — and the extractor emits a `suppressed a span` breadcrumb on stderr for
 # exactly the adversarial bodies this gate exists to handle. A positional "line 1 is
 # the token" contract would read that breadcrumb as the token on a read that
-# succeeded, and would read an interleaved stderr line as a deliverable path.
+# succeeded, and would read an interleaved stderr line as a deliverable path. This
+# helper captures the extractor's stderr to a scratch file, forwards it UNCHANGED to
+# its own stderr (so the merged stream still carries every breadcrumb), and relays
+# the first `suppressed a span` breadcrumb's span onto stdout as the self-identifying
+# `docgate-suppressed: ` line above, so Phase 4.1 records a real span rather than a
+# scripted once-per-run note (issue #2129).
 #
 # Failing the read means the deliverable list is UNKNOWN, never empty: a caller
 # that treats a failure token as `no-deliverables` waves the gate through exactly
@@ -117,18 +126,57 @@ if ! "$DEVFLOW_GH" issue view "$ISSUE" --json body --jq '.body' > "$BODY_FILE" \
   exit 11
 fi
 
-if ! DOC_NEEDED_PATHS="$("$EXTRACTOR" < "$BODY_FILE")" \
-   && ! DOC_NEEDED_PATHS="$("$EXTRACTOR" < "$BODY_FILE")"; then
+# Capture the extractor's stderr to a scratch file so its `suppressed a span`
+# breadcrumb can be parsed (issue #2129) — the breadcrumb is the only channel that
+# names the span. The file is TRUNCATED (not appended) on each attempt, so a retry
+# overwrites the prior attempt's stderr rather than accumulating it.
+EXTRACTOR_ERR="$SCRATCH/devflow-docgate-extractor-err-$ISSUE.txt"
+rm -f "$EXTRACTOR_ERR"
+
+# _rdnd_relay_extractor_stderr — forward the captured extractor stderr UNCHANGED to
+# this helper's own stderr (so the merged tool result still carries every
+# breadcrumb the caller relied on), and set SUPPRESSED_SPAN to the FIRST
+# `suppressed a span` breadcrumb's span text with the breadcrumb's surrounding
+# backticks removed. Bash builtins only (`case`, `while IFS= read -r`, `${var#…}`/
+# `${var%…}`): the value decides an emitted stdout line, so it must not depend on a
+# tool lib/preflight.sh does not guarantee.
+SUPPRESSED_SPAN=""
+_rdnd_relay_extractor_stderr() {
+  [ -f "$EXTRACTOR_ERR" ] || return 0
+  local _line _span
+  while IFS= read -r _line; do
+    printf '%s\n' "$_line" >&2
+    case "$_line" in
+      *"suppressed a span"*)
+        if [ -z "$SUPPRESSED_SPAN" ]; then
+          # Parses suppress_span() in extract-doc-needed-paths.sh: first backtick to
+          # last, so a backtick added to that breadcrumb's text relays the wrong span.
+          _span="${_line#*\`}"
+          _span="${_span%\`}"
+          SUPPRESSED_SPAN="$_span"
+        fi
+        ;;
+    esac
+  done < "$EXTRACTOR_ERR"
+}
+
+if ! DOC_NEEDED_PATHS="$("$EXTRACTOR" < "$BODY_FILE" 2>"$EXTRACTOR_ERR")" \
+   && ! DOC_NEEDED_PATHS="$("$EXTRACTOR" < "$BODY_FILE" 2>"$EXTRACTOR_ERR")"; then
+  _rdnd_relay_extractor_stderr
   printf 'docgate-outcome: %s\n' extract-failed
   exit 12
 fi
 
+_rdnd_relay_extractor_stderr
+
 if [ -z "$DOC_NEEDED_PATHS" ]; then
   printf 'docgate-outcome: %s\n' no-deliverables
+  [ -n "$SUPPRESSED_SPAN" ] && printf 'docgate-suppressed: %s\n' "$SUPPRESSED_SPAN"
   exit 10
 fi
 
 printf 'docgate-outcome: %s\n' deliverables
+[ -n "$SUPPRESSED_SPAN" ] && printf 'docgate-suppressed: %s\n' "$SUPPRESSED_SPAN"
 # Read line-wise rather than word-splitting, so a path carrying whitespace stays
 # one deliverable instead of becoming several.
 printf '%s\n' "$DOC_NEEDED_PATHS" | while IFS= read -r _rdnd_path; do
