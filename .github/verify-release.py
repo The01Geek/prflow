@@ -121,9 +121,11 @@ LEAK_ALLOWLIST = {
 }
 # Binary and large-corpus members are scanned by extension allowlist only; a
 # false positive inside a .png would block a release for no reason.
+# .svg is TEXT and can carry arbitrary content, so it must be leak-scanned; a
+# prior audit found it skipped entirely because it was absent from this set.
 TEXT_SUFFIXES = frozenset({
     ".md", ".mdx", ".py", ".sh", ".yml", ".yaml", ".json", ".jq", ".txt",
-    ".cff", ".css", ".gitattributes", ".gitignore", "",
+    ".cff", ".css", ".svg", ".gitattributes", ".gitignore", "",
 })
 
 
@@ -297,6 +299,48 @@ def check_links(root: Path, paths: list[Path], errors: list[str]) -> None:
             errors.append(f"{rel}: broken local link -> {target}")
 
 
+DOCS_NAV = "docs/external/docs.json"
+
+
+def check_docs_nav(root: Path, paths: list[Path], errors: list[str]) -> None:
+    """Every page the docs-site navigation names must exist in the candidate.
+
+    The navigation manifest is JSON, so `check_links` — which reads markdown link
+    syntax — never sees it. A nav entry pointing at a page the export dropped
+    publishes a broken docs site, and the release IS the docs deploy.
+    """
+    nav = root / DOCS_NAV
+    if not nav.is_file():
+        return
+    try:
+        data = json.loads(nav.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"{DOCS_NAV} is unreadable or invalid JSON: {exc}")
+        return
+
+    def walk(node):
+        if isinstance(node, str):
+            yield node
+        elif isinstance(node, dict):
+            for value in node.values():
+                yield from walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from walk(value)
+
+    present = {_rel(root, p) for p in paths}
+    base = DOCS_NAV.rsplit("/", 1)[0]
+    for entry in walk(data.get("navigation")):
+        if not entry or ":" in entry or entry.startswith(("#", "/")):
+            continue
+        # Group labels share the string space with page paths, so only an entry
+        # that looks like a path is treated as one; otherwise every heading in
+        # the navigation would be reported missing.
+        candidates = [f"{base}/{entry}{ext}" for ext in (".md", ".mdx", "")]
+        if "/" in entry and not any(c in present for c in candidates):
+            errors.append(f"{DOCS_NAV}: navigation names a missing page: {entry}")
+
+
 def check_digests(root: Path, paths: list[Path], errors: list[str]) -> str | None:
     manifest = root / DIGEST_MANIFEST
     if not manifest.is_file():
@@ -409,6 +453,7 @@ def main() -> int:
     check_modes_and_endings(root, paths, errors)
     check_leaks(root, paths, errors)
     check_links(root, paths, errors)
+    check_docs_nav(root, paths, errors)
     digest = check_digests(root, paths, errors)
     check_source_json(root, count, total, errors)
     if args.manifest:
