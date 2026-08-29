@@ -1530,6 +1530,14 @@ rows (an explicit exact-path repo-root grant, and a workspace-absolute grant), e
 exercised as a leading token; until such a dispatch is recorded, treat both as
 `unestablished`.
 
+**A token added to `prflow_implement.allowed_tools` in `.prflow/config.json` must
+also be added to the `EXTRAS` value in `.github/workflows/matcher-probe.yml` at the
+matching position** — the reconciliation is an ordered-list comparison, so a token
+appended to one file but inserted mid-list in the other is a drift even though both
+hold the same set. Its only check is the `#480 matcher-probe EXTRAS mirrors
+probe-eligible prflow_implement.allowed_tools` assertion in `lib/test/run.sh`, which
+runs only in the whole suite — never in a focused run or a lint.
+
 ### The install.sh-vs-vendor-fetch skew warning
 
 The **workflow grants** ship to consumers via `install.sh` **file-copy**, while the
