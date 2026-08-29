@@ -43,6 +43,10 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          # A fork chooses its own branch name, so a branch-name test is NOT an
+          # identity test. Every exemption below is gated on the pull request
+          # coming from this repository; a fork always takes the strict path.
+          IS_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           set -euo pipefail
           judge=".github/verify-release.py .github/workflows/distribution-verify.yml"
@@ -56,8 +60,8 @@ jobs:
             if git cat-file -e "${BASE_SHA}:${f}" 2>/dev/null; then present=$((present+1)); else absent=$((absent+1)); fi
           done
           if [ "$present" -eq 0 ]; then
-            case "$HEAD_REF" in
-              policy-update/*)
+            case "${IS_SAME_REPO}:${HEAD_REF}" in
+              true:policy-update/*)
                 echo "::notice::bootstrap: the judge is absent from the protected base and this is a policy-update branch introducing it. Comparison skipped for this pull request only."
                 exit 0 ;;
               *)
@@ -76,9 +80,9 @@ jobs:
           # it fails, including the ceremony documented for changing it. The control
           # here is that such a branch is judged by the PREVIOUS base verifier and
           # reviewed by a human - not that the diff is forbidden.
-          case "$HEAD_REF" in
-            policy-update/*)
-              echo "::notice::policy-update branch: a judge change is this branch's purpose. It is evaluated by the base verifier and requires human review."
+          case "${IS_SAME_REPO}:${HEAD_REF}" in
+            true:policy-update/*)
+              echo "::notice::policy-update branch in this repository: a judge change is this branch's purpose. It is evaluated by the base verifier and requires human review."
               exit 0 ;;
           esac
 
@@ -95,6 +99,7 @@ jobs:
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          IS_SAME_REPO: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           set -euo pipefail
           # A tree carrying no .release/ metadata is not a release candidate. That
@@ -117,9 +122,9 @@ jobs:
           # belongs to what is actually being published - a release branch, or main
           # itself - and not to an ordinary pull request, which would otherwise be
           # unmergeable for changing so much as a typo.
-          case "${GITHUB_EVENT_NAME}:${HEAD_REF}" in
-            pull_request:release/*|push:*) : ;;
-            pull_request:*)
+          case "${GITHUB_EVENT_NAME}:${IS_SAME_REPO}:${HEAD_REF}" in
+            pull_request:*:release/*|push:*:*) : ;;
+            pull_request:true:*)
               echo "::notice::not a release branch: the digest manifest describes the published release, so an ordinary pull request is not verified against it."
               exit 0 ;;
           esac
