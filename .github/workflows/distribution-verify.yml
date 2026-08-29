@@ -44,8 +44,9 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           # A fork chooses its own branch name, so a branch-name test is NOT an
-          # identity test. Every exemption below is gated on the pull request
-          # coming from this repository; a fork always takes the strict path.
+          # identity test. Both exemptions in THIS step are gated on the pull
+          # request coming from this repository; a fork can never exempt itself
+          # from the judge comparison.
           IS_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           set -euo pipefail
@@ -99,32 +100,46 @@ jobs:
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
-          IS_SAME_REPO: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           # A tree carrying no .release/ metadata is not a release candidate. That
           # is the normal state before the first generated release lands, and it
-          # must not be reported as a failure. It is NEVER acceptable from a
-          # release branch, though: that is exactly the missing-provenance release
-          # this check exists to stop, so the two cases are separated by branch.
+          # must not be reported as a failure. It is NEVER acceptable on what is
+          # actually published - main, or a release branch - nor from a pull
+          # request that deletes provenance the base carries: that is exactly the
+          # missing-provenance release this check exists to stop.
           if [ ! -f .release/source.json ]; then
-            case "$HEAD_REF" in
-              release/*)
-                echo "::error::a release/* candidate carries no .release/source.json — refusing to publish a release without provenance"
+            case "${GITHUB_EVENT_NAME}:${HEAD_REF}" in
+              push:*|pull_request:release/*)
+                echo "::error::this tree carries no .release/source.json — refusing to publish without provenance"
                 exit 1 ;;
-              *)
-                echo "::notice::no .release/ metadata: this tree is not a generated release candidate, so there is no artifact to verify."
-                exit 0 ;;
             esac
+            # A pull request that DELETES provenance the base carries is not a
+            # pre-release tree; without this the whole check reports success on a
+            # tree whose manifest was simply removed.
+            if git cat-file -e "${BASE_SHA}:.release/source.json" 2>/dev/null; then
+              echo "::error::this pull request removes .release/source.json, which the base branch carries — refusing to drop release provenance"
+              exit 1
+            fi
+            echo "::notice::no .release/ metadata: this tree is not a generated release candidate, so there is no artifact to verify."
+            exit 0
           fi
           # Once a release has landed, main carries .release/files.sha256 and EVERY
           # edited file is a digest mismatch. Full artifact verification therefore
           # belongs to what is actually being published - a release branch, or main
           # itself - and not to an ordinary pull request, which would otherwise be
           # unmergeable for changing so much as a typo.
-          case "${GITHUB_EVENT_NAME}:${IS_SAME_REPO}:${HEAD_REF}" in
-            pull_request:*:release/*|push:*:*) : ;;
-            pull_request:true:*)
+          #
+          # Origin is deliberately NOT a discriminator here, unlike in the judge
+          # step above: gating on it leaves every outside contribution permanently
+          # red on the required check, while skipping grants a fork exactly what a
+          # same-repo pull request already gets. A release/* candidate is verified
+          # whatever its origin, and a fork that touches the judge is already
+          # refused above.
+          case "${GITHUB_EVENT_NAME}:${HEAD_REF}" in
+            pull_request:release/*|push:*) : ;;
+            pull_request:*)
               echo "::notice::not a release branch: the digest manifest describes the published release, so an ordinary pull request is not verified against it."
               exit 0 ;;
           esac
