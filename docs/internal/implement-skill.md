@@ -362,34 +362,11 @@ its shard attempts were silently denied. Only an unobservable *recombined* run t
 work, and it does so as the `execution-ceiling` Blocked terminal that Phase 4.3 names —
 distinguishable in the workpad from a run that observed a failing suite.
 
-**The pre-launch preflight is a module-coupling gate, not only generated-artifact drift (issue
-#2121).** `lib/test/run-parallel.sh --preflight` runs the read-only, sub-second registry rows,
-and since issue #2121 those include a `module-coupling` row and an `install-state` row alongside
-the generated-artifact `--check` rows. The `module-coupling` row is the pre-suite counterpart of
-`test_module_runner.py`'s `test_every_on_disk_module_is_fully_wired`: both consume the same
-reusable stdlib checkers in `lib/test/module_coupling.py`, so a `lib/test/modules/*.sh` module
-left un-registered, un-sharded, un-shellchecked, un-provenanced, missing from the mutation-pin
-fixture or exact-policy population, or violating the module-body contract (SPDX header, caller
-contract text, no full-suite self-invocation, no monolith-only helper references, no direct
-`skip` calls) fails the coordinator's gate in under a second rather than minutes into the Python
-suite. The row also asserts the mutation-census parse-cache clears the swept shell-source
-population plus five entries of headroom. Which surfaces run at the pre-suite tier versus stay
-suite-only is the closed `MODULE_COUPLING_SURFACES` inventory (`gate_tier` ∈ {`preflight`,
-`suite-only`}); each executable row also resolves bidirectionally to one `ARTIFACT_LIFECYCLES`
-entry (`branch-generated` / `by-hand` / `main-side`), with `scripts/devflow-cloud-writer-contract.json`
-the `main-side` metadata-only exception that feature-branch preflight reports but never writes.
-The verdict contract is unchanged in shape — a positively-attributed omission emits
-`regenerate-artifacts: preflight-verdict: drift`, exits 1, and launches no shard; an unreadable,
-malformed, or timed-out row emits `uncheckable`, exits 2, and warns-and-proceeds; drift takes
-precedence over uncheckable. The pass is bounded by a five-second aggregate deadline
-(`time.perf_counter_ns()`) with per-row bounds and platform-aware timed-out-row termination, and
-emits a typed coupling receipt (`regenerate-artifacts: coupling-receipt: state=clean …`) that the
-coordinator re-emits on stdout before shards; an explicitly-empty `DEVFLOW_ARTIFACT_PREFLIGHT`
-now emits a typed disabled receipt and its warn-and-proceed line on stderr rather than silently
-skipping. The batched `lib/test/regenerate-artifacts.py` pass stays the sole writer, and the
-change adds no `.prflow/config.json` allowlist grant. The contributor-facing statement of this
-gate is in `CONTRIBUTING.md` under *The pre-suite check also gates module coupling and
-install-state*.
+**The pre-launch preflight is also a module-coupling gate (issue #2121).** `lib/test/run-parallel.sh
+--preflight` runs a `module-coupling` row and an `install-state` row beside the generated-artifact
+checks, so a stale module registration or marker fails the gate in about a second rather than
+minutes into the suite; `CONTRIBUTING.md` under *The pre-suite check also gates module coupling
+and install-state* is the canonical statement.
 
 **The same recombination primitive also backs a second path: the same-tree failed-shard-only
 relaunch (issue #2008).** After a RED coordinator pass whose fix changed no repository file, the
