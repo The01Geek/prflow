@@ -8,10 +8,10 @@ manifest induces drift in checked-in generated records.
 Discovering that drift one full-suite run at a time is the dominant cost of a loop
 iteration, because the full suite is the slowest verification step in the repo. Run
 this helper once after applying edits and before each full-suite re-verify run: it
-regenerates any mechanically-safe artifact (none is registered today — see the note above
-the ROWS tuple), runs each judgment-gated artifact's
-non-writing check, and reports every resulting judgment item together, so the next
-suite run verifies a tree whose generated artifacts are already reconciled.
+regenerates any mechanically-safe artifact (the `install-state` row, issue #2121), runs each
+judgment-gated artifact's non-writing check, and reports every resulting judgment item
+together, so the next suite run verifies a tree whose generated artifacts are already
+reconciled.
 
 OPT-IN ROWS. A row declaring `opt_in: True` is skipped by the default pass and runs only
 under the flag its report line names (`--with-floors` for `exact-module-floors`, the one
@@ -74,11 +74,12 @@ verifies the placement, because rows declare their outputs and not their inputs.
 WRITE SCOPE: writing rows declare their complete `writes` set in the registry. The
 exact-floor row may raise `scripts/workflow-flight-recorder-registry.json` and
 `lib/test/run.sh` together. Every judgment row runs a non-writing check and never writes
-its artifact. (No `mechanical` row is registered today; see the note above the ROWS
-tuple.)
+its artifact. (The `install-state` row is the one `mechanical` row registered, issue #2121;
+see the note above the ROWS tuple.)
 
-EXIT CONTRACT (exactly three states). Its `mechanical row` clauses are conditional on such
-a row being registered; none is today, so they select nothing in a production run:
+EXIT CONTRACT (exactly three states). Its `mechanical row` clauses select for the registered
+`install-state` mechanical row (issue #2121); its `cloud-writer-contract:` exit-1 marker arm
+below is install-state-inapplicable, so an install-state exit 1 routes to INFRASTRUCTURE:
   0 — every row resolved in its declared clean state (its command exited in that
       state), the mechanical regeneration changed nothing, and no exit-1-forcing
       judgment item was printed.
