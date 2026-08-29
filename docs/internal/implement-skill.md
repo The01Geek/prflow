@@ -1949,7 +1949,14 @@ Phase 3.4 gate deferred as Phase-4.1-owned (a `docs/…` deliverable, recorded i
 Phase 4.1: {AC text}` workpad note — see the Phase 3.4 gate above) is this phase's obligation to close.
 Once the docs pass has run and its changes are committed, for **each** such deferred doc-AC the
 orchestrator confirms the required docs actually landed in this run's diff (Stage 2 already verified the
-named deliverable paths) and ticks the criterion by its 1-based position, citing the deferral note. This
+named deliverable paths) and ticks the criterion by its 1-based position, citing the deferral note. When a
+deferred criterion instead **names a check command**, the orchestrator discharges it only after the docs
+commit by running that command itself, in its own tool call over the landed docs — and when the tier does
+not grant the command, the covering run `lib/test/modules/coverage-map.json` names for that unit — then
+quotes the result line of the command it actually ran in the tick note; a subagent's report that it ran the
+command does not discharge the criterion, and a tick note names no result of a gate that has not yet run.
+When the tier refuses both the named command and its covering run, the criterion is left unticked and takes
+the `Blocked` arm below, its reflection naming `prflow_implement.allowed_tools` as the remedy. This
 tick **must** happen before §4.3's terminal `--status Complete` write, because `workpad.py`'s terminal
 Complete gate hard-fails a Complete write while any non-post-merge acceptance-criteria row is still
 unticked — a doc-AC left unticked would abort the finalize. A deferred doc-AC that genuinely cannot be
