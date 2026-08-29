@@ -1,6 +1,6 @@
 # `/prflow:implement` skill — Phase 2.3 sweep discipline and Phase 4.3 finalize
 
-<!-- verified-against: b50e32558 2026-08-28 -->
+<!-- verified-against: 01daaeeb3 2026-08-29 -->
 
 **Skill:** `skills/implement/phases/phase-2-sweeps-contract.md` (Phase 2.3, *Implement*) — read at phase entry by the thin `skills/implement/SKILL.md` orchestrator. It carries the §2.3 preamble and the trigger heading and predicate of the 2.3.0-family conditional sweeps; its sibling `skills/implement/phases/phase-2-sweeps-quality.md` carries the six always-firing sweeps' procedures in full plus the trigger heading and predicate of the remaining conditional sweeps (2.3.1, 2.3.2, 2.3.7). Since issue #1581 the eight conditional sweeps' *procedures* live in per-sweep gated references (see **Gated conditional-sweep procedures** below).
 
@@ -381,7 +381,9 @@ detail class, with the omitted count announced — because its other reader is a
 context window. Nothing is lost: every shard's complete captured log is retained under the run
 root the coordinator prints, which is the artifact a failing gate is diagnosed from and the one
 the `Verification evidence:` marker records (on every tier that maintains a workpad since issue
-#1249, cloud `/prflow:implement` included). That also removes the pre-#1086 caller-side
+#1249, cloud `/prflow:implement` included). Since issue #2131 that record's field set is owned by
+`scripts/workpad.py` — the `--record-verification-evidence` option (run `scripts/workpad.py update
+--help`), which refuses an incomplete record — not `CLAUDE.md`. That also removes the pre-#1086 caller-side
 `> .prflow/tmp/verification-<N>.log 2>&1` capture: the coordinator retains the launch itself.
 
 **Same-checkout isolation.** Each shard gets a private tally directory under a *fresh* run root and a private
@@ -1111,7 +1113,9 @@ grant history.
 
 **None of this weakens the gate.** The final completion claim still takes a whole-suite
 result, and the #456 skip accounting is unchanged — a nonempty skip tally is not clean, and a
-focused module may not self-skip. Which result counts is tier-scoped since issue #1607: the
+focused module may not call the raw `skip` helper (though it may declare a host-capability
+condition through `module_host_capability_skip`, which the focused runner records and folds into
+a visible skip with its assertion credit applied). Which result counts is tier-scoped since issue #1607: the
 cloud implement tier runs the suite in its own environment, while this repository's
 local/interactive tier commits, pushes, and reads CI for that pushed commit, treating an
 absent run or an unestablished reading as a stop rather than a pass. A suite result is

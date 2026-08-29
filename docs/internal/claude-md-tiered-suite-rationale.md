@@ -147,7 +147,9 @@ outright. Richer detail about a result that may be an artifact of the host is no
 gate; it is a better debugger.
 
 The `#456` skip accounting is unchanged on either reading: a nonempty skip tally is not clean,
-and a focused module may not self-skip (`run-module.sh` makes `skip()` fatal).
+and a focused module may not call the raw `skip` helper (`run-module.sh` makes a raw `skip()`
+fatal), though it may declare a host-capability condition through `module_host_capability_skip`,
+which the focused runner records and folds into a visible skip with its assertion credit applied.
 
 ### Why the tiers must not be merged, and what the CI reading costs
 
@@ -206,9 +208,12 @@ the repository (issue #1249). A completion claim missing a record for a launch t
 
 The records are distinguished by the distinct run root the coordinator mints and prints per launch
 (`run-<pid>-<n>`), so there is no launch counter and no launch ordinal to maintain: the number of
-records is simply the number of launches. Issue #1252 added the launch's own start time to the
-record's stated content because the reflection channel timestamps nothing and the run root carries
-no clock, so without it the interval between two consecutive records is not derivable.
+records is simply the number of launches. Issue #1252 added the launch's own start time — the
+`started-at` field — to the record's stated content because the reflection channel timestamps
+nothing and the run root carries no clock, so without it the interval between two consecutive
+records is not derivable. Since issue #2131 the record's field set is owned by `scripts/workpad.py`
+(the `--record-verification-evidence` option; run `scripts/workpad.py update --help`), not this page
+or `CLAUDE.md`, and the tool refuses an incomplete record.
 
 `note` is the required reflection kind because it is the only kind `lib/cheap-gate.jq` does not
 treat as friction: a marker recorded as any other kind would flip an otherwise-clean run and make
