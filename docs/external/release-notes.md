@@ -9,6 +9,16 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## August 29, 2026
+
+- **`/prflow:create-issue` now prints the drafted issue in chat only on request, keeping the
+  saved-file path as the default presentation.** Step 4 writes the draft file and shows its path,
+  the audit summary, the disclosures and the investigation record first — without the body — and
+  the combined decision question carries a new *print the full draft in chat* answer that renders
+  the title and body verbatim on demand. A write-failed run, an unbound draft, and a
+  non-interactive run still print the body as before. Approval stays explicit and about the exact
+  saved bytes. (#2122)
+
 ## August 28, 2026
 
 - **Catch vacuous preservation tests and documentation-scope leaks earlier.** Implement runs now require distinguishable preservation fixtures, classify cleanup failures, and stop plain label-and-em-dash issue peers from becoming mandatory documentation. ([#2110](https://github.com/The01Geek/prflow/pull/2110))

@@ -14,7 +14,7 @@ Separating issue shaping from implementation gives the implementer an approved, 
 
 ## Boundaries and failure paths
 
-- Issue creation requires explicit user approval of the rendered draft.
+- Issue creation requires explicit user approval of the draft as presented — saved to a file whose path is shown by default, with the full body printed in chat only on request.
 - Implementation cannot skip its mandatory phases or turn an unavailable verification result into completion.
 - Review and fix findings remain visible when deferred or unestablished.
 - Documentation impact is evaluated separately for internal and external products.
