@@ -11,6 +11,20 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 ## August 29, 2026
 
+- **A pull request from a fork can pass the release verification check.** Artifact
+  verification is skipped for an ordinary pull request, because the digest manifest describes
+  the published release and any edit is a mismatch. That exemption was gated on the pull
+  request coming from the repository itself, so a contribution from a fork was verified
+  against the manifest instead and failed on every file it changed — an outside contributor
+  saw a red required check they could do nothing about. Origin no longer decides it. A
+  release candidate is still verified whatever its origin, and a fork that touches the
+  verifier is still refused.
+- **A published tree carrying no provenance is refused.** The guard that rejects a missing
+  `.release/source.json` keyed on the branch name alone, and a push carries the branch name
+  `main` rather than a release branch name — so deleting that one file reported the whole
+  check as passing, on the published branch as well as on the pull request that removed it. A
+  push without provenance, and a pull request that deletes provenance the branch it targets
+  carries, are both refused now.
 - **`/prflow:create-issue` now prints the drafted issue in chat only on request, keeping the
   saved-file path as the default presentation.** Step 4 writes the draft file and shows its path,
   the audit summary, the disclosures and the investigation record first — without the body — and
@@ -43,8 +57,9 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
   exemption that lets a maintainer change the verifier keyed on the branch name, and a fork
   chooses its own branch names — so a fork branch named `policy-update/…` skipped both the
   judge-comparison and the artifact verification, and reported the required check green on a
-  tree that had never been verified. Every exemption is now gated on the pull request coming
-  from the repository itself; a fork always takes the strict path.
+  tree that had never been verified. The judge-comparison step's exemptions are now gated on
+  the pull request coming from the repository itself, so a fork can never introduce or edit
+  the verifier that judges it.
 - **The shipped workflows now declare a least-privilege floor.** They carried no top-level
   `permissions:`, so in a repository whose default workflow permission is read-and-write,
   every job received a full read-write token whether it needed one or not. They now default
