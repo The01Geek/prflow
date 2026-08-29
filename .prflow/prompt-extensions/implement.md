@@ -78,8 +78,9 @@ that cannot produce one stops at `Blocked` naming the cause rather than claiming
 
 **This run's records go on the issue workpad.** Write the focused-selection marker as a
 `## Progress` note (`scripts/workpad.py update <ISSUE_NUMBER> --note "<marker>"`) and each
-`Verification evidence:` marker with the `note` reflection kind, so a compacted run's
-verification choices survive in the repository rather than only in its transcript.
+`Verification evidence:` marker through `scripts/workpad.py update <ISSUE_NUMBER>
+--record-verification-evidence`, which appends it as the `note` reflection kind, so a compacted
+run's verification choices survive in the repository rather than only in its transcript.
 
 **A mid-iteration full-suite run is a `## Devflow Reflection` bullet, not a `## Progress` note.**
 The missing focused coverage is the signal the retrospective turns into the next extraction
