@@ -1,6 +1,6 @@
 # Development and testing
 
-<!-- verified-against: 26c9ad96d 2026-08-25 -->
+<!-- verified-against: 01daaeeb3 2026-08-29 -->
 
 This page explains how to develop and verify changes in the PRFlow repository itself: which test commands exist, which one to use when, and which signal counts as the completion gate. It is for a contributor or coding agent working in this checkout.
 
