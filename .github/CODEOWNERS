@@ -1,0 +1,14 @@
+# Ownership for review routing. This repository requires no approving review, so
+# these entries request a reviewer rather than block a merge — the automated
+# controls (distribution-verify, required pull requests, linear history,
+# rebase-only merges) are the enforcing gates.
+#
+# The paths below are the ones where an unnoticed change is most costly: the
+# release verifier and its workflow are the integrity control, and .release/ is
+# the provenance a consumer checks a published tree against.
+
+/.github/                 @The01Geek
+/.github/verify-release.py @The01Geek
+/.release/                @The01Geek
+/install.sh               @The01Geek
+/.claude-plugin/          @The01Geek

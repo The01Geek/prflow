@@ -15,7 +15,7 @@ name: DevFlow
 # path is therefore a collaborator commenting `/devflow:review` — this file's
 # `command` job. A consumer can additionally opt into having that same comment
 # posted automatically once their CI is green, with the documented snippet in
-# docs/internal/workflow-triggers.md (issue #990); it routes into this same `command`
+# https://prflow.ai/docs/runs/cloud/triggers (issue #990); it routes into this same `command`
 # job. The runner was split out in the first place because a called reusable
 # workflow's permission ceiling is validated against the caller's grant across
 # the whole graph: co-locating the high-privilege `command` job (contents:write
@@ -30,7 +30,7 @@ name: DevFlow
 # below negates `@claude`, so an `@claude …` comment routes ONLY to Anthropic's
 # listener and a bare `/devflow:*` comment routes ONLY here — the two can never
 # double-fire. The heavy /devflow:implement path lives in devflow-implement.yml
-# under the same partition. See docs/internal/cloud-setup.md.
+# under the same partition. See https://prflow.ai/docs/runs/cloud/setup.
 
 on:
   # issue_comment is the SOLE subscription (issue #1163). Its jobs check out the
@@ -56,6 +56,12 @@ on:
 defaults:
   run:
     shell: bash
+
+# Least-privilege floor. A consumer repository whose default workflow permission is
+# read-and-write would otherwise hand every job here a full read-write token; jobs that
+# genuinely need more declare it themselves and override this.
+permissions:
+  contents: read
 
 jobs:
   config:
@@ -528,7 +534,7 @@ jobs:
       # Optional, opt-in: mint an App token DOWNSCOPED to the notice's needs —
       # PR comment only (no contents/workflows/issues). Same opt-in/fail-loud/
       # downscope contract as the review mint in devflow-runner.yml — see
-      # docs/internal/cloud-setup.md. Minted only when the notice below will actually
+      # https://prflow.ai/docs/runs/cloud/setup. Minted only when the notice below will actually
       # post (suppress), so the common non-suppressed path stays mint-free.
       - name: Mint downscoped notice token (optional)
         id: dedupe_app_token
@@ -671,7 +677,7 @@ jobs:
       # (issues:write + pull-requests:write — the narrowest grant GitHub offers
       # for comment reactions; no contents/workflows: this job neither reads
       # code with it nor pushes). Same opt-in/fail-loud/downscope contract as
-      # the review mint in devflow-runner.yml — see docs/internal/cloud-setup.md. NOTE:
+      # the review mint in devflow-runner.yml — see https://prflow.ai/docs/runs/cloud/setup. NOTE:
       # fail-loud means a configured-but-broken App fails THIS gate job (and so
       # blocks the command path) — deliberate, so a broken App is never
       # silently degraded around. Minted only when the reaction below will
@@ -915,7 +921,7 @@ jobs:
       # runs from the same vendored tree, which no ladder reaches because the loader
       # is what consults the closure. A ladder would therefore add complexity without
       # adding a case it defends. That residual is recorded in
-      # docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md's base-ref trust boundary, not glossed.
+      # https://prflow.ai/docs's base-ref trust boundary, not glossed.
       #
       # No `set -e`: every arm here already degrades to the safe empty closure, so an
       # unexpected non-zero must not abort the job and deny the command path
@@ -998,7 +1004,7 @@ jobs:
             fi
           fi
           if [ -n "$REASON" ]; then
-            echo "::warning::devflow trusted prompt-extension closure not populated: ${REASON}. This run proceeds with NO consumer prompt-extension text rather than reading the pull-request head; see the trusted-ref rule in docs/internal/cloud-setup.md."
+            echo "::warning::devflow trusted prompt-extension closure not populated: ${REASON}. This run proceeds with NO consumer prompt-extension text rather than reading the pull-request head; see the trusted-ref rule in https://prflow.ai/docs/runs/cloud/setup."
           fi
 
           # Skew probe (the replacement for the runner's truncation belt). The loader
@@ -1035,7 +1041,7 @@ jobs:
       # `.prflow/config.json`'s `setup` block. The logic lives in the
       # setup-project-env composite action so devflow.yml and
       # devflow-implement.yml share ONE copy (checkout above gives the action
-      # the repo + config to read). See docs/internal/cloud-setup.md for the rationale.
+      # the repo + config to read). See https://prflow.ai/docs/runs/cloud/setup for the rationale.
       - id: cfg
         uses: ./.github/actions/read-project-config
       - uses: ./.github/actions/setup-project-env
@@ -1374,7 +1380,7 @@ jobs:
       # launcher shell can pipe it; an in-process `unset` alone would NOT scrub the
       # long-lived refresher's /proc environ, which snapshots exec time — proc(5)).
       # The loop traps TERM/exits 0; the `if: always()` pidfile-kill step retires it.
-      # Kept in sync with devflow-implement.yml. See docs/internal/cloud-setup.md.
+      # Kept in sync with devflow-implement.yml. See https://prflow.ai/docs/runs/cloud/setup.
       - name: Start credential refresher (optional)
         id: refresher
         if: ${{ vars.DEVFLOW_APP_ID != '' && !startsWith(needs.gate.outputs.command, '/prflow:review ') }}
@@ -1452,7 +1458,7 @@ jobs:
       # `--arg section` value differs. An empty decision (no provider) reproduces
       # today's Anthropic-OAuth wiring for a given `claude_model` (one deliberate
       # change: an empty resolved model now fails loud instead of rendering
-      # `--model null`). See docs/internal/cloud-setup.md.
+      # `--model null`). See https://prflow.ai/docs/runs/cloud/setup.
       - name: Resolve model provider
         id: provider
         env:
@@ -1760,7 +1766,7 @@ jobs:
           # must NOT suppress the splice ::notice:: for the valid extras. Without
           # COMPOSE to render the annotation, mirror the helper's arms inline and
           # emit each independently, so a spliced entry is never added without an
-          # audit line (docs/internal/cloud-setup.md: every spliced entry logged, never silent).
+          # audit line (https://prflow.ai/docs/runs/cloud/setup: every spliced entry logged, never silent).
           if [ -f "$COMPOSE" ]; then
             # Capture the renderer's status rather than `|| true`-swallowing it: the
             # extras were already spliced above, so a non-zero renderer must still
@@ -2119,7 +2125,7 @@ jobs:
           # claude-md-management@ are ambient-command conveniences, NOT engine dependencies
           # — DevFlow's review/implement engine dispatches neither (the "zero companion-plugin
           # dependencies" claim is scoped to the consumer install + what the engine dispatches;
-          # see docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md §6). devflow@ is DevFlow itself. The baked
+          # see https://prflow.ai/docs §6). devflow@ is DevFlow itself. The baked
           # baseline three are composed by the step above; settings-declared extras are
           # appended beyond them.
           plugins: ${{ steps.plugins.outputs.plugins }}

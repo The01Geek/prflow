@@ -10,7 +10,7 @@ The installer is review-first on an update: it previews by default, and it never
 ## Update in Three Steps
 
 <Note>
-  The examples below pin `v2.34.50`. Replace it with the tag you are moving to, from the [releases page](https://github.com/The01Geek/prflow/releases).
+  The examples below pin a specific release tag. Replace it with the tag you are moving to, from the [releases page](https://github.com/The01Geek/prflow/releases).
 </Note>
 
 <Steps>
@@ -18,16 +18,16 @@ The installer is review-first on an update: it previews by default, and it never
     Download the newer installer and pass the same new tag as the payload.
 
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.38.0/install.sh -o devflow-install.sh
+    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.38.1/install.sh -o devflow-install.sh
     # read devflow-install.sh, then:
-    DEVFLOW_REF=v2.38.0 bash devflow-install.sh
+    DEVFLOW_REF=v2.38.1 bash devflow-install.sh
     ```
 
     On an existing installation this runs in dry-run mode. It does not intentionally change your repository, though it can create temporary files, and it does execute the script you downloaded. Read that file before you run it.
   </Step>
   <Step title="Apply It">
     ```bash
-    DEVFLOW_REF=v2.38.0 bash devflow-install.sh --apply
+    DEVFLOW_REF=v2.38.1 bash devflow-install.sh --apply
     ```
 
     This refreshes the managed workflows, the composite actions and the configuration schema. It backfills newly added configuration keys and preserves the values and arrays you already set.

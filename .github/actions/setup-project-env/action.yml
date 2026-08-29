@@ -2,7 +2,7 @@ name: 'Set up project runtime (Python / Node / PHP / services / deps)'
 description: |
   Provision the GitHub Actions runner from `.prflow/config.json`'s `setup`
   block BEFORE Claude runs, rather than hardcoding the toolchain (see that file
-  / docs/internal/cloud-setup.md for the rationale). In order: optional Python, Node
+  / https://prflow.ai/docs/runs/cloud/setup for the rationale). In order: optional Python, Node
   (with npm/yarn/pnpm download caching when a lockfile is present), and PHP;
   then optional service containers (`docker run`); then the configured
   dependency-install lines.
