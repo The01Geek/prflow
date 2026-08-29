@@ -4,6 +4,17 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.16] — 2026-08-29
+
+### Changed
+- **`/prflow:create-issue` now prints the drafted issue in chat only on request, keeping the
+  saved-file path as the default presentation.** Step 4 writes the draft file and shows its path,
+  the audit summary, the disclosures and the investigation record first — without the body — and
+  the combined decision question carries a new *print the full draft in chat* answer that renders
+  the title and body verbatim on demand. A write-failed run, an unbound draft, and a
+  non-interactive run still print the body as before. Approval stays explicit and about the exact
+  saved bytes. (#2122)
+
 ## [2.36.15] — 2026-08-28
 
 ### Fixed
