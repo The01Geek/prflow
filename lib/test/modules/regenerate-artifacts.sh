@@ -2407,6 +2407,15 @@ _ra_bind_fails_closed "a negative timeout_seconds is rejected" \
 # traceback), driven end-to-end through the shared `_ra_bind_fails_closed` harness. The `(`/`)`
 # are escaped: the harness runs `sed -E`, so bare parens are ERE groups.
 # ════════════════════════════════════════════════════════════════════════════
+_ra_bind_fails_closed "a non-(id, value) lifecycle entry" \
+  's/\("install-state", "branch-generated"\)/"not-a-pair"/' \
+  "an (id, value) pair"
+_ra_bind_fails_closed "a lifecycle entry with an empty identifier" \
+  's/\("install-state", "branch-generated"\)/("", "branch-generated")/' \
+  "missing/empty identifier"
+_ra_bind_fails_closed "a lifecycle entry with a boolean value" \
+  's/\("install-state", "branch-generated"\)/("install-state", True)/' \
+  "missing/empty value"
 _ra_bind_fails_closed "a lifecycle entry with an unknown value" \
   's/\("install-state", "branch-generated"\)/("install-state", "no-such-class")/' \
   "unknown value"

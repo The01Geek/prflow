@@ -3720,12 +3720,41 @@ class ModuleCouplingSurfaceOmissionTest(unittest.TestCase):
             dc.replace(ctx, registry=ghost_registry),
         )
 
+        # module-body-contract has five independent sub-branches — plant each so no branch can
+        # be dropped from the surface checker while the SPDX case alone keeps the suite green.
+        # (a) SPDX header removed.
         module_texts = dict(ctx.module_texts)
         module_texts[mid] = module_texts[mid].replace(
             "# SPDX-FileCopyrightText: 2026 Daniel Radman\n", "", 1
         )
         self._assert_omission(
             mc.surface_module_body_contract, dc.replace(ctx, module_texts=module_texts)
+        )
+        # (b) required caller-contract text removed.
+        no_contract = dict(ctx.module_texts)
+        no_contract[mid] = no_contract[mid].replace(
+            "Contract: the caller sets LIB and RESULTS_FILE", "REMOVED", 1
+        )
+        self._assert_omission(
+            mc.surface_module_body_contract, dc.replace(ctx, module_texts=no_contract)
+        )
+        # (c) self-invocation of the full-suite boundary.
+        self_invoke = dict(ctx.module_texts)
+        self_invoke[mid] = self_invoke[mid] + '\ndevflow_run_full_suite_module "x"\n'
+        self._assert_omission(
+            mc.surface_module_body_contract, dc.replace(ctx, module_texts=self_invoke)
+        )
+        # (d) monolith-only pin helper referenced in code position.
+        monolith = dict(ctx.module_texts)
+        monolith[mid] = monolith[mid] + "\npin_count foo bar\n"
+        self._assert_omission(
+            mc.surface_module_body_contract, dc.replace(ctx, module_texts=monolith)
+        )
+        # (e) direct skip call in command position.
+        skip_call = dict(ctx.module_texts)
+        skip_call[mid] = skip_call[mid] + "\nskip host-capability\n"
+        self._assert_omission(
+            mc.surface_module_body_contract, dc.replace(ctx, module_texts=skip_call)
         )
 
 
@@ -3963,6 +3992,24 @@ class PreflightDeadlineTest(unittest.TestCase):
             rc = R.run_preflight(ROOT, deadline_ns=5_000_000_000, clock=clock)
         self.assertEqual(rc, 2)
         unreached.assert_not_called()
+
+    def test_drift_dominates_a_coexisting_uncheckable_row(self) -> None:
+        # A preflight with BOTH a positively-identified drift and an uncheckable row must emit
+        # the drift verdict and exit 1 (drift precedence) — never let the uncheckable mask it.
+        R = REGEN
+        calls = []
+
+        def spy(row, root, report, timeout_seconds, posix=True):
+            calls.append(row["name"])
+            # First eligible row drifts; a later one is uncheckable.
+            if len(calls) == 1:
+                return True, False  # drift
+            return False, True  # uncheckable
+
+        with mock.patch.object(R, "run_preflight_row", spy):
+            rc = R.run_preflight(ROOT)
+        self.assertEqual(rc, 1)
+        self.assertGreaterEqual(len(calls), 2)
 
     def test_receipt_deadline_ms_is_exactly_5000(self) -> None:
         # Real defaults: the typed receipt carries the 5000ms aggregate deadline (AC80).
