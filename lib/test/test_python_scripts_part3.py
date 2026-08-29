@@ -7339,7 +7339,7 @@ assert_eq("#2131 the CI-derived row names the gh pr checks command", True,
 assert_eq("#2131 the CI-derived row's run-root is the run URL", True,
           'run-root=https://github.com/o/r/actions/runs/9' in _pC)
 assert_eq("#2131 the CI-derived row names the checks and conclusions", True,
-          f'{_CI_REQUIRED_A}=success' in _pC)
+          f'{_CI_REQUIRED_A}=success' in _pC and f'{_CI_REQUIRED_B}=success' in _pC)
 
 
 # ── issue #1898: the --context-mode direct/loop CI route reaches the SAME check ──
