@@ -29,6 +29,16 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 - **Installer and documentation links now point at the public documentation site.** Messages from
   `install.sh` and `SECURITY.md` that previously referenced maintainer-only documentation paths
   now link to the equivalent pages on the documentation site, so a reader can always reach them.
+- **The documentation site deploys again.** The frozen-`DEVFLOW_*` advisory moved into the
+  published cloud-setup page, and it carried its generated region's HTML comment delimiters
+  with it. The documentation site parses those pages as MDX, which rejects an HTML comment
+  outright, so the deployment failed and the site kept serving its previous build. The
+  region's markers are now MDX comments and the docs build validates clean.
+- **Release verification covers two surfaces it previously skipped.** SVG files are text and
+  can carry anything, but were absent from the scanned set, so images shipped unexamined.
+  The documentation navigation manifest is JSON, so the markdown link checker never read it
+  — a navigation entry pointing at a page that no longer ships would have published a broken
+  site. Both are now checked on every release, each proven against a planted defect.
 
 ## August 28, 2026
 

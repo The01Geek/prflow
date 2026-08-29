@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://prflow.ai
+    about: Installation, configuration, workflows and troubleshooting.
+  - name: Report a security vulnerability
+    url: https://github.com/The01Geek/prflow/security/policy
+    about: Please do not open a public issue for a security report.

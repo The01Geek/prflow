@@ -4,9 +4,9 @@ description: Use when setting up PRFlow in a repo for the first time, or after a
 disable-model-invocation: true
 ---
 
-# DevFlow Init
+# PRFlow Init
 
-Scaffold this repo's DevFlow config files. One command does everything — do not hand-write `config.json` or guess field values.
+Scaffold this repo's PRFlow config files. One command does everything — do not hand-write `config.json` or guess field values.
 
 **Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. Otherwise locate the directory yourself — this text lives in a file inside it, whose sibling `../../scripts/` directory exists — by replacing the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line) and accepting a candidate only once `ls <candidate>/../../scripts/` succeeds in the same shell the helper commands run in. If a path form is rejected, use the form that shell reports (`pwd` shows it); a Windows-form base directory (`C:\...`) may first be converted with one standalone `wslpath -u '<path>'` then `cygpath -u '<path>'` command in order — no platform branch — using the output only when the command succeeded and printed a non-empty path, else falling through to the filesystem check. Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If no candidate validates — neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory whose `../../scripts/` exists — stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
@@ -161,7 +161,7 @@ It resolves the templates from the installed plugin (`"${CLAUDE_SKILL_DIR:-<abso
 
 ## Then: verify the runtime dependencies are present
 
-The scaffolder needs only `jq`, but running DevFlow's skills needs more — and PyYAML is the one dependency people miss, because `/plugin install` resolves companion *plugins* and never runs `pip`. After scaffolding, run the preflight check and surface any gap:
+The scaffolder needs only `jq`, but running PRFlow's skills needs more — and PyYAML is the one dependency people miss, because `/plugin install` resolves companion *plugins* and never runs `pip`. After scaffolding, run the preflight check and surface any gap:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/preflight.sh
@@ -299,7 +299,7 @@ Then branch on the preflight result — the exit code plus, on exit 0, the stabl
 
 There is no trigger label to create: in the cloud tier, `/prflow:implement` is started by commenting a bare `/prflow:implement <#>` on the issue (a native user event) — not by applying a label. The sender must be an allowed bot or an `allowed_users` collaborator with write access.
 
-DevFlow does, however, stamp a single reserved provenance label — the literal `PRFlow` — on every issue and PR it creates, so the weekly retrospective can detect its own work independently of branch naming. Create that label now (best-effort, only here where `gh` is available) so it exists from day one:
+PRFlow does, however, stamp a single reserved provenance label — the literal `PRFlow` — on every issue and PR it creates, so the weekly retrospective can detect its own work independently of branch naming. Create that label now (best-effort, only here where `gh` is available) so it exists from day one:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/ensure-label.sh PRFlow
