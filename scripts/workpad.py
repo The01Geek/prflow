@@ -4615,8 +4615,8 @@ def _git_head_or_unestablished(root: str) -> str:
         # Not only OSError: a non-UTF-8 git output raises UnicodeDecodeError, and the
         # docstring promises this never raises (parity with _git_root_error_suffix).
         sys.stderr.write(
-            "workpad.py: verification-evidence head unestablished — git could "
-            f"not run ({e}); recording head=unestablished\n")
+            "workpad.py: verification-evidence head unestablished — git gave no "
+            f"usable answer ({e!r}); recording head=unestablished\n")
         return _VERIFICATION_EVIDENCE_HEAD_UNESTABLISHED
     sha = (r.stdout or '').strip()
     if r.returncode != 0 or not re.fullmatch(r'[0-9a-f]{40}', sha):

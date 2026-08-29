@@ -7311,7 +7311,7 @@ assert_eq("#2131 the non-git root routes through the rc!=0 arm", True, 'gave rc=
 
 # The could-not-run arm (git never ran): a root that is a FILE makes subprocess raise
 # NotADirectoryError before git starts; the record still PATCHes with head=unestablished
-# and the breadcrumb attributes the cause to git not running, not to git's rc.
+# and the breadcrumb carries the exception, not a git rc.
 _notdir = _tmp1087.mkstemp()[1]
 _cF, _oF, _eF, _pF = _drive_cmd_update(
     WORKPAD_BODY, record_verification_evidence=True,
@@ -7321,8 +7321,8 @@ assert_eq("#2131 a verification-evidence call over a non-directory root PATCHes"
           _pF is not None)
 assert_eq("#2131 the could-not-run head is recorded unestablished", True,
           'head=unestablished' in _pF)
-assert_eq("#2131 the could-not-run breadcrumb names git not running", True,
-          'git could not run' in _eF and 'gave rc=' not in _eF)
+assert_eq("#2131 the could-not-run breadcrumb carries the exception, not an rc", True,
+          'gave no usable answer' in _eF and 'gave rc=' not in _eF)
 
 # `_git_head_or_unestablished` promises it never raises: a non-OSError failure from the
 # subprocess layer (a non-UTF-8 git output decodes to UnicodeDecodeError, a ValueError)
@@ -7339,8 +7339,8 @@ finally:
     workpad.subprocess.run = _saved_sp_run
 assert_eq("#2131 a non-OSError subprocess failure yields the unestablished sentinel",
           'unestablished', _hd)
-assert_eq("#2131 that failure is breadcrumbed as git not running", True,
-          'git could not run' in _hd_err.getvalue())
+assert_eq("#2131 that failure is breadcrumbed with the exception", True,
+          'gave no usable answer' in _hd_err.getvalue())
 
 # The CI-evidence option, on a pass, ALSO appends one Verification evidence: row built
 # from its validated operands (command=gh pr checks, outcome=name=conclusion pairs,
