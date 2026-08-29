@@ -39,6 +39,19 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
   The documentation navigation manifest is JSON, so the markdown link checker never read it
   — a navigation entry pointing at a page that no longer ships would have published a broken
   site. Both are now checked on every release, each proven against a planted defect.
+- **The release verification check could be bypassed by a pull request from a fork.** The
+  exemption that lets a maintainer change the verifier keyed on the branch name, and a fork
+  chooses its own branch names — so a fork branch named `policy-update/…` skipped both the
+  judge-comparison and the artifact verification, and reported the required check green on a
+  tree that had never been verified. Every exemption is now gated on the pull request coming
+  from the repository itself; a fork always takes the strict path.
+- **The shipped workflows now declare a least-privilege floor.** They carried no top-level
+  `permissions:`, so in a repository whose default workflow permission is read-and-write,
+  every job received a full read-write token whether it needed one or not. They now default
+  to `contents: read`, and the jobs that genuinely need more continue to declare it.
+- **The implement workflow's gate job pins its checkout to the default branch**, matching its
+  sibling. Without the pin, `actions/checkout` falls back to `GITHUB_REF` silently, leaving
+  the trusted-tree property inferred from the trigger rather than stated in the file.
 
 ## August 28, 2026
 

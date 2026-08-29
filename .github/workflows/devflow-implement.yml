@@ -48,6 +48,12 @@ defaults:
   run:
     shell: bash
 
+# Least-privilege floor. A consumer repository whose default workflow permission is
+# read-and-write would otherwise hand every job here a full read-write token; jobs that
+# genuinely need more declare it themselves and override this.
+permissions:
+  contents: read
+
 jobs:
   # Duplicates the config job in devflow.yml verbatim except for the
   # `effort` source (`prflow_implement.effort` vs `prflow.effort`). A
@@ -308,7 +314,13 @@ jobs:
       # ephemeral handoff record so Phase 1 can choose truthful lifecycle wording.
       workpad_handoff: ${{ steps.early_workpad.outputs.handoff }}
     steps:
+      # Pin the default branch explicitly (issue #1163) — matching devflow.yml's
+      # gate job. An empty `ref` input makes actions/checkout fall back to
+      # GITHUB_REF silently, so the trusted-tree property is stated here rather
+      # than inferred from the trigger.
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
       # Materialize the plugin into the workspace so the resolver/dedupe/react
       # scripts exist at .prflow/vendor/prflow/scripts/ (committed → self →
       # fetch). Without it a thin consumer — or this source repo — fails closed
@@ -386,7 +398,7 @@ jobs:
       # notice below (no contents/workflows: this job neither reads code with
       # it nor pushes; the early workpad comment below deliberately stays on
       # github.token — detection is marker-based, so authorship never matters). Same opt-in/fail-loud/downscope contract as the review
-      # mint in devflow-runner.yml — see docs/internal/cloud-setup.md. NOTE: fail-loud
+      # mint in devflow-runner.yml — see https://prflow.ai/docs/runs/cloud/setup. NOTE: fail-loud
       # means a configured-but-broken App fails THIS gate job (and so blocks
       # the run) — deliberate, so a broken App is never silently degraded
       # around. Minted only when a consumer will actually run (should_run
@@ -735,7 +747,7 @@ jobs:
       # `.prflow/config.json`'s `setup` block. The logic lives in the
       # setup-project-env composite action so devflow.yml and
       # devflow-implement.yml share ONE copy (checkout above gives the action
-      # the repo + config to read). See docs/internal/cloud-setup.md for the rationale.
+      # the repo + config to read). See https://prflow.ai/docs/runs/cloud/setup for the rationale.
       - id: cfg
         uses: ./.github/actions/read-project-config
       - uses: ./.github/actions/setup-project-env
@@ -765,7 +777,7 @@ jobs:
       # before the claude step) can pipe it; an in-process `unset` alone would NOT
       # scrub the long-lived refresher's /proc environ, which snapshots exec time
       # (proc(5)). The loop traps TERM/exits 0, so the job conclusion never rides on
-      # it; the `if: always()` pidfile-kill step retires it. See docs/internal/cloud-setup.md.
+      # it; the `if: always()` pidfile-kill step retires it. See https://prflow.ai/docs/runs/cloud/setup.
       - name: Start credential refresher (optional)
         id: refresher
         if: ${{ vars.DEVFLOW_APP_ID != '' }}
@@ -841,7 +853,7 @@ jobs:
       # present — at the consumer's pinned `prflow_version`. A pin predating
       # this installer has no such file, and the step fails LOUDLY (rc 127,
       # before the agent) until workflows and the pin are refreshed together
-      # (see docs/internal/install.md's update section). The installer's own output-2
+      # (see https://prflow.ai/docs/getting-started/installation's update section). The installer's own output-2
       # wrapper-SOURCE lookup carries a vendored-or-repo fallback — that is a
       # different path (the gh-fresh.sh bytes to copy), not this invocation.
       - name: Install fresh-gh wrapper (optional)
@@ -873,7 +885,7 @@ jobs:
       # provider) reproduces today's Anthropic-OAuth wiring for a given
       # `claude_model` (one deliberate change: an empty resolved model now fails
       # loud instead of rendering `--model null`) — the provider path is strictly
-      # opt-in. See docs/internal/cloud-setup.md.
+      # opt-in. See https://prflow.ai/docs/runs/cloud/setup.
       - name: Resolve model provider
         id: provider
         env:
@@ -1181,7 +1193,7 @@ jobs:
           # must NOT suppress the splice ::notice:: for the valid extras. Without
           # COMPOSE to render the annotation, mirror the helper's arms inline and
           # emit each independently, so a spliced entry is never added without an
-          # audit line (docs/internal/cloud-setup.md: every spliced entry logged, never silent).
+          # audit line (https://prflow.ai/docs/runs/cloud/setup: every spliced entry logged, never silent).
           if [ -f "$COMPOSE" ]; then
             # Capture the renderer's status rather than `|| true`-swallowing it: the
             # extras were already spliced above, so a non-zero renderer must still
@@ -1683,7 +1695,7 @@ jobs:
           # /code-review and /revise-claude-md slash commands), NOT engine dependencies —
           # DevFlow's engine dispatches neither. The "zero companion-plugin dependencies"
           # claim is scoped to the consumer install + what the engine dispatches; see
-          # docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md §6. devflow@ is DevFlow itself. The baked
+          # https://prflow.ai/docs §6. devflow@ is DevFlow itself. The baked
           # baseline three are composed by the step above; settings-declared extras are
           # appended beyond them.
           plugins: ${{ steps.plugins.outputs.plugins }}
@@ -1987,7 +1999,7 @@ jobs:
       # class — it fails loud without consuming a resume attempt and is never
       # mislabeled unreadable. Auto-resume needs the optional DEVFLOW_APP_ID App
       # token AND that App's bot login in prflow.allowed_bots; fail-loud works
-      # under either token — see docs/internal/implement-skill.md for the full boundary
+      # under either token — see https://prflow.ai/docs/workflows/implement for the full boundary
       # discussion.
       - name: Stall backstop
         if: ${{ always() }}
