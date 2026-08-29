@@ -11289,6 +11289,13 @@ printf '%s\n' "## Implementation Notes" "" \
 printf '%s\n' "## Implementation Notes" "" \
   "- **Documentation Needed** — update \`docs/internal/implement-skill.md\`; verify with \`bash lib/test/run.sh\` and grant \`Bash(scripts/x.sh:*)\`." \
   > "$rdnd_dir/body-adversarial.md"
+# #2129: a Documentation Needed block whose only span is a suppressed command
+# literal yields NO deliverable — the `no-deliverables` outcome — yet still names a
+# suppressed span. Exercises the docgate-suppressed emit site on the no-deliverables
+# branch, a distinct site from the deliverables branch the adversarial body covers.
+printf '%s\n' "## Implementation Notes" "" \
+  "- **Documentation Needed** — verify with \`bash lib/test/run.sh\`." \
+  > "$rdnd_dir/body-suppressed-only.md"
 
 # An extractor stub that fails only its FIRST call, so the extractor retry has the
 # same both-orderings coverage the gh retry does.
@@ -11382,6 +11389,12 @@ assert_eq "#1554/#2129 adversarial input: literals are not deliverables and the 
 # breadcrumb would vanish from the stream).
 assert_eq "#2129 adversarial input: the helper relays the extractor's 'suppressed a span' breadcrumb through the merged stream" \
   "1" "$(rdnd_run "$rdnd_dir/body-adversarial.md" | grep -c 'extract-doc-needed-paths.sh: suppressed a span')"
+# #2129: the docgate-suppressed line is emitted on the no-deliverables branch too,
+# not only the deliverables branch — a body whose one span is a suppressed command
+# literal reports no-deliverables (exit 10) AND names the suppressed span.
+assert_eq "#2129 no-deliverables input: a suppressed span with no real deliverable still relays the docgate-suppressed line" \
+  "$(printf 'docgate-outcome: no-deliverables\ndocgate-suppressed: bash lib/test/run.sh\nrc=10')" \
+  "$(rdnd_lines "$rdnd_dir/body-suppressed-only.md")"
 # Stale-capture isolation (what "idempotent" has to mean here to be worth testing):
 # seed the scratch body file with a DIFFERENT body, then fail both read attempts.
 # A helper that extracted from whatever was already on disk would report that stale
