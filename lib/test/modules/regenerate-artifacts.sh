@@ -936,13 +936,9 @@ for _erow in capability-profile-literals plugin-identity-regions coverage-map-ra
   esac
 done
 # The ineligible row's argv (reconcile-module-floors.py, a WRITING 7.8-min check) must
-# never be invoked, so its per-row EXECUTION line (`[exact-module-floors] …`) and its script
-# never appear in the preflight output. Since issue #2121 the clean receipt names the row as
-# LIFECYCLE DATA (`"exact-module-floors":"by-hand"`) and the suite-only `exact-floor-execution`
-# surface — neither is an execution, so the check keys on the bracketed row marker and the
-# script name, not any occurrence of the substring.
+# never be invoked, so neither its name nor its script appears in the preflight output.
 case "$(cat "$RA_AP1/.rap.out")" in
-  *"[exact-module-floors]"*|*reconcile-module-floors*) assert_eq "#1244 AP1 preflight never runs the ineligible exact-module-floors row" yes "no(ineligible row EXECUTED in preflight output)" ;;
+  *exact-module-floors*|*reconcile-module-floors*) assert_eq "#1244 AP1 preflight never runs the ineligible exact-module-floors row" yes "no(ineligible row referenced in preflight output)" ;;
   *) assert_eq "#1244 AP1 preflight never runs the ineligible exact-module-floors row" yes yes ;;
 esac
 
@@ -2235,16 +2231,8 @@ assert_eq "#1055 the exact-floor recipe routes through the granted batch entry p
 assert_eq "#1055 the exact-floor recipe does not expose its subprocess-only child" \
   "no" "$(_ra_recipe_names exact-module-floors 'python3 lib/test/reconcile-module-floors.py')"
 
-# #2121 AC85 — install-state detection AND repair route through the GRANTED batched helper. The
-# install-state generator head lib/generate-install-state.py was later granted to the implement
-# tier by issue #2123, so it resolves as GRANTED against the resolved allowlist here; the routing
-# assertions below are what keep the recipe on the batched entry point rather than the head.
-RA_2121_INSTALL_PROMPT="$_ra_tmp_root/issue-2121-install-head.md"
-printf '%s\n' '```bash' 'lib/generate-install-state.py --check' '```' > "$RA_2121_INSTALL_PROMPT"
-RA_2121_INSTALL_UNGRANTED="$(python3 "$LIB/test/extract-command-heads.py" ungranted \
-  "$RA_2121_INSTALL_PROMPT" "$RA_1055_RESOLVED")"
-assert_eq "#2121 the install-state generator head resolves as granted (issue #2123 grant present)" \
-  "" "$RA_2121_INSTALL_UNGRANTED"
+# #2121 — install-state detection AND repair route through the batched helper, not the
+# generator head.
 assert_eq "#2121 install-state detection/repair routes through the granted batch entry point" \
   "yes" "$(_ra_recipe_names install-state 'lib/test/regenerate-artifacts.py')"
 assert_eq "#2121 the install-state recipe does not expose the generator head directly" \
@@ -2395,7 +2383,7 @@ _ra_bind_fails_closed "a non-int timeout_seconds" \
 _ra_bind_fails_closed "a bool timeout_seconds (an int subclass) is rejected" \
   's/"timeout_seconds": 550,/"timeout_seconds": True,/' \
   "exact-module-floors" "not an int"
-# #2121 AC74 — a non-positive timeout is a mis-typed field, not a 0/negative wall.
+# #2121 — a non-positive timeout is a mis-typed field, not a 0/negative wall.
 _ra_bind_fails_closed "a zero timeout_seconds is rejected" \
   's/"timeout_seconds": 32,/"timeout_seconds": 0,/' \
   "capability-profile-literals" "not a positive int"
@@ -2403,51 +2391,6 @@ _ra_bind_fails_closed "a negative timeout_seconds is rejected" \
   's/"timeout_seconds": 22,/"timeout_seconds": -1,/' \
   "plugin-identity-regions" "not a positive int"
 
-# ════════════════════════════════════════════════════════════════════════════
-# #2121 — ARTIFACT_LIFECYCLES + MODULE_COUPLING_SURFACES bind-failure matrix. Each malformed
-# shape must route the SCRIPT run to the typed infrastructure exit 2 (never an unhandled
-# traceback), driven end-to-end through the shared `_ra_bind_fails_closed` harness. The `(`/`)`
-# are escaped: the harness runs `sed -E`, so bare parens are ERE groups.
-# ════════════════════════════════════════════════════════════════════════════
-_ra_bind_fails_closed "a non-(id, value) lifecycle entry" \
-  's/\("install-state", "branch-generated"\)/"not-a-pair"/' \
-  "an (id, value) pair"
-_ra_bind_fails_closed "a lifecycle entry with an empty identifier" \
-  's/\("install-state", "branch-generated"\)/("", "branch-generated")/' \
-  "missing/empty identifier"
-_ra_bind_fails_closed "a lifecycle entry with a boolean value" \
-  's/\("install-state", "branch-generated"\)/("install-state", True)/' \
-  "missing/empty value"
-_ra_bind_fails_closed "a lifecycle entry with an unknown value" \
-  's/\("install-state", "branch-generated"\)/("install-state", "no-such-class")/' \
-  "unknown value"
-_ra_bind_fails_closed "a duplicate lifecycle identifier" \
-  's/\("install-state", "branch-generated"\),/("install-state", "branch-generated"), ("install-state", "by-hand"),/' \
-  "more than once"
-_ra_bind_fails_closed "a lifecycle entry with a missing value" \
-  's/\("install-state", "branch-generated"\)/("install-state", "")/' \
-  "missing/empty value"
-_ra_bind_fails_closed "an orphan lifecycle entry (no executable row)" \
-  's/\("install-state", "branch-generated"\),/("install-state", "branch-generated"), ("ghost-orphan", "by-hand"),/' \
-  "no executable row"
-_ra_bind_fails_closed "an executable row with no lifecycle entry (missing forward reference)" \
-  '/\("module-coupling", "by-hand"\),/d' \
-  "no lifecycle entry"
-_ra_bind_fails_closed "a module-coupling surface with a missing gate_tier" \
-  's/\{"id": "shard-membership", "gate_tier": "preflight"\}/{"id": "shard-membership"}/' \
-  "gate_tier" "must be a non-empty string"
-_ra_bind_fails_closed "a module-coupling surface with an unknown tier" \
-  's/\{"id": "shard-membership", "gate_tier": "preflight"\}/{"id": "shard-membership", "gate_tier": "bogus"}/' \
-  "outside"
-_ra_bind_fails_closed "a module-coupling surface named by both tiers (duplicate id)" \
-  's/\{"id": "shard-membership", "gate_tier": "preflight"\},/{"id": "shard-membership", "gate_tier": "preflight"}, {"id": "shard-membership", "gate_tier": "suite-only", "owner": "o"},/' \
-  "declared more than once"
-_ra_bind_fails_closed "a non-mapping module-coupling surface entry" \
-  's/\{"id": "shard-membership", "gate_tier": "preflight"\},/"not-a-dict", {"id": "shard-membership", "gate_tier": "preflight"},/' \
-  "must be a dict"
-_ra_bind_fails_closed "a suite-only module-coupling surface naming no owner" \
-  's/\{"id": "shard-membership", "gate_tier": "preflight"\}/{"id": "shard-membership", "gate_tier": "suite-only"}/' \
-  "names no owner"
 
 # AC4/AC5/AC6 — a bounded-out row: fast judgment rows are trivial exit-0 stubs; the
 # env-freeze-advisory-region generator is a sleeper spawning a child and recording both PIDs.

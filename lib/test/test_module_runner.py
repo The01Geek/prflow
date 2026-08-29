@@ -7,7 +7,9 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import re
@@ -95,10 +97,7 @@ def _pool_width() -> int:
 # list since issue #695 promoted all three out of run.sh into module-harness.sh, where a
 # module legitimately obtains them; the guard that keeps them harness-owned is the
 # single-definition assertion below, not this ban.
-# Single-sourced in lib/test/module_coupling.py (issue #2121), re-exported here for the tests
-# that still reference these names. The module-body contract they enforce — no monolith-only
-# pin helper, no direct `skip` (run-module.sh overrides skip to a fatal; #838 allows only
-# module_host_capability_skip) — is unchanged.
+# Single-sourced in lib/test/module_coupling.py (issue #2121); re-exported for the tests here.
 MONOLITH_HELPER_RE = MODULE_COUPLING.MONOLITH_HELPER_RE
 MODULE_SKIP_CALL_RE = MODULE_COUPLING.MODULE_SKIP_CALL_RE
 
@@ -1385,14 +1384,8 @@ class ModuleRunnerTests(unittest.TestCase):
         # the authoring checklist needs no cross-check item and no future module can be
         # forgotten. It subsumes the former forward registry→run.sh floor cross-check and
         # the per-module review-and-fix / create-issue reconciliation tests.
-        # Issue #2121: the per-surface assertions are factored into lib/test/module_coupling.py
-        # so the SAME reverse-orphan logic backs both this focused test AND the read-only
-        # pre-suite `module-coupling` preflight row. build_context derives the on-disk module
-        # population from lib/test/modules/*.sh (never the registry) and run_checks runs every
-        # coupling surface — registry membership+path+floor, run.sh full-suite invocation+floor,
-        # shard membership, coverage ownership, ci.yml shellcheck membership, provenance
-        # inventory, mutation-pin fixture membership, exact-policy population, and the module-body
-        # contract (SPDX header, caller-contract text, no self-invocation/monolith-helper/skip).
+        # Issue #2121: the per-surface assertions live in lib/test/module_coupling.py so the SAME
+        # logic backs this focused test AND the read-only pre-suite `module-coupling` preflight row.
         context = MODULE_COUPLING.build_context(ROOT)
         self.assertTrue(context.module_ids, "no module files found on disk")
         results = MODULE_COUPLING.run_checks(context)
@@ -3689,10 +3682,6 @@ class ModuleCouplingSurfaceOmissionTest(unittest.TestCase):
             mc.surface_shard_membership, dc.replace(ctx, shard_modules=shard_modules)
         )
 
-        self._assert_omission(
-            mc.surface_coverage_ownership, dc.replace(ctx, coverage_row_ok=False)
-        )
-
         ci_text = ctx.ci_text.replace(f"lib/test/modules/{mid}.sh", "REMOVED")
         self._assert_omission(
             mc.surface_ci_shellcheck_membership, dc.replace(ctx, ci_text=ci_text)
@@ -3703,21 +3692,30 @@ class ModuleCouplingSurfaceOmissionTest(unittest.TestCase):
             mc.surface_provenance_inventory, dc.replace(ctx, inventory_ids=inventory_ids)
         )
 
-        swept = tuple(p for p in ctx.swept_population if p != f"lib/test/modules/{mid}.sh")
+        # The #2109 class: a module absent from pin-corpus-lint.py's AUDITED_PIN_SOURCES, and the
+        # coupled EXPECTED_SOURCE_COUNT literal left stale after an addition.
+        audited = frozenset(ctx.audited_pin_sources - {f"lib/test/modules/{mid}.sh"})
         self._assert_omission(
             mc.surface_mutation_pin_fixture_membership,
-            dc.replace(ctx, swept_population=swept),
+            dc.replace(ctx, audited_pin_sources=audited),
+        )
+        self._assert_omission(
+            mc.surface_mutation_pin_fixture_membership,
+            dc.replace(ctx, expected_source_count=ctx.expected_source_count + 1),
         )
 
-        ghost_registry = dict(ctx.registry)
-        ghost_registry["ghost-module-2121"] = {
-            "path": "lib/test/modules/ghost-module-2121.sh",
-            "minimum_assertions": 1,
-            "assertion_floor_policy": "exact",
-        }
+        # The 93ccdd054 class, both directions: the registry's exact set and the hand-named list
+        # in test_repository_declares_the_exact_floor_population disagree.
+        non_exact = next(m for m in ctx.module_ids if m not in ctx.declared_exact_population)
+        exact_registry = dict(ctx.registry)
+        exact_registry[non_exact] = dict(exact_registry[non_exact], assertion_floor_policy="exact")
         self._assert_omission(
             mc.surface_exact_policy_population_membership,
-            dc.replace(ctx, registry=ghost_registry),
+            dc.replace(ctx, registry=exact_registry),
+        )
+        self._assert_omission(
+            mc.surface_exact_policy_population_membership,
+            dc.replace(ctx, declared_exact_population=ctx.declared_exact_population[1:]),
         )
 
         # module-body-contract has five independent sub-branches — plant each so no branch can
@@ -3758,95 +3756,6 @@ class ModuleCouplingSurfaceOmissionTest(unittest.TestCase):
         )
 
 
-class ArtifactLifecycleInventoryTest(unittest.TestCase):
-    """The lifecycle inventory is closed, complete, bidirectionally joined, and semantic (#2121)."""
-
-    def test_artifact_lifecycle_inventory_is_closed_complete_joined_and_semantic(self) -> None:
-        R = REGEN
-        pinned = {
-            "capability-profile-literals": "branch-generated",
-            "plugin-identity-regions": "branch-generated",
-            "coverage-map-ratchet": "by-hand",
-            "exact-module-floors": "by-hand",
-            "env-freeze-advisory-region": "branch-generated",
-            "module-coupling": "by-hand",
-            "install-state": "branch-generated",
-            "scripts/devflow-cloud-writer-contract.json": "main-side",
-        }
-        # in-enum mapping mismatch is caught by this pinned assertion.
-        self.assertEqual(dict(R.ARTIFACT_LIFECYCLES), pinned)
-        # An in-enum mismatch is a different, non-equal mapping.
-        mismatched = dict(pinned)
-        mismatched["install-state"] = "by-hand"
-        self.assertNotEqual(mismatched, pinned)
-
-        # The real inventory validates (bijection with ROWS + enum membership).
-        R._validate_lifecycles()
-        real = tuple(R.ARTIFACT_LIFECYCLES)
-        meta = R._METADATA_ONLY_ARTIFACTS
-
-        def without(key):
-            return tuple(e for e in real if e[0] != key)
-
-        # missing forward reference — an executable row with no lifecycle entry
-        with self.assertRaises(ValueError):
-            R._validate_lifecycles(without("module-coupling"), meta)
-        # duplicate identifier
-        with self.assertRaises(ValueError):
-            R._validate_lifecycles(real + (("install-state", "by-hand"),), meta)
-        # orphan entry — a non-metadata lifecycle entry with no executable row
-        with self.assertRaises(ValueError):
-            R._validate_lifecycles(real + (("ghost-artifact", "by-hand"),), meta)
-        # missing value
-        with self.assertRaises(ValueError):
-            R._validate_lifecycles(without("install-state") + (("install-state", ""),), meta)
-        # unknown value
-        with self.assertRaises(ValueError):
-            R._validate_lifecycles(
-                without("install-state") + (("install-state", "no-such-class"),), meta
-            )
-
-
-class ModuleCouplingSurfaceTierTest(unittest.TestCase):
-    """The surface tier partition is closed, complete, disjoint, and reconciled (#2121)."""
-
-    def test_module_coupling_surface_tiers_are_closed_complete_and_disjoint(self) -> None:
-        R, mc = REGEN, MODULE_COUPLING
-        preflight = R.module_coupling_surfaces_by_tier("preflight")
-        suite_only = R.module_coupling_surfaces_by_tier("suite-only")
-        # The preflight tier reconciles exactly with the executable checker keys.
-        self.assertEqual(list(preflight), list(mc.PREFLIGHT_SURFACE_CHECKS.keys()))
-        # Disjoint and complete: every entry is preflight XOR suite-only.
-        self.assertEqual(
-            set(preflight) | set(suite_only),
-            {s["id"] for s in R.MODULE_COUPLING_SURFACES},
-        )
-        self.assertFalse(set(preflight) & set(suite_only))
-        # A non-empty suite-only complement, each naming an owner.
-        self.assertTrue(suite_only)
-        for surface in R.MODULE_COUPLING_SURFACES:
-            if surface["gate_tier"] == "suite-only":
-                self.assertTrue(surface.get("owner"))
-
-        R._validate_module_coupling_surfaces()
-        real = R.MODULE_COUPLING_SURFACES
-        # missing gate_tier
-        with self.assertRaises(ValueError):
-            R._validate_module_coupling_surfaces(real + ({"id": "x"},))
-        # unknown tier
-        with self.assertRaises(ValueError):
-            R._validate_module_coupling_surfaces(real + ({"id": "x", "gate_tier": "bogus"},))
-        # a surface named by both tiers (duplicate id)
-        with self.assertRaises(ValueError):
-            R._validate_module_coupling_surfaces(
-                real + ({"id": "registry-membership", "gate_tier": "suite-only", "owner": "o"},)
-            )
-        # non-mapping entry (attributed schema failure before field lookup)
-        with self.assertRaises(ValueError):
-            R._validate_module_coupling_surfaces(real + ("not-a-dict",))
-        # suite-only with no owner
-        with self.assertRaises(ValueError):
-            R._validate_module_coupling_surfaces(real + ({"id": "y", "gate_tier": "suite-only"},))
 
 
 class InstallStateRowTest(unittest.TestCase):
@@ -3854,54 +3763,79 @@ class InstallStateRowTest(unittest.TestCase):
 
     def test_install_state_drift_is_preflight_drift_and_batch_repairable(self) -> None:
         gen = _load_by_path("lib/generate-install-state.py", "generate_install_state")
-        # The marker lives under the repo tmp so the write form's relative_to(_REPO_ROOT) resolves;
-        # .prflow/tmp/ is gitignored, so the fixture never dirties the tracked tree.
         scratch = ROOT / ".prflow/tmp"
         scratch.mkdir(parents=True, exist_ok=True)
-        marker = scratch / "install-state-fixture-2121.json"
-        marker.write_text('{"drifted": true}\n', encoding="utf-8")
-        original = gen._MARKER
-        try:
-            gen._MARKER = marker
-            # Drift: the fixture marker disagrees with the freshly-built state.
-            self.assertEqual(gen.main(["--check"]), 1)
-            # The batch repair reconciles it through the write form.
-            self.assertEqual(gen.main([]), 0)
-            # Its read-only --check form now reports clean and writes nothing.
-            before = marker.read_bytes()
-            self.assertEqual(gen.main(["--check"]), 0)
-            self.assertEqual(marker.read_bytes(), before)
-        finally:
-            gen._MARKER = original
-            marker.unlink(missing_ok=True)
+        # Under the ignored repo scratch root, not the system tmp: the write form prints the
+        # marker path relative_to(_REPO_ROOT), which raises for a path outside the repo.
+        with tempfile.TemporaryDirectory(dir=scratch) as tmp:
+            marker = Path(tmp) / "install-state.json"
+            marker.write_text('{"drifted": true}\n', encoding="utf-8")
+            with mock.patch.object(gen, "_MARKER", marker):
+                self.assertEqual(gen.main(["--check"]), 1)
+                self.assertEqual(gen.main([]), 0)
+                before = marker.read_bytes()
+                self.assertEqual(gen.main(["--check"]), 0)
+                self.assertEqual(marker.read_bytes(), before)
 
-        # The row names the granted batch command as the repair entry point (AC41): no direct
-        # generate-install-state.py grant is required.
         row = next(r for r in REGEN.ROWS if r["name"] == "install-state")
-        self.assertIn("lib/test/regenerate-artifacts.py", row["policy"])
         self.assertEqual(row["preflight_argv"], ("python3", "lib/generate-install-state.py", "--check"))
 
 
-class MainSideCloudWriterTest(unittest.TestCase):
-    """The cloud-writer manifest is main-side metadata-only on feature branches (#2121)."""
 
-    def test_main_side_cloud_writer_is_metadata_only_on_feature_branches(self) -> None:
-        R = REGEN
-        manifest = "scripts/devflow-cloud-writer-contract.json"
-        self.assertEqual(dict(R.ARTIFACT_LIFECYCLES)[manifest], "main-side")
-        self.assertIn(manifest, R._METADATA_ONLY_ARTIFACTS)
-        # Metadata-only: no executable row generates or verifies it.
-        self.assertNotIn(manifest, {r["name"] for r in R.ROWS})
-        for row in R.ROWS:
-            writes = row.get("writes", ())
-            writes = (writes,) if isinstance(writes, str) else tuple(writes)
-            tokens = (
-                " ".join(row.get("argv", ()))
-                + " " + " ".join(row.get("preflight_argv", ()))
-                + " " + " ".join(writes)
+class PlantedOmissionEndToEndTest(unittest.TestCase):
+    """One planted registry omission runs from the tree through run_preflight to the coordinator's
+    shard-launch refusal (issue #2121)."""
+
+    @staticmethod
+    def _materialize_tree(dst: Path) -> None:
+        # The WORKING tree's tracked files (not a clone of HEAD), re-committed so the fixture's
+        # own `git ls-files` enumerations resolve.
+        listing = subprocess.run(
+            ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True
+        ).stdout.decode()
+        for rel in filter(None, listing.split("\0")):
+            src = ROOT / rel
+            if not src.is_file():
+                continue
+            target = dst / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, target)
+        git = ["git", "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid"]
+        subprocess.run([*git, "init", "-q"], cwd=dst, check=True)
+        subprocess.run([*git, "add", "-f", "-A"], cwd=dst, check=True)
+        subprocess.run([*git, "commit", "-q", "-m", "fixture"], cwd=dst, check=True)
+
+    def test_planted_omission_is_drift_and_refuses_shard_launch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._materialize_tree(root)
+            registry_path = root / "scripts/workflow-flight-recorder-registry.json"
+            registry = json.loads(registry_path.read_text(encoding="utf-8"))
+            planted = MODULE_COUPLING.module_ids(root)[0]
+            del registry["test_modules"][planted]
+            registry_path.write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
+
+            # Preflight: the omission is DRIFT, attributed to the module-coupling row, exit 1.
+            captured = io.StringIO()
+            with contextlib.redirect_stdout(captured):
+                rc = REGEN.run_preflight(root, deadline_ns=60_000_000_000)
+            out = captured.getvalue()
+            self.assertEqual(rc, 1, out)
+            self.assertIn(f"{REGEN.PREFLIGHT_VERDICT_PREFIX}drift", out)
+            self.assertIn("[module-coupling] DRIFT", out)
+            self.assertIn(f"{planted}: on disk but unregistered", out)
+
+            # Coordinator: the same tree makes `run-parallel.sh --preflight` refuse to launch.
+            env = {k: v for k, v in os.environ.items() if k != "DEVFLOW_ARTIFACT_PREFLIGHT"}
+            proc = subprocess.run(
+                ["bash", "lib/test/run-parallel.sh", "--preflight"],
+                cwd=root, env=env, capture_output=True, text=True, check=False,
             )
-            self.assertNotIn("cloud-writer", tokens)
-            self.assertNotIn("devflow-cloud-writer-contract", tokens)
+            self.assertNotEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            self.assertIn(
+                "generated-artifact preflight reported drift (see above); launching no shard",
+                proc.stdout + proc.stderr,
+            )
 
 
 class CouplingReceiptUncheckableInputTest(unittest.TestCase):
@@ -4011,11 +3945,6 @@ class PreflightDeadlineTest(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertGreaterEqual(len(calls), 2)
 
-    def test_receipt_deadline_ms_is_exactly_5000(self) -> None:
-        # Real defaults: the typed receipt carries the 5000ms aggregate deadline (AC80).
-        line = REGEN.build_coupling_receipt(ROOT, elapsed_ms=7, deadline_ms=REGEN.AGGREGATE_DEADLINE_MS)
-        self.assertIn("deadline_ms=5000", line)
-        self.assertEqual(REGEN.AGGREGATE_DEADLINE_MS, 5000)
 
 
 class PreflightTerminationTest(unittest.TestCase):

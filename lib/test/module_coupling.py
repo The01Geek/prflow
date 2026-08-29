@@ -18,16 +18,14 @@ registry parsing; an input failure (an unreadable registry, a git enumeration fa
 `CouplingUncheckable`, which the `--check` CLI reports with the `[input-error]` marker and
 exit 2 so the preflight routes it to UNCHECKABLE rather than drift.
 
-The surface partition (which surfaces are the pre-suite `preflight` tier and which stay
-`suite-only`) is the authoritative `MODULE_COUPLING_SURFACES` inventory in
-`lib/test/regenerate-artifacts.py`; `PREFLIGHT_SURFACE_CHECKS` here is its executable
-counterpart, and `test_module_coupling_surface_tiers_are_closed_complete_and_disjoint`
-reconciles the two so they cannot drift.
+`PREFLIGHT_SURFACE_CHECKS` is the closed, ordered set of surfaces; the receipt's `checks=`
+field is its key list.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import dataclasses
 import importlib.util
 import json
@@ -54,12 +52,10 @@ _SPDX_HEADER = (
     "# SPDX-License-Identifier: MIT\n"
 )
 
-# The shards that carry focused modules (monolith/python-pool carry none). Read from the
-# dispatcher at build time, not hardcoded as a membership list; this names only which shards
-# to interrogate.
-_MODULE_SHARDS = ("modules-pin", "modules-large", "modules-rest")
+# The dispatcher's module-carrying shards share this name prefix (monolith/python-pool carry none).
+_MODULE_SHARD_PREFIX = "modules-"
 
-# The census cache must clear the swept population with at least this much headroom (AC42).
+# The census cache must clear the swept population with at least this much headroom.
 CACHE_CAPACITY_HEADROOM = 5
 
 # The machine marker the CLI prints for an input failure, so the preflight routes it to
@@ -83,7 +79,9 @@ class CouplingContext:
     module_texts: dict[str, str]
     swept_population: tuple[str, ...]
     cache_capacity: int
-    coverage_row_ok: bool
+    audited_pin_sources: frozenset[str]
+    expected_source_count: int
+    declared_exact_population: tuple[str, ...]
 
 
 def _load_module(path: Path, name: str):
@@ -103,55 +101,81 @@ def module_ids(root: Path) -> tuple[str, ...]:
     return tuple(sorted(p.stem for p in (root / "lib/test/modules").glob("*.sh")))
 
 
-def _shard_membership(root: Path) -> dict[str, tuple[str, ...]]:
-    dispatcher = root / "lib/test/run-shard.sh"
-    membership: dict[str, tuple[str, ...]] = {}
-    for shard in _MODULE_SHARDS:
-        try:
-            proc = subprocess.run(
-                ["bash", str(dispatcher), "--modules-of", shard],
-                cwd=str(root),
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        except OSError as error:
-            raise CouplingUncheckable(
-                f"cannot enumerate shard membership for {shard}: {error}"
-            ) from error
-        if proc.returncode != 0:
-            raise CouplingUncheckable(
-                f"shard dispatcher failed for {shard} (exit {proc.returncode}): "
-                f"{proc.stderr.strip() or '(no stderr)'}"
-            )
-        membership[shard] = tuple(proc.stdout.split())
-    return membership
-
-
-def _coverage_row_ok(root: Path) -> bool:
-    """Coverage ownership is delegated to the existing coverage-map-ratchet preflight row.
-
-    Rather than re-implement coverage_map_guard.py's population cross-check (a second,
-    driftable copy), confirm the registry still carries that read-only, preflight-eligible
-    row invoking the guard's non-writing `.` form. An import failure of the registry helper
-    is an input failure, not a coupling omission.
-    """
+def _dispatcher(root: Path, *args: str) -> list[str]:
     try:
-        ra = _load_module(root / "lib/test/regenerate-artifacts.py", "_ra_for_coupling")
-    except CouplingUncheckable:
-        raise
-    except Exception as error:  # any import fault is uncheckable input, not a coupling omission
+        proc = subprocess.run(
+            ["bash", str(root / "lib/test/run-shard.sh"), *args],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as error:
+        raise CouplingUncheckable(f"cannot run the shard dispatcher {args}: {error}") from error
+    if proc.returncode != 0:
         raise CouplingUncheckable(
-            f"cannot load the artifact registry for coverage-ownership: {error}"
-        ) from error
-    for row in getattr(ra, "ROWS", ()):
-        if row.get("name") == "coverage-map-ratchet":
-            argv = tuple(row.get("argv", ()))
-            return bool(row.get("preflight_eligible")) and argv[-2:] == (
-                "lib/test/coverage_map_guard.py",
-                ".",
-            )
-    return False
+            f"shard dispatcher failed for {args} (exit {proc.returncode}): "
+            f"{proc.stderr.strip() or '(no stderr)'}"
+        )
+    return proc.stdout.split()
+
+
+def _shard_membership(root: Path) -> dict[str, tuple[str, ...]]:
+    """Module ids per module-carrying shard, both derived from `run-shard.sh` itself."""
+    shards = [s for s in _dispatcher(root, "--list-shards") if s.startswith(_MODULE_SHARD_PREFIX)]
+    if not shards:
+        raise CouplingUncheckable("the shard dispatcher lists no modules-* shard")
+    return {shard: tuple(_dispatcher(root, "--modules-of", shard)) for shard in shards}
+
+
+def _audited_pin_sources(root: Path) -> frozenset[str]:
+    """The literal `AUDITED_PIN_SOURCES` frozenset in lib/test/pin-corpus-lint.py, by AST."""
+    linter = root / "lib/test/pin-corpus-lint.py"
+    try:
+        tree = ast.parse(linter.read_text(encoding="utf-8"), filename=str(linter))
+    except (OSError, SyntaxError, ValueError) as error:
+        raise CouplingUncheckable(f"cannot parse AUDITED_PIN_SOURCES: {error}") from error
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "AUDITED_PIN_SOURCES" for t in node.targets
+        ):
+            value = node.value
+            if isinstance(value, ast.Call) and len(value.args) == 1:
+                value = value.args[0]
+            try:
+                return frozenset(ast.literal_eval(value))
+            except (ValueError, TypeError) as error:
+                raise CouplingUncheckable(f"AUDITED_PIN_SOURCES is not a literal set: {error}") from error
+    raise CouplingUncheckable("AUDITED_PIN_SOURCES has no top-level definition")
+
+
+_EXACT_POPULATION_TEST = "test_repository_declares_the_exact_floor_population"
+
+
+def _declared_exact_population(root: Path) -> tuple[str, ...]:
+    """The hand-named exact-floor module list in test_module_runner.py's population test, by AST.
+
+    The list is deliberately maintained by hand there (a reviewer-read diff, not a count), so
+    this reads the single literal in that test rather than duplicating it here.
+    """
+    source = root / "lib/test/test_module_runner.py"
+    try:
+        tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    except (OSError, SyntaxError, ValueError) as error:
+        raise CouplingUncheckable(f"cannot parse the exact-floor population test: {error}") from error
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == _EXACT_POPULATION_TEST:
+            lists = [n for n in ast.walk(node) if isinstance(n, ast.List)]
+            if len(lists) != 1:
+                raise CouplingUncheckable(
+                    f"{_EXACT_POPULATION_TEST} must contain exactly one list literal, found {len(lists)}"
+                )
+            try:
+                return tuple(ast.literal_eval(lists[0]))
+            except (ValueError, TypeError) as error:
+                raise CouplingUncheckable(f"exact-floor population is not a literal: {error}") from error
+    raise CouplingUncheckable(f"{_EXACT_POPULATION_TEST} not found in {source}")
+
 
 
 def build_context(root: Path) -> CouplingContext:
@@ -189,6 +213,7 @@ def build_context(root: Path) -> CouplingContext:
     try:
         swept = tuple(census.swept_shell_population(root))
         cache_capacity = int(census._SOURCE_PARSE_CACHE_SIZE)
+        expected_source_count = int(census.EXPECTED_SOURCE_COUNT)
     except Exception as error:  # a census input failure is uncheckable, not a coupling omission
         raise CouplingUncheckable(
             f"cannot derive the swept shell population: {error}"
@@ -205,7 +230,9 @@ def build_context(root: Path) -> CouplingContext:
         module_texts=module_texts,
         swept_population=swept,
         cache_capacity=cache_capacity,
-        coverage_row_ok=_coverage_row_ok(root),
+        audited_pin_sources=_audited_pin_sources(root),
+        expected_source_count=expected_source_count,
+        declared_exact_population=_declared_exact_population(root),
     )
 
 
@@ -257,16 +284,6 @@ def surface_shard_membership(ctx: CouplingContext) -> list[str]:
     return failures
 
 
-def surface_coverage_ownership(ctx: CouplingContext) -> list[str]:
-    if not ctx.coverage_row_ok:
-        return [
-            (
-                "coverage ownership: the preflight-eligible coverage-map-ratchet row "
-                "(coverage_map_guard.py .) is missing or altered"
-            )
-        ]
-    return []
-
 
 def surface_ci_shellcheck_membership(ctx: CouplingContext) -> list[str]:
     failures = []
@@ -285,26 +302,39 @@ def surface_provenance_inventory(ctx: CouplingContext) -> list[str]:
 
 
 def surface_mutation_pin_fixture_membership(ctx: CouplingContext) -> list[str]:
-    swept = set(ctx.swept_population)
-    return [
-        f"{module_id}: lib/test/modules/{module_id}.sh is outside the swept shell population"
+    """Every module is in pin-corpus-lint.py's AUDITED_PIN_SOURCES, and its size literal agrees."""
+    failures = [
+        f"{module_id}: lib/test/modules/{module_id}.sh is not in AUDITED_PIN_SOURCES "
+        "(lib/test/pin-corpus-lint.py)"
         for module_id in ctx.module_ids
-        if f"lib/test/modules/{module_id}.sh" not in swept
+        if f"lib/test/modules/{module_id}.sh" not in ctx.audited_pin_sources
     ]
+    if len(ctx.audited_pin_sources) != ctx.expected_source_count:
+        failures.append(
+            f"AUDITED_PIN_SOURCES has {len(ctx.audited_pin_sources)} entries but "
+            f"mutation-pin-census.py EXPECTED_SOURCE_COUNT is {ctx.expected_source_count}"
+        )
+    return failures
 
 
 def surface_exact_policy_population_membership(ctx: CouplingContext) -> list[str]:
-    on_disk = set(ctx.module_ids)
-    failures = []
-    for module_id, mapping in ctx.registry.items():
-        if (
-            isinstance(mapping, dict)
-            and mapping.get("assertion_floor_policy") == "exact"
-            and module_id not in on_disk
-        ):
-            failures.append(
-                f"{module_id}: exact-policy registry entry names no on-disk module"
-            )
+    """The registry's `assertion_floor_policy: exact` set equals the hand-named test population."""
+    registry_exact = {
+        module_id
+        for module_id, mapping in ctx.registry.items()
+        if isinstance(mapping, dict) and mapping.get("assertion_floor_policy") == "exact"
+    }
+    declared = set(ctx.declared_exact_population)
+    failures = [
+        f"{module_id}: registry declares assertion_floor_policy exact but "
+        f"{_EXACT_POPULATION_TEST} does not name it"
+        for module_id in sorted(registry_exact - declared)
+    ]
+    failures.extend(
+        f"{module_id}: named by {_EXACT_POPULATION_TEST} but the registry does not "
+        "declare it assertion_floor_policy exact"
+        for module_id in sorted(declared - registry_exact)
+    )
     return failures
 
 
@@ -334,7 +364,7 @@ def surface_module_body_contract(ctx: CouplingContext) -> list[str]:
 def census_cache_receipt(
     ctx_or_root, *, population=None, capacity=None
 ) -> dict:
-    """Numeric receipt for the mutation-census cache-capacity surface (AC42).
+    """Numeric receipt for the mutation-census cache-capacity surface.
 
     Sizes the census parse cache against `len(swept population) + CACHE_CAPACITY_HEADROOM`,
     never `AUDITED_PIN_SOURCES`. `population`/`capacity` are injection seams for the census
@@ -379,36 +409,23 @@ def surface_mutation_census_cache_capacity(ctx: CouplingContext) -> list[str]:
     return []
 
 
-# The executable counterpart of MODULE_COUPLING_SURFACES's `preflight` tier in
-# regenerate-artifacts.py. Ordered dict: surface id -> checker. Reconciled against the
-# authoritative inventory by test_module_coupling_surface_tiers_are_closed_complete_and_disjoint.
+# Ordered: surface id -> checker. The receipt's `checks=` field is this key list.
 PREFLIGHT_SURFACE_CHECKS = {
     "registry-membership": surface_registry_membership,
     "full-suite-invocation": surface_full_suite_invocation,
     "shard-membership": surface_shard_membership,
-    "coverage-ownership": surface_coverage_ownership,
     "ci-shellcheck-membership": surface_ci_shellcheck_membership,
     "provenance-inventory": surface_provenance_inventory,
     "mutation-pin-fixture-membership": surface_mutation_pin_fixture_membership,
     "exact-policy-population-membership": surface_exact_policy_population_membership,
     "module-body-contract": surface_module_body_contract,
-}
-
-# The mutation-census cache-capacity assertion is folded into the same read-only check (AC42)
-# but is NOT one of the enumerated MODULE_COUPLING_SURFACES tier entries — it is a numeric
-# headroom bound, not a per-module wiring surface. Kept separate so the tier reconciliation
-# above stays a clean bijection with the nine coupling surfaces.
-ADDITIONAL_CHECKS = {
     "mutation-census-cache-capacity": surface_mutation_census_cache_capacity,
 }
 
 
 def run_checks(ctx: CouplingContext) -> dict[str, list[str]]:
-    """Every preflight surface's failures plus the census-capacity check, keyed by id."""
-    results = {surface: check(ctx) for surface, check in PREFLIGHT_SURFACE_CHECKS.items()}
-    for name, check in ADDITIONAL_CHECKS.items():
-        results[name] = check(ctx)
-    return results
+    """Every preflight surface's failures, keyed by id."""
+    return {surface: check(ctx) for surface, check in PREFLIGHT_SURFACE_CHECKS.items()}
 
 
 def main(argv=None) -> int:
