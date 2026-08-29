@@ -362,6 +362,12 @@ its shard attempts were silently denied. Only an unobservable *recombined* run t
 work, and it does so as the `execution-ceiling` Blocked terminal that Phase 4.3 names —
 distinguishable in the workpad from a run that observed a failing suite.
 
+**The pre-launch preflight is also a module-coupling gate (issue #2121).** `lib/test/run-parallel.sh
+--preflight` runs a `module-coupling` row and an `install-state` row beside the generated-artifact
+checks, so a stale module registration or marker fails the gate in about a second rather than
+minutes into the suite; `CONTRIBUTING.md` under *The pre-suite check also gates module coupling
+and install-state* is the canonical statement.
+
 **The same recombination primitive also backs a second path: the same-tree failed-shard-only
 relaunch (issue #2008).** After a RED coordinator pass whose fix changed no repository file, the
 clean shards' retained tallies are already a valid result for the identical tree, so the run may

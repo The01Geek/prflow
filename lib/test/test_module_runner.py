@@ -7,11 +7,15 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
+import importlib.util
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -27,6 +31,22 @@ MODULES_DIR = ROOT / "lib/test/modules"
 WORKFLOW_MODULE_SOURCE = ROOT / "lib/test/modules/workflow-flight-recorder.sh"
 CREATE_ISSUE_MODULE_SOURCE = ROOT / "lib/test/modules/create-issue-contract.sh"
 CAPABILITY_PROFILES_MODULE_SOURCE = ROOT / "lib/test/modules/capability-profiles.sh"
+
+
+def _load_by_path(rel: str, name: str):
+    """Import a bundled (possibly hyphenated) helper module by path (issue #2121)."""
+    spec = importlib.util.spec_from_file_location(name, ROOT / rel)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module  # register so a module-level @dataclass resolves __module__
+    spec.loader.exec_module(module)
+    return module
+
+
+# The module-coupling surfaces and the artifact registry are the single sources the pre-suite
+# gate and these tests share (issue #2121).
+MODULE_COUPLING = _load_by_path("lib/test/module_coupling.py", "module_coupling")
+REGEN = _load_by_path("lib/test/regenerate-artifacts.py", "regenerate_artifacts")
 
 # Do NOT widen this to the full exact-policy set unconditionally and do NOT empty it:
 # it is the reduced population used ONLY under the parallel coordinator, where the full
@@ -77,20 +97,9 @@ def _pool_width() -> int:
 # list since issue #695 promoted all three out of run.sh into module-harness.sh, where a
 # module legitimately obtains them; the guard that keeps them harness-owned is the
 # single-definition assertion below, not this ban.
-MONOLITH_HELPER_RE = re.compile(
-    r"(?:^|[^A-Za-z0-9_])"
-    r"(pin_count|grep_present"
-    r"|assert_pin_unique|assert_pin_red_on_removal)"
-    r"(?:[^A-Za-z0-9_]|$)"
-)
-
-# A module may not self-skip: run-module.sh overrides `skip` to a fatal. Since issue #838
-# a module may declare a host-capability condition through `module_host_capability_skip`,
-# which the boundary validates and folds — but the raw helper stays out of reach, which is
-# what this pattern enforces. Match it only in command position (a line whose first token
-# is exactly `skip`), so the wrapper's own name, and prose mentioning the word in a
-# comment, are not false positives.
-MODULE_SKIP_CALL_RE = re.compile(r"^[ \t]*skip(?:[ \t]|$)", re.MULTILINE)
+# Single-sourced in lib/test/module_coupling.py (issue #2121); re-exported for the tests here.
+MONOLITH_HELPER_RE = MODULE_COUPLING.MONOLITH_HELPER_RE
+MODULE_SKIP_CALL_RE = MODULE_COUPLING.MODULE_SKIP_CALL_RE
 
 # The fixture helpers promoted from lib/test/run.sh into lib/test/module-harness.sh —
 # `mint_blk` / `probe_tmp` / `probe_assert` by issue #695, `git_sandbox` alongside the
@@ -1375,82 +1384,14 @@ class ModuleRunnerTests(unittest.TestCase):
         # the authoring checklist needs no cross-check item and no future module can be
         # forgotten. It subsumes the former forward registry→run.sh floor cross-check and
         # the per-module review-and-fix / create-issue reconciliation tests.
-        registry = json.loads(
-            (ROOT / "scripts/workflow-flight-recorder-registry.json").read_text(encoding="utf-8")
-        )
-        modules = registry["test_modules"]
-        self.assertIsInstance(modules, dict)
-        run_text = (ROOT / "lib/test/run.sh").read_text(encoding="utf-8")
-        ci_text = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        on_disk = sorted((ROOT / "lib/test/modules").glob("*.sh"))
-        self.assertTrue(on_disk, "no module files found on disk")
-        for module_path in on_disk:
-            module_id = module_path.stem
-            with self.subTest(module=module_id):
-                expected_path = f"lib/test/modules/{module_id}.sh"
-                # (1) registry entry whose path matches
-                self.assertIn(
-                    module_id,
-                    modules,
-                    f"{expected_path} exists on disk but is unregistered in "
-                    "scripts/workflow-flight-recorder-registry.json",
-                )
-                mapping = modules[module_id]
-                self.assertEqual(mapping["path"], expected_path)
-                floor = mapping["minimum_assertions"]
-                self.assertIsInstance(floor, int)
-                self.assertGreater(floor, 0)
-                # (2) run.sh full-suite call + coupled floor literal == registry floor
-                self.assertIn(
-                    f'devflow_run_full_suite_module "$LIB/test/modules/{module_id}.sh"',
-                    run_text,
-                    f"{module_id} is on disk but never invoked from run.sh's full-suite boundary",
-                )
-                floor_match = re.search(rf'"{re.escape(module_id)}" ([0-9]+); then', run_text)
-                self.assertIsNotNone(floor_match, f"no run.sh call-site floor for {module_id}")
-                self.assertEqual(int(floor_match.group(1)), floor)
-                # (3) ci.yml explicit shellcheck listing (lib/test/ is otherwise excluded)
-                self.assertIn(
-                    expected_path,
-                    ci_text,
-                    f"{expected_path} is not in ci.yml's explicit shellcheck list",
-                )
-                # (4) provenance inventory pairing
-                self.assertTrue(
-                    (ROOT / f"lib/test/modules/{module_id}.inventory.md").is_file(),
-                    f"{module_id} has no lib/test/modules/{module_id}.inventory.md",
-                )
-                # Module contract header, and it never self-invokes the boundary.
-                module_text = module_path.read_text(encoding="utf-8")
-                self.assertTrue(
-                    module_text.startswith(
-                        "# SPDX-FileCopyrightText: 2026 Daniel Radman\n"
-                        "# SPDX-License-Identifier: MIT\n"
-                    )
-                )
-                self.assertIn("Contract: the caller sets LIB and RESULTS_FILE", module_text)
-                self.assertNotIn("devflow_run_full_suite_module", module_text)
-                # No monolith-only helper reference, and no self-skip (module contract).
-                # Comment-aware: a helper name inside a `#` comment is prose about the
-                # helper, never an invocation, so only code lines are scanned.
-                module_code = "\n".join(
-                    line
-                    for line in module_text.split("\n")
-                    if not line.lstrip().startswith("#")
-                )
-                helper_hits = sorted(
-                    {match.group(1) for match in MONOLITH_HELPER_RE.finditer(module_code)}
-                )
-                self.assertEqual(
-                    helper_hits,
-                    [],
-                    f"{module_id} references monolith-only helper(s): {helper_hits}",
-                )
-                self.assertIsNone(
-                    MODULE_SKIP_CALL_RE.search(module_code),
-                    f"{module_id} calls skip directly; a module may only declare a "
-                    "host-capability condition through module_host_capability_skip",
-                )
+        # Issue #2121: the per-surface assertions live in lib/test/module_coupling.py so the SAME
+        # logic backs this focused test AND the read-only pre-suite `module-coupling` preflight row.
+        context = MODULE_COUPLING.build_context(ROOT)
+        self.assertTrue(context.module_ids, "no module files found on disk")
+        results = MODULE_COUPLING.run_checks(context)
+        for surface, failures in results.items():
+            with self.subTest(surface=surface):
+                self.assertEqual(failures, [], f"{surface}: {failures}")
 
     def test_the_harness_clears_an_inherited_devflow_gh_before_a_module_body(self) -> None:
         """Issue #695 AC: a focused run started with DEVFLOW_GH exported must produce the
@@ -3655,6 +3596,570 @@ class RoutingClassificationAgainstTheTreeTests(unittest.TestCase):
             self.assertEqual(len(violations), 1, violations)
             self.assertIn("could not be read", violations[0])
             self.assertIn(str(run_sh), violations[0])
+
+
+class ModuleCouplingSurfaceOmissionTest(unittest.TestCase):
+    """Each preflight coupling surface goes RED on its own planted omission (issue #2121)."""
+
+    def setUp(self) -> None:
+        import dataclasses as dc
+
+        self.dc = dc
+        self.ctx = MODULE_COUPLING.build_context(ROOT)
+        self.mid = self.ctx.module_ids[0]
+
+    def _assert_omission(self, checker, mutated_ctx) -> None:
+        self.assertEqual(checker(self.ctx), [], "clean tree must report no failure")
+        self.assertTrue(checker(mutated_ctx), "planted omission must be reported")
+
+    def test_module_coupling_check_reports_each_declared_omission(self) -> None:
+        mc, dc, ctx, mid = MODULE_COUPLING, self.dc, self.ctx, self.mid
+
+        registry = dict(ctx.registry)
+        del registry[mid]
+        self._assert_omission(
+            mc.surface_registry_membership, dc.replace(ctx, registry=registry)
+        )
+
+        run_text = ctx.run_text.replace(
+            f'devflow_run_full_suite_module "$LIB/test/modules/{mid}.sh"', "REMOVED", 1
+        )
+        self._assert_omission(
+            mc.surface_full_suite_invocation, dc.replace(ctx, run_text=run_text)
+        )
+        # A run.sh call-site floor that disagrees with the registry floor is drift too — the
+        # exact stale-low coupling the gate exists to protect, distinct from a removed call.
+        registry_floor_mismatch = dict(ctx.registry)
+        bumped = dict(registry_floor_mismatch[mid])
+        bumped["minimum_assertions"] = bumped["minimum_assertions"] + 1
+        registry_floor_mismatch[mid] = bumped
+        self._assert_omission(
+            mc.surface_full_suite_invocation,
+            dc.replace(ctx, registry=registry_floor_mismatch),
+        )
+        # The third arm: the call is present but its floor literal is gone. Distinct from a
+        # removed call and from a mismatched floor — a regression collapsing this guard would
+        # ship a floorless call site green.
+        floor_literal = re.search(rf'"{re.escape(mid)}" ([0-9]+); then', ctx.run_text)
+        self.assertIsNotNone(floor_literal, f"no run.sh call-site floor literal for {mid}")
+        no_floor = dc.replace(
+            ctx, run_text=ctx.run_text.replace(floor_literal.group(0), f'"{mid}" ; then', 1)
+        )
+        self._assert_omission(mc.surface_full_suite_invocation, no_floor)
+        self.assertIn(
+            f"{mid}: no run.sh call-site floor literal",
+            mc.surface_full_suite_invocation(no_floor),
+        )
+
+        shard_modules = {
+            shard: tuple(m for m in mods if m != mid)
+            for shard, mods in ctx.shard_modules.items()
+        }
+        self._assert_omission(
+            mc.surface_shard_membership, dc.replace(ctx, shard_modules=shard_modules)
+        )
+
+        ci_text = ctx.ci_text.replace(f"lib/test/modules/{mid}.sh", "REMOVED")
+        self._assert_omission(
+            mc.surface_ci_shellcheck_membership, dc.replace(ctx, ci_text=ci_text)
+        )
+
+        inventory_ids = frozenset(ctx.inventory_ids - {mid})
+        self._assert_omission(
+            mc.surface_provenance_inventory, dc.replace(ctx, inventory_ids=inventory_ids)
+        )
+
+        # The #2109 class: a module absent from pin-corpus-lint.py's AUDITED_PIN_SOURCES, and the
+        # coupled EXPECTED_SOURCE_COUNT literal left stale after an addition.
+        audited = frozenset(ctx.audited_pin_sources - {f"lib/test/modules/{mid}.sh"})
+        self._assert_omission(
+            mc.surface_mutation_pin_fixture_membership,
+            dc.replace(ctx, audited_pin_sources=audited),
+        )
+        self._assert_omission(
+            mc.surface_mutation_pin_fixture_membership,
+            dc.replace(ctx, expected_source_count=ctx.expected_source_count + 1),
+        )
+
+        # The 93ccdd054 class, both directions: the registry's exact set and the hand-named list
+        # in test_repository_declares_the_exact_floor_population disagree.
+        non_exact = next(m for m in ctx.module_ids if m not in ctx.declared_exact_population)
+        exact_registry = dict(ctx.registry)
+        exact_registry[non_exact] = dict(exact_registry[non_exact], assertion_floor_policy="exact")
+        self._assert_omission(
+            mc.surface_exact_policy_population_membership,
+            dc.replace(ctx, registry=exact_registry),
+        )
+        self._assert_omission(
+            mc.surface_exact_policy_population_membership,
+            dc.replace(ctx, declared_exact_population=ctx.declared_exact_population[1:]),
+        )
+
+        # module-body-contract has five independent sub-branches — plant each so no branch can
+        # be dropped from the surface checker while the SPDX case alone keeps the suite green.
+        # (a) SPDX header removed.
+        module_texts = dict(ctx.module_texts)
+        module_texts[mid] = module_texts[mid].replace(
+            "# SPDX-FileCopyrightText: 2026 Daniel Radman\n", "", 1
+        )
+        self._assert_omission(
+            mc.surface_module_body_contract, dc.replace(ctx, module_texts=module_texts)
+        )
+        # (b) required caller-contract text removed.
+        no_contract = dict(ctx.module_texts)
+        no_contract[mid] = no_contract[mid].replace(
+            "Contract: the caller sets LIB and RESULTS_FILE", "REMOVED", 1
+        )
+        self._assert_omission(
+            mc.surface_module_body_contract, dc.replace(ctx, module_texts=no_contract)
+        )
+        # (c) self-invocation of the full-suite boundary.
+        self_invoke = dict(ctx.module_texts)
+        self_invoke[mid] = self_invoke[mid] + '\ndevflow_run_full_suite_module "x"\n'
+        self._assert_omission(
+            mc.surface_module_body_contract, dc.replace(ctx, module_texts=self_invoke)
+        )
+        # (d) monolith-only pin helper referenced in code position.
+        monolith = dict(ctx.module_texts)
+        monolith[mid] = monolith[mid] + "\npin_count foo bar\n"
+        self._assert_omission(
+            mc.surface_module_body_contract, dc.replace(ctx, module_texts=monolith)
+        )
+        # (e) direct skip call in command position.
+        skip_call = dict(ctx.module_texts)
+        skip_call[mid] = skip_call[mid] + "\nskip host-capability\n"
+        self._assert_omission(
+            mc.surface_module_body_contract, dc.replace(ctx, module_texts=skip_call)
+        )
+
+        # A census parse cache too small for the swept population (+ headroom) is drift.
+        self._assert_omission(
+            mc.surface_mutation_census_cache_capacity,
+            dc.replace(ctx, cache_capacity=len(ctx.swept_population)),
+        )
+
+
+
+
+class InstallStateRowTest(unittest.TestCase):
+    """The install-state marker drift is preflight drift, batch-repairable, read-only (#2121)."""
+
+    def test_install_state_drift_is_preflight_drift_and_batch_repairable(self) -> None:
+        gen = _load_by_path("lib/generate-install-state.py", "generate_install_state")
+        scratch = ROOT / ".prflow/tmp"
+        scratch.mkdir(parents=True, exist_ok=True)
+        # Under the ignored repo scratch root, not the system tmp: the write form prints the
+        # marker path relative_to(_REPO_ROOT), which raises for a path outside the repo.
+        with tempfile.TemporaryDirectory(dir=scratch) as tmp:
+            marker = Path(tmp) / "install-state.json"
+            marker.write_text('{"drifted": true}\n', encoding="utf-8")
+            with mock.patch.object(gen, "_MARKER", marker):
+                self.assertEqual(gen.main(["--check"]), 1)
+                self.assertEqual(gen.main([]), 0)
+                before = marker.read_bytes()
+                self.assertEqual(gen.main(["--check"]), 0)
+                self.assertEqual(marker.read_bytes(), before)
+
+        row = next(r for r in REGEN.ROWS if r["name"] == "install-state")
+        self.assertEqual(row["preflight_argv"], ("python3", "lib/generate-install-state.py", "--check"))
+
+
+
+class PlantedOmissionEndToEndTest(unittest.TestCase):
+    """One planted registry omission runs from the tree through run_preflight to the coordinator's
+    shard-launch refusal (issue #2121)."""
+
+    @staticmethod
+    def _materialize_tree(dst: Path) -> None:
+        # The WORKING tree's tracked files (not a clone of HEAD), re-committed so the fixture's
+        # own `git ls-files` enumerations resolve.
+        listing = subprocess.run(
+            ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True
+        ).stdout.decode()
+        for rel in filter(None, listing.split("\0")):
+            src = ROOT / rel
+            if not src.is_file():
+                continue
+            target = dst / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, target)
+        git = ["git", "-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid"]
+        subprocess.run([*git, "init", "-q"], cwd=dst, check=True)
+        subprocess.run([*git, "add", "-f", "-A"], cwd=dst, check=True)
+        subprocess.run([*git, "commit", "-q", "-m", "fixture"], cwd=dst, check=True)
+
+    def test_planted_omission_is_drift_and_refuses_shard_launch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._materialize_tree(root)
+            registry_path = root / "scripts/workflow-flight-recorder-registry.json"
+            registry = json.loads(registry_path.read_text(encoding="utf-8"))
+            planted = MODULE_COUPLING.module_ids(root)[0]
+            del registry["test_modules"][planted]
+            registry_path.write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
+
+            # Preflight: the omission is DRIFT, attributed to the module-coupling row, exit 1.
+            captured = io.StringIO()
+            with contextlib.redirect_stdout(captured):
+                rc = REGEN.run_preflight(root, deadline_ns=60_000_000_000)
+            out = captured.getvalue()
+            self.assertEqual(rc, 1, out)
+            self.assertIn(f"{REGEN.PREFLIGHT_VERDICT_PREFIX}drift", out)
+            self.assertIn("[module-coupling] DRIFT", out)
+            self.assertIn(f"{planted}: on disk but unregistered", out)
+
+            # Coordinator: the same tree makes `run-parallel.sh --preflight` refuse to launch.
+            env = {k: v for k, v in os.environ.items() if k != "DEVFLOW_ARTIFACT_PREFLIGHT"}
+            proc = subprocess.run(
+                ["bash", "lib/test/run-parallel.sh", "--preflight"],
+                cwd=root, env=env, capture_output=True, text=True, check=False,
+            )
+            self.assertNotEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            self.assertIn(
+                "generated-artifact preflight reported drift (see above); launching no shard",
+                proc.stdout + proc.stderr,
+            )
+
+
+class CouplingReceiptUncheckableInputTest(unittest.TestCase):
+    """Unreadable, malformed, and unclassified inputs are UNCHECKABLE, not drift (#2121)."""
+
+    def _write_min_tree(self, root: Path) -> None:
+        (root / "scripts").mkdir(parents=True, exist_ok=True)
+        (root / "lib/test/modules").mkdir(parents=True, exist_ok=True)
+
+    def test_coupling_receipt_uncheckable_input_matrix(self) -> None:
+        mc = MODULE_COUPLING
+        # Unreadable: no registry file at all.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_min_tree(root)
+            with self.assertRaises(mc.CouplingUncheckable):
+                mc.build_context(root)
+            self.assertEqual(mc.main(["--check", "--repo-root", str(root)]), 2)
+
+        # Malformed: registry that is not valid JSON.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_min_tree(root)
+            (root / "scripts/workflow-flight-recorder-registry.json").write_text(
+                "{not json", encoding="utf-8"
+            )
+            with self.assertRaises(mc.CouplingUncheckable):
+                mc.build_context(root)
+            self.assertEqual(mc.main(["--check", "--repo-root", str(root)]), 2)
+
+        # Unclassified: test_modules present but not a mapping.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write_min_tree(root)
+            (root / "scripts/workflow-flight-recorder-registry.json").write_text(
+                '{"test_modules": ["not", "a", "mapping"]}', encoding="utf-8"
+            )
+            with self.assertRaises(mc.CouplingUncheckable):
+                mc.build_context(root)
+            self.assertEqual(mc.main(["--check", "--repo-root", str(root)]), 2)
+
+
+class CouplingUnexpectedExceptionTest(unittest.TestCase):
+    """A non-CouplingUncheckable raise escaping build_context is exit 2 (UNCHECKABLE), never the
+    declared-set exit 1 the preflight would read as DRIFT (#2121)."""
+
+    def test_escaped_exception_routes_to_exit_2_not_drift(self) -> None:
+        mc = MODULE_COUPLING
+
+        def boom(root):
+            raise RuntimeError("planted")
+
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(mc, "build_context", boom), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = mc.main(["--check", "--repo-root", str(ROOT)])
+        self.assertEqual(rc, 2)
+        self.assertIn(f"{mc.INPUT_ERROR_MARKER} unexpected RuntimeError: planted", err.getvalue())
+        self.assertNotIn("DRIFT", out.getvalue() + err.getvalue())
+        row = next(r for r in REGEN.ROWS if r["name"] == "module-coupling")
+        self.assertNotIn(2, row["exits"], "exit 2 must stay outside `exits` to route UNCHECKABLE")
+
+    def test_module_coupling_row_is_first_among_preflight_rows(self) -> None:
+        eligible = [r["name"] for r in REGEN.ROWS if r.get("preflight_eligible")]
+        self.assertEqual(eligible[0], "module-coupling", eligible)
+
+
+class CouplingTreeUncheckableInputTest(unittest.TestCase):
+    """Every remaining `build_context` raise path, planted on a materialized copy of the tracked
+    tree, is UNCHECKABLE (exit 2) and never DRIFT (#2121)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.root = Path(cls._tmp.name)
+        PlantedOmissionEndToEndTest._materialize_tree(cls.root)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tmp.cleanup()
+
+    @contextlib.contextmanager
+    def _planted(self, rel: str, mutate):
+        """Apply `mutate(path)` to one fixture file and restore its bytes and mode afterwards."""
+        path = self.root / rel
+        original, mode = path.read_bytes(), path.stat().st_mode
+        try:
+            mutate(path)
+            yield path
+        finally:
+            if path.is_dir():
+                shutil.rmtree(path)
+            elif path.exists():
+                path.chmod(mode)
+            path.write_bytes(original)
+            path.chmod(mode)
+
+    def _assert_uncheckable(self, label: str) -> None:
+        mc = MODULE_COUPLING
+        with self.assertRaises(mc.CouplingUncheckable, msg=label):
+            mc.build_context(self.root)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = mc.main(["--check", "--repo-root", str(self.root)])
+        self.assertEqual(rc, 2, f"{label}: {out.getvalue()}{err.getvalue()}")
+        self.assertIn(mc.INPUT_ERROR_MARKER, err.getvalue(), label)
+        self.assertNotIn("DRIFT", out.getvalue() + err.getvalue(), label)
+
+    @staticmethod
+    def _unlink(path: Path) -> None:
+        path.unlink()
+
+    @staticmethod
+    def _replace_with_directory(path: Path) -> None:
+        path.unlink()
+        path.mkdir()
+
+    @staticmethod
+    def _writer(text: str):
+        return lambda path: path.write_text(text, encoding="utf-8")
+
+    def test_missing_coupled_sources_are_uncheckable(self) -> None:
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(MODULE_COUPLING.main(["--check", "--repo-root", str(self.root)]), 0)
+        with self._planted("lib/test/run.sh", self._unlink):
+            self._assert_uncheckable("run.sh missing")
+        with self._planted(".github/workflows/ci.yml", self._unlink):
+            self._assert_uncheckable("ci.yml missing")
+        # A module path the glob still lists but that cannot be read as a file (module_ids
+        # derives from the glob, so a plain deletion is a smaller population, not an error).
+        module = MODULE_COUPLING.module_ids(self.root)[0]
+        with self._planted(f"lib/test/modules/{module}.sh", self._replace_with_directory):
+            self._assert_uncheckable("module unreadable")
+
+    def test_permission_denied_sources_are_uncheckable(self) -> None:
+        if os.geteuid() == 0:
+            self.skipTest("chmod 000 does not deny root; the arm cannot be measured here")
+        def deny(path: Path) -> None:
+            path.chmod(0)
+
+        with self._planted("lib/test/run.sh", deny):
+            self._assert_uncheckable("run.sh mode 000")
+        with self._planted(".github/workflows/ci.yml", deny):
+            self._assert_uncheckable("ci.yml mode 000")
+        module = MODULE_COUPLING.module_ids(self.root)[0]
+        with self._planted(f"lib/test/modules/{module}.sh", deny):
+            self._assert_uncheckable("module mode 000")
+
+    def test_census_failures_are_uncheckable(self) -> None:
+        census = "lib/test/mutation-pin-census.py"
+        with self._planted(census, self._writer("raise RuntimeError('planted import')\n")):
+            self._assert_uncheckable("census import fails")
+        with self._planted(census, self._writer("def (:\n")):
+            self._assert_uncheckable("census syntax error")
+        stub = (
+            "_SOURCE_PARSE_CACHE_SIZE = 1\nEXPECTED_SOURCE_COUNT = 1\n"
+            "def swept_shell_population(root, timeout=None):\n"
+            "    raise RuntimeError('planted enumeration')\n"
+        )
+        with self._planted(census, self._writer(stub)):
+            self._assert_uncheckable("census enumeration fails")
+
+    def test_shard_dispatcher_failures_are_uncheckable(self) -> None:
+        dispatcher = "lib/test/run-shard.sh"
+        with self._planted(dispatcher, self._writer("#!/usr/bin/env bash\nexit 3\n")):
+            self._assert_uncheckable("dispatcher exits non-zero")
+        with self._planted(dispatcher, self._writer("#!/usr/bin/env bash\necho monolith\n")):
+            self._assert_uncheckable("dispatcher lists no modules-* shard")
+
+    def test_ast_parsed_sources_are_uncheckable(self) -> None:
+        linter = "lib/test/pin-corpus-lint.py"
+        with self._planted(linter, self._writer("def (:\n")):
+            self._assert_uncheckable("pin-corpus-lint syntax error")
+        with self._planted(linter, self._writer("OTHER = frozenset()\n")):
+            self._assert_uncheckable("AUDITED_PIN_SOURCES undefined")
+        with self._planted(linter, self._writer("AUDITED_PIN_SOURCES = frozenset(x for x in y)\n")):
+            self._assert_uncheckable("AUDITED_PIN_SOURCES not a literal")
+        population = "lib/test/test_module_runner.py"
+        with self._planted(population, self._writer("def (:\n")):
+            self._assert_uncheckable("population test syntax error")
+        with self._planted(population, self._writer("x = 1\n")):
+            self._assert_uncheckable("population test missing")
+        two_lists = f"def {MODULE_COUPLING._EXACT_POPULATION_TEST}():\n    a = [1]\n    b = [2]\n"
+        with self._planted(population, self._writer(two_lists)):
+            self._assert_uncheckable("population test has two list literals")
+
+
+class CouplingReceiptBuildTest(unittest.TestCase):
+    """The clean-path receipt: a build failure is UNCHECKABLE, never a false clean, and the real
+    receipt carries the declared field set (#2121)."""
+
+    RECEIPT_FIELDS = (
+        "state", "checks", "checked_population", "tracked_shell_count", "cache_capacity",
+        "required_minimum", "headroom", "elapsed_ms", "deadline_ms",
+    )
+
+    def test_receipt_build_failure_routes_to_uncheckable(self) -> None:
+        R = REGEN
+
+        def clean_row(row, root, report, timeout_seconds, posix=True):
+            return False, False
+
+        def boom(root, elapsed_ms, deadline_ms, timeout=None):
+            raise RuntimeError("census enumeration failed")
+
+        captured = io.StringIO()
+        with mock.patch.object(R, "run_preflight_row", clean_row), \
+                mock.patch.object(R, "build_coupling_receipt", boom), \
+                contextlib.redirect_stdout(captured):
+            rc = R.run_preflight(ROOT)
+        out = captured.getvalue()
+        self.assertEqual(rc, 2, out)
+        self.assertIn(
+            "[coupling-receipt] UNCHECKABLE could not build the receipt: census enumeration failed",
+            out,
+        )
+        self.assertIn(f"{R.PREFLIGHT_VERDICT_PREFIX}uncheckable", out)
+        self.assertNotIn(f"{R.PREFLIGHT_VERDICT_PREFIX}clean", out)
+        self.assertNotIn("coupling-receipt: state=clean", out)
+
+    def test_real_receipt_carries_the_declared_field_set(self) -> None:
+        R = REGEN
+        line = R.build_coupling_receipt(ROOT, 7, 5000)
+        self.assertTrue(line.startswith(f"{R.COUPLING_RECEIPT_PREFIX}state=clean "), line)
+        tokens = line[len(R.COUPLING_RECEIPT_PREFIX):].split(" ")
+        self.assertEqual(tuple(tok.split("=", 1)[0] for tok in tokens), self.RECEIPT_FIELDS)
+        values = dict(tok.split("=", 1) for tok in tokens)
+        self.assertEqual(values["checks"], ",".join(MODULE_COUPLING.PREFLIGHT_SURFACE_CHECKS))
+        self.assertEqual(
+            values["checked_population"],
+            ",".join(row["name"] for row in R.ROWS if row.get("preflight_eligible")),
+        )
+        self.assertEqual(
+            int(values["required_minimum"]),
+            int(values["tracked_shell_count"]) + MODULE_COUPLING.CACHE_CAPACITY_HEADROOM,
+        )
+        self.assertEqual((values["elapsed_ms"], values["deadline_ms"]), ("7", "5000"))
+
+
+class PreflightDeadlineTest(unittest.TestCase):
+    """The preflight aggregate deadline and per-row bounds use injected seams (#2121)."""
+
+    def test_row_bound_is_lesser_of_declared_and_remaining_with_injected_clock(self) -> None:
+        R = REGEN
+        captured = []
+
+        def spy(row, root, report, timeout_seconds, posix=True):
+            captured.append((row["name"], timeout_seconds))
+            return False, False  # clean
+
+        # A clock (ns) leaving a 4s remaining budget on the first row, then staying positive.
+        values = iter([0, 1_000_000_000] + [2_000_000_000] * 20 + [1_234_000_000])
+        last = [0]
+
+        def clock():
+            try:
+                last[0] = next(values)
+            except StopIteration:
+                pass
+            return last[0]
+
+        with mock.patch.object(R, "run_preflight_row", spy):
+            rc = R.run_preflight(
+                ROOT, deadline_ns=5_000_000_000, clock=clock, posix=True
+            )
+        self.assertEqual(rc, 0)
+        # First eligible row's declared bound is 32s; the remaining budget (4s) is the lesser.
+        self.assertEqual(captured[0][1], 4.0)
+
+    def test_deadline_exhaustion_is_uncheckable(self) -> None:
+        R = REGEN
+        # A clock whose first per-row reading is already past the deadline → every row skipped.
+        values = iter([0] + [10_000_000_000] * 40)
+        last = [0]
+
+        def clock():
+            try:
+                last[0] = next(values)
+            except StopIteration:
+                pass
+            return last[0]
+
+        # No subprocess runs: every row hits the deadline-exhausted arm.
+        with mock.patch.object(R, "run_preflight_row") as unreached:
+            rc = R.run_preflight(ROOT, deadline_ns=5_000_000_000, clock=clock)
+        self.assertEqual(rc, 2)
+        unreached.assert_not_called()
+
+    def test_drift_dominates_a_coexisting_uncheckable_row(self) -> None:
+        # A preflight with BOTH a positively-identified drift and an uncheckable row must emit
+        # the drift verdict and exit 1 (drift precedence) — never let the uncheckable mask it.
+        R = REGEN
+        calls = []
+
+        def spy(row, root, report, timeout_seconds, posix=True):
+            calls.append(row["name"])
+            # First eligible row drifts; a later one is uncheckable.
+            if len(calls) == 1:
+                return True, False  # drift
+            return False, True  # uncheckable
+
+        with mock.patch.object(R, "run_preflight_row", spy):
+            rc = R.run_preflight(ROOT)
+        self.assertEqual(rc, 1)
+        self.assertGreaterEqual(len(calls), 2)
+
+
+
+class PreflightTerminationTest(unittest.TestCase):
+    """A bounded-out preflight row is UNCHECKABLE, with a degraded note off POSIX (#2121)."""
+
+    @staticmethod
+    def _sleeper() -> dict:
+        return {
+            "name": "sleeper",
+            "argv": ("python3", "-c", "import time; time.sleep(30)"),
+            "exits": (0,),
+            "clean": (0,),
+            "policy": "n/a",
+            "timeout_seconds": 30,
+        }
+
+    def test_timeout_terminates_and_is_uncheckable_on_posix(self) -> None:
+        report = []
+        drift, uncheckable = REGEN.run_preflight_row(
+            self._sleeper(), ROOT, report, timeout_seconds=0.3, posix=True
+        )
+        self.assertFalse(drift)
+        self.assertTrue(uncheckable)
+        joined = "\n".join(report)
+        self.assertIn("exceeded its bound", joined)
+        self.assertNotIn("descendant termination is unestablished", joined)
+
+    def test_non_posix_timeout_reports_degraded_termination(self) -> None:
+        report = []
+        drift, uncheckable = REGEN.run_preflight_row(
+            self._sleeper(), ROOT, report, timeout_seconds=0.3, posix=False
+        )
+        self.assertFalse(drift)
+        self.assertTrue(uncheckable)
+        self.assertIn("descendant termination is unestablished", "\n".join(report))
 
 
 if __name__ == "__main__":

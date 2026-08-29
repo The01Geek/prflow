@@ -978,6 +978,7 @@ psr_plant_preflight() {  # <name> <rc> <line...>   — writes an executable stub
 
 PSR_PF_CLEAN="$(psr_plant_preflight clean 0 \
   "[cloud-writer-manifest] clean" \
+  "regenerate-artifacts: coupling-receipt: state=clean checks=registry-membership tracked_shell_count=104 cache_capacity=110 required_minimum=109 headroom=6 elapsed_ms=1 deadline_ms=5000" \
   "regenerate-artifacts: preflight-verdict: clean" \
   "regenerate-artifacts: preflight — every eligible artifact reconciled — exit 0")"
 PSR_PF_DRIFT="$(psr_plant_preflight drift 1 \
@@ -1018,6 +1019,13 @@ assert_eq "#1244 psr preflight: a clean preflight launches the shard" "yes" \
   "$(case "$PSR_PF_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#1244 psr preflight: a clean preflight completes the aggregate" "yes" \
   "$(case "$PSR_PF_OUT" in *"2 passed, 0 failed"*) echo yes ;; *) echo no ;; esac)"
+
+# #2121 — the clean coupling receipt is re-emitted on STDOUT under the coordinator prefix.
+PSR_PF_STDOUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>/dev/null)"
+assert_eq "#2121 psr preflight: a clean preflight re-emits the coupling receipt on stdout" "yes" \
+  "$(case "$PSR_PF_STDOUT" in *"run-parallel: coupling-receipt: state=clean checks=registry-membership"*) echo yes ;; *) echo no ;; esac)"
 
 # AC4 — detected drift refuses to launch: no shard, non-zero, remedy printed.
 PSR_PF_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_DRIFT" \
@@ -1080,15 +1088,29 @@ assert_eq "#1244 psr preflight: a crashing preflight still launches the shard" "
 assert_eq "#1244 psr preflight: a crashing preflight is treated as inconclusive, not drift" "yes" \
   "$(case "$PSR_PF_OUT" in *"preflight was inconclusive (exit 1"*) echo yes ;; *) echo no ;; esac)"
 
-# AC6 — an empty override disables the preflight entirely; the shards run with no warning.
+# AC6 — an empty override disables the preflight; the shards run. Since issue #2121 the disabled
+# arm emits a typed disabled receipt and a warn-and-proceed line to stderr before launching.
 PSR_PF_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="" \
   DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
   bash lib/test/run-parallel.sh 2>&1)"; PSR_PF_RC=$?
 assert_eq "#1244 psr preflight: an empty override disables the preflight (exit 0)" "0" "$PSR_PF_RC"
 assert_eq "#1244 psr preflight: an empty override still launches the shard" "yes" \
   "$(case "$PSR_PF_OUT" in *"launched shard alpha"*) echo yes ;; *) echo no ;; esac)"
-assert_eq "#1244 psr preflight: an empty override emits no preflight warning" "yes" \
-  "$(case "$PSR_PF_OUT" in *"generated-artifact preflight"*) echo no ;; *) echo yes ;; esac)"
+assert_eq "#2121 psr preflight: an empty override emits the typed disabled receipt" "yes" \
+  "$(case "$PSR_PF_OUT" in *"coupling-receipt: state=uncheckable reason=empty-override checked_population=none"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2121 psr preflight: an empty override warns-and-proceeds (no clean receipt)" "yes" \
+  "$(case "$PSR_PF_OUT" in *"the generated-artifact preflight is disabled"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2121 psr preflight: the disabled arm emits no clean coupling receipt" "yes" \
+  "$(case "$PSR_PF_OUT" in *"coupling-receipt: state=clean"*) echo no ;; *) echo yes ;; esac)"
+# The disabled receipt shares the clean receipt's channel (stdout); only the warning is stderr,
+# so one stdout scan sees whichever receipt the run emitted.
+PSR_PF_STDOUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>/dev/null)"
+assert_eq "#2121 psr preflight: the disabled receipt is emitted on stdout" "yes" \
+  "$(case "$PSR_PF_STDOUT" in *"coupling-receipt: state=uncheckable reason=empty-override checked_population=none"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2121 psr preflight: the disabled arm's warning stays off stdout" "yes" \
+  "$(case "$PSR_PF_STDOUT" in *"the generated-artifact preflight is disabled"*) echo no ;; *) echo yes ;; esac)"
 
 # ── Standalone --preflight mode (issue #1288) ────────────────────────────────
 # The #1132 shard-decomposition route names `run-parallel.sh --preflight` before its shard
@@ -1158,12 +1180,15 @@ assert_eq "#1288 --preflight: a crashing preflight proceeds (exit 0)" "0" "$PSR_
 assert_eq "#1288 --preflight: a crashing preflight is treated as inconclusive, not drift" "yes" \
   "$(case "$PSR_PFO_OUT" in *"launching no shard"*) echo no ;; *"preflight was inconclusive (exit 1"*) echo yes ;; *) echo no ;; esac)"
 
-# An empty override disables the preflight entirely: exit 0, and no preflight output at all.
+# An empty override disables the preflight: exit 0. Since issue #2121 it emits the typed
+# disabled receipt and the warn-and-proceed line rather than nothing at all.
 PSR_PFO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="" \
   bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_PFO_RC=$?
 assert_eq "#1288 --preflight: an empty override disables the preflight (exit 0)" "0" "$PSR_PFO_RC"
-assert_eq "#1288 --preflight: an empty override emits no preflight output" "yes" \
-  "$(case "$PSR_PFO_OUT" in *"generated-artifact preflight"*) echo no ;; *) echo yes ;; esac)"
+assert_eq "#2121 --preflight: an empty override emits the typed disabled receipt" "yes" \
+  "$(case "$PSR_PFO_OUT" in *"coupling-receipt: state=uncheckable reason=empty-override checked_population=none"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2121 --preflight: an empty override warns-and-proceeds" "yes" \
+  "$(case "$PSR_PFO_OUT" in *"the generated-artifact preflight is disabled"*) echo yes ;; *) echo no ;; esac)"
 
 # --preflight is a single known argument: a second argument is still refused by the arity
 # guard, not misread as the preflight input.

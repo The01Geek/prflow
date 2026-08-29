@@ -1572,6 +1572,21 @@ assert_eq "#1498 a non-clean run with no refusal marker is infrastructure (exit 
 _ra_has "#1498 the row reports the absent non-writing refusal marker" \
   "$RA_1498_NOMARKER" "recognized non-writing refusal marker"
 
+# (3b) #2121 — the install-state mechanical row's exit-1 arm: a traceback-class exit printing
+# no `cloud-writer-contract:` marker routes to INFRASTRUCTURE (exit 2), never a judgment item.
+RA_2121_IS_EXIT1="$_ra_tmp_root/issue-2121-install-state-exit1"; _ra_fixture "$RA_2121_IS_EXIT1"
+cat > "$RA_2121_IS_EXIT1/lib/generate-install-state.py" <<'PY'
+#!/usr/bin/env python3
+import sys
+
+sys.exit(1)
+PY
+_ra_run "$RA_2121_IS_EXIT1"
+assert_eq "#2121 an install-state exit 1 with no marker is infrastructure (exit 2)" \
+  "2" "$(_ra_rc "$RA_2121_IS_EXIT1")"
+_ra_has "#2121 the install-state row reports the absent marker as infrastructure" \
+  "$RA_2121_IS_EXIT1" "[install-state] INFRASTRUCTURE exited 1 with no"
+
 # (4) AC4 — the clean class's OWN text. The stand-in exits 0 and changes nothing, so the
 # monotonic classifier reports every measured tally matching both floors and the batched
 # pass exits 0. (The A1 prefix loop above still covers the live tree; this pins the text.)
@@ -1777,7 +1792,8 @@ print("\n".join(sorted(paths)))
 PY
 )"
 assert_eq "#619 writing rows expose their complete output set through the registry" \
-  'lib/test/run.sh
+  '.prflow/install-state.json
+lib/test/run.sh
 scripts/workflow-flight-recorder-registry.json' "$RA_DECLARED_WRITES"
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -2230,6 +2246,13 @@ assert_eq "#1055 the exact-floor recipe routes through the granted batch entry p
 assert_eq "#1055 the exact-floor recipe does not expose its subprocess-only child" \
   "no" "$(_ra_recipe_names exact-module-floors 'python3 lib/test/reconcile-module-floors.py')"
 
+# #2121 — install-state detection AND repair route through the batched helper, not the
+# generator head.
+assert_eq "#2121 install-state detection/repair routes through the granted batch entry point" \
+  "yes" "$(_ra_recipe_names install-state 'lib/test/regenerate-artifacts.py')"
+assert_eq "#2121 the install-state recipe does not expose the generator head directly" \
+  "no" "$(_ra_recipe_names install-state 'python3 lib/generate-install-state.py --check')"
+
 # ── #1206 — the coupled-site registry (issue #1206) ──────────────────────────
 # `--list` prints a coupled-site registry AFTER everything it printed before, so a person
 # or an automated run can ask "what else must change when I edit X?" read-only. RA_LIST
@@ -2375,6 +2398,14 @@ _ra_bind_fails_closed "a non-int timeout_seconds" \
 _ra_bind_fails_closed "a bool timeout_seconds (an int subclass) is rejected" \
   's/"timeout_seconds": 550,/"timeout_seconds": True,/' \
   "exact-module-floors" "not an int"
+# #2121 — a non-positive timeout is a mis-typed field, not a 0/negative wall.
+_ra_bind_fails_closed "a zero timeout_seconds is rejected" \
+  's/"timeout_seconds": 32,/"timeout_seconds": 0,/' \
+  "capability-profile-literals" "not a positive int"
+_ra_bind_fails_closed "a negative timeout_seconds is rejected" \
+  's/"timeout_seconds": 22,/"timeout_seconds": -1,/' \
+  "plugin-identity-regions" "not a positive int"
+
 
 # AC4/AC5/AC6 — a bounded-out row: fast judgment rows are trivial exit-0 stubs; the
 # env-freeze-advisory-region generator is a sleeper spawning a child and recording both PIDs.

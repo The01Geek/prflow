@@ -8,10 +8,10 @@ manifest induces drift in checked-in generated records.
 Discovering that drift one full-suite run at a time is the dominant cost of a loop
 iteration, because the full suite is the slowest verification step in the repo. Run
 this helper once after applying edits and before each full-suite re-verify run: it
-regenerates any mechanically-safe artifact (none is registered today — see the note above
-the ROWS tuple), runs each judgment-gated artifact's
-non-writing check, and reports every resulting judgment item together, so the next
-suite run verifies a tree whose generated artifacts are already reconciled.
+regenerates any mechanically-safe artifact (the `install-state` row, issue #2121), runs each
+judgment-gated artifact's non-writing check, and reports every resulting judgment item
+together, so the next suite run verifies a tree whose generated artifacts are already
+reconciled.
 
 OPT-IN ROWS. A row declaring `opt_in: True` is skipped by the default pass and runs only
 under the flag its report line names (`--with-floors` for `exact-module-floors`, the one
@@ -74,11 +74,12 @@ verifies the placement, because rows declare their outputs and not their inputs.
 WRITE SCOPE: writing rows declare their complete `writes` set in the registry. The
 exact-floor row may raise `scripts/workflow-flight-recorder-registry.json` and
 `lib/test/run.sh` together. Every judgment row runs a non-writing check and never writes
-its artifact. (No `mechanical` row is registered today; see the note above the ROWS
-tuple.)
+its artifact. (The `install-state` row is the one `mechanical` row registered, issue #2121;
+see the note above the ROWS tuple.)
 
-EXIT CONTRACT (exactly three states). Its `mechanical row` clauses are conditional on such
-a row being registered; none is today, so they select nothing in a production run:
+EXIT CONTRACT (exactly three states). Its `mechanical row` clauses select for the registered
+`install-state` mechanical row (issue #2121); its `cloud-writer-contract:` exit-1 marker arm
+below is install-state-inapplicable, so an install-state exit 1 routes to INFRASTRUCTURE:
   0 — every row resolved in its declared clean state (its command exited in that
       state), the mechanical regeneration changed nothing, and no exit-1-forcing
       judgment item was printed.
@@ -165,6 +166,15 @@ ROW_TIMEOUT_OVERRIDE_ENV = "DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS"
 # absent off POSIX, so every use is guarded on this flag.
 _POSIX = os.name == "posix"
 
+# Aggregate wall-clock bound on the whole read-only preflight (issue #2121). Exhausting it makes
+# the unfinished rows UNCHECKABLE — never a licence to convert a detected drift into one.
+AGGREGATE_DEADLINE_MS = 5000
+
+# The clean-path coupling receipt line (issue #2121). Anchored like PREFLIGHT_VERDICT_PREFIX so
+# lib/test/run-parallel.sh can pick it out by a line-START bash scan and re-emit exactly it on
+# stdout. COUPLED CONTRACT, edited with run-parallel.sh.
+COUPLING_RECEIPT_PREFIX = "regenerate-artifacts: coupling-receipt: "
+
 # Ordered registry. `argv` is resolved under the target root and run with that root as
 # the working directory, so a fixture root exercises the fixture's own generators.
 # `exits` is the row's declared exit-code set and `clean` its positive arm; an exit
@@ -175,6 +185,26 @@ ROWS = (
     # Do NOT re-add a `cloud-writer-manifest` row here (issue #1445) — a batched pass that
     # writes that artifact on a feature branch reintroduces the merge chokepoint and turns
     # lib/test/cloud-writer-retention-check.py RED.
+    {
+        # Module-coupling gate (issue #2121): every on-disk focused module is wired across the
+        # coupling surfaces in lib/test/module_coupling.py. Exit 1 = drift; exit 2 = an input
+        # failure, deliberately OUTSIDE `exits` so the preflight routes it to UNCHECKABLE.
+        # Keep it FIRST: a later position lets earlier rows exhaust the aggregate deadline and
+        # starve the drift detector into UNCHECKABLE (fail-open).
+        "name": "module-coupling",
+        "timeout_seconds": 30,
+        "kind": "judgment",
+        "argv": ("python3", "lib/test/module_coupling.py", "--check"),
+        "clean": (0,),
+        "exits": (0, 1),
+        "policy": (
+            "wire every on-disk lib/test/modules/*.sh module across the coupled surfaces named "
+            "above (registry, run.sh floor, shard, ci.yml, inventory, module body) and commit"
+        ),
+        "conflict_class": "by-hand",
+        "conflict_paths": ("lib/test/module_coupling.py",),
+        "preflight_eligible": True,
+    },
     {
         "name": "capability-profile-literals",
         # Bound = measured 0.064s x500 (issue #1457 AC2a); the ms-scale rows carry a large
@@ -421,6 +451,30 @@ ROWS = (
         # row exists to surface — matching it would hide the drift it reports.
         "infra_markers": ("Traceback (most recent call last)",),
         # Preflight (issue #1244): `--check` is read-only and sub-second (~0.04 s).
+        "preflight_eligible": True,
+    },
+    {
+        # Install-state marker (issue #2121): the batch argv regenerates .prflow/install-state.json;
+        # the read-only preflight_argv `--check` detects drift without writing.
+        "name": "install-state",
+        "timeout_seconds": 30,
+        "kind": "mechanical",
+        "argv": ("python3", "lib/generate-install-state.py"),
+        "preflight_argv": ("python3", "lib/generate-install-state.py", "--check"),
+        "writes": (".prflow/install-state.json",),
+        "clean": (0,),
+        # (0, 1): `--check` exits 1 on drift (the preflight's DRIFT arm). The write form exits 0
+        # on success; a bind/read failure surfaces as a traceback (exit 1) which the mechanical
+        # classifier routes to INFRASTRUCTURE via its no-marker arm.
+        "exits": (0, 1),
+        "policy": (
+            "regenerate the marker by rerunning the granted batch form "
+            "`lib/test/regenerate-artifacts.py` (its install-state row runs "
+            "`python3 lib/generate-install-state.py`), then commit .prflow/install-state.json"
+        ),
+        "conflict_class": "regenerate",
+        # A batch-form exit 1 (a traceback) routes to INFRASTRUCTURE: the mechanical exit-1 arm
+        # keys on `cloud-writer-contract:`, which install-state never emits.
         "preflight_eligible": True,
     },
 )
@@ -689,14 +743,16 @@ _BoundedResult = collections.namedtuple(
 )
 
 
-def _terminate_tree(proc):
+def _terminate_tree(proc, posix=_POSIX):
     """Kill the child and, on POSIX, its whole process group (issue #1457 AC6).
 
     A bare `subprocess.run(timeout=)` kills only the direct child and orphans grandchildren
     (exact-module-floors spawns python3 -> bash run-module.sh -> …). The child leads its own
     session (`start_new_session`), so signalling its process group reaches the whole tree.
+    `posix` is an injection seam (issue #2121): a termination-boundary test forces the
+    non-POSIX direct-child arm on a real POSIX host by passing posix=False.
     """
-    if _POSIX:
+    if posix:
         try:
             os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
             return
@@ -710,16 +766,17 @@ def _terminate_tree(proc):
         pass
 
 
-def _run_bounded(argv, root, timeout_seconds):
+def _run_bounded(argv, root, timeout_seconds, posix=_POSIX):
     """Run `argv` under a wall-clock bound, terminating the whole process tree on timeout.
 
     Returns a `_BoundedResult`. Raises OSError if the command cannot launch, exactly as
     subprocess.run does, so run_row's existing launch-failure arm still catches it. On POSIX
     the child leads its own session so a timeout signals the entire group (AC6); the guards on
-    `_POSIX` keep the helper runnable on a non-POSIX host (AC8).
+    `posix` keep the helper runnable on a non-POSIX host (AC8). `posix` is an injection seam
+    (issue #2121): a test forces the non-POSIX direct-child arm on a POSIX host.
     """
     popen_kwargs = {}
-    if _POSIX:
+    if posix:
         popen_kwargs["start_new_session"] = True
         popen_kwargs["preexec_fn"] = _restore_default_signals
     proc = subprocess.Popen(
@@ -737,7 +794,7 @@ def _run_bounded(argv, root, timeout_seconds):
             proc.returncode, stdout, stderr, False, time.monotonic() - start
         )
     except subprocess.TimeoutExpired:
-        _terminate_tree(proc)
+        _terminate_tree(proc, posix=posix)
         try:
             stdout, stderr = proc.communicate(timeout=10)
         except subprocess.TimeoutExpired:
@@ -1004,7 +1061,7 @@ def _monotonic_outcome(row, proc, output, before, after, report):
     return False, True
 
 
-def run_preflight_row(row, root, report):
+def run_preflight_row(row, root, report, timeout_seconds, posix=_POSIX):
     """Run ONE eligible row read-only for the preflight. Returns (drift, uncheckable).
 
     Distinct from `run_row` in two load-bearing ways (issue #1244):
@@ -1024,11 +1081,24 @@ def run_preflight_row(row, root, report):
     joined = " ".join(argv)
     target_rel = next((a for a in argv[1:] if not a.startswith("-")), None)
     try:
-        proc = subprocess.run(
-            argv, cwd=str(root), capture_output=True, text=True, check=False
-        )
+        proc = _run_bounded(argv, root, timeout_seconds, posix=posix)
     except OSError as error:
         report.append(f"[{name}] UNCHECKABLE the preflight command failed to launch: {joined} ({error})")
+        return False, True
+    # A bounded-out row established nothing — UNCHECKABLE, never drift (issue #2121). On a
+    # non-POSIX host only the direct child is reaped, so the degraded termination scope is
+    # stated on that channel rather than asserted silently.
+    if proc.timed_out:
+        degraded = (
+            ""
+            if posix
+            else " (non-POSIX host: only the direct child was reaped — "
+            "descendant termination is unestablished)"
+        )
+        report.append(
+            f"[{name}] UNCHECKABLE `{joined}` exceeded its bound of "
+            f"{timeout_seconds:.3f}s and was terminated{degraded} — nothing was established"
+        )
         return False, True
     output = (proc.stdout + proc.stderr).strip()
     declared = row["exits"]
@@ -1087,39 +1157,84 @@ def run_preflight_row(row, root, report):
     return True, False
 
 
-def run_preflight(root):
-    """Read-only preflight over the eligible rows only (issue #1244).
+def _load_helper_module(root, rel, name):
+    """Import a bundled (possibly hyphenated) helper module by path (issue #2121)."""
+    path = Path(root) / rel
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {name} from {path}")
+    module = importlib.util.module_from_spec(spec)
+    # Register before exec so a module-level @dataclass resolves its own __module__.
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
-    Writes nothing, prints one line per row it ran, then a machine verdict line
-    (`PREFLIGHT_VERDICT_PREFIX` + one of `clean` / `drift` / `uncheckable`) followed by
-    the human remedy sentence, and exits:
-      0 — every eligible row is clean;
-      1 — at least one eligible row DRIFTED (a positively-attributed, reconcilable drift);
-      2 — no drift, but at least one eligible row could not be checked.
-    The verdict line is the contract `lib/test/run-parallel.sh` reads; the sentence beside
-    it is for a human and carries no consumer.
-    DRIFT takes precedence over UNCHECKABLE: a positively-detected drift must fail closed
-    (the coordinator refuses to launch) and must never be masked by an unrelated row that
-    happened to be uncheckable. Exit 2 is therefore the purely-unestablished case, which
-    the coordinator treats as fail-open (warn and proceed). This precedence is the reverse
-    of the batched pass's infra-over-drift ordering, deliberately: the batched pass writes
-    and its exit 2 means "nothing was reconciled", whereas the preflight's exit 1 is a
-    refusal signal that a caught drift must dominate.
+
+def build_coupling_receipt(root, elapsed_ms, deadline_ms, timeout=None):
+    """The clean-path typed coupling receipt line (issue #2121).
+
+    Names the coupling surfaces checked, the eligible-row population, and the mutation-census
+    cache-capacity numbers derived from the single swept-population source. `timeout` (seconds)
+    bounds the census git enumeration; an overrun raises and the caller routes it UNCHECKABLE.
+    """
+    mc = _load_helper_module(root, "lib/test/module_coupling.py", "_module_coupling_receipt")
+    census = mc.census_cache_receipt(root, timeout=timeout)
+    checks = ",".join(mc.PREFLIGHT_SURFACE_CHECKS)
+    checked_population = ",".join(row["name"] for row in ROWS if row.get("preflight_eligible"))
+    return (
+        f"{COUPLING_RECEIPT_PREFIX}state=clean checks={checks} "
+        f"checked_population={checked_population} "
+        f"tracked_shell_count={census['tracked_shell_count']} "
+        f"cache_capacity={census['cache_capacity']} "
+        f"required_minimum={census['required_minimum']} headroom={census['headroom']} "
+        f"elapsed_ms={elapsed_ms} deadline_ms={deadline_ms}"
+    )
+
+
+def run_preflight(root, *, deadline_ns=None, clock=time.perf_counter_ns, posix=_POSIX):
+    """Read-only preflight over the eligible rows only (issues #1244, #2121).
+
+    Writes nothing, prints one line per row it ran, then — on the clean path — a typed coupling
+    receipt line (`COUPLING_RECEIPT_PREFIX`) and finally a machine verdict line
+    (`PREFLIGHT_VERDICT_PREFIX` + one of `clean` / `drift` / `uncheckable`) with a human remedy
+    sentence, and exits 0 (all clean) / 1 (drift) / 2 (uncheckable).
+
+    Bounded by a 5000 ms aggregate deadline measured with `time.perf_counter_ns()`; each
+    launched row is additionally bounded by the lesser of its declared `timeout_seconds` and the
+    remaining aggregate budget. Deadline exhaustion records the unfinished rows as UNCHECKABLE.
+    `deadline_ns`/`clock`/`posix` are injection seams (a test forces the deadline-exhaustion and
+    non-POSIX termination arms without a host-speed dependency); `main()` passes none.
+
+    DRIFT takes precedence over UNCHECKABLE: a positively-detected drift must fail closed (the
+    coordinator refuses to launch) and must never be masked by an unrelated uncheckable row.
+    The aggregate deadline is a fail-open availability bound, never a licence to convert a
+    detected drift into an uncheckable result.
     """
     report = []
     drift = False
     uncheckable = False
+    start = clock()
+    budget_ns = deadline_ns if deadline_ns is not None else AGGREGATE_DEADLINE_MS * 1_000_000
+    deadline = start + budget_ns
     for row in ROWS:
         if not row.get("preflight_eligible"):
             continue
-        # A row's classification must never abort the whole preflight: an unexpected raise
-        # AFTER an earlier row already set drift would otherwise propagate to the top-level
-        # net, exit 2 with no report and no drift summary, and the coordinator would then
-        # fail OPEN — losing a positively-detected drift (the fail-closed contract this
-        # function documents). Catch per row → that row is UNCHECKABLE, the loop continues,
-        # and any already-detected drift survives the drift-precedence check below.
+        remaining_ns = deadline - clock()
+        if remaining_ns <= 0:
+            report.append(
+                f"[{row['name']}] UNCHECKABLE not measured — the aggregate preflight deadline "
+                "was exhausted before this row ran"
+            )
+            uncheckable = True
+            continue
+        # Each row is bounded by the lesser of its declared wall and the remaining budget.
+        row_timeout = min(row["timeout_seconds"], remaining_ns / 1_000_000_000)
+        # Catch per row: a raise propagating to the top-level net would exit 2 with no drift
+        # summary, and the coordinator would fail OPEN on a drift an earlier row already found.
         try:
-            row_drift, row_uncheckable = run_preflight_row(row, root, report)
+            row_drift, row_uncheckable = run_preflight_row(
+                row, root, report, row_timeout, posix=posix
+            )
         except Exception as error:
             report.append(
                 f"[{row['name']}] UNCHECKABLE the preflight row raised "
@@ -1128,6 +1243,8 @@ def run_preflight(root):
             row_drift, row_uncheckable = False, True
         drift = row_drift or drift
         uncheckable = row_uncheckable or uncheckable
+    elapsed_ms = (clock() - start) // 1_000_000
+    deadline_ms = budget_ns // 1_000_000
     for line in report:
         print(line)
     if drift:
@@ -1143,6 +1260,21 @@ def run_preflight(root):
             "regenerate-artifacts: preflight could not check at least one eligible "
             "artifact — exit 2"
         )
+        return 2
+    # Clean — emit the typed receipt BEFORE the verdict line, inside the same aggregate deadline
+    # as the rows. A receipt that cannot be built on an otherwise-clean tree routes to
+    # UNCHECKABLE rather than emitting a false clean verdict.
+    try:
+        remaining_ns = deadline - clock()
+        if remaining_ns <= 0:
+            raise TimeoutError("the aggregate preflight deadline was exhausted before the receipt")
+        print(build_coupling_receipt(
+            root, elapsed_ms, deadline_ms, timeout=remaining_ns / 1_000_000_000
+        ))
+    except Exception as error:
+        print(f"[coupling-receipt] UNCHECKABLE could not build the receipt: {error}")
+        print(f"{PREFLIGHT_VERDICT_PREFIX}uncheckable")
+        print("regenerate-artifacts: preflight could not build the coupling receipt — exit 2")
         return 2
     print(f"{PREFLIGHT_VERDICT_PREFIX}clean")
     print("regenerate-artifacts: preflight — every eligible artifact reconciled — exit 0")
@@ -1224,6 +1356,13 @@ def _validate_registry():
             raise ValueError(
                 f"registry row {row['name']!r} declares timeout_seconds "
                 f"{bound!r}, which is not an int"
+            )
+        # A non-positive bound is a mis-typed field, not a zero/negative timeout (issue #2121):
+        # a 0 or negative wall would terminate the row before it could establish anything.
+        if bound <= 0:
+            raise ValueError(
+                f"registry row {row['name']!r} declares timeout_seconds "
+                f"{bound!r}, which is not a positive int"
             )
         # Enforce the "preflight writes nothing" invariant in DATA, not prose (issue #1244).
         # The coordinator's fail-closed refusal rests on the preflight being read-only, so a
@@ -1356,6 +1495,7 @@ def _coupled_site_path_failures(sites, root):
             if not (root / path).is_file():
                 failures.append((entry["name"], path))
     return failures
+
 
 
 # Validate at import — but route a script run's failure to exit 2 (INFRASTRUCTURE), never the

@@ -591,5 +591,46 @@ class MutationPinCensusTests(unittest.TestCase):
         self.assertIn(f"# source_revision\t{'b' * 40}", adjudication.stdout)
 
 
+_MC_SPEC = importlib.util.spec_from_file_location(
+    "module_coupling", HERE / "module_coupling.py"
+)
+assert _MC_SPEC and _MC_SPEC.loader
+MODULE_COUPLING = importlib.util.module_from_spec(_MC_SPEC)
+sys.modules[_MC_SPEC.name] = MODULE_COUPLING
+_MC_SPEC.loader.exec_module(MODULE_COUPLING)
+
+
+class CacheCapacityHeadroomTest(unittest.TestCase):
+    """The census parse-cache is sized against the swept population + fixed headroom (#2121)."""
+
+    def test_mutation_census_cache_capacity_covers_definition_sweep_headroom(self) -> None:
+        # Clean input: the real definition-sweep population derivation, the real cache bound.
+        receipt = MODULE_COUPLING.census_cache_receipt(REPO_ROOT)
+        # The four numeric receipt fields are present and internally consistent.
+        for field in ("tracked_shell_count", "cache_capacity", "required_minimum", "headroom"):
+            self.assertIsInstance(receipt[field], int)
+        tracked = receipt["tracked_shell_count"]
+        capacity = receipt["cache_capacity"]
+        # required_minimum is len(swept) + 5 headroom — NEVER AUDITED_PIN_SOURCES.
+        self.assertEqual(
+            receipt["required_minimum"], tracked + MODULE_COUPLING.CACHE_CAPACITY_HEADROOM
+        )
+        self.assertEqual(receipt["headroom"], capacity - tracked)
+        # The real derivation matches the census's own swept population.
+        self.assertEqual(tracked, len(CENSUS.swept_shell_population(REPO_ROOT)))
+        # The shipped tree is clean: the cache clears the population with the required headroom.
+        self.assertTrue(receipt["ok"])
+        self.assertGreaterEqual(capacity, receipt["required_minimum"])
+
+        # Drift: fixture growth beyond what the declared capacity can cover with headroom.
+        overgrown = [f"lib/test/f{n}.sh" for n in range(capacity + 1)]
+        drifted = MODULE_COUPLING.census_cache_receipt(
+            REPO_ROOT, population=overgrown, capacity=capacity
+        )
+        self.assertEqual(drifted["tracked_shell_count"], capacity + 1)
+        self.assertFalse(drifted["ok"])
+        self.assertLess(drifted["cache_capacity"], drifted["required_minimum"])
+
+
 if __name__ == "__main__":
     unittest.main()

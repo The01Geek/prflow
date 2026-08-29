@@ -636,6 +636,31 @@ stays the only writer, and running it after your edits is what keeps the coordin
 refusing your own launch. It touches neither `.github/workflows/ci.yml` nor
 `lib/test/run-shard.sh`, so CI's per-shard behaviour is unchanged.
 
+#### The pre-suite check also gates module coupling and install-state (issue #2121)
+
+The same read-only preflight carries two more rows. `module-coupling` runs
+`lib/test/module_coupling.py --check` (the checkers `test_every_on_disk_module_is_fully_wired`
+also consumes): for every on-disk `lib/test/modules/*.sh` module it checks the registry entry
+(path and a positive `minimum_assertions`), the `run.sh` full-suite call at a matching floor,
+membership in exactly one `modules-*` shard, `ci.yml`'s shellcheck list, a provenance
+`.inventory.md`, membership in `lib/test/pin-corpus-lint.py`'s `AUDITED_PIN_SOURCES` with
+`EXPECTED_SOURCE_COUNT` agreeing, the registry's `assertion_floor_policy: exact` set against the
+hand-named list in `test_repository_declares_the_exact_floor_population` (both directions), the
+module-body contract (SPDX header, caller-contract text, no self-invocation, monolith-only helper
+or direct `skip`), and that the mutation-census parse cache clears the swept shell population
+plus five entries of headroom. `install-state` runs `lib/generate-install-state.py --check`; the
+batch `lib/test/regenerate-artifacts.py` pass is its repair. A positively identified omission is
+`regenerate-artifacts: preflight-verdict: drift` (exit 1, no shard launched); unreadable or
+malformed input and a timed-out row are `uncheckable` (exit 2, warn and proceed), drift taking
+precedence. The whole preflight is bounded by a five-second deadline and each row by the lesser
+of its `timeout_seconds` and the remaining budget. A clean pass prints one
+`regenerate-artifacts: coupling-receipt: state=clean …` line (checks, checked population, the
+census `tracked_shell_count` / `cache_capacity` / `required_minimum` / `headroom`, `elapsed_ms`,
+`deadline_ms`), which the coordinator re-emits on stdout as `run-parallel: coupling-receipt: …`;
+an explicitly empty `DEVFLOW_ARTIFACT_PREFLIGHT` emits `run-parallel: coupling-receipt:
+state=uncheckable reason=empty-override checked_population=none` on stdout (the clean receipt's
+channel) and a warning on stderr, then launches.
+
 #### The registry is also the merge-conflict oracle
 
 When a branch update lands a merge conflict in a checked-in **generated** artifact, do
