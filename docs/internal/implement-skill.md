@@ -381,7 +381,9 @@ detail class, with the omitted count announced — because its other reader is a
 context window. Nothing is lost: every shard's complete captured log is retained under the run
 root the coordinator prints, which is the artifact a failing gate is diagnosed from and the one
 the `Verification evidence:` marker records (on every tier that maintains a workpad since issue
-#1249, cloud `/prflow:implement` included). That also removes the pre-#1086 caller-side
+#1249, cloud `/prflow:implement` included). Since issue #2131 that record's field set is owned by
+`scripts/workpad.py` — the `--record-verification-evidence` option (run `scripts/workpad.py update
+--help`), which refuses an incomplete record — not `CLAUDE.md`. That also removes the pre-#1086 caller-side
 `> .prflow/tmp/verification-<N>.log 2>&1` capture: the coordinator retains the launch itself.
 
 **Same-checkout isolation.** Each shard gets a private tally directory under a *fresh* run root and a private
