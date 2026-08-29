@@ -7282,6 +7282,8 @@ assert_eq("#2131 the two-root row names both roots in order", True,
           and 'run-root=.prflow/tmp/parallel-suite/run-FRESH/logs' in _pR
           and _pR.index('run-root=.prflow/tmp/parallel-suite/run-RED/logs')
           < _pR.index('run-root=.prflow/tmp/parallel-suite/run-FRESH/logs'))
+assert_eq("#2131 the two-root row emits exactly two run-root= fields", 2,
+          _pR.count('run-root='))
 
 # An EXPLICIT --record-verification-evidence call over a workpad LACKING the
 # ## Devflow Reflection section is a hard refusal (no PATCH), distinct from the CI
