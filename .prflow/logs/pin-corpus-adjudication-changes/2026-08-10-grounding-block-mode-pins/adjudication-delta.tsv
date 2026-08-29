@@ -1,4 +1,0 @@
-adjudication_key	base_state	current_state
-literal:4aeba43fc70a1d26d6769dc4ba773f802462a807f2f1f3c8b361a815e7ef127b	null	"[""boundary"",""Retain routing/dispatch contract: #363 devflow.yml routes each dispatched command to a renderer MODE; generic is the fail-safe ELSE operand, so a command the resolver allowlist gains later cannot inherit a section asserting CI evidence for a commit it never reviewed.""]"
-literal:c1cf8becd65789787a17cc3feeca01a952094ee2f9bc3d0f91b4cdbc3c51ce04	null	"[""boundary"",""Retain routing/dispatch contract: #363 devflow.yml forwards the selected MODE into the renderer call; dropping it falls back to the renderer's review default and tells a command that reviewed no commit to cite a CI fence as its test evidence.""]"
-literal:e2749cc1c9475c058b23fa7b4dacab3e5899a1fa9ffe597b255213dd7585daec	"[""boundary"",""maintainer adjudication: declared security or interface boundary""]"	null

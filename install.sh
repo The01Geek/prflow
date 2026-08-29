@@ -38,7 +38,7 @@
 # re-running this installer, now a small diff). Set DEVFLOW_VENDOR=1 to commit the
 # plugin tree instead — self-hosting with no runtime fetch, fully auditable in
 # your repo. (Local editor use is different again: add the github marketplace with
-# autoUpdate — see docs/internal/cloud-setup.md.)
+# autoUpdate — see https://prflow.ai/docs/runs/cloud/setup.)
 #
 # UPGRADING an existing installation (issue: consumer upgrade path)
 # ----------------------------------------------------------------
@@ -92,8 +92,8 @@
 #
 # Usage, from the root of your repo. Download-read-run is the documented form:
 # fetch this file at a PINNED ref — a release tag (vN.N.N), or a commit
-# SHA; never mutable main — read it, then run the copy you read. docs/internal/install.md
-# carries the current pinned one-liner; docs/internal/cloud-setup.md the full guide.
+# SHA; never mutable main — read it, then run the copy you read. https://prflow.ai/docs/getting-started/installation
+# carries the current pinned one-liner; https://prflow.ai/docs/runs/cloud/setup the full guide.
 #   curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/<ref>/install.sh -o devflow-install.sh
 #   DEVFLOW_REF=<ref> bash devflow-install.sh
 #   # point at a fork (DEVFLOW_REF defaults to main, so pin it too):
@@ -455,7 +455,7 @@ offer_python3_shim() {
   fi
   prov="$src/scripts/provision-python3-shim.sh"
   if [ ! -f "$prov" ]; then
-    log "no working 'python3' on PATH and the shim provisioner is unavailable in the source tree; see docs/internal/install.md to resolve a Python 3 interpreter."
+    log "no working 'python3' on PATH and the shim provisioner is unavailable in the source tree; see https://prflow.ai/docs/getting-started/installation to resolve a Python 3 interpreter."
     return 0
   fi
   log "no working 'python3' on PATH — surfacing PRFlow's consent-gated Python interpreter resolver:"
@@ -705,7 +705,7 @@ install_managed() {
           if devflow_resolve_python; then
             log "PRESERVED (provenance UNESTABLISHED — this artifact's current bytes could not be digested, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new. This path was not overwritten; other artifacts on this run were classified normally. python3 works here, so this is a read error on this path — check that it and every file inside it are readable, then re-run."
           else
-            log "PRESERVED (provenance UNESTABLISHED — this artifact's current bytes could not be digested, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new. This path was not overwritten. There is no working python3 on this host, so NOTHING on this run could be compared: resolve one (see docs/internal/install.md) and re-run to get a real comparison."
+            log "PRESERVED (provenance UNESTABLISHED — this artifact's current bytes could not be digested, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new. This path was not overwritten. There is no working python3 on this host, so NOTHING on this run could be compared: resolve one (see https://prflow.ai/docs/getting-started/installation) and re-run to get a real comparison."
           fi
           ;;
       esac
@@ -794,7 +794,7 @@ devflow_write_manifest() {
 # tier is a required status check in the repositories that adopted it, and removing
 # the workflow while a branch protection rule still requires its context wedges every
 # subsequent pull request behind a check nothing will report. Removal is therefore an
-# explicit opt-in, and even then step 3 of docs/internal/workflow-triggers.md (the branch
+# explicit opt-in, and even then step 3 of https://prflow.ai/docs/runs/cloud/triggers (the branch
 # protection context) stays a human action this installer cannot perform.
 DEVFLOW_WITHHELD_TIER="devflow-review devflow-runner telemetry-push"
 devflow_withheld_tier_present() {
@@ -815,17 +815,17 @@ devflow_withheld_tier_present() {
 # and the run goes green under a degraded identity.
 #
 # GATED to an UPGRADE, not emitted on every run. A first-time installer is reading
-# docs/internal/cloud-setup.md and setting these names for the first time; a warning not to rename
+# https://prflow.ai/docs/runs/cloud/setup and setting these names for the first time; a warning not to rename
 # what they have not yet created is noise. The population that HAS them configured, and is
 # now looking at a renamed product, is exactly the existing-installation population. The
 # installer cannot read GitHub variables (it makes no `gh` calls), so this is the closest
 # thing to "silent when nothing is actionable" available on this surface. The full
-# inventory — per name, with its failure mode — is generated into docs/internal/cloud-setup.md from
+# inventory — per name, with its failure mode — is generated into https://prflow.ai/docs/runs/cloud/setup from
 # lib/rename-map.json's frozen.env_identifiers block and is deliberately NOT restated here.
 devflow_report_env_identifier_freeze() {
   local state="$1"
   [ "$state" = "an existing" ] || return 0
-  log "NOTICE: PRFlow's DEVFLOW_* names are unchanged and must stay that way. The repository rename did not touch the GitHub variables and secrets (DEVFLOW_APP_ID, DEVFLOW_RUNNER, ...) or the environment overrides (DEVFLOW_GH, DEVFLOW_REF, ...) — nothing here reads a PRFLOW_* equivalent, so renaming one removes the setting instead of moving it, and most do so SILENTLY (an unresolvable GitHub variable is indistinguishable from one you never set: the run stays green with a degraded identity, or on a runner you did not choose). Do not rename them. The full list, with what each rename actually does, is in docs/internal/cloud-setup.md under 'Why these settings are still called DEVFLOW_*'."
+  log "NOTICE: PRFlow's DEVFLOW_* names are unchanged and must stay that way. The repository rename did not touch the GitHub variables and secrets (DEVFLOW_APP_ID, DEVFLOW_RUNNER, ...) or the environment overrides (DEVFLOW_GH, DEVFLOW_REF, ...) — nothing here reads a PRFLOW_* equivalent, so renaming one removes the setting instead of moving it, and most do so SILENTLY (an unresolvable GitHub variable is indistinguishable from one you never set: the run stays green with a degraded identity, or on a runner you did not choose). Do not rename them. The full list, with what each rename actually does, is in https://prflow.ai/docs/runs/cloud/setup under 'Why these settings are still called DEVFLOW_*'."
 }
 devflow_report_withheld_tier() {
   local present="$1"
@@ -834,11 +834,11 @@ devflow_report_withheld_tier() {
   # the review toggle this consumer carries (issue #1041 renamed it, and an un-migrated
   # config still holds the superseded one). Both are therefore named — asserting one
   # would point half of all readers at a key their config does not contain.
-  log "NOTICE: this repository carries the withheld automatic-review tier ($present). It is not shipped any more (issue #936) and this installer leaves it alone by default, but it keeps running and keeps this repository exposed to issues #930 and #920 for as long as the review toggle is true in .prflow/config.json — workflows[\"prflow-review\"], or workflows[\"devflow-review\"] if this repository has not migrated its config keys yet. See docs/internal/workflow-triggers.md."
+  log "NOTICE: this repository carries the withheld automatic-review tier ($present). It is not shipped any more (issue #936) and this installer leaves it alone by default, but it keeps running and keeps this repository exposed to issues #930 and #920 for as long as the review toggle is true in .prflow/config.json — workflows[\"prflow-review\"], or workflows[\"devflow-review\"] if this repository has not migrated its config keys yet. See https://prflow.ai/docs/runs/cloud/triggers."
   if [ "${REMOVE_WITHHELD:-}" = "1" ]; then
     log "  --remove-withheld-review-tier was given: the workflow files will be deleted and that review toggle set to false under whichever spelling your config carries. You must ALSO remove the 'Devflow Review' context from any branch protection rule or ruleset that requires it — otherwise every later pull request wedges against a required check nothing will report. This installer cannot do that for you."
   else
-    log "  To remove it, re-run with --remove-withheld-review-tier (and read step 3 of docs/internal/workflow-triggers.md first — the branch protection context is a manual step)."
+    log "  To remove it, re-run with --remove-withheld-review-tier (and read step 3 of https://prflow.ai/docs/runs/cloud/triggers first — the branch protection context is a manual step)."
   fi
 }
 # Turn off the config key the withheld tier reads. Best-effort and shape-guarded: a
@@ -1560,14 +1560,14 @@ JSON
   # repository collaborator commenting `/devflow:review` on a pull request, which
   # devflow.yml authorizes through scripts/authorize-actor.sh; a consumer can
   # additionally opt into an automatic CI-green request with the documented snippet
-  # in docs/internal/workflow-triggers.md (issue #990).
+  # in https://prflow.ai/docs/runs/cloud/triggers (issue #990).
   #
   # A repository that already installed those three files KEEPS them —
   # prune_stale_devflow_workflows() is deliberately not extended to remove them, so
   # an existing installation's auto-review keeps working (and stays exposed to #930
   # and #920 while its `workflows["prflow-review"]` config key is true). The upgrade
   # path SURFACES that exposure (devflow_report_withheld_tier) and removes the tier
-  # only on the explicit --remove-withheld-review-tier opt-in; docs/internal/workflow-triggers.md
+  # only on the explicit --remove-withheld-review-tier opt-in; https://prflow.ai/docs/runs/cloud/triggers
   # gives the full procedure, including the branch-protection step no installer can do.
   log "installing workflows + composite actions"
   mkdir -p .github/workflows .github/actions

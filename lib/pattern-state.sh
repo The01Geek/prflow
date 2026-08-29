@@ -5,18 +5,21 @@
 # .prflow/learnings/overrides.json.
 #
 # It owns two operations against the overrides file:
-#   migrate    — bring the overrides file up to schema_version:3 in place. A v1
+#   migrate    — bring the overrides file up to schema_version:4 in place. A v1
 #                file is first converted to v2, converting ONLY the loop's own
 #                `dismissed{}` entries (dismissed_by == "retrospective-weekly")
 #                into machine-owned `patterns{}` lifecycle records and preserving
 #                every hand-written `dismissed{}` entry verbatim; then (issue #891)
 #                each lifecycle record is stamped with an explicit `category`
 #                field — its existing valid `category` when present, else its own
-#                key canonicalized through `slugify` — and the version moved to 3.
-#                A v2 file runs only the v3 stamp; a v3 file is a no-op.
+#                key canonicalized through `slugify` — and the version moved to 3;
+#                finally every meta-issue entry is stamped with the `repo` its
+#                number was issued in and the version moved to 4. A v2 file runs
+#                the v3 + v4 stamps, a v3 file the v4 stamp; a v4 file is a no-op.
 #   reconcile  — for every meta-issue entry of every lifecycle record, resolve the
-#                live GitHub issue state (one `--label Retrospective` prefetch plus
-#                a per-number `gh issue view` fallback) and apply the transition
+#                live GitHub issue state IN THE ENTRY'S OWN REPOSITORY (one
+#                `--label Retrospective` prefetch per distinct repository plus a
+#                per-number `gh issue view --repo` fallback) and apply the transition
 #                table below, then derive each record's state from its entry set.
 #                (Stated as a table, not as a count: an ordinal in a comment rots
 #                on the next edit, and the last row applies NO transition.)
@@ -25,7 +28,7 @@
 # The v3 shape (issue #891 — the key is an OPAQUE filing key; the `category`
 # field, not the key, names the fixed-vocabulary category the record belongs to):
 #   {
-#     "schema_version": 3,
+#     "schema_version": 4,
 #     "patterns": {                       # machine-owned lifecycle map
 #       "<opaque-filing-key>": {
 #         "category": "<category-slug>",  # attribution category (issue #891)
@@ -33,7 +36,7 @@
 #         "fixed_at": "<iso8601|null>",   # the fix/closure timestamp compute-patterns.jq reads
 #         "provenance": "<iso8601|null>", # carried from the v1 dismissed_at
 #         "meta_issues": [                # the SET of issues filed for this slug
-#           {"number": <int>, "url": "<https url>",
+#           {"number": <int>, "repo": "<owner>/<name>", "url": "<https url>",
 #            "state": "filed|fixed|declined", "closedAt": "<iso8601|null>",
 #            "state_reason": "<COMPLETED|NOT_PLANNED|DUPLICATE|null>"}
 #         ]
@@ -75,6 +78,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=resolve-gh.sh
 . "$HERE/resolve-gh.sh"
 : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
+
+# Repository identity: every meta-issue entry names the repository its number was
+# issued in, and reconcile resolves each entry against THAT repository.
+# shellcheck source=repo-identity.sh
+. "$HERE/repo-identity.sh"
 
 # The loop's own dismissed-entry writer marker — the migration converts only these.
 _LOOP_WRITER="retrospective-weekly"
@@ -147,7 +155,7 @@ _migrate() {  # $1 = overrides path
         stub_dir="$(_dir_of "$ov")"
         [ -d "$stub_dir" ] || mkdir -p "$stub_dir" \
           || { echo "::error::pattern-state: could not create ${stub_dir} for the first-run overrides stub" >&2; return 1; }
-        printf '{"schema_version":3,"patterns":{},"dismissed":{}}\n' > "$ov" \
+        printf '{"schema_version":4,"patterns":{},"dismissed":{}}\n' > "$ov" \
           || { echo "::error::pattern-state: could not write the first-run overrides stub at ${ov}" >&2; return 1; }
         return 0
     fi
@@ -161,9 +169,10 @@ _migrate() {  # $1 = overrides path
     # conversion below and THEN the v3 stamp; any other/future version is left
     # unchanged.
     case "$ver" in
-        3) return 0 ;;
-        2) _stamp_v3 "$ov" || return 1 ; return 0 ;;
-        1) : ;;   # fall through to the v1-to-v2 conversion, then _stamp_v3 below
+        4) return 0 ;;
+        3) _stamp_v4 "$ov" || return 1 ; return 0 ;;
+        2) _stamp_v3 "$ov" || return 1 ; _stamp_v4 "$ov" || return 1 ; return 0 ;;
+        1) : ;;   # fall through to the v1-to-v2 conversion, then the v3 + v4 stamps below
         *) return 0 ;;
     esac
 
@@ -220,8 +229,9 @@ _migrate() {  # $1 = overrides path
     fi
     _atomic_write "$ov" "$tmp" || { rm -f "$tmp"; return 1; }
     rm -f "$tmp"
-    # The file is now v2-shaped; stamp the v3 `category` field and move to v3.
+    # The file is now v2-shaped; stamp the v3 `category` field, then the v4 `repo`.
     _stamp_v3 "$ov" || return 1
+    _stamp_v4 "$ov" || return 1
     return 0
 }
 
@@ -275,6 +285,55 @@ _stamp_v3() {  # $1 = overrides path (v2-shaped)
     return 0
 }
 
+# ── v4 stamp: give every meta-issue entry an explicit `repo` ──────────────────
+# Runs over a v3-shaped file. A meta-issue entry stores a bare issue NUMBER, which
+# names different work in different repositories; the entry's `repo` is what
+# reconcile resolves it against. An entry that names none is bound to the legacy
+# record repository through devflow_apply_legacy_record_repo — the explicit
+# one-time compatibility rule, never the repository the run happens to be in.
+# Numbers, urls, state, closedAt, state_reason and dismissed{} are left unchanged.
+_stamp_v4() {  # $1 = overrides path (v3-shaped)
+    local ov="$1" legacy tmp
+    legacy="$(devflow_legacy_record_repo)" || return 1
+    "$DEVFLOW_JQ" -r --arg legacy "$legacy" '
+        (.patterns // {}) | to_entries[]
+        | select((.value | type) == "object")
+        | .key as $k
+        | ((.value.meta_issues // []) | arrays // [])[]
+        | select((.repo | type) != "string" or (.repo == ""))
+        | "::warning::pattern-state: record " + $k + " meta-issue " + ((.number // "?")|tostring) + " named no repository — binding it to " + $legacy + " under the one-time compatibility rule"' "$ov" 1>&2 \
+      || echo "::warning::pattern-state: could not enumerate repository-less meta-issue entries during the v4 stamp (jq exited non-zero) — the stamp below still applies" >&2
+
+    tmp="$(mktemp "$(_dir_of "$ov")/.overrides-v4.XXXXXX")" \
+      || { echo "::error::pattern-state: could not create a temp file beside ${ov} during the v4 stamp" >&2; return 1; }
+    if ! "$DEVFLOW_JQ" --arg legacy "$legacy" '
+        .schema_version = 4
+        | .patterns = (
+            (.patterns // {}) | to_entries
+            | map(
+                if (.value | type) == "object"
+                then .value.meta_issues = (
+                       ((.value.meta_issues // []) | arrays // [])
+                       | map(
+                           if type == "object"
+                           then .repo = ((((.repo // "") | strings) // "") | if . == "" then $legacy else . end)
+                           else . end
+                         )
+                     )
+                else . end
+              )
+            | from_entries
+          )
+        | .dismissed = (.dismissed // {})' "$ov" > "$tmp"; then
+        rm -f "$tmp"
+        echo "::error::pattern-state: the v4 repository stamp jq transform failed for ${ov}" >&2
+        return 1
+    fi
+    _atomic_write "$ov" "$tmp" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+    return 0
+}
+
 # ── reconcile: refresh every meta-issue entry against live issue state ─────────
 _reconcile() {  # $1 = overrides path, $2 = limit
     local ov="$1" limit="$2"
@@ -289,28 +348,38 @@ _reconcile() {  # $1 = overrides path, $2 = limit
     # this one makes the second a no-op rather than a second rewrite.
     _migrate "$ov" || return 1
 
-    # Prefetch every Retrospective-labelled issue in one call. A non-zero gh exit
-    # OR a non-JSON body is a wholesale failure: ::error:: + non-zero exit, no
-    # transition applied to any pattern.
-    local prefetch_raw
-    prefetch_raw="$("$DEVFLOW_GH" issue list --label Retrospective --state all \
-        --limit "$limit" --json number,state,stateReason,closedAt 2>/dev/null)" \
-      || { echo "::error::pattern-state: the Retrospective prefetch failed (gh issue list exited non-zero)" >&2; return 1; }
-    if ! printf '%s' "$prefetch_raw" | "$DEVFLOW_JQ" -e 'type == "array"' >/dev/null 2>&1; then
-        echo "::error::pattern-state: the Retrospective prefetch body did not parse as a JSON array" >&2
-        return 1
-    fi
+    # Prefetch every Retrospective-labelled issue, ONE CALL PER DISTINCT REPOSITORY
+    # the file names. A repository-less prefetch would resolve every stored number
+    # against whichever repository the run is in, so a same-numbered issue in the
+    # current repository would drive a fixed/declined transition for a pattern whose
+    # issue lives elsewhere. A non-zero gh exit OR a non-JSON body is a wholesale
+    # failure: ::error:: + non-zero exit, no transition applied to any pattern.
+    local entry_repos
+    entry_repos="$("$DEVFLOW_JQ" -r '
+        [ (.patterns // {}) | to_entries[] | (.value.meta_issues // [])[]? | ((.repo // "") | strings) // ""
+          | select(. != "") ] | unique | .[]' "$ov")" \
+      || { echo "::error::pattern-state: could not enumerate the repositories named in ${ov} (jq exited non-zero) — no transition applied" >&2; return 1; }
 
-    # Prefetch map keyed by number → {state,stateReason,closedAt}.
+    # Prefetch map keyed by "<repo>#<number>" → {state,stateReason,closedAt}.
     # A jq failure inside a command substitution is NOT caught by `set -e`: the
     # assignment succeeds with an empty value, which would silently degrade every
     # number to the by-number fallback with no diagnostic. Check explicitly.
-    local prefetch_map
-    prefetch_map="$(printf '%s' "$prefetch_raw" | "$DEVFLOW_JQ" -c '
-        reduce .[] as $r ({}; . + {($r.number|tostring): {state: $r.state, stateReason: $r.stateReason, closedAt: $r.closedAt}})')" \
-      || { echo "::error::pattern-state: could not build the prefetch map (jq exited non-zero) — no transition applied" >&2; return 1; }
-    [ -n "$prefetch_map" ] \
-      || { echo "::error::pattern-state: the prefetch map came out empty (jq produced no output) — no transition applied" >&2; return 1; }
+    local prefetch_map='{}' prefetch_raw one_repo
+    while IFS= read -r one_repo; do
+        [ -n "$one_repo" ] || continue
+        prefetch_raw="$("$DEVFLOW_GH" issue list --repo "$one_repo" --label Retrospective --state all \
+            --limit "$limit" --json number,state,stateReason,closedAt 2>/dev/null)" \
+          || { echo "::error::pattern-state: the Retrospective prefetch failed for ${one_repo} (gh issue list exited non-zero)" >&2; return 1; }
+        if ! printf '%s' "$prefetch_raw" | "$DEVFLOW_JQ" -e 'type == "array"' >/dev/null 2>&1; then
+            echo "::error::pattern-state: the Retrospective prefetch body for ${one_repo} did not parse as a JSON array" >&2
+            return 1
+        fi
+        prefetch_map="$(printf '%s' "$prefetch_raw" | "$DEVFLOW_JQ" -c --arg repo "$one_repo" --slurpfile acc <(printf '%s' "$prefetch_map") '
+            reduce .[] as $r ($acc[0]; . + {($repo + "#" + ($r.number|tostring)): {state: $r.state, stateReason: $r.stateReason, closedAt: $r.closedAt}})')" \
+          || { echo "::error::pattern-state: could not build the prefetch map for ${one_repo} (jq exited non-zero) — no transition applied" >&2; return 1; }
+        [ -n "$prefetch_map" ] \
+          || { echo "::error::pattern-state: the prefetch map came out empty for ${one_repo} (jq produced no output) — no transition applied" >&2; return 1; }
+    done <<< "$entry_repos"
 
     # Walk every slug's every entry, resolving each number. We drive the loop in
     # bash so an uncovered number can fall back to `gh issue view`. Each resolved
@@ -318,7 +387,9 @@ _reconcile() {  # $1 = overrides path, $2 = limit
     # the transitions and derives record states from that resolution map.
     local numbers
     numbers="$("$DEVFLOW_JQ" -r '
-        (.patterns // {}) | to_entries[] | .value.meta_issues // [] | .[] | .number // empty' "$ov")" \
+        (.patterns // {}) | to_entries[] | .value.meta_issues // [] | .[]
+        | select(.number != null)
+        | (((.repo // "") | strings) // "") + "#" + (.number|tostring)' "$ov")" \
       || { echo "::error::pattern-state: could not enumerate the meta-issue numbers in ${ov} (jq exited non-zero) — no transition applied" >&2; return 1; }
 
     # Build a resolution map covering every number, using the prefetch first and
@@ -349,13 +420,24 @@ _reconcile() {  # $1 = overrides path, $2 = limit
         [ -n "$num" ] || continue
         case " $_seen " in *" $num "*) continue ;; esac
         _seen="$_seen $num"
+        # `$num` is the repo-qualified key "<repo>#<number>"; split it with builtins
+        # (a non-preflight PATH tool must not decide which repository is read).
+        local _key_repo="${num%#*}" _key_num="${num##*#}"
+        if [ -z "$_key_repo" ]; then
+            # An entry that names no repository is UNESTABLISHED, never bound to the
+            # current repository: resolving it here would read a same-numbered issue
+            # in the wrong repository and drive a real lifecycle transition from it.
+            resolved="$(printf '%s' "$resolved" | "$DEVFLOW_JQ" -c --arg n "$num" '. + {($n): {unresolved: true}}')" \
+              || { echo "::error::pattern-state: could not record meta-issue ${num} as unresolved (jq exited non-zero) — no transition applied" >&2; return 1; }
+            continue
+        fi
         local cover
         cover="$(printf '%s' "$prefetch_map" | "$DEVFLOW_JQ" -c --arg n "$num" '.[$n] // empty')" \
           || { echo "::error::pattern-state: prefetch lookup for meta-issue ${num} failed (jq exited non-zero) — no transition applied" >&2; return 1; }
         if [ -z "$cover" ]; then
             # By-number fallback — bounded by the number of records.
             _fb_attempted=$(( _fb_attempted + 1 ))
-            cover="$("$DEVFLOW_GH" issue view "$num" --json number,state,stateReason,closedAt 2>/dev/null \
+            cover="$("$DEVFLOW_GH" issue view "$_key_num" --repo "$_key_repo" --json number,state,stateReason,closedAt 2>/dev/null \
                      | "$DEVFLOW_JQ" -c '{state: .state, stateReason: .stateReason, closedAt: .closedAt}' 2>/dev/null || true)"
             if [ -z "$cover" ] || [ "$cover" = "null" ]; then
                 _fb_failed=$(( _fb_failed + 1 ))
@@ -401,7 +483,8 @@ _reconcile() {  # $1 = overrides path, $2 = limit
           else
             ( $entries[]
               | .number as $n
-              | ($res[($n|tostring)] // {unresolved:true}) as $r
+              | ((((.repo // "") | strings) // "") + "#" + ($n|tostring)) as $k
+              | ($res[$k] // {unresolved:true}) as $r
               | if ($n == null) or ($r.unresolved == true) then
                   "::warning::pattern-state: pattern " + $slug + " meta-issue " + (($n // "?")|tostring) + " could not be resolved via the prefetch or the by-number fallback — no transition applied"
                 # The recognized set (open, plus the three closed stateReasons) all
@@ -436,7 +519,8 @@ _reconcile() {  # $1 = overrides path, $2 = limit
               | .value.meta_issues = (
                   ($rec.meta_issues // []) | map(
                     . as $e
-                    | ($res[(($e.number // "")|tostring)] // {unresolved:true}) as $r
+                    | ((((($e.repo // "") | strings) // "") + "#" + (($e.number // "")|tostring))) as $k
+                    | ($res[$k] // {unresolved:true}) as $r
                     | if ($e.number == null) or ($r.unresolved == true) then $e
                       elif ($r.state == "OPEN") then ($e + {state: "filed", closedAt: null, fixed_at: null, state_reason: null})
                       elif ($r.stateReason == "COMPLETED") then ($e + {state: "fixed", closedAt: $r.closedAt, fixed_at: $r.closedAt, state_reason: $r.stateReason})

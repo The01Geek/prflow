@@ -18,6 +18,17 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
   the title and body verbatim on demand. A write-failed run, an unbound draft, and a
   non-interactive run still print the body as before. Approval stays explicit and about the exact
   saved bytes. (#2122)
+- **PRFlow's public repository is now a generated distribution tree.** Development moved to a
+  private canonical repository, and every file published here is produced by a deterministic
+  exporter and verified before release. Nothing about installing or using PRFlow changes: the
+  install commands, marketplace name, plugin name, command names and repository URL are all
+  unchanged, and existing installations and version pins keep working. The published tree is
+  smaller and easier to review, and each release now carries its own provenance under
+  `.release/` — a source-commit record and a SHA-256 for every published file, so any published
+  tree can be checked against the digests it ships with.
+- **Installer and documentation links now point at the public documentation site.** Messages from
+  `install.sh` and `SECURITY.md` that previously referenced maintainer-only documentation paths
+  now link to the equivalent pages on the documentation site, so a reader can always reach them.
 
 ## August 28, 2026
 

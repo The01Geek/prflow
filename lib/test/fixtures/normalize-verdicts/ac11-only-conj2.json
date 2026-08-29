@@ -1,8 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-22", "verification_mode": "agent", "claim_provenance": "source_authored", "source_excerpt": "# retries twice"},
-      "response_text": "```json\n{\"id\": \"VC-22\", \"verdict\": \"FAIL\", \"evidence\": \"the authored comment is false\", \"property_proven\": true, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
-    }
-  ]
-}

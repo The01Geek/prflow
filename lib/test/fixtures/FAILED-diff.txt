@@ -1,7 +1,0 @@
-diff --git a/lib/acme/SomeService.php b/lib/acme/SomeService.php
-index 000000..111111 100644
---- a/lib/acme/SomeService.php
-+++ b/lib/acme/SomeService.php
-@@ -1,3 +1,4 @@
- <?php
-+// partial work committed before the run died

@@ -1,9 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-CTU", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "verdict_path": "lib/test/fixtures/normalize-verdicts/vfile-invalid-utf8.bin",
-      "response_text": "```json\n{\"id\": \"VC-CTU\", \"verdict\": \"FAIL\", \"evidence\": \"read off the abandoned channel\", \"property_proven\": false, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
-    }
-  ]
-}

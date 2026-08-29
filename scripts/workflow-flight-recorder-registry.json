@@ -25,7 +25,7 @@
     "retrospective-lifecycle": {
       "path": "lib/test/modules/retrospective-lifecycle.sh",
       "minimum_assertions": 300,
-      "description": "Focused #788 retrospective issue-closure lifecycle: overrides v1->v2 migration, pattern-state.sh reconcile transitions and record derivation, compute-patterns.jq status arms with fix-timestamp precedence and canonicalization, meta-issue.sh number-keyed lifecycle write and --slug grammar, actionable-patterns.sh regressed occurrence-threshold bypass and liveness warning, filing-decisions.sh cap arms and report-field producers, audit-bundle-selection.sh cap validation and most-recent-first selection (issue #894), and the end-to-end render of every report section including the Regressed-patterns, Filing-queue, and Stage-B-truncation sections"
+      "description": "Focused #788 retrospective issue-closure lifecycle: overrides v1->v2 migration, pattern-state.sh reconcile transitions and record derivation, compute-patterns.jq status arms with fix-timestamp precedence and canonicalization, meta-issue.sh number-keyed lifecycle write and --slug grammar, actionable-patterns.sh regressed occurrence-threshold bypass and liveness warning, filing-decisions.sh cap arms and report-field producers, audit-bundle-selection.sh cap validation and most-recent-first selection (issue #894), and the end-to-end render of every report section including the Regressed-patterns, Filing-queue, and Stage-B-truncation sections, plus the repository-qualified record shape (lib/repo-identity.sh resolution and the one-time legacy-default rule, scan.sh's repo+number processed-history key, the overrides v3->v4 repo stamp and repository-scoped reconcile, repository-qualified Stage B selection and bundle paths, and scripts/migrate-record-repo.py)"
     },
     "workflow-flight-recorder": {
       "path": "lib/test/modules/workflow-flight-recorder.sh",
@@ -93,9 +93,9 @@
     },
     "experiment-records": {
       "path": "lib/test/modules/experiment-records.sh",
-      "minimum_assertions": 170,
+      "minimum_assertions": 178,
       "assertion_floor_policy": "exact",
-      "description": "Focused #431 build-experiment-records.py unified-experiment-record join: the DEVFLOW_GH-stubbed assembler driven over fixture stores with per-scenario repo roots, the joined record fields, and the config_fingerprint stamp with its partial-flag, None and canonical-hash arms"
+      "description": "Focused #431 build-experiment-records.py unified-experiment-record join: the DEVFLOW_GH-stubbed assembler driven over fixture stores with per-scenario repo roots, the joined record fields, and the config_fingerprint stamp with its partial-flag, None and canonical-hash arms, and the repository-qualified record shape (repo/pr_key, the pr_key-keyed store rewrite, and the unresolvable-repository blocker)"
     },
     "efficiency-trace-telemetry": {
       "path": "lib/test/modules/efficiency-trace-telemetry.sh",

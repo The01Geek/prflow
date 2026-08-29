@@ -113,7 +113,15 @@ the PRs, so the loop trusts you), but still drops any number that isn't a merged
 retrospected branch. Everything downstream (Steps 3–10) is identical. Do not
 use `--prs` for the scheduled weekly run.
 
-`scan.sh` writes to stdout and exits non-zero on unrecoverable errors. If
+Each scan record carries `repo` (the `<owner>/<name>` the numbers were issued in)
+and `pr_key` (`<owner>/<name>#<number>`) beside `number`. The already-processed
+filter keys on `pr_key`, so a number already retrospected in one repository never
+suppresses the same number in another.
+
+`scan.sh` writes to stdout and exits non-zero on unrecoverable errors. It exits
+non-zero when the repository cannot be resolved — an unresolved repository would
+make the processed set unqualified, and every stored number would then be read
+against whichever repository the run happens to be in. If
 the output array is empty:
 
 ```bash
@@ -138,17 +146,25 @@ skip_records=()     # one-line report records, one per skip (never silent)
 needs_analysis=()   # array of bundle paths
 ```
 
-For each PR number in `scan.json` (iterate via `$LIB/../scripts/run-jq.sh -r '.[].number'`):
+For each record in `scan.json` (iterate via
+`$LIB/../scripts/run-jq.sh -r '.[] | "\(.repo) \(.number)"'`):
 
 ```bash
+repo=<the record's repo>
 number=<the pr number>
-CTX=$(bash $LIB/fetch-pr-context.sh "$number")
+CTX=$(bash $LIB/fetch-pr-context.sh "$number" --repo "$repo")
 prs_scanned=$((prs_scanned + 1))
 ```
 
-`fetch-pr-context.sh` writes the bundle to `.prflow/tmp/pr-<n>.context.json`
-and echoes that file path to stdout — so `$CTX` is the path, not the
-bundle content.
+Pass `--repo` rather than letting the fetcher resolve the current repository: a
+number is only meaningful beside the repository that issued it, and fetching the
+same number from the wrong one silently retrospects different work.
+
+`fetch-pr-context.sh` writes the bundle to
+`.prflow/tmp/pr-<owner>-<name>-<n>.context.json` — the name carries the
+repository so two repositories' same-numbered PRs cannot overwrite each other —
+and echoes that file path to stdout, so `$CTX` is the path, not the bundle
+content.
 
 Run the cheap gate against the bundle content:
 
@@ -572,8 +588,10 @@ actually receives, after excluding any that failed to fetch), and *total*
 
 ```bash
 # TOTAL is occurrence_count, falling back to the occurrences[] length. SELECTED_PRS
-# are the most-recent AUDIT_BUNDLE_CAP occurrence PRs in DESCENDING ts order — the
-# emitted order is fact the dispatch prompt states.
+# are the most-recent AUDIT_BUNDLE_CAP occurrences in DESCENDING ts order, one
+# `<owner>/<name>#<number>` key per line — the emitted order is fact the dispatch
+# prompt states. A pattern can span repositories, so each key is split back into its
+# repository and number below and fetched from ITS OWN repository.
 # `dispatch` carries the no-dispatch floor: 8b/8c act only on patterns whose
 # `dispatch` is still 1 here. Start optimistic; clear it on any arm that leaves the
 # pattern without evidence.
@@ -598,7 +616,12 @@ SELECTED_PRS="$(devflow_select_audit_bundles "$AUDIT_BUNDLE_CAP" "$pattern")" ||
 selected=0; delivered=0; bundle_paths=()
 for n in $SELECTED_PRS; do
     selected=$((selected + 1))
-    BUNDLE="$REPO_ROOT/.prflow/tmp/pr-${n}.context.json"
+    # Split the repository-qualified key with builtins. Deriving which repository an
+    # occurrence is fetched from through a non-preflight PATH tool would silently
+    # yield the empty string on a host without it, and the fetch would then resolve
+    # the ambient repository instead.
+    occ_repo="${n%#*}"; occ_pr="${n##*#}"
+    BUNDLE="$REPO_ROOT/.prflow/tmp/pr-${occ_repo//\//-}-${occ_pr}.context.json"
     # Use `-s`, not `-f`: an interrupted fetch leaves a zero-byte bundle that `-f`
     # would count as evidence. Test and deliver the SAME absolute string, or an
     # oddly-resolved REPO_ROOT passes the guard on one path and hands Stage B another.
@@ -607,7 +630,7 @@ for n in $SELECTED_PRS; do
         # Capture fetch-pr-context.sh's own diagnostics instead of discarding them:
         # an expired token, a deleted PR, an absent `gh` and a jq shape error are
         # fixed differently.
-        FETCH_ERR="$(bash $LIB/fetch-pr-context.sh "$n" 2>&1 >/dev/null || true)"
+        FETCH_ERR="$(bash $LIB/fetch-pr-context.sh "$occ_pr" --repo "$occ_repo" 2>&1 >/dev/null || true)"
     fi
     if [ -s "$BUNDLE" ]; then
         delivered=$((delivered + 1))
@@ -617,7 +640,7 @@ for n in $SELECTED_PRS; do
         # attempt is excluded from the path array handed to Stage B and named in the
         # blockers — never a phantom path, and never counted as evidence. The blocker
         # quotes the fetcher's own diagnostic rather than guessing the cause.
-        blockers+=("Pattern ${SLUG}: occurrence PR #${n} bundle could not be fetched — ${FETCH_ERR:-fetch-pr-context.sh produced no diagnostic} — excluded from Stage B evidence")
+        blockers+=("Pattern ${SLUG}: occurrence PR ${n} bundle could not be fetched — ${FETCH_ERR:-fetch-pr-context.sh produced no diagnostic} — excluded from Stage B evidence")
     fi
 done
 # delivered == 0 (every selected bundle failed to fetch): DO NOT dispatch this pattern

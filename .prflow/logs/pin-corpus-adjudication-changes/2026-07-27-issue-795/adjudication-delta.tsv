@@ -1,4 +1,0 @@
-adjudication_key	base_state	current_state
-literal:1ee7e25cd5f0e9027e68d52572713ac918cfdae1d99231463eb6c57707850c49	["boundary","maintainer adjudication: create-issue WD: writer, extractor, delivery marker, dispatch record, or override sequencing interface: the pointer is extracted with python3, never grep/sed/awk"]	null
-literal:583c9ac1850c40505b9f8563859a84b2272abe587eedad2b898ce0cf28b0f12d	["boundary","maintainer adjudication: create-issue WD: writer, extractor, delivery marker, dispatch record, or override sequencing interface: the extraction returns the pointer line byte-identically"]	null
-literal:8321a99ab66c2e7dd7ecd4655dfe6fa6b5f1a45b77edfac39ddd10efdf410e34	["boundary","maintainer adjudication: create-issue LG: per-finding ledger read/write, reconciliation, or post-close state contract: the multi-line read-back query class is named"]	null

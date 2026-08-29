@@ -130,8 +130,11 @@ devflow_validate_audit_bundle_cap() {
 
 # devflow_select_audit_bundles <cap> <pattern-json>
 #
-# Prints, one per line, the `.pr` of the MOST-RECENT <cap> occurrences of the
-# pattern, in DESCENDING occurrence-timestamp order. lib/compute-patterns.jq emits
+# Prints, one per line, the canonical `<owner>/<name>#<number>` key of the
+# MOST-RECENT <cap> occurrences of the pattern, in DESCENDING occurrence-timestamp
+# order. The key is repository-qualified because a pattern can span repositories:
+# a bare number would fetch a same-numbered PR from whichever repository the run
+# is in, which is different work. lib/compute-patterns.jq emits
 # `occurrences` through `sort_by(.ts)` (ASCENDING), so the selection is the tail of
 # that array reversed to descending `ts`. Emitting the order — not just the set —
 # is load-bearing: Step 8a fetches in this order and the dispatch prompt states it
@@ -151,6 +154,10 @@ devflow_validate_audit_bundle_cap() {
 # non-object <pattern>, a present-but-non-array `occurrences`, or any other jq
 # failure. Callers check the exit status; only a zero exit means the printed lines
 # are the whole selection.
+#
+# An occurrence naming NO repository fails the whole selection CLOSED rather than
+# defaulting to the current repository — an unqualified number is an unestablished
+# operand, and Stage B evidence fetched from the wrong repository is worse than none.
 #
 # Occurrence elements that are not objects, or whose `.pr` is not a number, are
 # dropped BEFORE the most-recent-N slice — so a malformed element neither reaches the
@@ -181,12 +188,16 @@ devflow_select_audit_bundles() {
          else . end)
         | (.occurrences // [])
         | map(select(type == "object" and ((.pr | numbers) != null)))
+        | (map(select(((.repo | strings) // "") == "")) | length) as $unqualified
+        | (if $unqualified > 0
+           then error("\($unqualified) occurrence(s) name no repository — a bare PR number cannot be fetched without one")
+           else . end)
         | . as $o
         | ($o | length) as $len
         | (if $cap >= $len then 0 else $len - $cap end) as $start
         | $o[$start:]
         | reverse
-        | .[].pr' 2>&1)"; then
+        | .[] | (.pr_key // (.repo + "#" + (.pr|tostring)))' 2>&1)"; then
         echo "::error::audit-bundle-selection: devflow_select_audit_bundles could not select occurrence PRs — ${out:-jq produced no diagnostic}. Refusing to return an empty selection the caller would read as 'this pattern has no occurrences'" >&2
         return 1
     fi
@@ -197,14 +208,24 @@ devflow_select_audit_bundles() {
     # output: every non-empty line must be a bare PR number, and anything else fails
     # CLOSED with its own attributed breadcrumb rather than reaching the caller.
     # Builtin-only (guard-class 2) — no tr/sed/grep decides this selection.
-    local line
+    local line _l_repo _l_num
     while IFS= read -r line; do
         [ -n "$line" ] || continue
-        case "$line" in
-            *[!0-9]*)
-                echo "::error::audit-bundle-selection: devflow_select_audit_bundles produced a non-numeric output line ('$line') — jq exited 0 but wrote a diagnostic into the selection; refusing to hand the caller a phantom occurrence PR" >&2
-                return 1 ;;
+        # Every line must be a canonical "<owner>/<name>#<number>" key. Split with
+        # builtins and validate both halves: a jq warning that reached stdout on a
+        # zero exit would otherwise flow into the caller as a phantom occurrence.
+        _l_repo="${line%#*}"; _l_num="${line##*#}"
+        case "$line" in *"#"*) : ;; *) _l_repo=""; _l_num="" ;; esac
+        case "$_l_num" in ''|*[!0-9]*) _l_repo="" ;; esac
+        case "$_l_repo" in
+            ''|*/*/*|/*|*/) _l_repo="" ;;
+            */*) : ;;
+            *) _l_repo="" ;;
         esac
+        if [ -z "$_l_repo" ]; then
+            echo "::error::audit-bundle-selection: devflow_select_audit_bundles produced a line that is not a canonical <owner>/<name>#<number> key ('$line') — refusing to hand the caller a phantom occurrence PR" >&2
+            return 1
+        fi
     done <<< "$out"
     # Empty stdout is the legitimate no-occurrences return; print nothing rather than
     # a blank line, and return 0 explicitly (a bare `[ -n … ] &&` would return 1 here).

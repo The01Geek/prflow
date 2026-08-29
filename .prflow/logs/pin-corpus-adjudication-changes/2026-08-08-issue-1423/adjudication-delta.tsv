@@ -1,3 +1,0 @@
-adjudication_key	base_state	current_state
-literal:38bba24f5a328739f87b9ead9860ed8754e475abdf51d34b107c5855bc0c63a7	null	"[""boundary"",""maintainer adjudication: review SL: stale-lint helper/sentinel boundary: #424 T11 engine arm(a) names provision_env as the precondition of the config bridge Rekeyed for issue 1423: the pinned literal dropped the withheld-tier workflow filename in favour of a descriptive name; the adjudication itself is unchanged.""]"
-literal:3e34c79e5ff2cfd0f15c36583d0a4fd50643e473c313621d75a56e68e4739287	"[""boundary"",""maintainer adjudication: review SL: stale-lint helper/sentinel boundary: #424 T11 engine arm(a) names provision_env as the precondition of the config bridge""]"	null

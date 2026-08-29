@@ -14,9 +14,14 @@
 #   jq -c -f lib/clean-entry.jq <context-bundle.json
 
 {
-  schema_version: 3,
+  schema_version: 4,
   kind: "implementation",
   pr: .pr,
+  # The repository the number was issued in, plus the canonical comparison key.
+  # Carried from the bundle, never re-derived: a record read back in a different
+  # repository must still name the one its PR belongs to.
+  repo: .repo,
+  pr_key: .pr_key,
   issue: .issue_number,
   merged_at: .merged_at,
   branch: .branch,

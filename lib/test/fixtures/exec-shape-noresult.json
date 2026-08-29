@@ -1,5 +1,0 @@
-[
-  {"type": "system", "subtype": "init"},
-  {"type": "assistant", "message": {"role": "assistant"}, "usage": {"input_tokens": 1200, "output_tokens": 340}},
-  {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Task", "input": {"subagent_type": "code-explorer"}}]}}
-]

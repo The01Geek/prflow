@@ -1,7 +1,0 @@
-[
-  {
-    "user": {"login": "github-actions[bot]"},
-    "created_at": "2026-07-09T08:05:00Z",
-    "body": "<!-- devflow:workpad -->\n# DevFlow Workpad — Issue #100\n\n**Status:** 💥 Failed\n**Branch:** `claude/issue-100-20260709-1200`\n**Last updated:** 2026-07-09 08:16 UTC\n\n## Progress\n- [x] **Setup** — branch & workpad\n- [ ] **Implement**\n\n## Plan\n- [ ] do the thing\n\n## Acceptance Criteria\n- [ ] AC one\n\n## Devflow Reflection\n<details>\n<summary>Devflow Reflection (click to expand)</summary>\n\n### ⚠️ Action required\n- ❗ **Dropped/Failed:** run died: the auto-resume cap was exhausted\n</details>\n"
-  }
-]

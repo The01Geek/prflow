@@ -1,9 +1,0 @@
-{
-  "properties": {
-    "docs": {
-      "properties": {
-        "internal": { "type": "string", "default": "docs/internal/" }
-      }
-    }
-  }
-}

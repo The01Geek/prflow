@@ -1,0 +1,5 @@
+{
+  "identity_version": 1,
+  "_comment": "SINGLE SOURCE OF TRUTH for the repository identity the retrospective record stores are qualified by. `legacy_record_repo` is the repository every record written BEFORE the repository-qualified shape came in belongs to; it is the only value the one-time compatibility rule may bind a repo-less record to, and it is never a fallback for a repository that failed to resolve. Readers: lib/repo-identity.sh (shell), scripts/migrate-record-repo.py (Python). Neither hardcodes the string.",
+  "legacy_record_repo": "The01Geek/prflow"
+}

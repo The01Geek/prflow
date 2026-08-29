@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# fetch-pr-context.sh <pr-number>
+# fetch-pr-context.sh <pr-number> [--repo <owner>/<name>]
 # Fetches all primary GitHub sources for one PR and writes a context bundle.
 # Output path is echoed to stdout; everything else goes to stderr.
 # Exit 2 if the PR branch is not a retrospected branch (kind == "skip").
@@ -14,7 +14,16 @@ set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resolve-jq.sh" \
   || { echo "devflow: resolve-jq.sh could not be sourced beside ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 
-PR="${1:?Usage: fetch-pr-context.sh <pr-number>}"
+PR=""
+REPO_ARG=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --repo) [ $# -ge 2 ] || { echo "fetch-pr-context: --repo requires a value" >&2; exit 1; }
+                REPO_ARG="$2"; shift 2 ;;
+        *) if [ -z "$PR" ]; then PR="$1"; shift; else echo "fetch-pr-context: unexpected argument: $1" >&2; exit 1; fi ;;
+    esac
+done
+: "${PR:?Usage: fetch-pr-context.sh <pr-number> [--repo <owner>/<name>]}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # gh binary: resolved once via the single-source resolver (execution-verified);
@@ -26,11 +35,21 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./config-source.sh
 . "$HERE/config-source.sh"
 
-REPO="$("$DEVFLOW_GH" repo view --json nameWithOwner -q .nameWithOwner)" \
-  || { echo "::error::fetch-pr-context: failed to resolve repo name" >&2; exit 1; }
+# Repository identity: an occurrence PR is fetched from the repository its number
+# was issued in, which is NOT always the repository this run is executing inside —
+# a recurring pattern can span repositories. `--repo` names it explicitly; without
+# it the current repository is resolved, and an unresolvable one is a blocker
+# rather than a gh call against the ambient git remote (see lib/repo-identity.sh).
+# shellcheck source=repo-identity.sh
+. "$HERE/repo-identity.sh"
+if [ -n "$REPO_ARG" ]; then
+    REPO="$(devflow_resolve_repo "$REPO_ARG")" || exit 1
+else
+    REPO="$(devflow_resolve_repo)" || exit 1
+fi
 
 # ── 1. PR metadata ──────────────────────────────────────────────────────────
-PR_JSON="$("$DEVFLOW_GH" pr view "$PR" --json number,headRefName,baseRefName,headRefOid,mergeCommit,mergedAt,createdAt,author,title,body,additions,deletions,files,labels,closingIssuesReferences)" \
+PR_JSON="$("$DEVFLOW_GH" pr view "$PR" --repo "$REPO" --json number,headRefName,baseRefName,headRefOid,mergeCommit,mergedAt,createdAt,author,title,body,additions,deletions,files,labels,closingIssuesReferences)" \
   || { echo "::error::fetch-pr-context: failed to fetch PR metadata for PR ${PR}" >&2; exit 1; }
 
 BRANCH="$(echo "$PR_JSON" | "$DEVFLOW_JQ" -r .headRefName)"
@@ -184,7 +203,7 @@ DIFF_BYTE_CAP="$(devflow_conf '.prflow_retrospective.diff_byte_cap' 204800)"
 # human_postbot_diff, the reviews, and the issue. Only a *missing* PR (handled
 # earlier) is fatal.
 set +e
-DIFF_RAW="$("$DEVFLOW_GH" pr diff "$PR" 2>/dev/null)"
+DIFF_RAW="$("$DEVFLOW_GH" pr diff "$PR" --repo "$REPO" 2>/dev/null)"
 DIFF_FETCH_OK=$?
 set -e
 if [ "$DIFF_FETCH_OK" -ne 0 ]; then
@@ -804,7 +823,11 @@ fi
 REPO_ROOT="$(devflow_repo_root)"
 OUT_DIR="${REPO_ROOT}/.prflow/tmp"
 mkdir -p "$OUT_DIR"
-OUT_FILE="${OUT_DIR}/pr-${PR}.context.json"
+# The bundle name carries the REPOSITORY as well as the number: a recurring pattern
+# can span repositories, and a bare `pr-<n>` name would have one repository's bundle
+# read as the other's evidence. The slash is the only character an `owner/name` slug
+# carries that a filename cannot, so substituting it with a bash builtin is enough.
+OUT_FILE="${OUT_DIR}/pr-${REPO//\//-}-${PR}.context.json"
 
 # Large values are written to temp files and passed via --rawfile / --slurpfile
 # to avoid exceeding ARG_MAX when assembling the final jq bundle.
@@ -835,6 +858,7 @@ printf '%s' "$IMPLEMENT_SUMMARY_JSON"   > "$_JQ_TMP/implement_summary_comment.js
 # argjson-ok: pr additions deletions diff_truncated issue_number review_reject_outstanding review_verdict_unparsed_count review_comments_count post_bot_commits ci_failures_during_pr ci_status_unknown pr_devflow_provenance reflections_friction_count base_update_checkpoint4_present ttm_hours -- all bounded scalars (numbers/booleans), never corpus-sized; every corpus-sized operand here is routed via --slurpfile (issue #895)
 "$DEVFLOW_JQ" -n \
     --argjson pr "$PR" \
+    --arg repo "$REPO" \
     --arg kind "$KIND" \
     --arg branch "$BRANCH" \
     --arg base_ref "$BASE_REF" \
@@ -875,6 +899,8 @@ printf '%s' "$IMPLEMENT_SUMMARY_JSON"   > "$_JQ_TMP/implement_summary_comment.js
     --argjson ttm_hours "$TTM_HOURS" \
     '{
         pr: $pr,
+        repo: $repo,
+        pr_key: ($repo + "#" + ($pr|tostring)),
         kind: $kind,
         branch: $branch,
         base_ref: $base_ref,

@@ -1,8 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-9", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "response_text": "```json\n{\"id\": \"VC-9\", \"verdict\": \"FAIL\", oops not json}\n```"
-    }
-  ]
-}

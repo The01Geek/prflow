@@ -1,2 +1,0 @@
-This fixture root deliberately contains no skills/** files, so the default inventory's
-enrolled files are both missing — exercising the missing-enrolled-file fail-closed arm.

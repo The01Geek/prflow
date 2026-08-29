@@ -1,5 +1,0 @@
-[
-  {"type": "system", "subtype": "init"},
-  {"type": "assistant", "message": {"role": "assistant"}, "usage": {"input_tokens": 1200, "output_tokens": 340}},
-  {"type": "system", "permission_denials": [{"tool_name": "Bash"}], "permission_denials_count": 3}
-]

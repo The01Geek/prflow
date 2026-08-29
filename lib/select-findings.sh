@@ -194,8 +194,8 @@ devflow_select_findings() {
     fi
     local _ov_schema
     _ov_schema="$("$DEVFLOW_JQ" -r '.schema_version // 1' "$overrides" 2>/dev/null)" || _ov_schema=""
-    if [ "$_ov_schema" != "3" ]; then
-        echo "::error::select-findings: overrides file '${overrides}' reports schema_version '${_ov_schema:-unreadable}', not 3 (the version the lifecycle writer refuses to stamp) — withholding every finding for this pattern" >&2
+    if [ "$_ov_schema" != "4" ]; then
+        echo "::error::select-findings: overrides file '${overrides}' reports schema_version '${_ov_schema:-unreadable}', not 4 (the version the lifecycle writer refuses to stamp) — withholding every finding for this pattern" >&2
         return 1
     fi
 

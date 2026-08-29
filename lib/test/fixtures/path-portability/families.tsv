@@ -1,7 +1,0 @@
-# family	host_signal	input_base	expected_base
-# The four supported host-path families (complete by construction). The winform
-# families share one input; the running shell's mount scheme distinguishes them.
-linux-posix	posix	/home/runner/work/devflow-autopilot/devflow-autopilot/skills/implement	/home/runner/work/devflow-autopilot/devflow-autopilot/skills/implement
-macos-posix	posix	/Users/dev/Projects/devflow-autopilot/skills/implement	/Users/dev/Projects/devflow-autopilot/skills/implement
-wsl-winform	wsl	C:\Users\dev\devflow-autopilot\skills\implement	/mnt/c/Users/dev/devflow-autopilot/skills/implement
-gitbash-winform	msys2	C:\Users\dev\devflow-autopilot\skills\implement	/c/Users/dev/devflow-autopilot/skills/implement

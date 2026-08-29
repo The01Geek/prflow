@@ -1,4 +1,0 @@
-{"type": "system", "subtype": "init", "session_id": "SECRET_sentinel_value"}
-{"type": "assistant", "message": {"role": "assistant"}, "usage": {"input_tokens": 1200, "output_tokens": 340}}
-{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Task", "input": {"subagent_type": "code-explorer"}}]}}
-{"type": "result", "subtype": "success", "is_error": false, "num_turns": 8, "duration_ms": 45231, "usage": {"input_tokens": 5000, "output_tokens": 900}, "permission_denials_count": 1, "permission_denials": [{"tool_name": "Bash", "tool_input": {"command": "denied"}}]}

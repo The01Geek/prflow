@@ -1,9 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-17", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "verdict_path": "lib/test/fixtures/normalize-verdicts/vfile-verdict-bytes.json",
-      "response_text": "```json\n{\"id\": \"VC-17\", \"verdict\": \"INCONCLUSIVE\", \"evidence\": \"this fallback must NOT be read because the named file exists\"}\n```"
-    }
-  ]
-}

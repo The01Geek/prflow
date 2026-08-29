@@ -1,4 +1,0 @@
-diff --git a/lib/fetch-pr-context.sh b/lib/fetch-pr-context.sh
-@@ -1 +1 @@
--old
-+new

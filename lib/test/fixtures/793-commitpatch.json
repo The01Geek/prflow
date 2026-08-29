@@ -1,6 +1,0 @@
-{"files": [
-  {
-    "filename": "src/orders/order.py",
-    "patch": "@@ -10,6 +10,10 @@ class OrderClass {\n+        try {\n+            $this->doProcess($orderId);\n+        } catch (Exception $e) {\n+            throw $e;\n+        }"
-  }
-]}

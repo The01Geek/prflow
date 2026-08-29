@@ -1,8 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-20", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "verdict_path": "lib/test/fixtures/normalize-verdicts/does-not-exist-nonce.json"
-    }
-  ]
-}

@@ -1,6 +1,6 @@
 # PRFlow — agentic coding that ships on real codebases
 
-[![PRFlow — Ship the PR, not the cleanup. A Claude Code plugin that turns one request into one merge-ready pull request across four phases: Setup (/prflow:create-issue), Implement (/prflow:implement), Review & fix (/prflow:review-and-fix), and Document (/prflow:docs).](docs/internal/ship-pr.png)](https://prflow.ai/)
+[![PRFlow — Ship the PR, not the cleanup. A Claude Code plugin that turns one request into one merge-ready pull request across four phases: Setup (/prflow:create-issue), Implement (/prflow:implement), Review & fix (/prflow:review-and-fix), and Document (/prflow:docs).](docs/ship-pr.png)](https://prflow.ai/)
 
 [![CI](https://github.com/The01Geek/prflow/actions/workflows/ci.yml/badge.svg)](https://github.com/The01Geek/prflow/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -192,7 +192,7 @@ See [PRFlow workflows](https://prflow.ai/docs/workflows) for the supported user-
 - **[Installing and updating](https://prflow.ai/docs/getting-started/installation)** — supported clients, initialization and updates.
 - **[Cloud setup](https://prflow.ai/docs/runs/cloud/setup)** — credentials and repository setup for autonomous runs.
 - **[Review and fix](https://prflow.ai/docs/workflows/review-and-fix)** · **[Review-agent configuration](https://prflow.ai/docs/configuration/review-agents)** · **[Cloud triggers](https://prflow.ai/docs/runs/cloud/triggers)**
-- **[Changelog](CHANGELOG.md)** — release history.
+- **[Releases](https://github.com/The01Geek/prflow/releases)** — release history, with notes at [prflow.ai](https://prflow.ai/release-notes).
 
 ## Repository layout
 
@@ -211,7 +211,7 @@ Skills reference bundled helpers via the portable single-statement anchor (`$CLA
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Run the test suite with `bash lib/test/run.sh` (CI runs it on every PR). Security reports: [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).
 
 ## License
 

@@ -1,5 +1,0 @@
-adjudication_key	base_state	current_state
-literal:5e884f01e62a33cbc1006af42b6c59af4f8ce8dc0a3854799d797e55fa124b68	["boundary","maintainer adjudication: review BI: batch/filter/helper command boundary: #284 positive: review live-comment 3-way reads $? inline in the elif (with #384 stderr discriminator)"]	null
-literal:805d35d6cf9a0c6515979942ca0d1004dfcb87778200a2d8a30d25afe34d2f5c	["boundary","maintainer adjudication: review PB: progress-publication state boundary: #384 review-seed: rc-2 arm requires empty captured stderr (silent-exit discriminator)"]	null
-literal:d68fa4c63ce8e07c62d555358d3f8c1b017d82195b6c8b1a071d90fb65c7c46e	["boundary","Executable helper-readability precondition before invocation."]	null
-literal:e5d9bba4de555b6dc017c442b17ba4a30e1315785d36d1c01adfad6da23b90d0	["boundary","Executable input guard before an external identifier lookup."]	null

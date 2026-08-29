@@ -1,9 +1,0 @@
-{
-  "properties": {
-    "docs": {
-      "properties": {
-        "coarse": {"default": "docs/"}
-      }
-    }
-  }
-}

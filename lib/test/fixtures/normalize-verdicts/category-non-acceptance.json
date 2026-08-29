@@ -1,8 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-B", "category": "dependency_interaction", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "response_text": "Here is my verdict.\n```json\n{\"id\": \"VC-B\", \"verdict\": \"FAIL\", \"evidence\": \"the code handles the branch the claim oversimplifies\", \"file_checked\": \"a.py\", \"property_proven\": true, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
-    }
-  ]
-}
