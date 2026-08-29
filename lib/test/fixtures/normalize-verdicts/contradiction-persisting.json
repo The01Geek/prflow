@@ -1,9 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-CP", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "pinned_verdict": "FAIL",
-      "response_text": "On re-ask the contradiction stands.\n```json\n{\"property_proven\": false, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
-    }
-  ]
-}

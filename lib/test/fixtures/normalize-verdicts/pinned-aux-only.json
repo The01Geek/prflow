@@ -1,9 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-F", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "pinned_verdict": "FAIL",
-      "response_text": "The completed fields:\n```json\n{\"property_proven\": true, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
-    }
-  ]
-}

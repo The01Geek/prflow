@@ -1,8 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-13", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "response_text": "First draft:\n```json\n{\"id\": \"VC-13\", \"verdict\": \"PASS\", \"evidence\": \"draft\"}\n```\nActually my final answer:\n```json\n{\"id\": \"VC-13\", \"verdict\": \"FAIL\", \"evidence\": \"final\", \"property_proven\": true, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
-    }
-  ]
-}

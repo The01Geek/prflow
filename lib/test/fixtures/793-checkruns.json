@@ -1,4 +1,0 @@
-{"check_runs": [
-  {"id": 1, "name": "CI / test", "conclusion": "failure", "status": "completed"},
-  {"id": 2, "name": "CI / lint", "conclusion": "success", "status": "completed"}
-]}

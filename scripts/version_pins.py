@@ -71,6 +71,8 @@ Both populations then drop the same non-pin content:
 * ``.prflow/vendor/`` — a materialized copy of some *other* release of the plugin.
 * ``lib/test/`` — the suite's own fixtures deliberately carry drifted pins (that is
   the negative control for this very guard).
+* ``*.private.md`` — dated planning and audit records. They quote past versions as
+  evidence, so rewriting one forward falsifies the record rather than updating it.
 
 Non-UTF-8 files are skipped as non-text rather than failing the scan.
 """
@@ -114,6 +116,11 @@ EXCLUDED_PREFIXES = (
 # Repo-relative files excluded from the scan (release history).
 EXCLUDED_FILES = frozenset({"CHANGELOG.md"})
 
+# Dated planning/audit records quote past versions verbatim as EVIDENCE — a finding
+# such as "the docs advertise a tag that does not exist" is falsified, not updated,
+# by rewriting its version forward. Never drop this suffix from the exclusions.
+EXCLUDED_SUFFIXES = (".private.md",)
+
 MANIFEST_RELPATH = os.path.join(".claude-plugin", "plugin.json")
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -141,6 +148,8 @@ class PinSite(NamedTuple):
 def _is_excluded(relpath: str) -> bool:
     posix = relpath.replace(os.sep, "/")
     if posix in EXCLUDED_FILES:
+        return True
+    if posix.endswith(EXCLUDED_SUFFIXES):
         return True
     return any(posix.startswith(prefix) for prefix in EXCLUDED_PREFIXES)
 

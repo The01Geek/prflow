@@ -1,9 +1,0 @@
-{
- "type": "result",
- "subtype": "success",
- "duration_ms": 900,
- "usage": {
-  "input_tokens": 5,
-  "output_tokens": 2
- }
-}

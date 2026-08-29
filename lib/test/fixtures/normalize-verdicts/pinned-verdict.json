@@ -1,9 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-19", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "pinned_verdict": "FAIL",
-      "response_text": "```json\n{\"id\": \"VC-19\", \"verdict\": \"PASS\", \"evidence\": \"the re-ask returned PASS but it must be ignored\", \"property_proven\": false, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
-    }
-  ]
-}

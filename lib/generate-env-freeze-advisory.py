@@ -60,7 +60,7 @@ from pathlib import Path
 
 GENERATOR = "lib/generate-env-freeze-advisory.py"
 MAP_REL = "lib/rename-map.json"
-REGION_FILE = "docs/internal/cloud-setup.md"
+REGION_FILE = "docs/external/docs/runs/cloud/setup.md"
 BEGIN_RE = re.compile(
     r"^(?P<indent>\s*)<!-- prflow-env-freeze:begin freeze_version=(?P<ver>\d+) "
     r"sha256=(?P<sha>[0-9a-f]{64}) "

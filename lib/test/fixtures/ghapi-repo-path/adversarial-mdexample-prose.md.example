@@ -1,4 +1,0 @@
-# Prompt-extension example
-
-Prose in a `.md.example` file is scanned as Markdown, not as shell, so this
-occurrence of `gh api "repos/$GITHUB_REPOSITORY/issues/1"` outside any fence is not flagged.

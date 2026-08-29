@@ -117,7 +117,13 @@ def occurrences_for($entries; $cat):
    # (mirroring the fixed_at form used below) keep the element present with an
    # absent-value default. summary → null, descriptors → [], suggested_interventions
    # → [] on absent or wrong-typed.
-   | {pr: .pr, ts: .merged_at, verdict: .verdict,
+   # `repo` is the record's OWN repository, and `pr_key` the canonical
+   # "<owner>/<name>#<number>". A record that names none reports null rather than
+   # the repository the derivation happens to run in: Stage B fetches each
+   # occurrence's context from `repo`, so substituting the current one would fetch
+   # a same-numbered PR that is different work.
+   | {pr: .pr, repo: ((.repo | strings) // null), ts: .merged_at, verdict: .verdict,
+      pr_key: (((.repo | strings) // null) as $r | if ($r == null or (.pr == null)) then null else ($r + "#" + (.pr|tostring)) end),
       summary: ((.summary | strings) // null),
       descriptors: ((.descriptors | arrays) // []),
       suggested_interventions: ((.suggested_interventions | arrays) // [])}]
@@ -142,7 +148,8 @@ def fixes_for($entries; $cat):
    | select(.kind == "audit")
    | select((.fixes_patterns // []) | any(slugify == $cat))
    | select(.merged_at != null and .merged_at != "")
-   | {pr: .pr, ts: .merged_at}]
+   | {pr: .pr, repo: ((.repo | strings) // null), ts: .merged_at,
+      pr_key: (((.repo | strings) // null) as $r | if ($r == null or (.pr == null)) then null else ($r + "#" + (.pr|tostring)) end)}]
   | sort_by(.ts);
 
 # entry_of — compute one derived-view entry for an attribution category $cat and a

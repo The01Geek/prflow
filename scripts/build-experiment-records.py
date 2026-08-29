@@ -81,7 +81,7 @@ GH = os.environ.get("DEVFLOW_GH") or "gh"
 # a .sh exec) so Windows works (issue #295).
 GIT = os.environ.get("DEVFLOW_GIT") or "git"
 
-STORE_SCHEMA_VERSION = 1
+STORE_SCHEMA_VERSION = 2
 PROGRESS_MARKER = "<!-- prflow:review-progress"
 # PRFlow writes the current spelling; every artifact created before the rename carries the superseded one and no body is rewritten, so readers accept BOTH (issue #1003). Historical analysis reads mostly pre-rename comments, so the
 # superseded alternative is the one that carries the existing corpus.
@@ -345,15 +345,51 @@ def _git_show(repo_root, spec):
 
 
 def _resolve_repo():
-    """owner/repo for the gh api path. GITHUB_REPOSITORY wins (set in Actions and by
-    tests); else `gh repo view`. None when unresolvable — the gh joins then degrade."""
-    env = os.environ.get("GITHUB_REPOSITORY", "").strip()
-    if env:
-        return env
+    """owner/repo for the gh api path AND for the repository-qualified record shape.
+
+    Rungs: GITHUB_REPOSITORY (set
+    in Actions and by tests), then `gh repo view`. None when unresolvable, which the
+    caller treats as a blocker: every store key and every join is repository-qualified,
+    so continuing unqualified would collapse two repositories' same-numbered records."""
+    for var in ("GITHUB_REPOSITORY",):
+        env = os.environ.get(var, "").strip()
+        if env:
+            return env
     rc, out, _ = _run([GH, "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"])
     if rc == 0 and out.strip():
         return out.strip()
     return None
+
+
+def _legacy_record_repo():
+    """The repository a record naming none belongs to — the one-time compatibility rule.
+
+    Read from lib/repo-identity.json, the single source shared with lib/repo-identity.sh.
+    Returns None when unreadable, and the caller then leaves such a record's key
+    unqualified rather than binding it to the CURRENT repository."""
+    path = Path(__file__).resolve().parent.parent / "lib" / "repo-identity.json"
+    try:
+        value = json.loads(path.read_text(encoding="utf-8")).get("legacy_record_repo")
+    except (OSError, ValueError):
+        return None
+    return value if isinstance(value, str) and value else None
+
+
+def _record_key(entry, legacy_repo):
+    """The canonical "<owner>/<name>#<number>" store key for one record.
+
+    A record naming no repository binds to `legacy_repo` under the one-time
+    compatibility rule — never to the repository this run happens to act on, which
+    would let a rewrite in a second repository overwrite the first one's history."""
+    pr = _pr_of(entry)
+    if pr is None:
+        return None
+    repo = entry.get("repo")
+    if not (isinstance(repo, str) and repo):
+        repo = legacy_repo
+    if not repo:
+        return None
+    return f"{repo}#{pr}"
 
 
 # ── store I/O ────────────────────────────────────────────────────────────────
@@ -1506,6 +1542,11 @@ def build_record(repo, repo_root, eff_index, pr, retro_entry):
     record = {
         "schema_version": STORE_SCHEMA_VERSION,
         "pr": pr,
+        # The repository the number was issued in, and the canonical comparison key.
+        # The store rewrite keys on `pr_key`: a bare `pr` would let a rewrite in one
+        # repository delete the same-numbered record from another.
+        "repo": repo,
+        "pr_key": f"{repo}#{pr}",
         "issue": issue,
         "branch": branch,
         "merged_at": merged_at,
@@ -1573,8 +1614,13 @@ def main(argv=None):
 
     repo = _resolve_repo()
     if repo is None:
-        _warn("could not resolve owner/repo (GITHUB_REPOSITORY unset, gh repo view "
-              "failed); review/denial joins will be absent for this run")
+        _warn("could not resolve owner/repo (DEVFLOW_REPO and GITHUB_REPOSITORY unset, "
+              "gh repo view failed). Every store key and every gh join is "
+              "repository-qualified, so an unresolved repository would write records "
+              "that silently collide with another repository's same-numbered work. "
+              "Set DEVFLOW_REPO or GITHUB_REPOSITORY, or authenticate gh.")
+        return 2
+    legacy_repo = _legacy_record_repo()
 
     # Existing store, keyed by PR (idempotent replace). Read STRICTLY: the store is the
     # DESTINATION this run rewrites wholesale, so a tolerated read error would silently
@@ -1589,7 +1635,7 @@ def main(argv=None):
               "line and re-run; the store is left untouched.")
         return 2
     for i, entry in enumerate(existing, 1):
-        pr = _pr_of(entry)
+        pr = _record_key(entry, legacy_repo)
         if pr is None:
             # Same destructive shape as an unparseable line: the rewrite is keyed on
             # `pr`, so a well-formed-JSON line WITHOUT one is not merely ignored — it is
@@ -1613,6 +1659,14 @@ def main(argv=None):
         pr = _pr_of(entry)
         if pr is None:
             continue
+        # A retrospective entry that NAMES another repository is work this run cannot
+        # fetch — every gh join below reads `repo` — and joining it into a record keyed
+        # to THIS repository would publish another repository's outcome as our own. An
+        # entry naming none is admitted: its repository is unestablished here, and the
+        # one-time legacy-default rule belongs to the migration, not to this reader.
+        entry_repo = entry.get("repo")
+        if isinstance(entry_repo, str) and entry_repo and entry_repo != repo:
+            continue
         if pr not in retro:
             retro_order.append(pr)
         retro[pr] = entry
@@ -1626,7 +1680,7 @@ def main(argv=None):
             window.add(int(tok))
     candidates = list(window)   # window PRs are always reprocessed
     for pr in retro_order:       # plus retrospective PRs not yet stored
-        if pr not in store and pr not in candidates:
+        if f"{repo}#{pr}" not in store and pr not in candidates:
             candidates.append(pr)
 
     if not candidates:
@@ -1649,7 +1703,7 @@ def main(argv=None):
                 # intentional exclusion, and not a failure.
                 skipped += 1
                 continue
-            store[pr] = record
+            store[f"{repo}#{pr}"] = record
             assembled += 1
         except UnestablishedPRError as e:
             # NOT a clean exclusion: we could not establish whether this PR merged, so
@@ -1665,9 +1719,15 @@ def main(argv=None):
             _warn(f"PR #{pr}: assembly failed ({type(e).__name__}: {e}); leaving prior "
                   "store line untouched")
 
-    # Deterministic output: one line per PR, ascending by PR number.
-    lines = [json.dumps(store[pr], sort_keys=True, separators=(",", ":"))
-             for pr in sorted(store)]
+    # Deterministic output: one line per repository-qualified PR, ordered by
+    # repository then ascending PR number. Sorting the composed keys as plain strings
+    # would order "#10" before "#9"; split and compare the number numerically.
+    def _key_order(key):
+        head, _, tail = key.rpartition("#")
+        return (head, int(tail) if tail.isdigit() else 0)
+
+    lines = [json.dumps(store[k], sort_keys=True, separators=(",", ":"))
+             for k in sorted(store, key=_key_order)]
     output = "\n".join(lines) + ("\n" if lines else "")
 
     if args.dry_run:

@@ -1,5 +1,0 @@
-[
-  {"type": "system", "subtype": "init", "session_id": "s1"},
-  {"type": "assistant", "message": {"role": "assistant", "usage": {"input_tokens": 10, "output_tokens": 4}}},
-  {"type": "result", "subtype": "success", "duration_ms": 1200, "permission_denials_count": 3}
-]

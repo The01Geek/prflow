@@ -1,7 +1,0 @@
-[
-  {"type": "system", "subtype": "init", "session_id": "SECRET_sentinel_value"},
-  {"type": "assistant", "message": {"role": "assistant", "content": "this is a long prompt body xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}, "usage": {"input_tokens": 1200, "output_tokens": 340}},
-  {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Task", "input": {"subagent_type": "code-explorer", "prompt": "explore SECRET_sentinel_value"}}]}},
-  {"type": "user", "message": {"content": [{"type": "tool_result", "content": "check run named <img src=x onerror=alert(1)> DROP TABLE users"}]}},
-  {"type": "result", "subtype": "success", "is_error": false, "num_turns": 8, "duration_ms": 45231, "duration_api_ms": 40120, "total_cost_usd": 0.51, "usage": {"input_tokens": 5000, "output_tokens": 900}, "permission_denials_count": 1, "permission_denials": [{"tool_name": "Bash", "tool_input": {"command": "rm -rf / SECRET_sentinel_value"}}]}
-]

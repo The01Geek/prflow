@@ -1,6 +1,0 @@
-adjudication_key	base_state	current_state
-literal:0820852b021c0045882e0e43a2babacc4a6d2026472159b564b8f20e5a9bd9ac	["boundary","maintainer adjudication: partial-discovery marker is an external-helper protocol boundary"]	null
-literal:2aa7a94860b0ac22d32ca4663980dbb2c4a32d34f9c32b3ae5ea1542c65186b0	["boundary","maintainer adjudication: deferral discovery call is an external-helper boundary"]	null
-literal:709382affd7e3540e6afff8268d582be2a33cf05816c3c4408e4c51fd54f8dac	["boundary","maintainer adjudication: discovery roots marker is an external-helper output boundary"]	null
-literal:437624c5586419712b2c9f13a0e2e36d4b795cfede301264e0eb6412bea8215d	["boundary","maintainer adjudication: filing guard is a fail-closed deferral protocol boundary"]	null
-literal:55c253ae16c90ba7e06f3079f142c1c555f32477c86efec1ae4d2e316e1c88e0	["boundary","Retain routing/state-transition contract: #555: the failed/refused arm blanks MANIFESTS so the merge guard is unambiguously false."]	null

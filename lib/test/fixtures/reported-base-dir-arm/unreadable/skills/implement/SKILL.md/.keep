@@ -1,3 +1,0 @@
-The enrolled path skills/implement/SKILL.md is a DIRECTORY in this fixture root, so
-read_text() raises IsADirectoryError (an OSError) — exercising the unreadable-file
-fail-closed arm. Drive it with --inventory inventory-implement-only.txt --root this-dir.

@@ -1,5 +1,0 @@
-adjudication_key	base_state	current_state
-literal:309de5bd34ede0803efd50977b208c9a51aaa94cb4459176822d1d1dec820566	["boundary","Retain security/integrity boundary: #224 Phase 3.1: empty-read guard falls back to main (fail-closed consequent)."]	null
-literal:363b3a35cb6e3dc2dcd17207accbe738371060717dac0d0d8079a18ef73d9dfe	["boundary","Retain routing/state-transition contract: #284 positive: phase-4 doc-gate diff read discriminates via single-statement if!."]	null
-literal:47c87c34141e214b5fed38a974a0359b0765f0a39233569f8c4cc30d8f10aa5c	["boundary","maintainer adjudication: declared security or interface boundary"]	null
-literal:54ab9811d2eaacbee7878a411963b9bb43c8216c40e66c912f1f02fa22f9b565	["boundary","maintainer adjudication: live parse-acs invocation is an executable interface boundary"]	null

@@ -1,8 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-7", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "response_text": "I looked at the code. There are two objects here: {\"a\": 1} and {\"b\": 2}. No fence."
-    }
-  ]
-}

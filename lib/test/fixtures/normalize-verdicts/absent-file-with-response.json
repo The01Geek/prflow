@@ -1,9 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-E", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "verdict_path": "lib/test/fixtures/normalize-verdicts/does-not-exist-nonce-2.json",
-      "response_text": "```json\n{\"id\": \"VC-E\", \"verdict\": \"FAIL\", \"evidence\": \"read from the fallback channel\", \"property_proven\": true, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
-    }
-  ]
-}

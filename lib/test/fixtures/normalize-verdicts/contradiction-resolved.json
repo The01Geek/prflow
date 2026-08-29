@@ -1,9 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "VC-CR", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
-      "pinned_verdict": "FAIL",
-      "response_text": "On re-ask the property is established.\n```json\n{\"property_proven\": true, \"inaccuracy_scope\": \"generated_claim_text\", \"evidence\": \"the code path holds at src/x.py:42\"}\n```"
-    }
-  ]
-}

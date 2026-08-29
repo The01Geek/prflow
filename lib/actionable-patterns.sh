@@ -109,7 +109,7 @@ COOLDOWN="$(devflow_conf '.prflow_retrospective.cooldown_days' 3)"
 # ── Stub overrides.json if absent or empty (first-run safety) ─────────────────
 _OVERRIDES_ACTUAL="$OVERRIDES_FILE"
 if [ ! -f "$OVERRIDES_FILE" ] || [ ! -s "$OVERRIDES_FILE" ]; then
-    printf '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$_JQ_TMP/overrides.json"
+    printf '{"schema_version":4,"patterns":{},"dismissed":{}}' > "$_JQ_TMP/overrides.json"
     _OVERRIDES_ACTUAL="$_JQ_TMP/overrides.json"
 fi
 

@@ -1,5 +1,0 @@
-{
-  "properties": {
-    "other": { "type": "string", "default": "x/y" }
-  }
-}

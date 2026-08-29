@@ -1,8 +1,0 @@
-{
-  "pairs": [
-    {
-      "item": {"id": "CVC-17", "verification_mode": "agent", "claim": "both workflows contain a DEVFLOW_GH[=:] assignment"},
-      "response_text": "```json\n{\"id\": \"CVC-17\", \"verdict\": \"FAIL\", \"evidence\": \"zero DEVFLOW_GH[=:] hits in both workflows; the claim's wording is inaccurate but the code is correct\", \"file_checked\": \"devflow-runner.yml, devflow.yml\"}\n```"
-    }
-  ]
-}

@@ -16,7 +16,7 @@ workflows. A few areas warrant care:
 
 - **Cloud tier credentials.** The optional GitHub Actions automation uses a
   Claude Code OAuth token (`CLAUDE_CODE_OAUTH_TOKEN`) by default. Never commit it.
-  Store it as an encrypted GitHub Actions secret. See `docs/internal/cloud-setup.md`.
+  Store it as an encrypted GitHub Actions secret. See <https://prflow.ai/docs/runs/cloud/setup>.
   Routing a workflow section through an optional third-party model provider adds
   one more secret, `DEVFLOW_PROVIDER_API_KEY` (the provider API key) — same
   handling: never commit it, store it as an encrypted Actions secret, and prefer

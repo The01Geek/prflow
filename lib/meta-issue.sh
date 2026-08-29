@@ -20,7 +20,12 @@
 #   meta-issue.sh --tag <theme-tag> --slug <sanitized-tag> \
 #                 --category <category-slug> \
 #                 --title <issue-title> --body-file <path> \
-#                 --overrides <path> [--dry-run]
+#                 --overrides <path> [--repo <owner/name>] [--dry-run]
+#
+# --repo: the repository to file into and de-dupe against. Defaults to the
+# resolved current repository (lib/repo-identity.sh). It is recorded on the
+# lifecycle entry so reconcile resolves the issue number in the repository it was
+# actually issued in — a bare number names different work in another repository.
 #
 # --category (issue #891): the fixed-vocabulary category the filed pattern belongs
 # to, written as the lifecycle record's `category` field so the record's key can be
@@ -44,6 +49,7 @@ CATEGORY=
 TITLE=
 BODY_FILE=
 OVERRIDES=
+REPO=
 DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
@@ -54,6 +60,7 @@ while [[ $# -gt 0 ]]; do
         --title)      TITLE="$2";     shift 2 ;;
         --body-file)  BODY_FILE="$2"; shift 2 ;;
         --overrides)  OVERRIDES="$2"; shift 2 ;;
+        --repo)       REPO="$2";      shift 2 ;;
         --dry-run)    DRY_RUN=1;      shift   ;;
         *) echo "meta-issue: unknown argument: $1" >&2; exit 1 ;;
     esac
@@ -111,6 +118,17 @@ esac
 . "$HERE/resolve-gh.sh"
 : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 
+# Repository identity: the de-dupe search, the filing and the lifecycle entry are
+# all repository-qualified, so an unresolved repository is a blocker rather than a
+# gh call that silently resolves the ambient git remote (see lib/repo-identity.sh).
+# shellcheck source=repo-identity.sh
+. "$HERE/repo-identity.sh"
+if [ -n "$REPO" ]; then
+    REPO="$(devflow_resolve_repo "$REPO")" || exit 1
+else
+    REPO="$(devflow_resolve_repo)" || exit 1
+fi
+
 # The reserved PRFlow provenance label plus a fixed Retrospective marker stamped
 # on every filed issue. Both are hardcoded constants — no config key controls
 # them (PRFlow is the scan/classify provenance string, whose superseded DevFlow
@@ -151,6 +169,7 @@ _apply_labels() {  # $1 = issue number
 # `--limit 200` matches the cooldown fetch (the gh default is only 30). A non-JSON
 # body fails CLOSED (same discipline as the cooldown lookup), not silently empty.
 _EXISTING_RAW="$("$DEVFLOW_GH" issue list \
+    --repo "$REPO" \
     --search "[devflow-retrospective] meta: ${TAG} in:title" \
     --state open \
     --limit 200 \
@@ -172,7 +191,7 @@ if [[ -n "$EXISTING" ]]; then
     case "$URL" in https://*/issues/[0-9]*) : ;; *) echo "::error::meta-issue: de-dupe hit returned no usable issue URL for tag '${TAG}' (got: '${URL}')" >&2; exit 1 ;; esac
     case "$NUMBER" in ''|*[!0-9]*) echo "::error::meta-issue: de-dupe hit returned no numeric issue number for tag '${TAG}' (got: '${NUMBER}')" >&2; exit 1 ;; esac
     if [[ "$DRY_RUN" -eq 0 ]]; then
-        "$DEVFLOW_GH" issue comment "$NUMBER" \
+        "$DEVFLOW_GH" issue comment "$NUMBER" --repo "$REPO" \
             --body "Pattern \`${TAG}\` recurred again — see the latest retrospective-weekly run." \
             >/dev/null \
           || echo "::warning::meta-issue: failed to add recurrence comment to #${NUMBER}" >&2
@@ -192,6 +211,7 @@ else
         # change this format and update that regex in lockstep (a run.sh
         # round-trip assertion pins the two together).
         URL="$("$DEVFLOW_GH" issue create \
+            --repo "$REPO" \
             --title "[devflow-retrospective] meta: ${TAG} — ${TITLE}" \
             --body-file "$BODY_FILE")"
         # Strip whitespace with a BUILTIN, never `tr`: preflight guarantees only
@@ -241,7 +261,7 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
     RECORD_WRITTEN=0
     NOW=""
     if [[ ! -f "$OVERRIDES" ]] || [[ ! -s "$OVERRIDES" ]]; then
-        printf '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$OVERRIDES" || {
+        printf '{"schema_version":4,"patterns":{},"dismissed":{}}' > "$OVERRIDES" || {
             echo "::error::meta-issue: issue WAS filed (${URL}) but the overrides file ${OVERRIDES} could not be initialized — de-dupe will prevent a duplicate next run" >&2
             printf '%s\n' "$URL"
             exit 0
@@ -249,20 +269,20 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
     fi
 
     # Refuse to record into a file this helper is not the migrator for. The jq
-    # below sets `.schema_version = 3` and performs NO migration, so stamping an
-    # unmigrated (v1/v2) file would claim a migration that never happened — and
-    # pattern-state.sh's `_migrate` dispatches on the stored version, so a v3 stamp
+    # below sets `.schema_version = 4` and performs NO migration, so stamping an
+    # unmigrated (v1/v2/v3) file would claim a migration that never happened — and
+    # pattern-state.sh's `_migrate` dispatches on the stored version, so a v4 stamp
     # written here would make it treat the file as current and never run. Every
-    # loop-written pre-v3 record (a v1 `dismissed{}` entry, or a v2 record still
-    # lacking a `category`) would be frozen in a half-migrated shape: the
+    # loop-written pre-v4 record (a v1 `dismissed{}` entry, a v2 record still
+    # lacking a `category`, or a v3 entry still lacking a `repo`) would be frozen in a half-migrated shape: the
     # unclearable-dismissal / miscategorized-record failure this lifecycle exists to
     # end, arriving through the loop's own writer. Decline the record instead and
     # route to the issue-WAS-filed recovery below, so the filing is still reported
     # and de-dupe still prevents a duplicate next run. (`// 1` mirrors _migrate's
     # own read, so an absent key reads as v1 there too.)
     _MI_SCHEMA="$("$DEVFLOW_JQ" -r '.schema_version // 1' "$OVERRIDES" 2>/dev/null)" || _MI_SCHEMA=""
-    if [ "$_MI_SCHEMA" != "3" ]; then
-        echo "::error::meta-issue: issue WAS filed (${URL}) but ${OVERRIDES} reports schema_version '${_MI_SCHEMA:-unreadable}', not 3 — refusing to stamp a v3 lifecycle record onto a file this helper does not migrate (run 'pattern-state.sh migrate ${OVERRIDES}' first); de-dupe will prevent a duplicate next run" >&2
+    if [ "$_MI_SCHEMA" != "4" ]; then
+        echo "::error::meta-issue: issue WAS filed (${URL}) but ${OVERRIDES} reports schema_version '${_MI_SCHEMA:-unreadable}', not 4 — refusing to stamp a v4 lifecycle record onto a file this helper does not migrate (run 'pattern-state.sh migrate ${OVERRIDES}' first); de-dupe will prevent a duplicate next run" >&2
         printf '%s\n' "$URL"
         exit 0
     fi
@@ -323,7 +343,8 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
         --arg now "$NOW" \
         --arg url "$URL" \
         --argjson num "$ISSUE_NUM" \
-        '.schema_version = 3
+        --arg repo "$REPO" \
+        '.schema_version = 4
          | .patterns = (.patterns // {})
          | .dismissed = (.dismissed // {})
          | .patterns[$slug] = (
@@ -332,9 +353,9 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
              | .provenance = (.provenance // $now)
              | .meta_issues = (
                  (.meta_issues // []) as $e
-                 | if ($e | any(.number == $num))
-                   then ($e | map(if .number == $num then (. + {url:$url, state:"filed", closedAt:null, fixed_at:null, state_reason:null}) else . end))
-                   else ($e + [{number:$num, url:$url, state:"filed", closedAt:null}])
+                 | if ($e | any(.number == $num and (.repo // $repo) == $repo))
+                   then ($e | map(if (.number == $num and (.repo // $repo) == $repo) then (. + {repo:$repo, url:$url, state:"filed", closedAt:null, fixed_at:null, state_reason:null}) else . end))
+                   else ($e + [{number:$num, repo:$repo, url:$url, state:"filed", closedAt:null}])
                    end
                )
              | .state = "filed"

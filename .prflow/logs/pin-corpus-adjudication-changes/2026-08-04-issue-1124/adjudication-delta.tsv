@@ -1,3 +1,0 @@
-adjudication_key	base_state	current_state
-literal:15537428c59f61947c0fe153805c42b82054bf9f7729baa61cb62d50c3b974e3	"[""boundary"",""Concrete prompt-extension routing invocation.""]"	null
-literal:3b29f2fec47e2503f8c388288ccfd447959f157e0fa4b5707f8e4a5f656a7691	"[""boundary"",""Retain review-loop routing boundary: #620: review-and-fix loads the receiving-code-review extension at entry controls finding disposition, re-entry, or fix verification.""]"	null

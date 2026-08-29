@@ -1,7 +1,0 @@
-adjudication_key	base_state	current_state
-literal:26a4746b7c0993fa42c257b9c4bd76cd46c504d1600a030b2063c10bf3c5c4cc	["boundary","maintainer adjudication: partial-discovery marker is an external-helper protocol boundary"]	null
-literal:c9f1ba9756c0f80c0c1827672aa2ebc442c2ac979589210354bb2878ae2f5647	null	["boundary","maintainer adjudication: partial-discovery marker is an external-helper protocol boundary"]
-literal:6cecf9d65668ea15ab23f85502bfe788fcfe63fca449c1468dd8902dd97fea59	["boundary","maintainer adjudication: deferral discovery call is an external-helper boundary"]	null
-literal:362d12e8f60cfe73154fafbad9f090e69e15d9899c9853f9500da5d0d3978dac	null	["boundary","maintainer adjudication: deferral discovery call is an external-helper boundary"]
-literal:c4362b8fbcb4b4a1a222ee69039e7ee590991429673095d9f5cb1bb1d6d302e5	["boundary","maintainer adjudication: discovery roots marker is an external-helper output boundary"]	null
-literal:ecc9216546e2d0b606b291f602d066313ae2d846e510bf731931304e50cbc7b4	null	["boundary","maintainer adjudication: discovery roots marker is an external-helper output boundary"]

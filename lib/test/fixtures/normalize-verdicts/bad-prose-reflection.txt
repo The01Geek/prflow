@@ -1,1 +1,0 @@
-returned FAIL whose own evidence proves the code correct (zero DEVFLOW_GH[=:] hits in both workflows); adjudicated PASS-with-note per the verifier contract's wording-vs-code rule

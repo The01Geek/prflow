@@ -1,8 +1,0 @@
-This is a POSITIVE CONTROL for the secret/owner-id detector in
-lib/test/test_review_context_eval.py. It deliberately contains owner-specific
-and transcript-shape patterns the detector must fire on, so a broken detector is
-caught rather than silently passing every real fixture. It is excluded from the
-clean-fixtures scan by name.
-
-Planted patterns: the01geek and /Users/someone/repos and .claude-3/jobs and
--Users-someone-repos.

@@ -20,8 +20,9 @@
 #                                 still confirmed to match the retrospection
 #                                 predicate; others are dropped with a warning.
 #
-# Output: [{number, headRefName, mergedAt}, ...] sorted by mergedAt, capped at
-# max_prs_per_run.
+# Output: [{number, headRefName, mergedAt, repo, pr_key}, ...] sorted by mergedAt,
+# capped at max_prs_per_run. `pr_key` is the canonical "<owner>/<name>#<number>"
+# comparison key; the already-processed filter keys on it, never on the number.
 set -euo pipefail
 
 # jq binary: resolved once via the sourced sibling resolver (issue #247);
@@ -39,6 +40,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 # shellcheck source=./config-source.sh
 . "$HERE/config-source.sh"
+# Repository identity: the processed-history comparison and every gh call below are
+# repository-qualified, so an unresolved repository is a blocker rather than a
+# silently-empty operand (see lib/repo-identity.sh).
+# shellcheck source=./repo-identity.sh
+. "$HERE/repo-identity.sh"
 
 EXPLICIT_PRS=""
 while [[ $# -gt 0 ]]; do
@@ -48,7 +54,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-REPO="$("$DEVFLOW_GH" repo view --json nameWithOwner -q .nameWithOwner)"
+REPO="$(devflow_resolve_repo)" || exit 1
+LEGACY_RECORD_REPO="$(devflow_legacy_record_repo)" || exit 1
 MAX_PRS="$(devflow_conf '.prflow_retrospective.max_prs_per_run' 500)"
 # Adopter's implementation-bot branch prefix (default "claude/"). An EMPTY
 # prefix is honoured as "disable the prefix path" — it must NOT degrade to a
@@ -159,8 +166,8 @@ if [ -n "$EXPLICIT_PRS" ]; then
         # breadcrumb on stderr is the right granularity rather than a hard exit.
         set +e
         # argjson-ok: watched -- bounded scalar (boolean flag).
-        _SEL="$(echo "$_PRJSON" | "$DEVFLOW_JQ" -c --arg impl "$IMPL_PREFIX" --argjson watched "$_WATCHED" \
-            "select($RETRO_PREDICATE) | {number, headRefName, mergedAt}" 2>"$PRS_ERR")"
+        _SEL="$(echo "$_PRJSON" | "$DEVFLOW_JQ" -c --arg impl "$IMPL_PREFIX" --arg repo "$REPO" --argjson watched "$_WATCHED" \
+            "select($RETRO_PREDICATE) | {number, headRefName, mergedAt, repo: \$repo, pr_key: (\$repo + \"#\" + (.number|tostring))}" 2>"$PRS_ERR")"
         _SEL_RC=$?
         set -e
         if [ "$_SEL_RC" -ne 0 ]; then
@@ -172,7 +179,7 @@ if [ -n "$EXPLICIT_PRS" ]; then
         _add_candidates "[$_SEL]"
     done
     rm -f "$PRS_ERR"
-    echo "$CANDIDATES" | "$DEVFLOW_JQ" -c --argjson cap "$MAX_PRS" 'sort_by(.mergedAt) | [.[0:$cap][] | {number, headRefName, mergedAt}]'  # argjson-ok: cap -- scalar int
+    echo "$CANDIDATES" | "$DEVFLOW_JQ" -c --argjson cap "$MAX_PRS" --arg repo "$REPO" 'sort_by(.mergedAt) | [.[0:$cap][] | {number, headRefName, mergedAt, repo: $repo, pr_key: ($repo + "#" + (.number|tostring))}]'  # argjson-ok: cap -- scalar int
     exit 0
 fi
 
@@ -284,9 +291,20 @@ fi
 # guard, so neither transport can collapse silently. Called in the current shell
 # (never via $(...)), so its exit terminates scan, not just a subshell.
 _decode_existing() {  # $1 = decoded jsonl text, $2 = source label for breadcrumbs
-    if ! EXISTING="$(printf '%s' "$1" | "$DEVFLOW_JQ" -s 'map(.pr // empty)' 2>"$ERR")"; then
+    # The processed set is keyed on REPOSITORY + NUMBER, never a number alone: a
+    # record for the previous repository's #7 must not suppress this repository's
+    # #7. A record naming no repository binds to $LEGACY_RECORD_REPO under the
+    # one-time compatibility rule below — never to $REPO, which would re-create the
+    # collision this key exists to prevent.
+    if ! EXISTING="$(printf '%s' "$1" | "$DEVFLOW_JQ" -s --arg legacy "$LEGACY_RECORD_REPO" '
+            map(select(.pr != null)
+                | ((((.repo | strings) // "") | if . == "" then $legacy else . end) + "#" + (.pr|tostring)))' 2>"$ERR")"; then
         echo "::error::scan: parsing retrospectives.jsonl ($2) failed — unparseable content under HTTP 200: $(cat "$ERR")" >&2
         exit 1
+    fi
+    _LEGACY_DEFAULTED="$(printf '%s' "$1" | "$DEVFLOW_JQ" -s '[.[] | select(.pr != null) | select((((.repo | strings) // "")) == "")] | length' 2>/dev/null)" || _LEGACY_DEFAULTED=0
+    if [ "${_LEGACY_DEFAULTED:-0}" -gt 0 ]; then
+        echo "::warning::scan: ${_LEGACY_DEFAULTED} retrospectives.jsonl record(s) name no repository; binding them to '${LEGACY_RECORD_REPO}' under the one-time compatibility rule. Run scripts/migrate-record-repo.py to stamp the corpus and retire this arm." >&2
     fi
     if [ "$(printf '%s' "$EXISTING" | "$DEVFLOW_JQ" 'length')" -eq 0 ]; then
         echo "::error::scan: retrospectives.jsonl ($2) yielded zero pr records from non-empty content under HTTP 200 (a decode/parse miss, or otherwise pr-less/schema-drifted content) — refusing to treat the backlog as unprocessed (would re-queue everything and create duplicate retrospectives)" >&2
@@ -362,11 +380,11 @@ printf '%s' "$EXISTING" > "$_e_file"
 # would skip the trailing `rm -f` and orphan the temp. The localized `|| { rm; exit 1; }`
 # cleans then re-raises with the same rc the surrounding code uses on error (line above),
 # rather than a `trap` that would clobber the active RESP/ERR EXIT trap set earlier.
-UNPROC="$(echo "$CANDIDATES" | "$DEVFLOW_JQ" --slurpfile e "$_e_file" '[.[] | select(.number as $n | ($e[0] | index($n) | not))] | sort_by(.mergedAt)')" \
+UNPROC="$(echo "$CANDIDATES" | "$DEVFLOW_JQ" --slurpfile e "$_e_file" --arg repo "$REPO" '[.[] | select(($repo + "#" + (.number|tostring)) as $k | ($e[0] | index($k) | not))] | sort_by(.mergedAt)')" \
   || { rm -f "$_e_file"; exit 1; }
 rm -f "$_e_file"
 N="$(echo "$UNPROC" | "$DEVFLOW_JQ" 'length')"
 if [ "$N" -gt "$MAX_PRS" ]; then
     echo "scan: $N unprocessed PRs, capping to $MAX_PRS" >&2
 fi
-echo "$UNPROC" | "$DEVFLOW_JQ" -c --argjson cap "$MAX_PRS" '[.[0:$cap][] | {number, headRefName, mergedAt}]'  # argjson-ok: cap -- scalar int
+echo "$UNPROC" | "$DEVFLOW_JQ" -c --argjson cap "$MAX_PRS" --arg repo "$REPO" '[.[0:$cap][] | {number, headRefName, mergedAt, repo: $repo, pr_key: ($repo + "#" + (.number|tostring))}]'  # argjson-ok: cap -- scalar int

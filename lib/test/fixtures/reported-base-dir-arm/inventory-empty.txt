@@ -1,2 +1,0 @@
-# Inventory override that enrolls nothing (only this comment line), so the
-# empty-inventory fail-closed arm is reachable without editing the lint's source.
