@@ -1816,6 +1816,10 @@
       "note": "the internal-identifier denylist class in lint-shipped-pruned-path.py: the module-constant comparand-shape pin (non-empty, covers the required floor), all three members fire, HTML/empty-reason marker discrimination, filename-boundary substring safety, and the fence-conditional marker pair",
       "owner": "unmodularized"
     },
+    "2129": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "216": {
       "note": "",
       "owner": "review-dirty-tree"

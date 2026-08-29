@@ -11363,14 +11363,25 @@ assert_eq "#1554 arm order: an extractor succeeding on its SECOND attempt yields
   "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
   "$(rdnd_lines "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/flaky-extractor")"
 # Adversarial input: the block carries a command span and a grant literal, which
-# the extractor suppresses. Two things are asserted at once, because rdnd_run
-# merges stderr: the literals are not phantom deliverables, AND the extractor's
+# the extractor suppresses. Three things are asserted here, because rdnd_run
+# merges stderr: the literals are not phantom deliverables, the extractor's
 # `suppressed a span` stderr breadcrumb — emitted on exactly this body — does not
-# displace the outcome line or masquerade as a deliverable path. That is the whole
-# reason the stdout shape is prefixed rather than positional.
-assert_eq "#1554 adversarial input: a command span and a grant literal in the block are not deliverables, and the extractor's stderr breadcrumb does not corrupt the outcome" \
-  "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
+# displace the outcome line or masquerade as a deliverable path, AND (issue #2129)
+# the helper now relays the first suppressed span onto stdout as a self-identifying
+# `docgate-suppressed: ` line after the outcome line, so Phase 4.1 can record the
+# real span rather than a scripted once-per-run boilerplate note. The suppressed
+# value is the FIRST suppressed span (`bash lib/test/run.sh`) with the breadcrumb's
+# surrounding backticks removed.
+assert_eq "#1554/#2129 adversarial input: literals are not deliverables and the first suppressed span is relayed as a docgate-suppressed line" \
+  "$(printf 'docgate-outcome: deliverables\ndocgate-suppressed: bash lib/test/run.sh\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
   "$(rdnd_lines "$rdnd_dir/body-adversarial.md")"
+# #2129: the helper captures the extractor's stderr to a scratch file but FORWARDS
+# it unchanged to its own stderr, so the merged tool result the caller reads still
+# carries the `suppressed a span` breadcrumb. RED against a helper that captures the
+# extractor's stderr without forwarding it (the span would then reach stdout but the
+# breadcrumb would vanish from the stream).
+assert_eq "#2129 adversarial input: the helper relays the extractor's 'suppressed a span' breadcrumb through the merged stream" \
+  "1" "$(rdnd_run "$rdnd_dir/body-adversarial.md" | grep -c 'extract-doc-needed-paths.sh: suppressed a span')"
 # Stale-capture isolation (what "idempotent" has to mean here to be worth testing):
 # seed the scratch body file with a DIFFERENT body, then fail both read attempts.
 # A helper that extracted from whatever was already on disk would report that stale
