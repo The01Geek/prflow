@@ -168,7 +168,7 @@ resident copy. Each appended-content class is classified below.
 
 ### Authoritative (in-thread presence is load-bearing — must NOT be removed)
 
-- The **live draft under construction**.
+- The **live draft under construction**. Note that the Step 4 **presentation** no longer prints the full title and body into the thread by default: the draft is presented as a **saved file whose path is shown**, and its body is printed in chat only on request (the *print the full draft in chat* answer on the combined decision question) or on a forced-render arm (a write-failed run, a `bound=none` run, or a non-interactive run) — so the once-per-pause body re-print that every re-presentation used to pay is now elected rather than automatic.
 - The **current turn's user answer** and the active step's **decision inputs** — including the surviving audit findings **quoted verbatim** for the user's Step 3.6 / Step 4 election, and the advisory/invalid records rendered before the approval election.
 - A **reference body re-Read as compaction insurance** (see the deferred row above).
 - Any **re-Read of a mutated artifact** — the draft file rewritten each revision round, the Step 1 artifact written then re-read by a later step — which fetches **new** bytes and is authoritative, not a redundant re-fetch.

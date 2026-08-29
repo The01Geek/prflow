@@ -22,8 +22,8 @@ It creates one issue, and only after you approve the final draft. The result is 
 
     If nobody can establish a fact, PRFlow records it as unestablished rather than guessing.
   </Step>
-  <Step title="Review the rendered draft">
-    PRFlow prints the complete title and body in chat, along with the supporting investigation as a separate, clearly labeled block.
+  <Step title="Review the saved draft">
+    PRFlow writes the draft to a file and shows you its path, along with the supporting investigation as a separate, clearly labeled block. The complete title and body are printed in chat only when you ask for them, by choosing *print the full draft in chat* at the decision question below.
   </Step>
   <Step title="Decide, then approve">
     You choose whether to spend an audit round on the draft, then approve that exact draft or ask for changes, then choose whether to assign the issue to yourself. PRFlow creates nothing until those decisions are explicit.
@@ -71,7 +71,7 @@ Splitting the two means an approver reviews the implementation contract rather t
 
 PRFlow does not create an issue as soon as it has enough context.
 
-1. Review the complete title and body rendered in chat.
+1. Review the draft PRFlow saved to a file, whose path it shows. Ask for the complete title and body in chat when you want them, by choosing *print the full draft in chat*.
 2. Choose whether to spend a fresh-context audit round on the draft. PRFlow offers one before it runs. Each round you accept re-verifies the draft against the repository and takes time, so you pay only for the rounds you choose. The default is none, and a satisfied reviewer declines.
 3. Approve that exact draft, or request changes.
 4. Choose whether to assign the new issue to yourself. Issues are created unassigned.
