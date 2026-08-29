@@ -212,7 +212,7 @@ This is the canonical story for a demo video or "how it works" slide:
 
 **Narration points:**
 
-1. **Create the issue.** `/prflow:create-issue Add CSV export to the reports page`. PRFlow interviews you until the issue is unambiguous, shows you the rendered draft, and files it **only after you confirm**. Say it lands as **#42**.
+1. **Create the issue.** `/prflow:create-issue Add CSV export to the reports page`. PRFlow interviews you until the issue is unambiguous, saves the draft to a file and shows you its path (printing the full draft in chat on request), and files it **only after you confirm**. Say it lands as **#42**.
 2. **Trigger implementation.** Comment `/prflow:implement 42` on the issue. Because *you* (a real user) posted it, GitHub fires the workflow natively, no bot, PAT, or GitHub App needed. (Note: the trigger is the bare `/prflow:*` form, **not** `@claude`, that prefix is ceded to Anthropic's Claude GitHub App.)
 3. **PRFlow implements it.** The workflow creates a branch, plans against your codebase, writes code and tests, opens a **draft** PR, self-reviews with `/simplify`, runs `/prflow:review-and-fix`, files follow-up issues for any deferred findings, updates the docs, and flips the PR to **ready**.
 4. **Review and merge.** A second workflow runs `/prflow:review` as a gate and posts its verdict as a PR check. A human does the final review and merges.
