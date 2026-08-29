@@ -1020,12 +1020,12 @@ assert_eq "#1244 psr preflight: a clean preflight launches the shard" "yes" \
 assert_eq "#1244 psr preflight: a clean preflight completes the aggregate" "yes" \
   "$(case "$PSR_PF_OUT" in *"2 passed, 0 failed"*) echo yes ;; *) echo no ;; esac)"
 
-# AC47 (#2121) — the clean coupling receipt is re-emitted on STDOUT (stderr discarded here).
+# #2121 — the clean coupling receipt is re-emitted on STDOUT under the coordinator prefix.
 PSR_PF_STDOUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_CLEAN" \
   DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
   bash lib/test/run-parallel.sh 2>/dev/null)"
 assert_eq "#2121 psr preflight: a clean preflight re-emits the coupling receipt on stdout" "yes" \
-  "$(case "$PSR_PF_STDOUT" in *"regenerate-artifacts: coupling-receipt: state=clean"*) echo yes ;; *) echo no ;; esac)"
+  "$(case "$PSR_PF_STDOUT" in *"run-parallel: coupling-receipt: state=clean checks=registry-membership"*) echo yes ;; *) echo no ;; esac)"
 
 # AC4 — detected drift refuses to launch: no shard, non-zero, remedy printed.
 PSR_PF_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="$PSR_PF_DRIFT" \
@@ -1088,9 +1088,8 @@ assert_eq "#1244 psr preflight: a crashing preflight still launches the shard" "
 assert_eq "#1244 psr preflight: a crashing preflight is treated as inconclusive, not drift" "yes" \
   "$(case "$PSR_PF_OUT" in *"preflight was inconclusive (exit 1"*) echo yes ;; *) echo no ;; esac)"
 
-# AC6 — an empty override disables the preflight; the shards run. Since issue #2121 (AC48) the
-# disabled arm is NO LONGER SILENT: it emits a typed disabled receipt and a warn-and-proceed
-# line to stderr before launching.
+# AC6 — an empty override disables the preflight; the shards run. Since issue #2121 the disabled
+# arm emits a typed disabled receipt and a warn-and-proceed line to stderr before launching.
 PSR_PF_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="" \
   DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
   bash lib/test/run-parallel.sh 2>&1)"; PSR_PF_RC=$?
@@ -1172,7 +1171,7 @@ assert_eq "#1288 --preflight: a crashing preflight proceeds (exit 0)" "0" "$PSR_
 assert_eq "#1288 --preflight: a crashing preflight is treated as inconclusive, not drift" "yes" \
   "$(case "$PSR_PFO_OUT" in *"launching no shard"*) echo no ;; *"preflight was inconclusive (exit 1"*) echo yes ;; *) echo no ;; esac)"
 
-# An empty override disables the preflight: exit 0. Since issue #2121 (AC48) it emits the typed
+# An empty override disables the preflight: exit 0. Since issue #2121 it emits the typed
 # disabled receipt and the warn-and-proceed line rather than nothing at all.
 PSR_PFO_OUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="" \
   bash lib/test/run-parallel.sh --preflight 2>&1)"; PSR_PFO_RC=$?
