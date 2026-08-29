@@ -3670,6 +3670,16 @@ class ModuleCouplingSurfaceOmissionTest(unittest.TestCase):
         self._assert_omission(
             mc.surface_full_suite_invocation, dc.replace(ctx, run_text=run_text)
         )
+        # A run.sh call-site floor that disagrees with the registry floor is drift too — the
+        # exact stale-low coupling the gate exists to protect, distinct from a removed call.
+        registry_floor_mismatch = dict(ctx.registry)
+        bumped = dict(registry_floor_mismatch[mid])
+        bumped["minimum_assertions"] = bumped["minimum_assertions"] + 1
+        registry_floor_mismatch[mid] = bumped
+        self._assert_omission(
+            mc.surface_full_suite_invocation,
+            dc.replace(ctx, registry=registry_floor_mismatch),
+        )
 
         shard_modules = {
             shard: tuple(m for m in mods if m != mid)
