@@ -11289,10 +11289,8 @@ printf '%s\n' "## Implementation Notes" "" \
 printf '%s\n' "## Implementation Notes" "" \
   "- **Documentation Needed** — update \`docs/internal/implement-skill.md\`; verify with \`bash lib/test/run.sh\` and grant \`Bash(scripts/x.sh:*)\`." \
   > "$rdnd_dir/body-adversarial.md"
-# #2129: a Documentation Needed block whose only span is a suppressed command
-# literal yields NO deliverable — the `no-deliverables` outcome — yet still names a
-# suppressed span. Exercises the docgate-suppressed emit site on the no-deliverables
-# branch, a distinct site from the deliverables branch the adversarial body covers.
+# #2129: keep this body's one span a suppressed literal with NO real path — it must
+# reach the no-deliverables emit site, not the deliverables one the adversarial body covers.
 printf '%s\n' "## Implementation Notes" "" \
   "- **Documentation Needed** — verify with \`bash lib/test/run.sh\`." \
   > "$rdnd_dir/body-suppressed-only.md"
@@ -11309,6 +11307,20 @@ fi
 exec "$RDND_REAL_EXTRACTOR"
 RDND_FLAKY_STUB
 chmod +x "$rdnd_dir/flaky-extractor"
+# #2129: a stub whose FAILING attempts each emit the `suppressed a span` breadcrumb, then
+# succeeds via the real extractor — do not fold it into flaky-extractor, whose failure
+# prints no breadcrumb and so cannot tell a truncated stderr capture from an appended one.
+cat > "$rdnd_dir/suppress-flaky-extractor" <<'RDND_SUPPRESS_FLAKY_STUB'
+#!/usr/bin/env bash
+n=$(cat "$RDND_EXTRACT_COUNT_FILE" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$RDND_EXTRACT_COUNT_FILE"
+if [ "$n" -le "${RDND_SUPPRESS_FAIL_TIMES:-1}" ]; then
+  echo "extract-doc-needed-paths.sh: suppressed a span (a command/grant/skill literal, or a path mixed with non-path tokens — not a set of bare-path deliverables, so no tokens emitted): \`phantom-span\`" >&2
+  echo "extract-doc-needed-paths.sh: token scan error" >&2
+  exit 3
+fi
+exec "$RDND_REAL_EXTRACTOR"
+RDND_SUPPRESS_FLAKY_STUB
+chmod +x "$rdnd_dir/suppress-flaky-extractor"
 
 # rdnd_run BODY_FILE FAIL_TIMES [EXTRACTOR] -> prints the helper's stdout, then a
 # final line `rc=<status>`, so one capture carries both halves of the contract.
@@ -11369,32 +11381,33 @@ assert_eq "#1554 token vocabulary: an extractor failing BOTH attempts prints \`e
 assert_eq "#1554 arm order: an extractor succeeding on its SECOND attempt yields the success token" \
   "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
   "$(rdnd_lines "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/flaky-extractor")"
-# Adversarial input: the block carries a command span and a grant literal, which
-# the extractor suppresses. Three things are asserted here, because rdnd_run
-# merges stderr: the literals are not phantom deliverables, the extractor's
-# `suppressed a span` stderr breadcrumb — emitted on exactly this body — does not
-# displace the outcome line or masquerade as a deliverable path, AND (issue #2129)
-# the helper now relays the first suppressed span onto stdout as a self-identifying
-# `docgate-suppressed: ` line after the outcome line, so Phase 4.1 can record the
-# real span rather than a scripted once-per-run boilerplate note. The suppressed
-# value is the FIRST suppressed span (`bash lib/test/run.sh`) with the breadcrumb's
-# surrounding backticks removed.
+# Adversarial input (command span + grant literal, both suppressed): the exact line
+# set is load-bearing — the merged breadcrumb must not displace the outcome line or
+# read as a path, and the relayed span is backtick-stripped (#1554, #2129).
 assert_eq "#1554/#2129 adversarial input: literals are not deliverables and the first suppressed span is relayed as a docgate-suppressed line" \
   "$(printf 'docgate-outcome: deliverables\ndocgate-suppressed: bash lib/test/run.sh\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
   "$(rdnd_lines "$rdnd_dir/body-adversarial.md")"
-# #2129: the helper captures the extractor's stderr to a scratch file but FORWARDS
-# it unchanged to its own stderr, so the merged tool result the caller reads still
-# carries the `suppressed a span` breadcrumb. RED against a helper that captures the
-# extractor's stderr without forwarding it (the span would then reach stdout but the
-# breadcrumb would vanish from the stream).
+# #2129: capturing the extractor's stderr to a file must not swallow it — a helper
+# that captures without forwarding drops the breadcrumb from the merged tool result.
 assert_eq "#2129 adversarial input: the helper relays the extractor's 'suppressed a span' breadcrumb through the merged stream" \
   "1" "$(rdnd_run "$rdnd_dir/body-adversarial.md" | grep -c 'extract-doc-needed-paths.sh: suppressed a span')"
-# #2129: the docgate-suppressed line is emitted on the no-deliverables branch too,
-# not only the deliverables branch — a body whose one span is a suppressed command
-# literal reports no-deliverables (exit 10) AND names the suppressed span.
+# #2129: the docgate-suppressed emit lives on BOTH success branches; removing it from
+# the no-deliverables one loses the span exactly when the block held nothing else.
 assert_eq "#2129 no-deliverables input: a suppressed span with no real deliverable still relays the docgate-suppressed line" \
   "$(printf 'docgate-outcome: no-deliverables\ndocgate-suppressed: bash lib/test/run.sh\nrc=10')" \
   "$(rdnd_lines "$rdnd_dir/body-suppressed-only.md")"
+# #2129: the extractor's stderr capture is TRUNCATED per attempt (`2>` after `rm -f`);
+# `2>>` or a kept prior capture relays a failed attempt's span as a phantom
+# docgate-suppressed line on the clean retry.
+assert_eq "#2129 retry truncation: a failed attempt's suppressed-span breadcrumb never becomes a docgate-suppressed line on the clean retry" \
+  "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
+  "$(rdnd_lines "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/suppress-flaky-extractor")"
+# #2129: on the extract-failed token the span is NOT relayed, though the breadcrumb
+# still reaches the merged stream — an emit added to the failure arm would report a
+# span for a read the caller must treat as UNKNOWN.
+assert_eq "#2129 extract-failed: a suppressed-span breadcrumb on both failing attempts yields the failure token, the forwarded breadcrumb, and no docgate-suppressed line" \
+  "$(printf 'docgate-outcome: extract-failed\nrc=12\nbreadcrumbs=1')" \
+  "$(RDND_SUPPRESS_FAIL_TIMES=2 rdnd_run "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/suppress-flaky-extractor" | { _m="$(cat)"; printf '%s\n' "$_m" | grep -E '^(docgate-|rc=)'; printf 'breadcrumbs=%s\n' "$(printf '%s\n' "$_m" | grep -c 'suppressed a span')"; })"
 # Stale-capture isolation (what "idempotent" has to mean here to be worth testing):
 # seed the scratch body file with a DIFFERENT body, then fail both read attempts.
 # A helper that extracted from whatever was already on disk would report that stale

@@ -149,8 +149,10 @@ _rdnd_relay_extractor_stderr() {
     case "$_line" in
       *"suppressed a span"*)
         if [ -z "$SUPPRESSED_SPAN" ]; then
-          _span="${_line#*\`}"   # drop up to and including the opening backtick
-          _span="${_span%\`}"    # drop the trailing backtick
+          # Parses suppress_span() in extract-doc-needed-paths.sh: first backtick to
+          # last, so a backtick added to that breadcrumb's text relays the wrong span.
+          _span="${_line#*\`}"
+          _span="${_span%\`}"
           SUPPRESSED_SPAN="$_span"
         fi
         ;;
