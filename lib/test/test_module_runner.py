@@ -3673,6 +3673,19 @@ class ModuleCouplingSurfaceOmissionTest(unittest.TestCase):
             mc.surface_full_suite_invocation,
             dc.replace(ctx, registry=registry_floor_mismatch),
         )
+        # The third arm: the call is present but its floor literal is gone. Distinct from a
+        # removed call and from a mismatched floor — a regression collapsing this guard would
+        # ship a floorless call site green.
+        floor_literal = re.search(rf'"{re.escape(mid)}" ([0-9]+); then', ctx.run_text)
+        self.assertIsNotNone(floor_literal, f"no run.sh call-site floor literal for {mid}")
+        no_floor = dc.replace(
+            ctx, run_text=ctx.run_text.replace(floor_literal.group(0), f'"{mid}" ; then', 1)
+        )
+        self._assert_omission(mc.surface_full_suite_invocation, no_floor)
+        self.assertIn(
+            f"{mid}: no run.sh call-site floor literal",
+            mc.surface_full_suite_invocation(no_floor),
+        )
 
         shard_modules = {
             shard: tuple(m for m in mods if m != mid)
@@ -3876,6 +3889,58 @@ class CouplingReceiptUncheckableInputTest(unittest.TestCase):
             with self.assertRaises(mc.CouplingUncheckable):
                 mc.build_context(root)
             self.assertEqual(mc.main(["--check", "--repo-root", str(root)]), 2)
+
+
+class CouplingReceiptBuildTest(unittest.TestCase):
+    """The clean-path receipt: a build failure is UNCHECKABLE, never a false clean, and the real
+    receipt carries the declared field set (#2121)."""
+
+    RECEIPT_FIELDS = (
+        "state", "checks", "checked_population", "tracked_shell_count", "cache_capacity",
+        "required_minimum", "headroom", "elapsed_ms", "deadline_ms",
+    )
+
+    def test_receipt_build_failure_routes_to_uncheckable(self) -> None:
+        R = REGEN
+
+        def clean_row(row, root, report, timeout_seconds, posix=True):
+            return False, False
+
+        def boom(root, elapsed_ms, deadline_ms, timeout=None):
+            raise RuntimeError("census enumeration failed")
+
+        captured = io.StringIO()
+        with mock.patch.object(R, "run_preflight_row", clean_row), \
+                mock.patch.object(R, "build_coupling_receipt", boom), \
+                contextlib.redirect_stdout(captured):
+            rc = R.run_preflight(ROOT)
+        out = captured.getvalue()
+        self.assertEqual(rc, 2, out)
+        self.assertIn(
+            "[coupling-receipt] UNCHECKABLE could not build the receipt: census enumeration failed",
+            out,
+        )
+        self.assertIn(f"{R.PREFLIGHT_VERDICT_PREFIX}uncheckable", out)
+        self.assertNotIn(f"{R.PREFLIGHT_VERDICT_PREFIX}clean", out)
+        self.assertNotIn("coupling-receipt: state=clean", out)
+
+    def test_real_receipt_carries_the_declared_field_set(self) -> None:
+        R = REGEN
+        line = R.build_coupling_receipt(ROOT, 7, 5000)
+        self.assertTrue(line.startswith(f"{R.COUPLING_RECEIPT_PREFIX}state=clean "), line)
+        tokens = line[len(R.COUPLING_RECEIPT_PREFIX):].split(" ")
+        self.assertEqual(tuple(tok.split("=", 1)[0] for tok in tokens), self.RECEIPT_FIELDS)
+        values = dict(tok.split("=", 1) for tok in tokens)
+        self.assertEqual(values["checks"], ",".join(MODULE_COUPLING.PREFLIGHT_SURFACE_CHECKS))
+        self.assertEqual(
+            values["checked_population"],
+            ",".join(row["name"] for row in R.ROWS if row.get("preflight_eligible")),
+        )
+        self.assertEqual(
+            int(values["required_minimum"]),
+            int(values["tracked_shell_count"]) + MODULE_COUPLING.CACHE_CAPACITY_HEADROOM,
+        )
+        self.assertEqual((values["elapsed_ms"], values["deadline_ms"]), ("7", "5000"))
 
 
 class PreflightDeadlineTest(unittest.TestCase):

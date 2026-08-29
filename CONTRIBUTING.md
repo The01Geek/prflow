@@ -656,8 +656,8 @@ of its `timeout_seconds` and the remaining budget. A clean pass prints one
 census `tracked_shell_count` / `cache_capacity` / `required_minimum` / `headroom`, `elapsed_ms`,
 `deadline_ms`), which the coordinator re-emits on stdout as `run-parallel: coupling-receipt: …`;
 an explicitly empty `DEVFLOW_ARTIFACT_PREFLIGHT` emits `run-parallel: coupling-receipt:
-state=uncheckable reason=empty-override checked_population=none` plus a warning on stderr, then
-launches.
+state=uncheckable reason=empty-override checked_population=none` on stdout (the clean receipt's
+channel) and a warning on stderr, then launches.
 
 #### The registry is also the merge-conflict oracle
 

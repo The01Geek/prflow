@@ -35,8 +35,8 @@ import sys
 from pathlib import Path
 
 # The monolith-only pin helpers a focused module may not reference, and the direct `skip`
-# call a module may not make (run-module.sh overrides `skip` to a fatal). Single-sourced here
-# and re-imported by test_module_runner.py, which used to define them (issue #2121).
+# call a module may not make (run-module.sh overrides `skip` to a fatal). test_module_runner.py
+# imports these — a second definition there would let the two lists drift apart.
 MONOLITH_HELPER_RE = re.compile(
     r"(?:^|[^A-Za-z0-9_])"
     r"(pin_count|grep_present"
@@ -362,13 +362,14 @@ def surface_module_body_contract(ctx: CouplingContext) -> list[str]:
 
 
 def census_cache_receipt(
-    ctx_or_root, *, population=None, capacity=None
+    ctx_or_root, *, population=None, capacity=None, timeout=None
 ) -> dict:
     """Numeric receipt for the mutation-census cache-capacity surface.
 
     Sizes the census parse cache against `len(swept population) + CACHE_CAPACITY_HEADROOM`,
     never `AUDITED_PIN_SOURCES`. `population`/`capacity` are injection seams for the census
-    test to force the drift arm without a host-speed dependency.
+    test to force the drift arm without a host-speed dependency; `timeout` (seconds) bounds
+    the root-form git enumeration and surfaces an overrun as `CensusError`.
     """
     if isinstance(ctx_or_root, CouplingContext):
         swept = list(ctx_or_root.swept_population)
@@ -377,7 +378,7 @@ def census_cache_receipt(
         census = _load_module(
             Path(ctx_or_root) / "lib/test/mutation-pin-census.py", "_census_for_receipt"
         )
-        swept = list(census.swept_shell_population(Path(ctx_or_root)))
+        swept = list(census.swept_shell_population(Path(ctx_or_root), timeout=timeout))
         cache = int(census._SOURCE_PARSE_CACHE_SIZE)
     if population is not None:
         swept = list(population)

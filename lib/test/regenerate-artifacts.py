@@ -1168,14 +1168,15 @@ def _load_helper_module(root, rel, name):
     return module
 
 
-def build_coupling_receipt(root, elapsed_ms, deadline_ms):
+def build_coupling_receipt(root, elapsed_ms, deadline_ms, timeout=None):
     """The clean-path typed coupling receipt line (issue #2121).
 
     Names the coupling surfaces checked, the eligible-row population, and the mutation-census
-    cache-capacity numbers derived from the single swept-population source.
+    cache-capacity numbers derived from the single swept-population source. `timeout` (seconds)
+    bounds the census git enumeration; an overrun raises and the caller routes it UNCHECKABLE.
     """
     mc = _load_helper_module(root, "lib/test/module_coupling.py", "_module_coupling_receipt")
-    census = mc.census_cache_receipt(root)
+    census = mc.census_cache_receipt(root, timeout=timeout)
     checks = ",".join(mc.PREFLIGHT_SURFACE_CHECKS)
     checked_population = ",".join(row["name"] for row in ROWS if row.get("preflight_eligible"))
     return (
@@ -1258,10 +1259,16 @@ def run_preflight(root, *, deadline_ns=None, clock=time.perf_counter_ns, posix=_
             "artifact — exit 2"
         )
         return 2
-    # Clean — emit the typed receipt BEFORE the verdict line. A receipt that cannot be built on
-    # an otherwise-clean tree routes to UNCHECKABLE rather than emitting a false clean verdict.
+    # Clean — emit the typed receipt BEFORE the verdict line, inside the same aggregate deadline
+    # as the rows. A receipt that cannot be built on an otherwise-clean tree routes to
+    # UNCHECKABLE rather than emitting a false clean verdict.
     try:
-        print(build_coupling_receipt(root, elapsed_ms, deadline_ms))
+        remaining_ns = deadline - clock()
+        if remaining_ns <= 0:
+            raise TimeoutError("the aggregate preflight deadline was exhausted before the receipt")
+        print(build_coupling_receipt(
+            root, elapsed_ms, deadline_ms, timeout=remaining_ns / 1_000_000_000
+        ))
     except Exception as error:
         print(f"[coupling-receipt] UNCHECKABLE could not build the receipt: {error}")
         print(f"{PREFLIGHT_VERDICT_PREFIX}uncheckable")

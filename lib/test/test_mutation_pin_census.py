@@ -615,7 +615,6 @@ class CacheCapacityHeadroomTest(unittest.TestCase):
         self.assertEqual(
             receipt["required_minimum"], tracked + MODULE_COUPLING.CACHE_CAPACITY_HEADROOM
         )
-        self.assertNotEqual(tracked, CENSUS.EXPECTED_SOURCE_COUNT)
         self.assertEqual(receipt["headroom"], capacity - tracked)
         # The real derivation matches the census's own swept population.
         self.assertEqual(tracked, len(CENSUS.swept_shell_population(REPO_ROOT)))

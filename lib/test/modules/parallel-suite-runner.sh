@@ -1102,6 +1102,15 @@ assert_eq "#2121 psr preflight: an empty override warns-and-proceeds (no clean r
   "$(case "$PSR_PF_OUT" in *"the generated-artifact preflight is disabled"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#2121 psr preflight: the disabled arm emits no clean coupling receipt" "yes" \
   "$(case "$PSR_PF_OUT" in *"coupling-receipt: state=clean"*) echo no ;; *) echo yes ;; esac)"
+# The disabled receipt shares the clean receipt's channel (stdout); only the warning is stderr,
+# so one stdout scan sees whichever receipt the run emitted.
+PSR_PF_STDOUT="$(cd "$PSR_PT" && DEVFLOW_ARTIFACT_PREFLIGHT="" \
+  DEVFLOW_SHARD_DISPATCHER="$PSR_PT/dispatch.sh" SYN_SHARDS=alpha SYN_SLEEP=0.05 \
+  bash lib/test/run-parallel.sh 2>/dev/null)"
+assert_eq "#2121 psr preflight: the disabled receipt is emitted on stdout" "yes" \
+  "$(case "$PSR_PF_STDOUT" in *"coupling-receipt: state=uncheckable reason=empty-override checked_population=none"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#2121 psr preflight: the disabled arm's warning stays off stdout" "yes" \
+  "$(case "$PSR_PF_STDOUT" in *"the generated-artifact preflight is disabled"*) echo no ;; *) echo yes ;; esac)"
 
 # ── Standalone --preflight mode (issue #1288) ────────────────────────────────
 # The #1132 shard-decomposition route names `run-parallel.sh --preflight` before its shard

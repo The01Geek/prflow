@@ -62,8 +62,8 @@
 #   DEVFLOW_ARTIFACT_PREFLIGHT    command for the read-only generated-artifact preflight
 #                                 (issue #1244); defaults to the bundled
 #                                 `regenerate-artifacts.py --preflight`. Set empty to DISABLE
-#                                 the preflight (a typed disabled receipt and a warning still go
-#                                 to stderr, issue #2121). Fixtures inject a stub here to drive
+#                                 the preflight (a typed disabled receipt still goes to stdout
+#                                 and a warning to stderr, issue #2121). Fixtures inject a stub here to drive
 #                                 its clean/drift/uncheckable arms; the DEFAULT binding and the
 #                                 verdict contract are driven end-to-end against the real helper
 #                                 from lib/test/modules/regenerate-artifacts.sh.
@@ -188,8 +188,9 @@ _artifact_preflight() {
   preflight_cmd="${DEVFLOW_ARTIFACT_PREFLIGHT-$SCRIPT_DIR/regenerate-artifacts.py --preflight}"
   if [ -z "$preflight_cmd" ]; then
     # An explicitly-empty override disables the preflight (a test seam) but is not silent
-    # (issue #2121): a typed disabled receipt plus the warn-and-proceed line, never a clean receipt.
-    printf 'run-parallel: coupling-receipt: state=uncheckable reason=empty-override checked_population=none\n' >&2
+    # (issue #2121): a typed disabled receipt on STDOUT — the clean receipt's channel, so one scan
+    # sees both — plus the warn-and-proceed line on stderr, never a clean receipt.
+    printf 'run-parallel: coupling-receipt: state=uncheckable reason=empty-override checked_population=none\n'
     printf 'run-parallel: WARNING: the generated-artifact preflight is disabled (DEVFLOW_ARTIFACT_PREFLIGHT explicitly empty); proceeding\n' >&2
     return 0
   fi

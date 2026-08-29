@@ -1572,6 +1572,21 @@ assert_eq "#1498 a non-clean run with no refusal marker is infrastructure (exit 
 _ra_has "#1498 the row reports the absent non-writing refusal marker" \
   "$RA_1498_NOMARKER" "recognized non-writing refusal marker"
 
+# (3b) #2121 — the install-state mechanical row's exit-1 arm: a traceback-class exit printing
+# no `cloud-writer-contract:` marker routes to INFRASTRUCTURE (exit 2), never a judgment item.
+RA_2121_IS_EXIT1="$_ra_tmp_root/issue-2121-install-state-exit1"; _ra_fixture "$RA_2121_IS_EXIT1"
+cat > "$RA_2121_IS_EXIT1/lib/generate-install-state.py" <<'PY'
+#!/usr/bin/env python3
+import sys
+
+sys.exit(1)
+PY
+_ra_run "$RA_2121_IS_EXIT1"
+assert_eq "#2121 an install-state exit 1 with no marker is infrastructure (exit 2)" \
+  "2" "$(_ra_rc "$RA_2121_IS_EXIT1")"
+_ra_has "#2121 the install-state row reports the absent marker as infrastructure" \
+  "$RA_2121_IS_EXIT1" "[install-state] INFRASTRUCTURE exited 1 with no"
+
 # (4) AC4 — the clean class's OWN text. The stand-in exits 0 and changes nothing, so the
 # monotonic classifier reports every measured tally matching both floors and the batched
 # pass exits 0. (The A1 prefix loop above still covers the live tree; this pins the text.)

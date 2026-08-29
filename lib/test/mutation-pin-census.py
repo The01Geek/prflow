@@ -395,7 +395,7 @@ def _lexical_helper_count(segment: str) -> int:
     return sum(token in HELPERS for token in _unquoted_shell_tokens(segment))
 
 
-def swept_shell_population(repo_root: Path) -> list[str]:
+def swept_shell_population(repo_root: Path, timeout=None) -> list[str]:
     """The tracked shell sources under lib/test the definition sweep visits.
 
     `git ls-files -z -- lib/test` filtered to `lib/test/**/*.sh`, sorted, returned as
@@ -411,6 +411,7 @@ def swept_shell_population(repo_root: Path) -> list[str]:
             cwd=repo_root,
             capture_output=True,
             check=False,
+            timeout=timeout,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise CensusError(
