@@ -1,10 +1,8 @@
-# Force LF line endings on checkout for every text file, regardless of the
-# user's core.autocrlf. Without this, a Windows checkout under
-# core.autocrlf=true (the Git-for-Windows installer default) rewrites LF files
-# to CRLF, turning a `#!/usr/bin/env bash` shebang into `bash\r` — which fails
-# with `/usr/bin/env: 'bash\r': No such file or directory`. `text=auto` lets
-# git's binary detection auto-exclude binary blobs (e.g. docs/internal/ship-pr.png, the
-# demo GIF), so they are never line-ending-normalized.
+# Force LF line endings on checkout for every text file, regardless of the user's
+# core.autocrlf. Without this, a Windows checkout under core.autocrlf=true (the
+# Git-for-Windows installer default) rewrites LF files to CRLF, turning a
+# `#!/usr/bin/env bash` shebang into `bash\r` — which fails with
+# `/usr/bin/env: 'bash\r': No such file or directory`.
 * text=auto eol=lf
 
 # Execution-critical files: pin LF explicitly so a shebang or interpreter never
@@ -12,42 +10,3 @@
 *.sh  text eol=lf
 *.py  text eol=lf
 *.jq  text eol=lf
-
-# Reserved exception (now in use): a test fixture that must keep literal CRLF or
-# raw bytes would otherwise be silently normalized to LF by `* text=auto` — and a
-# CRLF fixture normalized to LF makes its assertion VACUOUS rather than red, since
-# the fixture then matches the LF twin it is supposed to differ from. The two
-# entries below are the #664 scanner's line-ending and encoding fixtures, and each
-# overrides the broader rules above, which would otherwise win. The CRLF one is
-# deliberately NOT named `*.sh`: the #222 guard forbids a CR byte in the index of
-# any tracked `*.sh` (a CR would break a shebang), and that guard is right — this
-# fixture is read as data, never executed, so it carries a neutral suffix instead
-# of being carved out of #222. Do not rename it back under `*.sh`.
-lib/test/fixtures/ghapi-repo-path/adversarial-crlf.txt   -text
-# `-diff` as well as `-text` on the encoding fixture: its undecodable byte would
-# otherwise land in `git diff` output, and the #434 stale-prose self-scan pipes that
-# diff into a UTF-8 reader which fails closed on it — one fixture would silently
-# disarm a blocking gate for every branch carrying it. `-diff` makes git report
-# "Binary files differ" instead; the working-tree bytes the scanner reads are
-# untouched, so the encoding fixture still does its job.
-lib/test/fixtures/ghapi-repo-path/adversarial-nonutf8.sh -text -diff
-
-# issue #1072: the shipped-pruned-path lint's NUL fixture must keep its NUL byte so the
-# read_source skip path is exercised — mark it binary so no text normalization strips it.
-lib/test/fixtures/shipped-pruned-path/skills/nul.md -text -diff
-
-# Preserve issue #2097's exact captured bytes and keep frozen issue prose out of
-# authored-prose diff gates; the extractor still reads the working-tree bytes.
-lib/test/fixtures/issue-2097-implementation-notes.fixture -text -diff whitespace=-blank-at-eof
-
-# issue #1194: the coverage map stores two large string-sorted JSON objects, so two
-# branches that each ADD a distinct key at an adjacent sort position conflict textually
-# even though they never semantically conflict — and resolving by taking one side
-# silently drops the other's entry. Route this one file through the JSON-aware merge
-# driver, which unions the objects per key and conflicts only on a genuine same-key
-# divergence. The attribute only NAMES the driver; git falls back silently to its
-# line-based merge unless `merge.coverage-map-json.driver` is also registered locally
-# (`python3 lib/test/coverage-map-merge-driver.py --register`; verify with `--check`).
-# The CI-side retention check (lib/test/coverage-map-retention-check.py) covers the
-# server-side/web-editor path the driver structurally cannot reach.
-lib/test/modules/coverage-map.json merge=coverage-map-json

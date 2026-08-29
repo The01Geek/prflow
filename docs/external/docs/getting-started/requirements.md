@@ -92,7 +92,7 @@ The first line is the version that will run. The list shows every `python3` on `
 PyYAML is recommended but is not a hard local prerequisite. Install it with:
 
 ```bash
-python3 -m pip install PyYAML
+python3 -m pip install 'PyYAML>=6'
 ```
 
 Name the package rather than pointing `pip` at a requirements file. A requirements file resolves against your current working directory, so in a Python project you would install that project's dependencies by mistake.

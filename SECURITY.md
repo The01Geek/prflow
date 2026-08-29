@@ -29,7 +29,7 @@ workflows. A few areas warrant care:
   out of it — it holds only non-secret environment configuration (project/board
   IDs, model names). Store credentials as encrypted GitHub Actions secrets, never
   in `config.json`.
-- **The `.prflow/learnings/` corpus is committed, not gitignored.** The
+- **In a repository where PRFlow is installed, the `.prflow/learnings/` corpus is committed, not gitignored.** The
   retrospective loop's records (`retrospectives.jsonl`, `experiment-records.jsonl`,
   `overrides.json`) are tracked — re-included by the `!/.prflow/learnings/`
   negation in `.gitignore` past the `/.prflow/*` ignore rule — and published to

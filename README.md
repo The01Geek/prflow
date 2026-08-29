@@ -2,7 +2,7 @@
 
 [![PRFlow — Ship the PR, not the cleanup. A Claude Code plugin that turns one request into one merge-ready pull request across four phases: Setup (/prflow:create-issue), Implement (/prflow:implement), Review & fix (/prflow:review-and-fix), and Document (/prflow:docs).](docs/ship-pr.png)](https://prflow.ai/)
 
-[![CI](https://github.com/The01Geek/prflow/actions/workflows/ci.yml/badge.svg)](https://github.com/The01Geek/prflow/actions/workflows/ci.yml)
+[![Release verification](https://github.com/The01Geek/prflow/actions/workflows/distribution-verify.yml/badge.svg)](https://github.com/The01Geek/prflow/actions/workflows/distribution-verify.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Built on Claude Code](https://img.shields.io/badge/built%20on-Claude%20Code-d97757.svg)
 
@@ -106,7 +106,7 @@ The intended way to drive PRFlow — from a feature request to a reviewed pull r
 - **`git`** and **[`gh`](https://cli.github.com)** (GitHub CLI, authenticated via `gh auth login`) — you most likely already have these.
 - **`jq`** — JSON wrangling inside the skills.
 - **Python 3.11+** — the config resolver and most helper scripts are Python. Config itself is JSON, read with the standard library alone.
-- **PyYAML** — `python3 -m pip install PyYAML`. **The step people miss:** `/plugin install` never runs `pip`, so install it yourself. Name the package rather than reaching for `-r requirements.txt`: that path resolves against *your* working directory, not the plugin cache, so in a Python project it installs your project's dependencies instead. On the local tier PyYAML is an **advisory** dependency — `bash lib/preflight.sh` reports a missing PyYAML and still exits 0 (see below).
+- **PyYAML 6 or newer** — `python3 -m pip install 'PyYAML>=6'`. **The step people miss:** `/plugin install` never runs `pip`, so install it yourself. Name the package rather than reaching for `-r requirements.txt`: that path resolves against *your* working directory, not the plugin cache, so in a Python project it installs your project's dependencies instead. On the local tier PyYAML is an **advisory** dependency — `bash lib/preflight.sh` reports a missing PyYAML and still exits 0 (see below).
 
 `git`, `gh`, `jq` and `python3` are not optional — the core skills call them directly, and a missing one is a hard stop. Shell helpers avoid GNU-only flags, so macOS/BSD work without GNU coreutils.
 
@@ -197,13 +197,16 @@ See [PRFlow workflows](https://prflow.ai/docs/workflows) for the supported user-
 ## Repository layout
 
 ```text
-.claude-plugin/   # plugin.json (declares dependencies) + marketplace.json (this repo is its own marketplace)
-skills/           # one SKILL.md per command (/prflow:implement, /prflow:review, /docs, …)
-agents/           # 10 subagents: checklist-generator/-deduper/-verifier + code-explorer/-architect + 5 pr-review-toolkit reviewers
+.claude-plugin/   # plugin.json (no companion-plugin dependencies) + marketplace.json (this repo is its own marketplace)
+skills/           # one SKILL.md per command (/prflow:implement, /prflow:review, /prflow:docs, …)
+agents/           # 15 subagents: the review-engine trio, the implement-phase agents, and 5 pr-review-toolkit reviewers
 scripts/          # Python + shell CLIs (workpad.py, config-get.sh, match-deferrals.py, …)
-lib/              # retrospective-loop helpers (*.sh, *.jq), preflight.sh, test/
+lib/              # retrospective-loop helpers (*.sh, *.jq) and preflight.sh
 .github/          # optional cloud tier: workflows + composite actions (incl. vendor-plugin)
-.prflow/         # config.example.json + config.schema.json (+ learnings/, logs/)
+.prflow/          # config.example.json, config.schema.json, tool-presets.json, lint-manifest.json, install-state.json
+.release/         # per-release provenance: source.json + a SHA-256 for every published file
+docs/             # source for https://prflow.ai
+LICENSES/         # third-party licences for the vendored skills and agents
 install.sh        # one-command cloud-tier install/update (thin by default; DEVFLOW_VENDOR=1 to commit the plugin)
 ```
 

@@ -1,10 +1,11 @@
 # Documentation
 
-PRFlow's user-facing documentation lives at **<https://prflow.ai>**.
+This directory holds the source for **<https://prflow.ai>** under `external/`, plus
+the note below.
 
-## Why this directory exists
+## Why this file exists
 
-This directory is deliberately minimal, and it is not optional.
+This file is not optional.
 
 Every released version of PRFlow's cloud vendoring action copies a fixed set of
 root members out of a clone of this repository before pruning the ones it does
