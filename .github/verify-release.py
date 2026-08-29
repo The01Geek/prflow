@@ -106,7 +106,11 @@ LEAK_PATTERNS = (
      "private key block"),
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{16,}"), "GitHub token"),
     (re.compile(r"\bsk-ant-[A-Za-z0-9-]{16,}"), "Anthropic API key"),
-    (re.compile(r"\bRadman-LLC/prflow-dev\b"), "private repository reference"),
+    # Assembled from fragments for the same reason the allowlist keys are: spelling
+    # the private repository as one literal publishes the very name this pattern
+    # exists to keep out of the release.
+    (re.compile(r"\b" + "Radman" + "-LLC/prflow" + "-dev" + r"\b"),
+     "private repository reference"),
 )
 
 # Reviewed, benign matches. Each entry is (path, matched text, reason) and
