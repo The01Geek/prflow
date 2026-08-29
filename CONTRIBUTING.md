@@ -14,6 +14,11 @@ That has one practical consequence: **a pull request that edits these files
 cannot be merged as-is.** The next release would overwrite it. This is not a
 judgement about the change — it is how the publication pipeline works.
 
+The required `distribution-verify` check runs on your pull request and should be
+green. It verifies published releases against the digests in `.release/`, and an
+ordinary pull request is not a release — so a passing check says nothing about
+whether the change will be accepted.
+
 ## What to do instead
 
 **Report a bug, ask a question, or request a feature.** Open an issue. Issues are
