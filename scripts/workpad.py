@@ -4592,6 +4592,85 @@ def _strip_completion_ci_marker_rows(content: str) -> str:
     return ''.join(kept)
 
 
+# ── Verification-evidence record (issue #2131) ─────────────────────────────────
+# Each launch APPENDS one note-kind row: never replace a prior row, and never let a row
+# span lines — lib/fetch-pr-context.sh reads the workpad one line at a time.
+_VERIFICATION_EVIDENCE_PREFIX = 'Verification evidence:'
+_VERIFICATION_EVIDENCE_HEAD_UNESTABLISHED = 'unestablished'
+# The coordinator prints these only on a real launch (`run-parallel: aggregate CLEAN`
+# / `run-parallel: aggregate FAILED …`), so an aggregate outcome recorded with
+# run-root=none is a contradiction the validator refuses.
+_VERIFICATION_EVIDENCE_AGGREGATE_TOKENS = ('aggregate CLEAN', 'aggregate FAILED')
+
+
+def _git_head_or_unestablished(root: str) -> str:
+    """The full 40-lowercase-hex HEAD via `git rev-parse HEAD` in `root`, or the
+    literal `unestablished` when git cannot answer (not a git tree, git absent, or a
+    branch with no commit). Never raises: the record stamps the head as unestablished
+    rather than aborting."""
+    try:
+        r = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root,
+                            capture_output=True, encoding='utf-8')
+    except Exception as e:
+        # Not only OSError: a non-UTF-8 git output raises UnicodeDecodeError, and the
+        # docstring promises this never raises (parity with _git_root_error_suffix).
+        sys.stderr.write(
+            "workpad.py: verification-evidence head unestablished — git gave no "
+            f"usable answer ({e!r}); recording head=unestablished\n")
+        return _VERIFICATION_EVIDENCE_HEAD_UNESTABLISHED
+    sha = (r.stdout or '').strip()
+    if r.returncode != 0 or not re.fullmatch(r'[0-9a-f]{40}', sha):
+        # Distinct from the could-not-run arm above: git ran but answered nothing usable
+        # (no commit yet, not a git tree, malformed output).
+        sys.stderr.write(
+            "workpad.py: verification-evidence head unestablished — `git rev-parse "
+            f"HEAD` in {root!r} gave rc={r.returncode} (no commit / not a git tree); "
+            "recording head=unestablished\n")
+        return _VERIFICATION_EVIDENCE_HEAD_UNESTABLISHED
+    return sha
+
+
+def _validate_verification_evidence(command, outcome, run_roots) -> None:
+    """Structural refusal (no PATCH) for a `--record-verification-evidence` call: a
+    missing required field, or an aggregate outcome recorded with run-root=none.
+    Mirrors the CI block's validate-before-mutation order."""
+    missing = [flag for flag, val in
+               (('--command', command), ('--outcome', outcome))
+               if not (val or '').strip()]
+    if not run_roots:
+        missing.append('--run-root')
+    if missing:
+        raise _UpdateError(
+            "--record-verification-evidence requires " + ', '.join(missing)
+            + ". No PATCH was made."
+        )
+    if 'none' in run_roots and any(
+            tok in outcome for tok in _VERIFICATION_EVIDENCE_AGGREGATE_TOKENS):
+        raise _UpdateError(
+            "--record-verification-evidence: an outcome naming an aggregate result "
+            f"({' / '.join(_VERIFICATION_EVIDENCE_AGGREGATE_TOKENS)}) cannot be "
+            "recorded with run-root=none — a coordinator that printed an aggregate "
+            "line ran, so it left a retained-log root. No PATCH was made."
+        )
+
+
+def _verification_evidence_row(command, outcome, run_roots, tallies, elapsed,
+                               started_at, recorded_at, head) -> str:
+    """Compose the single-line `Verification evidence:` note text from validated
+    operands as `key=value` pairs; `run-root` repeats once per root, the optional
+    tallies/elapsed/started-at appear only when supplied, and recorded-at/head are
+    the tool-stamped fields."""
+    parts = [f'command={command}', f'outcome={outcome}']
+    parts += [f'run-root={r}' for r in run_roots]
+    for _key, _val in (('tallies', tallies), ('elapsed', elapsed),
+                       ('started-at', started_at)):
+        if _val is not None:
+            parts.append(f'{_key}={_val}')
+    parts.append(f'recorded-at={recorded_at}')
+    parts.append(f'head={head}')
+    return _VERIFICATION_EVIDENCE_PREFIX + ' ' + ' '.join(parts)
+
+
 # ── Mid-phase resume-point family (issue #1876) ────────────────────────────────
 #
 # The Phase 3 mid-phase re-anchor used to re-read EVERY member of the phase's
@@ -6079,6 +6158,7 @@ def _has_non_checkpoint_mutation(args) -> bool:
         getattr(args, 'strip_inherited_checkpoints', False),
         getattr(args, 'reconcile_extension_rows', False),
         getattr(args, 'record_resume_point', None),
+        getattr(args, 'record_verification_evidence', False),
     ])
 
 
@@ -6507,6 +6587,11 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if record_flight_key:
         _validate_flight_key(args, record_flight_key)
 
+    # Verification-evidence rows (issue #2131): compose and validate BEFORE any body
+    # mutation so a refusal makes no PATCH; the rows are appended below.
+    verification_evidence_rows: list[str] = []
+    _ve_recorded_at = now_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+
     # CI-derived completion evidence recording (issue #1611). Validate the decoded
     # record BEFORE any body mutation so a non-pass record is a structural failure
     # that changes nothing (all-or-nothing), exactly like the flight key above; the
@@ -6536,6 +6621,26 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         }
         ci_payload = _encode_ci_payload(ci_record)
         _validate_ci_evidence(args, ci_payload)
+        # A passing CI reading appends the same row here (issue #2131) so the local-tier
+        # reading has ONE producer — do not add a second writer for the CI path.
+        verification_evidence_rows.append(_verification_evidence_row(
+            command='gh pr checks',
+            outcome=', '.join(f"{c['name']}={c['conclusion']}" for c in checks),
+            run_roots=[_ci_url], tallies=None, elapsed=None, started_at=None,
+            recorded_at=_ve_recorded_at, head=_ci_head))
+
+    # Validate BEFORE any body mutation (no PATCH on refusal). The head is stamped here,
+    # never caller-supplied: a passed-in head could name a commit the suite never ran on.
+    if getattr(args, 'record_verification_evidence', False):
+        _ve_command = getattr(args, 'command', None)
+        _ve_outcome = getattr(args, 'outcome', None)
+        _ve_run_roots = list(getattr(args, 'run_root', None) or [])
+        _validate_verification_evidence(_ve_command, _ve_outcome, _ve_run_roots)
+        verification_evidence_rows.append(_verification_evidence_row(
+            _ve_command, _ve_outcome, _ve_run_roots,
+            getattr(args, 'tallies', None), getattr(args, 'elapsed', None),
+            getattr(args, 'started_at', None), _ve_recorded_at,
+            _git_head_or_unestablished(_devflow_repo_root(args))))
 
     # Mid-phase resume-point record (issue #1876). No validation — it is a NAVIGATION
     # aid, never evidence — so unlike the completion families above it needs no
@@ -7240,6 +7345,30 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             content = _append_reflection(content, kind, bullet)
         sections[idx] = (heading, content)
 
+    # Verification-evidence rows (issue #2131) are appended, never replacing a prior row.
+    if verification_evidence_rows:
+        idx = _find_section(sections, 'Devflow Reflection')
+        if idx is None:
+            # An explicit call refuses (no PATCH); the CI rider's row only degrades to a
+            # breadcrumb because --record-completion-evidence-ci's own contract does not
+            # require the section — do not promote that degrade to a refusal.
+            if getattr(args, 'record_verification_evidence', False):
+                raise _UpdateError(
+                    "--record-verification-evidence: section '## Devflow Reflection' "
+                    "not found, so the Verification evidence row cannot be recorded. "
+                    "No PATCH was made."
+                )
+            sys.stderr.write(
+                "workpad.py: no '## Devflow Reflection' section — the CI reading's "
+                "Verification evidence row was not appended (the completion-ci marker "
+                "still recorded)\n"
+            )
+        else:
+            heading, content = sections[idx]
+            for row in verification_evidence_rows:
+                content = _append_reflection(content, 'note', row)
+            sections[idx] = (heading, content)
+
     # Every accepted review-coverage disposition also files its own `dropped-failed`
     # reflection bullet (issue #1453). Synthesized HERE rather than left to a paired
     # `--reflection-kind dropped-failed --reflection …` the caller must remember: the
@@ -7794,6 +7923,39 @@ def main():
                         'recorded set must cover the required-check set declared in '
                         '.github/workflows/ci.yml, and every CONCLUSION must be a '
                         'success, or the --status Complete write is refused.')
+    u.add_argument('--record-verification-evidence', action='store_true',
+                   help='Record one `Verification evidence:` note-kind reflection row '
+                        'for a whole-suite launch (issue #2131) — this option OWNS the '
+                        "record's field set. Required: --command, --outcome, and "
+                        '--run-root (repeatable for the two-root recombination case; the '
+                        'literal `none` is the accepted value for a tier-denied or '
+                        'ceiling-terminated launch, recorded verbatim as run-root=none). '
+                        'Optional: --tallies, --elapsed, --started-at (a denied or '
+                        'terminated launch has none). The tool stamps recorded-at (UTC) '
+                        'and head (the full 40-char `git rev-parse HEAD`, `unestablished` '
+                        'when git cannot answer). Refused before any PATCH: a call '
+                        'missing a required field, or one whose --outcome names an '
+                        'aggregate result (aggregate CLEAN / aggregate FAILED) while '
+                        '--run-root is `none`. The row is appended (never replacing a '
+                        'prior one), so two launches leave two rows.')
+    u.add_argument('--command', default=None, metavar='C',
+                   help='The suite command invoked, for --record-verification-evidence.')
+    u.add_argument('--outcome', default=None, metavar='O',
+                   help='The outcome as the coordinator reported it (its aggregate '
+                        'line), for --record-verification-evidence.')
+    u.add_argument('--run-root', action='append', default=None, metavar='R',
+                   help='The retained-log root, for --record-verification-evidence. '
+                        'Repeatable (the same-tree recombination names both roots); the '
+                        'literal `none` records a denied/terminated launch verbatim.')
+    u.add_argument('--tallies', default=None, metavar='T',
+                   help='The pass/fail/skip tallies, for --record-verification-evidence '
+                        '(optional).')
+    u.add_argument('--elapsed', default=None, metavar='E',
+                   help='The elapsed wall-clock time, for '
+                        '--record-verification-evidence (optional).')
+    u.add_argument('--started-at', default=None, metavar='S',
+                   help="The launch's own start time, for "
+                        '--record-verification-evidence (optional).')
     u.add_argument('--record-resume-point', default=None, metavar='TEXT',
                    help='Record this run\'s mid-phase re-anchor resume point (issue '
                         '#1876) as a hidden "<!-- prflow:checkpoint '
