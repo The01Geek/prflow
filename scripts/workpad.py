@@ -4615,10 +4615,21 @@ def _git_head_or_unestablished(root: str) -> str:
     try:
         r = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root,
                             capture_output=True, encoding='utf-8')
-    except OSError:
+    except OSError as e:
+        # Breadcrumb the git-absent / not-a-directory cause so an `unestablished`
+        # head recorded later is debuggable rather than a bare sentinel.
+        sys.stderr.write(
+            "workpad.py: verification-evidence head unestablished — git could "
+            f"not run ({e}); recording head=unestablished\n")
         return _VERIFICATION_EVIDENCE_HEAD_UNESTABLISHED
     sha = (r.stdout or '').strip()
     if r.returncode != 0 or not re.fullmatch(r'[0-9a-f]{40}', sha):
+        # Distinct from the OSError arm above: git ran but answered nothing usable
+        # (no commit yet, not a git tree, malformed output).
+        sys.stderr.write(
+            "workpad.py: verification-evidence head unestablished — `git rev-parse "
+            f"HEAD` in {root!r} gave rc={r.returncode} (no commit / not a git tree); "
+            "recording head=unestablished\n")
         return _VERIFICATION_EVIDENCE_HEAD_UNESTABLISHED
     return sha
 
@@ -7347,7 +7358,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
 
     # Verification-evidence rows (issue #2131) append as note-kind reflections, one per
     # launch (and one for a passing CI reading), never replacing a prior row. Composed
-    # and validated above, before any body mutation.
+    # and validated above.
     if verification_evidence_rows:
         idx = _find_section(sections, 'Devflow Reflection')
         if idx is None:

@@ -7246,6 +7246,10 @@ for _agg in ('run-parallel: aggregate CLEAN', 'run-parallel: aggregate FAILED (3
         repo_root=_ci_root)
     assert_eq(f"#2131 aggregate outcome {_agg!r} with run-root=none makes NO PATCH",
               None, _pA)
+    # Attribute the guard: the refusal must be the aggregate/run-root=none conflict,
+    # not some other reachable refusal (all required fields are supplied here).
+    assert_eq(f"#2131 the aggregate+none refusal for {_agg!r} names the conflict",
+              True, 'aggregate' in _eA and 'run-root=none' in _eA)
 
 # A run-root=none with a non-aggregate outcome records run-root=none verbatim, PATCHes.
 _cN, _oN, _eN, _pN = _drive_cmd_update(
@@ -7263,6 +7267,33 @@ _c3, _o3, _e3, _p3 = _drive_cmd_update(
     repo_root=_ci_root)
 assert_eq("#2131 a second launch keeps both rows", 2,
           _p3.count('Verification evidence:'))
+
+# Two-root recombination (issue #2008): --run-root is repeatable, so a single call
+# names BOTH retained roots as two run-root= fields, in order.
+_cR, _oR, _eR, _pR = _drive_cmd_update(
+    WORKPAD_BODY, record_verification_evidence=True,
+    command='lib/test/run-shard.sh (recombined)', outcome='recombined CLEAN',
+    run_root=['.prflow/tmp/parallel-suite/run-RED/logs',
+              '.prflow/tmp/parallel-suite/run-FRESH/logs'],
+    repo_root=_ci_root)
+assert_eq("#2131 a two-root recombination call PATCHes", True, _pR is not None)
+assert_eq("#2131 the two-root row names both roots in order", True,
+          'run-root=.prflow/tmp/parallel-suite/run-RED/logs' in _pR
+          and 'run-root=.prflow/tmp/parallel-suite/run-FRESH/logs' in _pR
+          and _pR.index('run-root=.prflow/tmp/parallel-suite/run-RED/logs')
+          < _pR.index('run-root=.prflow/tmp/parallel-suite/run-FRESH/logs'))
+
+# An EXPLICIT --record-verification-evidence call over a workpad LACKING the
+# ## Devflow Reflection section is a hard refusal (no PATCH), distinct from the CI
+# rider's best-effort degrade above — the explicit caller asked to record.
+_cX, _oX, _eX, _pX = _drive_cmd_update(
+    GATE_BODY, record_verification_evidence=True,
+    command='lib/test/run-parallel.sh', outcome='ran', run_root=['/tmp/logs'],
+    repo_root=_ci_root)
+assert_eq("#2131 explicit record over a reflection-less workpad makes NO PATCH",
+          None, _pX)
+assert_eq("#2131 the reflection-less explicit refusal names the section",
+          True, 'Devflow Reflection' in _eX)
 
 # git-unavailable at record time stamps head=unestablished and still succeeds.
 _cU, _oU, _eU, _pU = _drive_cmd_update(
@@ -7295,6 +7326,10 @@ assert_eq("#2131 a CI pass over a reflection-less workpad still PATCHes", True,
           _pG is not None)
 assert_eq("#2131 the reflection-less CI pass still records the completion-ci marker",
           True, 'completion-ci:' in _pG)
+# The degradation is a breadcrumb, NOT a row: no Verification evidence row is appended
+# into a body that has no ## Devflow Reflection section to hold it.
+assert_eq("#2131 the reflection-less CI pass appends no Verification evidence row",
+          False, 'Verification evidence:' in _pG)
 assert_eq("#2131 the CI pass appends one Verification evidence: row", 1,
           _pC.count('Verification evidence:'))
 assert_eq("#2131 the CI-derived row names the gh pr checks command", True,
