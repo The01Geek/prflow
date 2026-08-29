@@ -1,6 +1,6 @@
 # Development and testing
 
-<!-- verified-against: 26c9ad96d 2026-08-25 -->
+<!-- verified-against: 01daaeeb3 2026-08-29 -->
 
 This page explains how to develop and verify changes in the PRFlow repository itself: which test commands exist, which one to use when, and which signal counts as the completion gate. It is for a contributor or coding agent working in this checkout.
 
@@ -23,7 +23,7 @@ This page explains how to develop and verify changes in the PRFlow repository it
 
 ## Boundaries and failure paths
 
-- A skipped check is reported with a kind (`blocking-gate` or `host-capability`) and is not laundered into a pass; a module run through `lib/test/run-module.sh` may not self-skip at all.
+- A skipped check is reported with a kind (`blocking-gate` or `host-capability`) and is not laundered into a pass; a module run through `lib/test/run-module.sh` may not call the raw `skip` helper (a fatal contract violation), but it may declare that this host cannot express a condition through `module_host_capability_skip`, which the focused runner records and folds into a visible skip with its assertion credit applied.
 - Never run the suite backgrounded with a bare `&` — the child inherits an ignored SIGINT and the signal-trap assertions fail; `python3 lib/test/launch-detached.py <suite command>` is the sanctioned backgrounded launch.
 - Stop a suite process by its recorded PID, never by a `pkill -f` pattern — sibling worktrees run the same command names.
 - A local red that CI does not reproduce is uncharacterised, not explained; there is no known-flake set.
