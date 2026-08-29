@@ -27,7 +27,7 @@ Confirm all of the following:
     /prflow:create-issue Add an option to retain completed run logs for 30 days
     ```
 
-    PRFlow asks about anything the description leaves undecided, shows you the complete issue draft and creates the issue only after you approve that draft. Note the issue number it reports.
+    PRFlow asks about anything the description leaves undecided, saves the issue draft to a file and shows you its path (printing the full draft in chat only on request), and creates the issue only after you approve that draft. Note the issue number it reports.
 
     See [Create Issue](/docs/workflows/create-issue) for the full workflow.
   </Step>
