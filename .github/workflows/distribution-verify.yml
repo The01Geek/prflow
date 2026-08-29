@@ -42,15 +42,36 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
+          judge=".github/verify-release.py .github/workflows/distribution-verify.yml"
+
+          # Bootstrap: the pull request that INTRODUCES the judge cannot satisfy a
+          # rule requiring the judge to already exist on base. Absent-on-base is
+          # therefore only acceptable when NOTHING of the judge is on base yet, and
+          # only from a policy-update/* branch. A release branch never qualifies.
+          present=0; absent=0
+          for f in $judge; do
+            if git cat-file -e "${BASE_SHA}:${f}" 2>/dev/null; then present=$((present+1)); else absent=$((absent+1)); fi
+          done
+          if [ "$present" -eq 0 ]; then
+            case "$HEAD_REF" in
+              policy-update/*)
+                echo "::notice::bootstrap: the judge is absent from the protected base and this is a policy-update branch introducing it. Comparison skipped for this pull request only."
+                exit 0 ;;
+              *)
+                echo "::error::the judge is absent from the protected base and this is not a policy-update/* branch — refusing to let an arbitrary branch introduce its own judge"
+                exit 1 ;;
+            esac
+          fi
+          if [ "$absent" -ne 0 ]; then
+            echo "::error::the judge is only PARTIALLY present on the protected base — refusing a half-installed judge"
+            exit 1
+          fi
+
           status=0
-          for f in .github/verify-release.py .github/workflows/distribution-verify.yml; do
-            if ! git cat-file -e "${BASE_SHA}:${f}" 2>/dev/null; then
-              echo "::error file=${f}::not present on the protected base; a release candidate cannot introduce its own judge"
-              status=1
-              continue
-            fi
+          for f in $judge; do
             if ! git diff --quiet "${BASE_SHA}" HEAD -- "${f}"; then
               echo "::error file=${f}::differs from the protected base branch. An intentional change to the verifier must land as a separate policy-update/* pull request."
               status=1
@@ -59,8 +80,25 @@ jobs:
           exit "$status"
 
       - name: Verify the release artifact
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
           set -euo pipefail
+          # A tree carrying no .release/ metadata is not a release candidate. That
+          # is the normal state before the first generated release lands, and it
+          # must not be reported as a failure. It is NEVER acceptable from a
+          # release branch, though: that is exactly the missing-provenance release
+          # this check exists to stop, so the two cases are separated by branch.
+          if [ ! -f .release/source.json ]; then
+            case "$HEAD_REF" in
+              release/*)
+                echo "::error::a release/* candidate carries no .release/source.json — refusing to publish a release without provenance"
+                exit 1 ;;
+              *)
+                echo "::notice::no .release/ metadata: this tree is not a generated release candidate, so there is no artifact to verify."
+                exit 0 ;;
+            esac
+          fi
           # The candidate is DATA. Copy the tree without its .git directory and
           # verify that copy, so no candidate code is imported or executed.
           candidate="$(mktemp -d)/candidate"
