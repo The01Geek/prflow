@@ -634,6 +634,70 @@ stays the only writer, and running it after your edits is what keeps the coordin
 refusing your own launch. It touches neither `.github/workflows/ci.yml` nor
 `lib/test/run-shard.sh`, so CI's per-shard behaviour is unchanged.
 
+#### The pre-suite check also gates module coupling and install-state (issue #2121)
+
+The same read-only preflight covers a wider surface than generated-artifact drift. Adding a
+`lib/test/modules/*.sh` module used to leave its coupled registrations, generated markers,
+fixture populations, and performance bounds stale, and a run that passed its focused check
+then paid a full suite before the coupling failure surfaced — the audited run needed later
+reconciliation commits for mutation-pin fixture membership, exact-policy membership, and cache
+capacity. The module-wiring assertion that catches those (`test_every_on_disk_module_is_fully_wired`
+in `lib/test/test_module_runner.py`) ran only minutes into the Python suite. Issue #2121
+factored those surfaces into reusable stdlib-only checkers in `lib/test/module_coupling.py`,
+consumed by **both** that focused test and a new `module-coupling` preflight row, so the same
+logic now fails the coordinator's pre-suite gate in well under a second.
+
+The `module-coupling` row validates, for each on-disk module, the `preflight`-tier members of
+the closed `MODULE_COUPLING_SURFACES` inventory: registry membership with a matching path,
+`run.sh` full-suite invocation at a matching floor, shard membership, coverage ownership,
+`ci.yml` shellcheck membership, provenance inventory, mutation-pin fixture membership,
+exact-policy expected-population membership (for registry entries marked
+`assertion_floor_policy: exact`), and a read-only `module-body-contract` surface (SPDX header,
+required caller-contract text, no full-suite self-invocation, no monolith-only helper
+references, no direct `skip` calls). It also asserts the mutation-census parse-cache clears the
+tracked shell-source population the definition sweep visits — `swept_shell_population` exposed
+by `lib/test/mutation-pin-census.py` — plus five entries of headroom (a cache overflow is a
+memo-reuse performance regression, not a correctness failure, and the diagnostic says so). A
+second new `install-state` row detects drift in `.prflow/install-state.json` and names the
+already-granted `lib/test/regenerate-artifacts.py` batch command as its repair entry point; its
+preflight form stays read-only. The change adds no `.prflow/config.json` allowlist grant.
+
+Two authoritative inventories back the gate, each bidirectionally validated at registry-load
+time (a malformed shape makes registry loading `uncheckable`, exit 2):
+
+- `MODULE_COUPLING_SURFACES` — the module-coupling inventory, `gate_tier` ∈ {`preflight`,
+  `suite-only`}. The `preflight` members are checked before shards; the `suite-only` complement
+  is named in the receipt (with its existing suite owner) but never executed here.
+- `ARTIFACT_LIFECYCLES` — the lifecycle inventory keyed by artifact/check id, value ∈
+  {`branch-generated`, `by-hand`, `main-side`}. Each executable row owns exactly one entry and
+  each entry resolves back to exactly one row, with explicitly declared metadata-only artifacts
+  as the sole exception: `scripts/devflow-cloud-writer-contract.json` is `main-side`, classified
+  through that exception, so feature-branch preflight reports it and neither verifies nor
+  regenerates it (`.github/workflows/version-consolidate.yml` stays its publisher).
+
+The gate emits a **typed coupling receipt**. On the clean path `regenerate-artifacts.py`
+prints a single `regenerate-artifacts: coupling-receipt: state=clean …` line naming the checked
+surfaces, lifecycle classes, checked population, and the mutation-census `tracked_shell_count`,
+`cache_capacity`, `required_minimum`, `headroom`, `elapsed_ms`, and `deadline_ms`; the
+coordinator re-emits exactly that line on stdout before shard output. When
+`DEVFLOW_ARTIFACT_PREFLIGHT` is explicitly empty the preflight is disabled but no longer silent
+— the coordinator emits a typed disabled receipt (`run-parallel: coupling-receipt:
+state=uncheckable reason=empty-override checked_population=none`) plus its warn-and-proceed line
+on stderr, then launches shards.
+
+The verdict contract is drift-blocks / uncheckable-warns, drift taking precedence: a positively
+identified coupling omission emits `regenerate-artifacts: preflight-verdict: drift`, exits 1,
+and prevents any shard subprocess; unreadable, malformed, unclassified, or timed-out input emits
+the `uncheckable` verdict, exits 2, and preserves warn-and-proceed. A preflight carrying both a
+drift and an uncheckable row still fails closed. The whole pass is bounded by a five-second
+aggregate deadline measured with `time.perf_counter_ns()`, each launched row additionally bounded
+by the lesser of its declared `timeout_seconds` and the remaining budget; deadline exhaustion
+records the unfinished rows as uncheckable. On POSIX a timed-out row's process group is
+terminated; on native non-POSIX hosts the direct child is reaped, a degraded-termination warning
+states descendant termination is unestablished, and the row is recorded uncheckable — the
+aggregate deadline is a fail-open availability bound, never a licence to convert detected drift
+into an uncheckable result.
+
 #### The registry is also the merge-conflict oracle
 
 When a branch update lands a merge conflict in a checked-in **generated** artifact, do
