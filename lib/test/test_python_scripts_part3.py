@@ -7306,6 +7306,41 @@ assert_eq("#2131 a verification-evidence call over a non-git root PATCHes", True
           _pU is not None)
 assert_eq("#2131 the non-git head is recorded unestablished", True,
           'head=unestablished' in _pU)
+# Attribute the arm: a non-git DIRECTORY reaches the rc!=0 arm (git ran, answered nothing).
+assert_eq("#2131 the non-git root routes through the rc!=0 arm", True, 'gave rc=' in _eU)
+
+# The could-not-run arm (git never ran): a root that is a FILE makes subprocess raise
+# NotADirectoryError before git starts; the record still PATCHes with head=unestablished
+# and the breadcrumb attributes the cause to git not running, not to git's rc.
+_notdir = _tmp1087.mkstemp()[1]
+_cF, _oF, _eF, _pF = _drive_cmd_update(
+    WORKPAD_BODY, record_verification_evidence=True,
+    command='lib/test/run-parallel.sh', outcome='ran', run_root=['/tmp/logs'],
+    repo_root=_notdir)
+assert_eq("#2131 a verification-evidence call over a non-directory root PATCHes", True,
+          _pF is not None)
+assert_eq("#2131 the could-not-run head is recorded unestablished", True,
+          'head=unestablished' in _pF)
+assert_eq("#2131 the could-not-run breadcrumb names git not running", True,
+          'git could not run' in _eF and 'gave rc=' not in _eF)
+
+# `_git_head_or_unestablished` promises it never raises: a non-OSError failure from the
+# subprocess layer (a non-UTF-8 git output decodes to UnicodeDecodeError, a ValueError)
+# is also absorbed into the unestablished sentinel rather than escaping as a traceback.
+def _raise_decode(*a, **kw):
+    raise UnicodeDecodeError('utf-8', b'\xff', 0, 1, 'invalid start byte')
+_saved_sp_run = workpad.subprocess.run
+workpad.subprocess.run = _raise_decode
+try:
+    _hd_err = io.StringIO()
+    with contextlib.redirect_stderr(_hd_err):
+        _hd = workpad._git_head_or_unestablished(_ci_root)
+finally:
+    workpad.subprocess.run = _saved_sp_run
+assert_eq("#2131 a non-OSError subprocess failure yields the unestablished sentinel",
+          'unestablished', _hd)
+assert_eq("#2131 that failure is breadcrumbed as git not running", True,
+          'git could not run' in _hd_err.getvalue())
 
 # The CI-evidence option, on a pass, ALSO appends one Verification evidence: row built
 # from its validated operands (command=gh pr checks, outcome=name=conclusion pairs,
@@ -7332,6 +7367,10 @@ assert_eq("#2131 the reflection-less CI pass still records the completion-ci mar
 # into a body that has no ## Devflow Reflection section to hold it.
 assert_eq("#2131 the reflection-less CI pass appends no Verification evidence row",
           False, 'Verification evidence:' in _pG)
+# ...and the degrade is announced: the stderr breadcrumb names the missing section and
+# says the row was not appended (a silent drop would be indistinguishable from success).
+assert_eq("#2131 the reflection-less CI pass breadcrumbs the un-appended row", True,
+          'Devflow Reflection' in _eG and 'was not appended' in _eG)
 assert_eq("#2131 the CI pass appends one Verification evidence: row", 1,
           _pC.count('Verification evidence:'))
 assert_eq("#2131 the CI-derived row names the gh pr checks command", True,

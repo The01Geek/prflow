@@ -4593,12 +4593,8 @@ def _strip_completion_ci_marker_rows(content: str) -> str:
 
 
 # ── Verification-evidence record (issue #2131) ─────────────────────────────────
-#
-# The `Verification evidence:` completion-evidence record's field set is owned here,
-# in the tool that writes it, rather than in CLAUDE.md prose — so an incomplete record
-# is refused rather than silently written. Each launch appends ONE note-kind reflection
-# row, never replacing a prior one; the row stays on a single line because
-# lib/fetch-pr-context.sh reads it line by line.
+# Each launch APPENDS one note-kind row: never replace a prior row, and never let a row
+# span lines — lib/fetch-pr-context.sh reads the workpad one line at a time.
 _VERIFICATION_EVIDENCE_PREFIX = 'Verification evidence:'
 _VERIFICATION_EVIDENCE_HEAD_UNESTABLISHED = 'unestablished'
 # The coordinator prints these only on a real launch (`run-parallel: aggregate CLEAN`
@@ -4615,16 +4611,16 @@ def _git_head_or_unestablished(root: str) -> str:
     try:
         r = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root,
                             capture_output=True, encoding='utf-8')
-    except OSError as e:
-        # Breadcrumb the git-absent / not-a-directory cause so an `unestablished`
-        # head recorded later is debuggable rather than a bare sentinel.
+    except Exception as e:
+        # Not only OSError: a non-UTF-8 git output raises UnicodeDecodeError, and the
+        # docstring promises this never raises (parity with _git_root_error_suffix).
         sys.stderr.write(
             "workpad.py: verification-evidence head unestablished — git could "
             f"not run ({e}); recording head=unestablished\n")
         return _VERIFICATION_EVIDENCE_HEAD_UNESTABLISHED
     sha = (r.stdout or '').strip()
     if r.returncode != 0 or not re.fullmatch(r'[0-9a-f]{40}', sha):
-        # Distinct from the OSError arm above: git ran but answered nothing usable
+        # Distinct from the could-not-run arm above: git ran but answered nothing usable
         # (no commit yet, not a git tree, malformed output).
         sys.stderr.write(
             "workpad.py: verification-evidence head unestablished — `git rev-parse "
@@ -6591,10 +6587,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if record_flight_key:
         _validate_flight_key(args, record_flight_key)
 
-    # Verification-evidence rows (issue #2131): appended note-kind reflection rows, one
-    # per whole-suite launch and one for a passing CI reading. Composed here — before any
-    # body mutation, so a refusal is a no-PATCH structural failure — and appended below.
-    # recorded-at is stamped from this call's UTC instant.
+    # Verification-evidence rows (issue #2131): compose and validate BEFORE any body
+    # mutation so a refusal makes no PATCH; the rows are appended below.
     verification_evidence_rows: list[str] = []
     _ve_recorded_at = now_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -6627,21 +6621,16 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         }
         ci_payload = _encode_ci_payload(ci_record)
         _validate_ci_evidence(args, ci_payload)
-        # A passing CI reading records the same Verification evidence: row (issue #2131),
-        # so a local run's CI reading has one producer: command = the `gh pr checks` read,
-        # outcome = the validated check name/conclusion pairs, run-root = the run URL, head
-        # = the validated HEAD SHA (which equals git rev-parse HEAD).
+        # A passing CI reading appends the same row here (issue #2131) so the local-tier
+        # reading has ONE producer — do not add a second writer for the CI path.
         verification_evidence_rows.append(_verification_evidence_row(
             command='gh pr checks',
             outcome=', '.join(f"{c['name']}={c['conclusion']}" for c in checks),
             run_roots=[_ci_url], tallies=None, elapsed=None, started_at=None,
             recorded_at=_ve_recorded_at, head=_ci_head))
 
-    # Verification-evidence record (issue #2131). Validate the required fields and the
-    # aggregate/run-root=none conflict BEFORE any body mutation (no PATCH on refusal),
-    # then compose the row appended below. The head is stamped here from git rev-parse
-    # HEAD (`unestablished` when git cannot answer), so the caller supplies neither it
-    # nor the record time.
+    # Validate BEFORE any body mutation (no PATCH on refusal). The head is stamped here,
+    # never caller-supplied: a passed-in head could name a commit the suite never ran on.
     if getattr(args, 'record_verification_evidence', False):
         _ve_command = getattr(args, 'command', None)
         _ve_outcome = getattr(args, 'outcome', None)
@@ -7356,17 +7345,13 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             content = _append_reflection(content, kind, bullet)
         sections[idx] = (heading, content)
 
-    # Verification-evidence rows (issue #2131) append as note-kind reflections, one per
-    # launch (and one for a passing CI reading), never replacing a prior row. Composed
-    # and validated above.
+    # Verification-evidence rows (issue #2131) are appended, never replacing a prior row.
     if verification_evidence_rows:
         idx = _find_section(sections, 'Devflow Reflection')
         if idx is None:
-            # An explicit --record-verification-evidence call requires the section — a
-            # missing one is a structural refusal (no PATCH). A CI-derived row rides an
-            # existing --record-completion-evidence-ci call whose own contract does not
-            # require the section, so on a malformed/legacy workpad it degrades to a
-            # breadcrumb (the completion-ci marker still recorded) rather than aborting.
+            # An explicit call refuses (no PATCH); the CI rider's row only degrades to a
+            # breadcrumb because --record-completion-evidence-ci's own contract does not
+            # require the section — do not promote that degrade to a refusal.
             if getattr(args, 'record_verification_evidence', False):
                 raise _UpdateError(
                     "--record-verification-evidence: section '## Devflow Reflection' "
