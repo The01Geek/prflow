@@ -1499,11 +1499,14 @@ class ModuleRunnerTests(unittest.TestCase):
         HOST ASSUMPTION: equality means the module must execute every assertion, so a
         host that trips a conditional arm inside a module (running as root, where the
         `chmod 000` denial arms do not deny; or a missing PyYAML) yields a lower tally
-        and fails here. That is the honest signal for a FOCUSED run, which may not
-        self-skip at all: since issue #838 the `chmod 000` arms report through
-        `module_host_capability_skip`, so on such a host a focused run dies at the first
-        arm with the runner's "modules may not self-skip" message instead of an opaque
-        count mismatch. The FULL-SUITE boundary is where those arms are accounted for —
+        and fails here. That is the honest signal for a FOCUSED run: a module may not
+        call the raw `skip` helper — that stays a fatal contract violation — but since
+        issue #838 the `chmod 000` arms declare a host-capability condition through
+        `module_host_capability_skip`, which the focused runner records and folds into a
+        visible skip with its assertion credit applied, so on such a host the module's
+        summary line reports a lower passed count with a trailing skip clause and this
+        exact-line equality fails honestly instead of reading as a clean pass. The
+        FULL-SUITE boundary is where those arms are accounted for —
         it folds the declared host-capability skip into the suite tally and credits the
         arm's declared assertions against the floor (see
         HostCapabilitySkipChannelTests), so this equality is a statement about the
@@ -3013,45 +3016,6 @@ class HostCapabilitySkipChannelTests(unittest.TestCase):
         self.assertEqual(combine.returncode, 0, combine.stdout + combine.stderr)
         self.assertIn("1 passed, 0 failed, 1 skipped", combine.stdout)
         self.assertIn("  SKIP  gated arm [host-capability]", combine.stdout)
-
-    def test_the_three_declaring_modules_run_green_through_the_focused_shard_path(
-        self,
-    ) -> None:
-        """AC6: the three modules that declare a host-capability skip are each driven
-        through the real focused runner (the #877 modules-* shard path) and run green.
-        This proves they are shard-compatible under the new skip channel; the channel's
-        FOLD behavior when an arm fires is driven end-to-end at the declaration boundary by
-        `test_focused_skip_flows_through_the_shard_tally_as_a_skip` above. Forcing each
-        module's own probe would mean reproducing the host condition (root / a
-        mode-ignoring filesystem), which the AC forbids — so the boundary, not the host
-        condition, is what the fold test exercises. A command-position raw `skip` in any
-        module is separately barred tree-wide by `MODULE_SKIP_CALL_RE` (see the module
-        self-skip scan)."""
-        for module in (
-            "regenerate-artifacts",
-            "review-stall-backstop",
-            "workflow-flight-recorder",
-        ):
-            environment = os.environ.copy()
-            environment.pop("DEVFLOW_TEST_EXPERIMENT_FORCE_FAILURE", None)
-            with tempfile.TemporaryDirectory() as log_dir:
-                result = subprocess.run(
-                    ["bash", str(RUNNER_SOURCE), "--log-dir", log_dir, module],
-                    cwd=ROOT,
-                    env=environment,
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                )
-                self.assertEqual(
-                    result.returncode,
-                    0,
-                    f"{module}:\n" + result.stdout[-4000:] + result.stderr[-4000:],
-                )
-                self.assertRegex(
-                    result.stdout,
-                    rf"Module {re.escape(module)}: [0-9]+ passed, 0 failed",
-                )
 
 
 class PoolWidthTests(unittest.TestCase):

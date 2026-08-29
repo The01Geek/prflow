@@ -76,8 +76,10 @@ which deliberately restates no part of it, since a partial restatement is what
 would send a reader past the trap the full rule names. The local
 run stays the signal you **troubleshoot** from, because
 its failure detail is richer than CI's, and the issue-#456 skip accounting is
-unchanged — a nonempty skip tally is not clean, and a module may not self-skip,
-so focused iteration cannot launder a skip. A mid-iteration issue-#434
+unchanged — a nonempty skip tally is not clean, and a module may not call the raw
+`skip` helper (the module-authoring checklist's module-contract step covers the
+host-capability declaration folded instead), so focused iteration cannot launder
+a raw skip. A mid-iteration issue-#434
 stale-prose `blocking-gate` skip on a dirty tree is expected and clears once the
 tree is committed, so do not re-run the complete suite mid-iteration just to
 clear it. When the complete suite does run and fails, read its terminal

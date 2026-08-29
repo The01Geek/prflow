@@ -1,6 +1,6 @@
 # `/prflow:implement` skill — Phase 2.3 sweep discipline and Phase 4.3 finalize
 
-<!-- verified-against: b50e32558 2026-08-28 -->
+<!-- verified-against: 01daaeeb3 2026-08-29 -->
 
 **Skill:** `skills/implement/phases/phase-2-sweeps-contract.md` (Phase 2.3, *Implement*) — read at phase entry by the thin `skills/implement/SKILL.md` orchestrator. It carries the §2.3 preamble and the trigger heading and predicate of the 2.3.0-family conditional sweeps; its sibling `skills/implement/phases/phase-2-sweeps-quality.md` carries the six always-firing sweeps' procedures in full plus the trigger heading and predicate of the remaining conditional sweeps (2.3.1, 2.3.2, 2.3.7). Since issue #1581 the eight conditional sweeps' *procedures* live in per-sweep gated references (see **Gated conditional-sweep procedures** below).
 
@@ -1119,7 +1119,9 @@ grant history.
 
 **None of this weakens the gate.** The final completion claim still takes a whole-suite
 result, and the #456 skip accounting is unchanged — a nonempty skip tally is not clean, and a
-focused module may not self-skip. Which result counts is tier-scoped since issue #1607: the
+focused module may not call the raw `skip` helper (though it may declare a host-capability
+condition through `module_host_capability_skip`, which the focused runner records and folds into
+a visible skip with its assertion credit applied). Which result counts is tier-scoped since issue #1607: the
 cloud implement tier runs the suite in its own environment, while this repository's
 local/interactive tier commits, pushes, and reads CI for that pushed commit, treating an
 absent run or an unestablished reading as a stop rather than a pass. A suite result is
