@@ -1,0 +1,69 @@
+# PRFlow distribution-repository release verification.
+#
+# This workflow is the required status check on `main`. It runs the projected
+# verifier against the candidate tree and, on a pull request, enforces the rule
+# that makes a self-contained judge trustworthy: a release candidate must carry
+# verifier and workflow bytes IDENTICAL to the protected base branch, so a PR
+# cannot edit the judge that evaluates it. An intentional verifier change lands
+# as a separate two-path policy-update/* PR judged by the previous base verifier.
+name: distribution-verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: distribution-verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: distribution-verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the candidate
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      # The judge must be the BASE branch's judge. Without this a release PR
+      # could weaken or disable its own verification in the same commit.
+      - name: Prove the candidate does not modify its own judge
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          status=0
+          for f in .github/verify-release.py .github/workflows/distribution-verify.yml; do
+            if ! git cat-file -e "${BASE_SHA}:${f}" 2>/dev/null; then
+              echo "::error file=${f}::not present on the protected base; a release candidate cannot introduce its own judge"
+              status=1
+              continue
+            fi
+            if ! git diff --quiet "${BASE_SHA}" HEAD -- "${f}"; then
+              echo "::error file=${f}::differs from the protected base branch. An intentional change to the verifier must land as a separate policy-update/* pull request."
+              status=1
+            fi
+          done
+          exit "$status"
+
+      - name: Verify the release artifact
+        run: |
+          set -euo pipefail
+          # The candidate is DATA. Copy the tree without its .git directory and
+          # verify that copy, so no candidate code is imported or executed.
+          candidate="$(mktemp -d)/candidate"
+          mkdir -p "$candidate"
+          tar --exclude='./.git' -cf - . | tar -xf - -C "$candidate"
+          python3 .github/verify-release.py --candidate "$candidate"
