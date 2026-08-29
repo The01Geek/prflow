@@ -222,3 +222,125 @@ One workpad mutated in place across the #1003 rename boundary carries pre-rename
 post-rename ones. A per-artifact choice — picking one spelling for the whole comment — would leave a
 pre-rename `deferred-filed` record undischarged, so the follow-up issue is filed twice. That is why the
 dual read is per RECORD rather than per artifact.
+
+## The shipped-prompt-surface lint — how each forbidden class is derived (#1072, #1309, #1402, #1423, #2114)
+
+`lib/test/lint-shipped-pruned-path.py` audits every `skills/**` and `agents/**` file. The base
+forbidden set (prune targets) is **derived from `vendor-slice.sh` itself** rather than a hardcoded
+literal, so a new prune target is covered with no second edit. The audited population is `skills/**`
+and `agents/**` only — the copied `scripts/`/`lib/` surface is a separate concern — so the coverage
+claim is that population, never "the whole shipped surface".
+
+**`docs.*`-default exemption (#1309).** `docs/external` and `docs/internal` are simultaneously the
+defaults of `.docs.external` / `.docs.internal`, so the lint derives an exemption set from the
+path-shaped `docs.*` defaults in `.prflow/config.schema.json` (by trailing-slash-normalized equality,
+never prefix) and subtracts it before scanning — a shipped sentence naming a documented `docs.*`
+default needs no marker.
+
+**Never-shipped `.github/workflows/` members (#1402).** `devflow_copy_slice()` copies no `.github/`
+at all, so no workflow is a prune target and the base derivation is blind to the family, while a
+consumer *does* have `.github/workflows/` — a blanket `.github/` ban would be wrong. The lint derives a
+never-shipped set at run time by word-list membership over the parsed `install.sh` workflow copy loop's
+literal operand list (the one declaration that puts a workflow in a consumer's checkout), subtracts it
+from the `.github/workflows/*.yml` basenames present, and reports an unmarked `<basename>.yml`
+reference in the fully-qualified or the bare spelling; an unestablished declaration refuses non-zero
+naming `install.sh` rather than auditing against an empty set.
+
+**`DEVFLOW_WITHHELD_TIER` (#1423).** Its members reach no fresh install, so counting them as shipped
+told a fresh consumer a file they lack resolves; they are forbidden like any other never-shipped name.
+A withheld name that also left the tree (`devflow-review`) needs no carve-out, because the derivation
+intersects with what is **tracked**. Residuals enumerated in the lint's docstring: an extensionless
+stem, a `.yaml` suffix, a workflow no longer in the tree, a consumer's own same-named workflow.
+
+**Development-harness identifiers (#2114).** Unlike the derived sets above, this denylist
+(`structural-pin-ok`, `CEILING_TRIPWIRE_FRACTION`, `run-parallel` at minimum) is a hardcoded module
+constant guarded non-empty at import — there is no producer file to derive it from — and a shipped
+body naming one, unmarked, instructs a consumer's agent about a pin-corpus marker or suite tool their
+tree does not carry.
+
+## The `SKILL.md` `` !`cmd` `` injection refusal — forensics and historical record (2026-08-08)
+
+The refusal is a **phase mismatch**, not pattern matching: `allowed-tools` / `--allowed-tools` grants
+authorize the model's tool calls *after* the skill loads, while `` !`cmd` `` runs *during* loading as a
+preprocessor (`anthropics/claude-code#39048`; the headless silent-success envelope — `subtype:
+success`, `is_error: false`, `num_turns: 0` — is `#80223`). `lib/capability-profiles.json` already
+grants **both** `Bash(*/render-prompt-extension.sh:*)` and the exact vendored literal and the refusal
+still fires; the only reported-working options (bare `Bash`, `--dangerously-skip-permissions`) are
+barred because the review profile is a security boundary.
+
+**The refusal aborts the ENTIRE `Skill`-tool load, and is invisible to denial telemetry** (forensic
+audit of run `31287654057`). The load returns an `is_error` result whose whole content is a
+permission-refusal string and no skill body at all, so the run loses the skill rather than merely its
+extension; and because that surfaces as a `Skill` tool result rather than a `permission_denied` event,
+it does not increment `permission_denials_count`, so the no-verdict denial-count check cannot see the
+failure class.
+
+**Historical record.** No `skills/**` body carries such a placeholder any more — PRs #1471 and #1473
+retired the channel and `lib/test/modules/prompt-extension-reader.sh` pins its absence per site — so
+the hazard is no longer live. While placeholders existed, nothing rendered, no
+`PROMPT-EXTENSION-STATUS:` line appeared, and every extension-only rule (prompt-surface edit routing,
+the `Writing-skills evidence:` producer contract, the Phase 3 review gate) was absent for a whole run
+that still reported `Complete` (run 31236010867 / issue #1416 / PR #1433).
+
+## The reference-size ceiling — derivation and exemption mechanics (#1595)
+
+`lib/test/lint-reference-size.py` audits every tracked `.md` file whose first and last **non-blank**
+lines are a matching boundary-marker pair — the `<!-- prflow:<command>-ref … start/end -->` family and
+`review-and-fix`'s `# Reference: …` / `<!-- END <name>.md -->` family alike — plus every skill root
+(`skills/<name>/SKILL.md` at any depth), deriving that population by reading each file rather than from
+a path list, so a new skill and a newly-gated reference are covered with no second edit.
+
+The **61,750-byte** ceiling is 95% of the Read tool's 25,000-token cap converted at the **floor** of
+the measured bytes-per-token densities (2.60, never their mean — a denser file truncates at a smaller
+byte size), because a file over it cannot be returned in one read. Each gated surface's boundary
+contract pages such a file whole before its marker checks run, so an over-budget-but-intact reference
+loads instead of misreading as damage — but the extra reads still cost and a smaller reader budget may
+not complete the paging, so the remedy stays trim-the-file, never exempt-it.
+
+The files already over it carry **expiring** exemptions in `lib/test/reference-size-exemptions.json`:
+each names exactly one file, one naming a file outside the record's frozen `recorded_set` is refused,
+and an exemption goes RED once its file drops to or under the ceiling — so a landed trim is finished by
+deleting that file's rows.
+
+## The prompt-extension ladder — per-surface re-entry timing (#1462, #1574)
+
+The ladder result is a `Bash` tool output with no re-attachment on context compaction, so a surface
+that re-enters itself re-invokes its ladder at each existing re-entry boundary in addition to the
+run-start load: `implement` at every phase (re-)entry and mid-phase re-anchor, `review` at every phase
+and shadow entry, and the fix loop once per iteration for the `review-and-fix` and
+`receiving-code-review` ladders alike — treating the returned text as a refresh of already-loaded
+policy rather than a fresh directive; `pr-description` is single-pass and re-invokes nowhere. This
+re-load timing does not weaken the sole-delivery-channel rule: the ladder stays the only channel that
+delivers consumer policy into these bodies.
+
+On an implement run each surface's outcome is recorded on the workpad as a nested `prompt extension
+resolved: …` `## Progress` row, whose text and tick substring are single-sourced in `scripts/workpad.py`'s
+`_EXTENSION_ROWS` and whose tick is issued only from an implement phase file — the standalone
+`/prflow:review`, `/prflow:review-and-fix` and `/prflow:pr-description` paths have no workpad and record
+nothing. The row's existence is deterministic; its tick is the run's own report.
+
+## Permanent required-copy exceptions — the mechanics (#1445, #1606, #1076)
+
+**Cloud-writer manifest (`scripts/devflow-cloud-writer-contract.json`, #1445/#1606).** `main` is its sole
+writer of digests, so it is not regenerated on a branch: editing an asset it pins drifts nothing on the
+branch, and a branch that rewrites or drops an entry turns `lib/test/cloud-writer-retention-check.py` RED.
+A branch that ADDS a shipped skill asset is the one permitted delta and must add that asset's entry,
+because the closure check fails on an unlisted asset and the key-set equality assertion fails on a manifest
+disagreeing with the source list — so forbidding the addition would leave such a branch no green state. Add
+the entry **without regenerating**: take the merge-base manifest and add only the new keys, since
+`generate` also refreshes the digest of every asset the branch edited, which is the shape the retention
+check forbids.
+
+**Review-engine `config_only` set (#1076).** `skills/review/phases/phase-0-setup.md` §0.5 produces the flag
+from that set and `skills/review/phases/phase-3-agents.md` §3.1 re-decides against it. Each is a separately
+gated phase reference reached by its own read at its own phase entry, so replacing the Phase 3 copy with a
+pointer would make a Phase 3 decision depend on Phase 0's text still being resident.
+
+## Pin adjudication for prose no tool reads — the census mechanics (#843, #876)
+
+Each pin's answer is a per-pin adjudication read from `.prflow/logs/pin-corpus-inventory.tsv` — a
+single-row lookup, never a whole-file read — and *changed* in `lib/test/pin-corpus-adjudications.tsv`; that
+census is a frozen snapshot, so an absent row means unanswered, never "no". The governing question is
+whether any tool or consumer reads the content, never where it lives: a pin protecting a machine-consumed
+contract stays under the guard-executable-behavior rule, while prose no tool reads is inside the #843 policy
+wherever it sits.
