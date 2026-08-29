@@ -3732,6 +3732,12 @@ class ModuleCouplingSurfaceOmissionTest(unittest.TestCase):
             mc.surface_module_body_contract, dc.replace(ctx, module_texts=skip_call)
         )
 
+        # A census parse cache too small for the swept population (+ headroom) is drift.
+        self._assert_omission(
+            mc.surface_mutation_census_cache_capacity,
+            dc.replace(ctx, cache_capacity=len(ctx.swept_population)),
+        )
+
 
 
 
@@ -3853,6 +3859,151 @@ class CouplingReceiptUncheckableInputTest(unittest.TestCase):
             with self.assertRaises(mc.CouplingUncheckable):
                 mc.build_context(root)
             self.assertEqual(mc.main(["--check", "--repo-root", str(root)]), 2)
+
+
+class CouplingUnexpectedExceptionTest(unittest.TestCase):
+    """A non-CouplingUncheckable raise escaping build_context is exit 2 (UNCHECKABLE), never the
+    declared-set exit 1 the preflight would read as DRIFT (#2121)."""
+
+    def test_escaped_exception_routes_to_exit_2_not_drift(self) -> None:
+        mc = MODULE_COUPLING
+
+        def boom(root):
+            raise RuntimeError("planted")
+
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(mc, "build_context", boom), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = mc.main(["--check", "--repo-root", str(ROOT)])
+        self.assertEqual(rc, 2)
+        self.assertIn(f"{mc.INPUT_ERROR_MARKER} unexpected RuntimeError: planted", err.getvalue())
+        self.assertNotIn("DRIFT", out.getvalue() + err.getvalue())
+        row = next(r for r in REGEN.ROWS if r["name"] == "module-coupling")
+        self.assertNotIn(2, row["exits"], "exit 2 must stay outside `exits` to route UNCHECKABLE")
+
+    def test_module_coupling_row_is_first_among_preflight_rows(self) -> None:
+        eligible = [r["name"] for r in REGEN.ROWS if r.get("preflight_eligible")]
+        self.assertEqual(eligible[0], "module-coupling", eligible)
+
+
+class CouplingTreeUncheckableInputTest(unittest.TestCase):
+    """Every remaining `build_context` raise path, planted on a materialized copy of the tracked
+    tree, is UNCHECKABLE (exit 2) and never DRIFT (#2121)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.root = Path(cls._tmp.name)
+        PlantedOmissionEndToEndTest._materialize_tree(cls.root)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tmp.cleanup()
+
+    @contextlib.contextmanager
+    def _planted(self, rel: str, mutate):
+        """Apply `mutate(path)` to one fixture file and restore its bytes and mode afterwards."""
+        path = self.root / rel
+        original, mode = path.read_bytes(), path.stat().st_mode
+        try:
+            mutate(path)
+            yield path
+        finally:
+            if path.is_dir():
+                shutil.rmtree(path)
+            elif path.exists():
+                path.chmod(mode)
+            path.write_bytes(original)
+            path.chmod(mode)
+
+    def _assert_uncheckable(self, label: str) -> None:
+        mc = MODULE_COUPLING
+        with self.assertRaises(mc.CouplingUncheckable, msg=label):
+            mc.build_context(self.root)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = mc.main(["--check", "--repo-root", str(self.root)])
+        self.assertEqual(rc, 2, f"{label}: {out.getvalue()}{err.getvalue()}")
+        self.assertIn(mc.INPUT_ERROR_MARKER, err.getvalue(), label)
+        self.assertNotIn("DRIFT", out.getvalue() + err.getvalue(), label)
+
+    @staticmethod
+    def _unlink(path: Path) -> None:
+        path.unlink()
+
+    @staticmethod
+    def _replace_with_directory(path: Path) -> None:
+        path.unlink()
+        path.mkdir()
+
+    @staticmethod
+    def _writer(text: str):
+        return lambda path: path.write_text(text, encoding="utf-8")
+
+    def test_missing_coupled_sources_are_uncheckable(self) -> None:
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(MODULE_COUPLING.main(["--check", "--repo-root", str(self.root)]), 0)
+        with self._planted("lib/test/run.sh", self._unlink):
+            self._assert_uncheckable("run.sh missing")
+        with self._planted(".github/workflows/ci.yml", self._unlink):
+            self._assert_uncheckable("ci.yml missing")
+        # A module path the glob still lists but that cannot be read as a file (module_ids
+        # derives from the glob, so a plain deletion is a smaller population, not an error).
+        module = MODULE_COUPLING.module_ids(self.root)[0]
+        with self._planted(f"lib/test/modules/{module}.sh", self._replace_with_directory):
+            self._assert_uncheckable("module unreadable")
+
+    def test_permission_denied_sources_are_uncheckable(self) -> None:
+        if os.geteuid() == 0:
+            self.skipTest("chmod 000 does not deny root; the arm cannot be measured here")
+        def deny(path: Path) -> None:
+            path.chmod(0)
+
+        with self._planted("lib/test/run.sh", deny):
+            self._assert_uncheckable("run.sh mode 000")
+        with self._planted(".github/workflows/ci.yml", deny):
+            self._assert_uncheckable("ci.yml mode 000")
+        module = MODULE_COUPLING.module_ids(self.root)[0]
+        with self._planted(f"lib/test/modules/{module}.sh", deny):
+            self._assert_uncheckable("module mode 000")
+
+    def test_census_failures_are_uncheckable(self) -> None:
+        census = "lib/test/mutation-pin-census.py"
+        with self._planted(census, self._writer("raise RuntimeError('planted import')\n")):
+            self._assert_uncheckable("census import fails")
+        with self._planted(census, self._writer("def (:\n")):
+            self._assert_uncheckable("census syntax error")
+        stub = (
+            "_SOURCE_PARSE_CACHE_SIZE = 1\nEXPECTED_SOURCE_COUNT = 1\n"
+            "def swept_shell_population(root, timeout=None):\n"
+            "    raise RuntimeError('planted enumeration')\n"
+        )
+        with self._planted(census, self._writer(stub)):
+            self._assert_uncheckable("census enumeration fails")
+
+    def test_shard_dispatcher_failures_are_uncheckable(self) -> None:
+        dispatcher = "lib/test/run-shard.sh"
+        with self._planted(dispatcher, self._writer("#!/usr/bin/env bash\nexit 3\n")):
+            self._assert_uncheckable("dispatcher exits non-zero")
+        with self._planted(dispatcher, self._writer("#!/usr/bin/env bash\necho monolith\n")):
+            self._assert_uncheckable("dispatcher lists no modules-* shard")
+
+    def test_ast_parsed_sources_are_uncheckable(self) -> None:
+        linter = "lib/test/pin-corpus-lint.py"
+        with self._planted(linter, self._writer("def (:\n")):
+            self._assert_uncheckable("pin-corpus-lint syntax error")
+        with self._planted(linter, self._writer("OTHER = frozenset()\n")):
+            self._assert_uncheckable("AUDITED_PIN_SOURCES undefined")
+        with self._planted(linter, self._writer("AUDITED_PIN_SOURCES = frozenset(x for x in y)\n")):
+            self._assert_uncheckable("AUDITED_PIN_SOURCES not a literal")
+        population = "lib/test/test_module_runner.py"
+        with self._planted(population, self._writer("def (:\n")):
+            self._assert_uncheckable("population test syntax error")
+        with self._planted(population, self._writer("x = 1\n")):
+            self._assert_uncheckable("population test missing")
+        two_lists = f"def {MODULE_COUPLING._EXACT_POPULATION_TEST}():\n    a = [1]\n    b = [2]\n"
+        with self._planted(population, self._writer(two_lists)):
+            self._assert_uncheckable("population test has two list literals")
 
 
 class CouplingReceiptBuildTest(unittest.TestCase):

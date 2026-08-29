@@ -186,6 +186,26 @@ ROWS = (
     # writes that artifact on a feature branch reintroduces the merge chokepoint and turns
     # lib/test/cloud-writer-retention-check.py RED.
     {
+        # Module-coupling gate (issue #2121): every on-disk focused module is wired across the
+        # coupling surfaces in lib/test/module_coupling.py. Exit 1 = drift; exit 2 = an input
+        # failure, deliberately OUTSIDE `exits` so the preflight routes it to UNCHECKABLE.
+        # Keep it FIRST: a later position lets earlier rows exhaust the aggregate deadline and
+        # starve the drift detector into UNCHECKABLE (fail-open).
+        "name": "module-coupling",
+        "timeout_seconds": 30,
+        "kind": "judgment",
+        "argv": ("python3", "lib/test/module_coupling.py", "--check"),
+        "clean": (0,),
+        "exits": (0, 1),
+        "policy": (
+            "wire every on-disk lib/test/modules/*.sh module across the coupled surfaces named "
+            "above (registry, run.sh floor, shard, ci.yml, inventory, module body) and commit"
+        ),
+        "conflict_class": "by-hand",
+        "conflict_paths": ("lib/test/module_coupling.py",),
+        "preflight_eligible": True,
+    },
+    {
         "name": "capability-profile-literals",
         # Bound = measured 0.064s x500 (issue #1457 AC2a); the ms-scale rows carry a large
         # multiple because their cold-start/contention variance dwarfs their mean.
@@ -431,24 +451,6 @@ ROWS = (
         # row exists to surface — matching it would hide the drift it reports.
         "infra_markers": ("Traceback (most recent call last)",),
         # Preflight (issue #1244): `--check` is read-only and sub-second (~0.04 s).
-        "preflight_eligible": True,
-    },
-    {
-        # Module-coupling gate (issue #2121): every on-disk focused module is wired across the
-        # coupling surfaces in lib/test/module_coupling.py. Exit 1 = drift; exit 2 = an input
-        # failure, deliberately OUTSIDE `exits` so the preflight routes it to UNCHECKABLE.
-        "name": "module-coupling",
-        "timeout_seconds": 30,
-        "kind": "judgment",
-        "argv": ("python3", "lib/test/module_coupling.py", "--check"),
-        "clean": (0,),
-        "exits": (0, 1),
-        "policy": (
-            "wire every on-disk lib/test/modules/*.sh module across the coupled surfaces named "
-            "above (registry, run.sh floor, shard, ci.yml, inventory, module body) and commit"
-        ),
-        "conflict_class": "by-hand",
-        "conflict_paths": ("lib/test/module_coupling.py",),
         "preflight_eligible": True,
     },
     {

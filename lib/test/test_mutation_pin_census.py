@@ -611,7 +611,7 @@ class CacheCapacityHeadroomTest(unittest.TestCase):
             self.assertIsInstance(receipt[field], int)
         tracked = receipt["tracked_shell_count"]
         capacity = receipt["cache_capacity"]
-        # required_minimum is len(swept) + 5 headroom — NEVER AUDITED_PIN_SOURCES (a fixed 23).
+        # required_minimum is len(swept) + 5 headroom — NEVER AUDITED_PIN_SOURCES.
         self.assertEqual(
             receipt["required_minimum"], tracked + MODULE_COUPLING.CACHE_CAPACITY_HEADROOM
         )

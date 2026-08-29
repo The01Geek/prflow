@@ -92,7 +92,10 @@ def _load_module(path: Path, name: str):
     # Register before exec so a module-level @dataclass can resolve its own __module__ via
     # sys.modules (a NoneType.__dict__ crash otherwise, e.g. mutation-pin-census.py).
     sys.modules[name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as error:  # an import failure is an input failure, not a coupling omission
+        raise CouplingUncheckable(f"cannot import {name} from {path}: {error}") from error
     return module
 
 
@@ -451,21 +454,28 @@ def main(argv=None) -> int:
                 text=True,
                 check=False,
             )
-            root = (
-                Path(out.stdout.strip())
-                if out.returncode == 0 and out.stdout.strip()
-                else Path(__file__).resolve().parents[2]
-            )
+            root = Path(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip() else None
         except OSError:
+            root = None
+        if root is None:
             root = Path(__file__).resolve().parents[2]
+            print(
+                f"module-coupling: git rev-parse --show-toplevel failed; falling back to {root}",
+                file=sys.stderr,
+            )
 
     try:
         ctx = build_context(root)
+        results = run_checks(ctx)
     except CouplingUncheckable as error:
         print(f"{INPUT_ERROR_MARKER} {error}", file=sys.stderr)
         return 2
+    except Exception as error:
+        # Exit 1 is inside the row's declared `exits` (the DRIFT arm): an escaped traceback
+        # would refuse the whole suite launch over an input error. Route it to exit 2.
+        print(f"{INPUT_ERROR_MARKER} unexpected {type(error).__name__}: {error}", file=sys.stderr)
+        return 2
 
-    results = run_checks(ctx)
     drift = False
     for surface, failures in results.items():
         if failures:

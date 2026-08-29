@@ -1817,11 +1817,11 @@
       "owner": "unmodularized"
     },
     "2121": {
-      "note": "",
+      "note": "issue #2121 pre-suite module-coupling gate: the coordinator's --preflight refusal on drift, the typed coupling receipt re-emitted on stdout, and the disabled-override receipt",
       "owner": "parallel-suite-runner"
     },
     "2123": {
-      "note": "",
+      "note": "issue #2121 preflight rows: the read-only module-coupling and install-state --check rows, exit-2 UNCHECKABLE routing, and the declared-writes set",
       "owner": "regenerate-artifacts"
     },
     "2129": {
