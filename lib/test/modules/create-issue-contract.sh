@@ -1657,7 +1657,7 @@ ci614_step_unique step-3-6-audit '**Obey the state owner (the contract governing
 ci614_step_unique step-3-6-audit-shared 'Staged canonical-draft write (shared procedure — referenced by every canonical-draft write site)'
 ci614_step_unique step-3-6-audit-dispatch 'Information diet (the whole mechanism — do not widen it).'
 ci614_step_unique step-3-6-audit-adjudication 'Wholesale misadjudication has no amend path, by design.'
-ci614_step_unique step-4-present-create '**Show the complete rendered issue in chat.**'
+ci614_step_unique step-4-present-create '**When you do print it** (on request or on a forced-render arm), show the complete rendered issue in chat:'
 unset -f ci614_step_unique
 
 unset -f ci614_marker_id

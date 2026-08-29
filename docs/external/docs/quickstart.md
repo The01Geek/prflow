@@ -65,7 +65,7 @@ Skip this if you already have an issue with clear acceptance criteria.
 /prflow:create-issue Add a --retain-days option so completed run logs can be kept for 30 days
 ```
 
-PRFlow reads your repository, asks the questions it cannot answer from the code, then shows you the complete issue draft. Nothing is created until you approve that exact draft.
+PRFlow reads your repository, asks the questions it cannot answer from the code, then saves the issue draft to a file and shows you its path (print the full draft in chat on request). Nothing is created until you approve that exact draft.
 
 Approve it, and PRFlow creates the issue and tells you its number.
 
