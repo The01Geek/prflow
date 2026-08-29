@@ -2235,6 +2235,19 @@ assert_eq "#1055 the exact-floor recipe routes through the granted batch entry p
 assert_eq "#1055 the exact-floor recipe does not expose its subprocess-only child" \
   "no" "$(_ra_recipe_names exact-module-floors 'python3 lib/test/reconcile-module-floors.py')"
 
+# #2121 AC85 — install-state detection AND repair route through the GRANTED batched helper; the
+# install-state generator head itself is NOT granted, so the change adds no new allowlist entry.
+RA_2121_INSTALL_PROMPT="$_ra_tmp_root/issue-2121-install-head.md"
+printf '%s\n' '```bash' 'lib/generate-install-state.py --check' '```' > "$RA_2121_INSTALL_PROMPT"
+RA_2121_INSTALL_UNGRANTED="$(python3 "$LIB/test/extract-command-heads.py" ungranted \
+  "$RA_2121_INSTALL_PROMPT" "$RA_1055_RESOLVED")"
+assert_eq "#2121 the install-state generator head is NOT granted (no new grant added)" \
+  "lib/generate-install-state.py" "$RA_2121_INSTALL_UNGRANTED"
+assert_eq "#2121 install-state detection/repair routes through the granted batch entry point" \
+  "yes" "$(_ra_recipe_names install-state 'lib/test/regenerate-artifacts.py')"
+assert_eq "#2121 the install-state recipe does not expose the generator head directly" \
+  "no" "$(_ra_recipe_names install-state 'python3 lib/generate-install-state.py --check')"
+
 # ── #1206 — the coupled-site registry (issue #1206) ──────────────────────────
 # `--list` prints a coupled-site registry AFTER everything it printed before, so a person
 # or an automated run can ask "what else must change when I edit X?" read-only. RA_LIST
