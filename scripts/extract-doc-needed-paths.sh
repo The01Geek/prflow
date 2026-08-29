@@ -509,6 +509,8 @@ span_token_ok() {
 # all-output-channels-honesty guard) — it names both possibilities.
 suppress_span() {
   if [ "$span_warned" -eq 0 ]; then
+    # Keep the span the line's ONLY backticked text: read-doc-needed-deliverables.sh
+    # relays what sits between the first and last backtick (issue #2129).
     printf '%s\n' "extract-doc-needed-paths.sh: suppressed a span (a command/grant/skill literal, or a path mixed with non-path tokens — not a set of bare-path deliverables, so no tokens emitted): \`$1\`" >&2
     span_warned=1
   fi
