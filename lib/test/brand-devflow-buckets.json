@@ -275,11 +275,6 @@
       },
       {
         "file": "CLAUDE.md",
-        "context": "green `DevFlow` runs",
-        "reason": "reference to the frozen DevFlow-named workflow check runs"
-      },
-      {
-        "file": "CLAUDE.md",
         "context": "`DevFlow` is its superseded spelling",
         "reason": "the canonical statement that DevFlow is the superseded spelling"
       },
