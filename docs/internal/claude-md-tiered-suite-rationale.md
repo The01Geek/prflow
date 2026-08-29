@@ -206,9 +206,12 @@ the repository (issue #1249). A completion claim missing a record for a launch t
 
 The records are distinguished by the distinct run root the coordinator mints and prints per launch
 (`run-<pid>-<n>`), so there is no launch counter and no launch ordinal to maintain: the number of
-records is simply the number of launches. Issue #1252 added the launch's own start time to the
-record's stated content because the reflection channel timestamps nothing and the run root carries
-no clock, so without it the interval between two consecutive records is not derivable.
+records is simply the number of launches. Issue #1252 added the launch's own start time — the
+`started-at` field — to the record's stated content because the reflection channel timestamps
+nothing and the run root carries no clock, so without it the interval between two consecutive
+records is not derivable. Since issue #2131 the record's field set is owned by `scripts/workpad.py`
+(the `--record-verification-evidence` option; run `scripts/workpad.py update --help`), not this page
+or `CLAUDE.md`, and the tool refuses an incomplete record.
 
 `note` is the required reflection kind because it is the only kind `lib/cheap-gate.jq` does not
 treat as friction: a marker recorded as any other kind would flip an otherwise-clean run and make

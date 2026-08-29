@@ -6,7 +6,7 @@ This page explains the verification responsibilities inside `/prflow:implement`,
 
 The implement flow selects verification according to the active tier and the changed surface. Focused checks support intermediate iteration. A whole-suite result, or the tier-specific equivalent defined by the implementation contract, is required before the run can report completion.
 
-Verification evidence is recorded through the workpad and verification-flight mechanisms. The run distinguishes a passing result from a skipped, denied, incomplete, or otherwise unestablished result. The evidence record carries the command or check identity so a later phase can audit what actually ran.
+Verification evidence is recorded through the workpad and verification-flight mechanisms. The run distinguishes a passing result from a skipped, denied, incomplete, or otherwise unestablished result. The evidence record carries the command or check identity so a later phase can audit what actually ran. Since issue #2131 the `Verification evidence:` record's field set is owned by `scripts/workpad.py` — the `--record-verification-evidence` option (run `scripts/workpad.py update --help`) — which stamps the record time and head and refuses an incomplete record, rather than the field list living in project-memory prose.
 
 ## Why it works this way
 
