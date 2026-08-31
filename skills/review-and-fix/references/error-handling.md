@@ -25,4 +25,14 @@
 - Confusing Step 0.9's narrow-reuse signals with a wholesale Phase 1+2 skip — Phase 1+2 always re-run on iter ≥ 2; Step 0.9 only stages reuse INPUTS (Step 0.9 states this explicitly).
 - Fixing only the literal instance a finding reports and leaving its `defect_signature.kind` siblings in the same diff for the shadow pass to rediscover — that converts one free deterministic sweep (Step 3, item 3) into multiple doubled-cost shadow promotions. Generalize every finding to its class and sweep the changed surface before committing.
 
+## Post-return branch guard
+
+The engine (Step 1) and shadow (Step 2.6) subagents share this checkout, so a ref-changing command one of them runs leaves the parent on the wrong branch and a later fix commit lands there silently. Their dispatch prompts forbid such commands, and after each subagent returns — before Step 2 for the engine, before Parse-and-compare for the shadow — run this guard against the recorded branch (PR mode: the Step 0.5 head ref; else the caller-held branch), mirroring Step 0.5's `$?` idiom:
+
+```bash
+git rev-parse --abbrev-ref HEAD ; echo "branch-check-rc=$?"
+```
+
+Read the printed branch and the rc. A non-zero rc or empty output is *unestablished*. A printed branch — the literal `HEAD` of a detached tree included — not equal to the recorded branch is a *mismatch*. Equal is *ok*: record `branch-check: <branch> ok` and proceed. On a *mismatch* with a clean tree (`git status --porcelain` prints nothing) run `git checkout <recorded-branch>`, re-run the check, and on a match record `branch-check: restored <from-ref> -> <branch>` and proceed. On a dirty tree, a failed `git checkout`, a re-check that still differs, or an *unestablished* reading, stop the loop at a non-convergence/blocked report naming both refs — the recorded branch and what `HEAD` reads — and make no fix commit.
+
 <!-- END error-handling.md -->

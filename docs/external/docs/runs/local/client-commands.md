@@ -35,7 +35,7 @@ Arguments follow the skill name, separated by spaces. Square brackets below mean
 
 | **Command** | **Arguments** | **What It Does** |
 | --- | --- | --- |
-| `/prflow:create-issue` | `<user story>` | Turns a rough description into a written GitHub issue. |
+| `/prflow:specs` (alias `/prflow:create-issue`) | `<user story>` | Turns a rough description into a written GitHub issue. `specs` is the preferred name; `create-issue` is a transitional alias that forwards to it. |
 | `/prflow:implement` | `<issue-number>` | Turns an existing issue into a branch and a pull request. |
 | `/prflow:review` | `[pr-number] [--issue N]` | Reviews a pull request or the current branch and reports a verdict. |
 | `/prflow:review-and-fix` | `[pr-number] [--push-each-iteration] [--issue N]` | Reviews, applies fixes and repeats until the verdict is clean. |
@@ -64,7 +64,7 @@ A fresh cloud installation answers four comment commands. Everything else in the
     `implement`, `review`, `review-and-fix` and `pr-description`.
   </Card>
   <Card title="Local Only" icon="terminal">
-    `create-issue`, `init`, the whole `docs` family and `retrospective-weekly`.
+    `specs` (alias `create-issue`), `init`, the whole `docs` family and `retrospective-weekly`.
   </Card>
 </CardGroup>
 

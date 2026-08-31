@@ -11,10 +11,10 @@ The issue describes one decided behavior built one decided way. A developer read
 
 The gate scans the whole body except the `## 🚫 Blocked` section, and five further surfaces are carved out of the scan — this is the complete carve-out set: the mandated Problem Statement opening sentence (the fixed `As a <role>, I want <capability>, so that <outcome>.` user-story form — boilerplate, so its `I want` is never read as a hedge), the Implementation Notes `Relevant files` block (skipped by location, exactly as `## 🚫 Blocked` is), the verbatim Technical Context scope note (mandated boilerplate, not an undecided choice), an `— assumption, confirm before implementing` bullet (a factual premise to confirm, not a decision to make), and the sentence quoted verbatim inside a `Verified:` bullet (evidence quoted from the cited source, not a decision — carved out by being a quotation rather than by location, so never shorten the quoted span to dodge a gate word). Everywhere else the body must contain none of the following — never judged by whether a single word inside a carve-out describes a decision:
 
-- choice words: "or", "either / or", "alternatively", "vs", "option", "approach A vs B"
+- choice words: "either … or", "alternatively", "vs", "option", "approach A vs B"
 - hedge words: "could", "we might", "we may want to", "consider", "perhaps", "possibly"
 - deferral words: "TBD", "to be decided", "for now", "Open Question(s)", "(optional)" for something that is actually undecided
-- competing examples: "e.g. WeasyPrint or ReportLab" where the two are rival choices the developer would have to pick between
+- rival choices joined by "or" ("WeasyPrint or ReportLab"); an "or" in a negation or a list ("add, modify, or run") is not one
 
 If drafting surfaces any of these, you have an unresolved decision. Resolve it with the user, or — only if the user has disengaged — move it verbatim into the Blocked section; never leave it as prose in the body.
 

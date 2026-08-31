@@ -305,32 +305,25 @@ ${ALLOWED_TOOLS}
 > and returning nothing, exactly like an ungranted command. When you improvise a
 > command, keep it to a PERMITTED shape:
 >
-> - **Permitted:** a single statement whose leading token is a granted head (or a
->   resolved helper path); author a file with the Write tool under \`.prflow/tmp/\`;
->   stream or capture through a pipe into \`tee\` (or a \`tee <file> <<'EOF'\` heredoc);
->   capture a command's output with \`VAR=\$(cmd)\`. Redirect evidence is scoped to
->   the exact tier, command head, target form, and statement that was measured; use the
->   Write tool for \`.prflow/tmp/**\` scratch unless that exact shell form has a current
->   recorded PERMITTED verdict.
-> - **Denied — do not emit:** a leading \`VAR=value\` assignment or env-prefix
->   (\`M=x cmd\`); a leading \`cd\`; \`git -C <path> <subcommand>\` (you never need
->   the \`-C\` path — the run starts at the repository root and the working directory
->   persists across calls, so emit the bare \`git <subcommand>\` from where you already
->   are); a \`>\`/\`>>\` redirect (or any other authoring)
->   targeting \`/tmp\`; the Write tool outside \`.prflow/tmp/\`; a \`cat\`-headed heredoc
->   write to any target (use the Write tool or \`tee\` instead); an interpreter head
->   (\`python3\`/\`python\`/\`node\`).
-> - **Three more shapes the harness denies — self-police these:** the \`bash <path>\`
->   wrapper (invoke the helper path directly as the leading token, never
->   \`bash <path>\`); process substitution (\`<(…)\` / \`>(…)\`); and the
->   leading-assignment shape the harness reports as \`simple_expansion\`
->   (\`VAR=value cmd\` — capture with \`VAR=\$(cmd)\` or pass the value as an argument
->   instead). The first two are covered by no runtime guard at all; the third is the
->   \`R1\` arm of the issue-#805 shape guard's deny set, which denies it at runtime
->   wherever that guard is registered. Together these three shapes accounted for 5 of the
->   18 denials in one observed review run — a tally over these three shapes only, which
->   does not include, and is not the same count as, the \`/tmp\`-redirect denials recorded
->   for run \`30138268273\` elsewhere in this repo.
+> Each row below pairs a refused shape with the exact permitted form to emit instead:
+>
+> | Refused shape | Emit instead |
+> | --- | --- |
+> | a \`>\`/\`>>\` redirect targeting \`/tmp\` | author the file with the Write tool under \`.prflow/tmp/\` |
+> | a leading \`cd\` | the repo-relative path as the command's leading token (the working directory persists across calls) |
+> | \`git -C <path> <subcommand>\` | the bare \`git <subcommand>\` (the run starts at the repository root) |
+> | a heredoc write (a \`cat\`-headed \`<<'EOF'\` write to any target) | the Write tool, or a \`tee\` pipe |
+> | a fused \`A || B\` two-path helper fallback | two separate statements, the vendored literal first |
+> | a repo-relative \`scripts/…\` leading token | the \`.prflow/vendor/prflow/scripts/…\` vendored literal |
+> | a leading \`VAR=value\` assignment or env-prefix (\`M=x cmd\`; the harness reports this as \`simple_expansion\`) | capture with \`VAR=\$(cmd)\`, or pass the value as an argument |
+> | the Write tool outside \`.prflow/tmp/\` | the Write tool under \`.prflow/tmp/\` |
+> | a \`bash <path>\` wrapper | the helper path directly as the command's leading token |
+> | process substitution (\`<(…)\` / \`>(…)\`) | a temp file authored with the Write tool under \`.prflow/tmp/\`, read back by path |
+> | an interpreter head (\`python3\`/\`python\`/\`node\`) | invoke the helper directly by its granted path as the leading token |
+>
+> Reach for a single statement whose leading token is a granted head or a resolved helper
+> path; a pipe into \`tee\`; or a \`VAR=\$(cmd)\` capture. Redirect evidence is scoped to the
+> exact tier, command head, target form, and statement that was measured.
 > - **Hard rule: after two denials of a shape, switch to a permitted alternative above
 >   — never iterate variants of the denied shape.** Iterating denied variants is what
 >   exhausts the run and ends it with no verdict.

@@ -90,6 +90,14 @@ def main(argv=None) -> int:
               file=sys.stderr)
         return 2
     check = "--check" in argv
+    # Guard on lib/test: it is absent from BOTH consumer trees, while .github ships in the
+    # distribution tree. Keying on .github passes there and defeats this guard entirely.
+    if not (_REPO_ROOT / "lib" / "test").is_dir():
+        print(
+            "generate-install-state.py: lib/test absent — this tool only applies "
+            "inside a PRFlow development tree; nothing to do."
+        )
+        return 0
     fresh = build(_REPO_ROOT)
     serialized = json.dumps(fresh, indent=2) + "\n"
     if check:

@@ -211,6 +211,15 @@ def render(ident: dict, region: dict, indent: str) -> list[str]:
 
 
 def run(check: bool) -> int:
+    # Guard on lib/test, the one directory absent from BOTH consumer-facing trees: the vendor slice
+    # deletes it and the release manifest never ships it, while .github DOES ship in the distribution
+    # tree. A region absent under a present lib/test is a broken dev tree that must still raise.
+    if not (ROOT / "lib" / "test").is_dir():
+        print(
+            "generate-plugin-identity.py: lib/test absent — this tool "
+            "only applies inside a PRFlow development tree; nothing to do."
+        )
+        return 0
     try:
         ident = plugin_identity.load(ROOT)
     except plugin_identity.IdentityError as exc:

@@ -165,4 +165,10 @@ Extract the JSON array from the deduper's response (look for the ```json code fe
 If the deduper agent fails or returns malformed JSON, retry once. If it fails again, fall back to manual cross-batch dedup using the In-batch sanity dedup rules from Phase 1.1 — do NOT block the engine on dedup failure.
 
 Output: `Deduped to {N_after} of {N_before} items.`
+
+---
+
+## Phase 1.6: Write the durable checklist artifact
+
+Once the final checklist array is ready to hand to Phase 2 — post-cap, post-dedup, the exact array Phase 2 will verify — Write it with the Write tool to `.prflow/tmp/review/<slug>/<run-id>/checklist-iter-<N>.json`, where `<slug>/<run-id>` is this run's run-scoped directory from Phase 0.2 and `<N>` is the engine iteration (`1` on a standalone `/prflow:review` run; the fix-loop-supplied iteration otherwise). Phase 2 reads this file, so a checklist-owing run that skips this write leaves Phase 2 with no checklist to verify. An empty array `[]` is a valid artifact — a generator that legitimately returns nothing still writes the file. Substitute the `<slug>/<run-id>/checklist-iter-<N>.json` path literally, never as a `$VAR` expansion (a `$VAR` in a write command is denied on the cloud matcher). This write happens on the single-batch, multi-batch, and all-lite paths alike. The `checklist_skipped = "failure"` double-failure arm (§1.3) writes NO artifact and keeps its existing `checklist-skip reason=failure` phase-log record instead.
 <!-- prflow:review-ref phase=1 file=skills/review/phases/phase-1-checklist.md end -->

@@ -45,8 +45,8 @@
 # A repository that already carries a PRFlow installation is an UPGRADE, and an
 # upgrade is DRY-RUN BY DEFAULT: the installer prints the full plan and a unified
 # diff of every byte it would change, and writes nothing until you re-run it with
-# `--apply`. This mirrors the consent-gated provisioners (`provision-auto-mode.sh`,
-# `provision-python3-shim.sh`): those two print and stop until told to write.
+# `--apply`. This mirrors the consent-gated provisioner `provision-python3-shim.sh`,
+# which prints and stops until told to write.
 # (`scripts/provision-local-settings.sh` is deliberately NOT in that list — it is
 # ungated and writes the project `.claude/settings.json` immediately when
 # `/prflow:init` invokes it; that write is diff-visible in a committed file, and the

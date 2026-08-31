@@ -87,18 +87,18 @@ Tier-agnostic invocation procedure (the conditional form — do not classify you
 
 Read the printed line from the tool result and substitute it as a literal for `<provenance-line>` below. If the helper produced NO readable output at all — a harness refusal, or an empty print — OMIT the provenance line entirely: the body then carries no provenance parenthetical, and never a placeholder, an empty parenthetical, or an unsubstituted `<provenance-line>` token.
 
-Then compose the PR body from this template. Derive the run link exactly the way Phase 1.3 §1.3 does — the same `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID` form — so the draft PR links back to the run that created it. On a local-tier run there is no GitHub Actions run (`$GITHUB_RUN_ID` is empty), so omit the entire `[View run]` line rather than rendering a broken `[View run]()` link:
+Then compose the PR body from this template. Compose the run link exactly the way Phase 1.3 §1.3 does — run `.prflow/vendor/prflow/scripts/compose-run-url.sh` and substitute its `[View run](…)` stdout as a literal into the body — so the draft PR links back to the run that created it. When the run-facts block reports run id `unestablished`, is absent (the older-workflow fallback), or on a local-tier run, the helper emits no link, so omit the entire `[View run]` line rather than rendering a broken `[View run]()` link:
 
 ```
 Work in progress — automated review pending.
 
 Resolves #{issue_number}
-[View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
+<[View run](…) line from compose-run-url.sh, omitted on local/fallback>
 
 <provenance-line>
 ```
 
-`--body` stays double-quoted so the run-link variables expand. The provenance line the helper renders carries no backtick, so nothing in the substituted body is shell-active.
+The run-link line is an already-resolved literal from the helper (not a variable expansion), and the provenance line it renders carries no backtick, so nothing in the `--body` is shell-active.
 
 Open the draft PR, substituting the resolved `<base>` and the composed body for `<pr-body>`:
 

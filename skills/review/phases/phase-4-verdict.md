@@ -197,7 +197,7 @@ Complement — the behavior-inert prose cap (Phase 4.1.5). The mirror case — a
 
 Apply these rules in order (first match wins). For every rule that counts findings by severity, exclude findings demoted to Informational by Phase 4.0's deferral match — they appear in the report under the "Informational — Deferred" sub-heading but do not contribute to verdict computation. (Rejected-deferral entries do *not* demote their corresponding finding; those flow through at their original severity.)
 
-Rules 1 and 2 below read each checklist item's stored (post-normalization) verdict — a wording-only FAIL that `scripts/normalize-verdicts.py` normalized to PASS is a stored PASS here and does not drive REJECT, while its raw FAIL survives only in the item's `raw_verdict` audit trail.
+Rules 1 and 2 below read each checklist item's stored (post-normalization) verdict from Phase 2's durable `.prflow/tmp/review/<slug>/<run-id>/verification-iter-<N>.json` artifact (§2.2) — a wording-only FAIL that `scripts/normalize-verdicts.py` normalized to PASS is a stored PASS here and does not drive REJECT, while its raw FAIL survives only in the item's `raw_verdict` audit trail.
 
 1. Any verification checklist item with verdict FAIL → REJECT
 2. Any verification checklist item with verdict INCONCLUSIVE → REJECT (add "manual check needed" note)

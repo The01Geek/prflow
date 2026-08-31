@@ -62,6 +62,13 @@ set -u
 # byte-identical to the inline one this helper replaces.
 ALLOWED_TOOLS="${ALLOWED_TOOLS:-}"
 NUMBER="${NUMBER:-}"
+# Run-facts operands (issue #40). The cloud matcher refuses any command that expands a
+# $GITHUB_*/$DEVFLOW_APP_ID variable, so the run cannot read these itself — the composer
+# reads them here, in the workflow step's own process, and emits them as prompt literals.
+# Defaulted up front so every use below is a plain expansion, the same shape as ALLOWED_TOOLS.
+RUN_ID="${GITHUB_RUN_ID:-}"
+RUN_ATTEMPT="${GITHUB_RUN_ATTEMPT:-}"
+DEVFLOW_APP_ID="${DEVFLOW_APP_ID:-}"
 
 RGB=.prflow/vendor/prflow/scripts/render-grounding-block.sh
 [ -f "$RGB" ] || RGB=scripts/render-grounding-block.sh
@@ -86,7 +93,26 @@ if [ -z "${GITHUB_OUTPUT:-}" ]; then
   exit 1
 fi
 
+# Run-facts block (issue #40) — placed AFTER the grounding block and BEFORE the command
+# line. It is informational: a missing operand renders `unestablished`/`absent` and never
+# takes an ::error:: arm, so the composer still publishes the prompt and exits 0. A run id
+# or run attempt that is unset or empty renders the literal `unestablished`; DEVFLOW_APP_ID
+# renders `present` when non-empty (matching the workflow's `!= ''` gate) and `absent`
+# otherwise — the value itself is never emitted, only its presence.
+# `:-` yields the fallback for an unset OR empty operand (RUN_ID/RUN_ATTEMPT are
+# pre-defaulted to the possibly-empty GITHUB_* values), so no separate emptiness guard.
+run_id_line="${RUN_ID:-unestablished}"
+run_attempt_line="${RUN_ATTEMPT:-unestablished}"
+if [ -n "$DEVFLOW_APP_ID" ]; then app_id_line="present"; else app_id_line="absent"; fi
+RUN_FACTS="Run facts (literals for this run — copy them into commands; never expand \$GITHUB_* or \$DEVFLOW_APP_ID in a command, the matcher refuses the expansion):
+tier: cloud
+run id: ${run_id_line}
+run attempt: ${run_attempt_line}
+DEVFLOW_APP_ID: ${app_id_line}"
+
 PROMPT="${GROUNDING}
+
+${RUN_FACTS}
 
 /prflow:implement ${NUMBER}"
 # Randomized heredoc delimiter, not `prompt=<value>`: the block is multi-line, and a

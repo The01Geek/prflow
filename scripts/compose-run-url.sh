@@ -6,9 +6,10 @@
 # WHY A HELPER, not an agent-composed string: the review progress comment's run link was
 # assembled in agent prose from an unobservable shell assignment, so the agent filled it in
 # from a guess — yielding a wrong repository owner or an unexpanded literal on real runs. This
-# helper is the SINGLE place the run link is composed; both consumers (skills/review/SKILL.md
-# and scripts/seed-review-progress.sh) observe THIS helper's stdout instead of composing their
-# own, so there is nothing left for the agent to invent.
+# helper is the SINGLE place the run link is composed; its consumers (skills/review/SKILL.md,
+# scripts/seed-review-progress.sh, and the implement skill's phase-1-setup.md / phase-3-review.md,
+# issue #40) observe THIS helper's stdout instead of composing their own, so there is nothing
+# left for the agent to invent.
 #
 # CONTRACT — one line on stdout, exit 0 on every path:
 #   [View run](<server>/<repo>/actions/runs/<id>)   when GITHUB_SERVER_URL, GITHUB_REPOSITORY,

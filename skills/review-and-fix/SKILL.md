@@ -83,11 +83,13 @@ This skill skips /prflow:review's Phase 4.4 entirely — no formal review and no
   "checklist": [
     {
       "id": "VC-1",
+      "category": "api_contract",
       "claim": "...",
-      "file": "src/example_pkg/foo.py",
+      "source_file": "src/example_pkg/foo.py",
       "verification_mode": "lite",
       "claim_signature": "api_contract:foo.py:spdx-header-present",
       "verdict": "PASS",
+      "file_checked": "src/example_pkg/foo.py",
       "raw_verdict": "FAIL",
       "normalized": true,
       "evidence": "...",

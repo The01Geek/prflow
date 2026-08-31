@@ -50,8 +50,8 @@
 # did not happen, and the next Stop event simply retries the heal.
 #
 # MARKER OWNERSHIP (issue #1222). The marker's first line records the runner session id of the
-# implement run that created it (skills/implement/phases/phase-1-setup.md's marker-write fence),
-# or is empty on a runner that supplies no session id. Ownership is only ever compared LIKE WITH
+# implement run that created it (written by scripts/write-run-marker.py, which Phase 1.3 invokes
+# on the local tier), or is empty on a runner that supplies no session id. Ownership is only ever compared LIKE WITH
 # LIKE: a marker counts as another session's only when BOTH its recorded first line AND this
 # stop's payload session_id are non-empty and well-formed under the filename-safe charset check
 # below — any other combination fails closed and blocks as today. Evidence the two values are the

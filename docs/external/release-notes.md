@@ -9,8 +9,58 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## August 30, 2026
+
+- **`/prflow:specs` now works as a spelling of the issue-drafting command.** It runs the same
+  pipeline as `/prflow:create-issue`, which keeps working unchanged — no existing invocation
+  breaks, and nothing needs updating in a repository that already uses the older spelling.
+- **An interrupted `/prflow:implement` run resumes from its own pushed work.** A fresh run
+  interrupted during implementation — after its checkpoints had pushed, but before the draft pull
+  request opened — used to stall when re-triggered, because it could not tell its own branch from
+  an unrelated one. It now recognizes that branch and continues where it left off. The guard that
+  refuses a branch carrying foreign history is unchanged.
+- **`/prflow:implement` works again in an isolated worktree.** Two commands were refused by Claude
+  Code's worktree-isolation classifier, which left the run's marker file empty and its session
+  guard blocking every session in that checkout. Both now run through bundled helpers that read
+  what they need from their own environment rather than from a shell variable.
+- **Fix-loop subagents can no longer land a commit on the wrong branch.** They are barred from
+  switching the checkout, and the branch is verified after each one returns — a mismatch stops the
+  loop instead of committing.
+- **A cloud implement run records the branch it is working on.** The workpad's branch line could
+  silently stay at its placeholder, because the command that filled it in was refused before it
+  ran. It is now resolved directly, and reports a named reason instead of writing nothing when it
+  cannot be determined.
+- **Reviews finish faster.** Review subagents no longer launch the project's test suite — a
+  verifier settles a claim about a test by reading that test's source, and says so explicitly when
+  reading cannot settle it, leaving suite evidence to the run itself. Separately, later fix-loop
+  iterations reuse the verification checklist from earlier ones instead of re-deriving it. Review
+  coverage is unchanged by both.
+- **A complete review is no longer reported as "Review failed" over a missing bookkeeping line.**
+  The evidence gate now reads the artifacts each review actually writes, so a review that did its
+  work keeps its verdict even if the reviewing agent omitted a progress line.
+- **Four shipped tools report a clean not-applicable result in a consumer repository.** They each
+  detect that a required development-tree input is absent, print one message naming it, and exit
+  successfully — instead of a raw traceback or a misreported integrity failure. Behavior inside a
+  PRFlow development tree is unchanged.
+- **Comment traffic that can never start a command no longer starts a workflow run.** Both shipped
+  command-listener workflows now decide this before any job spins up, so unrelated comments on
+  issues and pull requests stop consuming Actions minutes.
+- **The auto-mode provisioning step was removed from `/prflow:init`.** The optional, consent-gated
+  step that made the `auto` permission mode selectable in the Shift+Tab cycle is retired. It only
+  ever affected the third-party model providers (Bedrock, Vertex, Foundry) and was already a no-op
+  on the Anthropic API. If you previously opted in, your existing `~/.claude/settings.json` value
+  is left untouched.
+
 ## August 29, 2026
 
+- **`/prflow:create-issue` asks one fixed decision question, and tells you how the last audit
+  went before offering another round.** The pre-approval question now has fixed options — run an
+  audit round, print the full draft in chat, create it as-is (or *file anyway*, its own option, when
+  unresolved audit findings stand against the draft), or change something first — asked through your runner's question
+  tool. A re-offered audit round states the previous round's verdict, findings by class and what
+  remains unresolved, so the choice is informed. Clarification questions never offer "let the
+  implementer choose" as an answer, and the no-options gate no longer flags an "or" inside a
+  negation or a list.
 - **A pull request from a fork can pass the release verification check.** Artifact
   verification is skipped for an ordinary pull request, because the digest manifest describes
   the published release and any edit is a mismatch. That exemption was gated on the pull

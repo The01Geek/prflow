@@ -34,19 +34,19 @@
     },
     "review-and-fix-contract": {
       "path": "lib/test/modules/review-and-fix-contract.sh",
-      "minimum_assertions": 59,
+      "minimum_assertions": 63,
       "assertion_floor_policy": "exact",
       "description": "Focused review-and-fix iteration, guardrail, convergence, telemetry, and prompt-composition contracts"
     },
     "create-issue-contract": {
       "path": "lib/test/modules/create-issue-contract.sh",
-      "minimum_assertions": 400,
+      "minimum_assertions": 481,
       "assertion_floor_policy": "exact",
       "description": "Focused create-issue Step 3.6 audit, state-owner cutover, authoring-discipline, and revision-delta contracts"
     },
     "capability-profiles": {
       "path": "lib/test/modules/capability-profiles.sh",
-      "minimum_assertions": 68,
+      "minimum_assertions": 71,
       "assertion_floor_policy": "exact",
       "description": "Focused #561 capability-profile manifest generator: --check clean pass, manifest and region adversarial matrices, planted-defect controls, idempotency/determinism, no-runtime-read, PR #588 hardening, and the #555 implement-tier bundled-helper grant-flow CLAUDE.md pins"
     },
@@ -123,7 +123,7 @@
     },
     "implement-contract": {
       "path": "lib/test/modules/implement-contract.sh",
-      "minimum_assertions": 14,
+      "minimum_assertions": 19,
       "assertion_floor_policy": "exact",
       "description": "Focused skills/implement issue-body cache no-refetch lint (issue #1934): lib/test/lint-issue-body-refetch.py (#693) driven over the real tree and its --files-from fixture arm."
     }

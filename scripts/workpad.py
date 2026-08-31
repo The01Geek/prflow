@@ -2192,10 +2192,36 @@ _REVIEW_PROGRESS_ROWS = (
 )
 
 
+# The literal **Review** rows the run ticks around the managed rows. Each pairs
+# rendered text with the tick substring the phase files already emit — never
+# reword either half, or `_tick_checkbox`/`_reconcile_extension_rows` stop matching.
+_SIMPLIFY_ROW = ('`/simplify`', '/simplify')
+_REVIEW_AND_FIX_ROW = ('`review-and-fix`', 'review-and-fix')
+_AC_GATE_ROW = ('acceptance-criteria gate', 'acceptance-criteria gate')
+
+# The whole **Review** block declared ONCE in tick order — SINGLE SOURCE for both the
+# skeleton and the repair. Built by REFERENCE only: this ordered view must never become
+# `_REVIEW_PROGRESS_ROWS`' or `_EXTENSION_ROWS`' definition (each stays authoritative).
+_REVIEW_BLOCK_ROWS = (
+    _SIMPLIFY_ROW,
+    *_REVIEW_PROGRESS_ROWS,
+    _REVIEW_AND_FIX_ROW,
+    *((text, substr) for phase, text, substr in _EXTENSION_ROWS
+      if phase == 'Review'),
+    _AC_GATE_ROW,
+)
+
+
 def _managed_progress_rows():
-    """Rows hydrated by the existing Phase 1.3 reconciliation pass."""
-    yield from _EXTENSION_ROWS
-    for text, substr in _REVIEW_PROGRESS_ROWS:
+    """Rows the Phase 1.3 reconciliation pass repairs into a workpad created
+    before they existed, in the order the run ticks them: the non-Review extension
+    rows (the Setup `implement` row) followed by the whole **Review** block
+    declared in `_REVIEW_BLOCK_ROWS` (its literal rows, the engine rows and the
+    Review extension rows)."""
+    for phase, text, substr in _EXTENSION_ROWS:
+        if phase != 'Review':
+            yield phase, text, substr
+    for text, substr in _REVIEW_BLOCK_ROWS:
         yield 'Review', text, substr
 
 
@@ -2208,11 +2234,10 @@ def _extension_rows_block(phase: str) -> str:
     )
 
 
-def _review_progress_rows_block(phase: str) -> str:
-    """The review engine's issue-workpad rows for their owning phase."""
-    if phase != 'Review':
-        return ''
-    return ''.join(f'  - [ ] {text}\n' for text, _ in _REVIEW_PROGRESS_ROWS)
+def _review_block_block() -> str:
+    """The whole rendered **Review** block for the `cmd_new_body` skeleton, in
+    `_REVIEW_BLOCK_ROWS` (tick) order, newline-terminated for splicing."""
+    return ''.join(f'  - [ ] {text}\n' for text, _ in _REVIEW_BLOCK_ROWS)
 
 
 def cmd_new_body(args):
@@ -2253,14 +2278,11 @@ def cmd_new_body(args):
 
 ## Progress
 - [ ] **Setup** — branch & workpad
-{_extension_rows_block('Setup')}  - {seed_ts} — /prflow:implement run started
-- [ ] **Implement**
+  - {seed_ts} — /prflow:implement run started
+{_extension_rows_block('Setup')}- [ ] **Implement**
 {repro}  - [ ] code + sweeps
 - [ ] **Review**
-{_extension_rows_block('Review')}{_review_progress_rows_block('Review')}  - [ ] `/simplify`
-  - [ ] `review-and-fix`
-  - [ ] acceptance-criteria gate
-- [ ] **Documentation**
+{_review_block_block()}- [ ] **Documentation**
 {_extension_rows_block('Documentation')}- [ ] **PR marked ready**
 
 ## Plan
@@ -2766,10 +2788,14 @@ def _append_progress_note(
     top-level phase whose row text contains `phase_label`.
 
     Notes live inside the Progress section now (no separate Decisions / Notes
-    section): the bullet lands at the end of its phase's block — after that
-    phase's sub-checkboxes and any earlier notes, before the next top-level
-    phase — so a phase's notes stay grouped and chronological across many
-    update calls. `timestamp` is the time-only `HH:MM:SS` string. When
+    section): a note this function appends lands at the end of its phase's block —
+    after that phase's sub-checkboxes and any earlier appended notes, before the
+    next top-level phase — so a phase's appended notes stay grouped and
+    chronological across many update calls. The one exception is the Setup
+    run-started seed note, which `cmd_new_body` writes into the template directly
+    above the `prompt extension resolved: implement` checkbox (issue #22), not
+    through this function, so it precedes that checkbox rather than sitting at the
+    block end. `timestamp` is the time-only `HH:MM:SS` string. When
     `phase_label` is None, or no row matches it, the note is appended flat at
     the end of the section so it is never dropped.
 
@@ -2885,25 +2911,31 @@ def _reconcile_reproduction_row(content: str, classification: str) -> str:
 
 def _reconcile_extension_rows(content: str) -> str:
     """Idempotently repair managed nested `## Progress` rows into a workpad
-    created before they existed (issues #1462 and #1657), mirroring the shape
+    created before they existed (issues #1462, #1657 and #22), mirroring the shape
     `_reconcile_reproduction_row` uses.
 
-    A row is detected by its stable substring in ANY tick state, so a
-    present-and-ticked row is left exactly as it is and never duplicated; a
-    missing row is inserted directly under its phase's top-level row. Rows are
-    processed in reverse declared order and each insert lands at the anchor, so a
-    wholly-unrepaired phase ends up carrying them in declared order.
+    A row is detected by its stable substring in ANY tick state, so a present row
+    is left exactly where it is — never duplicated and never moved. A row present
+    only OUTSIDE its declared phase block is likewise left in place (the no-move
+    contract) and a stderr NOTE is emitted so the un-healed placement is legible. A
+    missing row
+    is inserted after the nearest present row that precedes it in the declared
+    sequence (`_managed_progress_rows` / `_REVIEW_BLOCK_ROWS`) WITHIN THE SAME
+    PHASE BLOCK, and directly under the phase's top-level row when no declared
+    predecessor is present in that block — so a fresh template and a repaired
+    legacy workpad converge on the one declared order, while a workpad whose
+    present rows already sit out of that order keeps them there. A declared
+    predecessor found OUTSIDE the phase block (e.g. a misplaced `/simplify` under
+    **Implement**) does not anchor the insert; the missing row then lands directly
+    under the phase anchor exactly as when no predecessor is present. A note is not
+    a declared row, so it never anchors an insert.
 
-    A missing `**Review**` anchor is repaired before its required review-engine
-    rows are inserted. Other absent phase anchors keep the existing warn-and-skip
-    hydration behavior. Operates on the `## Progress` section content."""
+    A missing `**Review**` anchor is repaired before its required review rows are
+    inserted. Other absent phase anchors keep the existing warn-and-skip hydration
+    behavior. Operates on the `## Progress` section content."""
     lines = content.split('\n')
-    for phase, text, substr in reversed(tuple(_managed_progress_rows())):
-        if any(
-            (m := _CHECKBOX_ROW_RE.match(ln)) and substr.lower() in m.group(4).lower()
-            for ln in lines
-        ):
-            continue  # present in any tick state → idempotent no-op
+    managed = tuple(_managed_progress_rows())
+    for idx, (phase, text, substr) in enumerate(managed):
         anchor = next(
             (
                 i for i, ln in enumerate(lines)
@@ -2912,6 +2944,27 @@ def _reconcile_extension_rows(content: str) -> str:
             ),
             None,
         )
+        # The phase block spans from just after the anchor to the next top-level row.
+        block_end = next(
+            (j for j in range(anchor + 1, len(lines))
+             if _TOP_LEVEL_CHECKBOX_RE.match(lines[j])),
+            len(lines),
+        ) if anchor is not None else None
+        row_matches = [
+            li for li, ln in enumerate(lines)
+            if (m := _CHECKBOX_ROW_RE.match(ln)) and substr.lower() in m.group(4).lower()
+        ]
+        if anchor is not None and any(anchor < li < block_end for li in row_matches):
+            continue  # present in its own block, any tick state → idempotent no-op
+        if row_matches:
+            # The row is present but stranded outside its phase block (issue #22's
+            # no-move contract leaves it there); surface it, or a maintainer cannot
+            # tell the deliberate no-move from a repair that silently failed.
+            sys.stderr.write(
+                f"workpad.py update: NOTE: managed '{substr}' row found outside its "
+                f"'**{phase}**' block — left in place (no-move contract), not "
+                f"repaired into **{phase}**.\n")
+            continue
         if anchor is None:
             if phase == 'Review':
                 # Review is now a required progress surface. Recreate its top-level
@@ -2944,7 +2997,30 @@ def _reconcile_extension_rows(content: str) -> str:
                     f"a later --tick-progress for it will miss.\n"
                 )
                 continue
-        lines = lines[:anchor + 1] + [f'  - [ ] {text}'] + lines[anchor + 1:]
+        # The phase block spans from just after the anchor to the next top-level
+        # row, so a predecessor search never reaches another phase's rows.
+        block_end = next(
+            (j for j in range(anchor + 1, len(lines))
+             if _TOP_LEVEL_CHECKBOX_RE.match(lines[j])),
+            len(lines),
+        )
+        # Land after the nearest present declared predecessor inside this block
+        # (first occurrence in section order), else directly under the anchor.
+        # Scan predecessors nearest-declared first, so the first present one wins.
+        insert_at = anchor + 1
+        for pphase, _ptext, psubstr in reversed(managed[:idx]):
+            if pphase != phase:
+                continue
+            pos = next(
+                (li for li in range(anchor + 1, block_end)
+                 if (m := _CHECKBOX_ROW_RE.match(lines[li]))
+                 and psubstr.lower() in m.group(4).lower()),
+                None,
+            )
+            if pos is not None:
+                insert_at = pos + 1
+                break
+        lines = lines[:insert_at] + [f'  - [ ] {text}'] + lines[insert_at:]
     return _join_preserving_newline(lines, content)
 
 
@@ -6141,7 +6217,8 @@ def _has_non_checkpoint_mutation(args) -> bool:
     `--checkpoint` combined with any of these still refreshes `Last updated` and
     PATCHes once (and does not duplicate an existing checkpoint)."""
     return any([
-        args.status, args.branch, args.run_link, args.pr_link,
+        args.status, args.branch, getattr(args, 'branch_from_head', False),
+        args.run_link, args.pr_link,
         args.tick_progress, args.tick_plan, args.tick_plan_n,
         args.tick_ac, args.tick_ac_n, args.rewrite_ac,
         args.replace_plan_file, args.replace_acs_file, args.set_reproduction_file,
@@ -6509,6 +6586,37 @@ def _render_scope_decisions(args) -> list[str]:
     return notes
 
 
+def _resolve_head_branch() -> str:
+    """The current checkout's branch name via `git branch --show-current`, for
+    `--branch-from-head`. Resolved in-process so the caller emits no command
+    substitution the cloud matcher refuses (issue #38; denied on runs 33289765650,
+    33289731060). Fails closed: a non-zero git exit, a subprocess failure (git absent
+    via OSError, or the 5s timeout via subprocess.SubprocessError), and a detached HEAD
+    (empty output) raise `_UpdateError` with a named breadcrumb; the caller then makes
+    no PATCH, leaving the Branch line unchanged."""
+    try:
+        proc = subprocess.run(
+            ['git', 'branch', '--show-current'],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise _UpdateError(
+            f'--branch-from-head: could not run git branch --show-current ({exc})'
+        )
+    if proc.returncode != 0:
+        raise _UpdateError(
+            '--branch-from-head: git branch --show-current exited '
+            f'{proc.returncode}: {(proc.stderr or "").strip()}'
+        )
+    name = proc.stdout.strip()
+    if not name:
+        raise _UpdateError(
+            '--branch-from-head: git branch --show-current returned no branch name '
+            '(detached HEAD) — refusing to write an empty Branch line'
+        )
+    return name
+
+
 def _apply_mutations(body: str, args, failed_ticks) -> str:
     """Apply all mutations from args and return the new body.
 
@@ -6668,6 +6776,13 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         _require_arity(
             '--record-review-coverage', review_coverage,
             len(_REVIEW_COVERAGE_AXES), _REVIEW_COVERAGE_AXES)
+        # issue #42: normalize the `all` alias to `complete` on ROSTER/CHECKLIST only, and
+        # keep it ABOVE the vocabulary loop — below it, `all` on roster/checklist reaches the
+        # check unnormalized and is refused, breaking the alias.
+        review_coverage = [
+            'complete' if axis in ('roster', 'checklist') and value == 'all' else value
+            for axis, value in zip(_REVIEW_COVERAGE_AXES, review_coverage)
+        ]
         for axis, value in zip(_REVIEW_COVERAGE_AXES, review_coverage):
             if value not in _REVIEW_COVERAGE_VOCABULARY[axis]:
                 raise _UpdateError(
@@ -6891,9 +7006,17 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         body, n = _STATUS_RE.subn(f'**Status:** {glyph} {clean}', body, count=1)
         if n == 0:
             raise _UpdateError('Status line not found in workpad')
-    if args.branch:
+    branch_value = args.branch
+    if getattr(args, 'branch_from_head', False):
+        if args.branch is not None:
+            raise _UpdateError(
+                '--branch and --branch-from-head are mutually exclusive; pass '
+                'exactly one'
+            )
+        branch_value = _resolve_head_branch()
+    if branch_value:
         body, n = _BRANCH_RE.subn(
-            lambda _m: f'**Branch:** `{args.branch}`', body, count=1,
+            lambda _m: f'**Branch:** `{branch_value}`', body, count=1,
         )
         if n == 0:
             raise _UpdateError('Branch line not found in workpad')
@@ -7687,6 +7810,12 @@ def main():
                    '🛑 Cancelled) is derived from the status word and prepended '
                    'automatically.')
     u.add_argument('--branch', help='Replace the Branch line value.')
+    u.add_argument('--branch-from-head', action='store_true',
+                   help='Replace the Branch line with the current branch name, '
+                        'resolved in-process via git branch --show-current so the '
+                        'caller emits no command substitution. Mutually exclusive '
+                        'with --branch; fails closed (non-zero, no write) on a '
+                        'detached HEAD or a git failure.')
     u.add_argument('--run-link', metavar='VALUE',
                    help='Set the Run front-matter line to VALUE (markdown ok). '
                         'Inserted after Branch if the line is absent.')
@@ -7979,9 +8108,10 @@ def main():
                         + '|'.join(_REVIEW_COVERAGE_VOCABULARY['dispatch'])
                         + '. ROSTER: '
                         + '|'.join(_REVIEW_COVERAGE_VOCABULARY['roster'])
-                        + '. CHECKLIST: '
+                        + ' (`all` is accepted as an alias for `complete`). CHECKLIST: '
                         + '|'.join(_REVIEW_COVERAGE_VOCABULARY['checklist'])
-                        + '. An unresolvable axis is recorded "unestablished", never '
+                        + ' (`all` is accepted as an alias for `complete`). An '
+                          'unresolvable axis is recorded "unestablished", never '
                           'a clean value. A later "--status Complete" write is refused '
                           'unless this record is complete or every gap it reports '
                           'carries a --review-coverage-disposition.')

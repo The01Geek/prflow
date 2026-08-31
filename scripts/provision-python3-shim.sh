@@ -17,8 +17,8 @@
 # that would recurse into the shim) and forwards "$@" + the exit code.
 #
 # CONSENT: writing a shim into a user PATH directory mutates the user's environment, so
-# (mirroring scripts/provision-auto-mode.sh) the DEFAULT (no --apply) prints exactly what
-# it WOULD do and writes NOTHING; --apply performs the write. The user re-runs with --apply
+# the DEFAULT (no --apply) prints exactly what it WOULD do and writes NOTHING; --apply
+# performs the write. The user re-runs with --apply
 # to opt in. install.sh surfaces this provisioner in plan-only mode (no --apply); /devflow:init
 # surfaces it indirectly by relaying preflight's pointer (preflight.sh emits it when python3 is
 # absent but a >=3.11 alternate exists).
