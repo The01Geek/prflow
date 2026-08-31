@@ -34,6 +34,7 @@ MANIFEST_PATH = REPO_ROOT / "lib" / "capability-profiles.json"
 LOCK_PATH = REPO_ROOT / "lib" / "review-profile.tokens"
 
 WF = REPO_ROOT / ".github" / "workflows"
+DEV_TREE_MARKER = REPO_ROOT / "lib" / "test"
 
 REVIEW_LEADING = ["Read", "Glob", "Grep"]
 
@@ -572,6 +573,15 @@ def main(argv):
         else:
             print(f"unknown argument: {a}", file=sys.stderr)
             return 2
+    # Guard on lib/test: absent from BOTH consumer trees, while .github ships in the distribution
+    # tree, so keying on .github would defeat this guard there. Placed AFTER the argument loop so a
+    # typo still reports rc 2 rather than a silent not-applicable exit 0.
+    if not DEV_TREE_MARKER.is_dir():
+        print(
+            "generate-capability-profiles.py: lib/test absent — this tool "
+            "only applies inside a PRFlow development tree; nothing to do."
+        )
+        return 0
     try:
         version, resolved = load_manifest()
         check_review_boundary(resolved["review"])

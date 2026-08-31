@@ -65,6 +65,8 @@ permissions:
 
 jobs:
   config:
+    if: |
+      github.event_name == 'issue_comment' && (contains(github.event.comment.body, '/prflow:review') || contains(github.event.comment.body, '/devflow:review') || contains(github.event.comment.body, '/prflow:pr-description') || contains(github.event.comment.body, '/devflow:pr-description')) && !contains(github.event.comment.body, '@claude') && !contains(github.event.comment.body, '/prflow:implement') && !contains(github.event.comment.body, '/devflow:implement')
     runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
     outputs:
       enabled: ${{ steps.extract.outputs.enabled }}
@@ -610,8 +612,8 @@ jobs:
   # which executes for ANY actor, so this job is the cost control: it runs
   # resolve-command-trigger.sh, which authorizes the sender (allowed bot, or an
   # allowed_users login with write/admin/maintain access) and resolves which
-  # /devflow:* command + target number to synthesise. Coarse event matching
-  # stays in this job's `if:` so irrelevant events never spin a runner.
+  # /devflow:* command + target number to synthesise. The runner-avoiding filter
+  # is the `config` job's own `if:`; this gate reads only the `enabled` config output.
   #
   # PARTITION INVARIANT: every branch negates `@claude` and the implement command
   # in BOTH accepted namespaces. `@claude …` is ceded to Anthropic's claude.yml;
@@ -628,9 +630,7 @@ jobs:
   # unreachable branch is left behind.
   gate:
     needs: config
-    if: |
-      needs.config.outputs.enabled == 'true' &&
-      (github.event_name == 'issue_comment' && (contains(github.event.comment.body, '/prflow:review') || contains(github.event.comment.body, '/devflow:review') || contains(github.event.comment.body, '/prflow:pr-description') || contains(github.event.comment.body, '/devflow:pr-description')) && !contains(github.event.comment.body, '@claude') && !contains(github.event.comment.body, '/prflow:implement') && !contains(github.event.comment.body, '/devflow:implement'))
+    if: ${{ needs.config.outputs.enabled == 'true' }}
     runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
     permissions:
       contents: read        # checkout the resolver; collaborator check uses GITHUB_TOKEN
@@ -2050,26 +2050,21 @@ jobs:
             actions: read
 
           # Raise the Bash tool's per-command ceiling on THIS tier — the manual
-          # `/prflow:review` / `/prflow:review-and-fix` command path. With no `settings:`
-          # input this step ran under Claude Code's BASH_MAX_TIMEOUT_MS default of
-          # 600000 ms (10 min), while the prompt extension this tier loads
-          # (.prflow/prompt-extensions/review-and-fix.md) names the parallel verification
-          # coordinator `lib/test/run-parallel.sh` (#1086) as the run's final whole-suite
-          # gate — measured at ~10.5 min in a cloud run (issue #1253's AC1 measurement,
-          # 2026-08-04); the coordinator has since drifted to ~15m40s, measured 2026-08-19
-          # in Actions run 32289799442.
-          # The mandated command was therefore structurally unable to reach a verdict
-          # here: it was killed at the wall with no output, and the run was pushed onto
-          # the slower #1132 shard-decomposition fallback to redo the same work.
+          # `/prflow:review` / `/prflow:review-and-fix` command path. The prompt extension
+          # this tier loads (.prflow/prompt-extensions/review-and-fix.md) names the parallel
+          # verification coordinator `lib/test/run-parallel.sh` (#1086) as the run's final
+          # whole-suite gate, and the ceiling must stay above that coordinator's wall or it
+          # would be killed mid-run with no output and forced onto the slower #1132
+          # shard-decomposition redo.
           #
           # The value MIRRORS devflow-implement.yml's 1200000 ms (20 min) deliberately
           # rather than being sized again here: both tiers run the same engine over the
-          # same verification partition, and a divergent per-tier ceiling would be a new
-          # inconsistency to reason about at every future change. That block is where the
-          # 20-minute figure is justified against #1180's coordinator measurement — read
-          # it there. Like it, this is a BOUND and not a removal: a genuinely hung command
-          # still terminates well inside the job budget instead of stalling for the job
-          # timeout with no diagnostic.
+          # same verification partition. Like it, this is a BOUND and not a removal; the
+          # wrong change it prevents is lowering it below the measured coordinator wall —
+          # 456s (7.6 min) on the 8-core pool, measured 2026-08-30 in Actions run
+          # 33318418260 (comfortably inside the 20 min bound). Rationale and the
+          # monolith-substitution figures live in
+          # docs/internal/claude-md-tiered-suite-rationale.md.
           #
           # CONSUMER NOTE: install.sh ships this workflow into third-party repos whose
           # suites are neither this one nor of a duration knowable from here. The ceiling
@@ -2387,11 +2382,13 @@ jobs:
           fi
           # review-progress marker diagnosis END
 
-      # ── Review evidence gate (issue #2075). ──────────────────────────────────
+      # ── Review evidence gate (issue #2075, #21). ─────────────────────────────
       # After the engine step, fail the job when a run that posted a merge-gating
       # verdict for the reviewed head lacks phase-execution evidence — the run root
-      # attributed to this run (by the pre-engine inventory delta) holds no phase log
-      # recording that the checklist phases ran. The whole decision lives in the
+      # attributed to this run (by the pre-engine inventory delta) holds no durable
+      # Phase 1 checklist / Phase 2 verification artifact pair (nor a special
+      # no-checklist record) proving that the checklist phases ran. The whole decision
+      # lives in the
       # vendored scripts/review-evidence-gate.py (the suite drives it per arm); this
       # step is a thin invoker that owns the helper-absent warning, and routes the fail
       # arm to a durable comment, the progress-comment flip (the flip helper's new

@@ -1,6 +1,6 @@
 ---
 name: create-issue
-description: Use when a rough user story, bug report, feature idea, piece of feedback, or an implementation plan should be recorded as a GitHub issue — "file a ticket for this", "open an issue", "write this up for the backlog", "we should track this", "log this bug", "spec this out as a ticket so we can pick it up later" — i.e. the user wants it tracked rather than built right now. For exploring or designing the work itself, reach for a brainstorming or planning skill first; this skill records the outcome as an issue.
+description: Transitional alias — prefer /prflow:specs, which runs the same issue-drafting pipeline. Use when a rough user story, bug report, feature idea, piece of feedback, or an implementation plan should be recorded as a GitHub issue rather than built right now. This command name is retained so existing /prflow:create-issue invocations keep working; new work should use /prflow:specs.
 argument-hint: <user-story>
 ---
 ## Completion checklist (do this first)
@@ -76,9 +76,9 @@ a skip — stop and run the full step.
 | "Let me do a reasonable, abbreviated pass and be honest" | Announcing an abbreviation does not authorize it, and a shortened pipeline is not a pipeline. |
 | "Step 1 says dispatch docs-verify peers. That's expensive." | Cost is not a gate. Step 1 grounds every later claim; skipping it drafts blind. |
 | "Given time pressure I should still do this properly-ish" | "Properly-ish" is the abbreviation this law forbids; run the step, or record what genuinely cannot be resolved in the Blocked section. |
-| "no user available" | The absence of a user does not excuse an artifact no user is needed for; self-answer from the issue's own material where the run is non-interactive and continue — and a non-interactive run self-answers the audit offer as a `user-decline` override and proceeds unaudited. |
+| "no user available" | The absence of a user does not excuse an artifact no user is needed for; self-answer from the issue's own material where the run is non-interactive and continue — and a non-interactive run self-answers the audit offer as a `user-decline` override and proceeds unaudited, then self-answers Step 4's combined question as its sub-step 3a states. |
 | "Enough grounding. I have a solid draft." | Confidence in the draft is what the later steps test; the fresh-context audit is offered on precisely the drafts that feel solid, and whether the round runs is the user's election, not yours to pre-empt. |
-| "I'll skip the audit offer since the draft looks fine" | The audit is the user's election, offered at Step 4 before any round opens; you may skip neither the offer, the bootstrap, nor the summary line — only the user may decline the round, and a declined run files unaudited. |
+| "I'll skip the audit offer since the draft looks fine" | The audit is the user's election, offered at Step 4 whenever an offer ground holds and before any round opens; you may skip neither that offer, the bootstrap, nor the summary line — only the user may decline the round, and a declined run files unaudited. |
 | "Let me be efficient — render the draft and report" | Rendering and reporting is not creating; the pipeline ends at a created-or-paused issue, not a report. |
 
 ## Core principle

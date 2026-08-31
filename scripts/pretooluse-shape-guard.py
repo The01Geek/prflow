@@ -38,15 +38,21 @@ a recorded decision, and `lib/test/run.sh` pins both tiers as registering none. 
 docs/internal/cloud-allowlist.md, the guard's section (single source; this is a pointer).
 
 DENY SET (arms, not rule ids). The guard denies exactly `R1`, the `/tmp`-target arm of
-R3 (`R3-tmp`), and `R4` — every `lib/test/extract-command-shapes.py` `REVIEW_RULES` arm
-whose rule-table entry cites a probe row OR an observed run denial. `R2` (a leading
+R3 (`R3-tmp`), and `R4` — the `lib/test/extract-command-shapes.py` `REVIEW_RULES` arms
+whose rule-table entry cites a probe row OR an observed run denial AND whose runtime deny
+does not cost the engine a shape the harness would have permitted. `R2` (a leading
 `cd`, DROPPED as unproven/confounded) and `R3-heredoc` (an in-workspace `cat`-heredoc
 write, banned as authoring discipline, not a probe result) are EXCLUDED: a runtime deny
 is terminal for the call, so denying an arm the harness would have permitted costs the
-engine a working shape — the cost this issue exists to remove. Because that arm split
-cannot be expressed at rule-id granularity (`classify()` returns the single token `R3`
-for both arms), the guard resolves through that module's `classify_arms()` arm-level
-classifier.
+engine a working shape — the cost this issue exists to remove. `R6` (a `git -C <path>`
+shape, issue #34) and the tier-independent fused-`||` `FUSED` rule are likewise EXCLUDED
+and desk-time only: though `git -C` cites an observed run denial, this deny set stays as
+it was, so their runtime answer is unchanged (the two-denials rule and the injected
+grounding block steer the agent off them instead). The exclusion is mechanical, not
+prose: `DENY_ARMS` is DERIVED from `REMEDIATION` below, which carries no `R6`/`FUSED`
+row. Because the R3 arm split cannot be expressed at rule-id granularity (`classify()`
+returns the single token `R3` for both arms), the guard resolves through that module's
+`classify_arms()` arm-level classifier.
 
 FAIL-OPEN, AND ITS ONE EXCLUSION. Every failure in the CLASSIFICATION path — an
 unparseable payload, a dependency that cannot be loaded, any other internal exception —

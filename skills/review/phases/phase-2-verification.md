@@ -5,6 +5,8 @@ Output: `Phase 2/4: Verifying {N} checklist items...`
 
 ### 2.0 Partition by verification_mode
 
+Read the checklist Phase 2 partitions from Phase 1's durable artifact `.prflow/tmp/review/<slug>/<run-id>/checklist-iter-<N>.json` (§1.6). That file is the checklist Phase 2 verifies — without it Phase 2 has no checklist to partition.
+
 Split the checklist into two groups by each item's `verification_mode` field (set by the generator in Phase 1):
 
 - Lite items (`verification_mode: "lite"`) — the orchestrator runs `grep -n` / `rg` directly. No agent dispatch. See 2.1a.
@@ -16,7 +18,7 @@ Item-side field-completion re-ask (pre-dispatch). A generator miss of a load-bea
 
 ### 2.0.5 Narrow-reuse from iter-(N-1) (fix-loop callers only)
 
-When invoked by `/prflow:review-and-fix` on iteration N≥2, the caller supplies (a) the iter-(N-1) checklist and (b) the files the iter-(N-1) fix commit modified (`fix_files`). Before partitioning into lite/agent batches, the orchestrator MAY skip verification for items whose verdicts are mechanically unchanged.
+When invoked by `/prflow:review-and-fix` on iteration N≥2, the caller supplies (a) the iter-(N-1) checklist and (b) the files the iter-(N-1) fix commit modified (`fix_files`). Before partitioning into lite/agent batches, the orchestrator MUST reuse the prior verdict (skipping re-verification) for every item whose verdict is mechanically unchanged under the predicate below.
 
 For each item in the current iteration's checklist, reuse the prior verdict (skip verification) iff ALL hold:
 
@@ -24,7 +26,7 @@ For each item in the current iteration's checklist, reuse the prior verdict (ski
 2. That prior item's `verdict` is `PASS`.
 3. The current item's `source_file` is NOT in `fix_files`.
 
-For each reused item, copy `verdict`, `evidence`, `file_checked`, and — when present — `raw_verdict` and `normalized` from the prior result (the `NORMALIZED (wording-only): ` prefix already travels in the copied `evidence`) and tag it `reused_from_iter_<N-1>: true` in the workpad. Everything else — new variance-recovery items, items whose prior verdict was FAIL or INCONCLUSIVE, items whose `source_file` the fix touched — verifies fresh.
+For each reused item, copy `verdict`, `evidence`, `file_checked`, and — when present — `raw_verdict` and `normalized` from the prior result (the `NORMALIZED (wording-only): ` prefix already travels in the copied `evidence`) and tag it `reused_from_iter_prev: true` in the workpad. Everything else — new variance-recovery items, items whose prior verdict was FAIL or INCONCLUSIVE, items whose `source_file` the fix touched — verifies fresh. Each such fresh item is persisted with `reused_from_iter_prev: false`.
 
 Output: `Reused {K} of {N} checklist verdicts from iter-(N-1) (matching claim_signature, prior verdict PASS, source_file untouched by fix commit). Verifying remaining {N-K} fresh.`
 
@@ -65,7 +67,7 @@ Use the Agent tool with `subagent_type: "prflow:checklist-verifier"` for each it
 
 Pass the following prompt for each:
 ```
-Verify this claim against the actual source code. Read the referenced files, compare the claim to reality, and report PASS, FAIL, or INCONCLUSIVE.
+Verify this claim against the actual source code. Read the referenced files, compare the claim to reality, and report PASS, FAIL, or INCONCLUSIVE. Run no project test suite or test file under any command head — verify a claim about a test by reading the test's source, and when reading cannot settle it report INCONCLUSIVE naming the command you did not run; running one burns minutes on a duplicated suite launch that consults no single flight. Your Bash tool is only for the `git show`/`git cat-file` displaced-path reads below.
 
 displaced-path routing: for any referenced file the run's displaced-path list marks as displaced — read that list from the Phase 0.1.5 scratch file `.prflow/tmp/displaced-paths.txt` before verifying (you receive this dispatch prompt, not the orchestrator's engine-ground-truth block; a missing or empty file means no displaced list, so this routing is inert) — the working-tree copy is base-ref/stub bytes (not HEAD) — read it via `git show <head>:<path>` (a base-state claim via `git show $PR_BASE_SHA:<path>`), never the working-tree file. On a routed-read error where the cached diff does not show the path deleted at head, probe `git cat-file -e <head>:<path>` and report INCONCLUSIVE with the displacement attribution — never fall back to the working tree, never `git fetch`. Listed paths stay fully in review scope (channel, not depth). In standalone PR-number mode also read any path the Phase 0.2 cached diff touches via `git show <PR_HEAD_SHA>:<path>` (base-state `git show <PR_BASE_SHA>:<path>`), the resolved commit id as a literal, never the working-tree file; an untouched path stays a working-tree read. With no displaced list, the diff-touched arm still applies in standalone PR-number mode; outside it, behave as today.
 Reviewed head/base for routing (standalone PR-number mode only): {the orchestrator substitutes the resolved $PR_HEAD_SHA and $PR_BASE_SHA as literals}. Bind `<head>`/`<base>` in the routing above to these; in current-branch or head_override mode they are omitted and the displaced-list arm's per-mode binding applies.
@@ -116,6 +118,8 @@ Three-way helper-degradation split (fail-closed, never conflated) — diagnosed 
 - Everything-else arm — anything else printed, including a `No such file`/rc-127 error (a helper-less plugin prints error text, not a silent denial), a Python traceback, any non-zero-exit stderr, and true silence (a matcher denial produces no output at all — a possible denial, never an empty value): perform zero normalization and zero retry classification — every agent item records its raw verdict via prose parse — and replace the appended counts line with one warning line quoting what the invocation printed plus the tier-appropriate remedy (cloud grant keys — the review/implement runner allowlists and the profile `TOOLS=` line / `prflow_implement.allowed_tools` — the `prflow_version`/workflow upgrade-together note, and local-tier operator provisioning). The run proceeds — never a stall, never an inferred normalization.
 
 Store all verification results in a single combined array (lite + agent), keyed by `id`, using each item's stored (post-normalization) verdict; a normalized item stores `verdict: "PASS"`, `raw_verdict: "FAIL"`, `normalized: true`, and the `NORMALIZED (wording-only): ` evidence prefix, and counts passed in every tally.
+
+Write this combined results array with the Write tool to `.prflow/tmp/review/<slug>/<run-id>/verification-iter-<N>.json` (same `<slug>/<run-id>` and `<N>` as the §1.6 checklist artifact). Write it EXPLICITLY from this combined array — never derive it from the per-item nonce verifier files. Phase 4.2 reads this file for its tallies, so a run that skips this write leaves Phase 4.2 with no verdicts to tally. An empty array `[]` is valid — an all-lite-probe run and an empty-checklist run both write `[]`. Substitute the `<slug>/<run-id>/verification-iter-<N>.json` path literally, never as a `$VAR` expansion (denied on the cloud matcher).
 
 Output: `Verified: {pass_count} passed, {fail_count} failed, {inconclusive_count} inconclusive ({lite_count} via lite probe, {agent_count} via agent).`
 

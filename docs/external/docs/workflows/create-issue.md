@@ -3,7 +3,7 @@ title: "Create an Issue"
 description: "Turn a rough request into a GitHub issue you explicitly approved."
 ---
 
-Use this workflow when you want work recorded rather than built now.
+Use this workflow when you want work recorded rather than built now. Invoke it as `/prflow:specs` (the preferred name) or `/prflow:create-issue` (a transitional alias) — both run the same pipeline.
 
 It creates one issue, and only after you approve the final draft. The result is an approved issue, or a draft that visibly names the decision nobody has made yet.
 

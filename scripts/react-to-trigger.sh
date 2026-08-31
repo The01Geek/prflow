@@ -27,7 +27,8 @@
 #                 removed (commands fire on real comments/reviews only). The
 #                 `issues` branch below is retained defensively (and unit-tested)
 #                 for reuse, but is unreachable from the shipped gates today.
-#   REPO          owner/repo, for the `gh api` path.
+#   REPO          owner/repo, for the `gh api` path. Falls back to GITHUB_REPOSITORY
+#                 when unset, so the implement skill's reaction fence need not expand it.
 #   COMMENT_ID    github.event.comment.id — set on the two *comment* events,
 #                 empty otherwise.
 #   ISSUE_NUMBER  github.event.issue.number — the target on the (currently
@@ -78,7 +79,15 @@ while [ $# -gt 0 ]; do
 done
 
 reaction="${REACTION:-rocket}"
-repo="${REPO:-}"
+# Fall back to GITHUB_REPOSITORY, read here in this helper's own process: the implement
+# skill's outcome-reaction fence cannot pass --repo "$GITHUB_REPOSITORY" because the cloud
+# matcher refuses that expansion (issue #40), so removing this fallback would leave that
+# fence with no repo. The workflow gate still passes REPO, which wins.
+repo="${REPO:-${GITHUB_REPOSITORY:-}}"
+# Both-empty (the local/interactive tier: GITHUB_REPOSITORY has no producer there) → gh's
+# {owner}/{repo} placeholders, filled from the git remote, so the path never collapses to
+# repos//…/reactions (the issue #664 hazard) when the skill fence drops --repo.
+[ -n "$repo" ] || repo='{owner}/{repo}'
 event="${EVENT_NAME:-}"
 
 # Resolve the reactions endpoint for this event. Comment events react on the

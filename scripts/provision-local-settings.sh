@@ -18,13 +18,9 @@
 #       enabledPlugins["prflow@devflow-marketplace"]=true, so Claude Code keeps
 #       the PRFlow plugin updated.
 #
-# NOTE — selectable auto mode is NOT provisioned here. CLAUDE_CODE_ENABLE_AUTO_MODE
-# is a permission-gating env var, and Claude Code filters those out of PROJECT
-# scope: it is honored only from user scope (~/.claude/settings.json) or managed
-# settings (see code.claude.com/docs/en/permission-modes and .../settings). Writing
-# it into the project .claude/settings.json is a silent no-op, so it is deliberately
-# omitted here; that capability lives in the dedicated, consent-gated user-scope
-# provisioner scripts/provision-auto-mode.sh (issue #105).
+# NOTE — this provisioner writes no permission-gating env var. Claude Code honors
+# those only from user scope (~/.claude/settings.json) or managed settings, so
+# writing one into the project .claude/settings.json is a silent no-op.
 #
 # Mirrors scaffold-config.sh's contract: deterministic, idempotent, never
 # clobbers user values, prints a stable `devflow-settings:` breadcrumb per
@@ -84,7 +80,7 @@ fi
 # The PRFlow defaults, composed from the derived canonical identifiers. The merge
 # below is `$defaults * $existing`, so the user's value wins at every depth and only
 # keys they have not set are filled. permissions.defaultMode is intentionally absent,
-# and no env var is written — see the auto-mode NOTE in the header.
+# and no env var is written — see the NOTE in the header.
 # `if !` so a jq failure here fails CLOSED instead of leaving DEFAULTS empty and
 # feeding `--argjson defaults ""` into the guard below.
 if ! DEFAULTS="$(printf '%s' "$IDENTITY_JSON" | "$DEVFLOW_JQ" '

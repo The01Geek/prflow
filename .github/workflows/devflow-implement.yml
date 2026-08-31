@@ -9,8 +9,8 @@ run-name: "DevFlow implement (issue ${{ github.event.issue.number }})"
 # Heavy listener for /prflow:implement (the transitional /devflow:implement is
 # accepted for the alias window). Fires ONLY on a BARE `/prflow:implement <#>`
 # real comment on an ISSUE — a genuine user action. It is issues-only: a PR
-# comment is also an `issue_comment` in GitHub's API, but the gate `if:` requires
-# `github.event.issue.pull_request == null` and the resolver re-checks via
+# comment is also an `issue_comment` in GitHub's API, but the config job's `if:`
+# requires `github.event.issue.pull_request == null` and the resolver re-checks via
 # IS_PULL_REQUEST, so a comment on a pull request never starts a run (this is
 # what stops the weekly audit-report comment from self-triggering on the state
 # PR). It does NOT trigger from an issue description body or title (the phrase
@@ -19,8 +19,8 @@ run-name: "DevFlow implement (issue ${{ github.event.issue.number }})"
 #
 # Why bare-command only: this workflow runs claude-code-action in AGENT mode
 # with an explicit, synthesised `/prflow:implement <n>` prompt (the `gate` job
-# resolves the number). Agent mode needs no trigger phrase. The gate `if:`
-# negates `@claude`, so an `@claude /prflow:implement` comment is ceded to
+# resolves the number). Agent mode needs no trigger phrase. The config job's
+# `if:` negates `@claude`, so an `@claude /prflow:implement` comment is ceded to
 # Anthropic's stock claude.yml (TAG mode) — an anti-pattern, since that listener
 # has no DevFlow plugin — and the two workflows can never double-fire. DevFlow
 # never touches claude.yml.
@@ -56,10 +56,15 @@ permissions:
 
 jobs:
   # Duplicates the config job in devflow.yml verbatim except for the
-  # `effort` source (`prflow_implement.effort` vs `prflow.effort`). A
-  # workflow_call indirection would buy nothing here — the config is
-  # ~15 lines and the call would be more.
+  # `effort` source (`prflow_implement.effort` vs `prflow.effort`) and the
+  # job-level `if:` (each carries its own workflow's payload-only trigger
+  # predicate, issue #35). A workflow_call indirection would buy nothing here —
+  # the config is ~15 lines and the call would be more.
   config:
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request == null &&
+      (contains(github.event.comment.body, '/prflow:implement') || contains(github.event.comment.body, '/devflow:implement')) && !contains(github.event.comment.body, '@claude')
     runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
     outputs:
       enabled: ${{ steps.extract.outputs.enabled }}
@@ -288,16 +293,11 @@ jobs:
   # (explicit prompt), which executes for ANY actor, so this job is the cost
   # control: it runs the resolver, which authorizes the sender (allowed bot OR
   # write/admin/maintain collaborator) and resolves the issue number. The
-  # `claude` job runs ONLY when should_run=true. Coarse event/issue-context
-  # matching stays in this job's `if:` (issue_comment with no PR context) so
-  # irrelevant events — including PR comments — never spin a runner.
+  # `claude` job runs ONLY when should_run=true. The runner-avoiding filter is the
+  # `config` job's own `if:`; this gate reads only the `enabled` config output.
   gate:
     needs: config
-    if: |
-      needs.config.outputs.enabled == 'true' &&
-      github.event_name == 'issue_comment' &&
-      github.event.issue.pull_request == null &&
-      (contains(github.event.comment.body, '/prflow:implement') || contains(github.event.comment.body, '/devflow:implement')) && !contains(github.event.comment.body, '@claude')
+    if: ${{ needs.config.outputs.enabled == 'true' }}
     runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
     permissions:
       contents: read        # checkout the resolver script; collaborator check uses GITHUB_TOKEN
@@ -347,7 +347,7 @@ jobs:
           SELF_COMMENT_MARKER: ${{ needs.config.outputs.workpad_marker }}
           # Non-null only for a comment on a PR (a PR comment is also an
           # issue_comment). The resolver declines such a trigger — issues-only
-          # backstop for the gate `if:`'s `pull_request == null` filter.
+          # backstop for the config job's `if:`'s `pull_request == null` filter.
           IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
         run: |
           set -euo pipefail
@@ -1453,6 +1453,10 @@ jobs:
         env:
           ALLOWED_TOOLS: ${{ steps.tools.outputs.tools }}
           NUMBER: ${{ needs.gate.outputs.number }}
+          # Exported so the composer can render the run-facts block's DEVFLOW_APP_ID line
+          # (issue #40); GITHUB_RUN_ID / GITHUB_RUN_ATTEMPT are runner-ambient. Mirrors the
+          # App-token-minting steps' `vars.DEVFLOW_APP_ID` reference.
+          DEVFLOW_APP_ID: ${{ vars.DEVFLOW_APP_ID }}
         run: |
           set -euo pipefail
           H=.prflow/vendor/prflow/scripts/compose-implement-prompt.sh
@@ -1569,29 +1573,16 @@ jobs:
           additional_permissions: |
             actions: read
 
-          # Raise the Bash tool's per-command ceiling on THIS tier (issue #1179).
-          # Claude Code's BASH_MAX_TIMEOUT_MS defaults to 600000 ms (10 min). Observed on
-          # this tier (5 of 5 implement runs analysed 2026-08-02 for #1179): that wall
-          # killed the parallel verification coordinator (lib/test/run-parallel.sh, #1086)
-          # — the run's final whole-suite gate — with NO output, and the same work was then
-          # redone shard by shard, so ~28% of measured run wall-clock produced nothing.
-          #
-          # The value is sized against a MEASUREMENT, not an estimate. Issue #1180 lowered
-          # POOL_RESERVATION_CEILING to 2 and measured the coordinator end to end at
-          # 7.9 min at BUDGET=4 — the budget this job's ubuntu-latest 4 vCPU runner yields
-          # — against that 10-minute ceiling. That 7.9 min is
-          # optimistic in one named way: #1180's stub dispatcher SLEEPS rather than
-          # consuming CPU, so it reproduces the scheduler's packing decisions exactly but
-          # NOT the contention between shards sharing four cores. The real in-env total is
-          # therefore above 7.9 min by an unmeasured amount, against a 10-minute wall —
-          # thin, never-observed headroom, and protecting it is what this raise is for.
-          #
-          # So: a DELIBERATELY BOUNDED 20-minute (1200000 ms) ceiling — room for the
-          # unmeasured contention gap above that 7.9-min measurement without the
-          # coordinator being killed mid-run, while still terminating a genuinely hung
-          # command well inside the job budget. It is a bound, NOT a removal: an unbounded
-          # or very large ceiling would convert a hang into a job-timeout-length stall with
-          # no diagnostic.
+          # Raise the Bash tool's per-command ceiling on THIS tier (issue #1179): the
+          # 1200000 ms (20 min) BASH_MAX_TIMEOUT_MS below is a BOUND on any single Bash
+          # command, not a removal — a genuinely hung command still terminates well inside
+          # the job budget. The wrong change it prevents: lowering that bound below the
+          # measured whole-suite coordinator wall (lib/test/run-parallel.sh, #1086 — the
+          # run's final whole-suite gate), which would kill the coordinator mid-run with no
+          # output. On the 8-core pool the coordinator ran 456s (7.6 min), measured
+          # 2026-08-30 in Actions run 33318418260, so 20 min keeps ample headroom.
+          # Rationale and the monolith-substitution figures live in
+          # docs/internal/claude-md-tiered-suite-rationale.md.
           #
           # MECHANISM — AND WHY THIS CANNOT DROP THE BASE `.claude/settings.json` HOOKS.
           # This is the PR-#1205 review's blocking question, and it is answered from

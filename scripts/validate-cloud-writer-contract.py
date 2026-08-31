@@ -3,8 +3,20 @@
 # SPDX-License-Identifier: MIT
 """Pre-agent validator for the devflow-cloud-writer-contract-v1 runtime manifest (AC18, #543).
 
-Runs before a cloud writer agent boots and fails closed if the vendored runtime
-manifest does not describe the installed plugin. Its rejection matrix is closed
+Fails closed if the vendored runtime manifest does not describe the installed plugin.
+
+TWO ENTRY POINTS, and a pre-agent caller must use the second:
+
+  * ``main()`` is a development-tree CLI. It derives its dependencies from the
+    sibling reachability contract under ``lib/test/``, which the vendor slice
+    deletes and the release manifest never ships, so outside a development tree
+    it reports not-applicable and exits 0. That is NOT a validation verdict.
+  * ``validate(manifest_path, expected_assets=..., required_profiles=...,
+    profile_grants=...)`` with all three dependencies injected never reads that
+    module, so it runs and fails closed in a consumer tree. This is the
+    pre-agent security entry point.
+
+Its rejection matrix is closed
 at exactly seventeen classes, complete by construction from the v1 schema,
 content binding, reachability binding, and profile check:
 
@@ -388,6 +400,15 @@ def _force_utf8_streams():
 def main(argv=None):
     _force_utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
+    # Guard on the wholesale-pruned lib/test DIR at the CLI boundary (not inside validate(), the pure
+    # injectable core its tests drive): an absent lib/test is the consumer signal, and returning here
+    # keeps the absent-dependency import from reaching validate() and misreporting it WRONG_FIELD_TYPE.
+    if not (REPO_ROOT / "lib" / "test").is_dir():
+        print(
+            "validate-cloud-writer-contract.py: lib/test absent "
+            "— this tool only applies inside a PRFlow development tree; nothing to do."
+        )
+        return 0
     manifest_path = argv[0] if argv else _MANIFEST_DEFAULT
     violations = validate(manifest_path)
     if violations:

@@ -1,0 +1,21 @@
+<!-- prflow:create-issue-ref step=fallback-step4-attestation file=skills/create-issue/references/fallback-step4-attestation.md start -->
+
+   Once the user has elected *Create it as-is* or *File anyway* at 3a and its records landed, re-confirm `query-eligibility --mode approve` answers `eligible=yes` (the override ground). A `not-eligible` answer here names a caller-side recovery, never a third option: `no-digest-supplied` — re-issue with `--draft-file`; `draft-undigestible` — re-run the canonical write (`references/step-3-6-audit.md`); `stale-override` — the edit-sequencing recovery in `references/step-3-6-audit-adjudication.md`, which re-presents and re-asks 3a; `state-unestablished` / `foreign-nonce` — their fallbacks per `references/degradation-routing.md`.
+
+   Then bind creation with `record-creation-epoch`, which has two grounds and takes `--draft-file "<absolute issue-draft-<slug>.md path>"` on both file-arm ones. A run that completed an audit round binds to it: `--round <round>`. **The default run completed none, and binds to its recorded `user-decline` election instead** — it still passes `--round 0`, which matches no recorded round and so routes the call to that election, and `--draft-file` is *required* there rather than additional: the call refuses without it, and prints `epoch_round=none` with it. Omit `--draft-file` only on embed/inline epochs, where the audited round body stays the comparand.
+
+   The final-byte trigger is read and offered at 3a, never here; `final_byte_trigger=not-hold` with `final_byte_reason=resolution-settled` is the state owner suppressing it after self-verified resolutions closed every finding, not a gate. Filing is never blocked: the user's explicit election remains the path by which a determined filer files.
+
+   Source the body from the single presentation source — the posting recipe in `references/issue-template.md`, which owns both epoch arms; creation is always unassigned, sub-step 6 owning the assignment question. Two constraints it does not carry: never re-pipe through `cat` into `--body-file -`, and do not pass `--label` on `gh issue create` — sub-step 5a stamps it after creation. Report the issue URL that `gh` prints, and capture the new issue's number from its trailing path segment (e.g. `…/issues/42` → `42`) — sub-steps 5a and 6 need it.
+
+   After creation, attest what actually landed: fetch the created issue's body and pipe those bytes into `record-creation-attestation`, byte-exact through a file, in one single statement (never a `"$(…)"` capture re-emitted via `printf`):
+   ```bash
+   if gh api repos/{owner}/{repo}/issues/<issue_number> --jq .body > "<bound-root>/.prflow/tmp/create-issue/<slug>/issue-fetched-<slug>.md"; then python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py record-creation-attestation "<slug>" --nonce "<nonce>" < "<bound-root>/.prflow/tmp/create-issue/<slug>/issue-fetched-<slug>.md"; else python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py record-creation-attestation "<slug>" --nonce "<nonce>" --attestation-unavailable; fi
+   ```
+   The tool tolerates exactly one fetch-framing trailing newline (jq's output framing) — reporting `matched modulo the fetch's single trailing newline` on stderr when that tolerance fired — and anything else stays a mismatch.
+
+   Keep the `if`/`else` shape and branch on the fetch's own exit status — never a bare `&&` chain; and never a blanket `||`.
+
+   When that then-branch `record-creation-attestation` call itself exits non-zero (a `git`/read/persist failure *after* a successful fetch, so nothing was recorded and `query-summary` still reports `attestation=none`), surface it in the summary line as an errored post-fetch attestation — e.g. append `attestation errored post-fetch: <breadcrumb>` — not the bare `attestation=none`, which means *no creation was attempted*.
+
+<!-- prflow:create-issue-ref step=fallback-step4-attestation file=skills/create-issue/references/fallback-step4-attestation.md end -->

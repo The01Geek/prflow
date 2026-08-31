@@ -100,7 +100,6 @@ Read [Migrate from DevFlow](/docs/getting-started/migrate-from-devflow) before y
 Initialization can offer to do more than scaffold files. Every offer below asks first, and declining changes nothing that already succeeded.
 
 - **Create internal documentation.** If the repository has no developer documentation, the skill explains what internal and external documentation are, why written documentation makes later runs cheaper, and offers to create the internal set for you. On your explicit consent it dispatches one agent that writes only under the internal documentation location and runs no version-control command. If you decline, it prints the command so you can run it yourself. It never runs the external bootstrap, and it commits nothing.
-- **Make `auto` permission mode selectable.** On a supported third-party model provider, the skill offers to add one setting to your user-global `~/.claude/settings.json`. That file affects every project you work on, so the write needs explicit consent. It makes `auto` mode selectable. It never turns it on, and plan, model and admin gates still apply. Decline and the skill prints the one-line setting for you to add yourself.
 - **Sweep remaining product-name references.** After a successful rename migration, the skill can offer to update remaining `DevFlow` product-name mentions in your own files. See the privacy note in [Migrate from DevFlow](/docs/getting-started/migrate-from-devflow) before accepting.
 
 ## Review and Commit the Result
