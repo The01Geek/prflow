@@ -16,16 +16,25 @@ Usage:
 Prints ONE normalized JSON object to stdout:
     {"cost_usd", "tokens": {"input_tokens", "output_tokens",
      "cache_read_input_tokens", "cache_creation_input_tokens", "total_tokens"},
-     "model_usage", "num_turns", "duration_ms"}
+     "model_usage", "num_turns", "duration_ms",
+     "peak_main_thread_context", "phase_file_reads"}
+
+`peak_main_thread_context` (integer tokens, or `null` when no main-thread turn carried a
+usage object) and `phase_file_reads` (an object keyed by the shared phase labels
+(scripts/context_eval_shared.py) plus `total`, or `null` when the file carried no
+main-thread record) are computed by the shared measuring core (issue #120). They are instrument outputs only: no
+threshold, ceiling, regression rule or gate reads them.
 
 Contract (issue #475 AC1/AC2):
   - Every figure the file does not carry is JSON `null`, NEVER `0` (the repo's
     unknown-is-not-zero rule). A `"costUSD": 0` present in the file yields
     `"cost_usd": 0`; the key absent yields `"cost_usd": null` — the fixture pair.
-  - Slurp-tolerant over the three OBSERVED shapes (single object, JSON array, JSONL),
-    mirroring scripts/surface-execution-diagnostics.sh's `-s`/`.. | objects` tolerance.
+  - Slurp-tolerant over the observed shapes (single object, JSON array, JSONL, and the
+    scrubbed artifact's leading `#` caveat), via the shared reader in
+    scripts/context_eval_shared.py (issue #120) — no local caveat-strip or array-then-JSONL
+    ladder here.
   - Survives the full adversarial input matrix {object, array, scalar, valid-falsy,
-    missing file, wrong-type field}: every abnormal shape exits 0 with a SPECIFIC
+    missing file, wrong-type field, undecodable bytes}: every abnormal shape exits 0 with a SPECIFIC
     stderr breadcrumb. A file that PARSES but carries no figures prints the object with
     those figures `null`; a file that cannot be parsed AT ALL prints nothing.
   - Best-effort: ALWAYS exits 0 (the ensure-label.sh / describe-denial-count.sh
@@ -36,7 +45,22 @@ one action version), so the key lookups below are tolerant and
 preference-ordered rather than a brittle single-shape parse.
 """
 import json
+import os
 import sys
+
+# The transcript-record reader and the main-thread measuring core are single-sourced in
+# scripts/context_eval_shared.py (issue #120). This file is loaded by path, so insert its
+# directory to reach the sibling module.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from context_eval_shared import (
+    PHASE_FILES,
+    SWEEP_REFERENCE_PHASE,
+    SWEEP_REFERENCE_PREFIX,
+    SWEEP_REFERENCE_SUFFIX,
+    measure_context,
+    read_transcript_records,
+)
 
 # The five token figures, in the order the normalized object emits them. The first four
 # are per-message figures (summable on the per-message fallback path); `total_tokens` is
@@ -153,43 +177,30 @@ def _accumulate_tokens(dicts, wrong_type):
 
 
 def _parse(path):
-    """Return (root, breadcrumbs, parsed_ok). `root` is the parsed structure (or None
-    when the file could not be parsed at all). Tolerates a single object, a JSON array,
-    or JSONL; a scalar parses (parsed_ok True) but yields no figures."""
+    """Return (records, breadcrumbs, parsed_ok). `records` is the list of transcript record
+    dicts the shared reader yielded (or [] when the file parsed but carried none). parsed_ok
+    is False only when the file could not be read or parsed at all (prints nothing)."""
     breadcrumbs = []
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        # errors="replace" (like the four sibling shared-reader consumers): undecodable
+        # bytes must not crash the best-effort exit-0 reader — they decode to replacement
+        # chars, parse as non-JSON, and print nothing (AC "undecodable bytes" matrix case).
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
             text = fh.read()
     except OSError as exc:
-        return None, [f"execution file could not be read ('{path}': {exc})"], False
+        return [], [f"execution file could not be read ('{path}': {exc})"], False
     if text.strip() == "":
-        return None, [f"execution file is empty ('{path}')"], False
-    # Whole-file JSON first (object OR array — the two non-JSONL observed shapes).
-    try:
-        root = json.loads(text)
-        if not isinstance(root, (dict, list)):
-            breadcrumbs.append(
-                f"execution file top-level JSON is a {type(root).__name__} scalar, not an object/array; "
-                "no figures to extract"
-            )
-        return root, breadcrumbs, True
-    except json.JSONDecodeError:
-        pass
-    # Fall back to JSONL: one JSON value per non-empty line. Any line that parses
-    # counts; a file where NO line parses is unparseable-at-all (prints nothing).
-    rows = []
-    any_ok = False
-    for line in text.splitlines():
-        if line.strip() == "":
-            continue
-        try:
-            rows.append(json.loads(line))
-            any_ok = True
-        except json.JSONDecodeError:
-            continue
-    if any_ok:
-        return rows, breadcrumbs, True
-    return None, [f"execution file could not be parsed as JSON or JSONL ('{path}')"], False
+        return [], [f"execution file is empty ('{path}')"], False
+    # The shared reader tolerates the scrubbed artifact's leading `#` caveat, a whole-file
+    # array/object, and JSONL, in that preference order (issue #120).
+    parsed = read_transcript_records(text)
+    if not parsed.parsed:
+        return [], [f"execution file could not be parsed as JSON or JSONL ('{path}')"], False
+    if not parsed.records:
+        breadcrumbs.append(
+            f"execution file parsed but carried no transcript record ('{path}'); "
+            "no figures to extract")
+    return parsed.records, breadcrumbs, True
 
 
 def _force_utf8_streams():
@@ -212,14 +223,14 @@ def main(argv):
         )
         return 0  # best-effort exit-0
     path = argv[1]
-    root, breadcrumbs, parsed_ok = _parse(path)
+    records, breadcrumbs, parsed_ok = _parse(path)
     for b in breadcrumbs:
         sys.stderr.write(f"devflow: extract-execution-cost.py: {b}\n")
     if not parsed_ok:
         # Cannot be parsed at all (missing/empty/garbage) → print NOTHING (AC2).
         return 0
 
-    dicts = _ordered_dicts(root)
+    dicts = _ordered_dicts(records)
     wrong_type = {}
     cost_usd = _find_numeric(dicts, _COST_KEYS, wrong_type)
     num_turns = _find_numeric(dicts, ("num_turns",), wrong_type)
@@ -249,12 +260,21 @@ def main(argv):
             "cost figure (cost_usd null); any staged harness_cost records no cost this run\n"
         )
 
+    # Peak main-thread context and per-phase read counts via the shared measuring core
+    # (issue #120), run over the whole file (no run-boundary concept here). `null` when no
+    # main-thread turn carried a usage object / no main-thread record existed — never a 0.
+    peak_main_thread_context, phase_file_reads = measure_context(
+        records, PHASE_FILES, SWEEP_REFERENCE_PREFIX, SWEEP_REFERENCE_SUFFIX,
+        SWEEP_REFERENCE_PHASE)
+
     normalized = {
         "cost_usd": cost_usd,
         "tokens": tokens,
         "model_usage": model_usage,
         "num_turns": num_turns,
         "duration_ms": duration_ms,
+        "peak_main_thread_context": peak_main_thread_context,
+        "phase_file_reads": phase_file_reads,
     }
     sys.stdout.write(json.dumps(normalized) + "\n")
     return 0

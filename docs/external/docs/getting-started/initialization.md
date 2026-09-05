@@ -7,6 +7,8 @@ Create repository-specific PRFlow configuration by running the `init` skill once
 
 Initialization is separate from plugin installation. Run it after you install PRFlow and again after each update, so new configuration keys and new prompt-extension examples reach the repository. Local runs work on built-in defaults without it, so treat it as recommended rather than required.
 
+After it scaffolds the configuration, initialization also installs the cloud-tier GitHub Actions workflows, driven by the config's `workflows` block: when at least one tier is enabled — the shipped default enables `workflows.prflow` — it runs `install.sh --apply` for you; when none is enabled it asks first, and installs nothing on a decline or a non-interactive run. This replaces the old behavior where initialization scaffolded config but left the `.github/workflows/` files to a separate `install.sh` run, so a repository whose config claimed the cloud tier was on could end up with no workflows on disk.
+
 ## Run It
 
 Open Claude Code anywhere inside the repository and enter:
@@ -24,7 +26,7 @@ The skill runs a scaffolder and then a dependency preflight, and relays their ou
 ```
 devflow-scaffold: scaffolded /path/to/repo/.prflow/config.json — every value has a working default; edit it only to customize
 devflow-scaffold: wrote /path/to/repo/.prflow/.gitignore (ignores ephemeral .prflow/tmp/ scratch)
-devflow-scaffold: created/backfilled 18 prompt-extension example(s) in /path/to/repo/.prflow/prompt-extensions/ (rename <skill>.md.example to <skill>.md to activate)
+devflow-scaffold: created/backfilled 18 prompt-extension example(s) in /path/to/repo/.prflow/skill-extensions/ (rename <skill>.md.example to <skill>.md to activate)
 devflow preflight: all dependencies present.
 ```
 
@@ -37,12 +39,15 @@ The paths are your repository's, and the number of examples matches the number o
   config.json                       your settings — every value has a working default
   config.schema.json                the schema your editor validates config.json against
   .gitignore                        ignores the ephemeral .prflow/tmp/ scratch directory
-  prompt-extensions/
+  skill-extensions/
     implement.md.example            one inert example per skill
     review.md.example
     …
 .claude/
   settings.json                     the project marketplace registration
+.github/                            when a workflow tier is enabled (the default)
+  workflows/                        the cloud-tier command and implement workflows
+  actions/                          the composite actions those workflows call
 ```
 
 Nothing here is committed for you. Initialization creates no Git commit on any path.
@@ -55,12 +60,21 @@ Nothing here is committed for you. Initialization creates no Git commit on any p
   - Refreshes `.prflow/config.schema.json` to the schema of the release you installed, so your editor validates against the current field set.
 </Accordion>
 
+<Accordion title="Cloud-tier workflows">
+  - After scaffolding config, runs `install.sh --apply` to place the `.github/workflows/` and `.github/actions/` cloud-tier files when the config's `workflows` block enables at least one tier (the shipped default enables `workflows.prflow`).
+  - When no tier is enabled, asks first via the runner's question tool. An explicit yes enables `workflows.prflow` (never the withheld `prflow-review` tier) and then installs; a decline, a non-interactive run, or a runner with no question tool writes and installs nothing and just prints the `install.sh --apply` command.
+  - Installs from the installed plugin tree with no network clone, pinning `prflow_version` to the installed release rather than a moving branch. The apply is idempotent and non-clobbering: a hand-edited managed file is preserved with a `.prflow-new` sidecar.
+  - Best-effort like every other step: if the installer cannot be found or fails, it reports that and prints the manual command instead of halting. Review the `.github/` diff before you commit.
+
+  See [Cloud Installation](/docs/runs/cloud/installation) for the standalone installer.
+</Accordion>
+
 <Accordion title="Prompt-extension examples">
   - Adds a commented `<skill>.md.example` file for each skill when that example is absent, so you can see which skills accept a consumer extension.
   - The `.example` suffix keeps every scaffolded file inert. Rename it to `<skill>.md` to activate it.
   - Never overwrites an existing example or a live extension you wrote.
 
-  See [Prompt Extensions](/docs/configuration/prompt-extensions) for what these files do.
+  See [Skill Extensions](/docs/configuration/skill-extensions) for what these files do.
 </Accordion>
 
 <Accordion title="Detected tools and setup commands">
@@ -108,13 +122,14 @@ Initialization can offer to do more than scaffold files. Every offer below asks 
   <Step title="Read the Full Diff">
     Initialization writes files but never commits them. Look at every change before you decide what to keep.
   </Step>
-  <Step title="Check the Four Paths That Matter">
+  <Step title="Check the Paths That Matter">
     | **Path** | **What to Review** |
     | --- | --- |
     | `.prflow/config.json` | Detected setup commands, service configuration and tool permissions. |
     | `.prflow/config.schema.json` | The refreshed schema from the release you installed. |
-    | `.prflow/prompt-extensions/*.md.example` | Newly added examples. They stay inert until you rename them. |
+    | `.prflow/skill-extensions/*.md.example` | Newly added examples. They stay inert until you rename them. |
     | `.claude/settings.json` | The unpinned, auto-updating marketplace registration that your collaborators inherit. |
+    | `.github/workflows/`, `.github/actions/` | The cloud-tier workflows and actions, present when a workflow tier is enabled. |
   </Step>
   <Step title="Tighten the Tool Allowlists">
     Grant enough access for PRFlow to run your real build and test commands, and prefer narrow patterns over broad ones. A reviewer that cannot run your test command will decline to judge anything that depends on it. See [Tool Permissions](/docs/configuration/tool-permissions).

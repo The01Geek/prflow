@@ -1,6 +1,6 @@
 ---
 name: checklist-deduper
-description: Merges multiple batches of checklist items from checklist-generator into a single deduped checklist. Preserves traceability by recording which original IDs were merged. Does NOT judge correctness or re-tag items.
+description: PRFlow review-engine agent; use to merge checklist-generator batches into one deduped checklist.
 tools: Read
 model: sonnet
 color: violet

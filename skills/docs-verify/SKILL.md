@@ -13,7 +13,7 @@ Consumer prompt extension (load first). Before doing this skill's work, load any
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh docs-verify
 ```
 
-If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. If instead the harness refuses the command outright — a permission denial rather than a missing file — the extension's state is **unestablished**: report that in the run's output and never treat it as a clean policy pass (*unknown is not zero*). Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/prompt-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
+If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. If instead the harness refuses the command outright — a permission denial rather than a missing file — the extension's state is **unestablished**: report that in the run's output and never treat it as a clean policy pass (*unknown is not zero*). Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/skill-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
 
 ## Mode
 
@@ -72,9 +72,9 @@ In report-only mode the **duty floor — not the size of the search space — bo
 
 Return a status for every duty on the floor, never only for the duties you were assigned:
 
-- `discharged` — carried out on this run.
+- `discharged` — carried out on this run. A duty you carried out is `discharged` even when its result is empty — you looked and had nothing to report; the empty result is the answer you can state and cite.
 - `unestablished` — engaged but could not be discharged. Record it; never pass it silently.
-- `judged-not-engaged` — judged not to bear on this topic. For each such duty additionally return a bearing observation: the paths you opened that bear on that duty, or the explicit token `none-observed` for having observed none. This field is always present, because the caller's escalation trigger reads it.
+- `judged-not-engaged` — judged not to bear on this topic. Reserved for a duty you did not carry out — never for one you carried out and found empty (that is `discharged`). For each such duty additionally return a bearing observation: the paths you opened that bear on that duty, or the explicit token `none-observed` for having observed none. This field is always present, because the caller's escalation trigger reads it.
 
 The bar for `discharged` (apply it per duty, before you write the status). `discharged` does not
 mean "I did some work on this duty." It means: **you can state the duty's answer, and cite the tool
@@ -262,7 +262,7 @@ decision turns on noise.
 If `[[INTERNAL_DOC_LOCATION]]` itself cannot be read, that is not `ABSENT` — an absence you
 could not establish is not an established absence. Report the *exact operand and population identity*
 duty as `unestablished` and say which read failed.
-- **Search space surveyed:** the `--search-space` operand this run used, or the default it fell back to
+- **Search space surveyed:** the `--search-space` operand this run used, or the default it fell back to, **and** the internal-doc location this run resolved (the `.docs.internal` value, or the `docs/internal/` default it fell back to) — state both, so the caller can confirm the population surveyed matches the one it dispatched
 - **Duty statuses:** one status per duty on the *Breadth bound* floor — `discharged`, `unestablished`, or `judged-not-engaged` — for **all six** duties, not only the assigned ones
 - **Bearing observations:** for every duty reported `judged-not-engaged`, the paths opened that bear on it, or `none-observed`
 

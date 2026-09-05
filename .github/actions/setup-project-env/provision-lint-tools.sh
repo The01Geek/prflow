@@ -88,7 +88,17 @@ _have "$PY" || _die - "installer primitive not found: python3 ($PY)"
 # Refuse the WHOLE pass before touching any tool: a component digest that
 # disagrees means the readers and the manifest may not understand each other.
 if ! ready="$("$PY" "$SCRIPTS_DIR/install_state.py" verify --state "$INSTALL_STATE" --manifest "$LINT_MANIFEST" 2>&1)"; then
-  _die - "install-state readiness refused: ${ready#NOT-READY } — remedy: re-run the PRFlow installer (install.sh), which republishes the marker over the components actually installed in this tree"
+  # A digest-mismatch on a guarded artifact install_managed can PRESERVE (the lint manifest,
+  # the setup-project-env action's files, or the implement workflow) adds a merged/adopted
+  # `.prflow-new` sidecar cause; every other reason keeps the plain remedy. Builtins only
+  # (parameter expansion + case) so a missing tool cannot fail open.
+  reason="${ready#NOT-READY }"
+  cause=""
+  case "$reason" in
+    digest-mismatch:manifest|digest-mismatch:implement-workflow|digest-mismatch:setup-action|digest-mismatch:provision-helper)
+      cause=" a likely cause is a merged or adopted .prflow-new sidecar whose bytes the marker was never rebound to;" ;;
+  esac
+  _die - "install-state readiness refused: $reason —${cause} remedy: re-run the PRFlow installer (install.sh), which republishes the marker over the components actually installed in this tree"
 fi
 
 # Derive the tool set from the manifest the gate just validated, so the shipped set

@@ -22,6 +22,12 @@ Phase attribution changes only on a `Read` whose `file_path` matches an
 the review engine's own `skills/review/phases/*.md` files — which an implement run reads
 throughout Phase 3 — to an implement phase that was never entered.
 
+The artifact the cloud workflows upload is one `# DEVFLOW SCRUB CAVEAT` line followed by
+a single pretty-printed JSON array; the reader also accepts a bare array, a single object
+and JSONL, in that preference order. A record carrying `parent_tool_use_id` belongs to a
+dispatched subagent: its calls are listed as `subagent` steps but excluded from every
+total, because the enclosing `Agent` call on the main thread already carries that span.
+
 The transcript is input this repository does not itself produce, so every malformed shape
 is answered rather than assumed: an empty artifact, a truncated final record, a record
 that parses to a non-object, a `tool_use` whose `tool_result` never arrives (a denied
@@ -42,7 +48,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from context_eval_shared import UNESTABLISHED
+from context_eval_shared import UNESTABLISHED, read_transcript_records
 from workflow_flight_recorder import _timestamp_ms
 
 # The directory whose phase files mark an implement phase boundary. The trailing slash is
@@ -196,31 +202,6 @@ def download_transcript(run_id: str, dest: Path, repo: str | None = None) -> Pat
     return files[0]
 
 
-def _iter_records(raw: str):
-    """(record, skipped_count) over a JSONL stream, tolerating unparseable lines.
-
-    Deliberately not `workflow_flight_recorder.parse_events`, which raises on the first
-    malformed line and on an empty stream: a truncated final record and an empty artifact
-    are both expected inputs here, and a raise would lose the whole run's timeline over
-    one bad trailing byte.
-    """
-    skipped = 0
-    for line in raw.splitlines():
-        if not line.strip():
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            skipped += 1
-            continue
-        if not isinstance(record, dict):
-            skipped += 1
-            continue
-        yield record, skipped
-    yield None, skipped
-
-
-
 def _tool_items(record):
     """(tool_use items, tool_result items) from one transcript record, in ONE pass.
 
@@ -275,18 +256,36 @@ def read_transcript(path):
             f"not a UTF-8 transcript; the records below are what survived replacement")
 
 
+def _is_subagent_record(record) -> bool:
+    """A record a dispatched subagent produced. Its tool calls run INSIDE the enclosing
+    `Agent` call's span on the main thread, so they are listed but never added to a
+    total — adding them charges that wall clock twice — and a phase file a subagent reads
+    never moves the main thread's phase."""
+    return bool(record.get("parent_tool_use_id"))
+
+
 def build_timeline(raw: str, notes=None) -> dict:
     """The three views over one transcript. Never raises on a malformed transcript."""
-    starts: dict[str, tuple[int | None, str, str]] = {}
+    starts: dict[str, tuple[int | None, str, str, str]] = {}
     order: list[str] = []
     finishes: dict[str, int | None] = {}
-    skipped = 0
     current = UNATTRIBUTED
+    # The shared reader (issue #120) strips the leading `#` caveat lines and yields the
+    # transcript records, tolerating a caveat-plus-array, a bare array, a single object and
+    # JSONL in that preference order.
+    parsed = read_transcript_records(raw)
+    caveat_lines = parsed.caveat_lines
+    # A whole-file JSON scalar or a non-transcript JSON file (no `type`-bearing record)
+    # carries no usable record, so count it alongside the per-record parse skips.
+    skipped = (parsed.unparseable_lines + parsed.non_object_elements
+               + parsed.non_transcript_json)
+    # An empty, whitespace-only, or caveat-only artifact parses nothing and skips nothing —
+    # distinct from a file whose records were all unparseable (skipped > 0).
+    body_empty = not parsed.parsed and skipped == 0 and not parsed.records
 
-    for record, skipped in _iter_records(raw):
-        if record is None:
-            break
+    for record in parsed.records:
         ts = _timestamp_ms(record.get("timestamp")) if isinstance(record.get("timestamp"), str) else None
+        thread = "subagent" if _is_subagent_record(record) else "main"
         tool_uses, tool_results = _tool_items(record)
         for item in tool_uses:
             tool_id = item.get("id")
@@ -297,10 +296,10 @@ def build_timeline(raw: str, notes=None) -> dict:
             # phase is charged to the phase it opens rather than to the one it leaves —
             # entering a phase is part of that phase's cost, and charging it backwards
             # would credit every phase with its successor's entry.
-            entered = _phase_from_read(item)
+            entered = _phase_from_read(item) if thread == "main" else None
             if entered is not None:
                 current = entered
-            starts[tool_id] = (ts, name, current)
+            starts[tool_id] = (ts, name, current, thread)
             order.append(tool_id)
         for item in tool_results:
             rid = item.get("tool_use_id")
@@ -310,8 +309,9 @@ def build_timeline(raw: str, notes=None) -> dict:
     steps = []
     phases: dict[str, int] = {}
     activities: dict[str, int] = {}
+    subagent_steps = 0
     for tool_id in order:
-        start_ms, name, phase = starts[tool_id]
+        start_ms, name, phase, thread = starts[tool_id]
         end_ms = finishes.get(tool_id)
         # A denied call never returns a tool_result, and a record with no timestamp or a
         # backwards pair yields no span. Each is unknown, never a zero-millisecond call.
@@ -320,14 +320,20 @@ def build_timeline(raw: str, notes=None) -> dict:
         else:
             duration = end_ms - start_ms
         steps.append({"tool_use_id": tool_id, "tool": name, "phase": phase,
-                      "duration_ms": duration})
+                      "thread": thread, "duration_ms": duration})
+        if thread == "subagent":
+            subagent_steps += 1
+            continue
         if duration == UNESTABLISHED:
             continue
         phases[phase] = phases.get(phase, 0) + duration
         activities[name] = activities.get(name, 0) + duration
 
     diagnostics = list(notes or [])
-    if not raw.strip():
+    if caveat_lines:
+        diagnostics.append(f"skipped {caveat_lines} leading `#` caveat line(s) the "
+                           f"transcript scrub prepends")
+    if body_empty:
         # An empty or whitespace-only artifact renders identically to a run that made no
         # tool calls, so say which it was.
         diagnostics.append("the artifact holds no records at all — it is empty or "
@@ -337,6 +343,10 @@ def build_timeline(raw: str, notes=None) -> dict:
         diagnostics.append(
             f"skipped {skipped} unparseable record(s) — a truncated final line, or a "
             f"record that is not a JSON object")
+    if subagent_steps:
+        diagnostics.append(
+            f"{subagent_steps} subagent-internal step(s) ran inside an Agent call's span "
+            f"and are listed but excluded from every total above")
     return {"phases": phases, "steps": steps, "activities": activities,
             "diagnostics": diagnostics}
 
@@ -362,7 +372,8 @@ def _render(timeline: dict) -> str:
                     else f"{duration / 1000:.1f}s")
         phase = step["phase"]
         label = phase if phase == UNATTRIBUTED else Path(phase).name
-        out.append(f"  {index:>4}  {rendered:>12}  {step['tool']:<10}  {label}")
+        suffix = "  (subagent)" if step.get("thread") == "subagent" else ""
+        out.append(f"  {index:>4}  {rendered:>12}  {step['tool']:<10}  {label}{suffix}")
     unestablished = sum(1 for s in timeline["steps"] if s["duration_ms"] == UNESTABLISHED)
     if unestablished:
         out.append(f"  {unestablished} step(s) have an unestablished duration "

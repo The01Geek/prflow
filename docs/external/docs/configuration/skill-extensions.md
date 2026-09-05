@@ -1,33 +1,37 @@
 ---
-title: "Prompt Extensions"
+title: "Skill Extensions"
 description: "Add your team's own standing instructions to any PRFlow command without editing the plugin."
 ---
 
 Teach a PRFlow command your repository's rules by committing a Markdown file that the command reads on every run.
 
-## What a Prompt Extension Is
+## What a Skill Extension Is
 
-A prompt extension is a Markdown file in your repository whose text PRFlow adds to the end of a command's own instructions each time that command runs.
+A skill extension is a Markdown file in your repository whose text PRFlow adds to the end of a command's own instructions each time that command runs.
 
 The file belongs to you, not to the plugin. A plugin update never overwrites it and never conflicts with it, in the same way that your `.prflow/config.json` stays yours across updates.
 
-Settings in `.prflow/config.json` change values PRFlow already knows about. A prompt extension adds instructions PRFlow could not know about, such as the name of your verification command or a rule about code that must never change.
+Settings in `.prflow/config.json` change values PRFlow already knows about. A skill extension adds instructions PRFlow could not know about, such as the name of your verification command or a rule about code that must never change.
 
 <Warning>
-  A prompt extension has real authority over the run. Its text becomes instructions to an agent that can edit your repository, push commits, open pull requests and decide when work is finished. Anyone who can change the file can change how every later run behaves.
+  A skill extension has real authority over the run. Its text becomes instructions to an agent that can edit your repository, push commits, open pull requests and decide when work is finished. Anyone who can change the file can change how every later run behaves.
 
   Review and commit extension files through the same pull request process you use for code. Never put a token, password or other secret in one, because the file is committed to your repository.
 </Warning>
 
 ## Where the File Goes
 
-Put the file at `.prflow/prompt-extensions/<command>.md`. Replace `<command>` with the command name without the `/prflow:` prefix.
+Put the file at `.prflow/skill-extensions/<command>.md`. Replace `<command>` with the command name without the `/prflow:` prefix.
 
-For example, `/prflow:review` reads `.prflow/prompt-extensions/review.md`.
+For example, `/prflow:review` reads `.prflow/skill-extensions/review.md`.
 
 Running [`/prflow:init`](/docs/getting-started/initialization) creates the directory and writes one commented example per command, named `<command>.md.example`. An example file is inert. It is a single Markdown comment, so it changes nothing even if you rename it by mistake. To activate it, rename it to `<command>.md` and replace the commented body with your own instructions.
 
 Commit the file. Your team shares one copy, and cloud runs read it from the committed tree.
+
+<Note>
+  This directory was named `.prflow/prompt-extensions/` in an earlier release. If your repository still has it under the old name, everything keeps working: every command resolves `.prflow/skill-extensions/` first and falls back to a present `.prflow/prompt-extensions/`, printing a breadcrumb that names the old path. Running [`/prflow:init`](/docs/getting-started/initialization) (or re-running the installer, which runs the same scaffolder) renames the directory to `.prflow/skill-extensions/` for you, carrying every file across; when both directories already exist it renames nothing and tells you to merge them by hand.
+</Note>
 
 ## Which Commands Read One
 
@@ -35,16 +39,20 @@ Every PRFlow command reads its own file. These are the commands documented on th
 
 | Command | File it reads |
 | --- | --- |
-| [`/prflow:create-issue`](/docs/workflows/create-issue) | `.prflow/prompt-extensions/create-issue.md` |
-| [`/prflow:implement`](/docs/workflows/implement) | `.prflow/prompt-extensions/implement.md` |
-| [`/prflow:review`](/docs/workflows/review) | `.prflow/prompt-extensions/review.md` |
-| [`/prflow:review-and-fix`](/docs/workflows/review-and-fix) | `.prflow/prompt-extensions/review-and-fix.md` and `.prflow/prompt-extensions/receiving-code-review.md` |
-| [`/prflow:pr-description`](/docs/workflows/pr-description) | `.prflow/prompt-extensions/pr-description.md` |
-| [`/prflow:docs`](/docs/workflows/documentation) | `.prflow/prompt-extensions/docs.md` |
-| [`/prflow:retrospective-weekly`](/docs/workflows/retrospective-weekly) | `.prflow/prompt-extensions/retrospective-weekly.md` |
-| [`/prflow:init`](/docs/getting-started/initialization) | `.prflow/prompt-extensions/init.md` |
+| [`/prflow:create-issue`](/docs/workflows/create-issue) | `.prflow/skill-extensions/create-issue.md` |
+| [`/prflow:implement`](/docs/workflows/implement) | `.prflow/skill-extensions/implement.md` |
+| [`/prflow:review`](/docs/workflows/review) | `.prflow/skill-extensions/review.md` |
+| [`/prflow:review-and-fix`](/docs/workflows/review-and-fix) | `.prflow/skill-extensions/review-and-fix.md` and `.prflow/skill-extensions/fix.md` |
+| [`/prflow:pr-description`](/docs/workflows/pr-description) | `.prflow/skill-extensions/pr-description.md` |
+| [`/prflow:docs`](/docs/workflows/documentation) | `.prflow/skill-extensions/docs.md` |
+| [`/prflow:retrospective-weekly`](/docs/workflows/retrospective-weekly) | `.prflow/skill-extensions/retrospective-weekly.md` |
+| [`/prflow:init`](/docs/getting-started/initialization) | `.prflow/skill-extensions/init.md` |
 
-`/prflow:review-and-fix` reads two files because its fix loop applies the code-review reception rules without running that command, so a rule you write once in `receiving-code-review.md` reaches every fix pass.
+`/prflow:review-and-fix` reads two files because its fix loop applies the code-review reception rules without running that command, so a rule you write once in `fix.md` reaches every fix pass.
+
+<Note>
+  The `fix` extension was renamed from an earlier name in a recent release. If you customized the extension under its previous name, it keeps applying across the upgrade: when `fix.md` is absent the loader reads your old file and prints a breadcrumb naming the exact file to rename to `fix.md`. Running [`/prflow:init`](/docs/getting-started/initialization) (and re-running the installer, which runs the same scaffolder) renames the file to `fix.md` for you. On a cloud run the base-branch materialization still finds the old file and warns. Renaming it yourself, or letting `init` do it, ends the transitional read-through. The [release notes](/release-notes) name the previous file.
+</Note>
 
 The focused documentation commands read their own files under the same rule: `docs-sync-internal.md`, `docs-sync-external.md`, `docs-release-notes.md`, `docs-verify.md`, `docs-bootstrap-internal.md` and `docs-bootstrap-external.md`. The final-pass reviewer inside the review engine reads `requesting-code-review.md`.
 
@@ -61,7 +69,7 @@ Write the file as instructions, not as background reading. If you want a tool ca
 A team keeps its checks behind one command and treats shipped database migrations as immutable. They commit this file.
 
 ```markdown
-<!-- .prflow/prompt-extensions/implement.md -->
+<!-- .prflow/skill-extensions/implement.md -->
 
 ## Verification
 
@@ -91,7 +99,7 @@ For a cloud run, also grant the command you named. Installing a tool or naming i
 Expected result on the next `/prflow:implement` run: the run reports that the extension loaded, uses `make verify` as its verification command, opens the pull request with a "Rollback" section and refuses to edit a shipped migration, proposing a new migration file instead. See [Tool Permissions](/docs/configuration/tool-permissions) for the grant format.
 
 <Accordion title="Two headings the create-issue extension treats specially">
-  `/prflow:create-issue` reads two headings in `.prflow/prompt-extensions/create-issue.md` by name, in addition to using the whole file as instructions.
+  `/prflow:create-issue` reads two headings in `.prflow/skill-extensions/create-issue.md` by name, in addition to using the whole file as instructions.
 
   A section headed exactly `## Audit dimensions` is passed to the pass that audits the draft issue, added to its standard checklist. Use it to teach the auditor the assumptions your issues must respect.
 
@@ -121,7 +129,7 @@ On a cloud run — whether `/prflow:implement` or a `/prflow:review` command —
 If a run reports an unestablished state, fix it before you trust the run's output. That run followed none of your house rules.
 
 <Note>
-  On cloud runs the `review`, `review-and-fix`, `pr-description`, `receiving-code-review` and `requesting-code-review` extensions are read from a copy taken from the pull request's base branch, not from the branch under review. A change to one of those files takes effect after it merges. This stops a pull request from editing the instructions its own reviewer follows. See [Security](/docs/concepts/security).
+  On cloud runs the `review`, `review-and-fix`, `pr-description`, `fix` and `requesting-code-review` extensions are read from a copy taken from the pull request's base branch, not from the branch under review. A change to one of those files takes effect after it merges. This stops a pull request from editing the instructions its own reviewer follows. See [Security](/docs/concepts/security).
 </Note>
 
 ## Keep It Short

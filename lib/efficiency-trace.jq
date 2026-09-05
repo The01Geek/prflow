@@ -29,6 +29,9 @@
 #          #431). Carried verbatim into the record so an experiment analysis can
 #          attribute the run to the config that produced it; this filter does not
 #          act on it. null when the wrapper could not establish a fingerprint.
+#   $return_files: the engine-return-file corroboration map
+#          {"<iter>":{"step1":<state>,"shadow":<state>}} the wrapper builds (issue
+#          #115), keyed by each record's (.iter|tostring); {} when the dir is unknown.
 #
 # Effectiveness taxonomy (4-way, per dispatched subagent, per iteration):
 #   unique-effective — raised a finding that led to an applied fix and that no
@@ -198,6 +201,25 @@ def verdict_for($findings; $review_mode):
       elif ($decisions | any(. == "pushed_back" or . == "advisory")) then "noise"
       else null
       end
+  end;
+
+# Dispatch corroboration state (issue #115), the mirror of do_self_check's
+# per-entry cross-check for the trace and the durable record. One of exactly
+# seven values, complete by construction: not-checked (entry outside the
+# population, or a shadow entry not checked), refused / fallback (a recorded
+# dispatch_disposition — refused stays refused, dead/malformed become fallback),
+# absent / malformed (the return-file state from $return_files), corroborated
+# (the recorded mode equals the file's), else mismatch. A null/absent recorded
+# mode ($recmode == null) can never equal a valid file state, so it reads
+# mismatch against a present file and absent against none.
+def corroboration($checked; $recmode; $disp; $filestate):
+  if ($checked | not) then "not-checked"
+  elif $disp == "refused" then "refused"
+  elif ($disp == "dead" or $disp == "malformed") then "fallback"
+  elif $filestate == "absent" then "absent"
+  elif $filestate == "malformed" then "malformed"
+  elif ($recmode != null and $recmode == $filestate) then "corroborated"
+  else "mismatch"
   end;
 
 # Per-iteration derived view.
@@ -383,7 +405,39 @@ def iter_view:
       # Defect-kind recurrence inputs (issue #1903), carried for the run-level
       # derivation resolved in the top-level pass below.
       defect_signature_present: $defect_signature_present,
-      defect_kinds: $defect_kinds
+      defect_kinds: $defect_kinds,
+      # Per-entry dispatch mode + corroboration (issue #115), keyed off the return
+      # file map the wrapper derived. The population predicate mirrors
+      # do_self_check: a source:"review" or synthesized:true record is not checked
+      # (step1 not-checked), and the shadow entry is checked only on a shadow
+      # object whose coverage is not "not_verified". All derefs type-guarded so an
+      # agent-mutable malformed record never aborts the filter.
+      dispatch: (
+        (($it.iter | tostring)) as $ikey
+        | (($return_files[$ikey]) // {}) as $rf
+        # Guard shadow to an object-or-null: `objects` emits EMPTY (not null) on a
+        # non-object, and an empty-valued field collapses the whole record to
+        # nothing — so a shadowless iter would vanish from the trace and record.
+        | (($it.shadow) | if type == "object" then . else null end) as $sh
+        | ((($it.source) != "review") and (($it.synthesized) != true)) as $step1_checked
+        | (($it.dispatch_mode) | if type == "string" then . else null end) as $step1_recmode
+        | (($it.dispatch_disposition) | if type == "string" then . else null end) as $step1_disp
+        | (($rf.step1) // "absent") as $step1_file
+        | ($step1_checked and ($sh != null) and (($sh.coverage) != "not_verified")) as $shadow_checked
+        | (($sh.dispatch_mode) | if type == "string" then . else null end) as $shadow_recmode
+        | (($sh.dispatch_disposition) | if type == "string" then . else null end) as $shadow_disp
+        | (($rf.shadow) // "absent") as $shadow_file
+        | {
+            step1: {
+              dispatch_mode: ($it.dispatch_mode),
+              dispatch_corroboration: corroboration($step1_checked; $step1_recmode; $step1_disp; $step1_file)
+            },
+            shadow: {
+              dispatch_mode: ($sh.dispatch_mode),
+              dispatch_corroboration: corroboration($shadow_checked; $shadow_recmode; $shadow_disp; $shadow_file)
+            }
+          }
+      )
     };
 
 # ── Build the ordered per-iteration array ───────────────────────────────────
@@ -508,7 +562,11 @@ def iter_view:
         checklist_agent_count: .checklist_agent_count,
         fixes_applied: .fixes_applied,
         added_nothing: .added_nothing,
-        agent_verdicts: .agent_verdicts
+        agent_verdicts: .agent_verdicts,
+        # Per-entry dispatch mode + corroboration (issue #115), carried into the
+        # durable record so an engine entry that ran inline is legible after
+        # .prflow/tmp/ is destroyed at runner teardown.
+        dispatch: .dispatch
       })),
       # Cost telemetry carried forward from each workpad so it is no longer lost
       # when .prflow/tmp/ is destroyed at GH-runner teardown. `phases` mirrors
@@ -539,7 +597,9 @@ def iter_view:
                   posture_line(.),
                   (if $review_mode
                    then "- Effectiveness signal: verdict contribution (standalone review applies no fixes) — \($contributed) of \(.agent_verdicts | length) agent(s) contributed"
-                   else "- Fixes applied: \(.fixes_applied)" end)
+                   else "- Fixes applied: \(.fixes_applied)" end),
+                  # Per-entry engine dispatch mode + corroboration (issue #115).
+                  "- Dispatch: step1 \(.dispatch.step1.dispatch_mode // "null")/\(.dispatch.step1.dispatch_corroboration), shadow \(.dispatch.shadow.dispatch_mode // "null")/\(.dispatch.shadow.dispatch_corroboration)"
                 ]
               + (.agent_verdicts | map("  - \(.agent) — \(.verdict)") | (if length == 0 then ["- Agent verdicts: (none dispatched)"] else ["- Agent verdicts:"] + . end))
               + (if $review_mode

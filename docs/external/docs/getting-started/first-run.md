@@ -79,14 +79,14 @@ Confirm all of the following:
     - [x] The retention window is configurable
     - [ ] Logs older than the window are removed
 
-    ## Devflow Reflection
+    ## PRFlow Reflections
     ```
 
     The header fields tell you where the work lives. **Status** is the current phase. **Branch** is the branch PRFlow created or adopted. **Run** links to the cloud run, or reads `_(local run)_` when you started it yourself. **PR** reads `_not yet created_` until the pull request exists, then holds its link. **Last updated** is the time of the most recent edit, in UTC.
 
     The **Progress** checklist has one top-level row per phase, with sub-rows beneath. Notes are timestamped and nest under the phase they belong to. **Plan** and **Acceptance Criteria** start as placeholders and fill in once PRFlow has read the issue and planned the work.
 
-    **Devflow Reflection** collects anything PRFlow wants a human to know: a limitation it hit, work it deferred, an assumption it had to make. It keeps the older `Devflow` spelling. Read it before you review the code.
+    **PRFlow Reflections** collects anything PRFlow wants a human to know: a limitation it hit, work it deferred, an assumption it had to make. Read it before you review the code. (The section reader also still accepts the older `Devflow Reflection` heading, so a workpad written before the rename stays readable.)
   </Step>
 
   <Step title="Review and Merge">
@@ -126,7 +126,7 @@ A local run you start yourself never writes `Failed` or `Cancelled`. Those two a
 
 Do this:
 
-1. Read the `Devflow Reflection` section. The reason is recorded there, along with what PRFlow observed.
+1. Read the `PRFlow Reflections` section. The reason is recorded there, along with what PRFlow observed.
 2. Fix that specific cause. Install the tool, correct the acceptance criterion, repair the failing test or resolve the repository state.
 3. Run `/prflow:implement 123` again with the same issue number.
 

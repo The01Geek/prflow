@@ -145,6 +145,86 @@ def _atomic_write(target, data, mode):
 _STAGED_SUFFIX = '.staged.md'
 
 
+def _host_abs_path(value, _pathmod=os.path):
+    """True iff ``value`` is absolute per the interpreter's OWN path module.
+
+    A leading ``/`` on POSIX; a drive-letter or UNC root on Windows. A rooted path naming
+    no drive (``/Users/x`` on a Windows module) is refused on EVERY supported interpreter:
+    ``ntpath.isabs`` classified that True before 3.13 and False from 3.13, so on a
+    Windows-style module absoluteness additionally requires a non-empty drive, which makes
+    the verdict version-stable. Pure: no environment probe and no filesystem access. A
+    third copy of the rule ``issue-audit-state.py`` and ``render-audit-prompt.py`` both
+    carry, kept in agreement by test_render_audit_prompt.py (issue #1762 — edited together).
+    """
+    if not _pathmod.isabs(value):
+        return False
+    if _pathmod.sep == "\\":  # a Windows-style path module (ntpath)
+        return _pathmod.splitdrive(value)[0] != ""
+    return True
+
+
+def _is_title_line(line):
+    """True iff ``line`` (bytes) is a draft title heading: stripped form ``b'#'`` or
+    starting ``b'# '``. The byte-level title rule ``split_body`` decides in
+    ``issue-audit-state.py`` and ``draft_title`` mirrors in ``render-audit-prompt.py``;
+    ``_first_nonblank_is_title`` (which delegates here) is D10's stage-side subject.
+    """
+    stripped = line.strip()
+    return stripped == b'#' or stripped.startswith(b'# ')
+
+
+def _first_nonblank_is_title(data):
+    """True iff the first non-blank line of ``data`` (bytes) is a title-heading line.
+
+    The stage-side subject of the shared title rule the D10 agreement test pins.
+    """
+    for line in data.splitlines():
+        if line.strip():
+            return _is_title_line(line)
+    return False
+
+
+def _has_duplicate_title(data):
+    """True iff the first two non-blank lines of ``data`` (bytes) are both title headings.
+
+    A re-stage that prepends the title to a canonical file already carrying it lands two
+    title lines, and ``emit-body`` strips only one, so the second would post as the issue
+    body. The guard lives on ``stage`` because it reads the agent's composed bytes on
+    stdin, and refuses before anything lands. It fails CLOSED toward no-change: a draft
+    whose body legitimately opens on its own ``# `` heading is refused too, and the
+    breadcrumb tells the caller to stage the body only.
+    """
+    seen = []
+    for line in data.splitlines():
+        if line.strip():
+            seen.append(line)
+            if len(seen) == 2:
+                break
+    return len(seen) == 2 and _is_title_line(seen[0]) and _is_title_line(seen[1])
+
+
+def _resolve_base_abspath(base, _pathmod=os.path):
+    """Make a staging BASE host-absolute before its digest is spliced in (issue #79).
+
+    A host-absolute base (per ``_host_abs_path``) is returned normalised; a relative base
+    is resolved against the working directory with ``abspath``. A rooted base naming no
+    drive on a Windows-style module is REFUSED (``staged-base-driveless``) rather than
+    resolved: ``abspath`` would attach the current drive and land the artifact outside the
+    bound root. ``record-staged-write --path`` requires an absolute path, so making the
+    printed ``path=`` absolute is what lets ``stage``'s print be passed on verbatim.
+    """
+    if _host_abs_path(base, _pathmod):
+        return _pathmod.normpath(base)
+    if _pathmod.sep == "\\" and base[:1] in ("\\", "/") and _pathmod.splitdrive(base)[0] == "":
+        # Refuse a rooted drive-less base on a Windows-style module independent of the
+        # interpreter's ntpath.isabs verdict (True before 3.13, False from 3.13): keying on
+        # isabs here would fall through to abspath on 3.13+ and attach the current drive.
+        _fail('stage', f'--path {base!r} is rooted but names no drive; resolving it would '
+                       'land the artifact on the current drive outside the bound root '
+                       '(staged-base-driveless)')
+    return _pathmod.abspath(base)
+
+
 def resolve_staged_path(base, digest, mode='stage'):
     """Complete a staging BASE path with the staged bytes' digest (issue #793).
 
@@ -195,8 +275,13 @@ def cmd_stage(args):
     # it rather than atomically landing zero bytes the apply step would then replace in.
     if not data:
         _fail('stage', 'no intended bytes were received on stdin')
+    if _has_duplicate_title(data):
+        _fail('stage', 'the first two non-blank lines are both `# ` title headings; the '
+                       'canonical draft already carries the title after a landed write, so '
+                       'stage its body only (duplicate-title)')
     digest = _hash_bytes(data, 'stage')
-    resolved = resolve_staged_path(args.path, digest, 'stage')
+    base = _resolve_base_abspath(args.path)
+    resolved = resolve_staged_path(base, digest, 'stage')
     _atomic_write(resolved, data, 'stage')
     # BOTH values are printed, and the path is what every later fence uses: `emit`,
     # `apply` and the state owner's `record-staged-write` all take the RESOLVED path, so a
@@ -255,7 +340,9 @@ def build_parser():
     s.add_argument('--path', required=True,
                    help='The staging BASE (issue-draft-<slug>.<nonce>.staged.md). This mode '
                         'completes it with the staged bytes digest and reports the resolved '
-                        'path; a base not ending in .staged.md is refused.')
+                        'path; a base not ending in .staged.md is refused. The reported '
+                        'path= is absolute (a relative base is resolved against the working '
+                        'directory) and is passed to record-staged-write --path verbatim.')
     s.set_defaults(func=cmd_stage)
 
     s = sub.add_parser('emit', help='Write the staging artifact bytes byte-exactly to stdout.')

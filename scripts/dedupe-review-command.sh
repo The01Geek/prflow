@@ -198,14 +198,14 @@ mode="${MODE:-detect}"
 # CRITICAL: every notice body must carry NO PRFlow trigger phrase (no `/prflow:`,
 # `/devflow:`, `@claude`). Under the optional App token this comment fires a real
 # issue_comment event, so a trigger substring here would re-enter the gate and
-# loop. The legacy causes name the `Devflow Review` check + its Re-run button
+# loop. The legacy causes name the `PRFlow Review` check + its Re-run button
 # because on a consumer whose installed copy predates the withheld tier those are
 # the reader's real actions; the in-flight-review cause names its own reason.
 if [ "$mode" = "notice" ]; then
   head7="${HEAD:0:7}"
   case "${CAUSE:-}" in
     legacy-check-run|legacy-workflow-run)
-      emit notice "ℹ️ An automated **Devflow Review** is already running for this commit (\`${head7}\`). Skipping this manual review command to avoid a duplicate review and double comments. Use the **Re-run** button on the \`Devflow Review\` check if you need to re-review." ;;
+      emit notice "ℹ️ An automated **PRFlow Review** is already running for this commit (\`${head7}\`). Skipping this manual review command to avoid a duplicate review and double comments. Use the **Re-run** button on the \`PRFlow Review\` check if you need to re-review." ;;
     inflight-review)
       emit notice "ℹ️ A review of this commit (\`${head7}\`) is already in progress. Skipping this duplicate review command so the commit receives a single review — the in-progress review will post its verdict when it finishes. This check is commit-scoped: a review of a different commit is never skipped, so after pushing you can ask again and the new commit gets its own review." ;;
     *)

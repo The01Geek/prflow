@@ -12,7 +12,7 @@ PRFlow reads one file: `.prflow/config.json` at the root of your repository. It 
 Two other files sit beside it and are not settings:
 
 - `.prflow/config.example.json` is the scaffolded reference copy. It shows the shape of every section.
-- `.prflow/prompt-extensions/` holds [prompt extensions](/docs/configuration/prompt-extensions), which are instructions rather than values.
+- `.prflow/skill-extensions/` holds [prompt extensions](/docs/configuration/skill-extensions), which are instructions rather than values.
 
 Run [`/prflow:init`](/docs/getting-started/initialization) to create the file. It writes the file when it is absent and adds newly scaffolded keys to an existing file without replacing values or arrays you already set.
 
@@ -69,7 +69,7 @@ Expected result: local commands keep working exactly as before, cloud runs are e
   <Card title="Review Agents" icon="users" href="/docs/configuration/review-agents">
     Per-agent model, effort and iteration overrides inside the review engine.
   </Card>
-  <Card title="Prompt Extensions" icon="file-pen" href="/docs/configuration/prompt-extensions">
+  <Card title="Skill Extensions" icon="file-pen" href="/docs/configuration/skill-extensions">
     Your team's own instructions, appended to a command on every run.
   </Card>
   <Card title="Model Providers" icon="network-wired" href="/docs/configuration/providers">

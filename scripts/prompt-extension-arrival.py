@@ -19,7 +19,8 @@ Three subcommands:
 
 * ``classify`` — the independent read. It resolves the SAME extension root the
   ``load-prompt-extension.sh`` ladder resolves (``DEVFLOW_PROMPT_EXTENSION_ROOT`` when
-  set and non-empty, else ``<git-root>/.prflow/prompt-extensions``), stats/reads the
+  set and non-empty, else ``<git-root>/.prflow/skill-extensions`` — falling back to a
+  present superseded ``.prflow/prompt-extensions`` during the issue-#170 transition), stats/reads the
   ``<skill>.md`` file directly, and emits the expected delivery state plus the resolved
   root. Deliverable content present → ``arrived-expected``; no file or an empty file →
   ``absent`` (a legal consumer state); a present-but-undeliverable file (unreadable,
@@ -133,22 +134,44 @@ def _git_root() -> str:
     return os.getcwd()
 
 
-def _resolve_ext_dir(root_arg: str | None) -> str:
+def _resolve_ext_dir(root_arg: str | None, skill: str) -> str:
     """Resolve the extension DIRECTORY the way ``load-prompt-extension.sh`` does, so the
     detector and the delivery channel read the same root (AC8) — see ``_git_root`` for
     the one canonical-vs-transitional caveat on the git-root fallback.
 
     Precedence, honoring the DEVFLOW_* convention (honored when set and non-empty):
     an explicit ``--root``, else ``DEVFLOW_PROMPT_EXTENSION_ROOT``. Either names the
-    directory OUTRIGHT — no ``.prflow/prompt-extensions/`` segment is appended. Only the
+    directory OUTRIGHT — no ``.prflow/skill-extensions/`` segment is appended. Only the
     fallback (git-root) branch appends that segment.
+
+    On the git-root branch, resolve the requested file canonical-first and then from
+    the superseded directory, matching ``load-prompt-extension.sh`` during migration.
     """
     if root_arg:
         return root_arg
     env_root = os.environ.get("DEVFLOW_PROMPT_EXTENSION_ROOT", "")
     if env_root:
         return env_root
-    return os.path.join(_git_root(), ".prflow", "prompt-extensions")
+    base = os.path.join(_git_root(), ".prflow")
+    new_dir = os.path.join(base, "skill-extensions")
+    old_dir = os.path.join(base, "prompt-extensions")
+    new_requested = os.path.join(new_dir, f"{skill}.md")
+    old_requested = os.path.join(old_dir, f"{skill}.md")
+    use_old = not os.path.lexists(new_requested) and os.path.lexists(old_requested)
+    if skill == "fix" and not os.path.lexists(new_requested) and not os.path.lexists(old_requested):
+        use_old = (
+            not os.path.lexists(os.path.join(new_dir, "receiving-code-review.md"))
+            and os.path.lexists(os.path.join(old_dir, "receiving-code-review.md"))
+        )
+    if use_old:
+        sys.stderr.write(
+            f"prompt-extension-arrival.py: reading from the superseded extension "
+            f"directory {old_dir!r} — run /prflow:init to migrate it to {new_dir!r} "
+            f"(transitional read-through; removed once no consumer still carries a "
+            f".prflow/prompt-extensions/ directory)\n"
+        )
+        return old_dir
+    return new_dir
 
 
 def _classify_state(ext_file: str) -> str:
@@ -173,10 +196,34 @@ def _classify_state(ext_file: str) -> str:
     return STATE_ABSENT
 
 
+def _apply_rename_read_through(skill: str, ext_dir: str, ext_file: str) -> str:
+    """Mirror ``load-prompt-extension.sh``'s transitional skill-rename read-through
+    (issue #152): when asked for ``fix`` and no ``fix.md`` is present in the selected
+    directory, fall through to a present ``receiving-code-review.md`` so this detector's
+    expectation matches the bytes the loader's read-through actually delivers. The
+    trigger mirrors the loader's (``fix.md`` neither exists nor is a symlink); whatever
+    shape the superseded entry has is then judged by ``_classify_state`` exactly as the
+    loader's own deliverability guards judge it. Returns the effective ext_file.
+
+    END CRITERION (confirmation-gated): removed together with the loader read-through,
+    the transitional protected-extension entry, and its drift-guard allowance once no
+    consumer still carries a receiving-code-review.md.
+    """
+    if skill != "fix":
+        return ext_file
+    if os.path.lexists(ext_file):
+        return ext_file
+    superseded = os.path.join(ext_dir, "receiving-code-review.md")
+    if os.path.lexists(superseded):
+        return superseded
+    return ext_file
+
+
 def cmd_classify(args: argparse.Namespace) -> int:
     _validate_skill(args.skill)
-    ext_dir = _resolve_ext_dir(args.root)
+    ext_dir = _resolve_ext_dir(args.root, args.skill)
     ext_file = os.path.join(ext_dir, f"{args.skill}.md")
+    ext_file = _apply_rename_read_through(args.skill, ext_dir, ext_file)
     state = _classify_state(ext_file)
     # Record the resolved root on stdout so the run can state which root it read (AC8).
     sys.stdout.write(

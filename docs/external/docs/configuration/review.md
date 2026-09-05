@@ -13,6 +13,7 @@ Tune the shared review engine and the local review-and-fix loop to match your re
 | `prflow_review.live_progress_comment_enabled` | Boolean | `true` | Pull-request review. When true, each run maintains its own progress comment. Comment writes are best effort. | `"live_progress_comment_enabled": true` |
 | `prflow_review.stale_prose.enabled` | Boolean | Fallback `true`; scaffold: `false`. Anything except explicit false enables | Shared review engine. Fresh installs scaffold this off, because the check is tuned to prose idioms that are common in the PRFlow repository itself and its false-positive suppression channel only works for bot-authored review comments. Set it to true to enable the automatic check for prose that contains stale numeric claims. | `"enabled": false` |
 | `prflow_review.stale_prose.severity` | `critical`, `important` or `suggestion` | `important` | Shared review engine. The chosen severity participates in verdict computation. | `"severity": "important"` |
+| `review_status_labels.enabled` | Boolean | `false`; only the JSON boolean `true` or the string `"true"` enables | Cloud pull-request review. Off by default, so no label request is made unless you opt in. When on, a cloud review keeps one managed label — `PRFlow:Reviewing`, `PRFlow:Approved`, `PRFlow:ChangesRequested` or `PRFlow:ReviewFailed` — on the pull request and each issue it closes, so review state is visible from the issue and pull-request lists. Best-effort: label errors never change a run's outcome, and unmanaged labels are left in place. Local reviews and review-and-fix runs write no label. | `"review_status_labels": { "enabled": true }` |
 
 <Note>
   `prflow_review.stale_prose.enabled` is the second place where the scaffolded file and the fallback disagree. `/prflow:init` writes `false`, while an absent key resolves to `true`. Set the value explicitly rather than deleting the key.
@@ -27,7 +28,7 @@ Tune the shared review engine and the local review-and-fix loop to match your re
 | `prflow_review_and_fix.max_iterations` | Integer one or greater | `5`; values below one clamp to one | Review-and-fix. Higher values can increase cost. | `"max_iterations": 5` |
 | `prflow_review_and_fix.efficiency_telemetry_enabled` | Boolean | `true` | Review-and-fix. False disables the effectiveness record and prevents denied-command records from being persisted on the telemetry branch. | `"efficiency_telemetry_enabled": true` |
 | `prflow_review_and_fix.efficiency_cut_candidate_min_dispatch` | Integer one or greater | `3` | Cross-run analysis. It is recorded for later analysis and does not cut an agent during the current run. | `"efficiency_cut_candidate_min_dispatch": 3` |
-| `receiving_review.fix_severity_threshold` | `critical`, `important` or `suggestion` | `critical` | Direct use of the receiving-code-review skill only. The review-and-fix loop uses its own threshold. | `"fix_severity_threshold": "critical"` |
+| `receiving_review.fix_severity_threshold` | `critical`, `important` or `suggestion` | `critical` | Direct use of the fix skill only. The review-and-fix loop uses its own threshold. | `"fix_severity_threshold": "critical"` |
 
 ## Valid Review Example
 
@@ -55,7 +56,7 @@ Tune the shared review engine and the local review-and-fix loop to match your re
 
 Expected result: a review rejects only on a critical finding, the fix loop corrects findings of important severity or worse and stops after at most five iterations, and each run keeps its own progress comment on the pull request.
 
-To add house review rules that no setting expresses, such as a pattern your reviewers must always flag, write a [prompt extension](/docs/configuration/prompt-extensions) for `review` and `review-and-fix`.
+To add house review rules that no setting expresses, such as a pattern your reviewers must always flag, write a [prompt extension](/docs/configuration/skill-extensions) for `review` and `review-and-fix`.
 
 ## Removed Automatic-Review Settings and the Retained Backstop
 

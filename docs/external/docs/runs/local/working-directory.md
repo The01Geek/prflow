@@ -17,7 +17,7 @@ It prints one absolute path, such as `/Users/you/code/acme-api`. That path is th
 
 ## Run From Any Subdirectory
 
-PRFlow's configuration and prompt-extension readers resolve their default path from the Git root, so a command entered in `packages/web/` reads the same root `.prflow/config.json` and the same `.prflow/prompt-extensions/` files as a command entered at the top of the repository.
+PRFlow's configuration and prompt-extension readers resolve their default path from the Git root, so a command entered in `packages/web/` reads the same root `.prflow/config.json` and the same `.prflow/skill-extensions/` files as a command entered at the top of the repository.
 
 Bundled helper files are found relative to the helper itself, not relative to your current directory, so they resolve the same way from anywhere in the tree.
 

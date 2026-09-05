@@ -20,8 +20,9 @@ axes it measures are the ones the implement skill's cost shape is dominated by
 
   1. **Peak main-thread context per run** — the same per-turn sum the create-issue
      instrument uses: `input_tokens + cache_read_input_tokens +
-     cache_creation_input_tokens` over the main-thread (non-`isSidechain`) attributed
-     assistant records. This is the residency cost a long implement run pays.
+     cache_creation_input_tokens` over the main-thread attributed assistant records
+     (subagent records — `isSidechain`, or a cloud `parent_tool_use_id` — excluded). This
+     is the residency cost a long implement run pays.
 
   2. **How many times each of the four phase files was read in a run** — the multiplier
      issue #1209 identifies as the cost shape actually worth measuring. The phase files
@@ -58,12 +59,13 @@ as the peak-context aggregate (issue #1209 AC12). None of the four introduces a 
 ceiling, threshold, or budget — they are instrument outputs.
 
 A "run" is bounded by `attributionSkill` matching any declared `<ns>:implement` on
-`type == "assistant"` records. Only a **main-thread** (non-`isSidechain`) attributed
-assistant record contributes to the residency axis and to the phase-read count — the
-phase files are read by the orchestrator on the main thread, never by a dispatched
-subagent. One session JSONL file that contains at least one main-thread attributed
-assistant record yields one run; a run that RESUMES into a separate session file is
-reported as its own run (cross-session merging is out of scope, a disclosed proxy).
+`type == "assistant"` records. Only a **main-thread** attributed assistant record (a
+subagent record — `isSidechain`, or a cloud `parent_tool_use_id` — never counts)
+contributes to the residency axis and to the phase-read count — the phase files are read
+by the orchestrator on the main thread, never by a dispatched subagent. One session file
+that contains at least one main-thread attributed assistant record yields one run; a run
+that RESUMES into a separate session file is reported as its own run (cross-session merging
+is out of scope, a disclosed proxy).
 
 Per-record token usage is read from `message.usage.{input_tokens,
 cache_read_input_tokens, cache_creation_input_tokens}`. A turn establishing none of
@@ -79,11 +81,18 @@ local `skills/implement/phases/…` path on the interactive tier and a vendored
 `.prflow/vendor/prflow/skills/implement/phases/…` path on the cloud tier — the basename
 is the one component stable across both.
 
-The parser streams records line by line (it never buffers an entire session into
-memory) and degrades per malformed record without detonating, reporting how many
-records it skipped and why. It is deterministic: re-running over the same corpus
-yields byte-identical output. It writes NO transcript contents and embeds no
-owner-specific identifiers.
+The reader (scripts/context_eval_shared.py) tolerates the cloud artifact shape — a
+`# DEVFLOW SCRUB CAVEAT` line followed by a pretty-printed JSON array — as well as a bare
+array, a single object, and JSONL, in that preference order (issue #120). A whole-file
+JSON array is read whole (it has no line that parses on its own), so a session is buffered
+rather than streamed line by line; the walk still degrades per malformed record without
+detonating, reporting how many records it skipped and why. It is deterministic: re-running
+over the same corpus yields byte-identical output. It writes NO transcript contents and
+embeds no owner-specific identifiers.
+
+A run is bounded by `attributionSkill` on a transcript that carries it; a transcript whose
+main-thread assistant records carry no `attributionSkill` at all (the cloud execution
+file) is measured as exactly one run spanning the whole file (issue #120 AC6).
 
 Usage:
     implement-context-eval.py <transcript-dir>
@@ -106,11 +115,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import itertools
 
 from context_eval_shared import (  # noqa: F401
+    PHASE_FILES,
+    PHASE_READ_LABELS,
+    SWEEP_REFERENCE_PHASE,
+    SWEEP_REFERENCE_PREFIX,
+    SWEEP_REFERENCE_SUFFIX,
     UNESTABLISHED,
     _context_tokens,
+    _is_main_thread_record,
     _iter_session_files,
     _median,
+    _phase_read_label,
     _usage_value,
+    read_and_tally,
 )
 
 # A run is bounded by `attributionSkill`, which carries the LIVE plugin namespace. That
@@ -199,36 +216,11 @@ def _attribution_ids():
 
 ATTRIBUTION = _attribution_ids()
 
-# The four phase files whose per-run read count issue #1209 measures. The mapping is
-# basename -> the short label the report keys the count on. A phase file renamed on disk
-# must be mirrored here in the same change (there is no import from the skill; the eval
-# is a standalone instrument). PHASE_READ_LABELS is the report's canonical, sorted key
-# order for the per-phase axis — every run reports all four, 0 when a phase was never
-# entered.
-PHASE_FILES = {
-    "phase-1-setup.md": "phase1",
-    "phase-2-implement.md": "phase2",
-    "phase-2-sweeps-contract.md": "phase2",
-    "phase-2-sweeps-quality.md": "phase2",
-    "phase-3-review.md": "phase3",
-    "phase-3-fix-loop.md": "phase3",
-    "phase-3-ac-gate.md": "phase3",
-    "phase-4-documentation.md": "phase4",
-}
-PHASE_READ_LABELS = tuple(sorted(PHASE_FILES.values()))
-
-# Gated Phase 2.3 sweep references (issue #1739): a sweep-*.md reference read on the
-# orchestrator main thread counts toward phase2. Kept OUT of PHASE_FILES, which a test
-# pins as the exact skills/implement/phases/*.md mirror — widening it here breaks that pin.
-SWEEP_REFERENCE_PREFIX = "sweep-"
-SWEEP_REFERENCE_SUFFIX = ".md"
-SWEEP_REFERENCE_PHASE = "phase2"
-# SWEEP_REFERENCE_PHASE must stay a PHASE_READ_LABELS member; a non-member's KeyError on
-# increment is swallowed by eval_corpus's defensive except as a mis-blamed malformed_record,
-# so enforce it loudly at import (a plain assert is stripped under -O).
-if SWEEP_REFERENCE_PHASE not in PHASE_READ_LABELS:
-    raise AssertionError(
-        f"SWEEP_REFERENCE_PHASE {SWEEP_REFERENCE_PHASE!r} must be a PHASE_READ_LABELS member")
+# PHASE_FILES / PHASE_READ_LABELS and the gated Phase 2.3 sweep-reference shape (issue
+# #1739) are single-sourced in scripts/context_eval_shared.py (issue #120) so
+# scripts/extract-execution-cost.py, which cannot import this hyphenated instrument by
+# name, measures the same per-phase reads. They are imported above; PhaseFileSetCouplingTest
+# still reconciles PHASE_FILES against skills/implement/phases/*.md.
 
 
 def _phase_label_for_read(file_path):
@@ -237,16 +229,11 @@ def _phase_label_for_read(file_path):
     A phase file matches PHASE_FILES by basename; a gated Phase 2.3 sweep reference
     (skills/implement/references/sweep-*.md) counts toward phase2 by basename shape. Both
     match on the basename because the same file resolves at a repo-relative path locally
-    and a vendored path on the cloud tier.
+    and a vendored path on the cloud tier. Delegates to the shared matcher, passing the
+    label map as an argument.
     """
-    basename = os.path.basename(file_path)
-    label = PHASE_FILES.get(basename)
-    if label is not None:
-        return label
-    if (basename.startswith(SWEEP_REFERENCE_PREFIX)
-            and basename.endswith(SWEEP_REFERENCE_SUFFIX)):
-        return SWEEP_REFERENCE_PHASE
-    return None
+    return _phase_read_label(file_path, PHASE_FILES, SWEEP_REFERENCE_PREFIX,
+                             SWEEP_REFERENCE_SUFFIX, SWEEP_REFERENCE_PHASE)
 
 # Tool name -> the category bucket its calls are counted under (issue #1209 AC10). The
 # five categories the AC names at minimum are file reads, file edits/writes, shell
@@ -396,9 +383,13 @@ class RunAccumulator:
     parsed is *accounted*, never silently dropped and never counted as a zero gap.
     """
 
-    def __init__(self, source, skipped=None):
+    def __init__(self, source, skipped=None, attribution=ATTRIBUTION):
         self.source = source
         self.skipped = new_skip_tally() if skipped is None else skipped
+        # The accepted `attributionSkill` set that bounds this run, or None to accept every
+        # main-thread assistant record as one run — the cloud execution file carries no
+        # attributionSkill field (issue #120 AC6). eval_corpus decides which per file.
+        self.attribution = attribution
         self.turn_count = 0
         self.per_turn_context = []
         self.compact_boundary_count = 0
@@ -430,11 +421,16 @@ class RunAccumulator:
             self.compact_boundary_count += 1
 
     def observe_assistant(self, record):
-        # A sidechain (dispatched-subagent) record never touches the main-thread axes:
-        # the phase files are read by the orchestrator on the main thread.
-        if record.get("isSidechain") is True:
+        # A dispatched-subagent record never touches the main-thread axes: the phase files
+        # are read by the orchestrator on the main thread. Excluded when isSidechain is
+        # true (local transcripts) or parent_tool_use_id is a non-empty string (the cloud
+        # execution file's subagent marker) — issue #120 AC5.
+        if not _is_main_thread_record(record):
             return
-        if record.get("attributionSkill") not in ATTRIBUTION:
+        # A None attribution accepts every main-thread record (the cloud execution file
+        # carries no attributionSkill; the whole file is one run — AC6). Otherwise bound
+        # the run to a matching attributionSkill.
+        if self.attribution is not None and record.get("attributionSkill") not in self.attribution:
             return
         self.attributed = True
         self.turn_count += 1
@@ -551,6 +547,11 @@ def new_skip_tally():
         "non_json_line": 0,
         "not_object": 0,
         "no_type": 0,
+        # A file walked past for a non-.jsonl/.json suffix (issue #120 AC3).
+        "unrecognized_suffix": 0,
+        # A `.json` file that parsed but carried no transcript record — a custom-title.json
+        # sidecar — tallied at the file level, contributing to no per-record skip (AC4).
+        "non_transcript_json": 0,
         "unreadable_file": 0,
         "escaped_path": 0,
         "walk_error": 0,
@@ -582,54 +583,58 @@ def eval_corpus(corpus_root):
         # with the same `source`, which the sort key and every by-source join treat as
         # one. Normalized to forward slashes so the output is host-independent.
         rel_source = os.path.relpath(session_file, corpus_root).replace(os.sep, "/")
-        acc = RunAccumulator(rel_source, skipped)
         try:
-            handle = open(session_file, "r", encoding="utf-8", errors="replace")
+            with open(session_file, "r", encoding="utf-8", errors="replace") as handle:
+                text = handle.read()
         except OSError as exc:
             skipped["unreadable_file"] += 1
             sys.stderr.write(
                 f"warning: skipping unreadable session file {session_file}: {exc}\n"
             )
             continue
-        with handle:
-            for lineno, raw in enumerate(handle, 1):  # streaming: one record at a time
-                line = raw.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                except (ValueError, TypeError):
-                    # A truncated final line or a non-JSON line: skip, do not detonate.
-                    skipped["non_json_line"] += 1
-                    continue
-                if not isinstance(record, dict):
-                    skipped["not_object"] += 1
-                    continue
-                rtype = record.get("type")
-                if rtype is None:
-                    skipped["no_type"] += 1
-                    continue
-                # Defensive backstop: the observers isinstance-guard their known field
-                # shapes, but a record shape not anticipated here must degrade per-record
-                # (tallied + breadcrumbed), never detonate the whole corpus walk.
-                try:
-                    if rtype == "assistant":
-                        acc.observe_assistant(record)
-                    elif rtype == "system":
-                        acc.observe_system(record)
-                except (AttributeError, TypeError, ValueError, KeyError) as exc:
-                    skipped["malformed_record"] += 1
-                    # Name the file, the LINE and the record type: a real session is
-                    # tens of thousands of lines, and without them a maintainer cannot
-                    # find the record to judge whether the skip was legitimate. Note
-                    # this catch cannot distinguish a hostile record shape from a defect
-                    # in the observers themselves (the same four exception types), so a
-                    # burst of these warnings on one record type is a reason to suspect
-                    # the instrument, not only the transcript.
-                    sys.stderr.write(
-                        f"warning: skipping malformed {rtype} record at {session_file}:{lineno}: {type(exc).__name__}: {exc}\n"
-                    )
-                    continue
+        # The shared reader tolerates the cloud artifact shape (a `# DEVFLOW SCRUB CAVEAT`
+        # line + a pretty-printed JSON array) as well as a bare array, a single object and
+        # JSONL (issue #120). read_and_tally folds the shared per-shape skip counts and
+        # returns the records to iterate — empty for a non-transcript JSON sidecar, so those
+        # never reach the per-record `no_type` tally below (AC4).
+        records = read_and_tally(text, skipped)
+        typed = []
+        for record in records:
+            if record.get("type") is None:
+                skipped["no_type"] += 1
+                continue
+            typed.append(record)
+        # AC6: bound the run by attributionSkill when a main-thread assistant record
+        # carries that field (a local transcript). When main-thread assistant records
+        # exist but NONE carries the field (the cloud execution file), measure the whole
+        # file as one run (attribution None). A present-but-non-matching attributionSkill
+        # still bounds by attribution and yields no run — never the whole-file fallback.
+        mt_assistants = [r for r in typed
+                         if r.get("type") == "assistant" and _is_main_thread_record(r)]
+        has_attribution_field = any(
+            isinstance(r.get("attributionSkill"), str) and r.get("attributionSkill")
+            for r in mt_assistants)
+        attribution = None if (mt_assistants and not has_attribution_field) else ATTRIBUTION
+        acc = RunAccumulator(rel_source, skipped, attribution=attribution)
+        for index, record in enumerate(typed, 1):
+            rtype = record.get("type")
+            # Defensive backstop: the observers isinstance-guard their known field shapes,
+            # but a record shape not anticipated here must degrade per-record (tallied +
+            # breadcrumbed), never detonate the whole corpus walk. This catch cannot tell a
+            # hostile record shape from a defect in the observers themselves (the same four
+            # exception types), so a burst on one record type is a reason to suspect the
+            # instrument, not only the transcript.
+            try:
+                if rtype == "assistant":
+                    acc.observe_assistant(record)
+                elif rtype == "system":
+                    acc.observe_system(record)
+            except (AttributeError, TypeError, ValueError, KeyError) as exc:
+                skipped["malformed_record"] += 1
+                sys.stderr.write(
+                    f"warning: skipping malformed {rtype} record {index} in {session_file}: {type(exc).__name__}: {exc}\n"
+                )
+                continue
         if acc.attributed:
             runs.append(acc.result())
     runs.sort(key=lambda r: r["source"])

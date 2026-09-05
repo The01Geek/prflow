@@ -152,6 +152,26 @@ except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
     def _resolve_state_dir(repo_root, stream=None):
         return str(Path(repo_root) / ".prflow")
 
+# Shared login-normalization rule (issue #157) for the allowlist arm; the Bot-type
+# arm is unchanged. On an import failure it degrades to the pre-#157 exact test.
+try:
+    from login_normalize import login_matches as _login_matches
+except Exception as _login_import_err:
+    # Breadcrumb the degradation so a partial-copy import failure is legible and not
+    # mistaken for an allowlist mismatch — the shell comparators name the same file.
+    sys.stderr.write(
+        "match-lint-adjudications.py: could not import lib/login_normalize.py "
+        f"({_login_import_err}); degrading to the pre-#157 exact match (fail-closed)\n")
+    _login_matches = None
+
+
+def _author_trusted(author: str, allowed_bots_raw: str) -> bool:
+    if _login_matches is not None:
+        return _login_matches(author, allowed_bots_raw.split(","))
+    allowed = {b.strip() for b in allowed_bots_raw.split(",") if b.strip()}
+    return author in allowed
+
+
 STALE = "STALE"
 
 # Rules whose STALE detail does NOT embed the observed referent, and which therefore can
@@ -350,7 +370,7 @@ def _row_key(tsv: str):
     return verdict, rule, path, detail
 
 
-def _collect_payload_keys(comments, allowed_bots, stats):
+def _collect_payload_keys(comments, allowed_bots_raw, stats):
     """Scan comments for trusted, in-sentinel adjudication payloads. Returns a dict
     mapping (rule, path, detail) -> run_key (first trusted comment wins). Mutates
     stats with the counted-but-ignored classes."""
@@ -392,7 +412,7 @@ def _collect_payload_keys(comments, allowed_bots, stats):
         # row demoted to Informational, which Phase 4.2 excludes from the verdict at every
         # severity and which can never flip a genuine code-defect REJECT to APPROVE.
         # A consumer wanting the narrow posture pins its reviewer login in allowed_bots.
-        author_ok = (author_type == "Bot") or (author in allowed_bots)
+        author_ok = (author_type == "Bot") or _author_trusted(author, allowed_bots_raw)
         trusted = (run_key is not None) and author_ok
 
         payload_matches = list(PAYLOAD_RE.finditer(body))
@@ -555,9 +575,8 @@ def main(argv=None):
         stale_by_key.setdefault((rule, path, detail), []).append(i)
 
     allowed_bots_raw = _config_get(".prflow.allowed_bots", "", args.config)
-    allowed_bots = {b.strip() for b in allowed_bots_raw.split(",") if b.strip()}
 
-    payload_key_to_runkey = _collect_payload_keys(comments, allowed_bots, stats)
+    payload_key_to_runkey = _collect_payload_keys(comments, allowed_bots_raw, stats)
 
     demoted: list[dict] = []
     for key, run_key in payload_key_to_runkey.items():

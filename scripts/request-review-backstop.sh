@@ -9,7 +9,7 @@
 # (scripts/stall-backstop-decide.sh + devflow-implement.yml). A headless review
 # run can end "success" with NO verdict — the SDK session ends the moment the
 # model emits a tool-call-free turn (e.g. after ScheduleWakeup while an agent is
-# still pending), so the required `Devflow Review` check fails "incomplete —
+# still pending), so the required `PRFlow Review` check fails "incomplete —
 # re-run needed" and a human must manually re-trigger. This helper owns the
 # ENTIRE fire/no-fire decision — config read, verdict guard, attempt count, App-
 # token guard, marker construction — so lib/test/run.sh can drive every arm

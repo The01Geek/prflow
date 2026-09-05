@@ -39,9 +39,10 @@ which costs only an investigation the run would have done anyway.
 
 Handle classes (the label printed as `handle=`):
 
-  path-quote  a cited repository path AND a quoted sentence — the strongest
-              handle, and the only one whose *content* is adjudicated rather
-              than merely the path's presence
+  path-quote  a cited repository path AND either a quoted sentence or a
+              backticked code literal (in a bullet quoting no sentence) — the
+              strongest handle, and the only one whose *content* is adjudicated
+              rather than merely the path's presence
   path        a cited path with no quoted sentence — presence is checkable, but
               presence is not the premise, so this never reports `holds`
   quote       a quoted sentence naming no path — no domain to search, so the
@@ -158,9 +159,12 @@ class CitedPath(NamedTuple):
 # damage from an over-recognition is bounded by the rest of the module: a
 # phantom reaches `refuted` only by citing a strong path genuinely absent from
 # the tree.
+# Arm B's trailing backtick is CONDITIONAL on a leading label backtick (group 1):
+# `Verified:` backticked whole is consumed intact, but a bare `Verified:` before a
+# backticked path keeps that path's opening backtick — unconditional, it eats it.
 _MARKER = re.compile(
     r'\*\*[ \t]*Verified[ \t]*:?[ \t]*\*\*[ \t]*:?'
-    r'|(?m:^[ \t]*(?:[-*+]|\d+[.)])?[ \t]*(?:\*\*[ \t]*)?`?Verified`?[ \t]*:)'
+    r'|(?m:^[ \t]*(?:[-*+]|\d+[.)])?[ \t]*(?:\*\*[ \t]*)?(`)?Verified`?[ \t]*:(?(1)`?))'
     r'|(?m:^[ \t]*(?:[-*+]|\d+[.)])[ \t]*\*\*[`\s]*Verified\b[^*\n]*\*\*:?)')
 
 # A backticked span. The template mandates backticks for the *path* handle, and
@@ -185,12 +189,21 @@ _QUOTED = re.compile(r'["“]([^"“”]{8,})["”]')
 # against any file.
 _MIN_FRAGMENT = 8
 
+# The minimum length of a backticked CODE LITERAL adjudicated as a premise
+# quotation. The templates push authors to backtick a code line, path or literal
+# in place of a double-quoted sentence, so a long-enough non-path-shaped span is
+# searched in the cited file; the floor keeps short backticked words from
+# resolving against any file, mirroring `_QUOTED`'s own eight-character floor.
+_MIN_CODE_LITERAL = 8
+
 # The quotation-shape rule, single-sourced so the shape refusals that quote it
 # state one delimiter-and-floor rule a drafter reads the remedy from (#1866).
 _QUOTE_RULE = (
-    'a premise quotation is a matching pair of double quotes (ASCII " or '
-    'typographic “ ”) enclosing at least eight characters that contain no '
-    'double-quote character; text inside a backtick code span is not scanned')
+    'a premise quotation is a double-quoted sentence anywhere outside a backtick '
+    'span (a matching pair of ASCII " or typographic “ ” enclosing at least eight '
+    'characters that contain no double-quote character), or — in a bullet that '
+    'cites a repository path and no double-quoted sentence — a backticked literal '
+    'of at least eight characters that is not path-shaped')
 
 # A file extension, used only as the WEAK arm of path detection — see
 # `_path_strength`.
@@ -199,7 +212,7 @@ _EXTENSION = re.compile(r'\.[A-Za-z0-9]{1,6}$')
 # A shell/glob metacharacter. A span carrying one names a SET of paths, not a
 # path, so it is not adjudicable by a single existence check — and adjudicating
 # it as one produced false refutations against real issue bodies, which cite
-# `.prflow/prompt-extensions/*.md`-style patterns routinely.
+# `.prflow/skill-extensions/*.md`-style patterns routinely.
 _GLOBBY = re.compile(r'[*?\[\]]')
 
 # The start of the next markdown list item. A bullet's span must stop here as
@@ -442,30 +455,38 @@ def parse_bullets(body: str) -> list:
 
 
 def classify(span: str) -> tuple:
-    """Return `(handle, paths, quotes)` for one bullet span.
+    """Return `(handle, paths, quotes, code_literals)` for one bullet span.
 
     `paths` carries each cited path as a `CitedPath`, so `recheck` can tell a
     confident path claim from a guess and can tell a whole-file citation from
-    one naming a location inside the file.
+    one naming a location inside the file. `code_literals` carries each backticked
+    span of at least `_MIN_CODE_LITERAL` characters that is not path-shaped
+    (whitespace-bearing spans included) — the shape the templates push authors to
+    write in place of a double-quoted sentence. It is kept beside `quotes`, never
+    folded into it: `recheck` grades it only when the bullet cites a path and
+    quotes nothing, so the truncated-quotation guard keeps counting sentences
+    alone.
     """
-    paths, commands = [], []
+    paths, commands, code_literals = [], [], []
     for backticked in _BACKTICKED.findall(span):
-        if _is_command(backticked):
-            # A command span is never mined for a path even though it usually
-            # contains one — `grep -c '^x' lib/test/f.tsv` names a file, but
-            # the premise is the command's *result*, which this helper will
-            # not execute to obtain.
-            commands.append(backticked)
-            continue
         strength = _path_strength(backticked)
         if strength != 'no':
             bare, suffix = _split_locator(backticked)
             paths.append(CitedPath(strength, bare, suffix))
+            continue
+        # A non-path span may be a command (multi-token) and, if long enough, a
+        # code-literal candidate — a whitespace-bearing span is both. A command
+        # is never mined for a path even though it usually contains one; the
+        # premise is the command's *result*, which this helper will not execute.
+        if _is_command(backticked):
+            commands.append(backticked)
+        if len(backticked) >= _MIN_CODE_LITERAL:
+            code_literals.append(backticked)
     # Text inside a backtick span is not the premise quotation: a backticked
     # command's double-quoted args would otherwise match. An unpaired backtick
     # matches nothing, so the span survives the strip rather than detonating.
     quotes = _QUOTED.findall(_BACKTICKED.sub(' ', span))
-    if paths and quotes:
+    if paths and (quotes or code_literals):
         handle = 'path-quote'
     elif paths:
         handle = 'path'
@@ -475,11 +496,62 @@ def classify(span: str) -> tuple:
         handle = 'command'
     else:
         handle = 'none'
-    return handle, paths, quotes
+    return handle, paths, quotes, code_literals
 
 
-def recheck(handle: str, paths: list, quotes: list, root: Path,
-            span: str) -> tuple:
+def _with_absent(detail: str, absent: list) -> str:
+    """Append an absent-weak-span disclosure to a verdict detail.
+
+    An absent weak span is disclosed as not-adjudicated rather than deciding the
+    verdict, so a reader sees the guess the helper set aside instead of it
+    silently short-circuiting a co-cited present path.
+    """
+    if absent:
+        detail += '; not adjudicated (absent weak span): ' + ','.join(absent)
+    return detail
+
+
+def _read_cited(paths: list, root: Path) -> tuple:
+    """Read each cited path's normalized text. Returns `(readable, skipped, unread)`.
+
+    Shared by the code-literal arm and the quotation arm so both adjudicate over
+    the same read of the tree. A directory is collected in `skipped` rather than
+    returned early — an early return abandoned every co-cited path after it, so
+    the verdict silently depended on citation ORDER within the bullet.
+    """
+    readable, skipped, unread = {}, [], []
+    for cited in paths:
+        rel = cited.bare
+        target = root / rel
+        if target.is_dir():
+            skipped.append(f'{rel} (directory)')
+            continue
+        try:
+            readable[rel] = normalize(target.read_text(
+                encoding='utf-8', errors='replace'))
+        except OSError as exc:
+            unread.append(f'{rel} (unreadable: {exc})')
+    return readable, skipped, unread
+
+
+def _literal_resolves(literal: str, readable: dict) -> bool:
+    """True when a normalized code literal occurs in any readable cited file.
+
+    A literal is searched after `normalize` (which strips backticks and `*` and
+    collapses whitespace), so a whitespace-bearing literal still matches a source
+    line the author re-spaced. The `_MIN_CODE_LITERAL` floor is re-applied to the
+    NORMALIZED form, not just the raw span `classify` measured: a span that clears
+    eight raw characters but normalizes shorter (`a * b * c` → `a b c`) would
+    otherwise substring-match almost any file — a false `holds`, the same harm the
+    quotation arm's per-fragment floor and empty-quotation guard prevent.
+    """
+    norm = normalize(literal)
+    return (len(norm) >= _MIN_CODE_LITERAL
+            and any(norm in haystack for haystack in readable.values()))
+
+
+def recheck(handle: str, paths: list, quotes: list, code_literals: list,
+            root: Path, span: str) -> tuple:
     """Adjudicate one bullet against the tree. Returns `(state, detail)`."""
     if handle in _UNDECIDABLE_REASONS:
         # No domain to read, or a handle this helper declines to execute. The
@@ -501,6 +573,7 @@ def recheck(handle: str, paths: list, quotes: list, root: Path,
     # a false refutation against a shape this repo's own issue bodies use
     # constantly.
     missing = [p for p in paths if not (root / p.bare).exists()]
+    disclosed_absent = []
     if missing:
         # Only a STRONG path claim earns a refutation. A weak one — a dotted
         # identifier that merely looks filename-shaped — is a guess, and
@@ -510,41 +583,34 @@ def recheck(handle: str, paths: list, quotes: list, root: Path,
         strong = [p.bare for p in missing if p.strength == 'strong']
         if strong:
             return 'refuted', 'cited path absent from the tree: ' + ','.join(strong)
-        return 'unestablished', (
-            'no cited span is a strong path claim (each is filename-shaped '
-            'without a directory, or slash-bearing without a path-shaped '
-            'tail), so its absence is not evidence of a stale premise: '
-            + ','.join(p.bare for p in missing))
+        present = [p for p in paths if p not in missing]
+        if not present:
+            # Every cited span is an absent weak one, so nothing is left to
+            # adjudicate against — the historical early return.
+            return 'unestablished', (
+                'no cited span is a strong path claim (each is filename-shaped '
+                'without a directory, or slash-bearing without a path-shaped '
+                'tail), so its absence is not evidence of a stale premise: '
+                + ','.join(p.bare for p in missing))
+        # An absent weak span no longer short-circuits a bullet that also cites a
+        # present path: adjudication continues over the present paths, and the
+        # absent weak span is disclosed in the detail rather than deciding it.
+        disclosed_absent = [p.bare for p in missing]
+        paths = present
 
     located = [p.bare for p in paths if p.suffix]
     if handle == 'path':
-        # Presence is NOT the premise. A bullet citing `lib/scan.sh` is
-        # asserting something about that file's contents, and confirming the
-        # file still exists re-derives none of it — reporting `holds` here
-        # would reproduce the very "this was already checked" reading the pass
-        # exists to withdraw. `unestablished` costs only the investigation the
-        # run would otherwise have done.
-        return 'unestablished', (
+        # No quotation and no code literal to grade. Presence is NOT the premise:
+        # a bullet citing `lib/scan.sh` asserts something about that file's
+        # contents, and confirming it still exists re-derives none of it, so
+        # `holds` would reproduce the "this was already checked" reading the pass
+        # exists to withdraw. `unestablished` costs only the ordinary investigation.
+        return 'unestablished', _with_absent(
             'cited path present but the bullet carries no quotation to '
             're-derive the premise from (' + _QUOTE_RULE + '): '
-            + ','.join(p.bare for p in paths))
+            + ','.join(p.bare for p in paths), disclosed_absent)
 
-    readable, skipped, unread = {}, [], []
-    for cited in paths:
-        rel = cited.bare
-        target = root / rel
-        if target.is_dir():
-            # A directory has no text to search. Collect it rather than
-            # returning: an early return abandoned every co-cited path after it,
-            # so the verdict silently depended on citation ORDER within the
-            # bullet and a genuine refutation on a later path was lost.
-            skipped.append(f'{rel} (directory)')
-            continue
-        try:
-            readable[rel] = normalize(target.read_text(
-                encoding='utf-8', errors='replace'))
-        except OSError as exc:
-            unread.append(f'{rel} (unreadable: {exc})')
+    readable, skipped, unread = _read_cited(paths, root)
 
     if unread:
         # A cited file the helper could not OPEN is an unestablished
@@ -563,6 +629,33 @@ def recheck(handle: str, paths: list, quotes: list, root: Path,
         return 'unestablished', (
             'no cited path could be read to re-derive the quotation from: '
             + ','.join(skipped))
+
+    if not quotes:
+        # The bullet cites a path and quotes no double-quoted sentence, so it is
+        # graded on its backticked code literal(s): a hit anywhere in the cited
+        # files reports `holds`. A MISS reports `unestablished`, never `refuted` —
+        # a code literal is re-spaced and paraphrased far more often than quoted
+        # prose, so a miss on one is a guess, not evidence of a stale premise.
+        missed = [lit for lit in code_literals
+                  if not _literal_resolves(lit, readable)]
+        skip_note = ('; not adjudicated: ' + ','.join(skipped)) if skipped else ''
+        if not missed:
+            if located:
+                # The literal resolves, but the bullet also cites a location
+                # inside the file (a node id, anchor, or line number) this helper
+                # cannot adjudicate — the same downgrade the quotation arm applies.
+                return 'unestablished', _with_absent(
+                    'a backticked literal resolves, but the bullet cites a '
+                    'location inside the file that was not adjudicated: '
+                    + ','.join(located), disclosed_absent)
+            return 'holds', _with_absent(
+                'every backticked literal resolves in ' + ','.join(readable)
+                + skip_note, disclosed_absent)
+        return 'unestablished', _with_absent(
+            'cited path present but the backticked literal(s) do not occur in '
+            + ','.join(readable) + ', and a code literal is not verbatim enough '
+            'to refute on a miss: ' + ' | '.join(missed) + skip_note,
+            disclosed_absent)
 
     unresolved, elided_unresolved, unadjudicable = [], [], []
     for quote in quotes:
@@ -627,7 +720,7 @@ def recheck(handle: str, paths: list, quotes: list, root: Path,
             # A `holds` built from only some of the cited paths discloses which
             # ones went unread, rather than reading as a complete adjudication.
             detail += '; not adjudicated: ' + ','.join(skipped)
-        return 'holds', detail
+        return 'holds', _with_absent(detail, disclosed_absent)
 
     if not unresolved:
         reasons = []
@@ -684,7 +777,7 @@ def recheck(handle: str, paths: list, quotes: list, root: Path,
             # of the citation set says so, rather than reading as a complete
             # adjudication of everything the bullet cited.
             detail += '; not adjudicated: ' + ','.join(skipped)
-        return 'refuted', detail
+        return 'refuted', _with_absent(detail, disclosed_absent)
     if any(p.strength == 'strong' for p in paths):
         # A strong path WAS cited, but none of them reached `readable`, so the
         # miss says nothing about it. Reusing the weak-span wording below would
@@ -947,8 +1040,8 @@ def _run(args) -> int:
 
     tally = {'holds': 0, 'refuted': 0, 'unestablished': 0}
     for index, span in enumerate(parse_bullets(body), start=1):
-        handle, paths, quotes = classify(span)
-        state, detail = recheck(handle, paths, quotes, root, span)
+        handle, paths, quotes, code_literals = classify(span)
+        state, detail = recheck(handle, paths, quotes, code_literals, root, span)
         tally[state] += 1
         print(f'bullet={index} handle={handle} state={state} detail={detail}')
 

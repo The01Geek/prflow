@@ -52,4 +52,4 @@ Use the narrowest leading command that performs the needed check. PRFlow's built
 
 If a required verification command is not granted, implementation marks that verification blocked. It does not treat CI as an in-run substitute. Merge the narrow grant first, then retry the work that needs it.
 
-Naming a command in a [prompt extension](/docs/configuration/prompt-extensions) does not grant it. If your extension tells a run to use `make verify`, add `Bash(make verify:*)` here as well.
+Naming a command in a [prompt extension](/docs/configuration/skill-extensions) does not grant it. If your extension tells a run to use `make verify`, add `Bash(make verify:*)` here as well.

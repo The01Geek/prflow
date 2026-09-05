@@ -1,10 +1,10 @@
-name: DevFlow (implement)
+name: PRFlow (implement)
 
 # `run-name` embeds the issue thread the command was posted on so the gate's
 # duplicate check can recognise a second /prflow:implement on the same thread
 # while a run is in flight (see scripts/dedupe-implement-run.sh). Quoted because
 # the value contains characters YAML would otherwise mis-parse.
-run-name: "DevFlow implement (issue ${{ github.event.issue.number }})"
+run-name: "PRFlow implement (issue ${{ github.event.issue.number }})"
 
 # Heavy listener for /prflow:implement (the transitional /devflow:implement is
 # accepted for the alias window). Fires ONLY on a BARE `/prflow:implement <#>`
@@ -22,7 +22,7 @@ run-name: "DevFlow implement (issue ${{ github.event.issue.number }})"
 # resolves the number). Agent mode needs no trigger phrase. The config job's
 # `if:` negates `@claude`, so an `@claude /prflow:implement` comment is ceded to
 # Anthropic's stock claude.yml (TAG mode) — an anti-pattern, since that listener
-# has no DevFlow plugin — and the two workflows can never double-fire. DevFlow
+# has no PRFlow plugin — and the two workflows can never double-fire. PRFlow
 # never touches claude.yml.
 #
 # Cost control: agent mode runs for ANY actor, so the `gate` job authorizes the
@@ -65,7 +65,7 @@ jobs:
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request == null &&
       (contains(github.event.comment.body, '/prflow:implement') || contains(github.event.comment.body, '/devflow:implement')) && !contains(github.event.comment.body, '@claude')
-    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
+    runs-on: ${{ vars.DEVFLOW_LIGHT_RUNNER && (startsWith(vars.DEVFLOW_LIGHT_RUNNER, '[') && fromJSON(vars.DEVFLOW_LIGHT_RUNNER) || vars.DEVFLOW_LIGHT_RUNNER) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest') }}
     outputs:
       enabled: ${{ steps.extract.outputs.enabled }}
       base_branch: ${{ steps.extract.outputs.base_branch }}
@@ -298,7 +298,7 @@ jobs:
   gate:
     needs: config
     if: ${{ needs.config.outputs.enabled == 'true' }}
-    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
+    runs-on: ${{ vars.DEVFLOW_LIGHT_RUNNER && (startsWith(vars.DEVFLOW_LIGHT_RUNNER, '[') && fromJSON(vars.DEVFLOW_LIGHT_RUNNER) || vars.DEVFLOW_LIGHT_RUNNER) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest') }}
     permissions:
       contents: read        # checkout the resolver script; collaborator check uses GITHUB_TOKEN
       issues: write         # react step + duplicate notice on issue comments
@@ -478,6 +478,11 @@ jobs:
           python3 "$WP" id "$NUMBER" >/dev/null 2>&1 || id_exit=$?
           case "$(bash "$CLS" "$id_exit")" in
           adopt)
+            # Reset a terminal workpad Status here (issue #137) — omitting it leaves a
+            # resumed run showing PRFlow:Stuck until Phase 1.3. Best-effort + idempotent.
+            if ! python3 "$WP" reset-resume-status "$NUMBER"; then
+              echo "::warning::early resume status reset failed for #$NUMBER (best-effort — e.g. a vendored workpad.py predating issue #137 that lacks the subcommand, or an interpreter/transient fault; Phase 1.3 still clears the status at hydration)." >&2
+            fi
             # Found: this is an ADOPTED existing workpad (a re-trigger / earlier run,
             # incl. a stall-backstop auto-resume). Refresh its Run: link to THIS run so
             # an operator watching a stalled/retried run can click through to the
@@ -564,7 +569,7 @@ jobs:
 
       # Duplicate notice: tell the requester their command was ignored because a
       # run for this issue/PR is already in flight. Best-effort. CRITICAL: the
-      # body must contain NO DevFlow trigger phrase — this comment is itself an
+      # body must contain NO PRFlow trigger phrase — this comment is itself an
       # issue_comment[created] event, and a trigger phrase here would re-enter
       # the gate and could loop. Worded to avoid `/devflow:` and `@claude`.
       - name: Notice — duplicate ignored
@@ -838,7 +843,7 @@ jobs:
       # Install scripts/gh-fresh.sh as a `gh` wrapper so agent-side gh resolves
       # its token at call time from the refresher-maintained token file. Wired
       # ahead of the real gh on PATH via GITHUB_PATH — direct skill-fence gh
-      # calls, DevFlow's resolver-routed gh-callers (whose PATH probe finds the
+      # calls, PRFlow's resolver-routed gh-callers (whose PATH probe finds the
       # wrapper when DEVFLOW_GH is unset), and post-claude steps all reach it.
       # Deliberately NOT exported as a process-global DEVFLOW_GH (issue #533):
       # GITHUB_ENV values persist into every later step — including a repo test
@@ -1416,8 +1421,8 @@ jobs:
           EXTRA: ${{ needs.config.outputs.allowed_tools_extra }}
         run: |
           set -euo pipefail
-          # devflow-capability-manifest: region=implement manifest_version=32 sha256=aa8451500f80c4d47b5f430edc95b706cd6f1f4549b3580bfdfcd209177d8d8f
-          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git hash-object:*), Bash(git checkout:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*), Bash(.prflow/vendor/prflow/scripts/validate-issue-claim-audit.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/discover-deferral-manifests.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/ensure-label.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-pr-triggerer.sh:*), Bash(.prflow/vendor/prflow/scripts/render-pr-provenance-line.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/scripts/apply-issue-dependencies.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-existing-pr.sh:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/react-to-trigger.sh:*), Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*), Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(cmp:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(tee:*)'
+          # devflow-capability-manifest: region=implement manifest_version=34 sha256=4b4dd7c726464c392d514e00141d24cb000b0a979321807633836d087ba50064
+          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git hash-object:*), Bash(git checkout:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*), Bash(.prflow/vendor/prflow/scripts/validate-issue-claim-audit.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/discover-deferral-manifests.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/ensure-label.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-pr-triggerer.sh:*), Bash(.prflow/vendor/prflow/scripts/render-pr-provenance-line.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/scripts/apply-issue-dependencies.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-existing-pr.sh:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/react-to-trigger.sh:*), Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*), Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(cmp:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(tee:*)'
           # Randomized-delimiter heredoc, not `tools=<value>`: EXTRA is config-derived
           # (`prflow_implement.allowed_tools`), so a newline anywhere in it would truncate
           # the appended value at that point and silently shorten the allowlist feeding
@@ -1577,12 +1582,11 @@ jobs:
           # 1200000 ms (20 min) BASH_MAX_TIMEOUT_MS below is a BOUND on any single Bash
           # command, not a removal — a genuinely hung command still terminates well inside
           # the job budget. The wrong change it prevents: lowering that bound below the
-          # measured whole-suite coordinator wall (lib/test/run-parallel.sh, #1086 — the
-          # run's final whole-suite gate), which would kill the coordinator mid-run with no
-          # output. On the 8-core pool the coordinator ran 456s (7.6 min), measured
+          # measured whole-suite coordinator wall (lib/test/run-parallel.sh, #1086), which
+          # would kill the coordinator mid-run with no output when a run chose the full
+          # suite. On the 8-core pool the coordinator ran 456s (7.6 min), measured
           # 2026-08-30 in Actions run 33318418260, so 20 min keeps ample headroom.
-          # Rationale and the monolith-substitution figures live in
-          # docs/internal/claude-md-tiered-suite-rationale.md.
+          # Rationale lives in docs/internal/claude-md-tiered-suite-rationale.md.
           #
           # MECHANISM — AND WHY THIS CANNOT DROP THE BASE `.claude/settings.json` HOOKS.
           # This is the PR-#1205 review's blocking question, and it is answered from
@@ -1646,8 +1650,8 @@ jobs:
           # scope question above is answered for it as far as a source read can answer one
           # — so there is nothing to gain by moving the value.
           #
-          # The #1132 shard-decomposition fallback stays the in-run route if a command
-          # is ever terminated at this raised ceiling.
+          # This repository defines no in-run decomposition path for a command terminated
+          # at this raised ceiling; such a run records Blocked.
           #
           # THE FREE ALLOWANCE IS A SECOND, DISTINCT VARIABLE. Claude Code documents
           # BASH_DEFAULT_TIMEOUT_MS (the timeout a Bash call gets when it requests none,
@@ -1684,9 +1688,9 @@ jobs:
 
           # code-review@ and claude-md-management@ are ambient-command conveniences (the
           # /code-review and /revise-claude-md slash commands), NOT engine dependencies —
-          # DevFlow's engine dispatches neither. The "zero companion-plugin dependencies"
+          # PRFlow's engine dispatches neither. The "zero companion-plugin dependencies"
           # claim is scoped to the consumer install + what the engine dispatches; see
-          # https://prflow.ai/docs §6. devflow@ is DevFlow itself. The baked
+          # https://prflow.ai/docs §6. devflow@ is PRFlow itself. The baked
           # baseline three are composed by the step above; settings-declared extras are
           # appended beyond them.
           plugins: ${{ steps.plugins.outputs.plugins }}
@@ -1754,9 +1758,14 @@ jobs:
       # exact string "false" disables it, and an empty read (config-get soft/hard
       # failure) falls safe to enabled.
       - name: Surface execution diagnostics
+        id: diag
         if: always()
         env:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+          # The renderer emits one ::error:: annotation naming the cause set when the
+          # engine reported an error OR the claude step failed (issue #158); it reads
+          # the step outcome here. It never changes this step's exit status.
+          CLAUDE_STEP_OUTCOME: ${{ steps.claude.outcome }}
         run: |
           set -euo pipefail
           CG=.prflow/vendor/prflow/scripts/config-get.sh
@@ -1785,6 +1794,32 @@ jobs:
           else
             echo "::notice::surface-execution-diagnostics.sh absent; execution diagnostics not surfaced (best-effort)."
           fi
+
+      # Parse the engine's is_error out of the execution log (issue #158), mirroring
+      # devflow.yml's engine step and reusing the same unit-tested helper. This
+      # gives the Stall backstop's cause line its second operand. It is DELIBERATELY
+      # NOT read by the Stall backstop's resume-or-fail decision, which stays keyed
+      # on the workpad Status alone — adding this step must not change that decision.
+      # Fail-safe: an absent/unparseable log yields false, matching the helper.
+      - name: Surface engine execution result
+        id: engine
+        if: ${{ always() }}
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          set -euo pipefail
+          PEE=.prflow/vendor/prflow/scripts/parse-engine-error.sh
+          [ -f "$PEE" ] || PEE=scripts/parse-engine-error.sh
+          if [ -f "$PEE" ]; then
+            # Never 2>/dev/null the helper — a broken jq would otherwise report
+            # is_error=false forever with zero trace.
+            IS_ERROR=$(bash "$PEE" "${EXECUTION_FILE:-}" || echo false)
+            [ "$IS_ERROR" = "true" ] || IS_ERROR=false
+          else
+            echo "::notice::parse-engine-error.sh absent; treating engine is_error as false (fail-safe)."
+            IS_ERROR=false
+          fi
+          echo "is_error=$IS_ERROR" >> "$GITHUB_OUTPUT"
 
       # ── Execution-transcript artifact channel (issue #1064 D3) ──────────────
       # Per-workflow D3 inclusion decisions (AC13), recorded here in the shipped code:
@@ -2020,6 +2055,18 @@ jobs:
           # not a stall). Deliberately the documented job-context string, not a
           # status-check function (the docs scope those to `if:` conditionals).
           JOB_STATUS: ${{ job.status }}
+          # The cause set (issue #158), so each failure comment's cause line names
+          # the engine's reason. ENGINE_ERROR comes from the new engine-parse step
+          # (which does NOT feed the resume-or-fail decision). result_excerpt is not
+          # passed — the excerpt reaches no comment.
+          ENGINE_ERROR: ${{ steps.engine.outputs.is_error }}
+          SUBTYPE: ${{ steps.diag.outputs.subtype }}
+          TERMINAL_REASON: ${{ steps.diag.outputs.terminal_reason }}
+          API_ERROR_STATUS: ${{ steps.diag.outputs.api_error_status }}
+          API_RETRY_ERROR: ${{ steps.diag.outputs.api_retry_error }}
+          API_RETRY_STATUS: ${{ steps.diag.outputs.api_retry_status }}
+          RATE_LIMIT_TYPE: ${{ steps.diag.outputs.rate_limit_type }}
+          RATE_LIMIT_RESETS_AT: ${{ steps.diag.outputs.rate_limit_resets_at }}
         run: |
           set +e
           V=.prflow/vendor/prflow/scripts
@@ -2057,6 +2104,17 @@ jobs:
           # flip_to_failed itself — omitting the call silently regresses the
           # flip on that arm.
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          # Cause line for every failure comment below (issue #158). describe-dead-run-cause.sh
+          # reads the cause set from the env; DEAD_RUN_TIER=implement rewords its two
+          # fallthrough clauses. This step resolves helpers only under $V, so the
+          # cause helper needs its own absent-helper arm — its literal is byte-pinned
+          # in lib/test/run.sh, so keep it exact.
+          CAUSE_HELPER="$V/describe-dead-run-cause.sh"
+          if [ -f "$CAUSE_HELPER" ]; then
+            CAUSE="$(DEAD_RUN_TIER=implement bash "$CAUSE_HELPER" "${CLAUDE_OUTCOME:-}" "${ENGINE_ERROR:-false}")"
+          else
+            CAUSE="cause unavailable (describe-dead-run-cause.sh absent at .prflow/vendor/prflow/scripts/describe-dead-run-cause.sh)"
+          fi
           # Base branch for the empty-branch probe (issue #1261). Resolved the same
           # way §1.4 does — config .base_branch, default main. config-get prints a
           # fully-resolved value or nothing, so one emptiness fallback covers both
@@ -2271,37 +2329,44 @@ jobs:
               # stall-backstop-audit marker ($MARKER, above) this resume comment
               # carries, skips deduping so the taking-over run proceeds instead of
               # being swallowed as a duplicate of the still-finishing original.
+              # Short comment (issue #158): audit marker, one bold headline, the
+              # cause line, the run URL, and the trigger line. The Resume/Headless
+              # notes are gone — every cloud implement run already receives that
+              # discipline through scripts/render-grounding-block.sh's injected
+              # engine-ground-truth block, so the resumed run does not need them here.
               {
                 printf '%s\n\n' "$MARKER"
-                printf '**DevFlow stall backstop** — this cloud run ended while the workpad Status was still in-progress (`%s`). Auto-resume attempt %s of %s:\n\n' "$STATUS_OUT" "$K" "$MAX"
-                # Helper-invocation discipline travels inside the resume comment so a
-                # resumed run receives it even if it never re-reads the skill prose:
-                # bundled helpers resolve only as the repo-relative vendored literal with
-                # that path as the LEADING token — an absolute or repo-root scripts/ form
-                # is silently denied and is exactly why prior auto-resume runs died.
-                printf 'Resume note: invoke bundled helpers as `.prflow/vendor/prflow/scripts/…` (and `.prflow/vendor/prflow/lib/…`) with that path as the leading token — never an absolute path, never repo-root `scripts/…`, never behind a `VAR=` prefix or `bash <path>` wrapper (those forms are silently denied).\n\n'
-                # Headless-wait discipline travels inside the resume comment too, as a
-                # one-line mirror of skills/implement/SKILL.md's always-resident
-                # Cloud headless-wait rule (coupled sites — one commit, pinned in
-                # lib/test/run.sh), so a resumed run receives it even if it never
-                # re-reads the skill prose.
-                printf 'Headless note: this is a headless run — ending the turn ends the process, with no re-invocation. Never end the turn while any dispatched agent has not returned; poll to keep the turn alive; treat ScheduleWakeup and any future task-notification as unavailable.\n\n'
+                printf '**PRFlow stall backstop** — in-progress (`%s`); auto-resume attempt %s of %s\n' "$STATUS_OUT" "$K" "$MAX"
+                printf '%s\n' "$CAUSE"
+                printf '%s\n' "$RUN_URL"
                 printf '/prflow:implement %s\n' "$ISSUE_NUMBER"
               } > "$BODY"
               ;;
             fail-exhausted)
-              printf '**DevFlow stall backstop** — this cloud run ended while the workpad Status was still in-progress (`%s`), and the auto-resume cap (max_resume_attempts=%s, attempts already made: %s) is exhausted. The job has been failed so the stall is visible; to retry, post a fresh implement trigger comment naming this issue number.\n' "$STATUS_OUT" "$MAX" "$ATTEMPTS" > "$BODY"
+              {
+                printf '**PRFlow stall backstop** — in-progress (`%s`); auto-resume cap exhausted (max %s, made %s). Failed so the stall is visible.\n' "$STATUS_OUT" "$MAX" "$ATTEMPTS"
+                printf '%s\n' "$CAUSE"
+                printf '%s\n' "$RUN_URL"
+              } > "$BODY"
               ;;
             fail-auth)
-              # A gh-api/transport/auth failure (e.g. an expired App token)
-              # reading the workpad Status or the comment list — distinct from an
-              # unreadable/corrupt workpad, which may be perfectly healthy. Fail
-              # loud so the problem is visible; NO resume attempt was consumed.
-              printf '**DevFlow stall backstop** — could not read the outcome of this run because of a gh-api/transport/auth error while reading the workpad Status or the issue comment list (most often an expired GitHub App installation token, but any gh-api/transport failure or an unparseable API response lands here). This is distinct from an unreadable/corrupt workpad — the workpad itself may be perfectly healthy. The job has been failed so the problem is visible, and NO auto-resume attempt was consumed. **The run log names the specific gh error** — inspect it first (and verify DEVFLOW_APP_ID / the App token if it is an auth error), then post a fresh implement trigger comment to retry.\n' > "$BODY"
+              # A gh-api/transport/auth failure (e.g. an expired App token) reading
+              # the workpad Status or the comment list — distinct from an unreadable
+              # workpad, which may be healthy. NO resume attempt was consumed. The
+              # headline literal is pinned by two lib/test/run.sh assertions — keep it exact.
+              {
+                printf '**PRFlow stall backstop** — outcome not read (gh-api/transport/auth error, the workpad itself can still be healthy); no auto-resume attempt was consumed\n'
+                printf '%s\n' "$CAUSE"
+                printf '%s\n' "$RUN_URL"
+              } > "$BODY"
               ;;
             *)
               # fail-unreadable (or any unknown/empty decision token — fail closed).
-              printf '**DevFlow stall backstop** — could not classify the outcome of this run: the issue workpad Status or the issue comment list was unreadable (workpad comment missing, Status line unparseable, or the comments could not be fetched to count prior attempts), or the backstop decision could not be computed (decision token: `%s`). The run log names the specific cause. The job has been failed so the stall is visible; inspect the run log and the workpad, then post a fresh implement trigger comment to retry.\n' "${DECISION:-none}" > "$BODY"
+              {
+                printf '**PRFlow stall backstop** — outcome unclassifiable (workpad Status/comment list unreadable, or decision token `%s`). Failed so the stall is visible.\n' "${DECISION:-none}"
+                printf '%s\n' "$CAUSE"
+                printf '%s\n' "$RUN_URL"
+              } > "$BODY"
               ;;
           esac
           # The comment funnel below is always-exit-0 by contract, so read its

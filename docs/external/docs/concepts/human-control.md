@@ -48,7 +48,7 @@ PRFlow never merges a pull request. Before you do, work through these:
     Read the code, the tests and the documentation the run produced, the same way you would read a colleague's pull request.
   </Step>
   <Step title="Read the workpad">
-    Check the acceptance-criteria evidence and the `Devflow Reflection` section, which is where blockers, deferrals and dropped work are recorded. See [Workpads and Resume](/docs/concepts/workpads-and-resume).
+    Check the acceptance-criteria evidence and the `PRFlow Reflections` section, which is where blockers, deferrals and dropped work are recorded. See [Workpads and Resume](/docs/concepts/workpads-and-resume).
   </Step>
   <Step title="Evaluate the review findings">
     Read the verdict and any remaining caveats. An approval-family verdict is evidence, not proof. See [The Review System](/docs/concepts/review-system).

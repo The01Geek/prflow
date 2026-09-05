@@ -18,16 +18,16 @@ The installer is review-first on an update: it previews by default, and it never
     Download the newer installer and pass the same new tag as the payload.
 
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.39.8/install.sh -o devflow-install.sh
+    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.39.48/install.sh -o devflow-install.sh
     # read devflow-install.sh, then:
-    DEVFLOW_REF=v2.39.8 bash devflow-install.sh
+    DEVFLOW_REF=v2.39.48 bash devflow-install.sh
     ```
 
     On an existing installation this runs in dry-run mode. It does not intentionally change your repository, though it can create temporary files, and it does execute the script you downloaded. Read that file before you run it.
   </Step>
   <Step title="Apply It">
     ```bash
-    DEVFLOW_REF=v2.39.8 bash devflow-install.sh --apply
+    DEVFLOW_REF=v2.39.48 bash devflow-install.sh --apply
     ```
 
     This refreshes the managed workflows, the composite actions and the configuration schema. It backfills newly added configuration keys and preserves the values and arrays you already set.
@@ -69,6 +69,9 @@ Whenever it preserves your version, it writes the proposed replacement beside it
   <Step title="Delete the Sidecar">
     Remove each `.prflow-new` file once you have merged it. Sidecars are ignored by Git, so a broad `git add -A` will not commit them by accident.
   </Step>
+  <Step title="Re-run the Installer in Apply Mode">
+    Merging or adopting a sidecar changes the file's bytes, so the digest the installer recorded is now stale. When the preserved file is one the cloud implement gate depends on — `.github/workflows/devflow-implement.yml`, the `setup-project-env` action, or `.prflow/lint-manifest.json` — re-run the installer in apply mode (`--apply`, or `DEVFLOW_APPLY=1` for a `curl | bash` invocation) afterwards. Only that re-apply rebinds the `.prflow/install-state.json` marker to your merged bytes; skip it and the implement run refuses to start on every run. The apply that preserved the file warned you and named each affected sidecar.
+  </Step>
 </Steps>
 
 <Warning>
@@ -83,7 +86,7 @@ In a thin install, `prflow_version` in `.prflow/config.json` decides which plugi
   Updating only the workflow files, or only `prflow_version`, can leave two halves of one feature out of sync. Run the installer with the new tag and review the resulting pin in the same change.
 </Warning>
 
-A current example makes the risk concrete. The skills that read `.prflow/prompt-extensions/` ship inside the plugin, while the permission entries their delivery needs ship in the workflow files. Raising only `prflow_version` leaves that delivery unpermitted, and a refused delivery is not reported as a failure. The run looks normal and quietly applies less of your configuration.
+A current example makes the risk concrete. The skills that read `.prflow/skill-extensions/` ship inside the plugin, while the permission entries their delivery needs ship in the workflow files. Raising only `prflow_version` leaves that delivery unpermitted, and a refused delivery is not reported as a failure. The run looks normal and quietly applies less of your configuration.
 
 <Note>
   In a vendored install, `prflow_version` is ignored. The committed `.prflow/vendor/prflow/` tree supplies the runtime, so update that tree instead.

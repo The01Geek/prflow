@@ -100,6 +100,10 @@
 #                                           so no honest marker can be composed; no request
 #   SKIP body-file-unreadable         3     the body-file argument is absent or unreadable; no
 #                                           request issued
+#   SKIP evidence-missing             3     with reproducible cloud run identity, the run root
+#                                           did not pass the offline review-evidence grade
+#                                           (issue #193); no marker composed and no review,
+#                                           comment, or progress-stamp request issued
 #
 #   PROGRESS not-requested            —     no progress-comment marker was supplied (the local
 #                                           / no-live-comment case); nothing was stamped
@@ -268,6 +272,29 @@ if [ ! -r "$BODY_FILE" ] || [ ! -f "$BODY_FILE" ]; then
   _prv_say "SKIP body-file-unreadable"
   exit 3
 fi
+
+# (5) Grade execution evidence before any request (issue #193). Derive the run key through
+# compose-run-key.sh — never inline — so the scratch-key format cannot drift and mis-grade a
+# different directory; a cloud non-pass grade refuses with SKIP evidence-missing before posting.
+_prv_run_key="$("$_PRV_DIR/compose-run-key.sh" 2>/dev/null)"
+case "$_prv_run_key" in
+  ''|local-*)
+    echo "devflow post-verdict: no reproducible cloud run identity (compose-run-key.sh: '${_prv_run_key:-(none)}') — run-root evidence grading unavailable; posting without an evidence-pass claim (issue #193 local arm)" >&2 ;;
+  *)
+    _prv_run_root=".prflow/tmp/review/pr-${PR_NUMBER}/${_prv_run_key}"
+    # Take grade line 1 with parameter expansion, never `head`: this token DECIDES whether to
+    # refuse, and a value deciding a selection must not route through a non-preflight PATH tool
+    # (CLAUDE.md). The gate is an install-relative sibling and reads <run-root>/diff.patch alone.
+    _prv_grade_full="$(python3 "$_PRV_DIR/review-evidence-gate.py" --grade-run-root "$_prv_run_root" --repo-root . 2>/dev/null)"
+    _prv_grade="${_prv_grade_full%%$'\n'*}"
+    case "$_prv_grade" in
+      pass\ *) : ;;  # evidence present — proceed to the marker and the post
+      *)
+        echo "devflow post-verdict: review-evidence grade for run root '$_prv_run_root' is '${_prv_grade:-(no grade)}' (not a pass) — refusing the verdict post; no marker, review, comment, or progress-stamp request issued (issue #193)" >&2
+        _prv_say "SKIP evidence-missing"
+        exit 3 ;;
+    esac ;;
+esac
 
 # The one authoritative marker literal. Composed HERE, at the producer boundary — the agent
 # never composes it, which is the whole point of issue #1030.

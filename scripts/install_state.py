@@ -4,10 +4,12 @@
 """Build, validate, and gate on `.prflow/install-state.json` (issue #1388).
 
 `.prflow/install-state.json` is the digest-bound compatibility-tuple marker the
-installer publishes **last**, only after staging and validating the set of
-components that must ship together — the lint manifest, its readers, the
-`setup-project-env` composite action and its provisioning helper, and the shipped
-implement workflow. That set is written twice — `COMPONENTS` in
+installer publishes **after the workflow and composite-action copies and before it
+writes `.prflow/install-manifest.json`**, only after validating the set of components
+that must ship together — the lint manifest, its readers, the `setup-project-env`
+composite action and its provisioning helper, and the shipped implement workflow. The
+lint manifest validated before publication is the installer's **source** copy, not the
+staged consumer-tree copy. That set is written twice — `COMPONENTS` in
 `lib/generate-install-state.py` governs this repository's committed marker and
 `install.sh` section 4b's `--component` operands govern a consumer's; the suite
 reconciles the two, so neither is authoritative for the other's path.

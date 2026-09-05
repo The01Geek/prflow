@@ -25,6 +25,13 @@
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-gh.sh"
 : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 
+# Shared login rule (issue #157): the allowed-bot arm compares logins through
+# lib/login_normalize.py so a [bot]/app/ or case variant of the same bot is
+# trusted, with no inline strip in this security gate.
+# shellcheck source=../lib/login-match.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/login-match.sh" 2>/dev/null \
+  || echo "authorize-actor.sh: login-match.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — the allowed-bot arm will fail closed" >&2
+
 authorize_actor() {
   local actor="${ACTOR:-}" allowed_bots="${ALLOWED_BOTS:-}" repo="${REPO:-}"
   # Empty/unset → wildcard, preserving "any collaborator" behavior for repos
@@ -36,22 +43,17 @@ authorize_actor() {
   # shellcheck disable=SC2034
   deny_reason="is not an allowed bot or write/admin/maintain collaborator"
 
-  local actor_bare="${actor%\[bot\]}"
-  local -a bots
-  IFS=',' read -ra bots <<< "$allowed_bots"
-  local b bt
-  for b in "${bots[@]}"; do
-    # Trim surrounding whitespace via parameter expansion, NOT `echo | xargs`:
-    # xargs does shell word-splitting/quote processing, so a config value
-    # containing a quote or backslash could be mangled — or make xargs exit
-    # non-zero, which under `set -e` would abort this authorization loop hard
-    # instead of failing closed.
-    bt="${b#"${b%%[![:space:]]*}"}"   # strip leading whitespace
-    bt="${bt%"${bt##*[![:space:]]}"}" # strip trailing whitespace
-    if [ -n "$bt" ] && { [ "$bt" = "$actor" ] || [ "$bt" = "$actor_bare" ]; }; then
-      authorized=true
-    fi
-  done
+  # Allowed-bot arm through the shared resolver (issue #157). It normalizes both
+  # the actor and every allowlist entry, so trimming/`[bot]`/`app/`/case handling
+  # lives in lib/login_normalize.py — never inline here. A resolver failure (rc 2)
+  # DENIES (fail closed): re-introducing the inline compare would defeat the point.
+  local _lm_rc
+  devflow_login_matches "$actor" "$allowed_bots" && _lm_rc=0 || _lm_rc=$?
+  if [ "$_lm_rc" = 0 ]; then
+    authorized=true
+  elif [ "$_lm_rc" != 1 ]; then
+    echo "authorize-actor.sh: could not run lib/login_normalize.py to compare the actor against allowed_bots (rc ${_lm_rc}); denying the bot arm (fail-closed)" >&2
+  fi
 
   # User path: must match allowed_users AND hold write/admin/maintain.
   if [ "$authorized" != "true" ] && [ -n "$actor" ] && [ -n "$repo" ]; then

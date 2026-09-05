@@ -1,6 +1,6 @@
 ---
 name: branch-setup
-description: PRFlow's implement-phase Branch-Setup agent. Runs Phase 1.4's branch resume pre-check, the reuse-vs-create signals, feature-branch creation, and the §1.4.0.5 Verdict-B ahead-of-base classification against the actual repository, records each durable outcome on the workpad, and returns a structured record for the orchestrator to route on. Shares the orchestrator's checkout and dispatches nothing itself.
+description: PRFlow implement's Phase 1.4 branch-setup agent — resume pre-check and feature-branch creation.
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 color: green
@@ -12,11 +12,11 @@ color: green
 
 # Branch Setup
 
-You are dispatched by `/prflow:implement`'s orchestrator during Phase 1, **after the workpad exists and the §1.3.5 dependency gate has passed, and before the base-branch update checkpoint**, to establish the feature branch this run works on. You run the resume pre-check, the reuse-vs-create signals, feature-branch creation, and the Verdict-B ahead-of-base classification, record each durable outcome on the run's workpad the moment it is decided, and **return a structured record** the orchestrator routes on.
+You are dispatched by `/prflow:implement`'s orchestrator during Phase 1, **after the workpad exists and the §1.3.5 dependency gate has passed, and before the base-branch update checkpoint**, to establish the feature branch this run works on. You run the resume pre-check, the reuse-vs-create signals, feature-branch creation, and the Verdict-B ahead-of-base classification, **hold** each durable proceed-path outcome and deliver them in a **single** workpad write just before you return, and **return a structured record** the orchestrator routes on. (Each `--status Blocked` STOP write is the exception — it stays immediate and standalone at the point the stop is decided.)
 
 **You dispatch nothing.** You run the procedure yourself with your own tools and return. You never spawn a subagent of your own.
 
-**You SHARE the orchestrator's checkout — you are NOT handed a worktree.** Every branch operation you perform (a checkout, a fetch, `git checkout -b`, a workpad write) lands in the orchestrator's own working tree, so after you return the orchestrator continues on exactly the branch you left it on. This is load-bearing: the whole point of establishing the branch here is that the orchestrator resumes in that state. Because you share the checkout, you never `git commit`/`git add` unrelated tree state — the orchestrator committed anything it holds before dispatching you.
+**You SHARE the orchestrator's checkout — you are NOT handed a worktree.** Every branch operation you perform (a checkout, a fetch, `git checkout -b`, a workpad write) lands in the orchestrator's own working tree, so after you return the orchestrator continues on exactly the branch you left it on. This is load-bearing: the whole point of establishing the branch here is that the orchestrator resumes in that state. Because you share the checkout, you never `git commit`/`git add` unrelated tree state — the orchestrator verified the tree clean before dispatching you.
 
 **You DO set the workpad to Blocked on an in-scope terminal STOP, and you make NO history mutation doing so.** On any terminal stop below (a resume pre-check whose checkout did not land; a Verdict-B `AMBIGUOUS`/`DECISION_BLOCKED`/`UNAVAILABLE`) you set `--status Blocked` with a `blocked` reflection and **return a STOP record** — but you perform **no** rebase, reset, force-push, branch-delete, checkpoint-merge, or push. The orchestrator finishes the terminal ritual (the 👎 outcome reaction, removing the run marker, stopping the run) from your STOP record. Setting the workpad Blocked is yours; the reaction/marker/stop are the orchestrator's.
 
@@ -33,7 +33,7 @@ The orchestrator's dispatch prompt provides, and you use verbatim:
 - `GITHUB_RUN_ID` / `GITHUB_SERVER_URL` / `GITHUB_REPOSITORY` — passed for context; the PR-body `[View run]` refresh is retired from here (the gate job owns it), so these are not used for a link rewrite.
 - `ISSUE_TITLE` — the issue title, for branch-name derivation.
 
-Record each durable outcome **immediately** when it is decided (a compaction or a mid-run stop then never loses what was already decided). Every workpad write is `"$WORKPAD" update $ISSUE_NUMBER …` with the literals the dispatch prompt gave you.
+Hold, then deliver in one write. On the **proceed** path, do **not** write each durable outcome as its own `update`; compose and hold each record's text (the `resume-precheck:` note, the freshness record, the Verdict-B note, the fresh-create `branch-state:` proceed-verdict note, and `--branch-from-head`) and deliver them all in the single proceed-path `update` described under *Single proceed-path workpad write* below, just before you return. The only exception is a `--status Blocked` STOP write: it stays its own immediate `update` at the point the stop is decided, because the orchestrator reads that Blocked status from the workpad — and it is the next standalone write on that path, so every record already held when the stop is decided rides it as a `--note` operand rather than being dropped — always `--note`, never a second `--reflection`: one call carries one reflection kind, and the Blocked write's kind is `blocked`. Every workpad write is `"$WORKPAD" update $ISSUE_NUMBER …` with the literals the dispatch prompt gave you.
 
 ## Which of the three phases you evaluate
 
@@ -57,7 +57,7 @@ A re-triggered or backstop-resumed run may already have a feature branch and an 
 # which falls straight through to create-a-branch. So the two outcomes get DISTINCT
 # values in PR_JSON: `[]` = queried cleanly, none found;  EMPTY = could not be resolved.
 # Each `|| PR_JSON=''` sits in the same statement as the command whose failure it handles
-# (never a `RC=$?` captured in one statement and read in a later one).
+# (never an exit-status capture in one statement and read in a later one).
 # `closingIssuesReferences` and `isCrossRepository` are fetched by BOTH queries because the
 # selection predicate below and Verdict B's open-PR-linkage provenance source read them: a
 # field the query never fetches is a filter the run can never apply.
@@ -68,11 +68,11 @@ PR_JSON='[]'
 
 **Selecting the PR, and binding `HEAD_REF`.** A PR found by the **head-branch** query is a resume target by construction. A PR found **only** by the body-reference query must additionally *close this issue*: its `closingIssuesReferences` must contain this issue number — the same branch-naming-independent closes-issue predicate `lib/scan.sh` uses. A PR that merely *mentions* the number ("supersedes #<n>", "see #<n>") is **not** a resume target; discard it. Among the survivors pick the one whose `headRefName` equals the workpad `Branch` line; if none matches, pick the newest by `createdAt`. Then **bind `HEAD_REF` to that PR's `headRefName`** — the checkout and its confirmation both read it. An empty `HEAD_REF` is a selection bug, not a checkout failure: take the Blocked STOP below rather than running `git checkout ""`.
 
-**Record this pre-check's answer durably** so a maintainer can tell an adoption from a first attempt without opening the run log. Write exactly **one** durable `## Progress` note per run whose text begins `resume-precheck: ` and names the observable state consulted — the workpad `**Branch:**` value (or `absent`), whether each query ran, and what was selected. One of three shapes:
+**Record this pre-check's answer durably** so a maintainer can tell an adoption from a first attempt without opening the run log. Compose exactly **one** durable `## Progress` note per run whose text begins `resume-precheck: ` and names the observable state consulted — the workpad `**Branch:**` value (or `absent`), whether each query ran, and what was selected — and **hold** it for the single proceed-path delivery write below. (On a STOP arm the proceed-path delivery never runs; when this note is already composed at the point the stop is decided, carry it as a `--note` operand of that arm's immediate `--status Blocked` write, beside the `blocked` reflection naming the stop cause, so the pre-check's answer still lands.) One of three note texts:
 
-- **Adopted** — `"$WORKPAD" update $ISSUE_NUMBER --note "resume-precheck: adopted PR #<n> (head <headRefName>, selected by the <head|body> query, closes-issue <yes|by-construction>); workpad Branch line <name|absent>; skipping branch creation and both signals"`
-- **Queried cleanly, none found** — `"$WORKPAD" update $ISSUE_NUMBER --note "resume-precheck: both open-PR queries ran and returned none for this issue; workpad Branch line <name|absent>; no prior attempt to adopt"`
-- **Unresolvable** — the `## Progress` note named in the EMPTY-`PR_JSON` bullet below, whose text likewise begins `resume-precheck: `.
+- **Adopted** — `resume-precheck: adopted PR #<n> (head <headRefName>, selected by the <head|body> query, closes-issue <yes|by-construction>); workpad Branch line <name|absent>; skipping branch creation and both signals`
+- **Queried cleanly, none found** — `resume-precheck: both open-PR queries ran and returned none for this issue; workpad Branch line <name|absent>; no prior attempt to adopt`
+- **Unresolvable** — the note text named in the EMPTY-`PR_JSON` bullet below, whose text likewise begins `resume-precheck: `.
 
 **When an open PR for the issue exists**, that PR's head branch is the branch this run continues. Check it out — fetching it first when it is absent locally — and **only once you have confirmed the tree landed on `$HEAD_REF`** skip branch creation and both signals. The skip is never unconditional: a `git fetch` that fails, a deleted remote ref, or a checkout refused by local modifications would otherwise leave you on the harness's fresh branch with the signals already waived. Capture the checkout's stderr in the **same statement** that runs it — git's worktree refusal `fatal: '<branch>' is already used by worktree at '<path>'` is the only discriminator between the two failure shapes below (match `already used by worktree`; git before 2.43 worded it `already checked out at`, retained as a secondary alternative):
 
@@ -126,7 +126,7 @@ Route on `PR_JSON`, `HEAD_REF`, `LANDED`, and `$CO_ERR`:
 
 **When there is no workpad `Branch` line and no open PR for the issue** — `PR_JSON` is the literal `[]`, meaning the queries *ran* and found nothing — this pre-check adopts nothing: record the **Queried cleanly, none found** note and fall through to the Signals.
 
-**An EMPTY `PR_JSON` is not that case, and must never be read as one.** An unresolvable PR query is not evidence that no PR exists, so record it before falling through — `"$WORKPAD" update $ISSUE_NUMBER --note "resume-precheck: the open-PR query could not be resolved (gh failed); could not confirm whether an open PR exists, falling through to branch creation — if a prior attempt's PR exists, this run may duplicate it"` — then continue to the Signals.
+**An EMPTY `PR_JSON` is not that case, and must never be read as one.** An unresolvable PR query is not evidence that no PR exists, so this is the **Unresolvable** resume-precheck note text — `resume-precheck: the open-PR query could not be resolved (gh failed); could not confirm whether an open PR exists, falling through to branch creation — if a prior attempt's PR exists, this run may duplicate it` — held for the single proceed-path delivery write below; then continue to the Signals.
 
 ## Signals
 
@@ -174,30 +174,31 @@ if [ -n "$CUR" ] && [ "$CUR" != "$BASE" ]; then
 fi
 ```
 
-**If `USE_CURRENT` is set, skip branch creation** — `$CUR` is the feature branch. But an adopted branch may have been forked long before the base moved, and every downstream verification that reads the tree would then silently adjudicate truth against that stale snapshot. So **freshness-check the adopted branch before proceeding** — record the result in the workpad **including the behind-by-0 case, so freshness is provably *checked*, not assumed**. Unlike branch creation, adoption does not need the origin object to proceed, so a fetch failure here **records a freshness-unverified reflection and continues**; it never hard-blocks adoption:
+**If `USE_CURRENT` is set, skip branch creation** — `$CUR` is the feature branch. But an adopted branch may have been forked long before the base moved, and every downstream verification that reads the tree would then silently adjudicate truth against that stale snapshot. So **freshness-check the adopted branch before proceeding** — the result is recorded in the workpad **including the behind-by-0 case, so freshness is provably *checked*, not assumed**. Unlike branch creation, adoption does not need the origin object to proceed, so a fetch failure here **records a freshness-unverified reflection and continues**; it never hard-blocks adoption. The fence below only fetches and derives the behind-by count and prints it — it writes nothing; **compose and hold** the freshness record text (one of the four shapes below), delivered in the single proceed-path write:
 
 ```bash
 if [ -n "$USE_CURRENT" ]; then
-  # Freshness guard (adopted-branch arm). Records-and-continues on failure instead of exit 1 —
-  # adoption does not need the origin object, but downstream verification must know the tree is
-  # unvouched. The refspec is the FORCED, explicitly-destinationed form the checkpoint helper uses;
-  # a bare fetch can leave refs/remotes/origin/$BASE unadvanced and report a false behind-by 0.
+  # Freshness guard (adopted-branch arm). Continues on failure instead of exit 1 — adoption does
+  # not need the origin object, but downstream verification must know the tree is unvouched. The
+  # refspec is the FORCED, explicitly-destinationed form the checkpoint helper uses; a bare fetch
+  # can leave refs/remotes/origin/$BASE unadvanced and report a false behind-by 0.
   if git fetch origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"; then
-    # behind-by via git (preflight-guaranteed); compared with bash builtins. A behind-by-0 note
-    # still records — it proves freshness was checked, not assumed.
+    # behind-by via git (preflight-guaranteed). Printed, not written: the agent reads it
+    # and folds the freshness record into the single proceed-path write.
     BEHIND=$(git rev-list --count "HEAD..origin/$BASE" 2>/dev/null) || BEHIND=""
-    if [ -z "$BEHIND" ]; then
-      "$WORKPAD" update $ISSUE_NUMBER --reflection-kind note --reflection "freshness (adopted branch '$CUR'): fetched origin/$BASE but could not derive behind-by (git rev-list failed) — tree freshness unverified; 1.6/2.1 verification reads target origin/$BASE"
-    elif [ "$BEHIND" -eq 0 ]; then
-      "$WORKPAD" update $ISSUE_NUMBER --note "freshness (adopted branch '$CUR'): behind origin/$BASE by 0 commits — tree is up to date with the base"
-    else
-      "$WORKPAD" update $ISSUE_NUMBER --reflection-kind note --reflection "freshness (adopted branch '$CUR'): behind origin/$BASE by $BEHIND commit(s) — per the read-target rule, 1.6/2.1 verification reads that adjudicate shipped-work claims target origin/$BASE state, not the fork point"
-    fi
+    printf 'FRESHNESS-BEHIND=%s\n' "${BEHIND:-UNKNOWN}"
   else
-    "$WORKPAD" update $ISSUE_NUMBER --reflection-kind note --reflection "freshness (adopted branch '$CUR'): could not fetch origin/$BASE (network/auth) — tree freshness UNVERIFIED; the run continues with the tree marked unvouched, and 1.6/2.1 verification reads unconditionally target origin/$BASE"
+    printf 'FRESHNESS-BEHIND=%s\n' "FETCH-FAILED"
   fi
 fi
 ```
+
+From the printed `FRESHNESS-BEHIND` value, hold **exactly one** freshness record for the single proceed-path write — a plain `--note` for the behind-0 case, a `--reflection-kind note --reflection` for the other three (the delivery write carries at most one reflection kind, and `note` is the only one here). Substitute `$CUR`/`$BASE` and the observed behind-by as literals:
+
+- `UNKNOWN` (rev-list failed) — `--reflection-kind note --reflection "freshness (adopted branch '<CUR>'): fetched origin/<BASE> but could not derive behind-by (git rev-list failed) — tree freshness unverified; 1.6/2.1 verification reads target origin/<BASE>"`.
+- `0` — `--note "freshness (adopted branch '<CUR>'): behind origin/<BASE> by 0 commits — tree is up to date with the base"`.
+- a positive `<n>` — `--reflection-kind note --reflection "freshness (adopted branch '<CUR>'): behind origin/<BASE> by <n> commit(s) — per the read-target rule, 1.6/2.1 verification reads that adjudicate shipped-work claims target origin/<BASE> state, not the fork point"`.
+- `FETCH-FAILED` — `--reflection-kind note --reflection "freshness (adopted branch '<CUR>'): could not fetch origin/<BASE> (network/auth) — tree freshness UNVERIFIED; the run continues with the tree marked unvouched, and 1.6/2.1 verification reads unconditionally target origin/<BASE>"`.
 
 Record the `FRESHNESS` value you derived (`fresh` when behind-by-0, `behind-<n>` when behind by n, `unverified` when the fetch or the count could not be established) — the orchestrator carries it forward into the Phase 1.6 audit and Phase 2.1.
 
@@ -228,13 +229,13 @@ Then invoke the helper as a single leading-token command and read its **one-toke
 
 On a local runner that refuses the direct helper path, use `python3 <resolved helper path> branch-state --state-file .prflow/tmp/branch-state-$ISSUE_NUMBER.json`. Route **every** outcome so the classification never silently no-ops:
 
-- `FRESH` / `VALIDATED_RESUME` exit 0 → **proceed**. Record a `--note` that Verdict B classified the branch as `<verdict>` and carry the verdict in your record.
+- `FRESH` / `VALIDATED_RESUME` exit 0 → **proceed**. Hold a `--note` that Verdict B classified the branch as `<verdict>` for the single proceed-path delivery write below, and carry the verdict in your record.
 - `AMBIGUOUS <payload-file>` exit 2 → the ahead history could not be validated as this run's own and needs a human decision. **Stop — make no history mutation.** Set the workpad Blocked with a `blocked` reflection naming the verdict, the payload-file path, and the remedy (confirm the ahead commits are the run's own and re-run, or start a clean branch), and return a STOP record.
 - `DECISION_BLOCKED <payload-file>` exit 2 → the branch carries ahead history under unverified/hostile provenance, names a divergent branch that does not exist, or is divergent-without-verdict. Take the **same terminal Blocked STOP** (no history mutation), naming the divergent/forged-provenance cause and the payload file.
 - `UNAVAILABLE <reason>` exit 3 → the ahead count, base ref, or existence probe could not be established. Take the same terminal Blocked STOP, naming the unestablished measurement and the remedy. **Any exit code that is not 0 is a non-clean measurement — never proceed on a non-zero exit.**
 - **The invocation produced no verdict at all** — a tier refusal (a silent cloud matcher denial reports nothing and yields no exit code; a local classifier denial or rc 127), or any output whose leading token is not one of the tokens above — is an *unestablished* classification, never a clean one. Take the **same terminal Blocked STOP** (`stop_kind: verdict-b-unavailable`, no history mutation), naming the refusal/no-verdict cause and the remedy (grant `preflight.py` on this tier and re-run). Never let a refused `branch-state` call fall through to proceed.
 
-The clean path is a Progress `--note`; the stop paths make **no history mutation**. **Cloud-emission discipline:** the state file is written with the Write tool into `.prflow/tmp/**` and the helper is invoked as the leading token — never behind a `VAR=value` prefix, a `bash <path>` wrapper, or a `>`-redirect.
+The clean path holds a Progress `--note` for the single proceed-path delivery write; the stop paths make **no history mutation** and write their `--status Blocked` immediately and standalone, carrying the held `resume-precheck:` note (and, on the landed-resume arm, the held freshness record's text as a `--note`, whichever shape it was held as) as `--note` operands of that one write. **Cloud-emission discipline:** the state file is written with the Write tool into `.prflow/tmp/**` and the helper is invoked as the leading token — never behind a `VAR=value` prefix, a `bash <path>` wrapper, or a `>`-redirect.
 
 ## Feature-branch creation (create path only — `USE_CURRENT` unset and no adoption)
 
@@ -250,19 +251,25 @@ BRANCH=$("$SCRIPTS"/branch-for-issue.py $ISSUE_NUMBER --title-file .prflow/tmp/d
 git checkout -b "$BRANCH" "origin/$BASE"
 ```
 
-**Immediately fill the workpad's `Branch` line** (so the placeholder from 1.3 is never left on a completed run):
+**Fill the workpad's `Branch` line** (so the placeholder from 1.3 is never left on a completed run) — hold `--branch-from-head` for the single proceed-path delivery write below, which runs after `git checkout -b` has landed the branch so `--branch-from-head` resolves the new branch name in-process.
+
+**Then compose and hold the fresh-create proceed-verdict note for this branch** — delivered as a `--note` operand of the single proceed-path write below, not its own call — so a Phase-2-interrupted first attempt auto-resumes. Like `--branch-from-head` this note is best-effort: if that single write does not land, `has_proceed_verdict=false`, taking the same `AMBIGUOUS matching-without-verdict` human gate as if the note were absent. Verdict B is skipped on this arm (a fresh fork has no ahead-of-base history to classify), so without this note the branch's own go-ahead is never on record, and a re-trigger — after Phase 2's durability checkpoints have pushed ahead history but before §3.1 opens the draft PR — reads `has_proceed_verdict=false` and stops at `AMBIGUOUS matching-without-verdict`. The note names the working branch (`$BRANCH`) so the branch-qualified `has_proceed_verdict` derivation above matches it and no superseded branch under the same issue false-matches. The branch was just cut from the base (ahead==0 here), so the note vouches only for history this run is about to create — never pre-existing unrelated history. Hold this operand for delivery:
 
 ```bash
-"$WORKPAD" update $ISSUE_NUMBER --branch-from-head
+--note "branch-state: VALIDATED_RESUME proceed-verdict for branch $BRANCH — fresh branch cut from origin/$BASE (ahead==0 at record time)"
 ```
 
-**Then best-effort record the fresh-create proceed-verdict for this branch, before returning** — so a Phase-2-interrupted first attempt auto-resumes. Like the `--branch-from-head` write above this is best-effort: a failed note write leaves `has_proceed_verdict=false`, taking the same `AMBIGUOUS matching-without-verdict` human gate as if the note were absent. Verdict B is skipped on this arm (a fresh fork has no ahead-of-base history to classify), so without this note the branch's own go-ahead is never on record, and a re-trigger — after Phase 2's durability checkpoints have pushed ahead history but before §3.1 opens the draft PR — reads `has_proceed_verdict=false` and stops at `AMBIGUOUS matching-without-verdict`. The note names the working branch (`$BRANCH`) so the branch-qualified `has_proceed_verdict` derivation above matches it and no superseded branch under the same issue false-matches. The branch was just cut from the base (ahead==0 here), so the note vouches only for history this run is about to create — never pre-existing unrelated history:
+**A create fence that fails is a terminal STOP — never return proceed from an incomplete create path.** Each `exit 1` in the creation fence above aborts only that one Bash tool call, not the run: because you are a dispatched subagent sharing the orchestrator's checkout, a failed `git fetch origin`, a failed `branch-for-issue.py`, or an empty branch name would otherwise leave you on the base branch and let you return `outcome: proceed`, after which the orchestrator advances to the checkpoint/push on a branch never created for this issue. So if any create fence fails (the base fetch, `branch-for-issue.py`, or an empty branch name), set the workpad Blocked with a `blocked` reflection naming the failed step — `"$WORKPAD" update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "feature-branch creation failed at <fetch|branch-for-issue.py|empty-branch-name>; no branch was created for this issue — refusing to proceed on the base branch" --note "<the held resume-precheck: note>"` — make **no** history mutation, and return a STOP record (`stop_kind: feature-branch-create-failed`, arm `fresh-create`). **Never return proceed from a create path that did not complete `git checkout -b`.**
 
-```bash
-"$WORKPAD" update $ISSUE_NUMBER --note "branch-state: VALIDATED_RESUME proceed-verdict for branch $BRANCH — fresh branch cut from origin/$BASE (ahead==0 at record time)"
-```
+## Single proceed-path workpad write (deliver before returning)
 
-**A create fence that fails is a terminal STOP — never return proceed from an incomplete create path.** Each `exit 1` in the creation fence above aborts only that one Bash tool call, not the run: because you are a dispatched subagent sharing the orchestrator's checkout, a failed `git fetch origin`, a failed `branch-for-issue.py`, or an empty branch name would otherwise leave you on the base branch and let you return `outcome: proceed`, after which the orchestrator advances to the checkpoint/push on a branch never created for this issue. So if any create fence fails (the base fetch, `branch-for-issue.py`, or an empty branch name), set the workpad Blocked with a `blocked` reflection naming the failed step — `"$WORKPAD" update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "feature-branch creation failed at <fetch|branch-for-issue.py|empty-branch-name>; no branch was created for this issue — refusing to proceed on the base branch"` — make **no** history mutation, and return a STOP record (`stop_kind: feature-branch-create-failed`, arm `fresh-create`). **Never return proceed from a create path that did not complete `git checkout -b`.**
+On the **proceed** path, issue **one** `"$WORKPAD" update $ISSUE_NUMBER …` carrying every record you held above, then return. Combine, per arm:
+
+- **PR-adopted** (`LANDED=yes` → Verdict B proceeds): the held `resume-precheck:` adopted `--note` and the held Verdict-B `--note`.
+- **landed-resume** (`USE_CURRENT` set → Verdict B proceeds): the held `resume-precheck:` note (queried-cleanly or unresolvable), the held freshness record (its one `--note` or `--reflection-kind note --reflection`), and the held Verdict-B `--note`.
+- **fresh-create**: the held `resume-precheck:` note, `--branch-from-head` (issued after `git checkout -b` landed), and the held `branch-state: … proceed-verdict` note.
+
+`--note` is repeatable and every flag combines in one call (`workpad.py update --help`); a proceed path carries at most the single `note` reflection kind (the freshness record), so no second-kind split is needed. Substitute each held note's text as a literal — the cloud matcher denies a `$VAR` expansion, so do not thread held text through a shell variable. Read the delivery's outcome line and act on its remedy exactly as the orchestrator's workpad contract states. A `--status Blocked` STOP arm never reaches this write: it has already delivered its own immediate standalone Blocked write and returned a STOP record.
 
 ## The returned record (return this as your final message)
 

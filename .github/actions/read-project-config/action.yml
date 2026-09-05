@@ -1,7 +1,7 @@
 name: 'Read project config'
 description: |
   Emit the contents of `.prflow/config.json` as a single JSON string output.
-  The config is already JSON, so this validates it with python3 (a hard DevFlow
+  The config is already JSON, so this validates it with python3 (a hard PRFlow
   prerequisite) and passes it through — no yq, no PyYAML, no Node. Consumers read
   fields with `fromJSON(steps.<id>.outputs.json).path.to.field`. Repository must
   already be checked out (typically via `actions/checkout@v6`).

@@ -258,6 +258,19 @@ REGIONS = [
         "style": "comma_space",
     },
     {
+        # The weekly scheduled retrospective workflow (issue #93). It runs
+        # /prflow:retrospective-weekly headlessly under the SAME `command` profile
+        # devflow.yml serves, so its baked allowed-tools literal is a generated,
+        # sha-bannered region --check covers — no allowlist literal in the new
+        # workflow is hand-authored.
+        "id": "retrospective",
+        "file": WF / "devflow-retrospective.yml",
+        "profile": "command",
+        "kind": "assign",
+        "var": "TOOLS",
+        "style": "comma_space",
+    },
+    {
         # Hoisted from the `claude_args` inline `--allowed-tools` literal into a
         # `Resolve allowed-tools` step output (issue #1170), so the implement tier's
         # grounding block can quote the exact resolved list by construction — the same

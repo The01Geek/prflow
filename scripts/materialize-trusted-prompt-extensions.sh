@@ -133,7 +133,21 @@ for name in "${NAMES[@]}"; do
             ;;
     esac
 
-    src=".prflow/prompt-extensions/${name}.md"
+    # TRANSITIONAL DIRECTORY-RENAME READ-THROUGH (issue #170): resolve the canonical
+    # .prflow/skill-extensions/ path at the TRUSTED BASE REF, falling back to superseded
+    # prompt-extensions/ only when the canonical one is not a blob there — bytes from the
+    # base ref, never the PR head. END CRITERION (confirmation-gated): removed with the
+    # loader read-through once no consumer carries a .prflow/prompt-extensions/ directory.
+    src=".prflow/skill-extensions/${name}.md"
+    _src_old=".prflow/prompt-extensions/${name}.md"
+    # Both sides are blob-typed so a TREE at the canonical leaf path (a directory literally
+    # named "<name>.md") does not suppress the fallback to a valid old-path blob — matching
+    # the old-path test's own `= blob` check and the "not a blob there" comment above.
+    if [ "$FETCH_HEAD_RESOLVES" = yes ] \
+        && [ "$(git cat-file -t "FETCH_HEAD:$src" 2>/dev/null || printf 'unknown')" != blob ] \
+        && [ "$(git cat-file -t "FETCH_HEAD:$_src_old" 2>/dev/null || printf 'unknown')" = blob ]; then
+        src="$_src_old"
+    fi
     dest="$TARGET/${name}.md"
 
     # A TREE at this path is not an extension. `git show` exits 0 on one and prints a
@@ -166,6 +180,25 @@ for name in "${NAMES[@]}"; do
     fi
 
     printf '%s\n' "::warning::devflow trusted prompt-extension '$name' could not be read from the trusted base ref '$BASE_REF' for a reason other than the object being absent; the reviewing agent runs with no extension text for it"
+done
+
+# TRANSITIONAL SKILL-RENAME WARNING (issue #152). When the trusted base ref still
+# carries the superseded receiving-code-review.md extension, the loader's read-through
+# serves it for the renamed `fix` skill — warn the consumer to rename it. Fires only
+# when the old path exists as a BLOB at the base ref (a tree there is not an extension,
+# so no warning), matching the read-through's own deliverability. Removed together with
+# the loader read-through once no consumer still carries a receiving-code-review.md.
+# Check the receiving-code-review.md under BOTH the canonical skill-extensions/ and the
+# superseded prompt-extensions/ directory (issue #170), since a consumer may have migrated
+# the directory but not the file (or vice versa). The FIRST that is a blob at the base ref
+# is warned about; the fix.md target is named under the same directory the old file sits in.
+for _mtpe_dir in .prflow/skill-extensions .prflow/prompt-extensions; do
+    _mtpe_old_ext="${_mtpe_dir}/receiving-code-review.md"
+    if [ "$FETCH_HEAD_RESOLVES" = yes ] \
+        && [ "$(git cat-file -t "FETCH_HEAD:$_mtpe_old_ext" 2>/dev/null || printf 'unknown')" = blob ]; then
+        printf '%s\n' "::warning::devflow: the trusted base ref '$BASE_REF' still carries the superseded prompt extension '$_mtpe_old_ext'; the receiving-code-review skill was renamed to fix, so rename it to ${_mtpe_dir}/fix.md (the loader reads it through transitionally)"
+        break
+    fi
 done
 
 exit 0

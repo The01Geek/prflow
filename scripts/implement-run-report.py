@@ -32,6 +32,7 @@ from context_eval_shared import UNESTABLISHED
 from implement_records import (
     fmt,
     load_runs_with_status,
+    max_or_unestablished,
     mean_or_unestablished,
     median_or_unestablished,
     numeric,
@@ -85,14 +86,18 @@ def render_runs(runs, n, status="read"):
     recent = runs[-n:] if n else []
     lines.append(f"Most recent {len(recent)} implement run(s) "
                  f"(of {len(runs)} in the store)")
-    lines.append(f"{'run_id':>14}  {'duration':>10}  {'cost':>9}  "
+    lines.append(f"{'run_id':>14}  {'duration':>10}  {'cost':>9}  {'peak_ctx':>9}  "
                  f"{'status':<13}  {'verdict':<20}  phase share")
     for run in recent:
         duration = run["duration_ms"]
         duration_s = f"{duration / 1000:.0f}s" if duration is not None else UNESTABLISHED
+        # issue #120: peak main-thread context per run. `unestablished` (never 0) on a
+        # pre-#120 record or one whose file carried no main-thread usage.
+        peak = run["peak_main_thread_context"]
+        peak_s = str(peak) if peak is not None else UNESTABLISHED
         lines.append(
             f"{run['run_id'] or UNESTABLISHED!s:>14}  {duration_s:>10}  "
-            f"{fmt(run['cost_usd']):>9}  "
+            f"{fmt(run['cost_usd']):>9}  {peak_s:>9}  "
             f"{run['terminal_status'] or UNESTABLISHED!s:<13}  "
             f"{run['verdict'] or UNESTABLISHED!s:<20}  {_top_phases(run)}")
     durations = [r["duration_ms"] for r in recent]
@@ -178,6 +183,23 @@ def render_retro(runs, status="read"):
     lines.append(f"Trailing {len(trailing)}-week mean duration: {seconds(mean_ms)}")
     lines.append(f"Trailing {len(trailing)}-week mean cost: "
                  f"{fmt(mean_or_unestablished(window_costs))}")
+    # issue #120: cloud context cost over the trailing window — median AND max, so the tail
+    # is visible, on the same footing as duration/cost above. Computed over the RUNS whose
+    # ISO week falls in the trailing window, not over weekly means. `unestablished` (never
+    # 0) when no run in the window carries the field. These are instrument outputs only: the
+    # regression check below still compares duration alone (AC12).
+    trailing_set = set(trailing)
+    window_runs = [r for r in runs if _iso_week(r["merged_at"]) in trailing_set]
+    window_peaks = [r["peak_main_thread_context"] for r in window_runs]
+    window_phase_reads = [r["phase_file_reads_total"] for r in window_runs]
+    lines.append(f"Trailing {len(trailing)}-week median peak main-thread context: "
+                 f"{median_or_unestablished(window_peaks)}")
+    lines.append(f"Trailing {len(trailing)}-week max peak main-thread context: "
+                 f"{max_or_unestablished(window_peaks)}")
+    lines.append(f"Trailing {len(trailing)}-week median total phase-file reads: "
+                 f"{median_or_unestablished(window_phase_reads)}")
+    lines.append(f"Trailing {len(trailing)}-week max total phase-file reads: "
+                 f"{max_or_unestablished(window_phase_reads)}")
     lines.append("")
     found = regressions(weeks)
     if not found:

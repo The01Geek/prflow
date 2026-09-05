@@ -58,7 +58,7 @@
 #
 # ACCEPTED OUTCOME LINES. The producer's outcome vocabulary is closed and so is the
 # event set it can name (`REQUEST_CHANGES`, `APPROVE`, `COMMENT` — the only three its
-# verdict-token `case` maps to), so the ten `POSTED`/`SKIP` lines are matched as EXACT
+# verdict-token `case` maps to), so the `POSTED`/`SKIP` lines are matched as EXACT
 # literals rather than by prefix. `FAILED no-durable-channel` is the one arm whose
 # tail is free text (a captured API error), so it alone is matched by prefix. Exactness
 # is what makes a near-miss — `POSTED reviews`, `POSTED  review`, `posted review`, a
@@ -168,6 +168,7 @@ case "$CVR_LINE" in
   'POSTED review REQUEST_CHANGES'|'POSTED review APPROVE'|'POSTED review COMMENT'|\
   'POSTED comment REQUEST_CHANGES'|'POSTED comment APPROVE'|'POSTED comment COMMENT'|\
   'SKIP not-numeric'|'SKIP unknown-event'|'SKIP head-not-sha'|'SKIP body-file-unreadable'|\
+  'SKIP evidence-missing'|\
   'FAILED no-durable-channel'|'FAILED no-durable-channel '*)
     echo "REACHED $CVR_LINE"
     exit 0 ;;

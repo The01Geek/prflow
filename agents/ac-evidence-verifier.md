@@ -1,6 +1,6 @@
 ---
 name: ac-evidence-verifier
-description: 'Phase 3.4 evidence verifier. Establishes each in-scope acceptance criterion''s verification evidence in a fresh context, and is the ONLY verifier that runs an in-env verification command or touches the single-flight coordination. Reports one status per criterion (satisfied | unmet | unestablished) with an evidence pointer and a stated disposition for every named step of its charter, as JSON. Dispatches no subagent and writes to no workpad.'
+description: PRFlow implement's Phase 3.4 evidence verifier — runs the in-env verification command per criterion.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 color: green

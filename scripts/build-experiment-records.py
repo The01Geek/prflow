@@ -17,7 +17,8 @@ Writes one JSON line per merged PR into `.prflow/learnings/experiment-records.js
   * the Important-finding count parsed from the run-keyed `prflow:review-progress`
     comment, joined via `review.commit_id` == the comment's "Reviewed HEAD:" line —
     the engine's own join (see skills/review/SKILL.md, cited as the normative source);
-  * the permission-denial count (from the `Devflow Review` check-run output[summary]
+  * the permission-denial count (from the `PRFlow Review` check-run output[summary],
+    also accepting the superseded `Devflow Review` name on historical check-runs,
     for PRs after issue #431, with a best-effort check-run-annotation fallback for
     historical PRs) carried VERBATIM — `unavailable` stays `unavailable`, and no path
     coerces an unestablished count to 0;
@@ -1071,7 +1072,7 @@ def _resolve_verdict_and_important(repo, pr):
 # ── permission-denial count (verbatim) ───────────────────────────────────────
 
 def _parse_denial_summary(summary):
-    r"""Line-bound classify of a `Devflow Review` summary's `permission_denials_count:` label
+    r"""Line-bound classify of a review check-run summary's `permission_denials_count:` label
     (issue #435). Returns (valid_token_or_None, label_seen). A VALID token — read ONLY from
     the label's own line, never a following line (only space/tab may separate label and
     token, so no line terminator, `\n` or otherwise, is ever crossed; raw docstring so that
@@ -1143,18 +1144,19 @@ def _denials_from_eff(eff_runs):
 
 
 def _resolve_denials(repo, shas):
-    """Returns (value_verbatim, source). Forward path: the `Devflow Review` check-run
+    """Returns (value_verbatim, source). Forward path: the `PRFlow Review` check-run
+    (or the superseded `Devflow Review` name on historical check-runs)
     output[summary] `permission_denials_count:` line, parsed line-bound (issue #435).
-    Historical fallback: annotations on the `Devflow Review` check-run (positive-count-only
+    Historical fallback: annotations on that check-run (positive-count-only
     — a historical zero is indistinguishable from unavailable, stated in provenance). The
     fallback is OPPORTUNISTIC: it recovers a count only if a "recorded N permission denial(s)"
-    annotation is attached to the `Devflow Review` check-run itself — a `::warning::`
+    annotation is attached to the `PRFlow Review` check-run itself — a `::warning::`
     emitted by surface-execution-diagnostics attaches to the Actions job check-run, not
     this one, so many historical PRs will not recover via this path (they simply read
     `absent`, never a fabricated 0). Value is carried VERBATIM (`unavailable` stays
     `unavailable`); no path coerces an unestablished count to 0.
 
-    TWO PHASES (issue #435). Phase 1 scans EVERY probed sha's `Devflow Review` summaries in
+    TWO PHASES (issue #435). Phase 1 scans EVERY probed sha's `PRFlow Review` summaries in
     iteration order and returns the first VALID token as `(token, "check-run-summary")`;
     each sha's check-runs are cached so phase 2 re-fetches nothing. Phase 2 runs only when
     phase 1 found no valid token, in strict precedence: (a) any check-runs fetch failed →
@@ -1191,7 +1193,7 @@ def _resolve_denials(repo, shas):
     # "absent" — the unknown-is-not-zero provenance analogue (issue #431).
     any_fetch_failed = False
     label_seen = False
-    cached_dr = []  # per-sha `Devflow Review` runs, in iteration order (phase-2 fallback reuse)
+    cached_dr = []  # per-sha `PRFlow Review` (or historical `Devflow Review`) runs, in iteration order (phase-2 fallback reuse)
     # Phase 1: scan every probed sha's summaries; the first VALID token wins.
     for sha in probeable:
         # Paginate: /commits/{sha}/check-runs serves only the first 30 check-runs per
@@ -1210,7 +1212,11 @@ def _resolve_denials(repo, shas):
             for page in crs:
                 if isinstance(page, dict):
                     runs.extend(page.get("check_runs") or [])
-        dr = [c for c in runs if (c or {}).get("name") == "Devflow Review"]
+        # Accept both the current "PRFlow Review" name and the superseded
+        # "Devflow Review" so denial counts on historical check-runs (posted
+        # before the rename) still resolve — renamed-with-old-spelling-read-through.
+        dr = [c for c in runs
+              if (c or {}).get("name") in ("PRFlow Review", "Devflow Review")]
         cached_dr.append(dr)
         for c in dr:
             summary = ((c.get("output") or {}).get("summary")) or ""

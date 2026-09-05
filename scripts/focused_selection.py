@@ -4,8 +4,8 @@
 """The focused-first selection record — a named, round-trippable producer/reader
 (issue #1229).
 
-A run's focused-first precondition (`.prflow/prompt-extensions/{implement,
-review-and-fix,receiving-code-review}.md`) asks the run to *establish*, per touched
+A run's focused-first precondition (`.prflow/skill-extensions/{implement,
+review-and-fix,fix}.md`) asks the run to *establish*, per touched
 surface, either the discharging focused test it selected (the coverage-map entry it
 consulted and the target it ran) or the exemption ground that applied, and to record
 whether the `scripts/verification-flight.py` single flight was consulted before a
@@ -220,7 +220,7 @@ def decode_markers(text: str) -> list:
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="focused-selection.py",
+        prog="focused_selection.py",
         description="Encode/decode the focused-first selection record (issue #1229).",
     )
     sub = p.add_subparsers(dest="cmd", required=True)

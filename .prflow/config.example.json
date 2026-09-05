@@ -92,6 +92,9 @@
   "status_labels": {
     "enabled": true
   },
+  "review_status_labels": {
+    "enabled": false
+  },
   "telemetry": {
     "enabled": true,
     "branch": "prflow-telemetry"
@@ -117,6 +120,7 @@
   },
   "workflows": {
     "prflow": true,
-    "prflow-review": false
+    "prflow-review": false,
+    "prflow-retrospective": false
   }
 }

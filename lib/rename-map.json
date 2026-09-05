@@ -23,6 +23,12 @@
     "scratch_dirs": [
       { "superseded": ".devflow-scratch", "current": ".prflow-scratch" },
       { "superseded": ".devflow-tmp", "current": ".prflow-tmp" }
+    ],
+    "renamed_subtrees_comment": "Read ONLY by lib/test/pin-corpus-lint.py's desk-time rename substitution -- NOT by the consumer migration, which resolves paths.state_dir/vendor_dir by name and never enumerates this block. Each entry records a one-off in-repo `git mv` of a subtree (unrelated to the devflow->prflow brand rename) so a pin whose only change is that respelling is not read as a re-pointed pin. Issue #152 moved the reception skill to skills/fix and its prompt-extension to fix.md. Issue #170 renamed the consumer-facing extension directory .prflow/prompt-extensions -> .prflow/skill-extensions; the reception-skill file entry below carries the current .prflow/skill-extensions/fix location, and the longest-first ordering makes it out-compete the bare directory rule on a reception-skill pin.",
+    "renamed_subtrees": [
+      { "superseded": "skills/receiving-code-review", "current": "skills/fix" },
+      { "superseded": ".prflow/prompt-extensions/receiving-code-review", "current": ".prflow/skill-extensions/fix" },
+      { "superseded": ".prflow/prompt-extensions", "current": ".prflow/skill-extensions" }
     ]
   },
 
@@ -159,10 +165,21 @@
           "channel": "cloud",
           "kind": "repository or organization variable",
           "set_where": "GitHub -> Settings -> Secrets and variables -> Actions -> Variables",
-          "read_as": "runs-on: ${{ vars.DEVFLOW_RUNNER && (...) || 'ubuntu-latest' }} -- on every job of both shipped workflows",
+          "read_as": "runs-on: ${{ vars.DEVFLOW_RUNNER && (...) || 'ubuntu-latest' }} -- directly on devflow-implement.yml's claude job and every devflow-retrospective.yml job, and as the fallback tail of the DEVFLOW_LIGHT_RUNNER expression on the light jobs (devflow.yml config/review_dedupe/gate/review_finalize and the command job's non-review branch, devflow-implement.yml config/gate)",
           "failure_visibility": "silent",
           "severity": "highest",
           "failure_mode": "SILENT RUNNER RELOCATION, and the highest-severity outcome in this table. Unresolvable, the expression takes its `|| 'ubuntu-latest'` arm and EVERY job silently moves to a GitHub-hosted runner. That same job carries `secrets.DEVFLOW_APP_PRIVATE_KEY` and `secrets.DEVFLOW_PROVIDER_API_KEY` in its environment -- so a consumer who self-hosts for network isolation or compliance has their GitHub App private key and their model-provider API key executed OUTSIDE the boundary they chose self-hosting for. Nothing errors, no job fails, and no log line names the cause; the only visible difference is the runner label in a page nobody re-reads after setup. Note the contrast with a MIS-SET value: a `DEVFLOW_RUNNER` that begins `[` but is not valid JSON fails loud at evaluation time. It is the name going missing, not the value being wrong, that is silent."
+        },
+        {
+          "name": "DEVFLOW_LIGHT_RUNNER",
+          "arm": "A1",
+          "channel": "cloud",
+          "kind": "repository or organization variable",
+          "set_where": "GitHub -> Settings -> Secrets and variables -> Actions -> Variables",
+          "read_as": "runs-on: ${{ vars.DEVFLOW_LIGHT_RUNNER && (...) || (<DEVFLOW_RUNNER chain>) }} -- on the light jobs of the two comment-driven shipped workflows (devflow.yml config/review_dedupe/gate/review_finalize, devflow-implement.yml config/gate) and, gated on a standalone /prflow:review, devflow.yml's command job. Unset or empty, each expression falls back to the DEVFLOW_RUNNER chain (DEVFLOW_RUNNER's value, else ubuntu-latest)",
+          "failure_visibility": "silent",
+          "severity": "high",
+          "failure_mode": "SILENT RUNNER RELOCATION of the light jobs only. The name going missing does not error: each light expression takes its DEVFLOW_RUNNER-chain fallback arm, so the light jobs revert to wherever DEVFLOW_RUNNER points (or ubuntu-latest when that too is unset) -- exactly the pre-opt-in placement. The visible symptom is a helper job billing an 8-core minute again, never a job failure or a log line naming the cause. As for DEVFLOW_RUNNER, a MIS-SET value that begins `[` but is not valid JSON fails loud at evaluation time; it is the name going missing, not the value being wrong, that is silent."
         },
         {
           "name": "DEVFLOW_BASH",
@@ -204,6 +221,17 @@
           "dual_role": "Also an INTERNAL input: `.github/actions/vendor-plugin/action.yml` assigns DEVFLOW_REF for vendor-slice.sh's fetch branch, sourced from the consumer's `prflow_version`. That internal producer never reaches install.sh, so the name is consumer-facing here and internal there. It is not purely one or the other.",
           "failure_visibility": "silent",
           "failure_mode": "Silent un-pin. Unresolvable, install.sh takes its `:-main` default and clones mutable `main` instead of the tag you named. The install succeeds, reports a version, and stamps `prflow_version` -- with a ref you did not choose. A consumer pinning a known-good release to avoid an upgrade gets the upgrade, and the only evidence is the version the installer echoes."
+        },
+        {
+          "name": "DEVFLOW_SRC",
+          "arm": "A2",
+          "channel": "operator",
+          "kind": "environment variable (install-time)",
+          "set_where": "the install one-liner -- `DEVFLOW_SRC=<dir> bash devflow-install.sh` -- to install from an already-materialized plugin tree instead of cloning",
+          "read_as": "`SRC=\"$DEVFLOW_SRC\"` guarded by `[ -n \"${DEVFLOW_SRC:-}\" ]` in install.sh, which then skips the clone",
+          "dual_role": "Also set INTERNALLY by `/prflow:init`'s workflow-install step, which passes the installed plugin tree as DEVFLOW_SRC so install.sh installs from it with no network clone. That producer does reach install.sh, but a consumer running install.sh by hand still sets it themselves, so the name is consumer-facing here and internally supplied there.",
+          "failure_visibility": "silent",
+          "failure_mode": "Silent reversion to a network clone. Unresolvable, install.sh's `[ -n ... ]` guard is false and it clones from GitHub instead of installing from the local tree you pointed at -- an air-gapped or offline install then fails to fetch, and a pinned local tree is silently replaced by whatever the clone resolves."
         },
         {
           "name": "DEVFLOW_VENDOR",

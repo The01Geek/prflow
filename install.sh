@@ -644,8 +644,15 @@ devflow_artifact_action() {
 # recorded, so the conflict is reported again on every run until the consumer
 # resolves it.
 DEVFLOW_RECORD_RELS=""
+# install_managed rels whose bytes step 4b's install-state marker records; preserving one
+# and merging its sidecar strands the cloud implement gate until re-apply. Keep in lockstep
+# with step 4b's --component operands (the reconciliation test asserts the relation both ways).
+DEVFLOW_GUARDED_RELS=".prflow/lint-manifest.json .github/actions/setup-project-env .github/workflows/devflow-implement.yml"
+# Sidecars of guarded artifacts preserved on THIS apply. Subshell-scoped: devflow_apply_all
+# is a `(...)` subshell, so each apply/dry-run preview starts it fresh from "".
+DEVFLOW_PRESERVED_GUARDED_SIDECARS=""
 install_managed() {
-  local rel="$1" srcp="$2" act parent rc=0
+  local rel="$1" srcp="$2" act parent rc=0 guard_suffix=""
   [ -e "$srcp" ] || return 0
   act="$(devflow_artifact_action "$rel" "$srcp")" || rc=$?
   # The classifier is total over the six words today, but a `case` with no default
@@ -687,12 +694,21 @@ install_managed() {
     modified|unverified|unreadable)
       rm -rf "$rel.prflow-new"
       if [ -d "$srcp" ]; then cp -R "$srcp" "$rel.prflow-new"; else cp "$srcp" "$rel.prflow-new"; fi
+      # Membership by exact-rel `case` — bash builtins only, since a missing tr/sed/cut would
+      # fail OPEN and drop the guard warning. Guarded → append the marker-binding sentence and
+      # accumulate the sidecar for 4b's summary line.
+      case " $DEVFLOW_GUARDED_RELS " in
+        *" $rel "*)
+          guard_suffix=" This artifact is guarded: .prflow/install-state.json, if this run publishes it, is bound to the kept bytes, so after you merge or adopt $rel.prflow-new you must run the installer again in apply mode."
+          DEVFLOW_PRESERVED_GUARDED_SIDECARS="$DEVFLOW_PRESERVED_GUARDED_SIDECARS $rel.prflow-new"
+          ;;
+      esac
       case "$act" in
         modified)
-          log "PRESERVED (locally modified since DevFlow wrote it): $rel — the new version is at $rel.prflow-new; merge it by hand."
+          log "PRESERVED (locally modified since DevFlow wrote it): $rel — the new version is at $rel.prflow-new; merge it by hand.$guard_suffix"
           ;;
         unverified)
-          log "PRESERVED (provenance unverified — no recorded digest, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new; merge it by hand, or delete $rel and re-run to take PRFlow's copy."
+          log "PRESERVED (provenance unverified — no recorded digest, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new; merge it by hand, or delete $rel and re-run to take PRFlow's copy.$guard_suffix"
           ;;
         *)
           # TWO different causes reach `unreadable`, and they have DIFFERENT remedies, so
@@ -703,9 +719,9 @@ install_managed() {
           # idempotent (it returns early once DEVFLOW_PY is set), so asking again here is
           # free and reads the real state rather than inferring it.
           if devflow_resolve_python; then
-            log "PRESERVED (provenance UNESTABLISHED — this artifact's current bytes could not be digested, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new. This path was not overwritten; other artifacts on this run were classified normally. python3 works here, so this is a read error on this path — check that it and every file inside it are readable, then re-run."
+            log "PRESERVED (provenance UNESTABLISHED — this artifact's current bytes could not be digested, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new. This path was not overwritten; other artifacts on this run were classified normally. python3 works here, so this is a read error on this path — check that it and every file inside it are readable, then re-run.$guard_suffix"
           else
-            log "PRESERVED (provenance UNESTABLISHED — this artifact's current bytes could not be digested, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new. This path was not overwritten. There is no working python3 on this host, so NOTHING on this run could be compared: resolve one (see https://prflow.ai/docs/getting-started/installation) and re-run to get a real comparison."
+            log "PRESERVED (provenance UNESTABLISHED — this artifact's current bytes could not be digested, so a local edit cannot be ruled out): $rel — the new version is at $rel.prflow-new. This path was not overwritten. There is no working python3 on this host, so NOTHING on this run could be compared: resolve one (see https://prflow.ai/docs/getting-started/installation) and re-run to get a real comparison.$guard_suffix"
           fi
           ;;
       esac
@@ -916,7 +932,7 @@ devflow_withheld_tier_signature() {
     devflow-review)
       printf '%s' '^name: Devflow Review \(auto-trigger\)|uses:[[:space:]]*\./\.github/workflows/devflow-runner\.yml' ;;
     devflow-runner)
-      printf '%s' '^name: DevFlow Runner \(reusable\)|filter-runner-tools\.sh' ;;
+      printf '%s' '^name: PRFlow Runner \(reusable\)|filter-runner-tools\.sh' ;;
     telemetry-push)
       printf '%s' '^name: Telemetry push \(trusted relay\)|workflows:[[:space:]]*\["Devflow Review \(auto-trigger\)"\]' ;;
     *) printf '' ;;
@@ -1213,7 +1229,9 @@ devflow_report_superseded_identifiers() {
 # `prflow.allowed_bots` — or, on a consumer whose Tier-1 migration has not run yet, to
 # `devflow.allowed_bots`; the scanner below probes both and reports whichever it found —
 # now carries an entry that matches no live identity:
-# scripts/authorize-actor.sh compares logins for EQUALITY, so the stale slug authorizes
+# scripts/authorize-actor.sh matches logins under the shared normalization rule
+# (lib/login_normalize.py — case, `app/`, and `[bot]` folded), and `devflow-autopilot`
+# stays distinct from `prflow-implementer` even normalized, so the stale slug authorizes
 # nothing and the implement/review stall-backstop resume comment is declined by the very
 # gate it re-enters — a green run that never resumes.
 #
@@ -1540,14 +1558,13 @@ JSON
   mkdir -p .claude-plugin
   install_managed ".claude-plugin/marketplace.json" "$TMP/marketplace.json"
 
-  # 2b. Prompt-extension directory. Created empty so a maintainer who wants to extend a
-  # skill has somewhere to commit the file without hand-creating the path, and so the
-  # review job's unconditional truncation step (issue #874) has a directory to write
-  # into on a fresh consumer. That step creates the directory itself as well — this is
-  # a convenience for the human, not the workflow's guarantee, which cannot depend on
+  # 2b. Skill-extension directory (renamed from prompt-extensions in issue #170). NOT
+  # created here: the shared scaffolder (scripts/scaffold-config.sh, run below) is the
+  # sole install/init-time creator of the extension directory and the sole owner of the
+  # prompt-extensions/ -> skill-extensions/ migration, so a create here would race ahead
+  # of the migrator and spuriously trip its both-present conflict arm. The review job's
+  # truncation step (issue #874) creates the directory itself and never depends on
   # install.sh having run.
-  log "creating .prflow/prompt-extensions"
-  mkdir -p .prflow/prompt-extensions
 
   # 3. Workflows (only those the primary repo actually ships).
   #
@@ -1579,7 +1596,7 @@ JSON
   if [ "$tier1_rc" -ne 0 ]; then
     log "NOT refreshing the shipped workflow files: the Tier 1 migration did not complete (see its refusal above), and installing workflows that name the migrated layout against an un-migrated tree would leave every bundled-helper invocation unresolvable. Resolve the refusal and re-run."
   else
-  for w in devflow devflow-implement; do
+  for w in devflow devflow-implement devflow-retrospective; do
     [ -f "$SRC/.github/workflows/$w.yml" ] && install_managed ".github/workflows/$w.yml" "$SRC/.github/workflows/$w.yml"
   done
   fi
@@ -1603,9 +1620,11 @@ JSON
     fi
   done
 
-  # 4b. Lint provisioning (issue #1388). Publish the compatibility marker LAST, only
-  #     after the staged manifest validates — reordering breaks the fail-closed tuple
-  #     gate. Digest the TARGET root: install_managed preserves a locally modified
+  # 4b. Lint provisioning (issue #1388). Publish the compatibility marker AFTER the
+  #     workflow (section 3) and composite-action (section 4) copies and BEFORE the
+  #     install-manifest write below — reordering breaks the fail-closed tuple gate. The
+  #     manifest validated before publication is the SOURCE copy ($SRC/.prflow/lint-
+  #     manifest.json), not the staged one. Digest the TARGET root: install_managed preserves a locally modified
   #     artifact and the tier1_rc arm skips the workflow copy, so binding either to
   #     source bytes it never received refuses provisioning forever. --digest-root is
   #     the exception: the vendor-fetched readers are absent from this tree yet.
@@ -1631,6 +1650,13 @@ JSON
           --record-path "install-state-reader=.prflow/vendor/prflow/scripts/install_state.py" \
           2>&1 >/dev/null)"; then
         log "published .prflow/install-state.json (lint provisioning compatibility marker)"
+        # Name every preserved guarded sidecar here — the only install-time signal that
+        # merging one strands the cloud implement gate until re-apply. Guarded by the
+        # accumulator, and reached only on this success branch, so the line is printed only
+        # when the marker was actually published over a preserved guarded artifact.
+        if [ -n "$DEVFLOW_PRESERVED_GUARDED_SIDECARS" ]; then
+          log "guarded artifacts were preserved on this run, so .prflow/install-state.json is now bound to their kept bytes; the new versions are at:$DEVFLOW_PRESERVED_GUARDED_SIDECARS — after you merge or adopt each sidecar, re-run the installer file you ran, with the same DEVFLOW_* variables (DEVFLOW_VENDOR included), at DEVFLOW_REF=$pin and with --apply (or DEVFLOW_APPLY=1 for a curl | bash invocation), so the marker is rebound to the merged bytes."
+        fi
       else
         log "warning: could not publish .prflow/install-state.json (${lint_state_err:-no diagnostic}); lint provisioning will fail closed (setup refuses provisioning without the marker) until the installer is re-run."
       fi

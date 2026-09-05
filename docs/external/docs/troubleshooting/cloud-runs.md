@@ -128,7 +128,7 @@ jq -r '.prflow_version' .prflow/config.json
 
 In thin mode, `prflow_version` must be nonempty and must resolve to a tag, branch or commit in `The01Geek/prflow`. An empty pin fails loudly, to stop the installation drifting with a moving branch. A stale pin can also omit a helper that newer workflow bytes call.
 
-Re-run the installer with a current release tag and apply the update, so the workflow files and the runtime pin move together. If a locally edited workflow was preserved, merge its `.prflow-new` sidecar by hand.
+Re-run the installer with a current release tag and apply the update, so the workflow files and the runtime pin move together. If a locally edited workflow was preserved, merge its `.prflow-new` sidecar by hand — then **re-run the installer once more in apply mode** (`--apply`, or `DEVFLOW_APPLY=1` for a `curl | bash` invocation). Merging the sidecar changes the workflow's bytes, and for `.github/workflows/devflow-implement.yml` (or the `setup-project-env` action, or `.prflow/lint-manifest.json`) a stale `.prflow/install-state.json` marker makes the implement run refuse to start on every run until that re-apply rebinds the marker to the merged bytes.
 
 </Accordion>
 

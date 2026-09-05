@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# derive-review-verdict.sh — derive the Devflow Review verdict for the CURRENT
+# derive-review-verdict.sh — derive the PRFlow Review verdict for the CURRENT
 # HEAD, fail-closed. This is the small, testable unit extracted out of
 # devflow-review.yml's finalize_check `success)` branch (issue #249): the
 # workflow step calls it, and lib/test/run.sh drives it directly with a stubbed
 # `gh` over the full input-shape matrix.
 #
-# The required `Devflow Review` check must encode a positively-observed APPROVE
+# The required `PRFlow Review` check must encode a positively-observed APPROVE
 # for the commit under review. Everything else fails CLOSED so an un-reviewed
 # HEAD never merges (in either direction):
 #   - The engine ended in error (is_error) .................... incomplete

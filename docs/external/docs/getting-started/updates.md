@@ -71,6 +71,8 @@ The installer records the exact bytes it wrote for each file it owns. On the nex
 
 <Warning>
   A `.prflow-new` file is a real file sitting inside your `.github/` directory, and it is not merged for you. If you leave it there, treat the workflow beside it as still carrying your old version. The installer adds an ignore rule so a later `git add -A` cannot commit the sidecar by accident.
+
+  **After you merge or adopt a sidecar, re-run the installer in apply mode** (`--apply`, or `DEVFLOW_APPLY=1` for a `curl | bash` invocation). Merging changes the file's bytes, so the digest the installer recorded goes stale — and for a file the cloud implement gate depends on (`.github/workflows/devflow-implement.yml`, the `setup-project-env` action, or `.prflow/lint-manifest.json`) a stale `.prflow/install-state.json` marker makes the implement run refuse to start on every run until you re-apply. Only the re-apply rebinds the marker to your merged bytes; the apply that preserved the file already warned you and named each affected sidecar.
 </Warning>
 
 `.prflow/config.json` is never rewritten by this mechanism at all. Only newly added keys are backfilled into it.

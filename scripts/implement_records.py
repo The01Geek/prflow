@@ -70,6 +70,13 @@ def median_or_unestablished(values):
     return _median(nums) if nums else UNESTABLISHED
 
 
+def max_or_unestablished(values):
+    """The maximum established number, or the UNESTABLISHED sentinel on an empty
+    population — never a real value the data did not carry (issue #120)."""
+    nums = numeric(values)
+    return max(nums) if nums else UNESTABLISHED
+
+
 def stdev_or_unestablished(values):
     """Population standard deviation. Refuses a population of fewer than two — a single
     observation has no established spread, and reporting 0 would read as 'no variance'."""
@@ -145,6 +152,11 @@ def _ingest(record, runs):
         if not isinstance(hc, dict) or hc.get("command") != "implement":
             continue
         profile = entry.get("run_profile") if isinstance(entry.get("run_profile"), dict) else {}
+        # issue #120: peak main-thread context and total phase-file reads. Absent or null
+        # on every pre-#120 record (and phase_file_reads null when the file carried no
+        # main-thread record), so each yields None via _figure and is excluded from every
+        # aggregate — never a real-looking 0.
+        pfr = hc.get("phase_file_reads")
         runs.append({
             "pr": record.get("pr"),
             "issue": record.get("issue"),
@@ -155,6 +167,9 @@ def _ingest(record, runs):
             "duration_ms": _figure(hc.get("duration_ms")),
             "cost_usd": _figure(hc.get("cost_usd")),
             "num_turns": _figure(hc.get("num_turns")),
+            "peak_main_thread_context": _figure(hc.get("peak_main_thread_context")),
+            "phase_file_reads_total": _figure(
+                pfr.get("total") if isinstance(pfr, dict) else None),
             # From the run_profile floor; absent on every pre-#2006 record, which is
             # why each of these is None rather than a default value.
             "terminal_status": profile.get("final_status"),

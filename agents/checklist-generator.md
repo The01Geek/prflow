@@ -1,6 +1,6 @@
 ---
 name: checklist-generator
-description: Use when an orchestrator needs to enumerate every verifiable claim in a code diff (dependency interactions, test-mock alignment, data format assumptions, API contracts) and return a JSON checklist for independent verification. Does NOT judge correctness.
+description: PRFlow review-engine agent; use to enumerate every verifiable claim in a code diff as a JSON checklist.
 tools: Read, Grep, Glob
 model: opus
 color: blue

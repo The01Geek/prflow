@@ -94,7 +94,7 @@ The report has a fixed shape:
 - **Doc reliability** — one of `RELIABLE`, `UNRELIABLE` or `ABSENT`. It describes the internal documentation only. A wrong default in a schema or a stale code comment is reported under current behavior instead and does not move this signal.
 - **Relevant code files** — the files that implement the topic, marked to show the minimum set someone must read, with file and line references for the entry points, guards and writers.
 - **Current behavior** — what the code actually does today, including the failure paths and non-obvious couplings you would otherwise find the hard way.
-- **Search space surveyed** — the file set this run looked at.
+- **Search space surveyed** — the file set this run looked at, and the internal-doc location it resolved, so the caller can confirm the population surveyed matches the one it dispatched.
 - **Duty statuses** and **bearing observations** — what the run established and what it did not.
 
 <Tip>

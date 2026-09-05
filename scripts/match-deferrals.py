@@ -102,6 +102,20 @@ except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
     def _resolve_state_dir(repo_root, stream=None):
         return str(Path(repo_root) / ".prflow")
 
+# Shared login-normalization rule (issue #157): trust an allowed_bots entry against
+# the gh-reported `app/<slug>` author under one normalized comparison. Imported
+# through the same guarded lib/ path insert; on an import failure (partial copy /
+# exec'd source) it degrades to the pre-#157 exact set-membership test below.
+try:
+    from login_normalize import login_matches as _login_matches
+except Exception as _login_import_err:
+    # Breadcrumb the degradation so a partial-copy import failure is legible and not
+    # mistaken for an allowlist mismatch — the shell comparators name the same file.
+    sys.stderr.write(
+        "match-deferrals.py: could not import lib/login_normalize.py "
+        f"({_login_import_err}); degrading to the pre-#157 exact match (fail-closed)\n")
+    _login_matches = None
+
 # The gh binary to shell out to. `DEVFLOW_GH` (the documented override the shell
 # helpers resolve via lib/resolve-gh.sh) wins when set and non-empty; else `gh`.
 GH = os.environ.get("DEVFLOW_GH") or "gh"
@@ -566,8 +580,14 @@ def main(argv=None):
         return 0
 
     allowed_bots_raw = _config_get(".prflow.allowed_bots", "", args.config)
-    allowed_bots = {b.strip() for b in allowed_bots_raw.split(",") if b.strip()}
-    pr_author_trusted = pr_author in allowed_bots if allowed_bots else False
+    if _login_matches is not None:
+        # Normalized membership (issue #157): an empty/unreadable allowlist yields
+        # no non-empty comparand, so login_matches returns False — the same
+        # fail-closed direction the exact test had.
+        pr_author_trusted = _login_matches(pr_author, allowed_bots_raw.split(","))
+    else:
+        allowed_bots = {b.strip() for b in allowed_bots_raw.split(",") if b.strip()}
+        pr_author_trusted = pr_author in allowed_bots if allowed_bots else False
     result["pr_author_trusted"] = pr_author_trusted
 
     if not pr_author_trusted:

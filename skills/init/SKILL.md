@@ -16,7 +16,7 @@ Consumer prompt extension (load first). Before doing this skill's work, load any
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh init
 ```
 
-If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/prompt-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
+If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/skill-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
 
 Independently of that exit code, any helper in this run may write a `prflow: reading the superseded .devflow/ state directory` line to stderr. It is not an error and it does not change which arm you take above. The next step is what acts on it; do not relay it separately, or the user reads the same fact several times in one run.
 
@@ -38,12 +38,12 @@ That is the preview: it classifies the repository, plans the four members, valid
 
 `--pin-from-plugin` stamps the migrated version pin from this plugin's own published version. Read the helper's `prflow-migrate:` lines and respond per the matching branch:
 
-- `NOTHING TO MIGRATE …` — no state directory at either name. This is a first-time install, not an un-migrated consumer. Say nothing about migration and carry on; the scaffolder below creates the directory.
-- `ALREADY MIGRATED …` — the repository is already on the current layout. Nothing changed. Say nothing beyond that and carry on. One exception: if a matching *incomplete* rename-sweep ledger exists (see *Then: offer an opt-in PRFlow rename sweep* below), offer the renewed-consent resume described there; an ordinary already-migrated run with no such ledger issues no sweep offer.
-- `PREVIEW …` / `PLAN …` followed by `will migrate` lines — relay the plan. Each line names one member of the atomic unit: the state-directory move, the workflow-content rewrite, the marketplace-source rewrite, and the version pin.
-- `APPLIED every member of the atomic unit landed together.` — the migration succeeded. Tell the user their state directory moved to `.prflow/`, that this is a large but purely mechanical diff, and to review it before committing. Name the four members. This terminal `APPLIED` is the trigger for the opt-in rename sweep — after relaying the four members, offer it (see *Then: offer an opt-in PRFlow rename sweep* below, whose *Trigger* subsection states the authoritative rule).
-- `REFUSED …` — nothing was migrated and the repository is byte-identical. There is no partial-application path, so do not describe any member as "done". Relay every `blocked` line verbatim — each names one member and the precondition it failed — and relay the refusal's own remedy (it names the two operator resolutions for a both-directories-present tree, and the resume instruction for a leftover commit journal). Then carry on with the rest of this run: the repository is unchanged and still works through the transitional read-through, so a refusal is a report, not an init failure.
-- `could not migrate …` lines (which appear on the success path too) — relay each one, naming the specific file. These are items the migration deliberately does not own, chiefly a retained workflow `install.sh` does not ship and cannot refresh.
+- `NOTHING TO MIGRATE …` — no state directory at either name, so this is a first-time install (not an un-migrated consumer); say nothing about migration and carry on, since the scaffolder below creates the directory.
+- `ALREADY MIGRATED …` — the repository is already on the current layout with nothing changed, so say nothing beyond that and carry on, except that a matching *incomplete* rename-sweep ledger (see *Then: offer an opt-in PRFlow rename sweep* below) triggers the renewed-consent resume described there.
+- `PREVIEW …` / `PLAN …` followed by `will migrate` lines — relay the plan, each line naming one member of the atomic unit (the state-directory move, the workflow-content rewrite, the marketplace-source rewrite, and the version pin).
+- `APPLIED every member of the atomic unit landed together.` — the migration succeeded, so tell the user their state directory moved to `.prflow/`, name the atomic-unit members, say the large mechanical diff needs review before committing, and then offer the opt-in rename sweep this terminal `APPLIED` triggers (see *Then: offer an opt-in PRFlow rename sweep* below, whose *Trigger* subsection states the authoritative rule). <!-- stale-prose-lint: rule-text -->
+- `REFUSED …` — nothing was migrated and the repository is byte-identical, so present the migration as not done and relay every `blocked` line and the refusal's own remedy verbatim, then carry on, since the repository still works through the transitional read-through and a refusal is a report, not an init failure.
+- `could not migrate …` lines (which appear on the success path too) — relay each one naming the specific file, since these are items the migration deliberately does not own, chiefly a retained workflow `install.sh` does not ship and cannot refresh.
 
 Two things this step must not do. Never invent a partial migration — do not move the directory, edit a workflow, or rewrite the marketplace source with your file-edit tools when the helper refused. And never treat a refusal as a stop: nothing in this step may end `/prflow:init`.
 
@@ -154,10 +154,44 @@ This is the single shared scaffolder, the same script `install.sh` uses. With no
 
 - creates `.prflow/config.json` from the shipped `config.example.json` only if it does not already exist — it never clobbers a config you've already filled in. When the config already exists it's kept and re-running backfills any newly-added keys from the example (at any nesting depth) so you can opt into new features; values you've already set always win and arrays you've tuned (e.g. `allowed_tools`) are left as-is;
 - always refreshes `.prflow/config.schema.json` so your editor validates against the current field set;
-- scaffolds `.prflow/prompt-extensions/` with a commented, inert `<skill-name>.md.example` for every skill (each with a skill-specific hint), so you discover the consumer prompt-extension convention and which skills it covers. Each example is created only if absent (a per-file backfill, so re-running picks up newly added examples while never overwriting an example you edited or a live `<skill-name>.md` you authored); the `.example` suffix keeps every scaffolded file inert until you deliberately rename it;
+- scaffolds `.prflow/skill-extensions/` with a commented, inert `<skill-name>.md.example` for every skill (each with a skill-specific hint), so you discover the consumer prompt-extension convention and which skills it covers — skipped entirely while a superseded `.prflow/prompt-extensions/` is still present, since the migration above renames that directory first. Each example is created only if absent (a per-file backfill, so re-running picks up newly added examples while never overwriting an example you edited or a live `<skill-name>.md` you authored); the `.example` suffix keeps every scaffolded file inert until you deliberately rename it;
 - auto-detects the repo's language(s) (Node, Go, Rust, Java, Ruby, PHP, .NET, Make, Docker) and merges the matching build/test/lint tools into `config.json` — into both allowlists (`prflow.allowed_tools` and `prflow_implement.allowed_tools`) plus the `setup` block (`node_version` + a lockfile-appropriate install line, and a `composer install` line for PHP). When the Node `package.json`/lockfile lives in a subdirectory (a monorepo `frontend/` package, or a PHP/Rails app with a co-located `/jsx` or `/resources/js` bundle), it is auto-detected into `setup.node_working_directory` and the generated Node install line is scoped into that directory (a subshell `cd`) so caching and the build target the right place; a root-level build leaves `node_working_directory` empty. The `setup` block feeds `/prflow:implement`'s cloud tier. The merge is an idempotent union: it never removes your custom entries and never duplicates, so re-running after adding a language picks up only the new tools.
+- relays the scaffolder's rename lines when present: on a `migrated prompt extension:` line, relay it so the user knows their old reception-skill extension file was renamed to `fix.md` (the skill is now `/prflow:fix`); on a `prompt-extension rename conflict:` line, relay it verbatim so they can reconcile it by hand; on a `migrated skill-extensions directory:` line, relay it so the user knows their old `.prflow/prompt-extensions/` directory was renamed to `.prflow/skill-extensions/`; on a `skill-extensions rename conflict:` line, relay it verbatim so they can reconcile it by hand.
 
-It resolves the templates from the installed plugin (`"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../.prflow/`), so it works whether DevFlow was installed via the marketplace or vendored by `install.sh`.
+It resolves the templates from the installed plugin (`"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../.prflow/`), so it works whether PRFlow was installed via the marketplace or vendored by `install.sh`.
+
+## Then: install the cloud-tier workflows
+
+The scaffolder wrote config; `install.sh` is what places the `.github/workflows/*.yml` cloud-tier files. Read the `workflows` block from the config the scaffolder reported working on — its `scaffolded <path>` / `keeping existing <path>` line names the file, still `.devflow/config.json` on a repo whose Tier-1 migration was refused above, so never hardcode the path — and decide with preflight-guaranteed `python3` whether any `workflows.*` toggle is `true`, failing closed to "none enabled" on any read/parse failure or missing block:
+
+```bash
+python3 -c 'import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    w = d.get("workflows", {})
+    print("yes" if isinstance(w, dict) and any(v is True for v in w.values()) else "no")
+except Exception:
+    print("no")' <the config file the scaffolder reported>
+```
+
+- Prints `yes` → run `install.sh --apply` (below).
+- Prints `no`, or the read/parse failed → ask the user, via the runner's user-question tool — `AskUserQuestion` (Claude Code, the canonical example), or the equivalent your runner exposes — whether to bring in and enable the workflows. On an explicit yes, set `workflows.prflow` to `true` (only `prflow`, never `prflow-review` — the withheld tier) in that same config file with a JSON-safe writer (preflight-guaranteed `python3`) that changes nothing else, then run `install.sh --apply`; if that write fails, report it and print the manual `install.sh --apply` command instead of running it. On an explicit no, a non-interactive run, or a runner exposing no question tool, write nothing and run nothing, and print the `install.sh --apply` command the user can run themselves.
+
+On the arms that install (a `true` toggle, or an explicit yes above), read the installed version, form its release tag, then run the installer from the installed plugin tree — `DEVFLOW_SRC` installs from that materialized tree with no network clone, and `DEVFLOW_REF` pins `prflow_version` to the installed version's release tag, a resolvable ref rather than mutable `main` (when the installed plugin tree is not a git checkout, `install.sh` falls back to this ref as the pin):
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .version main "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../.claude-plugin/plugin.json
+```
+
+Read the printed version: when it is a version-shaped value its release tag is that value with a leading `v` (a value already starting with `v` is used unchanged), which you substitute for `DEVFLOW_REF` below — the cloud tier `git checkout`s `prflow_version` and the release tags are `v`-prefixed, so a bare version would be an unresolvable ref. Resolve the installed plugin tree — the `../../` parent of this skill's directory that the `config-get.sh` read above resolved — to its absolute path and substitute that literal for `<plugin-root>` below (the install fence takes a resolved path, not the anchor, which is not portable as an env-var value):
+
+```bash
+DEVFLOW_SRC=<plugin-root> DEVFLOW_REF=<the release tag> <plugin-root>/install.sh --apply
+```
+
+When the version read is empty or not version-shaped (a parse failure, or the `main` default from a missing key), omit `DEVFLOW_REF` and run the same `install.sh --apply` without it — `prflow_version` then tracks mutable `main`, so tell the user to pin it to a tag or SHA by hand.
+
+`install.sh --apply` re-runs `migrate-consumer-tier1.sh` and `scaffold-config.sh`, this run's own idempotent no-ops, so relay only its new workflow/action-installation and `<path>.prflow-new` sidecar-preservation lines. On a successful apply, tell the user to review the `.github/` diff before committing. If `install.sh` is not resolvable at the anchor or invoking it fails, report that and print the manual `install.sh --apply` command instead. None of this step's arms — a config that will not read, a declined or unavailable question, or a failed or unresolvable `install.sh` — ever fails or halts `/prflow:init`.
 
 ## Then: verify the runtime dependencies are present
 
@@ -185,7 +219,7 @@ This write is UNGATED and happens IMMEDIATELY the moment `/prflow:init` invokes 
 
 With no argument it targets the current repo root and deep-merges the marketplace registration into `.claude/settings.json`, additively and without clobbering anything you already set (the user's value wins at every depth — same no-clobber discipline as the config scaffolder):
 
-- `extraKnownMarketplaces["devflow-marketplace"]` (a `github` source for `The01Geek/prflow`, `autoUpdate: true`) and `enabledPlugins["prflow@devflow-marketplace"] = true`, so Claude Code keeps the DevFlow plugin updated automatically.
+- `extraKnownMarketplaces["devflow-marketplace"]` (a `github` source for `The01Geek/prflow`, `autoUpdate: true`) and `enabledPlugins["prflow@devflow-marketplace"] = true`, so Claude Code keeps the PRFlow plugin updated automatically.
 
 It is local/interactive-tier only — the cloud (CI) tier consumes no local marketplace install, so a cloud-only `install.sh` run writes no `.claude/settings.json`. It is idempotent (re-running after the keys exist changes nothing) and writes no `permissions.defaultMode`.
 
@@ -214,16 +248,16 @@ Attach a one-line justification to every entry you add, and **grant *enough* acc
 
 Read the scaffolder's output line and respond accordingly:
 
-- `scaffolded …` — a fresh `.prflow/config.json` was created. Every value has a working default, so it's usable as-is; tell the user they only need to edit it to customize (their editor validates against `config.schema.json`).
-- `keeping existing …` — they already had a `config.json`; their values were preserved. It may be followed by `backfilled newly-added keys …` when the upgrade added keys the example gained since their config was written (existing values and arrays untouched) — tell the user to review the small diff before committing. If only `keeping existing …` prints, the config already had every key and nothing changed.
+- `scaffolded …` — a fresh `.prflow/config.json` was created with working defaults, usable as-is; tell the user they only edit it to customize (validated against `config.schema.json`).
+- `keeping existing …` — their existing `config.json` values were preserved; if followed by `backfilled newly-added keys …` tell the user to review the small diff before committing, otherwise nothing changed.
 
 The scaffolder also emits lines about the superseded config-key names. Each has its own arm below; a run that relayed none of them would leave the user with a config that looks migrated and is not:
 
-- `migrated superseded config key …` (one line per key) — the `devflow_*` blocks were renamed to `prflow_*` with the values carried across. Tell the user to review that diff before committing.
-- `NOT migrating superseded config keys: … Run install.sh --apply …` — the migration was refused because a shipped workflow file on disk still reads the superseded names, and moving the config out from under it would leave it reading defaults. Relay the named file and the `install.sh --apply` remedy. The config is unchanged; nothing here fails init.
-- `NOT migrating <key> …: both it and <key> are present …` — a both-present conflict where the new block holds a deliberate consumer edit. Relay it with both operator resolutions the line names; the migration will not choose between two values a human set.
-- `plugin version pin is …` — an advisory, never a gate: the pin's freshness is not decidable where the scaffolder runs. Relay it whenever the pin predates the rename, together with the line's own remedy.
-- `<file>.yml is present in .github/workflows/ but is NOT shipped by install.sh …` — a retained workflow no installer run can refresh. Relay it by name, once per run — if the migration step above already named that same file as one it could not migrate, this is the same fact reaching you twice and the user should read it once.
+- `migrated superseded config key …` (one line per key) — `devflow_*` blocks were renamed to `prflow_*` carrying the values across; tell the user to review that diff before committing.
+- `NOT migrating superseded config keys: … Run install.sh --apply …` — refused because a shipped workflow still reads the superseded names; relay the named file and the `install.sh --apply` remedy (the config is unchanged, init does not fail).
+- `NOT migrating <key> …: both it and <key> are present …` — a both-present conflict; relay it with both operator resolutions the line names.
+- `plugin version pin is …` — an advisory, never a gate; relay it whenever the pin predates the rename, together with the line's own remedy.
+- `<file>.yml is present in .github/workflows/ but is NOT shipped by install.sh …` — a retained workflow no installer run can refresh; relay it by name once per run, staying silent if the migration step already named that same file.
 
 ### Then: correct superseded identifiers in the existing config
 
@@ -231,7 +265,7 @@ The scaffolder is add-only — it backfills keys and never renames a value, so a
 
 Read the config the scaffolder just reported working on, not a fixed path. Its `keeping existing <path>` / `scaffolded <path>` line names the file, and on a repository whose Tier-1 migration refused above that path is still `.devflow/config.json`. Read that file with your file-read tool and correct the one such value there is:
 
-- `allowed_bots`, inside whichever top-level block this config actually has — `prflow` on a migrated repository, `devflow` on one whose migration was refused above. Do not hardcode either name. An entry whose bare login (a trailing `[bot]` stripped, surrounding whitespace ignored) is `devflow-autopilot` must become `prflow-implementer`. That GitHub App was renamed; `scripts/authorize-actor.sh` compares logins for equality, so the old slug authorizes nothing.
+- `allowed_bots`, inside whichever top-level block this config actually has — `prflow` on a migrated repository, `devflow` on one whose migration was refused above. Do not hardcode either name. An entry matching `devflow-autopilot` under `scripts/authorize-actor.sh`'s shared login rule (`lib/login_normalize.py` folds whitespace, a leading `app/`, and a trailing `[bot]`, case-insensitively) must become `prflow-implementer`. That GitHub App was renamed, and the two slugs stay distinct even normalized, so the old slug authorizes nothing.
 
 Apply it with your file-edit tool, and hold to all of these:
 
@@ -243,28 +277,28 @@ Apply it with your file-edit tool, and hold to all of these:
 
 The scaffolder also prints `devflow-detect:` lines from the language auto-detection. Read them and respond:
 
-- `detected: <langs> — merged …` — build/test tools for those languages were added to `config.json`'s `prflow.allowed_tools` and `prflow_implement.allowed_tools`. Tell the user to review the additions before committing; each takes effect in its own workflow.
+- `detected: <langs> — merged …` — build/test tools were added to `config.json`'s `prflow.allowed_tools` and `prflow_implement.allowed_tools`; tell the user to review the additions before committing.
 - `detected: <langs> — config.json already covers them` — idempotent re-run, nothing changed.
 - `no known language markers detected` or `no usable jq (missing or not executable) …` — no auto-population happened; populate the allowlists and the `setup` block by hand if needed (see `config.schema.json`).
 
 Read the settings provisioner's `devflow-settings:` line and respond:
 
-- `provisioned … (added: …)` — the project `.claude/settings.json` gained the listed DevFlow keys (the `devflow-marketplace` registration is now auto-updating). Tell the user to review the change before committing. Do not overclaim what this project-scope write did — it registers the marketplace and enables the plugin; it does not change permission modes.
-- `… already has the DevFlow keys; nothing changed` — idempotent re-run; the settings already had every key. Nothing to report beyond that it was already set up.
-- `existing … is not readable …`, `existing … is not valid JSON …`, or `existing … is malformed for provisioning …` (exit 2) — the existing `.claude/settings.json` is unusable: it is unreadable (permissions), it does not parse as JSON, or it parses but has the wrong shape (a non-object root, or a DevFlow key the merge needs as an object — e.g. `extraKnownMarketplaces` or the `devflow-marketplace` entry — present as a non-object). The helper left it byte-for-byte unchanged and provisioned nothing. Relay the specific breadcrumb to the user; for the not-readable case tell them to fix the file permissions, otherwise to fix or remove the file — then re-run `/prflow:init`. Do not hand-edit the settings file yourself.
-- `existing … contains a NUL byte …` or `existing … could not be read into a variable …` (exit 2) — the existing `.claude/settings.json` holds a NUL byte (not valid JSON text) or became unreadable as it was read; the helper left it byte-for-byte unchanged and provisioned nothing. Relay the specific breadcrumb to the user and tell them to fix or remove the file, then re-run `/prflow:init`. Do not hand-edit the settings file yourself.
-- `existing … is a directory, not a file …` (exit 2) — a directory (or a symlink to one) sits at `.claude/settings.json`, so nothing the runtime reads was written; the helper left it byte-for-byte unchanged and provisioned nothing. Relay the specific breadcrumb to the user and tell them to remove or move the directory, then re-run `/prflow:init`. Do not hand-edit the settings file yourself.
-- `the accepted plugin/marketplace identifier set could not be established …`, `could not compose the DevFlow settings defaults …`, `could not derive the superseded plugin/marketplace identifiers …`, `could not remove the superseded DevFlow registrations … (migration probe failed)`, `could not compute the provisioned settings … (merge failed)`, or `existing … could not be validated for provisioning (the settings-shape check failed)` (exit 2) — an internal identity/derivation step failed, so the helper left the settings file byte-for-byte unchanged and provisioned nothing (a half-written or wrong registration would leave a broken/incomplete plugin install). Relay the specific breadcrumb; the identifier source is bundled with the plugin, so tell the user to reinstall/update the DevFlow plugin and re-run `/prflow:init`. Do not hand-edit the settings file yourself.
-- `could not create <dir> …`, `could not create a temp file in <dir> …`, or `could not write <path> (check permissions and free space) …` (exit 2) — a filesystem write failed; the helper left the settings file byte-for-byte unchanged and provisioned nothing. Relay the breadcrumb and tell the user to check the directory's permissions and free space, then re-run `/prflow:init`.
-- `provisioned <path>: … Review the change before committing.` (a success with no `(added: …)` list) or `provisioned <path> but could not summarize which keys changed (delta probe failed).` (exit 0) — the write succeeded; only the change summary was empty or could not be computed. Tell the user the settings were provisioned and to review the change before committing.
+- `provisioned … (added: …)` — the project `.claude/settings.json` gained the listed PRFlow keys; tell the user to review the change before committing, and do not overclaim (it registers the marketplace and enables the plugin, it does not change permission modes).
+- `… already has the PRFlow keys; nothing changed` — idempotent re-run; nothing to report.
+- `existing … is not readable …`, `existing … is not valid JSON …`, or `existing … is malformed for provisioning …` (exit 2) — the existing `.claude/settings.json` is unusable (unreadable, non-JSON, or wrong shape) and was left unchanged (provisioned nothing), so relay the specific breadcrumb and tell the user to fix the permissions or fix/remove the file, then re-run `/prflow:init` rather than hand-editing it.
+- `existing … contains a NUL byte …` or `existing … could not be read into a variable …` (exit 2) — the existing `.claude/settings.json` was left unchanged (provisioned nothing), so relay the specific breadcrumb and tell the user to fix or remove the file and re-run `/prflow:init` rather than hand-editing it.
+- `existing … is a directory, not a file …` (exit 2) — a directory (or symlink to one) sits at `.claude/settings.json` and it was left unchanged (provisioned nothing), so relay the specific breadcrumb and tell the user to remove or move the directory and re-run `/prflow:init`.
+- `the accepted plugin/marketplace identifier set could not be established …`, `could not compose the PRFlow settings defaults …`, `could not derive the superseded plugin/marketplace identifiers …`, `could not remove the superseded DevFlow registrations … (migration probe failed)`, `could not compute the provisioned settings … (merge failed)`, or `existing … could not be validated for provisioning (the settings-shape check failed)` (exit 2) — an internal identity/derivation step failed and the settings file was left unchanged (provisioned nothing), so relay the breadcrumb and, the identifier source being bundled with the plugin, tell the user to reinstall/update the PRFlow plugin and re-run `/prflow:init`.
+- `could not create <dir> …`, `could not create a temp file in <dir> …`, or `could not write <path> (check permissions and free space) …` (exit 2) — a filesystem write failed and the settings file was left unchanged (provisioned nothing), so relay the breadcrumb and tell the user to check the directory's permissions and free space, then re-run `/prflow:init`.
+- `provisioned <path>: … Review the change before committing.` (a success with no `(added: …)` list) or `provisioned <path> but could not summarize which keys changed (delta probe failed).` (exit 0) — the write succeeded but the change summary was empty or uncomputable, so tell the user the settings were provisioned and to review the change before committing.
 - `no usable jq (missing or not executable) …` (exit 2) — relay the gap (the breadcrumb names the `DEVFLOW_JQ` remedy); the marketplace settings were not provisioned. (The same `jq` the scaffolder needs.)
 - Any other `devflow-settings:` line not matched above — this is the fallback: relay it verbatim to the user, do not hand-edit the settings file, and if it names an exit-2 failure tell the user to re-run `/prflow:init` after addressing the cause it reports.
 
 Then branch on the preflight result — the exit code plus, on exit 0, the stable token in its final line (exit 0 has two sub-cases the exit code alone can't tell apart; the wording around the tokens can change, the tokens won't):
 
 - Exit 0, final line byte-identical `devflow preflight: all dependencies present.` (no `PyYAML advisory` token) — every dependency is present; the local tier is ready to run; nothing to report.
-- Exit 0, final line carrying the `PyYAML advisory` token (`devflow preflight: required dependencies present; PyYAML advisory (see above).`) — every required tool is present but PyYAML is missing, so the severity-demotion helper (`match-deferrals.py`) is degraded. Relay a non-blocking note: tell the user PyYAML is missing and that this one runtime helper is degraded, and give them the fix `python3 -m pip install PyYAML` — name the package, never `-r requirements.txt`: that path resolves against the user's own working directory, so in a Python project it installs *their* dependency set instead of DevFlow's one requirement (preflight prints the same `pip install pyyaml` remedy itself). This is a note, not an init failure; do not run `pip` for them.
-- Non-zero exit (one or more `devflow preflight: …` lines on stderr — a `missing required tool` or `Python 3.11+ required` gap; PyYAML alone no longer causes this, it's the exit-0 advisory arm above) — relay it to the user verbatim and tell them to install the gap themselves before running `/prflow:implement` or `/prflow:review`. Do not run `pip` for them and do not treat this as an init failure — the config was still scaffolded.
+- Exit 0, final line carrying the `PyYAML advisory` token (`devflow preflight: required dependencies present; PyYAML advisory (see above).`) — every required tool is present but PyYAML is missing, degrading `match-deferrals.py`; relay a non-blocking note giving the fix `python3 -m pip install PyYAML` (name the package, never `-r requirements.txt`, and do not run `pip` for them).
+- Non-zero exit (a `missing required tool` or `Python 3.11+ required` gap on stderr; PyYAML alone no longer causes this) — relay it verbatim and tell the user to install the gap before running `/prflow:implement` or `/prflow:review` (do not run `pip`, and this is not an init failure — the config was still scaffolded).
 
 There is no trigger label to create: in the cloud tier, `/prflow:implement` is started by commenting a bare `/prflow:implement <#>` on the issue (a native user event) — not by applying a label. The sender must be an allowed bot or an `allowed_users` collaborator with write access.
 
@@ -274,9 +308,9 @@ PRFlow does, however, stamp a single reserved provenance label — the literal `
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/ensure-label.sh PRFlow
 ```
 
-`ensure-label.sh` always exits 0 — it creates the label, treats an already-exists outcome as success, and logs a breadcrumb on a real `gh` failure — so a label-creation failure (no auth, offline) never fails init. Report a one-line note if it logged a failure, then continue.
+`ensure-label.sh` always exits 0 (it creates the label, treats an already-exists outcome as success, and logs a breadcrumb on a real `gh` failure, so a label-creation failure never fails init), so report a one-line note if it logged a failure, then continue.
 
-If the scaffolder exits non-zero (exit 2 = templates not found next to the script), the plugin install is incomplete. Tell the user to reinstall/update the DevFlow plugin (or run `install.sh` for the cloud tier). Do not fall back to hand-writing the files — that reintroduces exactly the drift this skill exists to prevent.
+If the scaffolder exits non-zero (exit 2 = templates not found next to the script), the plugin install is incomplete — tell the user to reinstall/update the PRFlow plugin (or run `install.sh` for the cloud tier), and never fall back to hand-writing the files.
 
 ## Then: check the documentation tree and offer to bootstrap it (consent-gated)
 
@@ -301,21 +335,21 @@ Read the two documentation locations from config — leading-token calls, never 
 
 Read neither `.docs.internal_enabled` nor `.docs.external_enabled` — those flags scope a different pass, and reading them here would widen a documented contract.
 
-Classify each location into exactly one of four states — reading the working tree, never git's index (bootstrapped docs are left uncommitted, so an index check would call a just-created tree empty and re-offer forever). Containment first: if the resolved location is an absolute path, contains `..`, or is a symlink, classify it could not be established unless you confirm it resolves inside `$DOCS_ROOT` — a location outside the repo is never `absent`/`empty`/`content`, or the offer would dispatch a subagent to write outside the reviewed tree. Otherwise inspect it with POSIX `test` and a recursive listing (no GNU-only flag), observing `find`'s exit status so a refused or errored listing is never read as empty:
+Classify each location into exactly one of four states — reading the working tree, never git's index (bootstrapped docs are left uncommitted, so an index check would call a just-created tree empty and re-offer forever). Containment first: if the resolved location is an absolute path, contains `..`, or is a symlink, classify it could not be established unless you confirm it resolves inside `$DOCS_ROOT` — a location outside the repo is never `absent`/`empty`/`content`, or the offer would dispatch a subagent to write outside the reviewed tree. Otherwise inspect it with POSIX `test` and a recursive listing (no GNU-only flag), reading any `find` stderr in the tool result so a refused or errored listing is never read as empty (the `find-done` trailer masks `find`'s exit status):
 
 ```bash
 [ ! -L "<DOC_LOCATION>" ] && [ ! -e "<DOC_LOCATION>" ] && echo "state: absent"
 [ -L "<DOC_LOCATION>" ] && [ ! -e "<DOC_LOCATION>" ] && echo "state: broken-symlink"
 [ -e "<DOC_LOCATION>" ] && [ ! -d "<DOC_LOCATION>" ] && echo "state: not-a-directory"
-[ -d "<DOC_LOCATION>" ] && find "<DOC_LOCATION>" -type f ! -name .gitkeep; echo "find-rc=$?"
+[ -d "<DOC_LOCATION>" ] && find "<DOC_LOCATION>" -type f ! -name .gitkeep; echo "find-done"
 ```
 
-The four states, complete by construction — a `state:` line fired ⇒ take that state, else the location is a directory and `find-rc` decides:
+The four states, complete by construction — a `state:` line fired ⇒ take that state, else the location is a directory and the tool result above the `find-done` line decides:
 
-- holds real content — no `state:` line, `find-rc=0`, and the listing named at least one file under the location at any depth whose name is not `.gitkeep` (whether or not git tracks it);
-- exists but empty — no `state:` line, `find-rc=0`, and the listing named no file other than `.gitkeep`;
+- holds real content — no `state:` line, the `find-done` line present with no `find` stderr beside it (the listing ran cleanly), and the listing named at least one file under the location at any depth whose name is not `.gitkeep` (whether or not git tracks it);
+- exists but empty — no `state:` line, the `find-done` line present with no `find` stderr beside it, and the listing named no file other than `.gitkeep` (the `find-done` line alone, with no file listed above it, is this state);
 - absent — the `absent` line fired;
-- could not be established — any inability to read the location, never `absent`: containment unconfirmed (above), the `broken-symlink` or `not-a-directory` line fired, or the listing did not run or errored (`find-rc` non-zero or absent — byte-identical on stdout to an empty directory).
+- could not be established — any inability to read the location, never `absent`: containment unconfirmed (above), the `broken-symlink` or `not-a-directory` line fired, the `find-done` line present beside any `find` stderr (an errored or partial listing that lists nothing on stdout yet still prints `find-done`), or the listing did not run (no output at all — the matcher refused the command).
 
 When both locations hold real content, produce no output and continue to the project-memory check. When a location's state could not be established, produce no offer and no message about that location.
 
@@ -334,7 +368,7 @@ If — and only if — this run is under a VS Code Copilot harness, tell the use
 
 ## Finally: advisory project-memory check (CLAUDE.md)
 
-Config is scaffolded and the preflight has run, so init has already succeeded — this last step is a purely advisory project-memory check that never creates, writes, or edits `CLAUDE.md` (or any agent-instruction file) and never blocks or fails init regardless of what it finds. A repo with no `CLAUDE.md` gives DevFlow's automations no project memory, so `/prflow:review` and `/prflow:implement` run without the conventions, gotchas, and architecture notes that materially improve their output. Surface that gap once, here, without ever touching a file.
+Config is scaffolded and the preflight has run, so init has already succeeded — this last step is a purely advisory project-memory check that never creates, writes, or edits `CLAUDE.md` (or any agent-instruction file) and never blocks or fails init regardless of what it finds. A repo with no `CLAUDE.md` gives PRFlow's automations no project memory, so `/prflow:review` and `/prflow:implement` run without the conventions, gotchas, and architecture notes that materially improve their output. Surface that gap once, here, without ever touching a file.
 
 Resolve the repo root and probe for the relevant files using only `git rev-parse --show-toplevel` and POSIX `test -f` (no GNU-only flags, so macOS/BSD behave identically). Resolve the root defensively — if `git rev-parse` fails (init run outside a git repo, or a corrupt/missing `.git`) it would otherwise leave `$ROOT` empty and every probe would test `/CLAUDE.md`, falsely reporting "absent" and emitting a misleading nudge; silence its stderr and skip the whole check (emit nothing) when the root can't be resolved:
 
@@ -371,16 +405,17 @@ The `@`-import paths you cite are repo-root-relative, matching how Claude Code r
 # missing target.
 if [ -f "$ROOT/CLAUDE.md" ]; then
   for f in $detected; do
-    grep -qiF "@$f" "$ROOT/CLAUDE.md"; rc=$?
-    # rc 0 = referenced; rc 1 = no match → unreferenced; rc>=2 = grep read error → stay silent.
-    [ "$rc" -eq 1 ] && echo "unreferenced: @$f"
+    # A referenced file prints nothing; a no-match OR a grep read error prints
+    # "unreferenced: @$f" — a read error conservatively reports the file as unreferenced
+    # (nudging the user to check it) rather than silently dropping it.
+    if grep -qiF "@$f" "$ROOT/CLAUDE.md"; then :; else echo "unreferenced: @$f"; fi
   done
 fi
 ```
 
 Compose output per this four-case matrix, and say nothing when nothing is actionable (so successful re-runs stay clean):
 
-- No `CLAUDE.md`, no detected agent file → emit exactly one nudge: recommend the built-in `/init` command to create a `CLAUDE.md`, noting that project memory improves DevFlow's review/implement results. (Say nothing about `@`-imports — there is nothing to reuse.)
+- No `CLAUDE.md`, no detected agent file → emit exactly one nudge: recommend the built-in `/init` command to create a `CLAUDE.md`, noting that project memory improves PRFlow's review/implement results. (Say nothing about `@`-imports — there is nothing to reuse.)
 - No `CLAUDE.md`, one or more detected agent files present → the same nudge to the built-in `/init`, plus name each existing file and tell the user to reference it from the new `CLAUDE.md` via its `@`-import path (e.g. "you already have `AGENTS.md` — reference it with `@AGENTS.md`"). Emit one nudge per *physical* file — the detection above already collapses AGENTS.md's spelling/case variants to a single entry, so never cite the same file under several spellings.
 - `CLAUDE.md` present but it does not already reference an existing detected agent file → suggest adding that file's `@`-import to `CLAUDE.md` (name the file and its `@`-path); no `/init` nudge.
 - `CLAUDE.md` present and it already references each existing detected agent file via `@`-import (or no such files exist) → produce no project-memory output at all.

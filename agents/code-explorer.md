@@ -1,7 +1,7 @@
 ---
 name: code-explorer
-description: PRFlow's implement-phase discovery agent. Deeply analyzes existing codebase features by tracing execution paths, mapping architecture layers, understanding patterns and abstractions, and documenting dependencies to inform new development
-tools: Glob, Grep, Read, WebFetch, TodoWrite, WebSearch
+description: PRFlow implement's discovery agent — traces execution paths and maps architecture for a change.
+tools: Glob, Grep, Read, TodoWrite
 model: sonnet
 color: yellow
 ---
