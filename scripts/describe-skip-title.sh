@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# describe-skip-title.sh — render the deferred 'Devflow Review' check-run TITLE for a
+# describe-skip-title.sh — render the deferred 'PRFlow Review' check-run TITLE for a
 # given precheck skip reason (issue #389).
 #
 # Why a helper rather than an inline `case` in devflow-review.yml (issue #389, mirroring
@@ -29,11 +29,11 @@
 set -u
 
 case "${1:-}" in
-  behind-base)          printf '%s\n' 'Devflow review waiting: branch behind base' ;;
-  ci-not-green)         printf '%s\n' 'Devflow review waiting: other CI not green' ;;
-  ci-approval-required) printf '%s\n' 'Devflow review waiting: CI approval required' ;;
-  unverifiable)         printf '%s\n' 'Devflow review waiting: preconditions unverifiable (API query failed — see the precheck log)' ;;
+  behind-base)          printf '%s\n' 'PRFlow review waiting: branch behind base' ;;
+  ci-not-green)         printf '%s\n' 'PRFlow review waiting: other CI not green' ;;
+  ci-approval-required) printf '%s\n' 'PRFlow review waiting: CI approval required' ;;
+  unverifiable)         printf '%s\n' 'PRFlow review waiting: preconditions unverifiable (API query failed — see the precheck log)' ;;
   *)                    echo "describe-skip-title: unrecognized skip reason '${1:-}' — using the generic title (add a case arm here when adding a reason to derive-review-preconditions.sh)" >&2
-                        printf '%s\n' 'Devflow review waiting: precondition not met' ;;
+                        printf '%s\n' 'PRFlow review waiting: precondition not met' ;;
 esac
 exit 0

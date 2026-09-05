@@ -73,11 +73,15 @@ owed, and a run root holding neither the durable artifact pair nor a special rec
 run root at all) — is the fail arm.
 """
 import argparse
+import glob
 import importlib.util
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 
 # The two special records that legitimately stand in for the checklist phases. These are
 # still carried on the run-scoped phase log by their producer phases (Phase 1.3's generator
@@ -111,6 +115,19 @@ _VERDICT_MARKER_RE = re.compile(
     r'verdict=(?P<verdict>APPROVE|REJECT) -->')
 
 _REVIEW_SUBDIR = os.path.join('.prflow', 'tmp', 'review')
+# Per-item nonce verifier files, verdicts/iter-<N>/<item-id>-<nonce>.json (issue #193,
+# phase-2-verification.md §2.2). The coverage check must never read verification-iter-<N>.json
+# instead: its no-file timeout/response fallback would then satisfy the requirement.
+_VERDICTS_SUBDIR = 'verdicts'
+# The subagent a checklist agent-item is verified by; the transcript backstop counts actual
+# dispatch events naming it (issue #193).
+_VERIFIER_SUBAGENT = 'prflow:checklist-verifier'
+# The tool a harness records a subagent dispatch under: `Agent` on the current cloud harness,
+# `Task` on older ones. Dropping either zeroes the count on that harness's transcripts.
+_DISPATCH_TOOL_NAMES = frozenset({'Agent', 'Task'})
+# Written by Phase 0.3.6 BEFORE Phase 4 posting (issue #193); accepting only the legacy
+# post-verdict record would leave the producer's pre-post grade no blocker-recheck evidence.
+_BLOCKER_RECHECK_VERIFY_RECORD = 'blocker-recheck-hit verification=complete'
 
 
 def _detail(*parts):
@@ -120,23 +137,27 @@ def _detail(*parts):
     return [''.join(parts)]
 
 
-def _load_workpad():
-    """Import scripts/workpad.py as a module so its classification lives in one place
-    (AC4). Returns (module, None) on success, or (None, reason) when it cannot be loaded —
-    the caller then routes to the unestablished arm rather than crashing. The reason names
-    the caught fault so a persistent import failure (a future defect in workpad.py) is
-    diagnosable in the annotation rather than an opaque, indefinitely-tolerated warning."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    path = os.path.join(here, 'workpad.py')
+def _load_sibling(filename, module_name):
+    """Import a sibling script from this file's own directory (install-relative, so a
+    vendored consumer checkout resolves it with no config or PATH assumption). Returns
+    (module, None) or (None, reason) — any import fault routes to the unestablished arm,
+    never a crash; the reason names the caught fault so a persistent failure is diagnosable
+    in the annotation rather than an opaque, indefinitely-tolerated warning."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     try:
-        spec = importlib.util.spec_from_file_location('review_gate_workpad', path)
+        spec = importlib.util.spec_from_file_location(module_name, path)
         if spec is None or spec.loader is None:
-            return None, 'no import spec for workpad.py'
+            return None, f'no import spec for {filename}'
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module, None
     except Exception as e:  # any import fault is the unestablished arm, never a crash
         return None, f'{type(e).__name__}: {e}'
+
+
+def _load_workpad():
+    """Import scripts/workpad.py so its classification lives in one place (AC4)."""
+    return _load_sibling('workpad.py', 'review_gate_workpad')
 
 
 def _read_json(path):
@@ -243,13 +264,14 @@ def _grade_phase_log(text):
     for line in text.split('\n'):
         if line == '':
             continue
-        if line in (_GENERATOR_FAILURE_RECORD, _BLOCKER_RECHECK_HIT_RECORD):
+        if line in (_GENERATOR_FAILURE_RECORD, _BLOCKER_RECHECK_HIT_RECORD,
+                    _BLOCKER_RECHECK_VERIFY_RECORD):
             seen.add(line)
             continue
         if _PHASE_ENTRY_RE.match(line):
             continue
         return 'malformed', None
-    if _BLOCKER_RECHECK_HIT_RECORD in seen:
+    if _BLOCKER_RECHECK_HIT_RECORD in seen or _BLOCKER_RECHECK_VERIFY_RECORD in seen:
         return 'record', 'blocker-recheck-hit'
     if _GENERATOR_FAILURE_RECORD in seen:
         return 'record', 'generator-failure'
@@ -281,38 +303,85 @@ def _engine_root_has_instruction(vendored_engine_root):
                                _PHASE2_ARTIFACT_INSTRUCTION_SENTINEL))
 
 
-def _read_json_array(path):
-    """Grade one durable artifact file. Returns:
-      'array'      the file holds a parseable JSON array (an empty array is valid)
-      'missing'    the file does not exist
-      'malformed'  the file exists but is unreadable, unparseable, or not a JSON array
+def _read_json_array_value(path):
+    """Grade one durable artifact file, returning (status, value). status is:
+      'array'      a parseable JSON array (an empty array is valid); value is the list
+      'missing'    the file does not exist; value is None
+      'malformed'  present but unreadable, unparseable, or not a JSON array; value is None
     The missing-vs-malformed distinction is why this is not this module's `_read_json`
     (which collapses FileNotFound with other OSErrors): a genuinely absent artifact is the
-    fail arm, while a present-but-corrupt one is the unestablished arm. Non-UTF-8 bytes make
+    fail arm, a present-but-corrupt one the unestablished arm. Non-UTF-8 bytes make
     `fh.read()` raise UnicodeDecodeError (a ValueError, not an OSError), so the read guard
     catches UnicodeError too, and a pathologically deep array makes `json.loads` raise
     RecursionError — every corrupt shape grades malformed rather than crashing the gate into
-    the workflow's fail-open green arm."""
+    the workflow's fail-open green arm. Returning the parsed value lets the nonce-coverage
+    check read a qualifying iteration's checklist items without a second file read."""
     try:
         with open(path, encoding='utf-8') as fh:
             text = fh.read()
     except FileNotFoundError:
-        return 'missing'
+        return 'missing', None
     except (OSError, UnicodeError):
-        return 'malformed'
+        return 'malformed', None
     try:
         value = json.loads(text)
     except (ValueError, RecursionError):
-        return 'malformed'
-    return 'array' if isinstance(value, list) else 'malformed'
+        return 'malformed', None
+    if isinstance(value, list):
+        return 'array', value
+    return 'malformed', None
+
+
+def _effective_verification_mode(item):
+    """The effective Phase 2 verification mode of a checklist item (issue #193), matching
+    phase-2-verification.md §2.0/§2.1a: 'agent' unless the item declares
+    `verification_mode: "lite"` AND carries a well-formed `lite_probe`. A missing or
+    unrecognized mode defaults to agent, and a lite item with a malformed `lite_probe`
+    promotes to agent — the fail-closed direction, requiring a nonce file rather than
+    waiving one."""
+    if not isinstance(item, dict) or item.get('verification_mode') != 'lite':
+        return 'agent'
+    probe = item.get('lite_probe')
+    if (isinstance(probe, dict)
+            and probe.get('kind') in ('string_present', 'string_absent')
+            and isinstance(probe.get('string'), str)
+            and isinstance(probe.get('file'), str)):
+        return 'lite'
+    return 'agent'
+
+
+def _iteration_nonce_satisfied(run_root_dir, n, checklist_items):
+    """Whether iteration `n`'s effective agent-mode items each have a matching
+    `verdicts/iter-<n>/<item-id>-*.json` verifier file present (issue #193). Returns
+    (satisfied, [missing-item-id, ...]). Existence of the nonce FILE is the requirement —
+    the verification array is never read here, so a no-file timeout/response fallback cannot
+    satisfy it. Lite items are exempt, as is a lite-only or empty checklist. A checklist
+    that is not a list, or an agent item with no usable id, fails closed."""
+    if not isinstance(checklist_items, list):
+        return False, ['checklist-not-an-array']
+    verdicts_dir = os.path.join(run_root_dir, _VERDICTS_SUBDIR, f'iter-{n}')
+    missing = []
+    for item in checklist_items:
+        if _effective_verification_mode(item) != 'agent':
+            continue
+        item_id = item.get('id') if isinstance(item, dict) else None
+        if not isinstance(item_id, str) or not item_id:
+            missing.append('unidentified-agent-item')
+            continue
+        pattern = os.path.join(verdicts_dir, glob.escape(item_id) + '-*.json')
+        if not any(os.path.isfile(p) for p in glob.glob(pattern)):
+            missing.append(item_id)
+    return (not missing), missing
 
 
 def _scan_artifacts(run_root_dir):
     """Grade the iteration-scoped durable work-product artifacts in a run root. Returns
-    {'checklist': {n: status, ...}, 'verification': {n: status, ...}} where each status is
-    'array' or 'malformed' (an absent iteration simply has no key). An unreadable directory
-    yields two empty maps — the same as a run root that wrote no artifact."""
-    result = {'checklist': {}, 'verification': {}}
+    {'checklist': {n: status, ...}, 'verification': {n: status, ...},
+    'checklist_values': {n: [items] | None, ...}} where each status is 'array' or
+    'malformed' (an absent iteration simply has no key) and `checklist_values` holds the
+    parsed checklist list for the nonce-coverage check (issue #193). An unreadable directory
+    yields empty maps — the same as a run root that wrote no artifact."""
+    result = {'checklist': {}, 'verification': {}, 'checklist_values': {}}
     try:
         names = os.listdir(run_root_dir)
     except OSError:
@@ -320,67 +389,301 @@ def _scan_artifacts(run_root_dir):
     for name in names:
         m1 = _CHECKLIST_ARTIFACT_RE.match(name)
         if m1:
-            result['checklist'][m1.group('n')] = _read_json_array(
-                os.path.join(run_root_dir, name))
+            status, value = _read_json_array_value(os.path.join(run_root_dir, name))
+            result['checklist'][m1.group('n')] = status
+            result['checklist_values'][m1.group('n')] = value
             continue
         m2 = _VERIFICATION_ARTIFACT_RE.match(name)
         if m2:
-            result['verification'][m2.group('n')] = _read_json_array(
-                os.path.join(run_root_dir, name))
+            result['verification'][m2.group('n')] = _read_json_array_value(
+                os.path.join(run_root_dir, name))[0]
     return result
 
 
 def _grade_run_root(run_root_dir):
+    """The 2-tuple `(grade, payload)` grade of a run root — the stable contract callers and
+    the focused tests read. Delegates to `_grade_run_root_detail`, dropping its third
+    element (the qualifying iteration's agent-item count, used only by the transcript
+    backstop)."""
+    grade, payload, _agent_count = _grade_run_root_detail(run_root_dir)
+    return grade, payload
+
+
+def _grade_run_root_detail(run_root_dir):
     """Grade a checklist-owing run's run root by its durable Phase 1 / Phase 2 work
-    products (issue #21). The artifacts decide first; the phase log is consulted only when
-    the artifact pair is absent, for the two special no-work-product records. Returns:
-      ('pass', None)                                       a valid checklist+verification
+    products (issue #21) AND per-item nonce verifier files (issue #193). The artifacts and
+    their nonce coverage decide first; the phase log is consulted only when no qualifying
+    artifact pair exists, for the special no-work-product records. Returns
+    `(grade, payload, agent_count)` where `agent_count` is the qualifying iteration's
+    effective agent-mode item count on the 'pass' arm and None otherwise:
+      ('pass', None, n)                                    a valid checklist+verification
                                                            array pair for at least one
-                                                           iteration
-      ('unestablished', 'review-artifact-malformed')       a present-but-corrupt artifact
-      ('unestablished', 'phase-log-malformed')             no artifacts; malformed phase log
-      ('unestablished', 'run-root-unreadable')             no artifacts; unreadable phase log
-      ('special', 'blocker-recheck-hit' | 'generator-failure')  a no-checklist arm's record
-      ('fail', [missing-token, ...])                       neither a pair nor a record."""
+                                                           iteration, each of that
+                                                           iteration's agent-mode items
+                                                           backed by a nonce verifier file
+      ('unestablished', 'review-artifact-malformed', None) a present-but-corrupt artifact
+      ('unestablished', 'phase-log-malformed', None)       no pair; malformed phase log
+      ('unestablished', 'run-root-unreadable', None)       no pair; unreadable phase log
+      ('special', 'blocker-recheck-hit' | 'generator-failure', None)  a no-checklist record
+      ('fail', [missing-token, ...], None)                 neither a qualifying pair nor a
+                                                           record (a `verdict-file:<id>`
+                                                           token names each agent item
+                                                           lacking a verifier file)."""
     arts = _scan_artifacts(run_root_dir)
     checklist = arts['checklist']
     verification = arts['verification']
+    checklist_values = arts['checklist_values']
     # Pass: some single iteration carries BOTH a parseable-array checklist AND a
-    # parseable-array verification artifact (any iteration's pair — AC1/AC2/AC3). Evaluated
-    # first, so a genuinely complete review keeps its verdict even beside a stray malformed
-    # artifact from another iteration.
+    # parseable-array verification artifact, AND every effective agent-mode item in that
+    # iteration's checklist has a nonce verifier file (issue #193). Every candidate pair is
+    # tried, so an earlier qualifying iteration still passes during later verdict reuse; the
+    # last nonce-failing candidate's missing set is kept for the fail arm.
+    nonce_missing = []
     for n, status in checklist.items():
         if status == 'array' and verification.get(n) == 'array':
-            return 'pass', None
-    # No complete valid pair. A present-but-malformed artifact means the run's outputs
-    # cannot be trusted as evidence — unestablished, mirroring the malformed-phase-log arm
-    # (AC3). An absent iteration has no key, so this fires only on a real corrupt file.
+            satisfied, missing = _iteration_nonce_satisfied(
+                run_root_dir, n, checklist_values.get(n))
+            if satisfied:
+                items = checklist_values.get(n) or []
+                agent_count = sum(1 for it in items
+                                  if _effective_verification_mode(it) == 'agent')
+                return 'pass', None, agent_count
+            nonce_missing = missing
+    # No qualifying pair. A present-but-malformed artifact means the run's outputs cannot be
+    # trusted as evidence — unestablished (AC3). An absent iteration has no key, so this
+    # fires only on a real corrupt file.
     if any(s == 'malformed' for s in checklist.values()) or \
        any(s == 'malformed' for s in verification.values()):
-        return 'unestablished', 'review-artifact-malformed'
-    # The artifact pair is absent. Consult the phase log for the two special records
-    # (AC5) — the only channel those no-work-product arms leave. The phase log is no longer
+        return 'unestablished', 'review-artifact-malformed', None
+    # No qualifying pair and nothing malformed. Consult the phase log for the special records
+    # (AC5) — the only channel those no-work-product arms leave. The phase log is not
     # required to exist (AC3): its absence just means no special record.
     kind, text = _read_phase_log(run_root_dir)
     if kind == 'unreadable':
-        return 'unestablished', 'run-root-unreadable'
+        return 'unestablished', 'run-root-unreadable', None
     if kind == 'content':
         grade, payload = _grade_phase_log(text)
         if grade == 'malformed':
-            return 'unestablished', 'phase-log-malformed'
+            return 'unestablished', 'phase-log-malformed', None
         if grade == 'record':
-            return 'special', payload
-    # Neither the artifact pair nor a special record — the fail arm (AC3/AC4).
+            return 'special', payload, None
+    # The fail arm (AC3/AC4). An absent array is named as a missing artifact; when both
+    # arrays are present but no iteration's nonce coverage is complete, name the missing
+    # verifier files instead (issue #193).
     missing = []
     if not any(s == 'array' for s in checklist.values()):
         missing.append('checklist-artifact')
     if not any(s == 'array' for s in verification.values()):
         missing.append('verification-artifact')
+    if not missing and nonce_missing:
+        missing = ['verdict-file:' + m for m in nonce_missing]
     if not missing:
         # Both kinds have a valid array, but never at a common iteration — no single
         # iteration's pair, so name both.
         missing = ['checklist-artifact', 'verification-artifact']
-    return 'fail', missing
+    return 'fail', missing, None
+
+
+def _load_shared_reader():
+    """Import scripts/context_eval_shared.py (the tolerant object/array/JSONL transcript
+    reader) install-relative (issue #193). Returns (module, None) or (None, reason)."""
+    return _load_sibling('context_eval_shared.py', 'review_gate_shared')
+
+
+def _iter_dicts(node):
+    """Yield every dict at any nesting depth, mirroring extract-execution-cost.py's descent —
+    so a `tool_use` block nested inside a record's `message.content` array is reached."""
+    if isinstance(node, dict):
+        yield node
+        for v in node.values():
+            yield from _iter_dicts(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _iter_dicts(v)
+
+
+def _subagent_of(d):
+    """The subagent_type a dispatch record names — top-level (the cloud flattened shape) or
+    inside `input` (the message-content tool_use shape). None when neither carries a string."""
+    st = d.get('subagent_type')
+    if isinstance(st, str):
+        return st
+    inp = d.get('input')
+    if isinstance(inp, dict) and isinstance(inp.get('subagent_type'), str):
+        return inp['subagent_type']
+    return None
+
+
+def _is_verifier_dispatch(d):
+    """Whether `d` is an actual checklist-verifier DISPATCH event (issue #193): a typed
+    tool_use record, or a flattened record carrying a tool identity (the cloud harness's
+    `task_started` record), whose dispatched tool — when it names one — is a subagent-dispatch
+    tool (`_DISPATCH_TOOL_NAMES`) and whose subagent_type is the checklist verifier. A
+    `tool_result` payload and a plain string quote are never dispatches. The schema is not a
+    public contract (execution-file-shape.md), so both observed shapes are tolerated."""
+    if not isinstance(d, dict) or d.get('type') == 'tool_result':
+        return False
+    is_dispatch = (d.get('type') == 'tool_use'
+                   or isinstance(d.get('tool_name'), str)
+                   or 'tool_use_id' in d)
+    if not is_dispatch:
+        return False
+    name = d.get('name') if d.get('type') == 'tool_use' else d.get('tool_name')
+    if isinstance(name, str) and name not in _DISPATCH_TOOL_NAMES:
+        return False
+    return _subagent_of(d) == _VERIFIER_SUBAGENT
+
+
+def _count_verifier_dispatches(execution_file_path):
+    """(count, None) or (None, reason). The number of UNIQUE actual checklist-verifier
+    dispatch events in the harness transcript (issue #193 AC6), counted over the tolerant
+    object/array/JSONL carriers. Unique is by `tool_use_id`/`id` when present. Quoted text
+    and tool_result payloads contribute nothing (only typed tool_use records are walked, never
+    a raw substring scan). Missing/corrupt/incomplete transcript data → (None, reason), never
+    a false 0."""
+    try:
+        with open(execution_file_path, encoding='utf-8', errors='replace') as fh:
+            text = fh.read()
+    except OSError:
+        return None, 'missing'
+    if text.strip() == '':
+        return None, 'empty'
+    module, _err = _load_shared_reader()
+    if module is None:
+        return None, 'reader-unavailable'
+    try:
+        parsed = module.read_transcript_records(text)
+    except Exception:
+        return None, 'unparseable'
+    if not parsed.parsed:
+        return None, 'unparseable'
+    seen = set()
+    count = 0
+    for d in _iter_dicts(parsed.records):
+        if not _is_verifier_dispatch(d):
+            continue
+        key = d.get('tool_use_id') or d.get('id')
+        if isinstance(key, str):
+            if key in seen:
+                continue
+            seen.add(key)
+        count += 1
+    return count, None
+
+
+def _offline_numstat_facts(numstat_z):
+    """Build a `_recompute_diff_facts`-shaped facts dict from `git apply --numstat -z` output
+    (issue #193). Each NUL-terminated record is `added\\tdeleted\\tpath` (`-` for a binary
+    file's counts; the new path for a rename), so the path may itself contain tabs — split at
+    most twice. Returns (facts, None) or (None, reason)."""
+    files = 0
+    lines = 0
+    paths = []
+    for record in numstat_z.split('\0'):
+        if record == '':
+            continue
+        parts = record.split('\t', 2)
+        if len(parts) != 3:
+            return None, 'diff-patch-unclassifiable'
+        added, deleted, path = parts
+        for col in (added, deleted):
+            if col != '-':
+                try:
+                    lines += int(col)
+                except ValueError:
+                    return None, 'diff-patch-unclassifiable'
+        files += 1
+        paths.append(path)
+    # `resolved`/`reason` are constant on this path (every offline failure returns
+    # (None, reason) above instead), so never branch on them; the key set is pinned to
+    # workpad._recompute_diff_facts's by the focused test.
+    return {'resolved': True, 'reason': '', 'lines': lines,
+            'files': files, 'paths': paths}, None
+
+
+def _offline_diff_facts(run_root_dir):
+    """Recompute the reviewed diff's facts from `<run_root_dir>/diff.patch` alone (issue #193
+    AC1) — `git apply --numstat -z` reads the patch's statistics WITHOUT applying it, with no
+    ref resolution, fetch, or worktree change. Returns (facts, None) or (None, reason). An
+    empty patch is a legitimate zero-file diff, not malformed."""
+    # Absolute path so `cwd` below cannot re-resolve it, and so `run_root_dir` may be relative.
+    patch_path = os.path.abspath(os.path.join(run_root_dir, 'diff.patch'))
+    try:
+        with open(patch_path, 'rb') as fh:
+            raw = fh.read()
+    except FileNotFoundError:
+        return None, 'diff-patch-missing'
+    except OSError:
+        return None, 'diff-patch-unreadable'
+    # An empty (or whitespace-only) patch is a legitimate zero-file diff, not malformed —
+    # `git apply` rejects it (rc 128, "No valid patches"), so short-circuit to a 0-file facts
+    # dict before invoking git (portable: no dependency on a newer git's --allow-empty).
+    if raw.strip() == b'':
+        return _offline_numstat_facts('')
+    # Run `git apply --numstat` from a fresh non-repo cwd, never the reviewed repo: inside a work
+    # tree git apply consults the index and silently emits empty numstat for unknown blob hashes
+    # (a ref consultation AC1 forbids, and a wrong measurement). --numstat applies nothing.
+    neutral = tempfile.mkdtemp(prefix='reg-numstat-')
+    try:
+        proc = subprocess.run(
+            ['git', 'apply', '--numstat', '-z', patch_path],
+            cwd=neutral, capture_output=True, encoding='utf-8', check=False)
+    except OSError:
+        return None, 'diff-patch-git-unavailable'
+    finally:
+        shutil.rmtree(neutral, ignore_errors=True)
+    if proc.returncode != 0:
+        return None, 'diff-patch-malformed'
+    return _offline_numstat_facts(proc.stdout)
+
+
+def _decide_offline(run_root, repo_root):
+    """Grade a run root offline from its own `diff.patch` (issue #193 AC1) — no GitHub, no ref
+    resolution, no reviews payload. Reuses workpad.py's checklist-owed classification and the
+    nonce-aware `_grade_run_root_detail`. Returns (token, [detail...])."""
+    facts, reason = _offline_diff_facts(run_root)
+    if reason is not None:
+        return f'unestablished {reason}', _detail(
+            'review-evidence-gate: offline grading could not read a usable diff.patch in ',
+            'run root ', run_root, ' (', reason, ').')
+    workpad, wp_err = _load_workpad()
+    if workpad is None:
+        return 'unestablished workpad-import-failed', _detail(
+            'review-evidence-gate: could not import scripts/workpad.py (', wp_err or '',
+            ') — the checklist-owed classification is unavailable.')
+    disproof = workpad._review_coverage_profile_disproof(facts, repo_root)
+    if disproof is None:
+        return 'pass legitimate-skip', _detail(
+            'review-evidence-gate: offline grading — the run-root diff authorizes the ',
+            'intentional checklist skip; no checklist evidence owed.')
+    grade, payload, _agent_count = _grade_run_root_detail(run_root)
+    if grade == 'unestablished':
+        return f'unestablished {payload}', _detail(
+            'review-evidence-gate: offline grading of run root ', run_root,
+            ' is unestablished (', str(payload), ').')
+    if grade == 'special':
+        arm = ('blocker-recheck-hit' if payload == 'blocker-recheck-hit'
+               else 'generator-failure-skip')
+        return f'pass {arm}', _detail(
+            'review-evidence-gate: offline grading — the run root carries the ', str(payload),
+            ' record, a legitimate no-checklist arm.')
+    if grade == 'pass':
+        return 'pass checklist-phases-ran', _detail(
+            'review-evidence-gate: offline grading — the run root holds the durable ',
+            'checklist/verification artifact pair and a nonce verifier file for every ',
+            'agent-mode item.')
+    return f'fail missing={",".join(payload)}', _detail(
+        'review-evidence-gate: offline grading — the graded run root ', run_root,
+        ' owes the checklist phases (', disproof, ') but is missing: ', ', '.join(payload),
+        '.')
+
+
+def grade_run_root_offline(run_root_dir, repo_root='.'):
+    """Public offline grade for the producer helpers (post-review-verdict.sh via subprocess,
+    loop-verdict-marker.py via install-relative import) — issue #193 AC3/AC5. Returns
+    (token, [detail...]); the token's first field is `pass`/`fail`/`unestablished` exactly
+    as the CLI emits, so a caller admits only an explicit `pass ` result."""
+    return _decide_offline(run_root_dir, repo_root)
 
 
 def _decide(args):
@@ -504,7 +807,7 @@ def _decide(args):
             'records that the checklist phases ran.')
 
     run_root_dir = os.path.join(args.post_tree_root, _REVIEW_SUBDIR, fresh_roots[0])
-    grade, payload = _grade_run_root(run_root_dir)
+    grade, payload, agent_count = _grade_run_root_detail(run_root_dir)
     if grade == 'unestablished' and payload == 'review-artifact-malformed':
         return 'unestablished review-artifact-malformed', _detail(
             'review-evidence-gate: a durable checklist-phase artifact in run root ',
@@ -530,10 +833,34 @@ def _decide(args):
             'review-evidence-gate: the phase log carries the checklist ',
             'generator double-failure record, a legitimate no-checklist arm.')
     if grade == 'pass':
+        # Transcript backstop (issue #193 AC6): require the dispatch count to meet the qualifying
+        # iteration's agent-item count. A supplied-but-unusable transcript is unestablished, never
+        # a silent pass-through; an established shortfall takes the existing fail action.
+        if getattr(args, 'execution_file', None):
+            required = agent_count or 0
+            observed, treason = _count_verifier_dispatches(args.execution_file)
+            if observed is None:
+                return f'unestablished execution-transcript-{treason}', _detail(
+                    'review-evidence-gate: an execution transcript was supplied but its ',
+                    'checklist-verifier dispatch count could not be established (', treason,
+                    '); the run is neither passed nor failed on the transcript.')
+            if observed < required:
+                return (f'fail missing=transcript-dispatch-shortfall '
+                        f'review_id={verdict_id} review_state={verdict_state}'), _detail(
+                    fail_detail_head, 'the harness transcript records only ', str(observed),
+                    ' checklist-verifier dispatch event(s), below the ', str(required),
+                    ' its agent-mode checklist items require (observed=', str(observed),
+                    ' required=', str(required), ').')
+            return 'pass checklist-phases-ran', _detail(
+                'review-evidence-gate: the attributed run root holds the durable Phase 1 ',
+                'checklist and Phase 2 verification artifacts, and the harness transcript ',
+                'corroborates the dispatches (observed=', str(observed), ' required=',
+                str(required), ').')
         return 'pass checklist-phases-ran', _detail(
             'review-evidence-gate: the attributed run root holds the durable Phase 1 ',
             'checklist and Phase 2 verification artifacts recording that the checklist ',
-            'phases ran.')
+            'phases ran; no execution transcript was supplied, so the dispatch count ',
+            'was not corroborated.')
     # grade == 'fail'
     missing = payload
     return (f'fail missing={",".join(missing)} review_id={verdict_id} '
@@ -561,12 +888,15 @@ def main(argv=None):
                     'evidence (issue #2075). Exits 0 for every decision outcome once '
                     'arguments parse; the caller reads stdout line 1 for the verdict '
                     'token.')
-    parser.add_argument('--pre-inventory', required=True,
+    # The six cloud-path flags are required=False so `--grade-run-root` (issue #193 AC1) can
+    # run without them; the cloud path re-requires the three it needs by hand below, so its
+    # exit-2-on-missing-required contract is unchanged for the workflow caller.
+    parser.add_argument('--pre-inventory',
                         help='JSON {"run_roots":[...],"review_ids":[...]} snapshotted '
                              'before the engine step.')
-    parser.add_argument('--post-tree-root', required=True,
+    parser.add_argument('--post-tree-root',
                         help='repo root whose .prflow/tmp/review/ tree is re-listed now.')
-    parser.add_argument('--reviews-payload', required=True,
+    parser.add_argument('--reviews-payload',
                         help='reviews-API JSON array path, or - for stdin.')
     parser.add_argument('--base-ref', default='',
                         help='the PR base ref for the diff recompute (may be empty).')
@@ -576,13 +906,28 @@ def main(argv=None):
                         help='the run\'s own reviewer identity (.user.login).')
     parser.add_argument('--vendored-engine-root', default='',
                         help='the checked-out review engine root (holds SKILL.md).')
+    parser.add_argument('--grade-run-root',
+                        help='offline mode (issue #193): grade this run root from its own '
+                             'diff.patch alone — no GitHub, ref resolution, or fetch.')
+    parser.add_argument('--execution-file',
+                        help='the harness transcript (issue #193): count actual '
+                             'checklist-verifier dispatch events as a cloud-path backstop.')
     args = parser.parse_args(argv)
+
+    if args.grade_run_root is None:
+        _missing = [name for name, value in (
+            ('--pre-inventory', args.pre_inventory),
+            ('--post-tree-root', args.post_tree_root),
+            ('--reviews-payload', args.reviews_payload)) if value is None]
+        if _missing:
+            parser.error('the following arguments are required: ' + ', '.join(_missing))
 
     # Uphold the exit-0-after-parsing contract at the source: any unexpected fault in the
     # decision routes to an unestablished arm (a warning), never a traceback that would end
     # the step non-zero and fail the job on the gate's own bug.
     try:
-        token, detail = _decide(args)
+        token, detail = (_decide_offline(args.grade_run_root, args.repo_root)
+                         if args.grade_run_root else _decide(args))
     except Exception as e:  # a decision fault must never crash the step
         token = 'unestablished internal-error'
         detail = _detail('review-evidence-gate: an unexpected internal error occurred (',

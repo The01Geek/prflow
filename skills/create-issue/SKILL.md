@@ -7,10 +7,15 @@ argument-hint: <user-story>
 
 Before any of the pipeline's steps below, establish this seven-slot tracker.
 
-Establish it by working down these rungs, moving on whenever one is unavailable: `TodoWrite`,
-`TaskCreate`/`TaskUpdate`, `update_plan`, any candidate named in a runner-supplied listing of tools
+Establish it by working down these rungs, moving on whenever one is unavailable: `TaskCreate`/`TaskUpdate`,
+`TodoWrite`, `update_plan`, any candidate named in a runner-supplied listing of tools
 it has not yet exposed, then a runner-advertised discovery mechanism — used to search for those
-candidates, never as one itself. A candidate is **unavailable** when it is not exposed, when the
+candidates, never as one itself. The rung order is a preference, not a claim about which tool any
+runner exposes: the tracker established at run start holds for the whole run even when a higher rung
+appears later. A tracker that fails mid-run moves to the next lower rung, re-rendering its state in
+the current reply. A run that cannot recall which tracker it established re-reads it from the
+tracker's own persisted state — the fallback state file, or the task tool's own listing — before
+touching any rung. A candidate is **unavailable** when it is not exposed, when the
 call returns a failure, or when it returns without a failure but confirms no tracker, through the
 tool's own read-back where it exposes one or its rendered result otherwise. **No rung ends the
 run:** hold a breadcrumb naming any failure and carry on to the next rung. Once every candidate is
@@ -103,7 +108,7 @@ e.g. `The system cannot find the path specified` on Windows shells, or a localiz
 anchor-resolution failure described in `## Runner setup` below — fix the anchor, do not report a
 missing extension. Otherwise, on a non-zero exit where the helper runs but fails,
 a consumer extension exists but could not be loaded: surface its stderr message, never silently
-proceed as if none existed. Exit 0 with text is consumer-owned customization under `.prflow/prompt-extensions/` —
+proceed as if none existed. Exit 0 with text is consumer-owned customization under `.prflow/skill-extensions/` —
 treat it as instructions appended to the end of this skill's own prompt for this run. Exit 0, no
 output: proceed unchanged.
 
@@ -152,17 +157,19 @@ Dispatch `/prflow:docs-verify --report-only` peers on the topic extracted from t
 Bind the slug, then clear state — before any dispatch. Bind this run's kebab-case slug here; no
 later step binds one. Run `mkdir -p .prflow/tmp/create-issue/<slug>` first, treating any stderr from it as its failure
 signal; a write or delete at or under `.prflow/` that fails or is refused routes this evidence
-artifact and this pointer onto `references/fallback-read-only-sandbox.md`'s Step 1 arm.
-Delete any `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`, and delete-and-rewrite the
-fixed slug-independent pointer `.prflow/tmp/create-issue/issue-run-slug` holding this slug.
-Both deletes run on every path including the degraded one; a failed delete leaves a possibly-stale
-leftover and routes to `references/fallback-read-only-sandbox.md`'s distrust-the-on-disk-copy row.
-The pointer, like the evidence artifact, is anchored to the working directory (the worktree cwd),
-not to `resolve-main-root.sh`'s MAIN_ROOT, and its content is exactly one kebab-case slug on one line.
-Later sites lacking the slug read that pointer; a pointer that is absent, unreadable, empty,
-whitespace-only, or not that single-slug shape is recorded unestablished and routes to the
-title-derived fallback `references/step-4-present-create.md` retains — never a slug composed from a
-partial read.
+artifact and this registry entry onto `references/fallback-read-only-sandbox.md`'s Step 1 arm.
+Delete any `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`, then register this run through
+the run-directory registry:
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/cleanup-create-issue-run.sh --register-slug <slug> --topic "<one line from the user story, reduced to letters, digits, spaces and . , : - _ / only>" --root .
+```
+The helper reads no environment variable, writes the run's `run-meta.json`, and prints one
+`registered=` line; read the line you received. A run that received `registered=no` never invokes
+`--resolve-slug` later and treats a lost slug as unestablished (the title-derived fallback). Later
+sites lacking the slug resolve it via `--resolve-slug`; on a `slug=unestablished reason=ambiguous …`
+line they pick the candidate whose topic matches the story and confirm it with `--adopt-slug`, and
+on any other `slug=unestablished` line they take the title-derived fallback
+`references/step-4-present-create.md` retains — never a slug composed from a partial read.
 
 Every dispatch starts with the shallow arm; the deep arm is reached only by the escalation below.
 Derive any value deciding a leg's pathspec with python3 or bash builtins, never `tr`, `sed`, `wc`,
@@ -198,17 +205,17 @@ naming the failed leg, never reporting a partial verification as complete.
 An incomplete return — one that succeeds but omits or malforms its duty statuses, or omits a
 bearing observation for a duty it reported `judged-not-engaged` — records that duty unestablished
 with a breadcrumb naming the missing field, never a discharged floor.
-The dispatch also instructs each peer to state, in its return, the `--search-space` operand it
-actually ran under; the orchestrator compares that returned operand against the pathspec that leg
+The dispatch also instructs each peer to state, in its return, both the `--search-space` operand it
+actually ran under and the internal-doc location it resolved; the orchestrator compares that returned operand against the pathspec that leg
 dispatched, and records the leg unestablished with a breadcrumb — escalating shallow→deep like any
 unestablished duty — when the return omits the operand or its stated value does not match, rather
 than an established result, so a peer that silently defaulted the operand is detected, not trusted.
+It also records the *exact operand and population identity* duty unestablished — which escalates — when the shallow report omits the resolved internal-doc location or states one differing from the orchestrator's own `.docs.internal` resolution, so a peer whose resolver call was refused cannot report `ABSENT` over the wrong location while its operand still matches.
 
-Escalation shallow→deep is the only entry to the deep arm. Escalate
-on `UNRELIABLE` or `ABSENT`, on an unestablished duty, and on any judged-not-engaged duty whose returned
+Escalation shallow→deep is the only entry to the deep arm. The trigger set is exactly three, complete by construction: `UNRELIABLE`, an unestablished duty, and any judged-not-engaged duty whose returned
 bearing observation is non-empty once the producer's explicit `none-observed` token is excluded —
 that field is always present, so escalate on any value other than `none-observed` and record
-unestablished (which escalates) when it is absent or unparseable. That comparand is a field of the
+unestablished (which escalates) when it is absent or unparseable. An `ABSENT` verdict is not a trigger: it is an established result the shallow arm has already produced (docs-verify reports an unreadable documentation location as an `unestablished` duty, not as `ABSENT`), so it does not escalate. That comparand is a field of the
 report you receive.
 
 Evidence artifact. The orchestrator — never a peer — writes the returned evidence (reconciled, on
@@ -223,14 +230,14 @@ evidence degraded, and writes its own output to the same artifact path. It never
 and never presents a half-verification as whole.
 
 Completion-wait discipline (mandatory, mirroring Step 3.6's synchronous dispatch). Dispatch each
-peer through the Agent tool (`subagent_type: general-purpose` on Claude Code; the runner's
-equivalent context-isolated subagent tool elsewhere), synchronously — the normative requirement is
-behavioral: the dispatch blocks until the peer's completed findings are in hand, and a launch
-acknowledgment is never the findings report. On Claude Code, `run_in_background: false` is a current
-example of meeting it, not the definition. Where the runner's subagent tool launches asynchronously
-and offers no such parameter, meet it by ending the turn and resuming only on the peer's completion
-notification; a background fork is excluded, since it can die on resume and lose the
-verification. The docs-verify findings report must be complete and captured before the
+peer through the Agent tool (a non-fork `subagent_type`, `general-purpose` on Claude Code; the
+runner's equivalent context-isolated subagent tool elsewhere), synchronously — the normative
+requirement is behavioral: the peer's completed findings must be in hand before the run proceeds,
+and a launch acknowledgment is never the findings report. A dispatch that returns only a launch
+acknowledgment (the Agent tool on Claude Code's interactive tier today) meets it by ending the turn
+and resuming on the peer's completion notification; one that returns the completed findings inline
+(a headless run with background tasks disabled) waits for that return and never ends the turn; a
+background fork is excluded, since it can die on resume and lose the verification. The docs-verify findings report must be complete and captured before the
 first Step 2 clarification question — and, on a run so complete it asks zero clarifying questions,
 before Step 3 drafting begins. Never open Step 2 clarification or Step 3 drafting on the strength of
 "docs-verify is running".
@@ -281,15 +288,15 @@ Load `references/step-3-6-audit.md` per the *Reference routing* rules above and 
 ### Step 4: Review with the user, then create
 
 Before the first rendered draft, and not again while iterating on feedback, run one `ls -lL … 2>&1`
-over `.prflow/tmp/create-issue/issue-run-slug`, `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`
+over `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`
 and `.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md` — exactly those
-three, each named individually — and show its raw output, error lines included, in the message that
+two, each named individually — and show its raw output, error lines included, in the message that
 renders the draft. With the slug unestablished, list
 `.prflow/tmp` itself instead on plain `ls -l` — never `-L` — state that nothing there is
 attributable to this run, and re-enter nothing.
 
 Classify each path from that one invocation, running no second probe, from what the shell shows
-rather than what you infer. A not-found message naming one of the three paths — by the whole path or
+rather than what you infer. A not-found message naming one of the two paths — by the whole path or
 by its final segment alone — is absent, and decides that path even when the same invocation also printed a row for it.
 A path is present only when the invocation prints a row for that path itself describing an ordinary
 file of at least one byte — its name field the path, its type character `-`, its size column
@@ -306,8 +313,7 @@ is trusted and nothing is re-entered. An unestablished path — a directory, say
 rather than a re-entry.
 
 Re-run the producing step for every absent path, then resume at the draft rendering. A Step 1
-re-entry reuses the slug already bound and binds no new one; a zero-byte `.prflow/tmp/create-issue/issue-run-slug`
-is not a re-run of Step 1 but the slug-unestablished arm above. A missing derivation file re-runs Step 2's independent-derivation pass, not
+re-entry reuses the slug already bound and binds no new one. A missing derivation file re-runs Step 2's independent-derivation pass, not
 Step 2 whole, reporting any genuine clarification deficit in the draft message — and re-runs
 Step 3.5's steelman pass afterwards. The run
 bootstrap's re-entry belongs to the Step 4 presentation gate alone (`references/step-4-present-create.md`),
@@ -316,7 +322,7 @@ has no audit artifact, and the gate admits it rather than re-entering Step 3.6 t
 the audit artifact is the presentation gate's alone, named by no arm of this listing. Where any step was re-entered,
 that message names the steps re-run and any finding of theirs the draft does not already reflect. A
 producing step that cannot run gets an in-chat breadcrumb naming the file and the failure kind; this
-listing never blocks issue creation. These three paths are the run-state files this listing covers; it
+listing never blocks issue creation. These two paths are the run-state files this listing covers; it
 leaves out the user-facing draft `issue-draft-<slug>.md` (written under the main repo root rather than
 these cwd-anchored paths), the `issue-audit-<slug>.md` audit artifact, and the `steelman-projection-<slug>.json` gate operand — all owned by the
 presentation gate, which reads them for itself.

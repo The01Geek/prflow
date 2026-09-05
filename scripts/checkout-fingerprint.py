@@ -30,9 +30,12 @@ Field derivations (each stated here exactly once — this header is the single s
                    to arm git's racy-stat rule (issue #1117), and then `git add -u`'d — the
                    working-tree content of TRACKED files, capturing unstaged edits the index
                    does not. Changes on any edit to a tracked file.
-  untracked_digest `git write-tree` over a fresh EMPTY scratch index into which the untracked,
-                   non-ignored files are added — the empty-tree id when there are none.
-                   Changes when an untracked (non-ignored) file is added, edited, or removed.
+  untracked_digest SHA-1 over each untracked, non-ignored path's Git mode and content
+                   identity. Regular-file content uses `git hash-object` without `-w`;
+                   symlink content is the link target text, never the dereferenced target.
+                   The empty set uses the empty-tree id. Changes when an untracked entry is
+                   added, edited, removed, made executable, or changes type, without ever
+                   copying an untracked secret into `.git/objects`.
 
 Fail-closed: any git failure that prevents establishing a field exits non-zero with a stderr
 breadcrumb and prints NO object, so a caller never embeds a partial or invented fingerprint.
@@ -43,13 +46,16 @@ network call.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
 
 _ZERO_SHA1 = "0" * 40
 # The object-id shape the four content fields must satisfy — 40-hex (SHA-1) or
@@ -66,6 +72,11 @@ _GIT = os.environ.get("DEVFLOW_GIT") or "git"
 # not 0: git reads a zero index timestamp as "unset" and short-circuits its racy-stat
 # rule, so 1 is the smallest value that arms it. See _tracked_digest.
 _INDEX_BACKDATE_SECONDS = 1
+# Cumulative argv-byte ceiling for one `git hash-object -- <paths>` chunk. Kept well
+# under Windows' CreateProcess 32,767-char command-line limit (the tightest of the
+# supported hosts — Git Bash included, per CLAUDE.md), leaving ample headroom for the
+# git binary + `hash-object --` prefix, so a large untracked set is hashed in several calls.
+_HASH_OBJECT_ARG_BYTES = 8_000
 
 
 class _GitError(Exception):
@@ -175,19 +186,79 @@ def _tracked_digest(top: str) -> str:
         return _write_tree(top, env)
 
 
+def _chunk_pathspecs(paths: list[str]) -> Iterator[list[str]]:
+    """Yield `paths` in chunks bounded by cumulative argv bytes, so a large untracked
+    set never overruns the OS argument-length limit when passed to `git hash-object`."""
+    chunk: list[str] = []
+    size = 0
+    for path in paths:
+        cost = len(path.encode("utf-8")) + 1
+        if chunk and size + cost > _HASH_OBJECT_ARG_BYTES:
+            yield chunk
+            chunk, size = [], 0
+        chunk.append(path)
+        size += cost
+    if chunk:
+        yield chunk
+
+
 def _untracked_digest(top: str) -> str:
-    """Content of untracked, non-ignored files, via a fresh empty scratch index."""
+    """Identity of untracked entries, hashed without writing to the object store.
+
+    Regular files retain the batched `git hash-object` path, while symlinks hash their
+    target text directly so fingerprinting cannot read outside the checkout. Folding the
+    Git tree mode preserves executable-bit and file-type identity that the former scratch
+    index captured. The final SHA-1 keeps the 40-hex shape `_validate_checkout` accepts."""
     listing = _git(["ls-files", "-o", "--exclude-standard", "-z"], cwd=top)
     paths = [p for p in listing.split("\0") if p]
-    with tempfile.TemporaryDirectory() as td:
-        scratch = os.path.join(td, "index")
-        env = {**os.environ, "GIT_INDEX_FILE": scratch}
-        _git(["read-tree", "--empty"], cwd=top, env=env)
-        if paths:
-            # `add --` treats every remaining token as a literal pathspec, so a path
-            # with spaces / unicode / a leading dash is added correctly.
-            _git(["add", "--", *paths], cwd=top, env=env)
-        return _write_tree(top, env)
+    if not paths:
+        with tempfile.TemporaryDirectory() as td:
+            scratch = os.path.join(td, "index")
+            env = {**os.environ, "GIT_INDEX_FILE": scratch}
+            _git(["read-tree", "--empty"], cwd=top, env=env)
+            return _write_tree(top, env)
+    entries: dict[str, tuple[str, str]] = {}
+    regular_paths: list[str] = []
+    for path in paths:
+        absolute = os.path.join(top, path)
+        try:
+            mode = os.lstat(absolute).st_mode
+        except OSError as exc:
+            raise _GitError(f"cannot inspect untracked path {path!r}: {exc}") from exc
+        if stat.S_ISLNK(mode):
+            try:
+                target = os.fsencode(os.readlink(absolute))
+            except OSError as exc:
+                raise _GitError(f"cannot read untracked symlink {path!r}: {exc}") from exc
+            entries[path] = ("120000", hashlib.sha256(target).hexdigest())
+        elif stat.S_ISREG(mode):
+            entries[path] = ("100755" if mode & 0o111 else "100644", "")
+            regular_paths.append(path)
+        else:
+            raise _GitError(f"unsupported untracked file type at {path!r}")
+
+    for chunk in _chunk_pathspecs(regular_paths):
+        # Positional `-- <paths>`, never `--stdin-paths`: only argv carries a name with a
+        # newline. lstat above excludes symlinks before this command can dereference them.
+        oids = _git(["hash-object", "--", *chunk], cwd=top).splitlines()
+        if len(oids) != len(chunk):
+            raise _GitError(
+                f"git hash-object returned {len(oids)} ids for {len(chunk)} paths")
+        for path, oid in zip(chunk, oids):
+            oid = oid.strip()
+            if not _OBJECT_ID_RE.fullmatch(oid):
+                raise _GitError(f"git hash-object returned a malformed id for {path!r}")
+            entries[path] = (entries[path][0], oid)
+
+    digest = hashlib.sha1()
+    for path, (mode, content_id) in sorted(entries.items()):
+        digest.update(path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(mode.encode("ascii"))
+        digest.update(b"\0")
+        digest.update(content_id.encode("ascii"))
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 def build_fingerprint() -> dict:

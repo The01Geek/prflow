@@ -4,7 +4,7 @@
 """Completion-evidence validator for receiving-review completion claims (issue #550).
 
 A thin, deterministic, semantic-FREE check. It validates that a claimed-complete
-receiving-code-review pass — a direct interactive session, or the autonomous
+fix pass — a direct interactive session, or the autonomous
 `/devflow:review-and-fix` loop at Loop Exit — is backed by current, producer-owned
 evidence, and it prints exactly one verdict line:
 

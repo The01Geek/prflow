@@ -166,6 +166,12 @@ The installer could not prove the existing file was untouched since it wrote it,
     ```
     Never commit a sidecar. A committed sidecar is dead weight and confuses the next update.
   </Step>
+  <Step title="Re-run the installer in apply mode">
+    ```bash
+    DEVFLOW_REF=<same-ref> bash devflow-install.sh --apply
+    ```
+    Merging or adopting a sidecar changes the file's bytes, so the digest the installer recorded for it is now stale. For a workflow the cloud implement gate depends on — `.github/workflows/devflow-implement.yml`, the `setup-project-env` action, or `.prflow/lint-manifest.json` — a stale `.prflow/install-state.json` marker makes the implement run refuse to start on every run until you re-apply. Re-running the installer in apply mode (`--apply`, or `DEVFLOW_APPLY=1` for a `curl | bash` invocation) rebinds the marker to your merged bytes. The apply that preserved the file already warned you of this and named each affected sidecar.
+  </Step>
 </Steps>
 
 If every file was preserved, Python probably could not run during the update, so the installer could not compare anything. Fix Python, then run the update again for a real comparison.

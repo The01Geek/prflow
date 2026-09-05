@@ -56,7 +56,7 @@ from one a permission matcher silently refused. `--print-body` restores the body
 echo; the volatile-tick-miss path echoes it regardless, because the caller must
 re-resolve a section-scoped checkbox index against that row inventory.
 Notes (`--note`) are append-only and nest under their lifecycle phase inside
-the ## Progress section; Devflow Reflection accumulates bullets; checkbox
+the ## Progress section; PRFlow Reflections accumulates bullets; checkbox
 sections are mutated in place rather than rewritten. See `workpad.py update
 --help` for the available mutation flags.
 """
@@ -1473,7 +1473,7 @@ _AC_PENDING_PLACEHOLDER = '_(pending — mirrored from the issue when the run be
 #
 # It is written as an ordinary `## Progress` note, so it rides the existing
 # note-append path (no new section machinery) and sits entirely before
-# `## Devflow Reflection` — `lib/fetch-pr-context.sh`'s reflection parse
+# `## PRFlow Reflections` — `lib/fetch-pr-context.sh`'s reflection parse
 # therefore never sees it.
 #
 # The criterion text is base64-encoded so a criterion containing `-->`, a
@@ -1709,6 +1709,34 @@ def _single_section_content(
     return hits[0] if len(hits) == 1 else None
 
 
+# The reflection-section heading: current spelling first, superseded second.
+# Renaming either literal breaks the dual read-through, so a legacy workpad would
+# lose its reflections (see docs/internal/naming.md for the read-through policy).
+_REFLECTION_HEADING = 'PRFlow Reflections'
+_REFLECTION_HEADING_SUPERSEDED = 'Devflow Reflection'
+
+
+def _find_reflection_section(sections: list[tuple[str, str]]) -> int | None:
+    """Index of the reflection section under either heading spelling, new first.
+
+    New-first resolution fixes a well-defined target even in the pathological case
+    where a body carries BOTH headings (no in-tree writer produces that): the new
+    `PRFlow Reflections` section wins.
+    """
+    idx = _find_section(sections, _REFLECTION_HEADING)
+    if idx is None:
+        idx = _find_section(sections, _REFLECTION_HEADING_SUPERSEDED)
+    return idx
+
+
+def _single_reflection_content(sections: list[tuple[str, str]]) -> str | None:
+    """Content of the one reflection section under either spelling (current first)."""
+    content = _single_section_content(sections, _REFLECTION_HEADING)
+    if content is None:
+        content = _single_section_content(sections, _REFLECTION_HEADING_SUPERSEDED)
+    return content
+
+
 def _progress_content_or_none(body: str) -> str | None:
     """The single canonical `## Progress` section's content, or None.
 
@@ -1742,7 +1770,7 @@ def _isolated_progress_markers(content: str, pattern: 're.Pattern[str]'):
     shape. Records are written only through the note-append path, so they land
     in `## Progress` as their own isolated bullet — which means (a) scoping the
     scan to that section makes a marker-shaped literal in the mirrored
-    `## Acceptance Criteria` or in a `## Devflow Reflection` bullet invisible,
+    `## Acceptance Criteria` or in a `## PRFlow Reflections` bullet invisible,
     and (b) requiring a `fullmatch` of the bullet's note text makes a marker
     embedded inside free-text note prose invisible too. Those three regions
     store their text unencoded, so they are the reachable injection surface; a
@@ -2015,15 +2043,15 @@ def _deferred_reflection_texts(sections: "list[tuple[str, str]]") -> "list[str] 
     Takes the already-split `sections` (from `_split_sections`) rather than the
     raw body, so the caller resolves both this section and `## Progress` from one
     split — the "resolve the section ONCE" discipline `cmd_deferred_presence`
-    follows. None means the body does not present exactly one `## Devflow
-    Reflection` section (absent or duplicated) — read as *unestablished* by the
+    follows. None means the body does not present exactly one reflection section
+    (under either heading spelling; absent or duplicated) — read as *unestablished* by the
     caller, the fail-closed direction `_progress_content_or_none` also takes,
     never as an empty set. The bullet shape is derived from
     `_REFLECTION_KINDS['deferred']` so this reader cannot drift from
     `_insert_reflection_bullet`'s writer; the exact-prefix match keeps a
     marker-shaped literal quoted inside other prose from counting.
     """
-    content = _single_section_content(sections, 'Devflow Reflection')
+    content = _single_reflection_content(sections)
     if content is None:
         return None
     glyph, label, _sub = _REFLECTION_KINDS['deferred']
@@ -2101,7 +2129,7 @@ def cmd_deferred_reflection_audit(args):
     if reflections is None:
         sys.stderr.write(
             "workpad.py deferred-reflection-audit: the workpad does not carry exactly one "
-            "'## Devflow Reflection' section (absent or duplicated), so whether any deferred "
+            "reflection section (absent or duplicated), so whether any deferred "
             "reflection is unbacked could not be established\n"
         )
         _print_unestablished('reflection-section-unreadable')
@@ -2291,11 +2319,7 @@ def cmd_new_body(args):
 ## Acceptance Criteria
 {_AC_PENDING_PLACEHOLDER}
 
-## Devflow Reflection
-<details>
-<summary>Devflow Reflection (click to expand)</summary>
-
-</details>
+## PRFlow Reflections
 """)
 
 
@@ -2432,6 +2456,14 @@ _STATUS_CLASS_TO_LABEL = {
     'complete': _STATUS_LABEL_COMPLETE,
 }
 _MANAGED_STATUS_LABELS = frozenset(_STATUS_CLASS_TO_LABEL.values())
+# Fixed brand color per managed status label, added to the create POST (issue
+# #72), keyed on the exact hardcoded name — create-only, so never add a
+# PATCH/recolor path.
+_MANAGED_LABEL_COLORS = {
+    _STATUS_LABEL_IMPLEMENTING: '211108',
+    _STATUS_LABEL_STUCK: 'c8201c',
+    _STATUS_LABEL_COMPLETE: '0e8c31',
+}
 
 
 # The canonical ## Progress top-level phase labels, in order — the single
@@ -2630,7 +2662,7 @@ def _insert_section_at_head(
 
     The sibling of `_insert_section_after` for a section that has no anchor to
     follow: `## Progress` is the first section in the canonical skeleton
-    (Progress -> Plan -> Acceptance Criteria -> Devflow Reflection), so a repair
+    (Progress -> Plan -> Acceptance Criteria -> PRFlow Reflections), so a repair
     that re-creates it cannot express its position as "after" anything.
     """
     return [(new_heading, new_content.rstrip('\n') + '\n')] + list(sections)
@@ -2751,10 +2783,10 @@ def _split_details(content: str) -> tuple[str | None, str, str | None]:
     `(None, content, None)` when there is no wrapper — so the append helpers
     operate on a legacy (un-wrapped) section unchanged.
 
-    This lets `Devflow Reflection` be collapsed in a `<details>` block while
-    `--reflection` still appends *inside* it
-    (before `</details>`), never after — which would silently fall outside the
-    collapsible region."""
+    New workpads write the reflection section un-wrapped, but a legacy workpad
+    created before the rename still carries the old `<details>` collapse; this
+    lets `--reflection` append *inside* that legacy block (before `</details>`),
+    never after — which would silently fall outside the collapsible region."""
     lines = content.split('\n')
     try:
         o = next(i for i, line in enumerate(lines) if line.strip().startswith('<details'))
@@ -3033,10 +3065,11 @@ def _remove_classification_notes(content: str) -> str:
     return _join_preserving_newline(kept, content)
 
 
-# ── Devflow Reflection: kind taxonomy + grouped rendering ───────────────────
+# ── PRFlow Reflections: kind taxonomy + grouped rendering ───────────────────
 #
 # Reflection bullets are grouped by KIND into the `### ` sub-sections defined in
-# _REFLECTION_SUBSECTIONS inside the `## Devflow Reflection` <details> block, so a
+# _REFLECTION_SUBSECTIONS inside the `## PRFlow Reflections` section (a legacy
+# workpad still carries the old `<details>` collapse around them), so a
 # human scanning a run sees actionable items, improvement proposals, and
 # informational notes separated. The helper owns the glyph, bold label (or none),
 # and sub-section placement — the caller passes only a bare kind token via
@@ -3075,7 +3108,8 @@ _SUBSECTION_HEADING_RE = re.compile(r'^###\s')
 
 
 def _parse_reflection_blocks(inner: str) -> list[list]:
-    """Split the reflection <details> inner body into ordered blocks.
+    """Split the reflection-section body into ordered blocks (the `<details>` inner
+    body on a legacy workpad, the un-wrapped section body on a new one).
 
     Each block is `[heading_line_or_None, [content_lines...]]`. A leading block
     with heading None holds any pre-heading content (normally empty); every
@@ -3118,8 +3152,9 @@ def _render_reflection_blocks(blocks: list[list]) -> str:
 
 
 def _insert_reflection_bullet(inner: str, kind: str, text: str) -> str:
-    """Insert one reflection bullet of `kind` into the <details> inner body,
-    under its canonical `### ` sub-section — creating the heading lazily (in
+    """Insert one reflection bullet of `kind` into the reflection-section body
+    (the `<details>` inner body on a legacy workpad, the un-wrapped section body on
+    a new one), under its canonical `### ` sub-section — creating the heading lazily (in
     Action-required-before-Notes order) when absent, reusing it when present.
 
     Pre-existing un-kinded (legacy) bullets are retained verbatim as a leading
@@ -3177,10 +3212,11 @@ def _insert_reflection_bullet(inner: str, kind: str, text: str) -> str:
 
 
 def _append_reflection(content: str, kind: str, text: str) -> str:
-    """`<details>`-aware: insert a grouped reflection bullet *inside* the block
-    (before `</details>`), reusing _split_details/_rewrap_details so the
-    collapsible region stays intact. A legacy un-wrapped section (no <details>)
-    is grouped in place."""
+    """Insert a grouped reflection bullet into the section. New workpads write the
+    section un-wrapped, so the bullet is grouped in place. A legacy workpad created
+    before the rename still carries the old `<details>` collapse, so this stays
+    `<details>`-aware: it reuses _split_details/_rewrap_details to insert *inside*
+    that block (before `</details>`), keeping the collapsible region intact."""
     head, inner, tail = _split_details(content)
     new_inner = _insert_reflection_bullet(inner, kind, text)
     if head is None:
@@ -3353,7 +3389,7 @@ def _report_failed_ticks(failed_ticks, preamble):
 # ---------------------------------------------------------------------------
 # When a workpad PATCH fails (a GitHub fault confined to the comment endpoint),
 # the append-only history the call intended — its `--note` bullets and its
-# `## Devflow Reflection` bullets — is otherwise lost, exactly the stranded state
+# `## PRFlow Reflections` bullets — is otherwise lost, exactly the stranded state
 # issue #1214 describes (a run that cannot record its Blocked reflection or its
 # completion evidence). So a failed call BUFFERS that append-only content to
 # local storage under the gitignored `.prflow/tmp/`, and the next successful
@@ -3474,7 +3510,7 @@ def _buffer_failed_change(comment_id, notes, reflections, kind) -> "Path | None"
 #     note, its continuation lines) cannot be satisfied by a line that merely
 #     contains the text.
 #   * a reflection — `_insert_reflection_bullet` writes `- {glyph} {label}{text}`
-#     into `## Devflow Reflection`, with the text collapsed to one line; the
+#     into `## PRFlow Reflections`, with the text collapsed to one line; the
 #     candidate set is built from `_REFLECTION_KINDS` itself, so it is exactly
 #     the finite set of renderings that text could have, and a whole-line
 #     equality against it cannot be satisfied by containment either.
@@ -3507,7 +3543,7 @@ def _note_already_rendered(progress_content: "str | None", note: str) -> bool:
 def _reflection_already_rendered(
     reflection_content: "str | None", text: str
 ) -> bool:
-    """True when `text` is already present in the resolved `## Devflow Reflection`
+    """True when `text` is already present in the resolved reflection-section
     content as a bullet `_insert_reflection_bullet` could have written for it.
 
     The comparison is whole-line equality against the candidate renderings for
@@ -3540,8 +3576,8 @@ def _plan_buffer_replay(comment_id, body, args,
     earlier buffered record in this same pass (two failed calls carrying the same
     `--note` buffer two records, and deduping against the body alone folds both).
     Anything not yet present is appended to `args.note` / `args.reflection`, but
-    ONLY when the target section (`## Progress` for notes, `## Devflow Reflection`
-    for reflections) exists in the body — so a replay never turns a valid call
+    ONLY when the target section (`## Progress` for notes, the reflection section
+    under either heading spelling for reflections) exists in the body — so a replay never turns a valid call
     into a structural abort against a truncated/malformed workpad.
 
     Returns True ONLY when every buffered item is now accounted for — either
@@ -3567,7 +3603,7 @@ def _plan_buffer_replay(comment_id, body, args,
     # rendered bullets they hold rather than out of the raw body text.
     _, _sections = _split_sections(body)
     _progress = _single_section_content(_sections, 'Progress')
-    _reflections = _single_section_content(_sections, 'Devflow Reflection')
+    _reflections = _single_reflection_content(_sections)
     for rec in records:
         if not isinstance(rec, dict):
             continue
@@ -3583,7 +3619,10 @@ def _plan_buffer_replay(comment_id, body, args,
                     and rfl not in add_reflections):
                 add_reflections.append(rfl)
     notes_replayable = '## Progress' in body
-    reflections_replayable = '## Devflow Reflection' in body
+    reflections_replayable = (
+        f'## {_REFLECTION_HEADING}' in body
+        or f'## {_REFLECTION_HEADING_SUPERSEDED}' in body
+    )
     if add_notes and notes_replayable:
         args.note = list(args.note or []) + add_notes
     if add_reflections and reflections_replayable:
@@ -3923,9 +3962,13 @@ def _add_managed_label(number, target, label_defined):
         # already defines the label never reaches here — the add above succeeds.
         if not label_defined:
             try:
-                _run([GH, 'api', '-X', 'POST', 'repos/{owner}/{repo}/labels',
-                      '-f', f'name={target}',
-                      '-f', 'description=PRFlow run status (issue #2117)'])
+                create_cmd = [GH, 'api', '-X', 'POST', 'repos/{owner}/{repo}/labels',
+                              '-f', f'name={target}',
+                              '-f', 'description=PRFlow run status (issue #2117)']
+                color = _MANAGED_LABEL_COLORS.get(target)
+                if color:
+                    create_cmd += ['-f', f'color={color}']
+                _run(create_cmd)
             except Exception as exc:
                 # An "already exists" race or a genuine create failure: retry the
                 # add regardless — the definition may now exist.
@@ -4798,6 +4841,176 @@ def _strip_resume_point_marker_rows(content: str) -> str:
     return ''.join(kept)
 
 
+# ── Resume prior-status family (issue #137) ────────────────────────────────────
+# The reset runs BEFORE Phase 1.3 classifies the resume, so Phase 1.3 can no longer
+# read a terminal LIVE Status to tell a terminal re-trigger from a mid-flight resume:
+# the reset must record the prior terminal word into this durable ## Progress marker,
+# which Phase 1.3 reads (falling back to the live Status when absent) and consumes.
+# Payload is the whitespace-free Status word, so it needs no base64 encoding; both
+# prflow:/devflow: spellings read (#1003).
+_PRIOR_STATUS_MARKER_KEY_PREFIX = 'prior-status:'
+_PRIOR_STATUS_MARKER_RE = re.compile(
+    _MARKER_NS_RE + r'checkpoint prior-status:([^\s]+?) -->'
+)
+
+
+def _prior_status_marker_payloads(progress_content: str) -> list[str]:
+    """Every prior-status word carried by a `prior-status:` marker in the ## Progress
+    content. A marker outside ## Progress is not passed here, so it reads as absent."""
+    return _PRIOR_STATUS_MARKER_RE.findall(progress_content or '')
+
+
+def _strip_prior_status_marker_rows(content: str) -> str:
+    """Remove any ## Progress row carrying a `prior-status:` marker, so Phase 1.3's
+    hydration consumes it after reading it. No marker present is a no-op."""
+    kept = [ln for ln in content.splitlines(keepends=True)
+            if not _PRIOR_STATUS_MARKER_RE.search(ln)]
+    return ''.join(kept)
+
+
+def _reset_resume_status_inner(args, marker: str) -> str:
+    """The shared resume reset's core, wrapped best-effort by cmd_reset_resume_status.
+
+    Idempotent: only a TERMINAL live Status is reset. On a terminal Status it records
+    the prior word into the prior-status marker (never overwriting an existing one),
+    rewrites Status to `Setup`, PATCHes the body, then fires the existing
+    status→label mirror. Returns an outcome token; a resolve/read/write fault raises
+    into the caller's absorber."""
+    repo = _repo_full(api_fail_code=3)
+    c = _find_workpad_comment(
+        'reset-resume-status', repo, args.issue, marker, api_fail_code=3)
+    if c is None:
+        return 'NO_WORKPAD'
+    comment_id = c['id']
+    body = c.get('body') or ''
+    word = _status_word_from_body(body)
+    glyph = _status_glyph(word) if word else ''
+    # Idempotence: an interim word (or no Status line) is already the live state, so
+    # a second invocation after a first reset writes nothing and leaves the recorded
+    # marker untouched — it never reaches the terminal path below.
+    if glyph not in _TERMINAL_STATUS_CLASS_BY_GLYPH:
+        return f'NOOP {word or "(none)"}'
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    # Rewrite the Status and Last-updated lines (both in the front matter) first.
+    new_body, n = _STATUS_RE.subn(
+        f'**Status:** {_status_glyph("Setup")} Setup', body, count=1)
+    if n == 0:
+        # A terminal glyph was read from a Status line, so this cannot miss in
+        # practice; fail closed into the absorber rather than PATCH an unchanged body.
+        raise RuntimeError('Status line not found while resetting')
+    new_body, _ = _LAST_UPDATED_RE.subn(
+        f"**Last updated:** {now_dt.strftime('%Y-%m-%d %H:%M UTC')}", new_body, count=1)
+    preamble, sections = _split_sections(new_body)
+    idx = _find_section(sections, 'Progress')
+    # Without a ## Progress section the prior word cannot be carried forward, so
+    # resetting Status now would make Phase 1.3 misclassify the terminal re-trigger
+    # as mid-flight. Leave the workpad untouched (no PATCH) rather than reset unsafely.
+    if idx is None:
+        sys.stderr.write(
+            "workpad.py reset-resume-status: workpad carries no '## Progress' section, "
+            "so the prior status cannot be recorded; status not reset (run unaffected)\n")
+        return 'UNAVAILABLE no-progress-section'
+    heading, content = sections[idx]
+    if not _prior_status_marker_payloads(content):
+        note = (f'resume reset: prior status {word} '
+                f'{_checkpoint_marker(_PRIOR_STATUS_MARKER_KEY_PREFIX + word)}')
+        content = _append_progress_note(
+            content, note, now_dt.strftime('%H:%M:%S'), 'Setup')
+        sections[idx] = (heading, content)
+    new_body = _join_sections(preamble, sections)
+    # gh api -X PATCH can return success over an unchanged body, so verify the reset
+    # landed from the echoed response before claiming RESET or firing the mirror —
+    # else the label could read Implementing while the body still reads terminal.
+    resp = _patch_comment_body(repo, comment_id, new_body)
+    reset_word = _status_word_from_body(resp or '')
+    if not reset_word or _status_glyph(reset_word) in _TERMINAL_STATUS_CLASS_BY_GLYPH:
+        sys.stderr.write(
+            "workpad.py reset-resume-status: the reset PATCH did not land (response "
+            "still reads terminal or was empty); status not reset and label mirror not "
+            "fired (run unaffected)\n")
+        return 'UNAVAILABLE patch-unverified'
+    # Mirror the label only after the reset is confirmed; the Status word is reset
+    # above even when the status_labels feature is disabled and the mirror no-ops.
+    _mirror_status_labels(args.issue, 'Setup')
+    return f'RESET {word}'
+
+
+def cmd_reset_resume_status(args):
+    """Reset a terminal workpad Status to an interim word at the earliest resume hook
+    (issue #137), firing the status→label mirror so PRFlow:Stuck becomes
+    PRFlow:Implementing before a live resume looks dead.
+
+    The ONE shared reset routine invoked from both the cloud gate adopt branch and
+    Phase 1 entry. Best-effort: a workpad resolve/read/write failure warns and exits
+    0, leaving the run's outcome unchanged. Prints one outcome token: `RESET <word>`
+    (a terminal Status was reset, its prior word recorded), `NOOP <word>` (already
+    interim — the idempotent case), `NO_WORKPAD` (no workpad to reset), or
+    `UNAVAILABLE <reason>` (a best-effort failure or an unsafe shape)."""
+    marker = _workpad_marker(args.marker)
+    try:
+        outcome = _reset_resume_status_inner(args, marker)
+    except SystemExit as e:
+        # _repo_full / _find_workpad_comment exit via _fail on a transport/auth
+        # failure; convert that to the best-effort warn-and-continue contract.
+        if e.code in (None, 0):
+            raise
+        sys.stderr.write(
+            "workpad.py reset-resume-status: best-effort workpad resolve/read failed "
+            f"(exit {e.code}); the workpad status was not reset (run unaffected)\n")
+        print('UNAVAILABLE resolve-or-read-failed')
+        return
+    except Exception as exc:  # intentional best-effort absorber (see docstring)
+        sys.stderr.write(
+            "workpad.py reset-resume-status: best-effort reset failed "
+            f"({exc.__class__.__name__}); the workpad status was not reset "
+            "(run unaffected)\n")
+        print(f'UNAVAILABLE {exc.__class__.__name__}')
+        return
+    print(outcome)
+
+
+def cmd_prior_status(args):
+    """Print the prior terminal Status word the resume reset recorded (issue #137).
+
+    Grep-style exit contract, matching `cmd_resume_point`:
+      0  exactly one prior-status marker on record — its word is the sole stdout line.
+      1  none recorded, or a duplicated/garbled marker set that reads as absent —
+         nothing on stdout, so Phase 1.3 falls back to the live Status.
+      2  structural absence — no workpad, or no single ## Progress section: the
+         workpad genuinely carries no prior-status context.
+      3  transient — a gh transport/auth failure or an unresolvable repo, kept
+         DISTINCT from 2 so Phase 1.3 does not read a blip as a benign absence and
+         fall back to the reset-mutated interim Status (which would misclassify a
+         terminal re-trigger as mid-flight).
+    The workpad body itself is never printed."""
+    marker = _workpad_marker(args.marker)
+    c = _find_workpad_comment(
+        'prior-status', _repo_full(api_fail_code=3), args.issue, marker,
+        api_fail_code=3,
+    )
+    if c is None:
+        sys.stderr.write(
+            f"workpad.py prior-status: no workpad comment carrying {marker!r} on "
+            f"issue #{args.issue}; the prior status could not be established\n"
+        )
+        sys.exit(2)
+    content = _progress_content_or_none(c.get('body') or '')
+    if content is None:
+        sys.stderr.write(
+            "workpad.py prior-status: the workpad does not carry exactly one "
+            "'## Progress' section (absent or duplicated); the prior status could "
+            "not be established\n"
+        )
+        sys.exit(2)
+    # A duplicated or garbled marker set (len != 1) reads as absent, so a resume
+    # classification falls back to the live Status rather than trusting a bad marker.
+    words = _prior_status_marker_payloads(content)
+    if len(words) != 1:
+        sys.exit(1)
+    print(words[0])
+    sys.exit(0)
+
+
 def _validate_ci_evidence(args, payload: str) -> None:
     """Validate a specific CI-derived completion-evidence marker payload.
 
@@ -5523,26 +5736,35 @@ def _review_coverage_dispatch_uncorroborated(record: dict, roster_members: dict)
     return not all_present or not any_dispatched
 
 
-def _review_coverage_disposition_cause_rejection(cause_class, has_missing_roster_row):
+def _review_coverage_disposition_cause_rejection(
+        cause_class, *, has_missing_roster_row, has_dispatched_roster_row):
     """Why a disposition's cause class is inadmissible, or None (issue #1984).
 
     The single home of the cause-class rule, shared by the write-time
     `--review-coverage-disposition` validator and the read-time Complete-gate verdict so
-    the closed vocabulary and the environment-denial corroboration cannot drift between
-    the two enforcement points. Returns a diagnostic tail each caller frames with its
-    own prefix; the callers append `[review-coverage-cause-inadmissible]`.
+    the closed vocabulary and the per-cause corroboration cannot drift between the two
+    enforcement points. Returns a diagnostic tail each caller frames with its own prefix;
+    the callers append `[review-coverage-cause-inadmissible]`.
 
-    Corroboration scope is roster-global, not per-gap: `environment-denial` is admitted
-    for ANY gap whenever ANY roster row reads `missing`, so the corroborating row need
-    not name the capability the disposed gap depended on. That matches issue #1984's
-    acceptance wording; it closes the primary hole (a gap with no `missing` row at all)
-    and leaves tying corroboration to the specific gap to a follow-up."""
+    Corroboration scope is roster-global, not per-gap. `environment-denial` is admitted
+    for ANY gap whenever ANY roster row reads `missing`, so the corroborating row need not
+    name the capability the disposed gap depended on. `dispatched-but-lost` (issue
+    #181/13e) is admitted only when an always-on reviewer's roster row reads `dispatched`:
+    a lost-dispatch claim requires a recorded dispatch, so a record whose roster axis is
+    `unestablished` with no rows (or whose measured roster names no dispatched always-on
+    member) can no longer finalize on it. A dispatched row can only exist on a measured
+    (`complete`/`short`) roster — `_review_roster_incoherence` refuses rows on an
+    `unestablished`/`not-applicable` roster — so this operand carries the roster-axis
+    condition too."""
     if cause_class not in _REVIEW_COVERAGE_CAUSE_CLASSES:
         return (f"carries cause class {cause_class!r}, which is not one of "
                 f"{', '.join(_REVIEW_COVERAGE_CAUSE_CLASSES)}")
     if cause_class == 'environment-denial' and not has_missing_roster_row:
         return ("carries cause class 'environment-denial' but no roster row records a "
                 "member 'missing', so the denied capability is uncorroborated")
+    if cause_class == 'dispatched-but-lost' and not has_dispatched_roster_row:
+        return ("carries cause class 'dispatched-but-lost' but no always-on reviewer's "
+                "roster row records 'dispatched', so no dispatch is on record")
     return None
 
 
@@ -5577,7 +5799,7 @@ _REVIEW_COVERAGE_REFLECTION_PREFIX_SUPERSEDED = (
 
 
 def _strip_review_coverage_reflection_bullets(content: str) -> str:
-    """Remove the disposition-filed reflection bullets from `## Devflow Reflection`.
+    """Remove the disposition-filed reflection bullets from `## PRFlow Reflections`.
 
     Runs wherever the rows those bullets accompany are stripped, so a superseded or
     inherited disposition does not leave a permanent `### ⚠️ Action required` bullet
@@ -5634,6 +5856,7 @@ _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_COMPLETION_MARKER_KEY_PREFIX, '`--record-completion-evidence`'),
     (_COMPLETION_CI_MARKER_KEY_PREFIX, '`--record-completion-evidence-ci`'),
     (_RESUME_POINT_MARKER_KEY_PREFIX, '`--record-resume-point`'),
+    (_PRIOR_STATUS_MARKER_KEY_PREFIX, '`reset-resume-status` (issue #137)'),
 )
 
 
@@ -5866,8 +6089,11 @@ def _review_coverage_verdict(progress_content: str) -> None:
             "naming the cause instead. No PATCH was made."
         )
     # #1984: `environment-denial` is corroborated by a recorded `missing` roster row
-    # (the denied member); `roster_members` was read above for the roster cross-check.
+    # (the denied member); #181/13e: `dispatched-but-lost` by an always-on `dispatched`
+    # row. `roster_members` was read above for the roster cross-check.
     has_missing_roster_row = any(s == 'missing' for s in roster_members.values())
+    has_dispatched_roster_row = any(
+        roster_members.get(m) == 'dispatched' for m in _SHADOW_ALWAYS_ON_MEMBERS)
     for gap in gaps:
         entry = dispositions[gap]
         if entry is _REVIEW_COVERAGE_DUPLICATE_DISPOSITION:
@@ -5882,7 +6108,8 @@ def _review_coverage_verdict(progress_content: str) -> None:
         # #1984: cause-class admissibility is defined once, in
         # `_review_coverage_disposition_cause_rejection`; do not restate it here.
         _cause_rej = _review_coverage_disposition_cause_rejection(
-            cause_class, has_missing_roster_row)
+            cause_class, has_missing_roster_row=has_missing_roster_row,
+            has_dispatched_roster_row=has_dispatched_roster_row)
         if _cause_rej:
             raise _UpdateError(
                 "refusing to finalize Status: Complete — the disposition for gap "
@@ -6820,56 +7047,43 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         # arity refusal rather than this list() (issue #1544).
         review_coverage = list(review_coverage)
         _checklist_idx = _REVIEW_COVERAGE_AXES.index('checklist')
-        _rc_override = getattr(args, 'record_review_coverage_override', None)
         if review_coverage[_checklist_idx] == 'skipped-intentional':
-            if _rc_override:
-                review_coverage[_checklist_idx] = 'skipped'
+            _rc_repo_root = getattr(args, 'repo_root', None) or _repo_root()
+            # The recomputation always runs against its default base (the origin/HEAD
+            # symbolic ref): issue #181/6b removed the `--record-review-coverage-base`
+            # and `--record-review-coverage-override` flags no shipped flow ever passed.
+            _rc_facts = _recompute_diff_facts(_anchor_head, None, _rc_repo_root)
+            if not _rc_facts['resolved']:
+                review_coverage[_checklist_idx] = 'unestablished'
                 review_coverage_auto_notes.append(
-                    'review-coverage recomputation overridden — the '
-                    'skipped-intentional checklist claim is recorded as bare `skipped` '
-                    '(non-clean; a --review-coverage-disposition is required): '
-                    + _rc_override)
+                    'review-coverage checklist recorded `unestablished` — the '
+                    'skipped-intentional diff could not be recomputed: '
+                    + _rc_facts['reason'])
             else:
-                _rc_repo_root = getattr(args, 'repo_root', None) or _repo_root()
-                _rc_facts = _recompute_diff_facts(
-                    _anchor_head, getattr(args, 'record_review_coverage_base', None),
-                    _rc_repo_root)
-                if not _rc_facts['resolved']:
-                    review_coverage[_checklist_idx] = 'unestablished'
-                    review_coverage_auto_notes.append(
-                        'review-coverage checklist recorded `unestablished` — the '
-                        'skipped-intentional diff could not be recomputed: '
-                        + _rc_facts['reason'])
-                else:
-                    _rc_disproof = _review_coverage_profile_disproof(
-                        _rc_facts, _rc_repo_root)
-                    if _rc_disproof:
-                        raise _UpdateError(
-                            "--record-review-coverage: a `skipped-intentional` "
-                            "checklist claim is not authorized by the diff (measured "
-                            f"{_rc_facts['files']} file(s), {_rc_facts['lines']} "
-                            f"line(s)): {_rc_disproof}. No PATCH was made."
-                        )
-                    # AC4: a confirmed write reports the measured values on success.
-                    # The engine-source clause is honest per §2.3.6: it names the arm
-                    # as verified only in this engine's own repo, where the arm was
-                    # actually evaluated; on any other repo the arm is excluded from the
-                    # predicate, so the breadcrumb says so rather than asserting a check
-                    # that did not run.
-                    _rc_engine_note = (
-                        'and non-engine-source: verified'
-                        if _is_engine_own_repo(_rc_repo_root)
-                        else '(engine-source arm not evaluated: not this engine\'s '
-                             'repository)')
-                    sys.stderr.write(
-                        'workpad.py: review-coverage skipped-intentional confirmed — '
-                        f"{_rc_facts['files']} changed file(s), {_rc_facts['lines']} "
-                        f'changed line(s), path-set config-only {_rc_engine_note}\n')
-        elif _rc_override:
-            sys.stderr.write(
-                'workpad.py: --record-review-coverage-override is ignored — it applies '
-                'only to a skipped-intentional checklist, not '
-                f"{review_coverage[_checklist_idx]!r}\n")
+                _rc_disproof = _review_coverage_profile_disproof(
+                    _rc_facts, _rc_repo_root)
+                if _rc_disproof:
+                    raise _UpdateError(
+                        "--record-review-coverage: a `skipped-intentional` "
+                        "checklist claim is not authorized by the diff (measured "
+                        f"{_rc_facts['files']} file(s), {_rc_facts['lines']} "
+                        f"line(s)): {_rc_disproof}. No PATCH was made."
+                    )
+                # AC4: a confirmed write reports the measured values on success.
+                # The engine-source clause is honest per §2.3.6: it names the arm
+                # as verified only in this engine's own repo, where the arm was
+                # actually evaluated; on any other repo the arm is excluded from the
+                # predicate, so the breadcrumb says so rather than asserting a check
+                # that did not run.
+                _rc_engine_note = (
+                    'and non-engine-source: verified'
+                    if _is_engine_own_repo(_rc_repo_root)
+                    else '(engine-source arm not evaluated: not this engine\'s '
+                         'repository)')
+                sys.stderr.write(
+                    'workpad.py: review-coverage skipped-intentional confirmed — '
+                    f"{_rc_facts['files']} changed file(s), {_rc_facts['lines']} "
+                    f'changed line(s), path-set config-only {_rc_engine_note}\n')
         _anchor_asof = _utc_now_compact()
         review_coverage_payload = ':'.join(
             list(review_coverage) + [_anchor_head, _anchor_asof])
@@ -6933,11 +7147,17 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # enumeration still sees it. Guarded by `review_dispositions` so a note-only or
     # checkpoint update pays no extra section parse.
     _disp_has_missing = False
+    _disp_has_dispatched = False
     if review_dispositions:
         _disp_roster = dict(
             _review_roster_members(_progress_content_or_none(body) or ''))
         _disp_roster.update(roster_members)
         _disp_has_missing = any(s == 'missing' for s in _disp_roster.values())
+        # #181/13e: a `dispatched-but-lost` disposition requires a recorded dispatch —
+        # an always-on reviewer's row reading `dispatched` (roster-global, like the
+        # `missing` corroboration above).
+        _disp_has_dispatched = any(
+            _disp_roster.get(m) == 'dispatched' for m in _SHADOW_ALWAYS_ON_MEMBERS)
     for _triple in review_dispositions:
         # Arity is guaranteed by argparse's nargs=3 from the CLI, but a programmatic
         # caller (the suite builds `args` directly) can pass an element of any other
@@ -6966,7 +7186,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         # #1984: cause-class admissibility is defined once, in
         # `_review_coverage_disposition_cause_rejection`; do not restate it here.
         _cause_rej = _review_coverage_disposition_cause_rejection(
-            cause_class, _disp_has_missing)
+            cause_class, has_missing_roster_row=_disp_has_missing,
+            has_dispatched_roster_row=_disp_has_dispatched)
         if _cause_rej:
             raise _UpdateError(
                 f"--review-coverage-disposition: gap {gap!r} {_cause_rej} "
@@ -7137,7 +7358,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         # (the note is appended to Progress, not bound to the rewritten row). The
         # retrospective auditor reads the recorded note; the guard only guarantees
         # there is one to read. Only `--note` satisfies it: a `--reflection` is a
-        # different channel (## Devflow Reflection) and never stands in for the
+        # different channel (## PRFlow Reflections) and never stands in for the
         # rationale. The check runs per pair INSIDE the rewrite loop below, against
         # the row each pair actually resolves to, so a text tweak on an
         # already-`(post-merge)` row is exempt even when the OLD substring does not
@@ -7414,6 +7635,15 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 "cleared; repair the workpad's section shape.\n"
             )
 
+    # Consume the resume prior-status marker (issue #137) on its own flag, before the
+    # note append below (so a row this call writes is never stripped) and independently
+    # of `progress_notes` (so a note-less hydration still consumes it).
+    if getattr(args, 'strip_prior_status_marker', False):
+        idx = _find_section(sections, 'Progress')
+        if idx is not None:
+            heading, content = sections[idx]
+            sections[idx] = (heading, _strip_prior_status_marker_rows(content))
+
     if progress_notes:
         idx = _find_section(sections, 'Progress')
         if idx is None:
@@ -7444,9 +7674,9 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         sections[idx] = (heading, content)
 
     if args.reflection or args.reflection_file:
-        idx = _find_section(sections, 'Devflow Reflection')
+        idx = _find_reflection_section(sections)
         if idx is None:
-            raise _UpdateError("section '## Devflow Reflection' not found")
+            raise _UpdateError(f"section '## {_REFLECTION_HEADING}' not found")
         heading, content = sections[idx]
         # Direct attribute access (not getattr-with-default), matching the sibling
         # args.note / args.reflection reads above: argparse always supplies
@@ -7470,19 +7700,19 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
 
     # Verification-evidence rows (issue #2131) are appended, never replacing a prior row.
     if verification_evidence_rows:
-        idx = _find_section(sections, 'Devflow Reflection')
+        idx = _find_reflection_section(sections)
         if idx is None:
             # An explicit call refuses (no PATCH); the CI rider's row only degrades to a
             # breadcrumb because --record-completion-evidence-ci's own contract does not
             # require the section — do not promote that degrade to a refusal.
             if getattr(args, 'record_verification_evidence', False):
                 raise _UpdateError(
-                    "--record-verification-evidence: section '## Devflow Reflection' "
+                    f"--record-verification-evidence: section '## {_REFLECTION_HEADING}' "
                     "not found, so the Verification evidence row cannot be recorded. "
                     "No PATCH was made."
                 )
             sys.stderr.write(
-                "workpad.py: no '## Devflow Reflection' section — the CI reading's "
+                f"workpad.py: no '## {_REFLECTION_HEADING}' section — the CI reading's "
                 "Verification evidence row was not appended (the completion-ci marker "
                 "still recorded)\n"
             )
@@ -7502,11 +7732,11 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # the prior dispositions strips their bullets first, so a gap that no longer
     # exists stops asserting itself in `### ⚠️ Action required`.
     if review_coverage_payload or review_dispositions or strip_inherited:
-        idx = _find_section(sections, 'Devflow Reflection')
+        idx = _find_reflection_section(sections)
         if idx is None:
             if review_dispositions:
                 raise _UpdateError(
-                    "--review-coverage-disposition: section '## Devflow Reflection' "
+                    f"--review-coverage-disposition: section '## {_REFLECTION_HEADING}' "
                     "not found, so the disposition's friction reflection cannot be "
                     "recorded; refusing to record a disposition that would not route "
                     "to the retrospective. No PATCH was made."
@@ -7748,6 +7978,30 @@ def main():
     s.set_defaults(func=cmd_resume_point)
 
     s = sub.add_parser(
+        'reset-resume-status',
+        help='Reset a terminal workpad Status to an interim word at the earliest '
+             'resume hook (issue #137), firing the status→label mirror so '
+             'PRFlow:Stuck becomes PRFlow:Implementing before a live resume looks '
+             'dead. Best-effort + idempotent (only a terminal Status is reset); '
+             'always exits 0 and prints one outcome token (RESET/NOOP/NO_WORKPAD/'
+             'UNAVAILABLE). The prior word is recorded for `prior-status` to read.',
+    )
+    s.add_argument('issue', type=int)
+    s.add_argument('--marker', default=None, help=_marker_help)
+    s.set_defaults(func=cmd_reset_resume_status)
+
+    s = sub.add_parser(
+        'prior-status',
+        help="Print the prior terminal Status word recorded by `reset-resume-status` "
+             '(issue #137). Exits 0 with the word / 1 when none is recorded or the '
+             'marker set is duplicated-or-garbled (grep-style, so the caller falls '
+             'back to the live Status) / 2 unestablished. Never prints the body.',
+    )
+    s.add_argument('issue', type=int)
+    s.add_argument('--marker', default=None, help=_marker_help)
+    s.set_defaults(func=cmd_prior_status)
+
+    s = sub.add_parser(
         'deferred-reflection-audit',
         help="Bounded check that every deferred-kind reflection this run recorded "
              "is backed by a scope-decision-deferred record bound to this run's PR "
@@ -7803,6 +8057,17 @@ def main():
              'internally; Last updated is refreshed automatically. Structural '
              'failures abort with no PATCH; a per-row tick miss is reported and '
              'exits non-zero but still PATCHes the call\'s other mutations.',
+        epilog='Every mutation flag combines with every other in one call (one '
+               'PATCH), so a caller batches an entire moment into a single '
+               'invocation. The combination constraints are: '
+               '--strip-inherited-checkpoints cannot be combined with a '
+               '--checkpoint for the same declared key (strip and record in '
+               'separate calls); --branch and --branch-from-head are mutually '
+               'exclusive (pass one); each --record-* flag requires its own '
+               'companion flags (e.g. --record-completion-evidence-ci requires '
+               '--completion-ci-check; --record-verification-evidence requires '
+               'its evidence operands); and a --rewrite-ac pair that appends '
+               'the (post-merge) tag requires a non-empty --note rationale.',
     )
     u.add_argument('issue', type=int)
     u.add_argument('--status', help='Replace the Status line value. A canonical '
@@ -7936,11 +8201,11 @@ def main():
                         'an empty/whitespace-only payload aborts the call before '
                         'any PATCH.')
     u.add_argument('--reflection', metavar='TEXT', action='append', default=[],
-                   help='Append a bullet to Devflow Reflection (no timestamp). '
+                   help='Append a bullet to PRFlow Reflections (no timestamp). '
                         'May be passed multiple times to append several bullets '
                         'in one atomic update.')
     u.add_argument('--reflection-file', metavar='PATH', action='append', default=[],
-                   help='Append a Devflow Reflection bullet whose text is read '
+                   help='Append a PRFlow Reflections bullet whose text is read '
                         'verbatim as UTF-8 from PATH (or from stdin when PATH is '
                         '"-"), bypassing shell interpolation — use for text '
                         'containing backticks, $, or double quotes. May be passed '
@@ -8094,6 +8359,12 @@ def main():
                         'never evidence: no verdict, completion-evidence, or '
                         'review-coverage reader consumes it — read it back with the '
                         '"resume-point" subcommand. Needs no other mutation to PATCH.')
+    u.add_argument('--strip-prior-status-marker', action='store_true',
+                   help='Consume the resume prior-status marker (issue #137) by '
+                        'removing its "<!-- prflow:checkpoint prior-status:<word> -->" '
+                        '## Progress row, after Phase 1.3 has read it with the '
+                        '"prior-status" subcommand to classify the resume. No marker '
+                        'present is a no-op.')
     u.add_argument('--record-review-coverage', nargs=4, default=None,
                    metavar=('COVERAGE', 'DISPATCH', 'ROSTER', 'CHECKLIST'),
                    help='Record this run\'s resolved Phase 3 review-coverage state '
@@ -8139,25 +8410,6 @@ def main():
                         'predates a later standalone review from a current one. A '
                         'lowercase-hex SHA; omit it to record the head as '
                         '"unestablished". Only meaningful with --record-review-coverage.')
-    u.add_argument('--record-review-coverage-base', default=None, metavar='REF',
-                   help='The pull request base branch the review-coverage '
-                        'recomputation measures the reviewed head against (issue '
-                        '#1509). A "skipped-intentional" checklist claim is refused '
-                        'when the diff between the base and the reviewed head does not '
-                        'satisfy the profile row that authorizes the skip (changed '
-                        'lines < 100, changed files <= 3, config-only extensions, and '
-                        "in this repository no engine-source path). Falls back to the "
-                        'origin/HEAD symbolic ref when omitted; when the diff cannot be '
-                        'recomputed the checklist axis is recorded "unestablished" '
-                        'rather than refused. Only meaningful with '
-                        '--record-review-coverage.')
-    u.add_argument('--record-review-coverage-override', default=None, metavar='REASON',
-                   help='Override the issue-#1509 recomputation for a '
-                        '"skipped-intentional" checklist claim: record it as bare '
-                        '"skipped" instead (non-clean — it then forces a '
-                        '--review-coverage-disposition exactly as bare skipped does) '
-                        'and note that the override was used. REASON states why. Never '
-                        'yields a clean record.')
     u.add_argument('--review-coverage-disposition', nargs=3, action='append',
                    default=[], metavar=('GAP', 'CAUSE_CLASS', 'REASON'),
                    help='Carry a recorded review-coverage gap forward under a stated '

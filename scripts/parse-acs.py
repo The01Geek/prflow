@@ -116,19 +116,17 @@ POST_MERGE_TRIGGERS = (
     'verify in the ui', 'via the github ui',
     'inspect logs', 'watch the deploy',
     'compare runs', 'the next run', 'next deploy',
-    # Workflow / bot-trigger install ACs commonly verify by interacting with a
-    # PR that doesn't exist until after merge (e.g. "comment /screenshot on a
-    # PR", "verify the workflow runs on a live PR", "check the artifact link").
-    # These triggers are intentionally broad: bare 'on a pr' will also tag
-    # legitimate pre-merge ACs that incidentally mention a PR (e.g. "Run tests
-    # on a PR before merging"), and 'workflow run(s)' will tag general CI-config
-    # ACs. We prefer over-tag to under-tag because the implement-skill
-    # orchestrator can demote a criterion per-run; an under-tag silently exempts
-    # a real post-merge AC from the verification gate, which is the failure
-    # mode the short-bare-words removal above was designed to prevent.
-    'on a pr', 'on a live pr', 'on a real pr',
+    # Workflow / bot-trigger install ACs that are verifiable only by interacting with a
+    # live PR (which does not exist until after merge). These phrases are deliberately
+    # NARROW: an over-tag removes a code-verifiable criterion from the merge gate (a
+    # tagged row is exempt from the Phase 3.4 gate), while an under-tag merely keeps a
+    # live criterion in the gate, where it blocks until the run dispositions it. So only
+    # unambiguous live-environment phrases tag here. The broad 'on a pr',
+    # 'workflow run(s)' and 'artifact link' phrases were removed because they tagged
+    # code-verifiable ACs ("Run tests on a PR before merging", "Check the artifact link
+    # in the workflow run") out of the gate.
+    'on a live pr', 'on a real pr',
     'comment on the pr', 'comment on a pr',
-    'workflow run', 'workflow runs', 'artifact link',
 )
 
 

@@ -3,13 +3,13 @@
   "test_modules": {
     "parallel-suite-runner": {
       "path": "lib/test/modules/parallel-suite-runner.sh",
-      "minimum_assertions": 104,
-      "description": "Focused #1086 in-run parallel full-suite coordinator: the shard population derived from the dispatcher rather than copied, run-root selection with its TMPDIR fallback and its allocation refusals, the bounded process budget with its DEVFLOW_SUITE_PROCESS_BUDGET override and nested python-pool reservation, shard overlap at budget two and eight against a complete serial width one, the shard packing the reservation produces at the cloud runner's own budget of four, per-shard TMPDIR and tally isolation from stale sibling runs, HUP/INT/TERM handling with a signal parked in the launch window replayed rather than swallowed and the launched population reaped, the empty/malformed/launch-failed/crashed/missing-tally/malformed-tally/nonzero/skip-inconsistent failure contract, the real-population reentrancy refusal, the per-class detail cap driven directly against shard-tally.py (its uncapped default, the exactly-at-cap boundary, a negative cap, and that capping never changes the decision) as well as through the coordinator over complete retained logs, and the bare cloud leading token with its arity and unknown-argument guards, the --help contract, and a stand-in invocation-layer bash selector for the local boundary"
+      "minimum_assertions": 132,
+      "description": "Focused #1086 in-run parallel full-suite coordinator: the shard population derived from the dispatcher rather than copied, run-root selection with its TMPDIR fallback and its allocation refusals, the bounded process budget with its DEVFLOW_SUITE_PROCESS_BUDGET override and nested python-pool reservation, shard overlap at budget two and eight against a complete serial width one, the shard packing the reservation produces at the cloud runner's own budget of four, per-shard TMPDIR and tally isolation from stale sibling runs, HUP/INT/TERM handling with a signal parked in the launch window replayed rather than swallowed and the launched population reaped, the empty/malformed/launch-failed/crashed/missing-tally/malformed-tally/nonzero/skip-inconsistent failure contract, the real-population reentrancy refusal, the per-class detail cap driven directly against shard-tally.py (its uncapped default, the exactly-at-cap boundary, a negative cap, and that capping never changes the decision) as well as through the coordinator over complete retained logs, and the bare cloud leading token with its arity and unknown-argument guards, the --help contract, a stand-in invocation-layer bash selector for the local boundary, and the mutation-routing worktree scan cheap-lint gate member (issue #116) with its clean/finding/inconclusive/quoted-sentinel/empty-seam/real-default arms, its last-in-chain ordering proof past a ruff skew, and the clean-stub seam threaded through the pre-existing cheap-lint arms"
     },
     "phase2-durability-checkpoint": {
       "path": "lib/test/modules/phase2-durability-checkpoint.sh",
-      "minimum_assertions": 78,
-      "description": "Focused #1139 Phase 2 mid-run durability contract: scripts/phase2-durability-checkpoint.sh driven against a scratch git repository with a real bare remote (git plumbing not mocked). The AC1 RED control (no checkpoint leaves the branch zero commits ahead of base with the produced content absent from the remote, as observable git state) and its AC2 GREEN counterpart; the per-invocation behavior (one commit per call each carrying only the work since the previous call, and no empty commit when nothing is new); the cloud-tier workflow-edit guard's detect-and-do-not-stage half over a tracked edit and an untracked addition under the repo's own .github/workflows/ with the non-workflow work still landing; the §2.1.5 proof-edit exclusion by explicit scoping with no history rewrite; the AC6 explicit-path scoping (an unrelated untracked file not carried, and the stage-all tokens refused at the helper); the AC7 landing verification over a rejected non-fast-forward, a diverted-refspec Everything up-to-date push whose checkpoint commit leaves HEAD unequal to @{u}, the post-commit no-upstream arm, and the unchanged-path no-op no-upstream arm; the attributed git-add, git-commit, and outside-repository exit-4 arms; and AC8 idempotency (no empty commit on re-run and prior content seen exactly once)"
+      "minimum_assertions": 80,
+      "description": "Focused #1139 Phase 2 mid-run durability contract: scripts/phase2-durability-checkpoint.sh driven against a scratch git repository with a real bare remote (git plumbing not mocked). The AC1 RED control (no checkpoint leaves the branch zero commits ahead of base with the produced content absent from the remote, as observable git state) and its AC2 GREEN counterpart; the per-invocation behavior (one commit per call each carrying only the work since the previous call, and no empty commit when nothing is new); the cloud-tier workflow-edit guard's detect-and-do-not-stage half over a tracked edit and an untracked addition under the repo's own .github/workflows/, including its literal workflow-edit guard: NOT staging signal and that signal's absence under both guard exemptions, with the non-workflow work still landing; the §2.1.5 proof-edit exclusion by explicit scoping with no history rewrite; the AC6 explicit-path scoping (an unrelated untracked file not carried, and the stage-all tokens refused at the helper); the AC7 landing verification over a rejected non-fast-forward, a diverted-refspec Everything up-to-date push whose checkpoint commit leaves HEAD unequal to @{u}, the post-commit no-upstream arm, and the unchanged-path no-op no-upstream arm; the attributed git-add, git-commit, and outside-repository exit-4 arms; and AC8 idempotency (no empty commit on re-run and prior content seen exactly once)"
     },
     "review-dirty-tree": {
       "path": "lib/test/modules/review-dirty-tree.sh",
@@ -32,6 +32,11 @@
       "minimum_assertions": 68,
       "description": "Native inventory, explicit import, constrained analysis, and focused Python coverage"
     },
+    "retro-helper-wrapper": {
+      "path": "lib/test/modules/retro-helper-wrapper.sh",
+      "minimum_assertions": 60,
+      "description": "Focused issue-101 fixed-file CLI dispatcher scripts/retro-helper.sh wrapping the 13 cloud-used retrospective helper functions: every subcommand's output-file bytes and exit status asserted identical to calling the underlying library function directly over the same fixtures, the select-findings 2-vs-1-vs-0 exit distinction, audit-dispatch-ok's output-file-less pure predicate, the open-filed-* EMPTY-file-not-zero and annotate-patterns/select-audit-bundles empty-output-on-failure contracts, the adversarial well-formed/empty/missing/wrong-type input-shape matrix per file-reading subcommand with the missing-required-input exit-2 wiring fault distinct from the underlying data-condition exits, idempotency, and the detect-hook-closure-edges edge set staying clean with retro-helper.sh present"
+    },
     "review-and-fix-contract": {
       "path": "lib/test/modules/review-and-fix-contract.sh",
       "minimum_assertions": 63,
@@ -40,7 +45,7 @@
     },
     "create-issue-contract": {
       "path": "lib/test/modules/create-issue-contract.sh",
-      "minimum_assertions": 481,
+      "minimum_assertions": 482,
       "assertion_floor_policy": "exact",
       "description": "Focused create-issue Step 3.6 audit, state-owner cutover, authoring-discipline, and revision-delta contracts"
     },
@@ -57,25 +62,31 @@
     },
     "installer-wiring": {
       "path": "lib/test/modules/installer-wiring.sh",
-      "minimum_assertions": 315,
+      "minimum_assertions": 333,
       "assertion_floor_policy": "exact",
       "description": "Focused installer and workflow-wiring coverage: the #487/#491 credential-refresher and fresh-gh wrapper workflow wiring, the #533 seven-output install-gh-wrapper.sh validation with its planted-defect controls, the #544 fingerprint-comparison symmetry, the #599 workflow-token and secret-file permission pins, and the #690 Windows mode-probe arms, and the consumer UPGRADE path driven end-to-end over fixture consumer repositories (provenance manifest, non-clobbering preservation, the dry-run preview, the withheld review tier, name-agnostic identifier migration, the stale-config detect-and-route report with its adversarial input-shape matrix, the #970 preserved-artifact sidecar ignore rule driven over a real git index, and the #971 preview language-detection scan root)"
     },
     "harness-python-guards": {
       "path": "lib/test/modules/harness-python-guards.sh",
-      "minimum_assertions": 49,
+      "minimum_assertions": 48,
       "assertion_floor_policy": "exact",
-      "description": "Focused monolith-only Python guard drivers whose subject is a single code unit and whose verification is self-contained: the #600 render-audit-prompt renderer, the #527 verification-launch baseline analyzer, the #528 single-flight verification ledger, the #668 reception-identity producer, the #798 pin-corpus classifier unit tests, the #810 pin-corpus authoring-gate unit tests plus the red-on-removal and residual-prose retirement censuses/current-corpus closure, the #985 opt-in suite wall-clock profiler unit tests, the #591 coverage-map ratchet guard (live-tree invocation, unit test, and a planted coverage-map drift as the coverage-map guard's positive control), and the #1194 coverage-map merge tooling (the JSON-aware git merge driver driven against real offline merges plus the CI-side key-retention check), and the #1287 assertion-floor retention check (its pure detect_decreases/classify_outcome core over every decrease, retirement, malformed-comparand, escape-hatch and arm-order shape, plus the CLI end-to-end against a real offline git repository)"
+      "description": "Focused monolith-only Python guard drivers whose subject is a single code unit and whose verification is self-contained: the #600 render-audit-prompt renderer, the #527 verification-launch baseline analyzer, the #528 single-flight verification ledger, the #668 reception-identity producer, the #798 pin-corpus classifier unit tests, the #810 red-on-removal and residual-prose retirement censuses/current-corpus closure, the #985 opt-in suite wall-clock profiler unit tests, the #591 coverage-map ratchet guard (live-tree invocation, unit test, and a planted coverage-map drift as the coverage-map guard's positive control), and the #1194 coverage-map merge tooling (the JSON-aware git merge driver driven against real offline merges plus the CI-side key-retention check), and the #1287 assertion-floor retention check (its pure detect_decreases/classify_outcome core over every decrease, retirement, malformed-comparand, escape-hatch and arm-order shape, plus the CLI end-to-end against a real offline git repository). The #810 pin-corpus wording-only authoring gate (test_pin_corpus_lint.py) was split out to the pin-corpus-authoring-gate module (issue #133)."
+    },
+    "pin-corpus-authoring-gate": {
+      "path": "lib/test/modules/pin-corpus-authoring-gate.sh",
+      "minimum_assertions": 1,
+      "assertion_floor_policy": "exact",
+      "description": "The single heaviest Python guard driver, split out of harness-python-guards (issue #133): the #810 pin-corpus wording-only authoring gate over lib/test/test_pin_corpus_lint.py (207 tests), run through the issue-#870 concurrent sharded driver. It is the sole modules-pin shard member, so the modules-pin shard holds only this heaviest unit and no longer waits on the cheap harness-python-guards units it used to — de-pinning modules-pin from the parallel coordinator's critical path (issue #133 measured its shard wall well below the coordinator wall, which is now bound by the contended monolith/modules-rest shards). Driven under --heavy-units smoke by the test_module_runner.py real-execution meta-test so the heavy population runs exactly once per CI run (the issue-#890 double-execution guard)."
     },
     "prompt-extension-reader": {
       "path": "lib/test/modules/prompt-extension-reader.sh",
-      "minimum_assertions": 271,
+      "minimum_assertions": 373,
       "assertion_floor_policy": "exact",
       "description": "Focused load-prompt-extension.sh consumer prompt-extension reader contract: the present/absent/empty extension arms, skill-name validation and the path-traversal refusal, unreadable/symlinked/locked fixture arms, the --section selector including its interaction with the pre-existing name guards, and the DEVFLOW_PROMPT_EXTENSION_ROOT trusted-root override — its presence-state matrix, its containment under the pre-existing name guards, and the branch-scoped stderr breadcrumb; plus the #1264 render-time injection wrapper scripts/render-prompt-extension.sh — its four input shapes (present-with-content, present-but-empty, absent, present-but-unreadable), the exact three-token status vocabulary, the neutralization of the loader's exit 2 on both its argument-validation and undeliverable families, the absent-trusted-closure arm that must not read as empty, the single-line collapse of the unestablished reason, and the unlocatable-sibling-loader arm — the one unestablished cause no loader exit status can report — with its positive control; plus the #1446 independent-channel arrival detector scripts/prompt-extension-arrival.py — classify's arrived-expected/absent/undeliverable-* per-shape tokens and exit codes over present/missing/empty/broken-symlink/non-regular/unreadable fixtures, its skill-name validation and DEVFLOW_PROMPT_EXTENSION_ROOT shared-root resolution recording the root, and reconcile's arrived/absent/unestablished derivation with the suppressed-delivery non-Complete backstop, its idempotency across a re-run, and the instruction-shaped-content-is-data adversarial arm; plus the #1971 job-level pair extracted from .github/workflows/devflow.yml \u2014 the Classify step's most-specific-first skill selection, second-extension fault promotion, state= parsing and detector-absent/skill-unresolved arms, and the Reconcile step's per-expectation fail-closed, already-non-green early-exit and no-PR-number record-unrecordable arms"
     },
     "review-trigger-helpers": {
       "path": "lib/test/modules/review-trigger-helpers.sh",
-      "minimum_assertions": 864,
+      "minimum_assertions": 1030,
       "assertion_floor_policy": "exact",
       "description": "Focused review and implement trigger-helper contracts: derive-review-verdict.sh and derive-review-preconditions.sh (both RETAINED and still covered after issue #936 withheld the auto PR-triggered review tier; derive-review-preconditions.sh's workflow caller is gone but an installed consumer copy still resolves it, and derive-review-verdict.sh is reached again by devflow.yml's dead-run verdict-presence gate via dead-run-verdict-present.sh — issue #1172 — so the helpers ship and their sections stay live), parse-engine-error.sh, surface-execution-diagnostics.sh (#329) with its workflow wiring (#331), the execution-transcript artifact config key and scrub/gate hardening (#409), resolve-implement-trigger.sh, dedupe-implement-run.sh, review-progress marker ownership and dead-run diagnosis (#1054), the #1154 dead-run upsert (describe-dead-run-cause.sh driven per arm plus a reordering mutant that proves the arm ORDER is load-bearing, the flip-review-progress-failed.sh upsert end to end against a stubbed gh — flip, create, idempotent re-run, already-terminal, every read/patch/create failure arm, run scoping against a foreign run's comment, and the mutable-markdown adversarial shapes — and devflow.yml's own extracted step shell driven over its command screen, its four run-end modes and both degraded-helper arms), the #1172 dead-run verdict-presence gate (dead-run-verdict-present.sh driven per arm against a stubbed gh — the review channel, the both-channels progress-comment channel, the truly-absent case, an unresolvable HEAD sha, the engine-error caveat, and the missing-sibling degradation — plus devflow.yml's flip-gate wiring: a present verdict suppresses the flip, an absent verdict reaches it with this run's marker and no-verdict cause, and a missing presence helper degrades toward the banner), authorize-actor.sh, detect-standalone-command.sh and resolve-command-trigger.sh, the #1236 PR-state guard on post-ci-review-trigger.sh (no review request posted on an already-merged or closed target, each no-post arm a distinct annotation), the #2067 auto-merge arm on post-ci-review-trigger.sh (an open PR with GitHub auto-merge armed posts nothing and warns with its own distinct annotation, driven through the helper's REAL --jq against a full JSON fixture; ordering — merged/closed decided before auto-merge; the single-state-read count asserted), the ci.yml supersession-concurrency static check (check-ci-concurrency.py: workflow-level concurrency key present, PR-varying group, cancel-in-progress not true on a main push), and the #1174 out-of-job review_finalize backstop (describe-command-job-arm.sh driven per arm plus a reordering mutant that proves the arm ORDER is load-bearing, the finalizer's reuse of the idempotent flip proved by a twice-flip-single-banner assertion, and devflow.yml's own extracted finalizer step shell driven over the three-arm CAUSE ladder and its arm order, the TARGET_NUMBER derivation, the suppress-vs-write gate, the verdict-oracle argument order and each of the four degraded-helper arms)"
     },
@@ -87,25 +98,25 @@
     },
     "review-stall-backstop": {
       "path": "lib/test/modules/review-stall-backstop.sh",
-      "minimum_assertions": 469,
+      "minimum_assertions": 475,
       "assertion_floor_policy": "exact",
       "description": "Focused cloud-review stall-backstop coverage: the #408 no-verdict auto-resume backstop (request-review-backstop.sh, its devflow.yml wiring and grounding-block coupling), the #414 post-and-annotate helper extraction (post-review-backstop-comment.sh plus the ScheduleWakeup and agents-seam probe verdict readers), the #812 CLAUDE_CODE_DISABLE_BACKGROUND_TASKS harness-floor probe verdict reader (background-tasks-probe-verdict.py) including the #839 additive coverage (denial-side tool-name net, main() side-output arms and EXECUTION_FILE fallback, and the verdict mirror), and the #1156 Phase 4.4 verdict-emitter reach record (the run-scoped receipt post-review-verdict.sh writes on every outcome-emitting path and its isolation from that helper's stdout bytes, line ordering and exit code, check-verdict-post-reached.sh's closed REACHED/NOT-REACHED/UNESTABLISHED vocabulary driven over the full malformed-receipt matrix with two arm-order swaps and two planted-defect controls, describe-verdict-post-gap.sh's five arms with their own arm-order controls and its field validation, and the always() devflow.yml step read out of the parsed workflow), and the #1250 head-reviews classifier (classify-head-reviews.sh over its a–j acceptance arms, plus the #1247 placement precedence in both directions, its arm order, the case-insensitive marker-head comparison and the paginated reviews query the classification rests on) wired into that reach record so the not-reached body stops asserting the reviews API was untouched when the granted gh api posted an unmarked review, and the #1261 empty-branch producer (scripts/record-empty-branch.sh) driven over its NO_COMMIT / HAS_COMMIT / UNESTABLISHED outcomes plus the best-effort write-failure and idempotency arms against a real bare-origin git fixture with a stubbed workpad writer, with the claude-job Stall backstop wiring (producer beside the pure stall-backstop-decide.sh, called only from the two flips, never on the resume path) read out of the parsed workflow"
     },
     "experiment-records": {
       "path": "lib/test/modules/experiment-records.sh",
-      "minimum_assertions": 178,
+      "minimum_assertions": 180,
       "assertion_floor_policy": "exact",
       "description": "Focused #431 build-experiment-records.py unified-experiment-record join: the DEVFLOW_GH-stubbed assembler driven over fixture stores with per-scenario repo roots, the joined record fields, and the config_fingerprint stamp with its partial-flag, None and canonical-hash arms, and the repository-qualified record shape (repo/pr_key, the pr_key-keyed store rewrite, and the unresolvable-repository blocker)"
     },
     "efficiency-trace-telemetry": {
       "path": "lib/test/modules/efficiency-trace-telemetry.sh",
-      "minimum_assertions": 1152,
+      "minimum_assertions": 1214,
       "assertion_floor_policy": "exact",
       "description": "Focused efficiency-trace and telemetry-persistence coverage: the efficiency-trace.jq/.sh per-run derivation surface with its degradation and flag-off arms, --persist and --self-check (#80), the #475 harness-side cost floor, the #381 synthesis floor with its shadow-provenance pins, #532 base-ref freshness, #441 telemetry-branch persistence, the #469 push-operand fail-closed/fetch-before-exclusion/degraded-retention contract, the #489 cross-workflow telemetry artifact relay, and the #499 unavailable-telemetry normalization matrix that shares this module's _et_show durable-blob reader"
     },
     "issue-audit-state": {
       "path": "lib/test/modules/issue-audit-state.sh",
-      "minimum_assertions": 286,
+      "minimum_assertions": 320,
       "assertion_floor_policy": "exact",
       "description": "Focused drivers for scripts/issue-audit-state.py, the create-issue Step 3.6 audit-lifecycle state owner: the restricted-PATH CLI round trip and its #889 quoted-draft-line findings, the #603 digest filter-mode rows and the stale pre-cutover event log, the query exit contract, re-init/force and foreign-nonce rows, the embed-arm emitter, creation binding, override attestation and preconditions, the next-action and user-round budgets, illegal transitions, shadow and convergence rounds, the iteration-3/4/5/6 hardening, variance and seam rows, the retry-arm deadlock matrix, the #562 draft-binding CLI rows, the #569 write-path cross-check, and the #1803 summary-block three-part output contract + batched finding-evidence records-file rows"
     },
@@ -144,10 +155,14 @@
         {"glob": "skills/review-and-fix/SKILL.md", "load_class": "nested", "required": true},
         {"glob": "skills/review-and-fix/references/*.md", "load_class": "reference", "required": false},
         {"glob": "skills/docs/SKILL.md", "load_class": "nested", "required": false},
+        {"glob": ".prflow/skill-extensions/implement.md", "load_class": "extension", "required": false},
+        {"glob": ".prflow/skill-extensions/review-and-fix.md", "load_class": "extension", "required": false},
+        {"glob": ".prflow/skill-extensions/review.md", "load_class": "extension", "required": false},
+        {"glob": ".prflow/skill-extensions/fix.md", "load_class": "extension", "required": false},
         {"glob": ".prflow/prompt-extensions/implement.md", "load_class": "extension", "required": false},
         {"glob": ".prflow/prompt-extensions/review-and-fix.md", "load_class": "extension", "required": false},
         {"glob": ".prflow/prompt-extensions/review.md", "load_class": "extension", "required": false},
-        {"glob": ".prflow/prompt-extensions/receiving-code-review.md", "load_class": "extension", "required": false}
+        {"glob": ".prflow/prompt-extensions/fix.md", "load_class": "extension", "required": false}
       ]
     },
     "create-issue": {
@@ -159,18 +174,20 @@
       "surfaces": [
         {"glob": "skills/create-issue/SKILL.md", "load_class": "always", "required": true},
         {"glob": "skills/create-issue/references/*.md", "load_class": "reference", "required": false},
+        {"glob": ".prflow/skill-extensions/create-issue.md", "load_class": "extension", "required": false},
         {"glob": ".prflow/prompt-extensions/create-issue.md", "load_class": "extension", "required": false}
       ]
     },
-    "receiving-code-review": {
-      "user_commands": ["/prflow:receiving-code-review", "/devflow:receiving-code-review"],
-      "skill_aliases": ["receiving-code-review", "prflow:receiving-code-review", "devflow:receiving-code-review"],
+    "fix": {
+      "user_commands": ["/prflow:fix", "/devflow:fix", "/prflow:receiving-code-review", "/devflow:receiving-code-review"],
+      "skill_aliases": ["fix", "prflow:fix", "devflow:fix", "receiving-code-review", "prflow:receiving-code-review", "devflow:receiving-code-review"],
       "subject_kind": "pull_request",
       "argument_pattern": "(?:^|\\s)#?(?P<number>[0-9]+)(?:\\s|$)",
       "allowed_parents": ["review-and-fix", "implement"],
       "surfaces": [
-        {"glob": "skills/receiving-code-review/SKILL.md", "load_class": "always", "required": true},
-        {"glob": ".prflow/prompt-extensions/receiving-code-review.md", "load_class": "extension", "required": false}
+        {"glob": "skills/fix/SKILL.md", "load_class": "always", "required": true},
+        {"glob": ".prflow/skill-extensions/fix.md", "load_class": "extension", "required": false},
+        {"glob": ".prflow/prompt-extensions/fix.md", "load_class": "extension", "required": false}
       ]
     },
     "review-and-fix": {
@@ -184,10 +201,13 @@
         {"glob": "skills/review-and-fix/references/*.md", "load_class": "reference", "required": false},
         {"glob": "skills/review/SKILL.md", "load_class": "nested", "required": true},
         {"glob": "skills/review/phases/*.md", "load_class": "nested", "required": true},
-        {"glob": "skills/receiving-code-review/SKILL.md", "load_class": "nested", "required": true},
+        {"glob": "skills/fix/SKILL.md", "load_class": "nested", "required": true},
+        {"glob": ".prflow/skill-extensions/review-and-fix.md", "load_class": "extension", "required": false},
+        {"glob": ".prflow/skill-extensions/review.md", "load_class": "extension", "required": false},
+        {"glob": ".prflow/skill-extensions/fix.md", "load_class": "extension", "required": false},
         {"glob": ".prflow/prompt-extensions/review-and-fix.md", "load_class": "extension", "required": false},
         {"glob": ".prflow/prompt-extensions/review.md", "load_class": "extension", "required": false},
-        {"glob": ".prflow/prompt-extensions/receiving-code-review.md", "load_class": "extension", "required": false}
+        {"glob": ".prflow/prompt-extensions/fix.md", "load_class": "extension", "required": false}
       ]
     },
     "review": {
@@ -199,6 +219,7 @@
       "surfaces": [
         {"glob": "skills/review/SKILL.md", "load_class": "always", "required": true},
         {"glob": "skills/review/phases/*.md", "load_class": "phase", "required": true},
+        {"glob": ".prflow/skill-extensions/review.md", "load_class": "extension", "required": false},
         {"glob": ".prflow/prompt-extensions/review.md", "load_class": "extension", "required": false}
       ]
     }

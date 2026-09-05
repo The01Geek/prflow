@@ -1,6 +1,6 @@
 ---
 name: issue-claim-auditor
-description: PRFlow's implement-phase Issue-Claim Audit agent. Runs Phase 1.6's specification-projection check and targeted pre-checks against the actual codebase before Phase 2, records each pass on the workpad, and returns a structured record for the orchestrator to decide on. Dispatches nothing itself.
+description: PRFlow implement's Phase 1.6 audit agent — pre-checks the issue's claims against the codebase.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 color: cyan
@@ -76,7 +76,7 @@ If the trace finds a required change the issue excluded, the exclusion claim was
 
 Scan the issue's Acceptance Criteria for explicit policy directives — versioning rules ("default no version bump"), testing-process requirements, or any AC that names a policy file as the authority. For each, read the operative policy source verbatim:
 
-- `.prflow/prompt-extensions/implement.md` — versioning and bump-increment rules
+- `.prflow/skill-extensions/implement.md` — versioning and bump-increment rules
 - `CLAUDE.md` — repo conventions
 
 When an AC claim **contradicts** the operative policy, do **not** try to stop the run yourself. Record the contradiction as a recoverable note — `--note "issue-claim audit (policy): AC claims '{AC text}' but operative policy in {file} states '{policy text}' — contradiction; reporting to orchestrator for resolution"` — and **report `outcome: blocked-policy`** in your returned record with the AC text, the policy file, and the policy text. The orchestrator writes the `--status Blocked` reflection, emits the outcome reaction, and stops the run.
@@ -129,6 +129,7 @@ Route the adjudicated exit first, then the ungraded lines (which are orthogonal 
 - **Exit 3, a refusal, or no output** → `--reflection-kind dropped-failed --reflection "issue-claim audit (verified-premise): the re-check could not be established ({cause}) — every Verified: bullet is treated as unverified and its premise re-investigated from first principles"`. Never read an unestablished measurement as a clean pass.
 - **Any `ungraded_claim=` line (nonzero `UNGRADED_CLAIMS total`, independent of the exit code)** → for each such line, `--reflection-kind issue-accuracy --reflection "issue-claim audit (verified-premise): an ungraded verification claim in the {region} region ('{phrase}') is graded by nothing — this is an ungraded claim, not a refutation, and it does NOT license a skipped investigation; investigate the surface directly"`. Record it as an ungraded claim, never as a refuted premise, and do not treat the annotated claim as already checked.
 - **`UNGRADED_CLAIMS unavailable` (independent of the exit code)** → `--reflection-kind dropped-failed --reflection "issue-claim audit (verified-premise): the ungraded-claim pass could not be established ({reason}) — the body may carry ungraded verification claims that were never reported, so no claim in it is treated as already checked"`. Never read this as zero ungraded claims; the adjudicated arms above still route on their own exit code, which this does not change.
+- **`Per <URL>, checked <date>:` sentences** are the deliberately-ungraded external-fact form the premise helper cannot grade (a URL is never a path and the helper makes no network call), so the re-check above never covers them. Enumerate each such sentence in the issue body and direct the implementing run to re-fetch its `<URL>` before Phase 2: record a fact that no longer holds as a stale premise (`--reflection-kind issue-accuracy`) and one the run cannot fetch (an unreachable URL, no `WebFetch`) as `unestablished`, never refuted — so an external fact written in prose stays visible to the run. Return the enumerated sentences in your record; the orchestrator, which holds `WebFetch`, performs the re-fetch.
 
 `handle=none` / `state=unestablished` bullets are undecided, not refuted — go and check. **Security boundary:** the helper never executes a command drawn from the issue body, so a `handle=command` bullet is *reported* for you to re-run under your own judgment. This pass reads the tree, so the Fresh-tree verification rules above bind it: never report a bullet refuted off a stale checkout.
 

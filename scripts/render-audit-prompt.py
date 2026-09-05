@@ -15,7 +15,9 @@ Contract (issue #600):
 
 - Reads no run *state* and writes no file, and takes no stdin. The reads are the
   committed template file; the consumer extension — for consumer-dimension
-  forwarding — ``.prflow/prompt-extensions/create-issue.md``, resolved
+  forwarding — ``.prflow/skill-extensions/create-issue.md`` (falling back to a
+  present superseded ``.prflow/prompt-extensions/create-issue.md`` during the
+  issue-#170 transition), resolved
   from the git repo root per the #295 SHARED REPO-ROOT CONFIG CONTRACT (a native
   ``git`` subprocess, cwd fallback; never a ``.sh`` exec — the #275 constraint);
   in ``dispatch-instructions`` mode only (issue #709) — the run's canonical
@@ -251,10 +253,28 @@ def _repo_root() -> str | None:
     return root or None
 
 
+def _resolve_extension_path(state_dir: str, filename: str) -> Path:
+    """Resolve one extension canonical-file-first, then from the superseded directory."""
+    base = Path(state_dir)
+    new_path = base / "skill-extensions" / filename
+    old_path = base / "prompt-extensions" / filename
+    new_present = new_path.exists() or new_path.is_symlink()
+    old_present = old_path.exists() or old_path.is_symlink()
+    if not new_present and old_present:
+        sys.stderr.write(
+            f"render-audit-prompt.py: reading from the superseded extension directory "
+            f"{str(old_path.parent)!r} — run /prflow:init to migrate it to {str(new_path.parent)!r} "
+            f"(transitional read-through; removed once no consumer still carries a "
+            f".prflow/prompt-extensions/ directory)\n"
+        )
+        return old_path
+    return new_path
+
+
 def _default_extension_path() -> Path:
     root = _repo_root()
     if root is not None:
-        return Path(_resolve_state_dir(root)) / "prompt-extensions" / "create-issue.md"
+        return _resolve_extension_path(_resolve_state_dir(root), "create-issue.md")
     cwd = Path.cwd()
     # Breadcrumb only when NEITHER a git root NOR a .prflow/ dir can be located —
     # the silent-drop class the #295 reader-set contract closes (mirrors
@@ -268,7 +288,7 @@ def _default_extension_path() -> Path:
             f".prflow/ at {str(cwd)!r}; falling back to a cwd-anchored default "
             f"prompt-extension path\n"
         )
-    return Path(_resolve_state_dir(str(cwd))) / "prompt-extensions" / "create-issue.md"
+    return _resolve_extension_path(_resolve_state_dir(str(cwd)), "create-issue.md")
 
 
 # --------------------------------------------------------------------------
@@ -745,6 +765,9 @@ def draft_title(text: str) -> str:
     part of the authorized instruction set, so a draft the run cannot title is an
     unestablished input, not a render that quietly drops a field. The shared rule
     is the detection; the not-found handling is each caller's own.
+    ``stage-draft-write.py``'s ``_first_nonblank_is_title`` is a third reader of the
+    same rule (issue #79); all three are pinned to agree by
+    ``test_render_audit_prompt.py``'s D10 fixture table.
     """
     for raw in text.splitlines():
         line = raw.strip()
@@ -1029,7 +1052,8 @@ def _one_line(text: str) -> str:
 
 # Which file a declaration defect is attributable to. The breadcrumb must name the
 # file at fault: the generic arm parses THIS repo's committed template, the consumer
-# arm parses a third-party `.prflow/prompt-extensions/create-issue.md`, and an
+# arm parses a third-party `.prflow/skill-extensions/create-issue.md` (or the
+# superseded `.prflow/prompt-extensions/create-issue.md` during the #170 transition), and an
 # operator who cannot tell the two apart debugs the wrong file.
 _SOURCE_TEMPLATE = "template"
 _SOURCE_CONSUMER = "consumer extension"

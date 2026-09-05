@@ -4,42 +4,50 @@
     {
       "dispatcher": "skills/retrospective-weekly/SKILL.md",
       "skill": "retrospective",
-      "handoff": "by-path"
+      "handoff": "by-path",
+      "subagent_type": "unspecified"
     },
     {
       "dispatcher": "skills/retrospective-weekly/SKILL.md",
       "skill": "retrospective-audit",
-      "handoff": "by-path"
+      "handoff": "by-path",
+      "subagent_type": "unspecified"
     },
     {
       "dispatcher": "skills/implement/phases/phase-4-documentation.md",
       "skill": "docs",
-      "handoff": "by-path"
+      "handoff": "by-path",
+      "subagent_type": "unspecified"
     },
     {
       "dispatcher": "skills/implement/phases/phase-4-documentation.md",
       "skill": "pr-description",
-      "handoff": "by-path"
+      "handoff": "by-path",
+      "subagent_type": "unspecified"
     },
     {
       "dispatcher": "skills/review/phases/phase-3-agents.md",
       "skill": "requesting-code-review",
-      "handoff": "resolved-command"
+      "handoff": "resolved-command",
+      "subagent_type": "general-purpose"
     },
     {
       "dispatcher": "skills/review-and-fix/references/shadow-review.md",
       "skill": "requesting-code-review",
-      "handoff": "inherited"
+      "handoff": "inherited",
+      "subagent_type": "unspecified"
     },
     {
       "dispatcher": "skills/review-and-fix/references/loop-control.md",
       "skill": "review",
-      "handoff": "by-path"
+      "handoff": "by-path",
+      "subagent_type": "unspecified"
     },
     {
       "dispatcher": "skills/review-and-fix/references/shadow-review.md",
       "skill": "review",
-      "handoff": "by-path"
+      "handoff": "by-path",
+      "subagent_type": "unspecified"
     }
   ],
   "declared_non_dispatch": []

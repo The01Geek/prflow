@@ -41,7 +41,7 @@ This is what one looks like partway through a run:
 ## Acceptance Criteria
 - [ ] A request that times out is retried at most three times
 
-## Devflow Reflection
+## PRFlow Reflections
 ```
 
 ### The Header Fields
@@ -63,7 +63,7 @@ This is what one looks like partway through a run:
 - **Progress** — the run's own checklist, one row per stage. The `reproduction captured` row appears only on issues classified as bug reports.
 - **Plan** — the implementation plan, ticked as it is carried out.
 - **Acceptance Criteria** — the issue's criteria, mirrored here and ticked as each one is verified.
-- **Devflow Reflection** — blockers, deferrals, dropped work and anything else a person should read before merging. It is collapsed by default. **This heading deliberately keeps the older spelling.** It is not a typo and renaming it would break the tools that read the section.
+- **PRFlow Reflections** — blockers, deferrals, dropped work and anything else a person should read before merging. Its bullets are shown directly under the heading. The section reader also still accepts the older `Devflow Reflection` heading, so a workpad written before the rename stays readable.
 - **Reproduction** — reproduction evidence, on bug issues.
 
 ## Status Words and Glyphs
@@ -78,7 +78,7 @@ The `Status` line carries a glyph and a status word. The glyph tells you the sha
 | 💥 | The run did not reach a normal end | `Failed` |
 | 🛑 | The run was cancelled | `Cancelled` |
 
-Three of those glyphs — 🚀, 🎉 and 👎 — also appear as a reaction on the comment that started the run, so you can see a run's outcome without opening the workpad. `Failed` and `Cancelled` are written by a cloud backstop when a run dies or is cancelled, and they have no matching reaction.
+Three of those glyphs — 🚀, 🎉 and 👎 — also appear as a reaction on the comment that started the run, so you can see a run's outcome without opening the workpad. When PRFlow must recover that triggering comment from the issue history, it checks every comment page before adding the finished or blocked reaction to the latest implementation request. `Failed` and `Cancelled` are written by a cloud backstop when a run dies or is cancelled, and they have no matching reaction.
 
 <Tip>
   A workpad that still shows a 🚀 status long after the run should have ended usually means the run stopped without writing its own terminal state. Open the `Run` link and read the job log.
@@ -103,6 +103,8 @@ On a later implementation command, PRFlow reads the existing workpad before it p
 When it can establish a matching open pull request, it adopts that pull request's head branch. A recorded, in-progress plan can let the run skip repeated discovery. PRFlow still inspects the current tree and repeats any check that can block the run.
 
 If the workpad is already `Blocked`, PRFlow surfaces the recorded cause instead of continuing through it. Resolve the cause first.
+
+When a resumed run picks up an issue whose workpad ended in a terminal status (such as `Failed` or `Cancelled`), PRFlow resets that status to an in-progress one at the earliest point the run can act — and, when status labels are enabled, swaps `PRFlow:Stuck` for `PRFlow:Implementing` on the issue and its open pull request at the same moment. This happens before the run starts its real work, so an issue that is actively being retried no longer keeps looking dead in the issue and pull-request lists.
 
 ## Code Checkpoints
 

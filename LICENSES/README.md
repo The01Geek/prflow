@@ -51,6 +51,6 @@ Copyright © 2025 Jesse Vincent. Licensed under the MIT License.
 
 | PRFlow path | Upstream project | Upstream license text | Last reconciled against |
 |---|---|---|---|
-| `skills/receiving-code-review/SKILL.md` | [`superpowers`](https://github.com/obra/superpowers) | [`superpowers-LICENSE`](superpowers-LICENSE) | `superpowers 6.3.0` |
+| `skills/fix/SKILL.md` | [`superpowers`](https://github.com/obra/superpowers) | [`superpowers-LICENSE`](superpowers-LICENSE) | `superpowers 6.3.0` |
 | `skills/requesting-code-review/SKILL.md` | [`superpowers`](https://github.com/obra/superpowers) | [`superpowers-LICENSE`](superpowers-LICENSE) | `superpowers 6.3.0` |
 | `skills/requesting-code-review/code-reviewer.md` | [`superpowers`](https://github.com/obra/superpowers) | [`superpowers-LICENSE`](superpowers-LICENSE) | `superpowers 6.3.0` |

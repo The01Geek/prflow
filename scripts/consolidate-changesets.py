@@ -191,20 +191,27 @@ def _parse_changeset(path: str) -> Changeset:
             "(one or more '-' bullets, issue- or PR-cited)"
         )
 
-    # customer-visible marker (issue #2070): only the parsed Python bool True marks; any
-    # other PRESENT value raises. Detect key-PRESENCE (`in fm`, not `.get()`) so an explicit
-    # null is caught here, never silently read as an absent (not-customer-visible) key.
-    customer_visible = False
-    if "customer-visible" in fm:
-        marker = fm["customer-visible"]
-        if marker is True:
-            customer_visible = True
-        else:
-            raise ChangesetError(
-                f"{path}: invalid customer-visible value {marker!r} — the only accepted "
-                "value is the boolean true (spell it 'customer-visible: true'); omit the "
-                "key entirely for a change with no customer-visible impact"
-            )
+    # customer-visible marker (issue #66): the key is REQUIRED and accepts exactly the two
+    # parsed Python booleans — True marks (prose reused as a release-note entry), False does
+    # not. A missing key, or any other present value, raises. Detect key-PRESENCE (`in fm`,
+    # not `.get()`) so an explicit null takes the invalid-value arm rather than the missing arm.
+    if "customer-visible" not in fm:
+        raise ChangesetError(
+            f"{path}: missing required 'customer-visible:' key — set it to the boolean "
+            "true (the change is customer-visible) or false (internal-only); the two "
+            "accepted values are true and false"
+        )
+    marker = fm["customer-visible"]
+    # The accepted set is exactly the parsed Python bool: true/false and their YAML boolean
+    # spellings (yes/on, no/off) all parse to a bool and are accepted; a quoted string, null, a
+    # list, and an int (1/0 are int, not bool) are not a Python bool and take the raise arm.
+    if not isinstance(marker, bool):
+        raise ChangesetError(
+            f"{path}: invalid customer-visible value {marker!r} — the two accepted values "
+            "are the booleans true and false (spell them 'customer-visible: true' for a "
+            "customer-visible change or 'customer-visible: false' for an internal-only one)"
+        )
+    customer_visible = marker
 
     return Changeset(bump, section, prose, customer_visible)
 

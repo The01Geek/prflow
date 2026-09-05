@@ -71,6 +71,8 @@ A configured stall backstop can post a bounded resume request for a run still sh
 
 It stops rather than looping when the attempt cap is exhausted, when authentication is unavailable or when it cannot read the run's state. In each of those cases the workflow reports the failure.
 
+Each resume or failure comment is short and names why the run died on one line — for example a usage-limit rejection versus a genuine stall — so you can tell at a glance whether retrying will hit the same limit. The full engine diagnostics, including a scrubbed excerpt of the error text, stay in the run log and the run's step summary rather than the comment.
+
 <Warning>
   Do not repeatedly retry a failure that reproduces exactly. A deterministic failure will fail again and each attempt costs a full run. Match the symptom to a cause in [Cloud-Run Problems](/docs/troubleshooting/cloud-runs) first.
 </Warning>

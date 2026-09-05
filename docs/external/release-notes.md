@@ -7,7 +7,151 @@ description: "User-visible PRFlow changes, fixes and upgrade notes."
 
 This page summarizes user-visible PRFlow changes. For a complete change history, see [GitHub Releases](https://github.com/The01Geek/prflow/releases).
 
+**Release cadence:** PRFlow versions continuously and publishes releases periodically, so a published version number skips the intermediate versions developed between two releases. A gap between consecutive tags is expected and does not mean a release is missing.
+
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
+
+## September 5, 2026
+
+Rename the consumer-facing per-skill extension directory from `.prflow/prompt-extensions/` to `.prflow/skill-extensions/`. `/prflow:init` migrates an existing `.prflow/prompt-extensions/` directory in place (renaming nothing when both directories already exist and reporting a conflict to reconcile by hand), and every reader resolves `.prflow/skill-extensions/` first and falls back to a present `.prflow/prompt-extensions/` with a migrate breadcrumb during the transition, so an un-migrated consumer keeps working. The `DEVFLOW_PROMPT_EXTENSION_ROOT` environment variable and the helper filenames are unchanged.
+- **Outcome reactions find the latest implement trigger on long-running issues.** PRFlow checks every issue-comment page before choosing the triggering comment, so completion and blocked reactions reach the current request even after an issue has accumulated more than 100 comments. ([#191](https://github.com/The01Geek/prflow/issues/191))
+- **Harden the `/prflow:create-issue` (`/prflow:specs`) run helpers.** The run's slug is now
+  keyed on a run-directory registry (`run-meta.json`) instead of a session id, so a continued
+  session recovers its own run, cleanup no longer leaves orphaned `issue-run-slug.<session-id>`
+  pointer files behind, and concurrent runs and linked worktrees are told apart by topic and
+  start time. A new `scripts/check-draft-provenance.py` checker, run in the draft bootstrap
+  beside the existing two, catches a provenance signature that landed mid-body before the draft
+  is presented. (#198)
+
+## September 4, 2026
+
+Fix the implement skill's end-of-run reaction so it posts the correct outcome on both tiers.
+
+`scripts/react-to-trigger.sh` now accepts `--outcome complete|blocked` with `--issue`, choosing the reaction itself (🎉 `hooray` for a completed run, 👎 `-1` for a blocked one) and resolving the triggering comment itself — from the event file, else the newest non-workpad implement-trigger comment. The implement skill's outcome-reaction fence becomes a single leading-token call with a prefix-removed/anchor fallback ladder, so the correct reaction now posts on both the local and cloud tiers instead of re-posting the pickup 🚀.
+- **Closed fail-open and security-shaped defects in the implement helper scripts.** The
+  checkout-fingerprint helper now hashes untracked files without writing them to the git
+  object store, so a verification step no longer copies an untracked secret into
+  `.git/objects`. The acceptance-criteria parser tags only unambiguous live-environment
+  phrases, so a code-verifiable criterion is no longer dropped from the merge gate on a
+  loose phrase match. The verification flight honours its `DEVFLOW_FLIGHT_NOW` clock
+  override only behind a companion test-clock gate and marks any handle written under it,
+  so the override is inert in production. A `dispatched-but-lost` review-coverage
+  disposition is now admitted only over a measured roster with a recorded dispatched
+  reviewer, so a run cannot finalize on a lost-dispatch claim with no dispatch on record. (#181)
+- **Trimmed every shipped agent `description` to a short trigger line and dropped the unused web
+  tools from the discovery agents.** Each `agents/*.md` description is now a single ≤120-byte
+  trigger statement, so every enabled session carries several kilobytes less system-prompt text
+  on every turn; the worked scenarios and secondary triggers moved into each agent's body, which
+  loads only when the agent runs. The `code-explorer` and `code-architect` discovery agents no
+  longer grant `WebFetch` or `WebSearch` — an autonomous implement run's discovery agents cannot
+  reach the web. A new byte ceiling in the frontmatter validator keeps the descriptions from
+  growing back. (#179)
+- **`/prflow:implement` Phase 1 now stops with a Blocked status on a failed push or uncommitted tracked changes instead of continuing.** A failed branch push is reported as a Blocked run naming the cause, rather than silently leaving an unpushed branch; uncommitted tracked changes stop the run for you to commit or stash, rather than gaining a stray commit on the base branch; and the setup file's agent-file fallbacks now resolve in a consumer checkout. (#178)
+Make the implement Phase 2 sweep prose decidable and consumer-safe (issue #180). Comment
+relocation now has one owner: a non-preventing comment is deleted or shortened in Phase 2, and
+an explanation worth keeping is recorded through a `relocate to docs:` workpad note that Phase 4.1
+hands to the docs pass. The §2.5 workflow-edit guard keys on the durability helper's observable
+stderr token rather than a run-facts field that is never produced. The §2.2 complexity assessment
+routes by one rule (Path B when any Complex bullet holds or the touched-file count exceeds five;
+otherwise Path A). The test-first gate is runner-neutral — it confirms the runner collected and
+reported the new test and extracts a branch-selecting snippet into a unit the repository's test
+runner can drive, with a no-runner arm for repositories that have none. PRFlow-internal names are
+removed from the shipped Phase 2 bodies.
+- **`/prflow:implement`'s review phase now stays predictable when a tool is missing or refused, and never commits its own run scratch.** The pull request an implement run opens no longer carries PRFlow's working files, even in a repository whose ignore rules predate them. When the `/simplify` step is unavailable on your runner, the workpad records it as unavailable instead of an empty result that reads like a clean pass. When the review-and-fix step cannot be loaded, the run stops as Blocked and names the refusal, instead of attempting an unbounded review by hand. The review phase's guidance now reads correctly in any repository, not only PRFlow's own. (#182)
+
+## September 3, 2026
+
+Key the create-issue run-slug pointer by session. `scripts/cleanup-create-issue-run.sh` now
+owns the pointer through `--record-slug` and `--resolve-slug` modes and writes it to
+`.prflow/tmp/create-issue/issue-run-slug.<session-id>`, so concurrent `/prflow:create-issue`
+runs in one checkout no longer overwrite each other's slug and no run adopts another session's
+identity after context compaction. On a harness that exposes no session identity the helper
+reports that plainly and the run takes the existing title-derived fallback.
+- **Trust a GitHub App as a configured bot login everywhere by normalizing logins through one shared rule (issue #157).** A new `lib/login_normalize.py` trims whitespace, strips a leading `app/` and a trailing `[bot]`, and lowercases both a login and each configured comparand before comparing, so an `allowed_bots` (or `watched_authors`) entry written as the bare slug, `<slug>[bot]`, `app/<slug>`, or in mixed case all match the same App. The deferral matcher, the lint-adjudication allowlist arm, the workflow authorization gate, the CI review trigger, and the retrospective scanner now decide login trust and identity through this rule instead of their own strip-and-compare, so a GitHub App author's Scope-Acknowledged deferrals are honored rather than rejected as `untrusted-filer`. The `allowed_bots` and `watched_authors` config-schema descriptions now state the accepted entry forms. (#157)
+- **Dead cloud runs now name why they died, and their comments are shorter.** When a cloud `/prflow:implement` or `/prflow:review` run ends in error, the run log, the step-summary diagnostics block, and the comment it posts now carry the engine's failure cause — the result subtype and terminal reason, an API-retry error, or a rejected rate-limit event — so a usage-limit rejection reads differently from a genuine stall without downloading the transcript. Each standalone failure comment is trimmed to a headline, the cause, and the run link (plus the trigger line on the auto-resume arms), and the review stall backstop headline now reads PRFlow. ([#158](https://github.com/The01Geek/prflow/issues/158))
+- **Renamed the `/prflow:receiving-code-review` skill to `/prflow:fix`.** The skill that
+  checks review feedback before applying it is now invoked as `/prflow:fix`; its description
+  still contains the text `receiving-code-review` so a search by the old name still finds it.
+  The old command name stops resolving in this release — there is no forwarding shim. A
+  consumer who customized the extension keeps it working: the extension loader, asked for
+  `fix`, reads a still-present `.prflow/prompt-extensions/receiving-code-review.md` when
+  `fix.md` is absent and prints a breadcrumb telling you to rename the file, and `/prflow:init`
+  (and `install.sh`) rename it to `fix.md` on an existing repository. Rolling the plugin back
+  to a pre-rename version after init has renamed the file leaves the old skill reading an empty
+  extension until you rename the file back. This release does not migrate consumer-side
+  references to the old command that live outside the plugin — permission rules, hooks,
+  scheduled commands, and any text in your own `CLAUDE.md` that names `/prflow:receiving-code-review`
+  should be updated to `/prflow:fix` by hand. (#152)
+
+## September 2, 2026
+
+- **Warn at install time when a preserved guarded workflow's sidecar merge would strand the cloud implement gate.** When `install.sh --apply` preserves a locally-modified guarded artifact (the lint manifest, the `setup-project-env` action, or `.github/workflows/devflow-implement.yml`), the `PRESERVED` line now states that `.prflow/install-state.json` is bound to the kept bytes and that the installer must be re-run in apply mode after the sidecar is merged or adopted, and the apply prints one summary line naming every such sidecar and the exact re-run command. The cloud provisioning readiness refusal for a guarded `digest-mismatch` now names a merged or adopted `.prflow-new` sidecar as a cause, and the install and cloud-run docs carry the re-run-in-apply-mode step. (#92)
+Reconcile the create-issue fresh-context audit's criterion-shape dimension with the issue template, and bring out-of-scope and Quiet Killer observations into the audit ledger.
+
+The audit prompt's criterion-shape dimension no longer flags a qualifier that a drafter correctly wrote inside a criterion: a statement narrowing, bounding, quantifying, defining a term for, or naming a verification route for a criterion is never a finding when it repeats across criteria or when an identical copy also sits in the grounding block, and the dimension's flag toward the block is limited to pure framing whose deletion changes no criterion's truth value. A block statement that disagrees with the inline qualifier stays a finding. The authoring-discipline RESTATEMENT shape excludes those inline copies, the issue template is the single canonical statement of the rule, and the steelman reference points at it rather than restating it.
+
+The auditor now reports every out-of-scope observation on a targeted round, and a qualifying Quiet Killer on any round, as an ordinary numbered finding under the per-finding bar; an out-of-scope finding carries an `out-of-scope` tag and changes no per-claim verdict, and `Quiet Killer: none` stays a non-finding. The per-round `--findings-count` tally is now defined as the number of findings the auditor returned, checked at adjudication to equal must-revise plus advisory plus invalid: `record-return` refuses an accepted return that omits the tally (`findings-count-required`), `record-adjudication` refuses a round whose recorded tally disagrees with the adjudicated class total (`findings-count-mismatch`) and emits a `tally-unrecorded` breadcrumb for a round returned before this change, and the audit summary renders `findings_count` as `none` when any completed round carries no recorded tally rather than presenting a partial sum as the total.
+- **Finished the DevFlow→PRFlow rename for the remaining visible names.** The implement
+  workpad's reflection section now reads `## PRFlow Reflections` and shows its bullets
+  directly, with no collapsed `<details>` control. The shipped command workflows now display
+  as `PRFlow` and `PRFlow (implement)` in the Actions tab (the reusable runner workflow's
+  display name is likewise renamed to `PRFlow Runner (reusable)`, though it is retained rather
+  than shipped). The cloud review check-run's rename to `PRFlow Review` is reader-side: the
+  in-tree readers and self-exclusion filters now accept both `PRFlow Review` and the historical
+  `Devflow Review`, so telemetry on older pull requests keeps working — the workflow that would
+  post the check remains withheld from this release, so no in-tree job emits it today. Records
+  written before the rename keep working: the workpad reader and updater accept both the new
+  heading and the old `## Devflow Reflection`. Environment variables, workflow filenames, and
+  command aliases are unchanged. (#112)
+The context-cost instruments now read the cloud execution-transcript shape, and each cloud
+implement run records its peak main-thread context and per-phase file-read counts on its
+telemetry record. A single shared transcript reader in `scripts/context_eval_shared.py`
+strips the scrubbed artifact's leading `# DEVFLOW SCRUB CAVEAT` line and parses a whole-file
+JSON array, a whole-file object, or JSONL; the corpus collector now accepts `.json` files
+alongside `.jsonl` and tallies every other suffix. `scripts/extract-execution-cost.py` adds
+two `harness_cost` fields, `peak_main_thread_context` and `phase_file_reads`, which flow
+through the telemetry record into `scripts/implement-run-report.py --retro`, so the weekly
+retrospective's "Implement runtime trends" section reports the trailing-window median and
+maximum peak context and total phase-file reads. Records written before this change lack the
+two fields and are excluded from those aggregates (recorded as unestablished, never zero).
+These are instrument outputs only — no threshold, ceiling, regression rule or gate reads them.
+- **New opt-in weekly scheduled retrospective workflow.** A new shipped workflow,
+  `devflow-retrospective.yml`, runs `/prflow:retrospective-weekly` automatically every
+  Sunday at 05:23 UTC and on manual dispatch from the Actions tab, so the
+  self-improvement loop keeps running without anyone remembering to start it. It is
+  gated by a new per-workflow config key, `workflows["prflow-retrospective"]`, read from
+  the default branch's `.prflow/config.json`: only the JSON boolean `true` enables it, so
+  repositories are opted out by default and pay no Actions or Claude cost until they opt
+  in. When an unmerged `devflow/learnings-*` state PR is still open, the run skips the
+  retrospective and files a single reminder issue to merge it first.
+  (#93)
+- **`/prflow:init` now installs the cloud-tier workflows, not just the config.** After scaffolding `.prflow/config.json`, init runs the installer to place the `.github/workflows/` files whenever the config enables a workflow tier, so a repository whose config says the cloud tier is on no longer ends up with no workflows on disk. When no tier is enabled it asks first, and whenever it installs it points you at the `.github/` diff to review before committing. (#124)
+Finish the DevFlow→PRFlow brand rename by sweeping the remaining "DevFlow" brand prose in comments, docs, skill bodies, prompt extensions, and test files to "PRFlow", draining `lib/test/brand-devflow-buckets.json`'s `pending_sweep_baseline` to empty. Occurrences that must stay "DevFlow" — the superseded provenance-label value that selectors still match, and the brand-sweep lint's own fixtures — are recorded in their frozen buckets.
+Remove every `$?` from the shipped bash fences under `skills/` and `agents/` — the cloud permission matcher refuses any command carrying a parameter expansion, so a status trailer such as `; echo "seed-rc=$?"` was silently refused and burned a round trip. Each status-trailer site now ends in a constant trailer `; echo "<name>-done"` (a measured-permitted `;`-joined sequence with no expansion) and its prose routes on the tool result; each `VAR=$?` capture becomes the bare command routed on its own output, or an `if`/`then`/`else` block where control flow needs it. The worktree-fence lint (`lib/test/lint-worktree-fence-shapes.py`) now applies its `$?` rule to every tracked `skills/`/`agents/` file, enumerated from `git ls-files` with no baseline of tolerated hits, so a reintroduced `$?` fence turns the suite red. The cloud grounding block gains a refused-shape row naming the argument-position `simple_expansion` refusal and a `2>` stderr-redirect row, and no longer attributes `simple_expansion` to a leading assignment.
+- **Route the light cloud jobs onto a cheaper runner with the new optional `DEVFLOW_LIGHT_RUNNER` variable.** The comment-driven workflows previously ran every job — including one-core helpers and the model-API-bound standalone review — on the single runner named by `DEVFLOW_RUNNER`. Set `DEVFLOW_LIGHT_RUNNER` (a bare label or a JSON label array, same shapes as `DEVFLOW_RUNNER`) and the light jobs move to it: `config`, `review_dedupe`, `gate`, `review_finalize`, and the `command` job on a standalone `/prflow:review` in the review workflow, plus `config` and `gate` in the implement workflow. A review-and-fix run and the implement `claude` job keep `DEVFLOW_RUNNER`'s 8-core capacity for the test suite. Leave `DEVFLOW_LIGHT_RUNNER` unset and every job stays exactly where it is today. ([#134](https://github.com/The01Geek/prflow/issues/134))
+- **A resumed `/prflow:implement` run now clears a stale `PRFlow:Stuck` label and terminal status at the earliest resume hook.** When a run resumes an issue whose workpad status is terminal (any of `Failed`/`Cancelled`/`Blocked`/`Complete` — the stall backstop writes `Failed`/`Cancelled`), a shared reset routine resets the status to an in-progress word and — through the existing status-to-label mirror — swaps the managed status label (`PRFlow:Stuck`, or `PRFlow:Complete`) for `PRFlow:Implementing` on the issue and its open pull request. On the cloud tier this happens on the config/gate resume branch before the agent job starts; on the local/interactive tier at the start of Phase 1. The resume-kind classification stays correct by reading the prior terminal status from a durable workpad marker. (#137)
+
+## September 1, 2026
+
+- **`/prflow:create-issue` now names the recovery when the post-approval create path refuses on a run with completed audit rounds.** After the user elected *Create it as-is*, the state owner could refuse with no stated remedy: the `unaudited-revision` eligibility answer wrote nothing to stderr, and `record-creation-epoch --round 0` refused without naming which round to pass. Both refusals now name their own recovery — the `unaudited-revision` refusal points at the user's own `record-override --kind user-decline --surface step4-offer` filing election (and a fresh clean audit round as the alternative), and the `--round 0` refusal on a completed-round state names the newest completed round as `--round <M>` for the caller to re-issue. The shipped `create-issue` references state the rules these recoveries follow, so a run that trusts the references files the issue instead of stalling. (#82)
+Trust established docs-verify results in `/prflow:create-issue` Step 1, and gate guard claims behind a machine-graded `Verified:` bullet.
+
+The Step 1 shallow→deep escalation predicate no longer escalates on an `ABSENT` doc-reliability verdict: `ABSENT` is an established absence the shallow arm has already produced, so the trigger set is now exactly `UNRELIABLE`, an `unestablished` duty, and a `judged-not-engaged` duty whose bearing observation is anything other than `none-observed`. The `docs-verify` duty-status contract now states that a duty carried out with an empty result is `discharged` (not `judged-not-engaged`, which is reserved for a duty not carried out), and its `Search space surveyed` report field now states the resolved internal-doc location beside the `--search-space` operand so Step 1 can escalate an *exact operand and population identity* duty when the peer surveyed a location differing from the orchestrator's own `.docs.internal` resolution. An acceptance criterion resting on an authorization-guard, permission-key, or gate-condition claim about existing code must now carry a `Verified:` bullet that `scripts/check-verified-premises.py` grades `handle=path-quote state=holds`, so a solo peer's guard claim cannot become a requirement unverified.
+- **The `/prflow:create-issue` audit summary now names which round its per-class counts describe.** The audit state tool emits a new `counts_round` token — the round number of the latest completed whole-draft round the class counts (`must_revise`, `advisory`, `invalid`, unresolved-at-close) are read from — on both its `summary-block` and `query-summary` lines, and the Step 4 audit summary line labels those counts with that round and says when a targeted re-check also ran. A two-round run that ran a targeted re-check no longer reads as one that lost its second round. Selection is unchanged: the counts still describe the latest whole-draft round, and a targeted round is still skipped. (#73)
+`check-verified-premises.py` now grades the `Verified:`-bullet shapes the issue templates
+actually produce. A bullet that cites a repository path and carries a backticked code literal
+(with no double-quoted sentence) is graded on that literal — a hit reports `holds`, a miss
+`unestablished` and never `refuted`. An absent weak span no longer short-circuits a bullet that
+also cites a present path; the resolving quotation is adjudicated and the absent span is disclosed.
+A `` `Verified:` `` label (backtick after the colon) is now consumed whole and grades like the bare
+label. The premises quality group and the Step 3.5 handle-repair table name a prose form for the
+two shapes the checker cannot grade — an externally verified fact (`Per <URL>, checked <YYYY-MM-DD>:
+<fact>`) and a documentation-absence claim — so authors write them correctly from the start instead
+of demoting a verified fact mid-gate, and the implement-side audit re-fetches those `Per <URL>`
+sentences rather than re-litigating them as unverified.
+Enforce the title-heading and staged-path contracts of the create-issue staged canonical-draft write (issue #79).
+
+`stage-draft-write.py stage` now refuses stdin whose first two non-blank lines are both `# ` title headings with a `duplicate-title` breadcrumb, so a re-stage that doubles the draft title can no longer reach a created issue, and it resolves a relative `--path` base to an absolute path (refusing a rooted drive-less base on a Windows-style module with `staged-base-driveless`) so the printed `path=` is accepted by `record-staged-write --path` unmodified. The `stage --help`, `emit-body --help`, and the Step 3.6 staged-write procedure and posting-recipe prose now state these contracts.
 
 ## August 30, 2026
 

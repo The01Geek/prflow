@@ -45,7 +45,7 @@ brief invokes no bundled helper through the anchor.
 
 Consumer prompt extension (handed to you by path). Before doing this skill's work,
 read the consumer-supplied prompt extension for this skill and honor it — your dispatch
-prompt names that file at an absolute `.prflow/prompt-extensions/retrospective.md` path.
+prompt names that file at an absolute `.prflow/skill-extensions/retrospective.md` path.
 Read it with your file-read tool — never a shell invocation, and never
 `load-prompt-extension.sh`, whose anchor you cannot resolve. Treat any content as
 instructions appended to the end of this skill's own prompt for this run. An absent or
@@ -85,7 +85,7 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 | `pr_reviews` | array | Formal reviews: `[{author,state,body,submittedAt}]` |
 | `commits` | array | `[{sha,author_login,committer_login,committed_at,message}]` |
 | `workpad_body` | string\|null | Full text of the `<!-- prflow:workpad -->` comment, read from the **issue** thread (where the workpad lives), not the PR thread |
-| `reflections` | array | The bullet lines from the workpad's `## Devflow Reflection` `<details>` block — the bot's own self-reported friction notes (`[]` when none) |
+| `reflections` | array | The bullet lines from the workpad's `## PRFlow Reflections` section (the reader also accepts the superseded pre-rename heading) — the bot's own self-reported friction notes (`[]` when none) |
 | `review_verdicts` | array | Verdict entries in time order, drawn from the **union** of the PR conversation comments and the durable bot PR reviews: `[{verdict,createdAt,source}]` where `verdict` is APPROVE or REJECT and `source` is `pr_comment` or `pr_review`. A verdict heading in either source qualifies (not only `/prflow:review` output), as does one of a bounded set of bot-authored verdict shapes. |
 | `review_verdict_unparsed_count` | number | Count of scanned comment/review artifacts that yielded no verdict from any rung yet carry an `APPROVE`/`REJECT` token in their first 30 lines — an upper bound on verdict-shaped artifacts the union did not parse, since an artifact merely mentioning the tokens also counts. It feeds no signal; `review_reject_outstanding` is derived from `review_verdicts` alone. |
 | `implement_summary_comment` | string\|null | The `/prflow:implement` completion summary comment body |
@@ -106,7 +106,7 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 
 Source priority. The issue workpad is your highest-signal primary source,
 and you treat each of its facets as primary analysis input:
-- `reflections` — the bot's own `## Devflow Reflection` bullets. **Read every reflection bullet
+- `reflections` — the bot's own `## PRFlow Reflections` bullets. **Read every reflection bullet
   and let it drive the verdict, categories, and descriptors** — if this run
   left any reflection bullet, the cheap-gate forces it into analysis UNLESS
   every bullet is an informational `note`-kind (`ℹ️`) one (those are exempted
@@ -173,7 +173,7 @@ Workpad-absent analysis rule. The absent-workpad sentinels
 `"Absent"` (the linked issue resolved but carried no workpad comment) and
 `"NoIssue"` (no linked issue resolved at all) are analyzed, never skipped. When
 `workpad_final_status` is `"Absent"` or `"NoIssue"`:
-- If `pr_devflow_provenance` is `true`, this was one of DevFlow's own runs that lost
+- If `pr_devflow_provenance` is `true`, this was one of PRFlow's own runs that lost
   its audit trail (and, for `"NoIssue"`, its issue linkage). Analyze from the remaining
   evidence — the PR diff and commits, the reviews, and the issue thread when one
   resolved — and record the missing workpad (and, for `"NoIssue"`, the broken linkage)

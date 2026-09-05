@@ -1,6 +1,6 @@
-name: DevFlow
+name: PRFlow
 
-# DevFlow-owned LIGHT COMMAND LISTENER. Fires on a BARE `/devflow:review`,
+# PRFlow-owned LIGHT COMMAND LISTENER. Fires on a BARE `/devflow:review`,
 # `/devflow:review-and-fix`, or `/devflow:pr-description` comment (issue #1163: the
 # sole trigger is issue_comment; a review-submission or inline-diff body no longer fires) and runs
 # claude-code-action in AGENT mode with a synthesised prompt (jobs: `config` /
@@ -26,7 +26,7 @@ name: DevFlow
 #
 # Why bare commands (no `@claude`): Anthropic's Claude GitHub App owns the
 # `claude.yml` it generates and the `@claude` mention surface (plus generic Q&A
-# and /security-review). DevFlow never touches that file. EVERY DevFlow trigger
+# and /security-review). PRFlow never touches that file. EVERY PRFlow trigger
 # below negates `@claude`, so an `@claude …` comment routes ONLY to Anthropic's
 # listener and a bare `/devflow:*` comment routes ONLY here — the two can never
 # double-fire. The heavy /devflow:implement path lives in devflow-implement.yml
@@ -67,7 +67,7 @@ jobs:
   config:
     if: |
       github.event_name == 'issue_comment' && (contains(github.event.comment.body, '/prflow:review') || contains(github.event.comment.body, '/devflow:review') || contains(github.event.comment.body, '/prflow:pr-description') || contains(github.event.comment.body, '/devflow:pr-description')) && !contains(github.event.comment.body, '@claude') && !contains(github.event.comment.body, '/prflow:implement') && !contains(github.event.comment.body, '/devflow:implement')
-    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
+    runs-on: ${{ vars.DEVFLOW_LIGHT_RUNNER && (startsWith(vars.DEVFLOW_LIGHT_RUNNER, '[') && fromJSON(vars.DEVFLOW_LIGHT_RUNNER) || vars.DEVFLOW_LIGHT_RUNNER) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest') }}
     outputs:
       enabled: ${{ steps.extract.outputs.enabled }}
       base_branch: ${{ steps.extract.outputs.base_branch }}
@@ -308,7 +308,7 @@ jobs:
   review_dedupe:
     needs: config
     if: ${{ needs.config.outputs.enabled == 'true' }}
-    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
+    runs-on: ${{ vars.DEVFLOW_LIGHT_RUNNER && (startsWith(vars.DEVFLOW_LIGHT_RUNNER, '[') && fromJSON(vars.DEVFLOW_LIGHT_RUNNER) || vars.DEVFLOW_LIGHT_RUNNER) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest') }}
     permissions:
       contents: read
       pull-requests: write
@@ -412,12 +412,13 @@ jobs:
             exit 0
           fi
 
-          # Signal 1: an in-flight `Devflow Review` check on THIS exact HEAD.
+          # Signal 1: an in-flight review check on THIS exact HEAD (the current
+          # `PRFlow Review` name, or the superseded `Devflow Review` on an older head).
           # A query failure stays fail-open (IC=0 → not suppressed) but is
           # surfaced as a ::warning:: so a permanently-failing signal is
           # distinguishable from "no auto run existed".
           if RAW_IC=$(gh api --paginate "repos/$REPO/commits/$HEAD/check-runs" \
-                 --jq '.check_runs[] | select(.name=="Devflow Review" and (.status=="queued" or .status=="in_progress")) | .id' \
+                 --jq '.check_runs[] | select((.name=="PRFlow Review" or .name=="Devflow Review") and (.status=="queued" or .status=="in_progress")) | .id' \
                  2>/dev/null); then
             IC=$(printf '%s' "$RAW_IC" | grep -c . || true)
           else
@@ -507,7 +508,7 @@ jobs:
           fi
 
           # Select the cause that decided suppression, in precedence order. The
-          # legacy check-run/workflow-run causes name the `Devflow Review` check
+          # legacy check-run/workflow-run causes name the `PRFlow Review` check
           # and its Re-run button (on the consumer where they fire those are the
           # reader's real actions); the new in-flight-review cause names its own
           # reason. The notice step below composes the text from this cause via the
@@ -565,7 +566,7 @@ jobs:
           CAUSE: ${{ steps.guard.outputs.cause }}
         run: |
           set -euo pipefail
-          # CRITICAL: the body must contain NO DevFlow trigger phrase (mirrors
+          # CRITICAL: the body must contain NO PRFlow trigger phrase (mirrors
           # the devflow-implement.yml duplicate-notice discipline). Under the
           # App token this comment fires a real issue_comment event (unlike
           # GITHUB_TOKEN comments, which GitHub suppresses), so a trigger
@@ -579,7 +580,7 @@ jobs:
           # helper skips the post rather than aborting under set -euo pipefail — the
           # command was already suppressed, so a missing notice is cosmetic). The
           # helper selects the text from CAUSE: the legacy causes name the
-          # `Devflow Review` check + Re-run button, the in-flight-review cause names
+          # `PRFlow Review` check + Re-run button, the in-flight-review cause names
           # its own reason.
           NOTICE_HELPER=.prflow/vendor/prflow/scripts/dedupe-review-command.sh
           NOTE=""
@@ -631,7 +632,7 @@ jobs:
   gate:
     needs: config
     if: ${{ needs.config.outputs.enabled == 'true' }}
-    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
+    runs-on: ${{ vars.DEVFLOW_LIGHT_RUNNER && (startsWith(vars.DEVFLOW_LIGHT_RUNNER, '[') && fromJSON(vars.DEVFLOW_LIGHT_RUNNER) || vars.DEVFLOW_LIGHT_RUNNER) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest') }}
     permissions:
       contents: read        # checkout the resolver; collaborator check uses GITHUB_TOKEN
       issues: write         # react step: ack reaction on issue comments
@@ -717,21 +718,29 @@ jobs:
   command:
     needs: [config, review_dedupe, gate]
     if: ${{ needs.gate.outputs.should_run == 'true' && needs.review_dedupe.outputs.suppress != 'true' }}
-    # Promote the two run-end observables the out-of-job review_finalize backstop
+    # Promote the run-end observables the out-of-job review_finalize backstop
     # (issue #1174) uses to name a RICHER dead-run cause when this job completed
-    # its steps but reported no verdict (an alive failure). They are deliberately
-    # the only two promoted: they are the operands describe-dead-run-cause.sh
-    # consumes, and they are exactly the operands that are UNAVAILABLE on a
+    # its steps but reported no verdict (an alive failure): the two claude/engine
+    # operands describe-dead-run-cause.sh consumes, plus the nine-field cause set
+    # the diagnostics step publishes (issue #158). All are UNAVAILABLE on a
     # runner-DEATH path — a job whose runner is lost emits no outputs, so
-    # review_finalize reads them as empty and falls back to the generic
-    # arm message (see that job's "unavailable on a dead-job path" note). Every
-    # other in-job observable (steps.claude.outputs.execution_file and everything
-    # derived from it) is a path on the dead runner's filesystem and cannot be
-    # promoted at all.
+    # review_finalize reads them as empty and falls back to the generic arm
+    # message (see that job's "unavailable on a dead-job path" note). Every other
+    # in-job observable (steps.claude.outputs.execution_file and everything derived
+    # from it) is a path on the dead runner's filesystem and cannot be promoted.
     outputs:
       claude_outcome: ${{ steps.claude.outcome }}
       engine_is_error: ${{ steps.engine.outputs.is_error }}
-    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
+      subtype: ${{ steps.diag.outputs.subtype }}
+      terminal_reason: ${{ steps.diag.outputs.terminal_reason }}
+      api_error_status: ${{ steps.diag.outputs.api_error_status }}
+      stop_reason: ${{ steps.diag.outputs.stop_reason }}
+      api_retry_error: ${{ steps.diag.outputs.api_retry_error }}
+      api_retry_status: ${{ steps.diag.outputs.api_retry_status }}
+      rate_limit_type: ${{ steps.diag.outputs.rate_limit_type }}
+      rate_limit_resets_at: ${{ steps.diag.outputs.rate_limit_resets_at }}
+      result_excerpt: ${{ steps.diag.outputs.result_excerpt }}
+    runs-on: ${{ startsWith(needs.gate.outputs.command, '/prflow:review ') && (vars.DEVFLOW_LIGHT_RUNNER && (startsWith(vars.DEVFLOW_LIGHT_RUNNER, '[') && fromJSON(vars.DEVFLOW_LIGHT_RUNNER) || vars.DEVFLOW_LIGHT_RUNNER) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest')) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest') }}
     permissions:
       contents: write
       pull-requests: write
@@ -759,8 +768,16 @@ jobs:
       # above dispatches exactly three commands, so the set is closed by this same
       # file: `/prflow:review` and `/prflow:review-and-fix` reach the review engine
       # (`review`, and `requesting-code-review` for the Phase 3.1 final-pass
-      # reviewer), the fix wrapper adds its own two (`review-and-fix`,
-      # `receiving-code-review`), and `/prflow:pr-description` adds one.
+      # reviewer), the fix wrapper adds its own two (`review-and-fix`, `fix`), and
+      # `/prflow:pr-description` adds one.
+      #
+      # TRANSITIONAL (issue #152): `receiving-code-review` is kept here beside `fix`
+      # for the rename window, so the materialization step still places a base-ref
+      # `receiving-code-review.md` in the trusted closure where the loader's
+      # read-through finds it. lib/test/run.sh's #1075 drift guard carries this one
+      # superseded name as a declared transitional allowance under the same
+      # confirmation-gated end criterion as the loader read-through (removed once no
+      # consumer still carries a receiving-code-review.md).
       #
       # This is the SINGLE declaration site — the materialization call below is its
       # only reader — and lib/test/run.sh's #1075 drift guard fails when it differs
@@ -769,7 +786,7 @@ jobs:
       # silent EMPTY read: the closure is exported unconditionally, so the loader
       # composes `<closure>/<name>.md` for every name and finds nothing for one this
       # list omits. That is the failure mode the drift guard exists to catch.
-      DEVFLOW_PROTECTED_PROMPT_EXTENSIONS: "pr-description receiving-code-review requesting-code-review review review-and-fix"
+      DEVFLOW_PROTECTED_PROMPT_EXTENSIONS: "pr-description fix receiving-code-review requesting-code-review review review-and-fix"
     steps:
       # Optional, opt-in: mint a primary-App installation token at full
       # installation scope (notably Contents: write + Workflows: write — no
@@ -1097,8 +1114,8 @@ jobs:
           EXTRA: ${{ needs.config.outputs.allowed_tools_extra }}
         run: |
           set -euo pipefail
-          # devflow-capability-manifest: region=command manifest_version=32 sha256=871ee8806f60e496481c114181b11a12b2ae1088f764625a644f3181b31aeef7
-          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git checkout:*), Bash(git cat-file:*), Bash(git hash-object:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh pr checkout:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-extension-arrival.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(mktemp:*), Bash(cmp:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(*/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(tee:*)'
+          # devflow-capability-manifest: region=command manifest_version=34 sha256=e7adeffab0cef782acfe9570df05bae0f468ad8b85f4e2e87f9aa7cf52af27ea
+          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git checkout:*), Bash(git cat-file:*), Bash(git hash-object:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh pr checkout:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-extension-arrival.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/retro-helper.sh:*), Bash(.prflow/vendor/prflow/lib/scan.sh:*), Bash(.prflow/vendor/prflow/lib/materialize-retrospectives.sh:*), Bash(.prflow/vendor/prflow/lib/pattern-state.sh:*), Bash(.prflow/vendor/prflow/lib/actionable-patterns.sh:*), Bash(.prflow/vendor/prflow/lib/open-state-pr.sh:*), Bash(.prflow/vendor/prflow/lib/recurring-targets.sh:*), Bash(.prflow/vendor/prflow/lib/post-status.sh:*), Bash(.prflow/vendor/prflow/lib/fetch-pr-context.sh:*), Bash(.prflow/vendor/prflow/lib/meta-issue.sh:*), Bash(.prflow/vendor/prflow/scripts/post-issue-comment.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/build-experiment-records.py:*), Bash(.prflow/vendor/prflow/scripts/implement-run-report.py:*), Bash(gh auth status:*), Bash(true:*), Bash(export:*), Bash(trap:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(mktemp:*), Bash(cmp:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(*/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(tee:*)'
           printf 'tools=%s\n' "${TOOLS}${EXTRA}" >> "$GITHUB_OUTPUT"
 
       # Ground EVERY command this tier dispatches in the same facts the automated
@@ -1271,6 +1288,24 @@ jobs:
             echo "run_link=$RL"
           } >> "$GITHUB_OUTPUT"
           echo "::notice::seed review-progress: seeded comment #$CID for PR #$PR_NUMBER (marker $MK)"
+          # review status-label mirror (seed) BEGIN
+          # Mirror PRFlow:Reviewing onto the PR and its closing issues the moment
+          # the progress comment is seeded (issue #104). Review-ONLY: the
+          # trailing-space `/prflow:review ` screen keeps /prflow:review-and-fix
+          # out (the outer seed screen above admits both). Best-effort; the helper
+          # resolves review_status_labels.enabled itself and no-ops when off.
+          case "${COMMAND:-}" in
+            /prflow:review\ *|/devflow:review\ *)
+              MIRROR=.prflow/vendor/prflow/scripts/mirror-review-status-label.sh
+              [ -f "$MIRROR" ] || MIRROR=scripts/mirror-review-status-label.sh
+              if [ -f "$MIRROR" ]; then
+                bash "$MIRROR" "$PR_NUMBER" reviewing || true
+              else
+                echo "::warning::mirror review status label: mirror-review-status-label.sh absent at both the vendored and repo-root paths; PRFlow:Reviewing not written for #$PR_NUMBER (upgrade the vendored plugin pin)"
+              fi
+              ;;
+          esac
+          # review status-label mirror (seed) END
 
       - name: Compose engine grounding block
         id: reviewcompose
@@ -1943,7 +1978,7 @@ jobs:
           # faulted primary with a clean terminal.
           SKILL2=""
           case "$SKILL" in
-            review-and-fix) SKILL2=receiving-code-review ;;
+            review-and-fix) SKILL2=fix ;;
             review) SKILL2=requesting-code-review ;;
           esac
           if [ -n "$SKILL2" ]; then
@@ -2051,19 +2086,17 @@ jobs:
 
           # Raise the Bash tool's per-command ceiling on THIS tier — the manual
           # `/prflow:review` / `/prflow:review-and-fix` command path. The prompt extension
-          # this tier loads (.prflow/prompt-extensions/review-and-fix.md) names the parallel
+          # this tier loads (.prflow/skill-extensions/review-and-fix.md) names the parallel
           # verification coordinator `lib/test/run-parallel.sh` (#1086) as the run's final
           # whole-suite gate, and the ceiling must stay above that coordinator's wall or it
-          # would be killed mid-run with no output and forced onto the slower #1132
-          # shard-decomposition redo.
+          # would be killed mid-run with no output.
           #
           # The value MIRRORS devflow-implement.yml's 1200000 ms (20 min) deliberately
           # rather than being sized again here: both tiers run the same engine over the
           # same verification partition. Like it, this is a BOUND and not a removal; the
           # wrong change it prevents is lowering it below the measured coordinator wall —
           # 456s (7.6 min) on the 8-core pool, measured 2026-08-30 in Actions run
-          # 33318418260 (comfortably inside the 20 min bound). Rationale and the
-          # monolith-substitution figures live in
+          # 33318418260 (comfortably inside the 20 min bound). Rationale lives in
           # docs/internal/claude-md-tiered-suite-rationale.md.
           #
           # CONSUMER NOTE: install.sh ships this workflow into third-party repos whose
@@ -2076,9 +2109,7 @@ jobs:
           # project `.claude/settings.json` hooks — lives in ONE place: beside the
           # `settings:` input in devflow-implement.yml, which devflow-runner.yml also
           # points at. This is a pointer; keep the three in step by editing THAT block,
-          # never by re-deriving the mechanism here. The #1132 shard-decomposition
-          # fallback stays the in-run route if a command is ever terminated at this
-          # raised ceiling.
+          # never by re-deriving the mechanism here.
           #
           # BASH_DEFAULT_TIMEOUT_MS is the separate variable governing a Bash call that
           # requests no timeout of its own (Claude Code's default: 120000 ms). #1179 raised
@@ -2118,9 +2149,9 @@ jobs:
           # Install plugins so the ambient /code-review and /revise-claude-md commands
           # (and /devflow:*) are available in the runner. NOTE: code-review@ and
           # claude-md-management@ are ambient-command conveniences, NOT engine dependencies
-          # — DevFlow's review/implement engine dispatches neither (the "zero companion-plugin
+          # — PRFlow's review/implement engine dispatches neither (the "zero companion-plugin
           # dependencies" claim is scoped to the consumer install + what the engine dispatches;
-          # see https://prflow.ai/docs §6). devflow@ is DevFlow itself. The baked
+          # see https://prflow.ai/docs §6). devflow@ is PRFlow itself. The baked
           # baseline three are composed by the step above; settings-declared extras are
           # appended beyond them.
           plugins: ${{ steps.plugins.outputs.plugins }}
@@ -2137,6 +2168,96 @@ jobs:
           claude_args: >-
             ${{ steps.cargs.outputs.args }}
             --allowed-tools "${{ steps.tools.outputs.tools }}"
+
+      # Mirror this review run's TERMINAL verdict onto a managed PR/issue label
+      # (issue #104). AC: this is the FIRST step after Run Claude Code, so the
+      # terminal label lands before the dead-run flip, the review evidence gate,
+      # the stall backstop, the verdict-reach record and the stale-REJECT
+      # dismissal. Review-only — the trailing-space `/prflow:review ` screen keeps
+      # /prflow:review-and-fix out. always() so a determined verdict is mirrored
+      # even when a later step fails. Config-gated: the step resolves
+      # review_status_labels.enabled and exits before any API call when it is not
+      # `true`, so a consumer whose config lacks the key makes no request. The
+      # helper always exits 0, so this step never changes the job's pass/fail.
+      - name: Mirror review status label (terminal verdict)
+        if: ${{ always() && (startsWith(needs.gate.outputs.command, '/prflow:review ') || startsWith(needs.gate.outputs.command, '/devflow:review ')) && (github.event.issue.pull_request || github.event.pull_request.number) && (github.event.issue.number || github.event.pull_request.number) }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          COMMAND: ${{ needs.gate.outputs.command }}
+          REPO: ${{ github.repository }}
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          set -uo pipefail
+          # review status-label terminal write BEGIN
+          RSL_PR="${COMMAND##* }"
+          case "$RSL_PR" in ''|*[!0-9]*) RSL_PR="${CONTEXT_NUMBER:-}" ;; esac
+          if [ -z "$RSL_PR" ]; then
+            echo "::notice::mirror review status label: no PR number resolvable from command '${COMMAND:-}' or event context; nothing to label"
+            exit 0
+          fi
+          # Config-gate first (vendored, then repo): only the literal `true` enables,
+          # so a consumer whose config lacks the key exits here before any API call.
+          RSL_CFG=.prflow/vendor/prflow/scripts/config-get.sh
+          [ -f "$RSL_CFG" ] || RSL_CFG=scripts/config-get.sh
+          RSL_ENABLED=false
+          if [ -f "$RSL_CFG" ]; then
+            RSL_ENABLED="$(bash "$RSL_CFG" .review_status_labels.enabled false 2>/dev/null || echo false)"
+          fi
+          case "$RSL_ENABLED" in
+            true) : ;;
+            *)
+              echo "::notice::mirror review status label: review_status_labels.enabled is not 'true' (resolved '${RSL_ENABLED}'); no label written"
+              exit 0
+              ;;
+          esac
+          # ENGINE_ERROR is parsed HERE — this step runs before the engine step that
+          # publishes is_error — from the same execution log via the same helper.
+          PEE=.prflow/vendor/prflow/scripts/parse-engine-error.sh
+          [ -f "$PEE" ] || PEE=scripts/parse-engine-error.sh
+          RSL_ENGINE_ERROR=false
+          if [ -f "$PEE" ]; then
+            RSL_ENGINE_ERROR=$(bash "$PEE" "${EXECUTION_FILE:-}" || echo false)
+            [ "$RSL_ENGINE_ERROR" = "true" ] || RSL_ENGINE_ERROR=false
+          else
+            echo "::notice::mirror review status label: parse-engine-error.sh absent; treating engine is_error as false (fail-safe)."
+          fi
+          RSL_HEAD_SHA="$(gh pr view "$RSL_PR" --repo "$REPO" --json headRefOid -q .headRefOid 2>/dev/null || true)"
+          # Derive the verdict for the reviewed HEAD (fail-closed): a DETERMINED
+          # approve/reject maps to approved/changes-requested; everything else
+          # (undetermined, incomplete, engine error, unverifiable) maps to
+          # review-failed. The state token is a selection value, chosen with bash
+          # builtins only (CLAUDE.md guard-class 2).
+          DERIVER=.prflow/vendor/prflow/scripts/derive-review-verdict.sh
+          [ -f "$DERIVER" ] || DERIVER=scripts/derive-review-verdict.sh
+          RSL_STATE=review-failed
+          if [ -f "$DERIVER" ]; then
+            RSL_VOUT="$(HEAD_SHA="$RSL_HEAD_SHA" ENGINE_ERROR="$RSL_ENGINE_ERROR" PR_NUMBER="$RSL_PR" REPO="$REPO" bash "$DERIVER")"
+            RSL_VERDICT=""; RSL_DETERMINED=""
+            while IFS= read -r rsl_line; do
+              case "$rsl_line" in
+                verdict=*) RSL_VERDICT="${rsl_line#verdict=}" ;;
+                verdict_determined=*) RSL_DETERMINED="${rsl_line#verdict_determined=}" ;;
+              esac
+            done <<< "$RSL_VOUT"
+            if [ "$RSL_DETERMINED" = "true" ] && [ "$RSL_VERDICT" = "approve" ]; then
+              RSL_STATE=approved
+            elif [ "$RSL_DETERMINED" = "true" ] && [ "$RSL_VERDICT" = "reject" ]; then
+              RSL_STATE=changes-requested
+            else
+              RSL_STATE=review-failed
+            fi
+          else
+            echo "::warning::mirror review status label: derive-review-verdict.sh absent at $DERIVER; defaulting the label to review-failed (upgrade the vendored plugin pin)"
+          fi
+          MIRROR=.prflow/vendor/prflow/scripts/mirror-review-status-label.sh
+          [ -f "$MIRROR" ] || MIRROR=scripts/mirror-review-status-label.sh
+          if [ -f "$MIRROR" ]; then
+            bash "$MIRROR" "$RSL_PR" "$RSL_STATE" || true
+          else
+            echo "::warning::mirror review status label: mirror-review-status-label.sh absent at both the vendored and repo-root paths; the review status label for #$RSL_PR was not written (upgrade the vendored plugin pin)"
+          fi
+          # review status-label terminal write END
 
       # Retire the detached credential refresher (issue #487). Best-effort,
       # always() so it runs on every exit path. Gated with the SAME /devflow:review
@@ -2187,9 +2308,14 @@ jobs:
       # downstream job can read it, so this handler is unrecoverable on a
       # runner-death path and cannot move to review_finalize.
       - name: Surface execution diagnostics
+        id: diag
         if: always()
         env:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+          # The renderer emits one ::error:: annotation naming the cause set when the
+          # engine reported an error OR the claude step failed (issue #158); it reads
+          # the step outcome here. It never changes this step's exit status.
+          CLAUDE_STEP_OUTCOME: ${{ steps.claude.outcome }}
         run: |
           set -euo pipefail
           CG=.prflow/vendor/prflow/scripts/config-get.sh
@@ -2285,6 +2411,17 @@ jobs:
           CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
           CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
           ENGINE_ERROR: ${{ steps.engine.outputs.is_error }}
+          # The cause set reaches describe-dead-run-cause.sh through the environment
+          # (positional operands unchanged), so its call line below stays byte-identical
+          # (issue #158). No DEAD_RUN_TIER here — this is the review tier's wording.
+          # result_excerpt is deliberately NOT passed: the excerpt reaches no comment.
+          SUBTYPE: ${{ steps.diag.outputs.subtype }}
+          TERMINAL_REASON: ${{ steps.diag.outputs.terminal_reason }}
+          API_ERROR_STATUS: ${{ steps.diag.outputs.api_error_status }}
+          API_RETRY_ERROR: ${{ steps.diag.outputs.api_retry_error }}
+          API_RETRY_STATUS: ${{ steps.diag.outputs.api_retry_status }}
+          RATE_LIMIT_TYPE: ${{ steps.diag.outputs.rate_limit_type }}
+          RATE_LIMIT_RESETS_AT: ${{ steps.diag.outputs.rate_limit_resets_at }}
           COMMAND: ${{ needs.gate.outputs.command }}
           REPO: ${{ github.repository }}
         run: |
@@ -2365,6 +2502,22 @@ jobs:
             echo "::notice::flip review-progress: a verdict for the reviewed HEAD was posted by this run; suppressing the dead-run '❌ Review failed' write (issue #1172)"
           elif [ -f "$FLIP_HELPER" ]; then
             bash "$FLIP_HELPER" "$TARGET_NUMBER" "$FLIP_MARKER" "$CAUSE" || true
+            # review status-label mirror (dead-run) BEGIN
+            # This run reached the flip/create arm (no verdict was posted), so
+            # mirror PRFlow:ReviewFailed (issue #104). Review-ONLY trailing-space
+            # screen; best-effort — the helper resolves enablement and no-ops off.
+            case "${COMMAND:-}" in
+              /prflow:review\ *|/devflow:review\ *)
+                MIRROR=.prflow/vendor/prflow/scripts/mirror-review-status-label.sh
+                [ -f "$MIRROR" ] || MIRROR=scripts/mirror-review-status-label.sh
+                if [ -f "$MIRROR" ]; then
+                  bash "$MIRROR" "$TARGET_NUMBER" review-failed || true
+                else
+                  echo "::warning::mirror review status label: mirror-review-status-label.sh absent at both the vendored and repo-root paths; PRFlow:ReviewFailed not written for #$TARGET_NUMBER (upgrade the vendored plugin pin)"
+                fi
+                ;;
+            esac
+            # review status-label mirror (dead-run) END
           else
             echo "::warning::flip review-progress: flip-review-progress-failed.sh absent at $FLIP_HELPER; review-progress comment not flipped to '❌ Review failed'"
           fi
@@ -2413,6 +2566,10 @@ jobs:
           # app token — so the login must be resolved from the matching token's app-slug,
           # else a review-and-fix verdict authored by the primary app reads as no verdict.
           REVIEWER_LOGIN: ${{ startsWith(needs.gate.outputs.command, '/prflow:review ') && (steps.reviewer-token.outputs.app-slug != '' && format('{0}[bot]', steps.reviewer-token.outputs.app-slug) || 'github-actions[bot]') || (steps.app-token.outputs.app-slug != '' && format('{0}[bot]', steps.app-token.outputs.app-slug) || 'github-actions[bot]') }}
+          # The harness transcript for the #193 dispatch-count backstop — an in-job runner path
+          # (STAYS IN-JOB, issue #1174), empty when the engine step produced none (the gate then
+          # skips the transcript check and grades on artifacts alone).
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
         run: |
           set -uo pipefail
           # The pre-engine inventory step is what makes attribution possible; without it
@@ -2449,7 +2606,7 @@ jobs:
           RESULT="$(python3 "$GATE" --pre-inventory .prflow/tmp/pre-inventory.json \
             --post-tree-root . --reviews-payload "$REVIEWS_FILE" \
             --base-ref "$BASE_REF" --repo-root . --reviewer-login "$REVIEWER_LOGIN" \
-            --vendored-engine-root "$VENDOR_ROOT")"
+            --vendored-engine-root "$VENDOR_ROOT" --execution-file "$EXECUTION_FILE")"
           TOKEN="$(printf '%s\n' "$RESULT" | head -1)"
           echo "review-evidence-gate: $TOKEN"
           case "$TOKEN" in
@@ -2486,6 +2643,22 @@ jobs:
               else
                 echo "::warning::review evidence gate: flip-review-progress-failed.sh absent; progress comment not flipped"
               fi
+              # review status-label mirror (evidence-gate) BEGIN
+              # The evidence gate failed, so mirror PRFlow:ReviewFailed (issue #104).
+              # This step's `if:` admits /prflow:review-and-fix (no trailing space),
+              # so screen it out here; best-effort — the helper no-ops when off.
+              case "${COMMAND:-}" in
+                /prflow:review\ *|/devflow:review\ *)
+                  MIRROR=.prflow/vendor/prflow/scripts/mirror-review-status-label.sh
+                  [ -f "$MIRROR" ] || MIRROR=scripts/mirror-review-status-label.sh
+                  if [ -f "$MIRROR" ]; then
+                    bash "$MIRROR" "$PR_NUMBER" review-failed || true
+                  else
+                    echo "::warning::mirror review status label: mirror-review-status-label.sh absent at both the vendored and repo-root paths; PRFlow:ReviewFailed not written for #$PR_NUMBER (upgrade the vendored plugin pin)"
+                  fi
+                  ;;
+              esac
+              # review status-label mirror (evidence-gate) END
               # (c) dismiss the unbacked review — only a merge-gating state (APPROVED or
               # CHANGES_REQUESTED); a COMMENTED-state verdict is left to the durable comment.
               RID="$(printf '%s' "$TOKEN" | sed -n 's/.*review_id=\([0-9][0-9]*\).*/\1/p')"
@@ -2544,6 +2717,18 @@ jobs:
           # verdict is incomplete by construction.
           VERDICT: incomplete
           APP_TOKEN_PRESENT: ${{ steps.backstop-token.outputs.token != '' }}
+          # The cause set + the two run-end operands, so the backstop comment names
+          # the engine's reason (issue #158). No DEAD_RUN_TIER — this is the review
+          # tier's wording. result_excerpt is not passed (the excerpt reaches no comment).
+          CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
+          ENGINE_ERROR: ${{ steps.engine.outputs.is_error }}
+          SUBTYPE: ${{ steps.diag.outputs.subtype }}
+          TERMINAL_REASON: ${{ steps.diag.outputs.terminal_reason }}
+          API_ERROR_STATUS: ${{ steps.diag.outputs.api_error_status }}
+          API_RETRY_ERROR: ${{ steps.diag.outputs.api_retry_error }}
+          API_RETRY_STATUS: ${{ steps.diag.outputs.api_retry_status }}
+          RATE_LIMIT_TYPE: ${{ steps.diag.outputs.rate_limit_type }}
+          RATE_LIMIT_RESETS_AT: ${{ steps.diag.outputs.rate_limit_resets_at }}
         run: |
           set -euo pipefail
           # Since issue #1863 the light-command resolver makes the command's trailing
@@ -2580,7 +2765,19 @@ jobs:
             echo "::warning::review stall backstop: post-review-backstop-comment.sh absent at $HELPER; no auto-resume (degrades to the pre-existing dead-end flip)."
             exit 0
           fi
-          HEAD_SHA="$HEAD_SHA" bash "$HELPER"
+          # Compose the one-line cause via the shared cause helper (review wording;
+          # cause set from the env above), and the run URL, and hand both to the
+          # backstop helper so its comment names the engine's reason (issue #158).
+          # An absent cause helper degrades to a still-informative fallback.
+          CAUSE_HELPER=.prflow/vendor/prflow/scripts/describe-dead-run-cause.sh
+          [ -f "$CAUSE_HELPER" ] || CAUSE_HELPER=scripts/describe-dead-run-cause.sh
+          if [ -f "$CAUSE_HELPER" ]; then
+            CAUSE="$(bash "$CAUSE_HELPER" "${CLAUDE_OUTCOME:-}" "${ENGINE_ERROR:-false}")"
+          else
+            CAUSE="review run ended without a verdict (cause helper absent at $CAUSE_HELPER)"
+          fi
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          HEAD_SHA="$HEAD_SHA" CAUSE="$CAUSE" RUN_URL="$RUN_URL" bash "$HELPER"
 
       # ── Phase 4.4 verdict-emitter reach record (issue #1156). ────────────────
       # The failure this step records is a run that ends CLEANLY: a standalone
@@ -3124,7 +3321,7 @@ jobs:
     # whose review never started. Requiring the chain succeeded confines the
     # did-not-report arm to a genuine command-level death.
     if: ${{ always() && needs.config.result == 'success' && needs.gate.result == 'success' && needs.review_dedupe.result == 'success' && needs.config.outputs.enabled == 'true' && needs.gate.outputs.should_run == 'true' && needs.review_dedupe.outputs.suppress != 'true' && (startsWith(needs.gate.outputs.command, '/prflow:review') || startsWith(needs.gate.outputs.command, '/devflow:review')) }}
-    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
+    runs-on: ${{ vars.DEVFLOW_LIGHT_RUNNER && (startsWith(vars.DEVFLOW_LIGHT_RUNNER, '[') && fromJSON(vars.DEVFLOW_LIGHT_RUNNER) || vars.DEVFLOW_LIGHT_RUNNER) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest') }}
     # Documented least-privilege subset (AC8): STRICTLY smaller than the command
     # job's (no id-token, no actions, no checks, no contents:write). The finalizer
     # only reads vendored helpers from the checkout (contents:read), PATCHes /
@@ -3173,11 +3370,20 @@ jobs:
           COMMAND_RESULT: ${{ needs.command.result }}
           CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
           # Promoted command-job outputs. On a runner-DEATH path a dead job emits
-          # no outputs, so both read EMPTY here and the run step falls back to the
+          # no outputs, so all read EMPTY here and the run step falls back to the
           # generic arm message (AC4). On an alive failure they survive and name a
-          # richer cause via describe-dead-run-cause.sh.
+          # richer cause via describe-dead-run-cause.sh — the cause set (issue #158)
+          # reaches the helper through the env so the CAUSE line below stays
+          # byte-identical to the in-job flip's. No DEAD_RUN_TIER (review wording).
           CLAUDE_OUTCOME: ${{ needs.command.outputs.claude_outcome }}
           ENGINE_ERROR: ${{ needs.command.outputs.engine_is_error }}
+          SUBTYPE: ${{ needs.command.outputs.subtype }}
+          TERMINAL_REASON: ${{ needs.command.outputs.terminal_reason }}
+          API_ERROR_STATUS: ${{ needs.command.outputs.api_error_status }}
+          API_RETRY_ERROR: ${{ needs.command.outputs.api_retry_error }}
+          API_RETRY_STATUS: ${{ needs.command.outputs.api_retry_status }}
+          RATE_LIMIT_TYPE: ${{ needs.command.outputs.rate_limit_type }}
+          RATE_LIMIT_RESETS_AT: ${{ needs.command.outputs.rate_limit_resets_at }}
         run: |
           set -uo pipefail
           # review-finalizer BEGIN
@@ -3295,5 +3501,22 @@ jobs:
           else
             echo "::warning::review finalizer: flip-review-progress-failed.sh absent at $FLIP_HELPER; the review-progress comment for #$TARGET_NUMBER is NOT flipped to a terminal state (upgrade the vendored plugin pin)"
           fi
+          # review status-label mirror (finalizer) BEGIN
+          # This backstop reached the flip path (no verdict was posted; the
+          # suppress arm exited earlier), so mirror PRFlow:ReviewFailed (issue
+          # #104). This job's `if:` admits /prflow:review-and-fix (no trailing
+          # space), so screen it out; best-effort — the helper no-ops when off.
+          case "${COMMAND:-}" in
+            /prflow:review\ *|/devflow:review\ *)
+              MIRROR=.prflow/vendor/prflow/scripts/mirror-review-status-label.sh
+              [ -f "$MIRROR" ] || MIRROR=scripts/mirror-review-status-label.sh
+              if [ -f "$MIRROR" ]; then
+                bash "$MIRROR" "$TARGET_NUMBER" review-failed || true
+              else
+                echo "::warning::mirror review status label: mirror-review-status-label.sh absent at both the vendored and repo-root paths; PRFlow:ReviewFailed not written for #$TARGET_NUMBER (upgrade the vendored plugin pin)"
+              fi
+              ;;
+          esac
+          # review status-label mirror (finalizer) END
           exit 0
           # review-finalizer END

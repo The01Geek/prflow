@@ -53,8 +53,11 @@ guarantee; temp + os.replace for updates), and is durable only within the curren
 checkout.
 
 Determinism for tests: the LOGICAL clock is read through _now(), which honors the
-DEVFLOW_FLIGHT_NOW epoch-seconds override, so lease-expiry and recorded durations are
-testable without real sleeping. That override does NOT drive `wait`'s poll deadline —
+DEVFLOW_FLIGHT_NOW epoch-seconds override ONLY when the DEVFLOW_FLIGHT_TEST_CLOCK gate is
+also set (issue #181/13d) — a production run sets neither, so the override cannot freeze
+lease expiry or forge recorded_at there; a handle written while an override actually drove
+the clock (present, gated, and numeric) carries `clock_override: true` so `status` reports the
+non-production clock. That override does NOT drive `wait`'s poll deadline —
 cmd_wait bounds itself with real time.monotonic() — so a wait test spends real time and
 should use a small --timeout rather than the override.
 """
@@ -119,15 +122,65 @@ EXIT_CODE_MEANINGS = {
 # ─────────────────────────────────────────────────────────────────────────────
 # Time (test-overridable) and canonicalization
 # ─────────────────────────────────────────────────────────────────────────────
-def _now() -> float:
-    """Wall-clock epoch seconds, overridable via DEVFLOW_FLIGHT_NOW for tests."""
+# Set once when a DEVFLOW_FLIGHT_NOW override is ignored, so the breadcrumb below is
+# printed at most once per process (a per-call line would flood a run's stderr).
+_IGNORED_OVERRIDE_WARNED = False
+
+
+def _test_clock_enabled() -> bool:
+    """Whether the DEVFLOW_FLIGHT_NOW override is permitted to drive the clock.
+
+    Gated on DEVFLOW_FLIGHT_TEST_CLOCK (issue #181/13d): a production run sets neither
+    variable, so it never honours a clock override that could freeze lease expiry or
+    forge recorded_at. The test harness sets this gate in its setUp."""
+    return bool(os.environ.get("DEVFLOW_FLIGHT_TEST_CLOCK"))
+
+
+def _override_epoch() -> float | None:
+    """The DEVFLOW_FLIGHT_NOW override as epoch seconds, or None when it does not drive
+    the clock — the override is absent, the DEVFLOW_FLIGHT_TEST_CLOCK gate is unset, or
+    the value does not parse as a float. Shared by `_now()` and `_clock_override_active()`
+    so the handle's `clock_override` field cannot claim an override that never drove the
+    clock (a non-numeric override under the gate falls through to real time here too)."""
     override = os.environ.get("DEVFLOW_FLIGHT_NOW")
-    if override:
-        try:
-            return float(override)
-        except ValueError:
-            pass
-    return time.time()
+    if not override or not _test_clock_enabled():
+        return None
+    try:
+        return float(override)
+    except ValueError:
+        return None
+
+
+def _clock_override_active() -> bool:
+    """True only when the DEVFLOW_FLIGHT_NOW override actually drives the clock this
+    process (present, gated, and numeric). Recorded on each handle the flight writes as
+    `clock_override`, so `status` can report a non-production clock — and only when one
+    genuinely applied."""
+    return _override_epoch() is not None
+
+
+def _warn_ignored_override() -> None:
+    global _IGNORED_OVERRIDE_WARNED
+    if _IGNORED_OVERRIDE_WARNED:
+        return
+    _IGNORED_OVERRIDE_WARNED = True
+    print(
+        "devflow verification-flight: ignoring DEVFLOW_FLIGHT_NOW — the "
+        "DEVFLOW_FLIGHT_TEST_CLOCK gate is not set, so this test-only clock override "
+        "cannot drive the clock; using real wall-clock time",
+        file=sys.stderr,
+    )
+
+
+def _now() -> float:
+    """Wall-clock epoch seconds. The DEVFLOW_FLIGHT_NOW test override drives the clock
+    ONLY when the DEVFLOW_FLIGHT_TEST_CLOCK gate is also set (issue #181/13d); otherwise
+    it is ignored (with one stderr breadcrumb per process) so a production run cannot
+    freeze lease expiry or forge recorded_at."""
+    if os.environ.get("DEVFLOW_FLIGHT_NOW") and not _test_clock_enabled():
+        _warn_ignored_override()
+    epoch = _override_epoch()
+    return epoch if epoch is not None else time.time()
 
 
 def _iso(epoch: float) -> str:
@@ -854,6 +907,11 @@ def cmd_claim(args) -> int:
         # Optional candidate identity carried into the handle (issue #668); a
         # declaration omitting it records the field absent (None).
         "candidate_identity": derived["candidate_identity"],
+        # issue #181/13d: mark a handle written while the DEVFLOW_FLIGHT_NOW test clock
+        # is active, so `status` can report a non-production clock. Additive optional
+        # field — no SCHEMA_VERSION bump (a bump would reject every existing declaration,
+        # mirroring candidate_identity); a legacy handle lacks it and readers `.get` it.
+        "clock_override": _clock_override_active(),
         "state": "claimed",
         "token_digest": _sha256(token.encode("utf-8")),
         "claimed_at": _iso(now),

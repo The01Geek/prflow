@@ -184,6 +184,59 @@ _publish_claude_code_version() {  # rendered-block
   fi
 }
 
+# The nine-field failure cause set (issue #158). Each field is rendered as a
+# `- <field>: <value>` line in the block (n/a for an absent source, the literal
+# `null` for a key present with a JSON null) and republished here as a step
+# output, translating `n/a` back to the literal `unavailable` so a consumer can
+# tell "the engine reported no such field" from "the count could not be
+# established" — the same posture _publish_denials keeps for the denial count.
+# Parsed with bash builtins ONLY (no sed/grep/head): these values decide what the
+# ::error:: annotation names and what the failure comments read, and a value only
+# correct when an un-guaranteed PATH tool is present is an unverified boundary.
+_CAUSE_FIELDS="subtype terminal_reason api_error_status stop_reason api_retry_error api_retry_status rate_limit_type rate_limit_resets_at result_excerpt"
+_CAUSE_ANNOTATION=""
+_publish_cause_set() {  # rendered-block
+  _annotation=""
+  for _f in $_CAUSE_FIELDS; do
+    _cval=""
+    _cfound=0
+    while IFS= read -r _line; do
+      case "$_line" in
+        "- $_f: "*) _cval="${_line#- "$_f": }"; _cfound=1; break ;;
+      esac
+    done <<<"$1"
+    # An absent line (renderer produced no such field) and the renderer's own
+    # honest `n/a` both publish `unavailable`; a present `null` publishes `null`.
+    if [ "$_cfound" -eq 0 ] || [ "$_cval" = "n/a" ]; then
+      _cval=unavailable
+    fi
+    if [ -n "${GITHUB_OUTPUT:-}" ]; then
+      printf '%s=%s\n' "$_f" "$_cval" >> "$GITHUB_OUTPUT" \
+        || echo "devflow: surface-execution-diagnostics: could not append $_f to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — downstream jobs read the 'unavailable' default" >&2
+    fi
+    _annotation="${_annotation}${_annotation:+; }${_f}=${_cval}"
+  done
+  _CAUSE_ANNOTATION="$_annotation"
+}
+
+# Emit ONE ::error:: annotation naming the cause set when the run ended in error —
+# is_error true (read back from the block) OR the claude step's outcome is
+# `failure` (passed in via $CLAUDE_STEP_OUTCOME). Annotation text only: it never
+# changes this step's exit status, and no annotation fires when diagnostics are
+# disabled because the workflow step exits at its config gate before this renderer
+# runs. Call AFTER _publish_cause_set so $_CAUSE_ANNOTATION is populated.
+_emit_dead_run_annotation() {  # rendered-block
+  _iserr=""
+  while IFS= read -r _line; do
+    case "$_line" in
+      "- is_error: "*) _iserr="${_line#- is_error: }"; break ;;
+    esac
+  done <<<"$1"
+  if [ "$_iserr" = "true" ] || [ "${CLAUDE_STEP_OUTCOME:-}" = "failure" ]; then
+    echo "::error::DevFlow: run ended with an error — ${_CAUSE_ANNOTATION}"
+  fi
+}
+
 _HEADER="## DevFlow execution diagnostics"
 _NO_DIAG="$_HEADER
 _No diagnostics available (execution file absent, empty, or unparseable)._"
@@ -196,6 +249,8 @@ if [ -z "$FILE" ] || [ ! -f "$FILE" ] || [ ! -s "$FILE" ]; then
   _emit "$_NO_DIAG"
   _publish_denials "$_NO_DIAG"
   _publish_claude_code_version "$_NO_DIAG"
+  _publish_cause_set "$_NO_DIAG"
+  _emit_dead_run_annotation "$_NO_DIAG"
   exit 0
 fi
 
@@ -209,12 +264,47 @@ else
   echo "devflow: surface-execution-diagnostics: devflow_probe_cli_version unavailable (probe-observation.sh not sourced) — claude_code_version will publish 'unavailable'" >&2
 fi
 
+# result_excerpt (issue #158). Only when is_error is true: the last result event's
+# `result` text (else its `errors` entries joined with "; "), newlines folded to
+# spaces, first 300 chars. It is piped through scripts/scrub-credentials.sh BEFORE
+# rendering — never render a raw error text — and a scrub failure yields
+# `unavailable` with no raw byte emitted (fail-closed). The excerpt reaches the run
+# log and step summary only, never a comment.
+_SCRUB="$_SED_DIR/scrub-credentials.sh"
+EXCERPT_STATE=absent
+EXCERPT_VAL=""
+EXCERPT_CAVEAT=""
+if EXCERPT_RAW=$("$DEVFLOW_JQ" -rs '
+    (last(.. | objects | select(.type? == "result"))) as $r
+    | if $r == null or ($r.is_error != true) then empty
+      elif ($r | has("result")) and ($r.result != null) then ($r.result | tostring)
+      elif ($r | has("errors")) then ($r.errors | map(tostring) | join("; "))
+      else empty end
+    | gsub("[\n\r]"; " ") | .[0:300]
+  ' "$FILE" 2>/dev/null) && [ -n "$EXCERPT_RAW" ]; then
+  if EXCERPT_SCRUBBED=$(printf '%s' "$EXCERPT_RAW" | bash "$_SCRUB"); then
+    EXCERPT_VAL="$EXCERPT_SCRUBBED"
+    EXCERPT_STATE=present
+    # Caveat wording is sourced from the scrub helper's --shapes (single source of
+    # truth); a failed read degrades to a generic phrase. Computed only when an
+    # excerpt is actually rendered, so the common is_error=false run spawns no
+    # extra --shapes subprocess and its block carries no dangling caveat line.
+    if ! EXCERPT_SHAPES=$(bash "$_SCRUB" --shapes 2>/dev/null); then
+      EXCERPT_SHAPES="known credential shapes"
+    fi
+    EXCERPT_CAVEAT="(excerpt scrubbed for ${EXCERPT_SHAPES}; other credential shapes may survive)"
+  else
+    echo "devflow: surface-execution-diagnostics: scrub-credentials.sh exited non-zero — result_excerpt published as 'unavailable', no raw error text emitted (fail-closed)" >&2
+  fi
+fi
+
 # Build the whole formatted block in one slurp-based jq program. `-s` normalizes
 # JSONL / single-array / single-object the same way; `.. | objects` reaches the
 # result object at any depth. Denials are gathered from every `permission_denials`
 # array anywhere in the slurped input (they may not live in the result event).
 # tool_input is truncated to keep the surfaced block readable.
-if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" '
+if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" \
+    --arg excerpt "$EXCERPT_VAL" --arg excerpt_state "$EXCERPT_STATE" --arg excerpt_caveat "$EXCERPT_CAVEAT" '
     def trunc($s):
       ($s | tostring) as $t
       | if ($t | length) > 200 then ($t[0:200] + "…(truncated)") else $t end;
@@ -238,7 +328,22 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" '
     # is_error to the fallback (jq treats false as empty for `//`), so a plain
     # explicit null check is used instead of `.field // "n/a"`.
     def orna($v): if $v == null then "n/a" else $v end;
+    # Cause-set field render (issue #158). Distinguishes an ABSENT key (n/a, which
+    # the step-output read-back republishes as unavailable) from a key PRESENT with
+    # a JSON null (the literal null): orna cannot tell them apart, so has() does.
+    def causefield($obj; $key):
+      if $obj == null then "n/a"
+      elif ($obj | has($key)) then (if $obj[$key] == null then "null" else ($obj[$key] | tostring) end)
+      else "n/a" end;
     (last(.. | objects | select(.type? == "result"))) as $r
+    # api_retry: the last system event with subtype api_retry (issue #158).
+    | (last(.. | objects | select(.type? == "system" and .subtype? == "api_retry"))) as $ar
+    # rate_limit: the LAST rate_limit_event, taken ONLY when its status is the
+    # string "rejected" — a later event of any other status means the run continued
+    # past the rejection, so no rate-limit values are published (issue #158).
+    | (last(.. | objects | select(.type? == "rate_limit_event"))) as $rl_last
+    | (if ($rl_last != null) and (($rl_last.rate_limit_info?.status?) == "rejected")
+       then ($rl_last.rate_limit_info) else null end) as $rl
     # `unique` de-duplicates: the same denial can appear in more than one place in
     # the slurped log (e.g. a streamed message event AND the summarizing result
     # event both carrying permission_denials), which would otherwise double-count
@@ -286,6 +391,16 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" '
           "- total_cost_usd: \(orna($r.total_cost_usd))",
           "- permission_denials_count: \(orna($count))",
           "- claude_code_version: \($ccver)",
+          "- subtype: \(causefield($r; "subtype"))",
+          "- terminal_reason: \(causefield($r; "terminal_reason"))",
+          "- api_error_status: \(causefield($r; "api_error_status"))",
+          "- stop_reason: \(causefield($r; "stop_reason"))",
+          "- api_retry_error: \(causefield($ar; "error"))",
+          "- api_retry_status: \(causefield($ar; "error_status"))",
+          "- rate_limit_type: \(causefield($rl; "rateLimitType"))",
+          "- rate_limit_resets_at: \(causefield($rl; "resetsAt"))",
+          "- result_excerpt: \(if $excerpt_state == "present" then $excerpt else "n/a" end)",
+          (if $excerpt_state == "present" then "  \($excerpt_caveat)" else empty end),
           "",
           "### Permission denials",
           # Gathered detail is surfaced FIRST — before the count==0 / unavailable
@@ -315,10 +430,14 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" '
   _emit "$_NO_DIAG"
   _publish_denials "$_NO_DIAG"
   _publish_claude_code_version "$_NO_DIAG"
+  _publish_cause_set "$_NO_DIAG"
+  _emit_dead_run_annotation "$_NO_DIAG"
   exit 0
 fi
 
 _emit "$BLOCK"
 _publish_denials "$BLOCK"
 _publish_claude_code_version "$BLOCK"
+_publish_cause_set "$BLOCK"
+_emit_dead_run_annotation "$BLOCK"
 exit 0

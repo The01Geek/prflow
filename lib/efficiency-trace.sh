@@ -239,15 +239,78 @@ compute_config_fingerprint() {
   fi
 }
 
+# Classify one engine-return file (issue #115) into a single state token: "absent"
+# (no file), "malformed" (unreadable, not a JSON object, a dispatch_mode outside
+# fanned-out/unavailable, OR a zero-byte file jq runs its program zero times over —
+# empty output, exit 0, which the `if !` does not catch), else the file's own
+# "fanned-out"/"unavailable". SINGLE SOURCE for build_return_file_map (the jq/record
+# side) and do_self_check's dispatch cross-check (the warn-only side), so the two
+# surfaces cannot disagree on what a return file says — the exact drift this feature
+# detects. Guarded jq, adds no non-preflight tool.
+classify_return_file() {
+  local file="$1" mode
+  [ -e "$file" ] || { printf 'absent'; return 0; }
+  if ! mode="$("$DEVFLOW_JQ" -r 'if type != "object" then "malformed" elif (.dispatch_mode == "fanned-out" or .dispatch_mode == "unavailable") then .dispatch_mode else "malformed" end' "$file" 2>/dev/null)"; then
+    mode="malformed"
+  fi
+  [ -n "$mode" ] || mode="malformed"
+  printf '%s' "$mode"
+}
+
+# Build the engine-return-file corroboration map (issue #115) for a run dir. For
+# each iter-<N>.json, classify the step1 and shadow engine-return files (located by
+# the filename ordinal N) and emit {"<key>":{"step1":<state>,"shadow":<state>}}.
+# Threaded into emit_jq so the filter can derive dispatch_corroboration.
+build_return_file_map() {
+  local dir="$1" iter n key entry file mode obj="{}" folded
+  [ -n "$dir" ] && [ -d "$dir" ] || { printf '{}'; return 0; }
+  for iter in "$dir"/iter-*.json; do
+    [ -e "$iter" ] || continue
+    n="${iter##*/iter-}"; n="${n%.json}"
+    case "$n" in ''|*[!0-9]*) continue ;; esac
+    # Key the map by the record's OWN (.iter|tostring), matching the jq lookup
+    # $return_files[($it.iter|tostring)] — keying by the filename ordinal made the
+    # record and the map disagree whenever .iter != N (a present file read absent).
+    if ! key="$("$DEVFLOW_JQ" -r 'if type == "object" then (.iter | tostring) else "null" end' "$iter" 2>/dev/null)"; then
+      key="null"
+    fi
+    [ -n "$key" ] || key="null"
+    for entry in step1 shadow; do
+      file="$dir/engine-return-${entry}-iter-${n}.json"
+      mode="$(classify_return_file "$file")"
+      # Reassign obj ONLY on jq success: `obj="$(failing-jq)"` captures empty stdout
+      # before `!` sees the status, which would clobber the WHOLE map — not just this
+      # entry — on a mid-loop fold failure.
+      if folded="$("$DEVFLOW_JQ" -c --arg n "$key" --arg entry "$entry" --arg mode "$mode" '.[$n][$entry] = $mode' <<<"$obj" 2>/dev/null)"; then
+        obj="$folded"
+      else
+        echo "::warning::efficiency-trace.sh: could not fold return-file state for iter-${n} ${entry} into the corroboration map; the prior map is kept and this entry reads as absent" >&2
+      fi
+    done
+  done
+  printf '%s' "$obj"
+}
+
 # Run the jq derivation over VALID_FILES for $1 mode ("trace"|"record") and the
 # slug $2, to stdout. A fresh GENERATED_AT is stamped per call.
 emit_jq() {
-  local mode="$1" slug="$2" generated_at config_fingerprint
+  local mode="$1" slug="$2" generated_at config_fingerprint return_files dir
   generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   # Fingerprint the config that produced this run (issue #431). Guard the empty
   # case to a JSON null so --argjson never aborts jq (and the wrapper under set -e).
   config_fingerprint="$(compute_config_fingerprint "$_DEVFLOW_CONFIG")"
   [ -n "$config_fingerprint" ] || config_fingerprint="null"
+  # Engine-return-file corroboration map (issue #115), derived once from the run
+  # dir (the parent of the collected iter files) so the filter can render a
+  # per-entry dispatch_corroboration. Empty object when the dir is unknown.
+  return_files="{}"
+  if [ "${#VALID_FILES[@]}" -gt 0 ]; then
+    # %/* not dirname: this dir decides the emitted corroboration map, and an
+    # emitted-result value must not route through a non-preflight PATH tool.
+    dir="${VALID_FILES[0]%/*}"
+    return_files="$(build_return_file_map "$dir")"
+  fi
+  [ -n "$return_files" ] || return_files="{}"
   # jq -s over zero files yields null, not []; feed an explicit empty array so the
   # filter (which expects an array) degrades to an empty trace / empty record.
   if [ "${#VALID_FILES[@]}" -eq 0 ]; then
@@ -255,13 +318,15 @@ emit_jq() {
       --arg mode "$mode" --arg slug "$slug" \
       --arg generated_at "$generated_at" \
       --argjson cut_candidate_min_dispatch "$THRESHOLD" \
-      --argjson config_fingerprint "$config_fingerprint"
+      --argjson config_fingerprint "$config_fingerprint" \
+      --argjson return_files "$return_files"
   else
     "$DEVFLOW_JQ" --raw-output --slurp -f "$HERE/efficiency-trace.jq" \
       --arg mode "$mode" --arg slug "$slug" \
       --arg generated_at "$generated_at" \
       --argjson cut_candidate_min_dispatch "$THRESHOLD" \
       --argjson config_fingerprint "$config_fingerprint" \
+      --argjson return_files "$return_files" \
       "${VALID_FILES[@]}"
   fi
 }
@@ -791,6 +856,9 @@ do_self_check() {
   [ "$ENABLED" = "true" ] || return 0
   if [ -z "$WORKPAD_DIR" ] || [ -z "$SLUG" ]; then
     echo "::warning::efficiency-trace.sh --self-check requires --workpad-dir and --slug" >&2
+    # Enabled, so emit the summary here too — a caller keys "no summary line" to a
+    # refused fence, and omitting it here misreports this arg error as a refusal.
+    printf 'dispatch-corroboration: checked=0 warnings=0\n'
     return 0
   fi
   local run_id root record
@@ -799,6 +867,10 @@ do_self_check() {
   # No iter-*.json workpad at all → per-iteration telemetry was never captured.
   if [ ! -d "$WORKPAD_DIR" ] || ! compgen -G "$WORKPAD_DIR"/iter-*.json >/dev/null 2>&1; then
     echo "::warning::devflow review-and-fix self-check: NO iter-*.json workpad was written for run ${SLUG}/${run_id} — per-iteration effectiveness telemetry was not captured this run; recover a minimal floor with 'lib/efficiency-trace.sh --persist --workpad-dir ${WORKPAD_DIR} --slug ${SLUG}' (the targeted form — bare discovery-mode --persist can decline this dir on a multi-slug or not-latest skip), which synthesizes an iteration record from this branch's unrecorded 'fix: address review findings (iteration N)' commits when any exist." >&2
+    # The dispatch-corroboration summary (issue #115) prints on every post-gate
+    # exit path — checked=0 warnings=0 when the run held no iteration record — so a
+    # clean pass is distinguishable from a refused fence on stdout.
+    printf 'dispatch-corroboration: checked=0 warnings=0\n'
     return 0
   fi
   # Workpads exist but the effectiveness record was not persisted. Presence is
@@ -936,6 +1008,73 @@ do_self_check() {
       done
     fi
   done
+  # ── Dispatch-corroboration cross-check (issue #115): warn-only, exit 0 ───────
+  # The parent copies each engine entry's dispatch_mode from a subagent-written
+  # engine-return-<entry>-iter-<N>.json; a recorded value with no corroborating
+  # return file and no recorded dispatch_disposition, a value disagreeing with the
+  # file, or a malformed file is a run that silently fell back to inline execution
+  # — the state SKILL.md says must not be indistinguishable from a dispatched one.
+  # Population: object iter records that are NOT source:"review" and NOT
+  # synthesized:true; the shadow entry is checked only on a shadow object whose
+  # coverage is not "not_verified". Same guarded-jq/::warning::/exit-0 discipline
+  # as the field validation above; a recorded dispatch_disposition is a recognized
+  # fallback (refused/dead/malformed) and draws no warning, count only.
+  local dc_checked=0 dc_warnings=0 dc_n dc_meta dc_entry dc_recmode dc_recjson dc_disp dc_file dc_filestate dc_tab
+  dc_tab="$(printf '\t')"
+  for iter in "$WORKPAD_DIR"/iter-*.json; do
+    [ -e "$iter" ] || continue
+    dc_n="${iter##*/iter-}"; dc_n="${dc_n%.json}"
+    case "$dc_n" in ''|*[!0-9]*) continue ;; esac
+    # One guarded jq emits one @tsv line per CHECKED entry: the entry name, the
+    # recorded dispatch_mode as a bare string (__nonstr__ when null/non-string, so
+    # it can never equal a valid file mode), the recorded value rendered for the
+    # message, and the recorded dispatch_disposition (empty when absent/non-string).
+    if ! dc_meta="$("$DEVFLOW_JQ" -r '
+      if (type != "object") or (.source == "review") or (.synthesized == true) then empty
+      else
+        ( [ "step1",
+            (if (.dispatch_mode | type) == "string" then .dispatch_mode else "__nonstr__" end),
+            (.dispatch_mode | tojson),
+            (if (.dispatch_disposition | type) == "string" then .dispatch_disposition else "" end) ] | @tsv ),
+        ( if ((.shadow | type) == "object") and (.shadow.coverage != "not_verified")
+          then ( [ "shadow",
+                   (if (.shadow.dispatch_mode | type) == "string" then .shadow.dispatch_mode else "__nonstr__" end),
+                   (.shadow.dispatch_mode | tojson),
+                   (if (.shadow.dispatch_disposition | type) == "string" then .shadow.dispatch_disposition else "" end) ] | @tsv )
+          else empty end )
+      end' "$iter" 2>/dev/null)"; then
+      # Unreadable/unparseable — the field-validation loop above already warned; a
+      # record this cross-check cannot read is skipped (best-effort).
+      continue
+    fi
+    while IFS="$dc_tab" read -r dc_entry dc_recmode dc_recjson dc_disp; do
+      [ -n "$dc_entry" ] || continue
+      dc_checked=$((dc_checked + 1))
+      # A recorded dispatch_disposition is a recognized fallback (refused/dead/malformed),
+      # not a silent one, so it draws no warning. Skip ONLY those three — matching jq's
+      # corroboration() — so an out-of-enum value still falls through to the filestate check.
+      case "$dc_disp" in refused|dead|malformed) continue ;; esac
+      dc_file="$WORKPAD_DIR/engine-return-${dc_entry}-iter-${dc_n}.json"
+      # Classify the return file through the SAME helper the record/trace side uses,
+      # so the warn-only self-check and the persisted dispatch_corroboration can never
+      # disagree about the same file.
+      dc_filestate="$(classify_return_file "$dc_file")"
+      if [ "$dc_filestate" = "absent" ]; then
+        echo "::warning::devflow review-and-fix self-check: dispatch-corroboration ${SLUG}/${run_id} iter ${dc_n} ${dc_entry}: absent — no engine-return file beside iter-${dc_n}.json; recorded dispatch_mode ${dc_recjson} ran with no subagent return (uncorroborated)" >&2
+        dc_warnings=$((dc_warnings + 1)); continue
+      fi
+      if [ "$dc_filestate" = "malformed" ]; then
+        echo "::warning::devflow review-and-fix self-check: dispatch-corroboration ${SLUG}/${run_id} iter ${dc_n} ${dc_entry}: malformed — engine-return file is unreadable, not a JSON object, or its dispatch_mode is outside fanned-out/unavailable" >&2
+        dc_warnings=$((dc_warnings + 1)); continue
+      fi
+      if [ "$dc_recmode" != "$dc_filestate" ]; then
+        echo "::warning::devflow review-and-fix self-check: dispatch-corroboration ${SLUG}/${run_id} iter ${dc_n} ${dc_entry}: mismatch — recorded dispatch_mode ${dc_recjson} but engine-return file dispatch_mode \"${dc_filestate}\"" >&2
+        dc_warnings=$((dc_warnings + 1)); continue
+      fi
+      # corroborated — recorded value equals the return file's dispatch_mode; silent.
+    done < <(printf '%s\n' "$dc_meta")
+  done
+  printf 'dispatch-corroboration: checked=%s warnings=%s\n' "$dc_checked" "$dc_warnings"
   return 0
 }
 
@@ -1200,7 +1339,8 @@ persist_one() {
 #                           (pr-description derives no record by design).
 #   GITHUB_RUN_ID / GITHUB_RUN_ATTEMPT  the run-id identity the record is keyed by:
 #                           <run-id> == ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}, the same
-#                           value skills/review-and-fix/references/loop-control.md's RUN_ID= line composes.
+#                           value scripts/compose-run-key.sh composes for the review
+#                           engine's scratch key.
 #   GITHUB_WORKFLOW_REF     the path-pinned workflow identity (harness_cost.workflow).
 #
 # Telemetry-gated exactly as record derivation is (AC8); best-effort/exit-0 like every
@@ -1282,7 +1422,9 @@ apply_harness_floor() {
           tokens: .tokens,
           model_usage: .model_usage,
           num_turns: .num_turns,
-          duration_ms: .duration_ms}' 2>/dev/null)"; then
+          duration_ms: .duration_ms,
+          peak_main_thread_context: .peak_main_thread_context,
+          phase_file_reads: .phase_file_reads}' 2>/dev/null)"; then
     echo "::warning::efficiency-trace.sh --persist: harness cost floor: could not assemble the harness_cost object (jq failed); no floor write" >&2
     return 0
   fi

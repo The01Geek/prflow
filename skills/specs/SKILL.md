@@ -12,7 +12,7 @@ Before doing this skill's work, load any consumer-supplied prompt extension for 
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh specs
 ```
 
-Exit 0 with text is consumer-owned customization under `.prflow/prompt-extensions/` — treat it as instructions appended to the end of this skill's own prompt for this run. Exit 0 with no output: proceed unchanged. On a non-zero exit where the helper ran but failed, a consumer extension exists but could not be loaded: surface its stderr message, never silently proceed as if none existed. A missing helper path (`No such file`, exit 127, or the platform equivalent) is an anchor-resolution failure — resolve the `${CLAUDE_SKILL_DIR}` anchor to this skill's own base directory (the one this runner reports in context) rather than reporting a missing extension.
+Exit 0 with text is consumer-owned customization under `.prflow/skill-extensions/` — treat it as instructions appended to the end of this skill's own prompt for this run. Exit 0 with no output: proceed unchanged. On a non-zero exit where the helper ran but failed, a consumer extension exists but could not be loaded: surface its stderr message, never silently proceed as if none existed. A missing helper path (`No such file`, exit 127, or the platform equivalent) is an anchor-resolution failure — resolve the `${CLAUDE_SKILL_DIR}` anchor to this skill's own base directory (the one this runner reports in context) rather than reporting a missing extension.
 
 ## Forward to create-issue
 

@@ -11,7 +11,7 @@ Configure the repository defaults, authorization rules and shared behavior used 
 | --- | --- | --- | --- | --- |
 | `base_branch` | String branch name | Runtime and scaffold: `main` | Review and implementation base. Confirm the branch exists. | `"base_branch": "main"` |
 | `claude_model` | String model identifier | Runtime and scaffold: `claude-opus-5` | Global model. Cloud workflows reject an empty value or one that begins with `-`. | `"claude_model": "claude-opus-5"` |
-| `prflow.allowed_bots` | Comma-separated string | `claude,dependabot` | All cloud gates. List only automation identities that may incur runs. | `"allowed_bots": "claude,dependabot,my-app"` |
+| `prflow.allowed_bots` | Comma-separated string | `claude,dependabot` | All cloud gates. List only automation identities that may incur runs. Each entry may be written as the bare slug, `<slug>[bot]`, or `app/<slug>`, and comparison ignores case, so any of those spellings match the same identity. This list also governs deferral-filer trust — a listed GitHub App author is trusted to file Scope-Acknowledged deferrals. | `"allowed_bots": "claude,dependabot,my-app"` |
 | `prflow.allowed_users` | `*` or comma-separated logins | `*` | All cloud gates. Humans must also have write, maintain or admin access. | `"allowed_users": "octocat,maintainer"` |
 | `prflow.effort` | `low`, `medium`, `high`, `xhigh` or `max` | Scaffold: `low`; absent runtime fallback: `high` | General cloud command workflow. Provider routes omit effort unless the provider supports it. | `"effort": "low"` |
 | `workflows.prflow` | Boolean | Scaffold: `true`; absent workflow read resolves disabled | Both fresh-install cloud workflows. Keep config committed or triggers cannot enable. | `"prflow": true` |
@@ -62,4 +62,4 @@ Configure the repository defaults, authorization rules and shared behavior used 
 
 Expected result: cloud runs are enabled, only `octocat` and `maintainer` may trigger one, and every run works from `main` with `claude-opus-5` at low effort.
 
-Use [Model Providers](/docs/configuration/providers) for `prflow.provider` and `prflow.claude_model`. Use [Tool Permissions](/docs/configuration/tool-permissions) for `prflow.allowed_tools`. To add house rules that no setting expresses, write a [prompt extension](/docs/configuration/prompt-extensions).
+Use [Model Providers](/docs/configuration/providers) for `prflow.provider` and `prflow.claude_model`. Use [Tool Permissions](/docs/configuration/tool-permissions) for `prflow.allowed_tools`. To add house rules that no setting expresses, write a [prompt extension](/docs/configuration/skill-extensions).

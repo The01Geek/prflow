@@ -77,6 +77,18 @@
         }
       }
     },
+    "review_status_labels": {
+      "type": "object",
+      "description": "Mirror a cloud /prflow:review run's status onto four managed GitHub labels on the pull request and each issue it closes (issue #104), so a maintainer sees whether a review is running, approved, requested changes, or died from the issue/PR LIST without opening the run's progress comment — beside the implement status labels (status_labels, #2117). The four managed labels are PRFlow:Reviewing (a review is running), PRFlow:Approved (a determined approve), PRFlow:ChangesRequested (a determined reject), PRFlow:ReviewFailed (no determined verdict, a dead run, an evidence-gate fail, or the finalizer catch). The labels are a derived mirror of the run's progress comment, which stays the source of truth, and are written best-effort by scripts/mirror-review-status-label.sh from the devflow.yml command/review_finalize jobs (never from the review skill, whose downscoped token cannot write issues). OFF by default: the key is absent from consumer configs, so a consumer run makes no label request; only a local interactive review and /prflow:review-and-fix are out of scope regardless.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the review status-label mirror is active. Resolved through scripts/config-get.sh and honoured only when it resolves to the literal string true — a JSON boolean true and a JSON string \"true\" both resolve to it. Every other shape leaves the feature OFF and issues no label request: a JSON false or string \"false\", an empty string, null, a number, an array, a non-object review_status_labels value, a missing key, a missing/unreadable/unparseable config file, and an absent resolver (the truthy-OFF, config-gated-default direction, opposite status_labels.enabled which defaults ON).",
+          "default": false
+        }
+      }
+    },
     "prflow": {
       "type": "object",
       "description": "Shared PRFlow settings. allowed_bots/allowed_users gate triggering across ALL PRFlow workflows (devflow.yml, devflow-implement.yml, devflow-review.yml, devflow-runner.yml); workpad_marker is used by /prflow:implement; effort and allowed_tools apply specifically to the light /prflow:* command path (devflow.yml). WITHHELD: the automatic pull-request-triggered review tier is not shipped in this release (see issues #930 and #920) \u2014 a fresh installation receives none of devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so this setting has no effect there; it remains live for a repository that already installed those three files, which stays exposed to those defects while workflows[\"prflow-review\"] (or workflows[\"devflow-review\"] on an unmigrated config) is true. Use /prflow:review by collaborator comment instead.",
@@ -91,7 +103,7 @@
         },
         "allowed_bots": {
           "type": "string",
-          "description": "Bot logins allowed to trigger PRFlow workflows (comma-separated). 'claude' is Anthropic's GitHub App identity; add your own bot/automation logins (e.g. dependabot).",
+          "description": "Bot logins allowed to trigger PRFlow workflows (comma-separated). 'claude' is Anthropic's GitHub App identity; add your own bot/automation logins (e.g. dependabot). Each entry may be written as the bare slug, '<slug>[bot]', or 'app/<slug>', and comparison ignores case. Beyond triggering, this key also governs deferral-filer trust (scripts/match-deferrals.py) and is the default set of watched authors for the weekly retrospective.",
           "default": "claude,dependabot"
         },
         "allowed_users": {
@@ -297,7 +309,7 @@
         "stall_backstop": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Cloud-only workflow-level backstop for the review engine. A headless review run can end `success` with NO verdict — the SDK session ends the moment the model emits a tool-call-free turn (e.g. after ScheduleWakeup while a Phase-3 agent is still pending), so the required `Devflow Review` check fails 'incomplete — re-run needed' and a human must manually re-trigger. On the AUTO-review path (devflow-review.yml's finalize_check), which derives the verdict for the head, the backstop fires when the run concludes incomplete with no verdict positively observed for the head — exactly this early-quit — and posts a `/prflow:review` re-trigger comment (authored by a freshly minted App token) up to `max_resume_attempts` per head, so the review re-runs without human intervention. The MANUAL /prflow:review comment path (devflow.yml) has no verdict-derivation step, so it fires the same backstop only on the #356 dead-run signal (the engine ending is_error, or the claude step ending failure — a hard death), not on a clean success-with-no-verdict; that manual-path case is covered only by the headless-wait skill/grounding prose. When the cap is exhausted, or no workflow-capable App token is configured (DEVFLOW_APP_ID unset — a GITHUB_TOKEN-authored comment never re-triggers a workflow), behavior degrades to exactly the pre-existing dead-end flip, with a breadcrumb naming why the backstop did not fire. Because the re-trigger re-enters the SAME manual /prflow:review comment gate, auto-resume additionally requires the minting App's bot login to be in `prflow.allowed_bots` (the same prerequisite the implement backstop carries); otherwise the comment posts but the gate declines it and no review re-runs. This is the review-side sibling of prflow_implement.stall_backstop. A cancelled run is excluded from auto-resume on every PRFlow backstop (a cancel is a decided ending, not a benign timing stall — issue #498); the review tier's exclusion is already correct at source (the dead-run signal fires only on is_error/failure, never on cancellation). Purely additive: absent/disabled, the review behaves exactly as before. WITHHELD: the automatic pull-request-triggered review tier is not shipped in this release (see issues #930 and #920) \u2014 a fresh installation receives none of devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so this setting has no effect there; it remains live for a repository that already installed those three files, which stays exposed to those defects while workflows[\"prflow-review\"] (or workflows[\"devflow-review\"] on an unmigrated config) is true. Use /prflow:review by collaborator comment instead.",
+          "description": "Cloud-only workflow-level backstop for the review engine. A headless review run can end `success` with NO verdict — the SDK session ends the moment the model emits a tool-call-free turn (e.g. after ScheduleWakeup while a Phase-3 agent is still pending), so the required `PRFlow Review` check fails 'incomplete — re-run needed' and a human must manually re-trigger. On the AUTO-review path (devflow-review.yml's finalize_check), which derives the verdict for the head, the backstop fires when the run concludes incomplete with no verdict positively observed for the head — exactly this early-quit — and posts a `/prflow:review` re-trigger comment (authored by a freshly minted App token) up to `max_resume_attempts` per head, so the review re-runs without human intervention. The MANUAL /prflow:review comment path (devflow.yml) has no verdict-derivation step, so it fires the same backstop only on the #356 dead-run signal (the engine ending is_error, or the claude step ending failure — a hard death), not on a clean success-with-no-verdict; that manual-path case is covered only by the headless-wait skill/grounding prose. When the cap is exhausted, or no workflow-capable App token is configured (DEVFLOW_APP_ID unset — a GITHUB_TOKEN-authored comment never re-triggers a workflow), behavior degrades to exactly the pre-existing dead-end flip, with a breadcrumb naming why the backstop did not fire. Because the re-trigger re-enters the SAME manual /prflow:review comment gate, auto-resume additionally requires the minting App's bot login to be in `prflow.allowed_bots` (the same prerequisite the implement backstop carries); otherwise the comment posts but the gate declines it and no review re-runs. This is the review-side sibling of prflow_implement.stall_backstop. A cancelled run is excluded from auto-resume on every PRFlow backstop (a cancel is a decided ending, not a benign timing stall — issue #498); the review tier's exclusion is already correct at source (the dead-run signal fires only on is_error/failure, never on cancellation). Purely additive: absent/disabled, the review behaves exactly as before. WITHHELD: the automatic pull-request-triggered review tier is not shipped in this release (see issues #930 and #920) \u2014 a fresh installation receives none of devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so this setting has no effect there; it remains live for a repository that already installed those three files, which stays exposed to those defects while workflows[\"prflow-review\"] (or workflows[\"devflow-review\"] on an unmigrated config) is true. Use /prflow:review by collaborator comment instead.",
           "properties": {
             "enabled": {
               "type": "boolean",
@@ -914,7 +926,7 @@
     },
     "receiving_review": {
       "type": "object",
-      "description": "Settings for a direct invocation of /prflow:receiving-code-review (the fix-loop principles skill). Consulted only when the skill is invoked directly; the /prflow:review-and-fix loop governs its own routing via prflow_review_and_fix.fix_severity_threshold and does NOT consult this section.",
+      "description": "Settings for a direct invocation of /prflow:fix (the fix-loop principles skill). Consulted only when the skill is invoked directly; the /prflow:review-and-fix loop governs its own routing via prflow_review_and_fix.fix_severity_threshold and does NOT consult this section.",
       "properties": {
         "fix_severity_threshold": {
           "type": "string",
@@ -923,7 +935,7 @@
             "important",
             "suggestion"
           ],
-          "description": "When /prflow:receiving-code-review is invoked directly and the verdict is already non-blocking, the diff is re-opened for a finding at or above this severity (severity ordering: critical > important > suggestion). At the default 'critical' this matches the historical behavior (re-open only for a Critical/blocking finding). The demonstrable-correctness-defect / documented-falsehood carve-out re-opens the diff at every threshold value \u2014 it is a correctness principle, not a severity grade. Its scope excludes behavior-inert prose \u2014 prose that cannot change what the program does \u2014 which is graded by severity like any other finding; see the review engine's Phase 4.1.5 for the authoritative definition of behavior-inertness. A missing/wrong-type/unknown value falls back to the default with a stderr breadcrumb (never aborts a run).",
+          "description": "When /prflow:fix is invoked directly and the verdict is already non-blocking, the diff is re-opened for a finding at or above this severity (severity ordering: critical > important > suggestion). At the default 'critical' this matches the historical behavior (re-open only for a Critical/blocking finding). The demonstrable-correctness-defect / documented-falsehood carve-out re-opens the diff at every threshold value \u2014 it is a correctness principle, not a severity grade. Its scope excludes behavior-inert prose \u2014 prose that cannot change what the program does \u2014 which is graded by severity like any other finding; see the review engine's Phase 4.1.5 for the authoritative definition of behavior-inertness. A missing/wrong-type/unknown value falls back to the default with a stderr breadcrumb (never aborts a run).",
           "default": "critical"
         }
       }
@@ -1125,7 +1137,7 @@
     },
     "prflow_retrospective": {
       "type": "object",
-      "description": "PRFlow retrospective / self-improvement loop, consumed by the /prflow:retrospective-weekly orchestrator (a locally-run skill, not a GitHub Actions workflow).",
+      "description": "PRFlow retrospective / self-improvement loop, consumed by the /prflow:retrospective-weekly orchestrator. The scheduled workflow (devflow-retrospective.yml) does NOT consult this block's `enabled` key; `workflows[\"prflow-retrospective\"]` is the sole gate on the scheduled path. These settings tune the loop's behavior on every tier (locally-run and the scheduled GitHub Actions workflow alike).",
       "properties": {
         "enabled": {
           "type": "boolean"
@@ -1188,7 +1200,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Authors whose merged PRs the loop retrospects. Defaults to prflow.allowed_bots if unset."
+          "description": "Authors whose merged PRs the loop retrospects. Defaults to prflow.allowed_bots if unset. Each entry is matched by the same rule as allowed_bots — bare slug, '<slug>[bot]', or 'app/<slug>', case-insensitive."
         }
       }
     },
@@ -1203,6 +1215,10 @@
         "prflow-review": {
           "type": "boolean",
           "description": "Enable the automatic pull-request-triggered reviewer (devflow-review.yml). WITHHELD from this release: fresh installations no longer receive devflow-review.yml, devflow-runner.yml or telemetry-push.yml, so setting this true in a fresh installation enables nothing. The tier remains LIVE for a repository that already installed those three files, and such a repository stays exposed to the fork-pull-request defects in issues #930 and #920 for as long as this key is true. The property is retained so existing consumer configs keep validating. The always-available review path is a repository collaborator commenting /prflow:review on a pull request; a consumer can additionally opt into having that comment posted automatically once their CI is green, using a documented pull_request workflow snippet."
+        },
+        "prflow-retrospective": {
+          "type": "boolean",
+          "description": "Enable the weekly scheduled retrospective workflow (devflow-retrospective.yml), which runs /prflow:retrospective-weekly every Sunday at 05:23 UTC and on manual dispatch. Disabled by default: only the JSON boolean true enables the scheduled run — when the key is absent, false, or of any other shape (a string \"true\" included) the run ends with the retrospective skipped, so consumers pay no Actions or Claude cost until they opt in. Read from the default branch's .prflow/config.json at trigger time. This key is the sole gate on the scheduled path; prflow_retrospective.enabled is not consulted there."
         }
       }
     }

@@ -5,11 +5,21 @@ Output: `Phase 1/4: Setup — creating the workpad and branch...`
 
 Writing standard. Before composing this phase's first `--reflection` bullet, read the shared writing standard and follow it.
 
-Ordering matters in Phase 1. Fetch the issue (1.1) and parse its acceptance criteria (1.2) first; then initialize-or-load the workpad (1.3) and populate its Acceptance Criteria; then create the branch (1.4) and immediately fill the workpad's `Branch` line. The workpad must exist before the branch.
+Ordering matters in Phase 1. The resume reset (1.0) runs first; then fetch the issue (1.1) and parse its acceptance criteria (1.2); then initialize-or-load the workpad (1.3) and populate its Acceptance Criteria; then create the branch (1.4) and immediately fill the workpad's `Branch` line. The workpad must exist before the branch.
+
+### 1.0 Reset a resumed terminal-status workpad
+
+Before the issue fetch, invoke the shared resume-reset routine (the same one the cloud gate calls) so a resumed terminal-status workpad clears its status and label before working — else it reports Stuck. `ISSUE_NUMBER` is unbound until §1.3, so pass `$ARGUMENTS` (bound by SKILL.md); an empty value errors on the missing `issue` arg rather than no-opping.
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py reset-resume-status $ARGUMENTS
+```
+
+Idempotent, best-effort: read its outcome token but do not act on it; a failure warns and continues, never blocking Phase 1.
 
 ### 1.1 Fetch the GitHub Issue
 
-Cache the issue body ONCE per run attempt. The first body read writes the body to a single in-tree cache file, `.prflow/tmp/issue-body/issue-<ISSUE_NUMBER>.md`, and the Phase 1–2 consumers below read it by explicit hand-off (shell helpers via their `--body-file` arms; subagents via an `Issue body path:` line) instead of re-fetching. Every verdict-bearing reader (the §4.1 Documentation-Needed gate, the Phase 3.3 inline review, `/pr-description`, `receiving-code-review`) keeps fetching live, since a human can amend the issue mid-run.
+Cache the issue body ONCE per run attempt. The first body read writes the body to a single in-tree cache file, `.prflow/tmp/issue-body/issue-<ISSUE_NUMBER>.md`, and the Phase 1–2 consumers below read it by explicit hand-off (shell helpers via their `--body-file` arms; subagents via an `Issue body path:` line) instead of re-fetching. Every verdict-bearing reader (the §4.1 Documentation-Needed gate, the Phase 3.3 inline review, `/pr-description`, `fix`) keeps fetching live, since a human can amend the issue mid-run.
 
 The in-tree write is preconditioned on an ignore rule already covering `.prflow/tmp/` — the run never creates one. Resolve the precondition through the already-granted `preflight.py`. Anchor the cache to the repo-or-worktree root with the run-marker idiom, run the precondition, then — only on the satisfied arm — delete any stale cache and fetch the body fresh, so a resumed / re-triggered / stall-backstop-auto-resumed run never reads a prior attempt's file. The agent fetches with the extracting form `--json body --jq '.body'` and authors the cache by tier (fence follow-up below). Retry only when the first fetch exits non-zero.
 
@@ -21,23 +31,23 @@ Run the precondition as its own single statement; the helper resolves the repo r
 
 Read the exit code and printed token from the tool result — never a captured shell variable — and route agent-side on the exit code:
 
-- `IGNORED <absolute-cache-path>` / exit 0 — precondition satisfied; the token is followed by the absolute cache path the helper resolved and checked. Substitute that printed path for `<absolute-cache-path>` below and its parent directory for `<absolute-cache-directory>`. Run these as separate statements and inspect each tool result:
+- `IGNORED <absolute-cache-path>` / exit 0 — precondition satisfied; the token is followed by the absolute cache path the helper resolved and checked. Substitute it for `<absolute-cache-path>` below and its parent for `<absolute-cache-directory>`. Run these as separate statements, inspecting each tool result:
   ```bash
   mkdir -p <absolute-cache-directory>
   rm -f <absolute-cache-path>
   gh issue view $ARGUMENTS --json body --jq '.body'
   ```
-  Author by tier. Cloud tier (the run-facts block reads `tier: cloud`, or a run that cannot be positively established as local): leave the `gh issue view` line as shown, consume its stdout from the tool result, and Write those exact bare-body bytes to `<absolute-cache-path>` — an absolute-target redirect is refused on the cloud tier. Local/interactive tier: append ` > <absolute-cache-path>` to that `gh issue view` line so its stdout writes straight to the cache, entering no conversation and needing no Write. If `gh` fails, retry that same command once; a refused or no-output local-arm redirect fetch is an unestablished measurement routed to the stop path below, never the degraded or failed-fetch case. Do not retry an exit-0 empty body; the cloud arm requires non-empty stdout before its Write. Carry that absolute path as the cache location every later consumer is handed.
+  Author by tier. Cloud tier (the run-facts block reads `tier: cloud`, or a run that cannot be positively established as local): leave the `gh issue view` line as shown, consume its stdout from the tool result, and Write those exact bare-body bytes to `<absolute-cache-path>` — an absolute-target redirect is refused on the cloud tier. Local/interactive tier: append ` > <absolute-cache-path>` to that `gh issue view` line so its stdout writes straight to the cache, needing no Write. If `gh` fails, retry it once; a refused or no-output local-arm redirect fetch is an unestablished measurement routed to the stop path below, never the degraded or failed-fetch case. Do not retry an exit-0 empty body; the cloud arm requires non-empty stdout before its Write. Carry that absolute path as the cache location every later consumer is handed.
 - `NOT_IGNORED <absolute-cache-path>` / exit 2 — a resolved "not ignored": `.prflow/tmp/` is not gitignored, so the issue-body cache is not written; take the degraded arm. The resolved absolute path is printed on this arm too.
 - `UNAVAILABLE` / exit 3, or a refused / no-output invocation — an *unestablished measurement*, never a decided "not ignored": take the run's existing STOP path. Absent output is never a decided answer, and a matcher refusal must not masquerade as the degraded arm.
 
-Hold the scratch directory as `<scratch-dir>` — every Phase 1 scratch write substitutes it. Both resolved arms print an absolute path ending `…/.prflow/tmp/issue-body/issue-<n>.md`; its grandparent, `…/.prflow/tmp`, is `<scratch-dir>`, and you substitute that absolute directory wherever `<scratch-dir>` appears below.
+Hold the scratch directory as `<scratch-dir>`, substituted wherever it appears below. Both resolved arms print an absolute path ending `…/.prflow/tmp/issue-body/issue-<n>.md`; its grandparent, `…/.prflow/tmp`, is `<scratch-dir>`.
 
 Fail closed on the fetch's exit status AND on the written content. After authoring the cache (the cloud arm's Write, or the local arm's redirect), Read the cache file back. Treat it as valid only when it is non-empty and does not begin with `{` (a JSON envelope). A retry that also failed, an exit-0 empty fetch, a failed Write/Read, a zero-byte file, or a JSON-object body is a failed cache: route to the run's existing stop path (report "Error: Could not read GitHub issue #$ARGUMENTS body into the cache") rather than leaving a plausible-looking cache for later phases to consume.
 
 On the resolved `NOT_IGNORED` (exit 2) arm (`UNAVAILABLE`/refused is the stop path routed above): the cache is not written, and each consumer class takes its own stated degraded fallback (not a single blanket "fetch live"). This same precondition also governs every other `.prflow/tmp/` scratch write in the implement phases — the §1.2 acs parse, and the Phase 4.0.5 discovery/file-deferrals `.err` captures and the Phase 4.1 docgate body capture — none of which re-checks the precondition; they consume *this* one result. On this arm the Phase 4 `.err` captures drop the stderr capture and report the cause as *unavailable*, and the docgate body capture reverts to reading the issue body inline. No fallback re-targets `/tmp`. Record the degradation in your run context and write a workpad `--note` naming it as soon as the workpad exists (it already does on the cloud tier; otherwise immediately after §1.3): `Phase 1.1: .prflow/tmp/ not gitignored — issue-body cache AND migrated scratch (acs parse, Phase 4 .err/docgate captures) disabled this run; shell consumers use their --issue/inline arms and subagent dispatches paste the body inline`.
 
-Whether the cache was written is orchestrator state that does not survive across Bash calls, so carry it in your context. When the cache was written, §1.2/§1.3.5/§1.6 read it and the §2.1/§2.2/§4.1 dispatches ship an `Issue body path:` line; on the degraded arm they revert to the earlier behavior. The cache is reached only by hand-off; the path reaches a consumer only as an explicit parameter of the orchestrator's own invocation.
+Whether the cache was written is orchestrator state that does not survive across Bash calls, so carry it in your context. When the cache was written, §1.2/§1.3.5/§1.6 read it and the §2.1/§2.2/§4.1 dispatches ship an `Issue body path:` line; on the degraded arm they revert to the earlier behavior. The cache is reached only by hand-off, as an explicit parameter of the orchestrator's own invocation.
 
 Now fetch the remaining metadata — body dropped, so this fetch adds no further copy of the body to your context:
 ```bash
@@ -84,11 +94,11 @@ On the degraded arm where §1.1 wrote no cache, invoke `parse-acs.py --anchor-re
 
 The output is checkbox lines ready to splice into the workpad's `## Acceptance Criteria` section, with ` (post-merge)` appended to any criterion whose text matches the bundled trigger phrases (see `parse-acs.py`'s `POST_MERGE_TRIGGERS` list for what's matched). When no AC section exists, the helper prints `_(none provided in issue body)_` and Phase 3.4 passes trivially.
 
-Present-but-unreadable Acceptance Criteria section — continue, hand-extract, and record; never block. The parser recognises a criterion only when it is a markdown checkbox list item (`- [ ]` / `* [ ]`). An issue whose `## Acceptance Criteria` section is present and correctly named but writes its criteria as bold paragraphs (`**AC1 — …**`) or a numbered list (`1. …`) therefore parses to zero items and the helper emits its `_(none provided in issue body)_` sentinel. The parser distinguishes the two cases and still exits 0: on a present-but-unreadable section it sets `acceptance_criteria_unreadable: true` in its `--format json` output and writes an item-shape diagnostic to stderr. Route on the machine-readable signal, not on stderr text. Re-run the parser once on the same body with `--format json` and read `acceptance_criteria_unreadable`. When it is `true`, do not splice the sentinel. Instead: <!-- pruned-path-ok: illustrative malformed-AC-shape example, not a citation -->
+Present-but-unreadable Acceptance Criteria section — continue, hand-extract, and record; never block. The parser recognises a criterion only when it is a markdown checkbox list item (`- [ ]` / `* [ ]`). An issue whose `## Acceptance Criteria` section is present and correctly named but writes its criteria as bold paragraphs (`**AC1 — …**`) or a numbered list (`1. …`) therefore parses to zero items and the helper emits its `_(none provided in issue body)_` sentinel. The parser still exits 0 but sets `acceptance_criteria_unreadable: true` in its `--format json` output (writing an item-shape diagnostic to stderr). Route on that machine-readable signal, not stderr text: re-run the parser once on the same body with `--format json`, read `acceptance_criteria_unreadable`, and when `true` do not splice the sentinel. Instead: <!-- pruned-path-ok: illustrative malformed-AC-shape example, not a citation -->
 
 1. The run continues — this is never a Blocked path and never sets `--status Blocked`.
 2. Hand-extract the criteria from the issue body (which you already hold in the §1.1 cache): read each bold-paragraph / numbered criterion and write it as a `- [ ]` checkbox row into the file you mirror into the workpad's `## Acceptance Criteria` section, applying the same post-merge classification and override authority described below. Extract only the criteria themselves — not the narrative sentences or `*Desk check:*` rows that share the section — so Phase 3.4 gates on real obligations, not invented ones.
-3. Leave a durable workpad record so the event reaches the weekly retrospective. Write it via `workpad.py update $ISSUE_NUMBER --reflection-kind issue-accuracy --reflection "…"` (`dropped-failed` is an acceptable louder alternative). Do not use `--reflection-kind note` — `lib/fetch-pr-context.sh` exempts `note` bullets from the friction count, so a `note` would leave the run retrospective-clean. The bullet must state both facts: that the issue's `## Acceptance Criteria` section did not parse (its criteria are in a shape the parser does not read), and that the criteria now in the workpad were extracted by hand. Because the workpad may not exist yet here on a local run, write this record as soon as the workpad exists — immediately after §1.3 (on the cloud tier the `gate` job already posted the workpad, so you can write it now).
+3. Leave a durable workpad record so the event reaches the weekly retrospective. Write it via `workpad.py update $ISSUE_NUMBER --reflection-kind issue-accuracy --reflection "…"` (`dropped-failed` is an acceptable louder alternative). Do not use `--reflection-kind note` — `lib/fetch-pr-context.sh` exempts `note` bullets from the friction count, so a `note` would leave the run retrospective-clean. The bullet must state both facts: that the issue's `## Acceptance Criteria` section did not parse (its criteria are in a shape the parser does not read), and that the criteria now in the workpad were extracted by hand. Write it as soon as the workpad exists — immediately after §1.3 (on the cloud tier the `gate` job already posted it).
 
 The genuinely-absent-section case (`acceptance_criteria_unreadable: false`) still mirrors the sentinel and Phase 3.4 gates trivially.
 
@@ -119,15 +129,15 @@ Preserve `workpad.py id`'s three-way exit contract before any create decision �
 - Exit 1 → a gh-api / parse / transport failure: the identity read did not complete. Do NOT create and do NOT proceed as if absent: stop Phase 1 with a targeted diagnostic naming the failed `id` read.
 - A refused or no-output invocation, or any other exit code → an *unestablished measurement*, never a decided "no workpad": take the same stop path as exit 1, naming the unestablished `id` read.
 
-Handoff-provenance + live-status triage (cloud tier). On the cloud tier (the run-facts block reads `tier: cloud`) the workflow wrote an advisory handoff record naming this run's provenance. Before resetting Status, read it and the live workpad status/body so lifecycle wording is truthful:
+Handoff-provenance + live-status triage (cloud tier). On the cloud tier (`tier: cloud` in the run-facts block) the workflow wrote an advisory handoff record naming this run's provenance. Read it and the live workpad status/body so lifecycle wording is truthful:
 
 1. Resolve provenance (offline, no network — always exits 0, degrades to `unknown`):
    ```bash
    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py handoff-state <scratch-dir>/implement-handoff-$ISSUE_NUMBER-<run id>-<run attempt>.json --issue $ISSUE_NUMBER --run-id <run id> --run-attempt <run attempt>
    ```
-   The orchestrator substitutes the run-facts block's `run id` and `run attempt` literals for `<run id>` / `<run attempt>` here; when the block reports either `unestablished` (or is absent — the run-facts fallback), skip this handoff read and treat provenance as `unknown`.
-   Read the printed value from the tool result (never a captured shell variable) and hold it as `HANDOFF` in your own context. It is one of `created-current-run` / `adopted-existing` / `unknown` — never a resume guess. Local runs do NOT read this record — they select wording from live status alone.
-2. Read the live Status and body before any reset. On the found arm (`id` exit 0), run `workpad.py status "$ISSUE_NUMBER"` and preserve its exit contract — 0 (recognized interim/terminal word, class printed), 1 (missing/empty/unrecognized Status — a content-shape failure), 2 (workpad disappeared between the identity and status reads — a race), 3 (gh/transport/auth failure). On exit 1/2/3, stop with a targeted diagnostic — reset no Status, mutate no body, create no comment. Then read the body with `workpad.py body "$WORKPAD_ID"`; a body-fetch failure likewise stops with a diagnostic and no mutation. Retain the observed numeric comment ID and the exact stripped status word — the hydration update below passes them as `--expect-comment-id`/`--expect-status` so a concurrent terminal flip or delete/recreate cannot be overwritten by this stale snapshot.
+   The orchestrator substitutes the run-facts block's `run id`/`run attempt` literals for `<run id>`/`<run attempt>` here; when either is `unestablished` or the block is absent (the run-facts fallback), skip this handoff read and treat provenance as `unknown`.
+   Read the printed value from the tool result (never a captured shell variable) and hold it as `HANDOFF`. It is one of `created-current-run` / `adopted-existing` / `unknown`. Local runs do NOT read this record — they select wording from live status alone.
+2. Read the live Status and body before any reset. On the found arm (`id` exit 0), run `workpad.py status "$ISSUE_NUMBER"` and preserve its exit contract — 0 (recognized interim/terminal word, class printed), 1 (missing/empty/unrecognized Status — a content-shape failure), 2 (workpad disappeared between the identity and status reads — a race), 3 (gh/transport/auth failure). On exit 1/2/3, stop with a targeted diagnostic — reset no Status, mutate no body, create no comment. Then read the body with `workpad.py body "$WORKPAD_ID"`; a body-fetch failure likewise stops with a diagnostic and no mutation. Retain the observed comment ID and stripped status word — the hydration update passes them as `--expect-comment-id`/`--expect-status` so a concurrent terminal flip or delete/recreate cannot overwrite with this stale snapshot.
 3. Select the hydration lifecycle event from provenance × live status:
 
    | Execution state | Lifecycle event (the `--note` wording) |
@@ -142,11 +152,11 @@ Handoff-provenance + live-status triage (cloud tier). On the cloud tier (the run
 
    **`run resumed` is reserved for adoption of an *interim* workpad from an earlier execution** — a fresh same-run gate handoff (`created-current-run`) must NOT claim a resume.
 
-Cloud startup checkpoints. On the cloud tier only, timestamp two of the four startup boundaries here with the idempotent keyed-checkpoint API. Keys are `gha:<run id>:<run attempt>:<stage>`, the run id and run attempt substituted from the run-facts block's literals (both run id AND attempt). The stage vocabulary is exactly the four tokens `gate-adopted` / `claude-invoke` / `phase1-entered` / `phase1-hydrated`.
+Cloud startup checkpoints. On the cloud tier only, timestamp two of the four startup boundaries here with the idempotent keyed-checkpoint API. Keys are `gha:<run id>:<run attempt>:<stage>`, the run id and run attempt substituted from the run-facts block's literals. The stage vocabulary is exactly the four tokens `gate-adopted` / `claude-invoke` / `phase1-entered` / `phase1-hydrated`.
 
 **Run-facts fallback note** (stated once; sites below point here). Cloud tier with no run-facts block, or one reporting run id/attempt `unestablished`: SKIP both startup checkpoints, record a workpad `note` reflection saying run id/attempt were unestablished, and omit `--run-link` everywhere below (never pass `[View run]()`).
 
-- Entry checkpoint — AFTER the id/status/body triage passes and BEFORE the issue fetch (1.1) / AC parse (1.2):
+- Entry checkpoint — after the id/status/body triage passes:
   ```bash
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update "$ISSUE_NUMBER" --checkpoint "gha:<run id>:<run attempt>:phase1-entered" "agent entered Phase 1 setup; workpad triage passed"
   ```
@@ -168,10 +178,16 @@ Cloud startup checkpoints. On the cloud tier only, timestamp two of the four sta
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py create $ISSUE_NUMBER <scratch-dir>/workpad-body-$ISSUE_NUMBER.md
   ```
   ```bash
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --replace-acs-file <scratch-dir>/acs-$ARGUMENTS.md
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
+      --replace-acs-file <scratch-dir>/acs-$ARGUMENTS.md \
+      --record-classification {bug-report|non-bug} "{one-line rationale}" \
+      --reconcile-reproduction {bug-report|non-bug} --reconcile-extension-rows \
+      --tick-progress "extension resolved: implement"
   ```
+  A fresh create is a fresh run, so this update carries no `resume-kind:` note.
+
   The `## Reproduction` section is added later in 2.1.5 if applicable.
-- `id` exit 0 — a workpad exists (resume, or a re-run) → Read the live body with `workpad.py body $WORKPAD_ID`. Treat its `## Progress` notes and `Devflow Reflection` as load-bearing context (see Workpad Reference). Reset for this run and populate the Acceptance Criteria (a `gate`-created workpad carries only a placeholder AC section, so always replace it):
+- `id` exit 0 — a workpad exists (resume, or a re-run) → Read the live body with `workpad.py body $WORKPAD_ID`. Treat its `## Progress` notes and `PRFlow Reflections` as load-bearing context (see Workpad Reference). Reset for this run and populate the Acceptance Criteria (a `gate`-created workpad carries only a placeholder AC section, so always replace it):
   Compose the run link with `.prflow/vendor/prflow/scripts/compose-run-url.sh` as in the create arm. The fence below is the cloud form; on a local run or the run-facts fallback drop `--run-link` alongside the cloud-only `--checkpoint`/`--expect-*` flags per the note below:
   ```bash
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
@@ -181,55 +197,51 @@ Cloud startup checkpoints. On the cloud tier only, timestamp two of the four sta
       --replace-acs-file <scratch-dir>/acs-$ARGUMENTS.md \
       --checkpoint "gha:<run id>:<run attempt>:phase1-hydrated" "<selected lifecycle event>" \
       --strip-inherited-checkpoints \
-      --note "<selected lifecycle event>"
+      --strip-prior-status-marker \
+      --record-classification {bug-report|non-bug} "{one-line rationale}" \
+      --reconcile-reproduction {bug-report|non-bug} --reconcile-extension-rows \
+      --tick-progress "extension resolved: implement" \
+      --note "<selected lifecycle event>" \
+      --note "resume-kind: <in-flight|terminal-re-trigger>"
   ```
-  The `--note` (and the combined `phase1-hydrated` checkpoint text) is the selected lifecycle event from the provenance × live-status table above — not a hardcoded `/prflow:implement run resumed`. Replace `<observed status word>` with the exact stripped Status word from triage step 2 and `<selected lifecycle event>` with the matched row. The cloud tier includes `--checkpoint`/`--expect-*`/`--run-link`; a local run and the run-facts fallback (see the run-facts fallback note above) drop `--checkpoint`/`--run-link`. `--strip-inherited-checkpoints` is NOT cloud-only — it is included on both tiers, clearing the declared required-artifact checkpoint rows so this run does not inherit the previous attempt's, which would make the downstream `base_update_checkpoint4_present` reading describe the wrong attempt. A `--checkpoint` for a declared key is always a separate call. If the update's outcome line reads `remedy=re-resolve-state` (`outcome=precondition-mismatch` — the live comment ID or Status changed under you), do NOT retry blindly: re-read the live workpad, re-run the triage, and re-select the wording against the *current* state.
-  Legacy-workpad migration (required): a workpad created before the `## Progress` checklist existed won't have that section, and `--tick-progress`/`--note` abort the run with `section '## Progress' not found` when it is absent. So when resuming such a workpad you MUST seed a `## Progress` section before Phase 1.5 — `workpad.py body` the live comment, render a fresh skeleton with `workpad.py new-body $ISSUE_NUMBER` (adding `--no-reproduction` when the recorded classification is non-bug, as the create arm above does) into a temp file, splice that output's `## Progress` section into the body (right after the front-matter, before `## Plan`), and `workpad.py patch $WORKPAD_ID <file>`. The migration is required on both arms.
+  The `--note` and combined `phase1-hydrated` checkpoint text are the lifecycle event from the table above — not a hardcoded `/prflow:implement run resumed`; replace `<selected lifecycle event>` with that row and `<observed status word>` with the stripped Status word from triage step 2. The cloud tier includes `--checkpoint`/`--expect-*`/`--run-link`; a local run and the run-facts fallback drop `--checkpoint`/`--run-link`. `--strip-inherited-checkpoints` is included on both tiers, clearing the previous attempt's declared required-artifact checkpoint rows so the downstream `base_update_checkpoint4_present` reading describes this attempt. A `--checkpoint` for a declared key is always a separate call. If the outcome line reads `remedy=re-resolve-state` (`outcome=precondition-mismatch` — the live comment ID or Status changed under you), do NOT retry blindly: re-read the workpad, re-run the triage, and re-select the wording against the *current* state.
+
+  Legacy-workpad migration (required): a workpad predating the `## Progress` checklist lacks that section, and `--tick-progress`/`--note` abort the run with `section '## Progress' not found` when it is absent. So when resuming such a workpad you MUST seed a `## Progress` section before Phase 1.5 — `workpad.py body` the live comment, render a fresh skeleton with `workpad.py new-body $ISSUE_NUMBER` (adding `--no-reproduction` when the recorded classification is non-bug, as the create arm above does) into a temp file, splice that output's `## Progress` section into the body (right after the front-matter, before `## Plan`), and `workpad.py patch $WORKPAD_ID <file>`.
 
 After this step, every later phase boundary touches the workpad via `workpad.py update $ISSUE_NUMBER ...` — no `WORKPAD_ID` variable to track across calls.
 
-Fold no unrelated progress write into the hydration call above: it aborts with no PATCH.
+The hydration update carries exactly the operands its fence lists; an operand targeting an absent section aborts the whole call with no PATCH.
 
-Record the classification and reconcile the skeleton (every entry — fresh run, in-flight resume, and terminal re-trigger). The 2.1.5 gate reads the recorded classification, and the reproduction skeleton's pre-rendered default can disagree with the §1.1 content classification. `--reconcile-reproduction` below is the authoritative correction, run on every entry. Resume semantics decide whether to classify afresh or read the recorded verdict:
+Standalone-write rule. A write that flips `Status`, a `--checkpoint` carrying its own bounded-write reason (`phase1-entered`), and a `--status Blocked` terminal each stand alone as their own `update`, issued at the point they are decided; every other Phase 1 record rides the next standalone `update` on its execution path. See `workpad.py update --help` for the flag-combination rule this batching relies on.
 
-- Fresh run (the `id` read exited 2), or a resume that finds no `classification: ` note, **or a re-trigger after a *terminal* workpad `Status`** (🎉/👎/💥/🛑) → classify now (per 1.1, from the issue's *current* content and labels) and record it, which also supersedes any stale note from a prior verdict — carried as `--record-classification {bug-report|non-bug} "{one-line rationale}"` on the single call below.
-- In-flight resume (a non-terminal `Status`, and a `classification: ` note is already present) → do NOT re-classify; read the recorded `classification: ` note from the body (fetched above) and use its verdict as-is.
+Record the classification and reconcile the skeleton (every entry). The 2.1.5 gate reads it; `--reconcile-reproduction` below authoritatively corrects a skeleton reproduction default disagreeing with §1.1's. Resume semantics key on the PRIOR terminal Status, not the live one — the §1.0/gate reset may already have moved it to interim. Run `workpad.py prior-status $ISSUE_NUMBER`: use its recorded word on exit 0; on exit 1 (absent/duplicated/garbled) or exit 2 (structural absence — a legacy workpad with no `## Progress` section) fall back to the live Status from triage step 2, never the stop path; on exit 3 (a transient gh/transport failure) classify **terminal-re-trigger** — the safe default, since reading the reset-mutated interim status as mid-flight would skip a needed re-classification. That effective status decides whether to classify afresh or read the recorded verdict:
 
-Then, in both cases, reconcile the skeleton to the (recorded or read) classification — idempotent, so safe on every entry and a no-op when the skeleton already matches — carried as `--reconcile-reproduction {bug-report|non-bug} --reconcile-extension-rows` on that same call.
+- Fresh run (the `id` read exited 2), or a resume that finds no `classification: ` note, **or a re-trigger after a *terminal* prior-or-live `Status`** (🎉/👎/💥/🛑) → classify now (per 1.1, from current content and labels) and record it, superseding any stale note — carried as `--record-classification {bug-report|non-bug} "{one-line rationale}"` on the §1.3 hydration update.
+- In-flight resume (non-terminal `Status`, `classification: ` note present) → do NOT re-classify; read the recorded note and use its verdict as-is.
 
-`--reconcile-extension-rows` repairs the nested `prompt extension resolved: …` rows into a workpad created before they existed; include it on both arms like `--reconcile-reproduction`, or every extension tick below misses its row and exits non-zero.
+Then reconcile the skeleton to the (recorded or read) classification (idempotent, every entry), carried as `--reconcile-reproduction {bug-report|non-bug} --reconcile-extension-rows` on that same hydration update.
 
-Extension-row tick rule (stated once here; Phase 3 and Phase 4 reference it). Tick a `prompt extension resolved: …` row only on observed content: the `load-prompt-extension.sh` ladder's full output reached you carrying the extension's contents, or reached you empty — establishing the repository has no extension file for that skill. Run the ladder so its whole output is observable — no `>/dev/null`, no `| head -<n>`, no truncation. *No observable command result at all*, and any result seen only in part, are `state not established`, never the no-extension arm: leave the row unticked and say so in a `--note`. Never tick from recall. A tick matching no unticked row is the expected idempotent no-op — treat the row as recorded and proceed, never routing it to re-resolution or Blocked. Only a genuine no-match, where `## Progress` carries no such row at all, calls for re-running `--reconcile-extension-rows`. The Phase 4.3 terminal `--status Complete` gate mechanizes this: `workpad.py` refuses Complete while any `prompt extension resolved:` row is unticked and carries no `state not established` note.
+`--reconcile-extension-rows` repairs the nested `prompt extension resolved: …` rows into a workpad predating them; include it on both arms like `--reconcile-reproduction`, or every extension tick below misses its row and exits non-zero.
 
-Tick the implement extension row (every arm). Apply the rule above to the implement extension's own load and carry that outcome on the call below: `--tick-progress "extension resolved: implement"` where the state was established, else — the row left unticked — `--note "extension resolved: implement — state not established (the loader ladder did not resolve it)"` in its place — that tick and that note are exclusive of each other, never both. `--note` is repeatable, so where the arm below records a `resume-kind:` note it rides on the same call alongside either; dropping it on a resume would disarm the Phase 2 §2.0 resume gate.
+Extension-row tick rule (stated once here; Phase 3 and Phase 4 reference it). Tick a `prompt extension resolved: …` row only on observed content: the `load-prompt-extension.sh` ladder's full output reached you carrying the extension's contents, or reached you empty (establishing the repository has no extension file for that skill). Run the ladder so its whole output is observable — no `>/dev/null`, no `| head -<n>`, no truncation. No result at all, or any partial result, is `state not established`, never the no-extension arm: leave the row unticked and say so in a `--note`. Never tick from recall. A tick matching no unticked row is the expected idempotent no-op — treat it as recorded and proceed. Only a genuine no-match, where `## Progress` carries no such row at all, calls for re-running `--reconcile-extension-rows`. The Phase 4.3 terminal `--status Complete` gate mechanizes this: `workpad.py` refuses Complete while any `prompt extension resolved:` row is unticked and carries no `state not established` note.
 
-Record the durable `resume-kind:` marker (on a resume entry). Alongside the classification, record a durable `## Progress` note stating which run kind this triage decided, so the Phase 2 resume gate (`phase-2-implement.md` §2.0) has a signal to read back. The marker is a plain durable `--note`, and the gate reads the most recent `resume-kind:` note fail-closed. The kind follows from the resume semantics decided above:
+Tick the implement extension row (every arm). Apply the rule above to the implement extension's own load and carry that outcome on the §1.3 hydration update: `--tick-progress "extension resolved: implement"` where the state was established, else — the row left unticked — `--note "extension resolved: implement — state not established (the loader ladder did not resolve it)"` in its place (never both).
 
-- In-flight resume — the *do-not-re-classify* arm (a non-terminal `Status` with a `classification: ` note already present, i.e. adoption of an interim workpad from an earlier in-flight execution) → `resume-kind: in-flight`.
-- Terminal re-trigger — a re-trigger after a *terminal* workpad `Status` (🎉/👎/💥/🛑 — the operator's issue-edit correction channel), re-classified fresh → `resume-kind: terminal-re-trigger`.
-- Fresh run — the `id` read exited 2, or a resume over a non-terminal `Status` that found no `classification: ` note → record no `resume-kind:` note at all. The §2.0 gate reads an absent marker as not in-flight.
+Record the durable `resume-kind:` marker (on a resume entry) as a plain `## Progress` `--note`, so the Phase 2 resume gate (`phase-2-implement.md` §2.0) can read back which run kind this triage decided; the gate reads the most recent `resume-kind:` note fail-closed. The kind follows from the resume semantics above:
 
-The three are evaluated in the order listed, first match wins: a terminal `Status` selects `terminal-re-trigger` even when no `classification: ` note is present.
+- In-flight resume (the *do-not-re-classify* arm above) → `resume-kind: in-flight`.
+- Terminal re-trigger (a re-trigger after a *terminal* prior-or-live `Status`, 🎉/👎/💥/🛑) → `resume-kind: terminal-re-trigger`.
+- Fresh run (the `id` read exited 2, or a resume finding no `classification: ` note) → record no `resume-kind:` note at all. The §2.0 gate reads an absent marker as not in-flight.
 
-Emit the decided kind as a bare literal — never the brace template. The note's value is one of the two bare tokens with nothing else after `resume-kind: `, and the §2.0 reader compares it by exact value, never containment.
+Evaluated in order, first match wins — a terminal prior-or-live `Status` selects `terminal-re-trigger` even with no `classification: ` note.
 
-One moment, one call — issue them as one `update`:
+Emit the decided kind as a bare literal (never the brace template), nothing after `resume-kind: `; the §2.0 reader compares by exact value, never containment.
 
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
-    --record-classification {bug-report|non-bug} "{one-line rationale}" \
-    --reconcile-reproduction {bug-report|non-bug} --reconcile-extension-rows \
-    --tick-progress "extension resolved: implement" \
-    --note "resume-kind: terminal-re-trigger"
-```
+One moment, one call: every operand above rides the same §1.3 hydration update (terminal re-trigger arm shown); the in-flight arm drops `--record-classification` and notes `resume-kind: in-flight`, the fresh-run arm drops the `--note`. Only `resume-kind: in-flight`, as the newest such note, arms conjunct (a) of the Phase 2 §2.0 gate.
 
-Terminal re-trigger arm shown; the in-flight arm drops `--record-classification` with the note `resume-kind: in-flight`, and the fresh-run arm drops the `--note` entirely. Only `resume-kind: in-flight` — as the newest such note — arms conjunct (a) of the Phase 2 §2.0 gate.
+The marker classifies the WORKPAD, not the repository, and decides no branch — §1.4's resume pre-check governs branch adoption, and no marker value waives it.
 
-The marker classifies the WORKPAD, not the repository — and it decides no branch. §1.4's resume pre-check, reading observable repository state, governs branch adoption, and no value of this marker waives it.
-
-Write the run marker (both arms — fresh create and resume). Immediately after the workpad exists (created above, or detected on the resume arm), write the run-marker file so a local-tier Stop-hook guard knows an implement run is in flight for this issue. It lives under the gitignored `.prflow/tmp/`, anchored to the repo (or worktree) root, and is removed at every terminal `Status` transition by the *Outcome reaction* block in the orchestrator.
-
-The marker's first line records this run's owner — the value the Stop-hook payload also carries, letting the guard tell this run's marker from a concurrent session's in the same checkout.
+Write the run marker (both arms — fresh create and resume). Immediately after the workpad exists, write the run-marker file so a local-tier Stop-hook guard knows an implement run is in flight for this issue. It lives under the gitignored `.prflow/tmp/`, anchored to the repo (or worktree) root, and is removed at every terminal `Status` transition by the orchestrator's *Outcome reaction* block. Its first line records this run's owner — the value the Stop-hook payload also carries, letting the guard tell this run's marker from a concurrent session's in the same checkout.
 
 Ensure the scratch leaf exists — its own single statement:
 
@@ -265,8 +277,9 @@ When the §1.1 cache was written, read it via `--body-file` — no re-fetch. pre
 On the degraded arm where §1.1 wrote no cache, revert to the original `preflight.py dependencies --issue $ISSUE_NUMBER`, which fetches internally. On a local runner that refuses the direct helper path, use the documented fallback `python3 <resolved helper path> dependencies --repo-relative --body-file .prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md` (or the `--issue $ISSUE_NUMBER` form on the degraded arm).
 Read the helper's one-token stdout result and its exit code:
 
-- `PROCEED` (including a listed set of landed dependencies) exits 0. Record a
-  `--note` that the early dependency preflight passed, then continue to §1.4.
+- `PROCEED` (including a listed set of landed dependencies) exits 0. Hold a
+  `--note` that the early dependency preflight passed (delivered in the §1.5
+  write), then continue to §1.4.
 - `BLOCKED <numbers>` exits 2. The named dependencies are still open. Set the
   workpad to `Blocked` with a `blocked` reflection naming the numbers and the
   remedy (merge/close them, amend a stale dependency, or correct a declaration
@@ -291,7 +304,7 @@ force-push, delete a branch, or create a PR.
 
 The branch resume pre-check, the reuse-vs-create signals, feature-branch creation, and the §1.4.0.5 Verdict-B ahead-of-base classification run in a dispatched subagent (`prflow:branch-setup`, `agents/branch-setup.md`) that shares this checkout (never a worktree); the decision stays here. The agent sets the workpad to `Blocked` itself on an in-scope terminal stop, with no history mutation; the orchestrator performs the terminal ritual (reaction, run-marker removal, stop).
 
-**Commit any uncommitted tree state before dispatching.** The agent works in this orchestrator's own checkout, so a version-control command it runs is scoped to a path and would discard whatever you left uncommitted. Run `git status --porcelain`; commit anything it reports (a `feat:`/`docs:` commit as appropriate) **before** the dispatch. When the tree state cannot be established, establish it first; when the run holds work it must deliberately not commit, park it under a recorded handle and restore it after the agent returns, or do not dispatch and record `Blocked` naming the uncommittable work.
+**Verify the tree clean before dispatching — never commit here; no feature branch exists yet, so a commit would land on the base branch.** Read `git status --porcelain --untracked-files=no`. Empty output proceeds to the dispatch. On non-empty output — or a status read the tier refuses or that exits non-zero, naming the tree state unestablished — set the workpad `Blocked` with a `blocked` reflection listing the rows and the remedy (commit or stash them, then re-trigger), emit the 👎 outcome reaction, remove the run marker, and stop; read the exit status from the tool result, never a `$?` fence. A resumed local run already on the issue's branch takes this arm too.
 
 Use the Agent tool with `subagent_type: prflow:branch-setup` and `run_in_background: false` (discharged only by the subagent's completed return — a launch acknowledgment is not that return; `run_in_background: false` requests that wait, it is not the wait itself) and no worktree isolation (it must land the branch in this checkout). Pass in its prompt, as literals you already hold:
 
@@ -313,7 +326,7 @@ Route on the returned `BRANCH-SETUP RECORD`:
 - `outcome: stop` → the agent already set the workpad to `Blocked` (with no rebase/reset/force-push/branch-delete/checkpoint-merge/push). Emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), remove the run marker, and stop the run. Do not invoke the checkpoint or push.
 - `outcome: proceed` → carry the record's `freshness` value forward as this run's freshness state (the Phase 1.6 audit and Phase 2.1 read it), and continue to §1.4.1. **On a `fresh-create` arm, first confirm the disk-read branch is actually a new feature branch for this issue and *not still the base branch* (`$BASE`) before treating `proceed` as valid** — an `exit 1` inside the agent's create fence aborts only one Bash call, so a create path that failed after leaving the tree on the base branch could still surface `proceed`. If `git branch --show-current` equals `$BASE` (or is empty/detached) on a `fresh-create` arm, do not advance to the checkpoint/push (which would push to trunk): treat it as a dropped-failed create — record `--reflection-kind dropped-failed` naming the still-on-base observation, set the workpad `--status Blocked`, emit the 👎 outcome reaction, remove the run marker, and stop.
 
-If the branch-setup dispatch fails or returns no usable record, record `--reflection-kind dropped-failed` naming the failure and run the procedure inline yourself from `agents/branch-setup.md` (the procedure is preserved there) as the fallback — never skip branch establishment silently.
+If the branch-setup dispatch fails or returns no usable record, record `--reflection-kind dropped-failed` naming the failure and run the procedure inline yourself from `<skill-dir>/../../agents/branch-setup.md` (`<skill-dir>` as the root resolved it once at run start; the procedure is preserved there) as the fallback — never skip branch establishment silently.
 
 #### 1.4.1 Base-branch update checkpoint 1 (every §1.4 arm) — the canonical outcome-handling contract
 
@@ -322,9 +335,9 @@ The invocation is made from the *Base-branch update checkpoint 1 — invocation*
 The helper prints exactly one token on stdout with a matching exit code. Read it and act on it. **This is an *implement-driven* call site**, so outcomes are recorded on the issue workpad and the two hard stops flip it to Blocked:
 
 - `UP_TO_DATE` / `DISABLED` — nothing to do; add no workpad traffic (`DISABLED` means the consumer set `prflow_implement.update_branch_checkpoints: false`).
-- `UPDATED <n>` — the branch was merged with `origin/$BASE` and pushed. Record a note: `workpad.py update $ISSUE_NUMBER --note "checkpoint 1: merged origin/$BASE and pushed (was behind by <n>)"`. The read-target / cross-pass-coherence rules no longer bind this run (the tree is now current with the base).
+- `UPDATED <n>` — the branch was merged with `origin/$BASE` and pushed. At checkpoint 1 (this call site) hold the note `checkpoint 1: merged origin/$BASE and pushed (was behind by <n>)` for delivery in the §1.5 write; checkpoints 2 and 4 record their own `UPDATED` note immediately at their own call site (`workpad.py update $ISSUE_NUMBER --note "checkpoint <N>: merged origin/$BASE and pushed (was behind by <n>)"`). The read-target / cross-pass-coherence rules no longer bind this run (the tree is now current with the base).
 - `CONFLICT` — the base merge is in progress (`MERGE_HEAD` present). Resolve the conflicts yourself. When the conflict is in a checked-in generated or derived artifact, do not hand-merge its bytes — regenerate the artifact or reconcile its source of truth per your repo's guidance; if you cannot establish whether the conflicted file is generated, stop and mark it needs-human-reconciliation rather than hand-merging. Then run the project test suite on the resolved tree, then `git add` + `git commit` (concluding the merge), `git push`, record a note naming the conflicted files, and re-run the Phase 2.3.0 changed-contract sweep against the newly-arrived sites. If the suite is unrunnable on this tier, commit + push the resolution with a `--reflection-kind note` marking it locally-unverified (CI validates). If the suite runs and fails, abort the merge — `git merge --abort` — then `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "checkpoint 1 conflict resolution failed the suite; merge aborted (tree restored) — conflicted: {files}"`, emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), and stop.
-- `UNVERIFIED` / `PUSH_REJECTED` — degraded but non-fatal (on `PUSH_REJECTED` the helper has already integrated-and-retried and *attempted* to restore the tree to its pre-checkpoint SHA — attempted, not guaranteed: see the caveat below before you continue). Record a reflection carrying the helper's stderr breadcrumb — `--reflection-kind note` for `UNVERIFIED`, `--reflection-kind dropped-failed` for `PUSH_REJECTED` — and continue. The read-target / cross-pass-coherence rules stay in force for this run.
+- `UNVERIFIED` / `PUSH_REJECTED` — degraded but non-fatal (on `PUSH_REJECTED` the helper has already integrated-and-retried and *attempted* to restore the tree to its pre-checkpoint SHA — attempted, not guaranteed: see the caveat below before you continue). Record a reflection carrying the helper's stderr breadcrumb — `--reflection-kind note` for `UNVERIFIED`, `--reflection-kind dropped-failed` for `PUSH_REJECTED` — and continue; on `PUSH_REJECTED` that continue reaches the §1.5 push arm. The read-target / cross-pass-coherence rules stay in force for this run.
   - `PUSH_REJECTED` caveat — the restore is attempted, not guaranteed, and the "continue" above is conditional on it having succeeded. The helper restores the branch with `git reset --hard "$PRE_SHA"`; when *that* fails it still emits `PUSH_REJECTED`, but its breadcrumb is a `WARNING` saying the tree may still carry the base-merge commit. Read the breadcrumb: when it carries that `WARNING`, stop hard instead of continuing — `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "checkpoint N: push rejected AND the restore to the pre-checkpoint SHA failed — the branch may carry an unpushed base-merge commit; resolve manually before re-running"`, emit the 👎 outcome reaction, and stop. Continuing is unsafe because the divergence lives in committed history, so the working tree reads clean and Phase 4.3's clean-tree backstop sees nothing wrong.
 - `MERGE_IN_PROGRESS` — a prior run left an unresolved merge in the tree. Stop hard rather than absorb it into an ordinary commit: `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "checkpoint 1: MERGE_HEAD present at invocation — a prior run left an in-progress merge; resolve it deliberately (git merge --abort or finish it) before re-running"`, emit the 👎 outcome reaction, and stop.
 
@@ -346,7 +359,7 @@ Every other token is handled exactly as §1.4.1 states, including the `PUSH_REJE
 
 When the invocation reports no token at all. Both route to degraded-continue here:
 
-- The tier refused to run the invocation — a local-tier classifier denial message, an rc 127, or a silent cloud matcher denial. The checkpoint never ran, so there is no token to route: record `workpad.py update $ISSUE_NUMBER --reflection-kind note --reflection "Phase 1.4 checkpoint 1: the update-branch-checkpoint invocation was refused by this tier (<denial/rc 127>) — the branch was not reconciled with the base this run; the read-target and cross-pass-coherence rules stay in force"` and continue — a permission boundary must not end the run at Phase 1.
+- The tier refused to run the invocation — a local-tier classifier denial message, an rc 127, or a silent cloud matcher denial. The checkpoint never ran, so there is no token to route: record `workpad.py update $ISSUE_NUMBER --reflection-kind note --reflection "Phase 1.4 checkpoint 1: the update-branch-checkpoint invocation was refused by this tier (<denial/rc 127>) — the branch was not reconciled with the base this run; the read-target and cross-pass-coherence rules stay in force"` and continue — a refused checkpoint-helper invocation must not end the run.
 - The invocation ran but no line's leading word is in the helper's token set — the observable discriminator. Treat it exactly as `UNVERIFIED`: record the degraded reflection and continue with the tree unvouched.
 
 Cloud-emission discipline — invoke this checkpoint helper as the repo-relative vendored-literal leading token (never a `VAR=value` prefix, a `bash <path>` wrapper, or a `>`-redirect), per SKILL.md's *Cloud command-shape discipline*.
@@ -357,21 +370,24 @@ Cloud-emission discipline — invoke this checkpoint helper as the repo-relative
 git push -u origin HEAD
 ```
 
-Then tick the Setup phase in the workpad's `## Progress` checklist:
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --tick-progress "workpad"
-```
+If the push exits non-zero or the tier refuses it, set the workpad `Blocked` with a `blocked` reflection quoting the push stderr (or naming the refusal) and stating the branch was not pushed, emit the 👎 outcome reaction, remove the run marker, and stop — read the exit status from the tool result, never a `$?` fence. Phase 1 runs no `git pull` and no rebase on any arm, and this arm takes precedence over the root's generic push-conflict rule for this push; when §1.4.1 recorded a `PUSH_REJECTED` note this run, the reflection also quotes that checkpoint breadcrumb.
 
-Tier-refusal arm. When the tick invocation is refused outright by the tier — a local-tier classifier denial message, an rc 127, or a silent cloud matcher denial (no exit code from the helper at all) — record `workpad.py update $ISSUE_NUMBER --reflection-kind note --reflection "Phase 1.5: the Setup tick was refused by this tier — a denial or rc 127 — so the ## Progress Setup row stayed unticked this run"` and continue; a permission boundary must not end the run at Phase 1. That record runs through the same helper the tier just refused, so when it is refused too — an rc 127 or a head-level denial refuses both — state the unticked row and both refusals in the run's own final report instead, or the refusal leaves no trace on any surface. A tick that *ran* and exited non-zero is not this arm — it stays governed by SKILL.md's existing re-resolve-or-Blocked contract.
+Then tick the Setup phase in the workpad's `## Progress` checklist, combined as the single §1.5 orchestrator write with the held §1.3.5 dependency-preflight note and, when §1.4.1 checkpoint 1 emitted `UPDATED`, the held checkpoint-1 note:
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
+    --tick-progress "workpad" \
+    --note "<the held §1.3.5 dependency-preflight-passed note>" \
+    --note "checkpoint 1: merged origin/$BASE and pushed (was behind by <n>)"
+```
+On an arm where §1.4.1 checkpoint 1 did not emit `UPDATED`, the checkpoint-1 `--note` is simply absent from this call.
+
+Tier-refusal arm. When the tick invocation is refused outright by the tier — a local-tier classifier denial message, an rc 127, or a silent cloud matcher denial (no exit code from the helper at all) — record `workpad.py update $ISSUE_NUMBER --reflection-kind note --reflection "Phase 1.5: the Setup tick was refused by this tier — a denial or rc 127 — so the ## Progress Setup row stayed unticked this run"` and continue; a refused Setup-tick invocation must not end the run. That record runs through the same helper the tier just refused, so when it is refused too — an rc 127 or a head-level denial refuses both — state the unticked row and both refusals in the run's own final report instead, or the refusal leaves no trace on any surface. A tick that *ran* and exited non-zero is not this arm — it stays governed by SKILL.md's existing re-resolve-or-Blocked contract.
 
 ### 1.6 Issue-Claim Audit
 
-Before Phase 2 begins, run the targeted pre-checks below, which catch wrong scope, policy, dependency, and execution-capability assumptions before any code edit. The pass procedure runs in a dispatched subagent (`prflow:issue-claim-auditor`, `agents/issue-claim-auditor.md`) that shares this checkout and records each pass on the workpad as it runs; the decision stays here. Run it after the issue data from 1.1 is in hand.
+Before Phase 2 begins, run the targeted pre-checks below, which catch wrong scope, policy, dependency, and execution-capability assumptions before any code edit. The pass procedure runs in a dispatched subagent (`prflow:issue-claim-auditor`, `agents/issue-claim-auditor.md`) that shares this checkout and holds each pass's result, delivered in one end-of-audit `update`; the decision stays here.
 
 Scope: the auditor first reconciles independently verifiable post-change obligations in Desired Behavior against the resolved Acceptance Criteria, then verifies the explicitly-defined claim types (count/enumeration, negative-scope, policy, execution-capability, verified-premise). It does not verify every sentence: explanation, motivation, estimates, and current-behavior descriptions are non-obligations.
-
-
-Commit any uncommitted tree state before dispatching — the same rule §1.4 states, since the auditor shares this checkout too. Run `git status --porcelain` and commit anything it reports (a `feat:`/`docs:` commit as appropriate) before the dispatch. When the tree state cannot be established, establish it first; the uncommittable-work rule §1.4 states (park under a recorded handle and restore after the auditor returns, or do not dispatch and record `Blocked` naming it) applies here too.
 
 #### Fresh-tree verification (read-target rule + cross-pass coherence rule)
 
@@ -382,9 +398,9 @@ Every pass the auditor runs *reads the tree* to adjudicate a claim. Two rules go
 
 #### Dispatch the auditor
 
-Use the Agent tool with `subagent_type: prflow:issue-claim-auditor` and `run_in_background: false` (discharged only by the subagent's completed return — a launch acknowledgment is not that return; `run_in_background: false` requests that wait, it is not the wait itself), as §1.4 does. The auditor dispatches nothing of its own.
+Use the Agent tool with `subagent_type: prflow:issue-claim-auditor` and `run_in_background: false`, as §1.4 does (same completed-return discharge). The auditor dispatches nothing of its own.
 
-Dispatch barrier. Every subagent dispatch here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway); it is deliberately not restated here. As that pointer's local arm (a run whose prompt carries no such block): a run whose runner backgrounds the dispatch despite `run_in_background: false` collects the completed return through the runner's own result-retrieval channel before routing on it. A backgrounded dispatch is not the failed-dispatch case, so this site's inline fallback is not taken while the subagent is still running; it becomes that case only once the collected return reports a failure or no usable record, or the subagent terminally ends with no return to collect.
+Dispatch barrier. Same rule as §1.4's dispatch barrier above — not restated here.
 
 Pass in its prompt, as literals you already hold:
 
@@ -418,6 +434,6 @@ Read every `ISSUE-CLAIM-AUDIT RECORD` field: `outcome` (`proceed` / `blocked-spe
 - `outcome: blocked-policy` → record `Blocked` with the returned AC, policy file, and policy text; emit 👎, remove the run marker, and stop.
 - `outcome: blocked-capability` → record `Blocked` with `issue-claim audit (execution-capability): every in-scope acceptance criterion requires editing .github/workflows/`, naming the observed credential boundary; emit 👎 and stop without a PR.
 
-If dispatch fails or returns no usable record, record `dropped-failed` and run `agents/issue-claim-auditor.md` inline; never skip the audit.
+If dispatch fails or returns no usable record, record `dropped-failed` and run `<skill-dir>/../../agents/issue-claim-auditor.md` inline (`<skill-dir>` as the root resolved it at run start); never skip the audit.
 
 <!-- prflow:implement-ref phase=1 file=skills/implement/phases/phase-1-setup.md end -->

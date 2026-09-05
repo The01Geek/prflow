@@ -24,6 +24,15 @@ Progress note bullets carry the time of day only (`scripts/workpad.py` renders t
 `  - HH:MM:SS — <note>`), so the dated `**Last updated:**` line is the sole day
 source. A stamp that reads earlier than its predecessor is taken as the next day,
 which is what keeps a run spanning midnight from producing a negative span.
+
+The profile is this RUN's, and a resumed issue's workpad carries every run's rows. On
+a workpad holding `<!-- prflow:checkpoint gha:<run>:<attempt>:<stage> -->` rows, only
+the rows at or after the first row of the latest such run count, so a phase that
+straddles a resume spans this run alone and a phase only an earlier run executed is
+`unestablished` here. Rows are scoped by their position in the section: a row the
+latest run nests under an earlier phase heading, above its own first checkpoint row,
+is attributed to the earlier run. A workpad with no `gha:` row (a local run) is not
+scoped.
 """
 
 from __future__ import annotations
@@ -72,6 +81,32 @@ _STATUS_RE = re.compile(r"^\*\*Status:\*\*\s+(.*?)\s*$", re.MULTILINE)
 # timestamped note under a row it fails to match rather than reporting unestablished.
 _TOP_LEVEL_RE = re.compile(r"^[-*]\s+\[[ xX]\]\s+\*\*(?P<phase>[^*]+)\*\*")
 _NOTE_TS_RE = re.compile(r"^\s+-\s+(?P<h>\d{2}):(?P<m>\d{2}):(?P<s>\d{2})\s+—")
+# The cloud tier's keyed checkpoint rows, `gha:<run_id>:<run_attempt>:<stage>`, in both
+# marker spellings: a workpad mutated across the #1003 rename carries pre-rename rows
+# beside post-rename ones, and matching one spelling would scope to the wrong run.
+_GHA_CHECKPOINT_RE = re.compile(
+    r"<!--\s*(?:pr|dev)flow:checkpoint\s+gha:(?P<run>\d+):(?P<attempt>\d+):\S+\s*-->"
+)
+
+
+def _latest_run_boundary(lines):
+    """The index of the first row the latest cloud run wrote, or None for a workpad
+    carrying no `gha:` checkpoint (a local run, whose every row is its own).
+
+    A resumed issue's workpad holds every run's rows, so a phase that straddles a resume
+    otherwise spans several runs' wall clock — including a run that died. The latest run
+    is the one the LAST checkpoint row names, keyed on run id AND attempt, since a GitHub
+    re-run writes fresh rows under the same run id."""
+    first_row_of: dict[tuple[str, str], int] = {}
+    latest = None
+    for index, line in enumerate(lines):
+        m = _GHA_CHECKPOINT_RE.search(line)
+        if m is None:
+            continue
+        key = (m.group("run"), m.group("attempt"))
+        first_row_of.setdefault(key, index)
+        latest = key
+    return None if latest is None else first_row_of[latest]
 
 
 def _progress_block(body: str):
@@ -106,11 +141,13 @@ def _final_status(body: str):
     return word or UNESTABLISHED
 
 
-def _phase_stamps(lines):
-    """Ordered `HH:MM:SS` triples per recognized phase heading."""
+def _phase_stamps(lines, boundary=None):
+    """Ordered `HH:MM:SS` triples per recognized phase heading, counting only rows at
+    or after `boundary` (a line index) when one is given. A phase whose rows all
+    precede it keeps an empty list: an earlier run executed it, this run did not."""
     stamps: dict[str, list[tuple[int, int, int]]] = {}
     current = None
-    for line in lines:
+    for index, line in enumerate(lines):
         top = _TOP_LEVEL_RE.match(line)
         if top:
             phase = top.group("phase").strip()
@@ -118,7 +155,7 @@ def _phase_stamps(lines):
             if current is not None:
                 stamps.setdefault(current, [])
             continue
-        if current is None:
+        if current is None or (boundary is not None and index < boundary):
             continue
         note = _NOTE_TS_RE.match(line)
         if note is None:
@@ -157,7 +194,7 @@ def derive(body):
     # Without a day the stamps cannot be ordered across a midnight boundary, so no span
     # is established — reporting one would be a guess presented as a fact.
     base_date = _base_date(body)
-    stamps = _phase_stamps(lines)
+    stamps = _phase_stamps(lines, _latest_run_boundary(lines))
     if not stamps:
         # The section parsed but held no recognized phase heading. That is a workpad this
         # parser could not read, not a run with no phases — an empty map would report it

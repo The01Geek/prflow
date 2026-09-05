@@ -48,7 +48,8 @@
 #                             gates it — an empty status set reports state
 #                             "pending" and must not be read as pending CI);
 #                         (3) non-Actions (external app) check runs, with the
-#                             `Devflow Review` check-run name excluded
+#                             review check-run name excluded (`PRFlow Review`,
+#                             plus the superseded `Devflow Review`)
 #                             defensively (its own check never blocks itself).
 #                       Zero signals across all three -> satisfied: a repo
 #                       with no other CI is reviewed immediately, never wedged.
@@ -66,7 +67,9 @@
 #                        the Re-run button
 #   REQUIRE_CI_GREEN     same contract for the other-CI gate
 #   SELF_WORKFLOW_NAME   this workflow's name, excluded from the Actions-runs
-#                        set (default: "Devflow Review (auto-trigger)")
+#                        set (default: "Devflow Review (auto-trigger)"; the
+#                        withheld auto-trigger workflow's Actions run name, which
+#                        this rename leaves frozen alongside telemetry-push.yml)
 #
 # Output (stdout, two lines, always emitted; always exits 0):
 #   should_run=<true|false>
@@ -75,7 +78,7 @@
 # deferral for a completed run awaiting manual approval (conclusion
 # 'action_required'); it exists so the neutral check can name approval as the
 # blocker in plain language rather than the opaque 'other CI not green':
-# devflow-review.yml's create_check maps it to the title 'Devflow review
+# devflow-review.yml's create_check maps it to the title 'PRFlow review
 # waiting: CI approval required'. Every deferral and fail-closed
 # arm emits a SPECIFIC stderr breadcrumb naming which condition fired. Fail
 # closed on any unverifiable query: a missed review is recoverable via the
@@ -147,7 +150,7 @@ gate_signal_lines() {  # $1=lines  $2=signal noun for the breadcrumb
         # A completed run awaiting manual approval (an approval-gated re-dispatch,
         # e.g. a bot-actor run) — distinct from a generic non-green conclusion so
         # the neutral check can name approval as the blocker: devflow-review.yml
-        # maps ci-approval-required to the title 'Devflow review waiting: CI
+        # maps ci-approval-required to the title 'PRFlow review waiting: CI
         # approval required' (selected by scripts/describe-skip-title.sh; that
         # deferral check-run title — posted by create_check — is the coupled
         # workflow-side change, landed in #353, extracted to the helper in #389)
@@ -308,9 +311,9 @@ if [ "$REQUIRE_CI_GREEN" != "false" ]; then
   # (3) External (non-Actions app) check runs. Actions job check-runs are
   #     already covered at workflow granularity by (1) — and excluding the
   #     github-actions app here is what keeps this workflow's OWN job
-  #     check-runs (precheck, create_check, the API-posted `Devflow Review`
-  #     run) from gating themselves. The `Devflow Review` name is excluded
-  #     even off-app, defensively.
+  #     check-runs (precheck, create_check, the API-posted `PRFlow Review`
+  #     run) from gating themselves. The review check-run name (`PRFlow Review`,
+  #     plus the superseded `Devflow Review`) is excluded even off-app, defensively.
   _checks_err=$(mktemp 2>/dev/null) || _checks_err=/dev/null
   if ! CHECKS_JSON=$("$DEVFLOW_GH" api --paginate "repos/$REPO/commits/$HEAD_SHA/check-runs" 2>"$_checks_err"); then
     echo "derive-review-preconditions: check-runs query failed for $HEAD_SHA ($(gh_err_detail "$_checks_err")) — other-CI state unverifiable; failing closed (unverifiable)." >&2
@@ -319,7 +322,7 @@ if [ "$REQUIRE_CI_GREEN" != "false" ]; then
   fi
   [ "$_checks_err" = /dev/null ] || rm -f "$_checks_err"
   if ! EXT_LINES=$(printf '%s' "$CHECKS_JSON" | "$DEVFLOW_JQ" -rs \
-        'map(.check_runs // []) | add // [] | map(select(((.app.slug // "") != "github-actions") and ((.name // "") != "Devflow Review"))) | .[] | ((.status // "") + "|" + (.conclusion // ""))' 2>/dev/null); then
+        'map(.check_runs // []) | add // [] | map(select(((.app.slug // "") != "github-actions") and ((.name // "") != "PRFlow Review") and ((.name // "") != "Devflow Review"))) | .[] | ((.status // "") + "|" + (.conclusion // ""))' 2>/dev/null); then
     echo "derive-review-preconditions: check-runs payload could not be parsed (jq failed or a non-object page) — failing closed (unverifiable)." >&2
     emit false unverifiable
   fi

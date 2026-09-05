@@ -43,8 +43,10 @@ an unmeasured turn instead. Read counts are plain counts, so a genuinely-zero
 read count reads as 0; only the residency STATISTICS (median/max peak) carry the
 UNESTABLISHED sentinel for an empty population.
 
-The parser streams records line by line (it never buffers an entire session into memory)
-and degrades per malformed record without detonating, reporting how many records it
+Each session is read through the shared transcript reader (scripts/context_eval_shared.py,
+issue #120), which tolerates the cloud artifact shape as well as JSONL; a whole-file JSON
+array is read whole, so a session is buffered rather than streamed line by line. The walk
+still degrades per malformed record without detonating, reporting how many records it
 skipped and why. It is deterministic: re-running over the same corpus yields byte-identical
 output. It writes NO transcript contents and embeds no owner-specific identifiers.
 
@@ -70,6 +72,7 @@ from context_eval_shared import (  # noqa: F401
     _iter_session_files,
     _median,
     _usage_value,
+    read_and_tally,
 )
 
 # The two engine-file subtrees (disjoint — neither prefix contains the other). A subtree
@@ -227,6 +230,10 @@ def new_skip_tally():
         "non_json_line": 0,
         "not_object": 0,
         "no_type": 0,
+        # A file walked past for a non-.jsonl/.json suffix (issue #120 AC3).
+        "unrecognized_suffix": 0,
+        # A `.json` file that parsed but carried no transcript record (issue #120 AC4).
+        "non_transcript_json": 0,
         "unreadable_file": 0,
         "escaped_path": 0,
         "walk_error": 0,
@@ -256,55 +263,48 @@ def eval_corpus(corpus_root):
         # output is host-independent.
         rel_source = os.path.relpath(session_file, corpus_root).replace(os.sep, "/")
         try:
-            handle = open(session_file, "r", encoding="utf-8", errors="replace")
+            with open(session_file, "r", encoding="utf-8", errors="replace") as handle:
+                text = handle.read()
         except OSError as exc:
             skipped["unreadable_file"] += 1
             sys.stderr.write(
                 f"warning: skipping unreadable session file {session_file}: {exc}\n"
             )
             continue
-        with handle:
-            for lineno, raw in enumerate(handle, 1):  # streaming: one record at a time
-                line = raw.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                except (ValueError, TypeError):
-                    # A truncated final line or a non-JSON line: skip, do not detonate.
-                    skipped["non_json_line"] += 1
-                    continue
-                if not isinstance(record, dict):
-                    skipped["not_object"] += 1
-                    continue
-                rtype = record.get("type")
-                if rtype is None:
-                    skipped["no_type"] += 1
-                    continue
-                if rtype not in ("assistant", "system"):
-                    # A record type the walker does not observe (queue-operation, user,
-                    # summary): not an engine read and not a parse failure.
-                    continue
-                # Defensive backstop: the observers isinstance-guard their known field
-                # shapes, but an unanticipated record shape must degrade per-record
-                # (tallied + breadcrumbed), never detonate the whole corpus walk.
-                try:
-                    key, is_sub = _context_identity(record, rel_source)
-                    acc = accumulators.get(key)
-                    if acc is None:
-                        acc = ContextAccumulator(key, is_sub)
-                        accumulators[key] = acc
-                    acc.note_source(rel_source)
-                    if rtype == "assistant":
-                        acc.observe_assistant(record)
-                    else:
-                        acc.observe_system(record)
-                except (AttributeError, TypeError, ValueError, KeyError) as exc:
-                    skipped["malformed_record"] += 1
-                    sys.stderr.write(
-                        f"warning: skipping malformed {rtype} record at {session_file}:{lineno}: {type(exc).__name__}: {exc}\n"
-                    )
-                    continue
+        # read_and_tally (issue #120) parses the cloud artifact shape or JSONL, folds the
+        # shared per-shape skip counts, and returns the records to iterate — empty for a
+        # non-transcript JSON sidecar, so those never reach no_type below (AC4). no_type
+        # stays per-record.
+        records = read_and_tally(text, skipped)
+        for index, record in enumerate(records, 1):
+            rtype = record.get("type")
+            if rtype is None:
+                skipped["no_type"] += 1
+                continue
+            if rtype not in ("assistant", "system"):
+                # A record type the walker does not observe (queue-operation, user,
+                # summary): not an engine read and not a parse failure.
+                continue
+            # Defensive backstop: the observers isinstance-guard their known field
+            # shapes, but an unanticipated record shape must degrade per-record
+            # (tallied + breadcrumbed), never detonate the whole corpus walk.
+            try:
+                key, is_sub = _context_identity(record, rel_source)
+                acc = accumulators.get(key)
+                if acc is None:
+                    acc = ContextAccumulator(key, is_sub)
+                    accumulators[key] = acc
+                acc.note_source(rel_source)
+                if rtype == "assistant":
+                    acc.observe_assistant(record)
+                else:
+                    acc.observe_system(record)
+            except (AttributeError, TypeError, ValueError, KeyError) as exc:
+                skipped["malformed_record"] += 1
+                sys.stderr.write(
+                    f"warning: skipping malformed {rtype} record {index} in {session_file}: {type(exc).__name__}: {exc}\n"
+                )
+                continue
 
     # Fold over EVERY accumulator, not just the reporting ones: a context excluded for
     # reading no engine file can still have dropped a Read with an unusable path.

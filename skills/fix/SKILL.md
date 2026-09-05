@@ -1,6 +1,6 @@
 ---
-name: receiving-code-review
-description: PRFlow's code-review reception skill, used by the review-and-fix loop and available directly. Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation
+name: fix
+description: PRFlow's code-review reception skill (formerly receiving-code-review), used by the review-and-fix loop and available directly. Use when addressing review feedback already posted on a pull request — verifying findings before applying them — as distinct from /prflow:review-and-fix, which runs the review itself and then fixes what it found. Requires technical rigor and verification, not performative agreement or blind implementation
 ---
 
 # Code Review Reception
@@ -10,20 +10,20 @@ description: PRFlow's code-review reception skill, used by the review-and-fix lo
 Consumer prompt extension (load first). Before doing this skill's work, load any consumer-supplied prompt extension for this skill and honor it. From the repo root, run the vendored-literal leading token first:
 
 ```bash
-.prflow/vendor/prflow/scripts/load-prompt-extension.sh receiving-code-review
+.prflow/vendor/prflow/scripts/load-prompt-extension.sh fix
 ```
 
-On a `command not found` / `No such file` / exit-127 reading, re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/load-prompt-extension.sh receiving-code-review`) and route on that outcome; if that too is not found, fall back to the portable anchor form:
+On a `command not found` / `No such file` / exit-127 reading, re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/load-prompt-extension.sh fix`) and route on that outcome; if that too is not found, fall back to the portable anchor form:
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh receiving-code-review
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh fix
 ```
 
-If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/prompt-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
+If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/skill-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
 
 When a dispatching prompt supplies an explicit helper command (an orchestrator that invokes this skill inside a subagent may pre-resolve the helper path and hand you the exact command to run for this prompt extension), run that supplied command verbatim in place of the loader recipe above — do not resolve the anchor yourself for this helper — and interpret its outcome by the same exit-code rules just stated. The loader recipe above remains the behavior for a direct invocation of this skill, where no command is supplied.
 
-DevFlow context. This skill originates in the MIT-licensed `superpowers` plugin (© 2025 Jesse Vincent) and has been substantially modified by DevFlow. Its inherited examples address a "human partner" you converse with and "report to." Inside DevFlow's *autonomous* `/prflow:review-and-fix` fix loop there is no interactive human in the turn: read every "your human partner" / "report to me" framing below as the loop's own escalation channels — the deferrals manifest, the pushback/decision tracking recorded in the workpad, and the PR/issue trail a human reviews later. The technical-rigor principle (verify before implementing, push back when wrong) is identical; only the audience for the pushback differs.
+PRFlow context. This skill originates in the MIT-licensed `superpowers` plugin (© 2025 Jesse Vincent) and has been substantially modified by PRFlow. Its inherited examples address a "human partner" you converse with and "report to." Inside PRFlow's *autonomous* `/prflow:review-and-fix` fix loop there is no interactive human in the turn: read every "your human partner" / "report to me" framing below as the loop's own escalation channels — the deferrals manifest, the pushback/decision tracking recorded in the workpad, and the PR/issue trail a human reviews later. The technical-rigor principle (verify before implementing, push back when wrong) is identical; only the audience for the pushback differs.
 
 ## Overview
 
@@ -191,12 +191,12 @@ Once the verdict is already non-blocking (an APPROVE, or any approve-with-notes 
 # parse/missing-python3 message too); the value validation is a separate `case` on the
 # value alone. Both fall back to the default `critical`, each with its own breadcrumb.
 if ! REOPEN_THRESHOLD=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .receiving_review.fix_severity_threshold critical); then
-  echo "receiving-code-review: could not read .receiving_review.fix_severity_threshold (config reader rc≠0); using default 'critical'" >&2
+  echo "fix: could not read .receiving_review.fix_severity_threshold (config reader rc≠0); using default 'critical'" >&2
   REOPEN_THRESHOLD=critical
 fi
 case "$REOPEN_THRESHOLD" in
   critical|important|suggestion) : ;;
-  *) echo "receiving-code-review: .receiving_review.fix_severity_threshold value '$REOPEN_THRESHOLD' is not one of critical/important/suggestion; using default 'critical'" >&2
+  *) echo "fix: .receiving_review.fix_severity_threshold value '$REOPEN_THRESHOLD' is not one of critical/important/suggestion; using default 'critical'" >&2
      REOPEN_THRESHOLD=critical ;;
 esac
 ```

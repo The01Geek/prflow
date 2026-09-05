@@ -1,6 +1,6 @@
-name: 'Vendor DevFlow plugin'
+name: 'Vendor PRFlow plugin'
 description: |
-  Materialize the DevFlow plugin into `.prflow/vendor/prflow/` at runtime, so
+  Materialize the PRFlow plugin into `.prflow/vendor/prflow/` at runtime, so
   the cloud-tier workflows find their helper scripts at the literal workspace
   path without the plugin tree having to be committed into the repo. Runs the
   committed → self → fetch algorithm in vendor-slice.sh (the single source of
@@ -27,7 +27,7 @@ outputs:
     description: |
       Which vendor-slice branch materialized the plugin this run:
       `committed` (pre-existing committed copy, checked-out-tree content),
-      `self` (copied from the checkout root — the DevFlow repo itself), or
+      `self` (copied from the checkout root — the PRFlow repo itself), or
       `fetch` (freshly cloned from the official repo at the pinned ref).
       Security consumers key trust on this — the devflow-runner.yml deny-list
       floor executes the vendored filter helper only on `fetch`, because the

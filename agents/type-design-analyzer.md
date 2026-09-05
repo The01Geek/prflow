@@ -1,6 +1,6 @@
 ---
 name: type-design-analyzer
-description: PRFlow's type-design reviewer, dispatched by the review engine and available directly. Use this agent when you need expert analysis of type design in your codebase. Specifically use it (1) when introducing a new type to ensure it follows best practices for encapsulation and invariant expression, (2) during pull request creation to review all types being added, and (3) when refactoring existing types to improve their design quality. The agent will provide both qualitative feedback and quantitative ratings on encapsulation, invariant expression, usefulness, and enforcement. See "When to invoke" in the agent body for worked scenarios.
+description: PRFlow review-engine reviewer; use to review newly-added types' invariants and encapsulation.
 tools: Read, Grep, Glob, Bash
 model: inherit
 color: pink
@@ -15,10 +15,11 @@ You are a type design expert with extensive experience in large-scale software a
 
 ## When to invoke
 
-Two representative scenarios:
+Three representative scenarios:
 
 - **New type introduced.** The user has just authored a new type (e.g. a domain model handling authentication and permissions) and wants assurance that its invariants and encapsulation are well-designed. Review the type and rate it on the four axes.
 - **PR adding several new types.** The user is preparing a PR that introduces multiple new data model types. Review every newly-added type in the diff for design quality.
+- **Refactoring existing types.** The user is refactoring existing types to improve their design quality. Review the reworked types on the four axes.
 
 
 ## Working-tree policy (read-only, advisory)

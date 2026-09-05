@@ -52,7 +52,16 @@ fi
 # host must not misreport a benign already-exists as a failure. `nocasematch` keeps the
 # match case-insensitive, matching the retired `grep -qiE` — without it a differently-cased
 # error body (`Already Exists`) would fall through to the failure breadcrumb.
-ERR_OUT="$("$DEVFLOW_GH" api --method POST "repos/{owner}/{repo}/labels" -f "name=$NAME" -f "description=Created by PRFlow automation" 2>&1)"
+# Fixed brand color for PRFlow's hardcoded label names on create (issue #72),
+# keyed on the EXACT name so a config-renameable/consumer label stays uncolored;
+# `case`, not `grep` (not preflight-guaranteed).
+COLOR_ARGS=()
+case "$NAME" in
+    PRFlow) COLOR_ARGS=(-f "color=aaaaaa") ;;
+esac
+# Guarded expansion: a bare `"${COLOR_ARGS[@]}"` on an EMPTY array under `set -u`
+# errors on bash 3.2 (macOS) / <4.4 — do not "simplify" it away.
+ERR_OUT="$("$DEVFLOW_GH" api --method POST "repos/{owner}/{repo}/labels" -f "name=$NAME" -f "description=Created by PRFlow automation" ${COLOR_ARGS[@]+"${COLOR_ARGS[@]}"} 2>&1)"
 RC=$?
 
 if [ "$RC" -eq 0 ]; then

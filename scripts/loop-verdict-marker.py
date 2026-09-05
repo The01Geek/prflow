@@ -44,12 +44,20 @@ every other phrase (any `shadow agreement not verified …` variant, an empty
 phrase, an unrecognized one) normalizes to `not-verified`. This direction is
 deliberate and fail-safe: the marker never over-claims full coverage.
 
-Two subcommands, both stdlib-only, no config / gh / network / git:
+Two subcommands, both stdlib-only and needing no config / gh / network. The optional
+`compose --run-root` mode (issue #193) is the one exception: it grades the run root through
+review-evidence-gate.grade_run_root_offline, which shells out to `git apply --numstat` — so
+`compose` reaches git only on that additive path, and `read` and a legacy `compose` do not:
 
-  compose --result "<human result>" --coverage "<shadow-status phrase>"
+  compose --result "<human result>" --coverage "<shadow-status phrase>" [--run-root DIR]
       Emits the marker line to stdout (exit 0). An unmappable result prints a
       stderr breadcrumb and exits 3 with NO marker — a caller that gets no line
       composes its headline prose without a marker rather than stamping a lie.
+      When --run-root is supplied (issue #193), the run root is graded offline
+      through review-evidence-gate.grade_run_root_offline FIRST, and a non-pass
+      grade refuses identically (stderr breadcrumb, exit 3, no marker) so an
+      approval headline is never stamped over missing execution evidence. A legacy
+      caller that passes no --run-root keeps the existing contract unchanged.
 
   read [FILE|-]
       Reads the chat output from FILE (or stdin) and inspects LINE 1 ONLY. Prints
@@ -73,6 +81,8 @@ Two subcommands, both stdlib-only, no config / gh / network / git:
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import os
 import re
 import sys
 
@@ -151,7 +161,56 @@ def _normalize_coverage(raw: str) -> str:
     return "not-verified"
 
 
+def _load_review_evidence_gate():
+    """Import scripts/review-evidence-gate.py install-relative (a sibling in this scripts/
+    dir), mirroring how that gate imports scripts/workpad.py (issue #193). Returns
+    (module, None) or (None, reason) — a vendored consumer checkout resolves it the same way,
+    relative to this installed file. The hyphenated filename is why this uses
+    spec_from_file_location rather than a plain import."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "review-evidence-gate.py")
+    try:
+        spec = importlib.util.spec_from_file_location("loop_review_evidence_gate", path)
+        if spec is None or spec.loader is None:
+            return None, "no import spec for review-evidence-gate.py"
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module, None
+    except Exception as e:  # any import fault refuses, never a crash
+        return None, f"{type(e).__name__}: {e}"
+
+
+def _run_root_grade_passes(run_root: str) -> tuple[bool, str]:
+    """Grade `run_root` offline through review-evidence-gate.grade_run_root_offline (issue
+    #193 AC5). Returns (True, token) only on an explicit `pass ` result; (False, reason) on
+    any non-pass grade or an unavailable grader — the fail-closed direction, so a marker is
+    never composed on unverified evidence."""
+    gate, err = _load_review_evidence_gate()
+    if gate is None:
+        return False, f"grader-unavailable ({err})"
+    try:
+        token, _detail = gate.grade_run_root_offline(run_root)
+    except Exception as e:  # a grader fault refuses, never over-claims a pass
+        return False, f"grader-error ({type(e).__name__}: {e})"
+    if token.startswith("pass "):
+        return True, token
+    return False, token
+
+
 def _cmd_compose(args: argparse.Namespace) -> int:
+    # Run-root evidence gate (issue #193 AC5): when a run root is supplied, refuse to compose
+    # a verdict marker on a non-pass grade — no marker, a stderr diagnostic, exit 3, the same
+    # shape as the unmappable-result refusal below. Legacy callers pass no --run-root and are
+    # unchanged.
+    if getattr(args, "run_root", None):
+        ok, detail = _run_root_grade_passes(args.run_root)
+        if not ok:
+            sys.stderr.write(
+                f"loop-verdict-marker: run root '{args.run_root}' did not pass the "
+                f"review-evidence grade ({detail}) — refusing to compose a verdict marker "
+                "(no line emitted); the run is evidence-missing\n"
+            )
+            return 3
     token = _normalize_result(args.result)
     if token is None:
         sys.stderr.write(
@@ -238,6 +297,12 @@ def main(argv: list[str] | None = None) -> int:
         "--coverage",
         required=True,
         help="the loop's {shadow status} phrase (e.g. 'shadow agreed, full coverage')",
+    )
+    p_compose.add_argument(
+        "--run-root",
+        default=None,
+        help="optional (issue #193): the loop's held review run root. When given, refuse to "
+        "compose a marker unless the run root passes the offline review-evidence grade.",
     )
     p_compose.set_defaults(func=_cmd_compose)
 

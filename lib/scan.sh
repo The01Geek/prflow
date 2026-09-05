@@ -45,6 +45,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # silently-empty operand (see lib/repo-identity.sh).
 # shellcheck source=./repo-identity.sh
 . "$HERE/repo-identity.sh"
+# Shared login rule (issue #157): watched-author matching and search-form
+# composition both normalize through lib/login_normalize.py, so no `[bot]`/`app/`
+# strip lives inline here.
+# shellcheck source=login-match.sh
+. "$HERE/login-match.sh" 2>/dev/null \
+  || echo "devflow: login-match.sh could not be sourced beside ${BASH_SOURCE[0]} — watched-author matching will fail closed" >&2
 
 EXPLICIT_PRS=""
 while [[ $# -gt 0 ]]; do
@@ -120,14 +126,15 @@ _add_candidates() {  # $1 = JSON array of PR objects
 }
 
 # ── _author_is_watched <login> ───────────────────────────────────────────────
-# True when <login> (with an optional trailing [bot]) is in the WATCHED list.
+# True when <login> matches a WATCHED entry under the shared login rule (issue
+# #157): both sides normalize through lib/login_normalize.py, so an `app/<slug>`
+# gh author matches a bare-slug or `<slug>[bot]` watched entry. A resolver failure
+# (rc 2) reports NOT watched — the fail-closed direction the retrospective wants.
 _author_is_watched() {
-    local _cand="${1%\[bot\]}" _x
-    IFS=',' read -ra _wl <<< "$WATCHED"
-    for _x in "${_wl[@]}"; do
-        _x="$(echo "$_x" | xargs)"; _x="${_x%\[bot\]}"
-        [ -n "$_x" ] && [ "$_x" = "$_cand" ] && return 0
-    done
+    local _rc
+    devflow_login_matches "$1" "$WATCHED" && return 0 || _rc=$?
+    [ "$_rc" -eq 1 ] && return 1
+    echo "::warning::scan: could not run lib/login_normalize.py to match author '$1' against the watched-authors list; treating as not watched (fail-closed)" >&2
     return 1
 }
 
@@ -235,7 +242,16 @@ if [ -z "$WATCHED" ]; then
 else
     IFS=',' read -ra _watched <<< "$WATCHED"
     for _w in "${_watched[@]}"; do
-        _t="$(echo "$_w" | xargs)"; _t="${_t%\[bot\]}"
+        # Normalize the entry to its bare slug through the shared rule (issue #157),
+        # so `app/my-bot` / `my-bot[bot]` both compose `author:app/my-bot` and
+        # `author:my-bot` — never `author:app/app/my-bot`. A resolver failure or an
+        # entry normalizing to empty skips the entry (fail-closed under the gate).
+        _t="$(devflow_login_normalize "$_w")" || {
+            echo "::warning::scan: could not run lib/login_normalize.py to normalize watched entry '${_w}'; skipping it (fail-closed)" >&2
+            DEGRADED=1
+            continue
+        }
+        [ -n "$_t" ] || continue
         for _form in "app/${_t}" "${_t}"; do
             if BATCH="$("$DEVFLOW_GH" pr list --repo "$REPO" --state merged \
                     --search "merged:>=${SINCE} author:${_form}" \

@@ -156,8 +156,9 @@ if [ ! -f "$GITIGNORE" ]; then
   log "wrote $GITIGNORE (ignores ephemeral .prflow/tmp/ scratch)"
 fi
 
-# Consumer-owned prompt-extensions directory (issue #84, extended in issue #95).
-# Skills load .prflow/prompt-extensions/<skill-name>.md verbatim when present, so a
+# Consumer-owned skill-extensions directory (issue #84, extended in issue #95;
+# renamed from prompt-extensions in issue #170).
+# Skills load .prflow/skill-extensions/<skill-name>.md verbatim when present, so a
 # repo can append repo-specific instructions to any skill with no plugin edit.
 # Scaffold one COMMENTED, INERT <skill>.md.example PER SKILL so adopters discover
 # that EVERY skill is extensible, not just create-issue. The `.example` suffix keeps
@@ -178,15 +179,85 @@ fi
 # fields apostrophe-free ASCII: a hint reaches a printf arg below, and an ASCII
 # apostrophe in a single-quoted bash string would terminate it (shellcheck
 # SC1073/SC1011) while a curly apostrophe would trip SC1112 (see CLAUDE.md).
-EXTENSIONS_DIR="$DEST/prompt-extensions"
+EXTENSIONS_DIR="$DEST/skill-extensions"
+OLD_EXTENSIONS_DIR="$DEST/prompt-extensions"
+# TRANSITIONAL DIRECTORY-RENAME MIGRATION (issue #170). Rename prompt-extensions/ to
+# skill-extensions/ IN PLACE before the mkdir/create below, or a fresh skill-extensions/
+# created beside an un-migrated prompt-extensions/ spuriously trips the both-present
+# conflict arm. Best-effort: an unwritable target logs, leaves the old directory, and the
+# scaffold continues (exit 0).
+if [ -d "$OLD_EXTENSIONS_DIR" ] && [ -d "$EXTENSIONS_DIR" ]; then
+  # Both present: a consumer already created skill-extensions/ while keeping the old dir.
+  # Touch neither and name the conflict so /prflow:init can relay it to the user.
+  log "skill-extensions rename conflict: both $OLD_EXTENSIONS_DIR and $EXTENSIONS_DIR exist; leaving both untouched — merge them by hand, then delete $OLD_EXTENSIONS_DIR."
+elif [ -d "$OLD_EXTENSIONS_DIR" ]; then
+  if git -C "$TARGET_ROOT" ls-files --error-unmatch "$OLD_EXTENSIONS_DIR" >/dev/null 2>&1; then
+    se_mover=(git -C "$TARGET_ROOT" mv)
+  else
+    se_mover=(mv)
+  fi
+  if se_ren_err="$("${se_mover[@]}" "$OLD_EXTENSIONS_DIR" "$EXTENSIONS_DIR" 2>&1)"; then
+    log "migrated skill-extensions directory: renamed $OLD_EXTENSIONS_DIR to $EXTENSIONS_DIR (the prompt-extensions directory is now skill-extensions)."
+  else
+    log "could not migrate skill-extensions directory $OLD_EXTENSIONS_DIR to $EXTENSIONS_DIR${se_ren_err:+ ($se_ren_err)}; leaving the old directory in place (rename it by hand)."
+  fi
+fi
 # Guard the directory create like every other write in this file: a failure
 # (read-only .prflow, ENOSPC, perms) logs-and-skips the prompt-extension scaffolding
 # rather than aborting the whole best-effort scaffold under `set -euo pipefail` (the
 # documented contract at the top of this file). `mkdir -p` on an already-present
 # directory is a success no-op, so this is idempotent.
-if ! pe_mkdir_err="$(mkdir -p "$EXTENSIONS_DIR" 2>&1)"; then
+# Do NOT create skill-extensions/ while the superseded prompt-extensions/ is still present
+# (issue #170): the migration above did not complete (a failed rename or the both-present
+# conflict arm). Creating an empty canonical dir here would leave both present and spuriously
+# trip the both-present conflict arm on the next run, so leave it absent.
+if [ -d "$OLD_EXTENSIONS_DIR" ]; then
+  log "not creating $EXTENSIONS_DIR while $OLD_EXTENSIONS_DIR is still present (migration incomplete or a both-present conflict); readers fall back to the superseded directory per file, so your extensions keep loading — resolve the migration (merge into $EXTENSIONS_DIR and delete $OLD_EXTENSIONS_DIR), then re-run."
+elif ! pe_mkdir_err="$(mkdir -p "$EXTENSIONS_DIR" 2>&1)"; then
   log "could not create $EXTENSIONS_DIR${pe_mkdir_err:+ ($pe_mkdir_err)}; skipping prompt-extension example scaffolding (scaffold continues)."
 else
+  # TRANSITIONAL SKILL-RENAME MIGRATION (issue #152). The receiving-code-review skill is
+  # now `fix`, so a consumer's committed extension file is renamed IN PLACE here — this
+  # is the ONE scaffolder both /prflow:init and install.sh run. Runs AHEAD of the
+  # per-skill example loop so the loop's fix.md.example backfill sees the migrated state.
+  # The tracked/untracked decision is a SELECTION made from git's own exit status, never
+  # a PATH tool. Best-effort like every other write here: an unwritable target logs the
+  # failure, leaves the old file, and the scaffold continues (exit 0).
+  PE_OLD_EXT="$EXTENSIONS_DIR/receiving-code-review.md"
+  PE_NEW_EXT="$EXTENSIONS_DIR/fix.md"
+  PE_OLD_EXT_EXAMPLE="$EXTENSIONS_DIR/receiving-code-review.md.example"
+  if [ -e "$PE_OLD_EXT" ] && [ -e "$PE_NEW_EXT" ]; then
+    # Both present: a consumer already created fix.md while keeping the old file. Touch
+    # neither and name the conflict so /prflow:init can relay it to the user.
+    log "prompt-extension rename conflict: both $PE_OLD_EXT and $PE_NEW_EXT exist; leaving both untouched — merge them by hand, then delete $PE_OLD_EXT."
+  elif [ -e "$PE_OLD_EXT" ]; then
+    # Select the mover once: git mv when the file is tracked (keeps history and staging), a
+    # plain mv otherwise.
+    if git -C "$TARGET_ROOT" ls-files --error-unmatch "$PE_OLD_EXT" >/dev/null 2>&1; then
+      pe_mover=(git -C "$TARGET_ROOT" mv)
+    else
+      pe_mover=(mv)
+    fi
+    if pe_ren_err="$("${pe_mover[@]}" "$PE_OLD_EXT" "$PE_NEW_EXT" 2>&1)"; then
+      log "migrated prompt extension: renamed $PE_OLD_EXT to $PE_NEW_EXT (the receiving-code-review skill is now fix)."
+    else
+      log "could not migrate prompt extension $PE_OLD_EXT to $PE_NEW_EXT${pe_ren_err:+ ($pe_ren_err)}; leaving the old file in place (rename it by hand)."
+    fi
+  fi
+  # Remove a stale receiving-code-review.md.example — the loop below backfills the
+  # fix.md.example that supersedes it. A tracked copy goes through git rm, which keeps the
+  # index and worktree in sync; never cascade a failed git rm into a plain rm, which would
+  # delete the worktree copy while the path stays staged and desync the index. Best-effort:
+  # a failure logs a breadcrumb and the scaffold continues.
+  if [ -e "$PE_OLD_EXT_EXAMPLE" ]; then
+    if git -C "$TARGET_ROOT" ls-files --error-unmatch "$PE_OLD_EXT_EXAMPLE" >/dev/null 2>&1; then
+      pe_rm_err="$(git -C "$TARGET_ROOT" rm -q -f -- "$PE_OLD_EXT_EXAMPLE" 2>&1)" \
+        || log "could not remove the stale $PE_OLD_EXT_EXAMPLE${pe_rm_err:+ ($pe_rm_err)}; remove it by hand."
+    else
+      pe_rm_err="$(rm -f "$PE_OLD_EXT_EXAMPLE" 2>&1)" \
+        || log "could not remove the stale $PE_OLD_EXT_EXAMPLE${pe_rm_err:+ ($pe_rm_err)}; remove it by hand."
+    fi
+  fi
   pe_created=0
   while IFS='|' read -r pe_skill pe_hint; do
     [ -n "$pe_skill" ] || continue
@@ -233,9 +304,9 @@ else
     if {
          printf '%s\n' \
            '<!--' \
-           "DevFlow prompt-extension example for the $pe_skill skill." \
+           "PRFlow prompt-extension example for the $pe_skill skill." \
            '' \
-           'This directory holds consumer-owned prompt extensions for DevFlow skills.' \
+           'This directory (.prflow/skill-extensions/) holds consumer-owned prompt extensions for PRFlow skills.' \
            'Drop a file named <skill-name>.md here (no .example suffix) and its contents' \
            'are appended VERBATIM to the end of that skill prompt every time it runs. It' \
            'is an upgrade-safe way to add repo-specific instructions without forking the' \
@@ -285,7 +356,7 @@ docs-verify|name the topics whose internal docs your team treats as load-bearing
 implement|add repo-specific implementation constraints the orchestrator must honor
 init|add post-scaffold setup steps unique to your repo
 pr-description|enforce your PR-description template sections and required labels
-receiving-code-review|add house rules for how review feedback is evaluated, verified, and pushed back on
+fix|add house rules for how review feedback is evaluated, verified, and pushed back on
 requesting-code-review|tune what the internalized final-pass reviewer prioritizes for your codebase
 retrospective|add house criteria for what counts as a clean PR in the retrospective
 retrospective-audit|name the intervention patterns your team prioritizes when auditing

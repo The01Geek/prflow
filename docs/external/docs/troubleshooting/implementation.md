@@ -108,6 +108,32 @@ Rewrite each criterion as a checkbox row, then start the run again so the machin
 
 </Accordion>
 
+<Accordion title="The working tree has uncommitted changes">
+
+**Symptom:** a local run stops as Blocked before it creates a feature branch, and the workpad records the uncommitted tracked files it found and asks you to commit or stash them.
+
+PRFlow reaches this point still on your base branch, before any feature branch exists. Rather than sweep your uncommitted changes into a stray commit on the base branch, it stops and leaves your tree untouched.
+
+List what it found:
+
+```bash
+git status --porcelain --untracked-files=no
+```
+
+<Warning>
+This is a terminal stop, and it moves nothing. Your changes are still in your working tree exactly as you left them.
+</Warning>
+
+Commit those changes on a branch of your own, or stash them:
+
+```bash
+git stash
+```
+
+Then start the run again. Untracked files do not trigger this stop; only tracked changes do.
+
+</Accordion>
+
 <Accordion title="The feature branch is checked out in another worktree">
 
 **Symptom:** the run stops as Blocked and reports that the branch is checked out in another linked worktree. The underlying git error reads `fatal: '<branch>' is already used by worktree at '<path>'`. Older git versions word it `already checked out at`.

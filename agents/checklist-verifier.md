@@ -1,6 +1,6 @@
 ---
 name: checklist-verifier
-description: 'Verifies a single claim from the verification checklist against the actual source code. Reports PASS, FAIL, or INCONCLUSIVE with file:line evidence. Used for `verification_mode: "agent"` items; lite-mode items are resolved by the orchestrator directly via grep.'
+description: PRFlow review-engine agent; use to verify one checklist claim against the source code.
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 color: cyan

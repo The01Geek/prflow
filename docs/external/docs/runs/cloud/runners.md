@@ -7,7 +7,7 @@ Keep PRFlow on the default GitHub-hosted Linux runner, or move every job to a ru
 
 ## Select a Runner
 
-Every job in the two shipped workflows runs on `ubuntu-latest` by default. One GitHub Actions variable, `DEVFLOW_RUNNER`, changes all of them at once.
+Every job in the three shipped workflows (`devflow.yml`, `devflow-implement.yml`, `devflow-retrospective.yml`) runs on `ubuntu-latest` by default. One GitHub Actions variable, `DEVFLOW_RUNNER`, changes all of them at once.
 
 Set it under **Settings → Secrets and variables → Actions → Variables**.
 
@@ -19,6 +19,18 @@ Set it under **Settings → Secrets and variables → Actions → Variables**.
 | A value starting with `[` that is not valid JSON | Workflow evaluation fails with a `fromJSON` error. |
 
 Keep the `DEVFLOW_` prefix exactly as written. There is no `PRFLOW_RUNNER` alias.
+
+## Send the Light Jobs to a Cheaper Runner
+
+A second optional variable, `DEVFLOW_LIGHT_RUNNER`, moves the *light* (mostly one-core) jobs onto a cheaper runner while the heavy jobs stay on `DEVFLOW_RUNNER`. It takes the same value shapes — a bare label or a JSON label array.
+
+The light jobs are, in `devflow.yml`: `config`, `review_dedupe`, `gate`, `review_finalize`, and the `command` job when the triggering comment is a standalone `/prflow:review`. In `devflow-implement.yml`: `config` and `gate`. Everything else keeps `DEVFLOW_RUNNER` — a `/prflow:review-and-fix` or `/prflow:pr-description` `command` job, the implement `claude` job (which runs the test suite), and every `devflow-retrospective.yml` job.
+
+When `DEVFLOW_LIGHT_RUNNER` is unset or empty, each light job falls back to the `DEVFLOW_RUNNER` chain — `DEVFLOW_RUNNER`'s value, or `ubuntu-latest` when that is also unset. Set nothing new and no job moves.
+
+<Warning>
+  The light jobs still carry secrets: the standalone-review job runs your model-provider API key (under the read-only reviewer identity) and the helper jobs mint the GitHub App token. If you self-host `DEVFLOW_RUNNER` for network isolation, pointing `DEVFLOW_LIGHT_RUNNER` at a GitHub-hosted runner runs those secrets outside that boundary. Keep the light runner inside the same fleet unless a GitHub-hosted light runner is acceptable for those secrets.
+</Warning>
 
 <Warning>
   A label set that no registered runner matches does not fail. GitHub leaves the job queued forever with no error message. If a run never starts and the **Actions** tab shows it as queued, compare your label array against your runner's registered labels first.

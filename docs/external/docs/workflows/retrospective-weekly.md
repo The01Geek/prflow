@@ -15,7 +15,7 @@ It reads recently merged pull requests, records what went well or badly, looks f
     /prflow:retrospective-weekly
     ```
 
-    This is a local command. It is not available as a GitHub comment command and it is not scheduled for you.
+    This is a local command. It is not available as a GitHub comment command. You can also run the same loop on a weekly schedule with the shipped GitHub Actions workflow — see [Run It On A Schedule](#run-it-on-a-schedule) below.
   </Step>
   <Step title="Let the preflight checks pass">
     The run confirms the working tree is clean, that the GitHub CLI is authenticated and that `main` is checked out. It switches to `main` itself when needed.
@@ -88,6 +88,27 @@ Each filed issue proposes the smallest change that could stop the problem happen
 PRFlow opens or updates a separate pull request holding the retrospective records, then returns to `main` before it files any issues.
 
 Review that pull request and merge it yourself once continuous integration passes. PRFlow never merges it.
+
+## Run It On A Schedule
+
+The same loop can run unattended on GitHub Actions. PRFlow ships `devflow-retrospective.yml`, which runs `/prflow:retrospective-weekly` headlessly on two triggers:
+
+- **Weekly cron** — every Sunday at 05:23 UTC.
+- **Manual dispatch** — the workflow's *Run workflow* button (`workflow_dispatch`).
+
+**It is disabled by default and opt-in.** The workflow runs only when the config key `workflows["prflow-retrospective"]` reads the JSON boolean `true` in your default branch's `.prflow/config.json`. Anything else — absent, `false`, or even the string `"true"` — leaves it off, so a fresh install never runs it until you opt in:
+
+```json
+{
+  "workflows": {
+    "prflow-retrospective": true
+  }
+}
+```
+
+The gate is read from the default branch, so enabling it takes effect once the change is merged to your default branch, not from a pull request.
+
+**It waits for the previous state pull request to merge.** Before running, an enabled run checks for an open `devflow/learnings-*` state pull request. When one is still open, it skips the retrospective and instead ensures exactly one open reminder issue asking a maintainer to merge that state pull request and re-dispatch the workflow. This keeps the scheduled loop from stacking un-merged learning records. With no open state pull request, the run proceeds normally.
 
 ## Where Humans Decide
 

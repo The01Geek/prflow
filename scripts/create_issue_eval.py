@@ -87,10 +87,12 @@ than asserted as something the orchestrator observes. No cost figure is sourced
 from a value the orchestrator volunteers — the harness emits the same data
 deterministically.
 
-The parser streams records line by line (it never buffers an entire session into
-memory) and degrades per malformed record without detonating, reporting how many
-records it skipped and why. It is deterministic: re-running over the same corpus
-yields byte-identical output. It writes NO transcript contents and embeds no
+The corpus path reads each session through the shared transcript reader
+(scripts/context_eval_shared.py, issue #120), which tolerates the cloud artifact shape as
+well as JSONL; a whole-file JSON array is read whole, so a session is buffered rather than
+streamed line by line. The walk still degrades per malformed record without detonating,
+reporting how many records it skipped and why. It is deterministic: re-running over the same
+corpus yields byte-identical output. It writes NO transcript contents and embeds no
 owner-specific identifiers.
 
 Usage:
@@ -125,6 +127,7 @@ from context_eval_shared import (
     _iter_session_files,
     _median,
     _usage_value,
+    read_and_tally,
 )
 
 # A run is bounded by `attributionSkill`, which carries the LIVE plugin namespace. That
@@ -1137,6 +1140,10 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
         "non_json_line": 0,
         "not_object": 0,
         "no_type": 0,
+        # A file walked past for a non-.jsonl/.json suffix (issue #120 AC3).
+        "unrecognized_suffix": 0,
+        # A `.json` file that parsed but carried no transcript record (issue #120 AC4).
+        "non_transcript_json": 0,
         "unreadable_file": 0,
         "escaped_path": 0,
         "walk_error": 0,
@@ -1153,7 +1160,8 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
     for session_file in _iter_session_files(corpus_root, skipped):
         acc = RunAccumulator(os.path.basename(session_file), large_block_chars)
         try:
-            handle = open(session_file, "r", encoding="utf-8", errors="replace")
+            with open(session_file, "r", encoding="utf-8", errors="replace") as handle:
+                text = handle.read()
         except OSError as exc:
             # A session file we enumerated but cannot open (permissions, a broken
             # symlink, a vanished file) is a dropped run: tally it and breadcrumb so
@@ -1164,43 +1172,34 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
                 f"warning: skipping unreadable session file {session_file}: {exc}\n"
             )
             continue
-        with handle:
-            for line in handle:  # streaming: one record at a time, never buffered
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                # Do not narrow, here or at the sibling decode sites: on the
-                # recursive-decoder Pythons in the supported range (< 3.14) a
-                # deeply-nested document raises `RecursionError`, a `RuntimeError`.
-                except Exception:
-                    skipped["non_json_line"] += 1
-                    continue
-                if not isinstance(record, dict):
-                    skipped["not_object"] += 1
-                    continue
-                rtype = record.get("type")
-                if rtype is None:
-                    skipped["no_type"] += 1
-                    continue
-                # Defensive backstop: the observers isinstance-guard their known field
-                # shapes, but a record shape not anticipated here must degrade per-record
-                # (tallied + breadcrumbed), never detonate the whole corpus walk. This is
-                # what makes the module docstring's "without detonating" guarantee true.
-                try:
-                    if rtype == "assistant":
-                        acc.observe_assistant(record)
-                    elif rtype == "user":
-                        acc.observe_user(record)
-                    elif rtype == "system":
-                        acc.observe_system(record)
-                except (AttributeError, TypeError, ValueError, KeyError) as exc:
-                    skipped["malformed_record"] += 1
-                    sys.stderr.write(
-                        f"warning: skipping malformed record in {session_file}: {exc}\n"
-                    )
-                    continue
+        # read_and_tally (issue #120) parses the cloud artifact shape or JSONL (catching
+        # broadly, incl. RecursionError on a deeply-nested line, < 3.14), folds the shared
+        # per-shape skip counts, and returns the records to iterate — empty for a
+        # non-transcript JSON sidecar, so those never reach no_type below (AC4). no_type
+        # stays per-record.
+        records = read_and_tally(text, skipped)
+        for record in records:
+            rtype = record.get("type")
+            if rtype is None:
+                skipped["no_type"] += 1
+                continue
+            # Defensive backstop: the observers isinstance-guard their known field
+            # shapes, but a record shape not anticipated here must degrade per-record
+            # (tallied + breadcrumbed), never detonate the whole corpus walk. This is
+            # what makes the module docstring's "without detonating" guarantee true.
+            try:
+                if rtype == "assistant":
+                    acc.observe_assistant(record)
+                elif rtype == "user":
+                    acc.observe_user(record)
+                elif rtype == "system":
+                    acc.observe_system(record)
+            except (AttributeError, TypeError, ValueError, KeyError) as exc:
+                skipped["malformed_record"] += 1
+                sys.stderr.write(
+                    f"warning: skipping malformed record in {session_file}: {exc}\n"
+                )
+                continue
         if acc.attributed:
             runs.append(acc.result())
         elif acc.sidechain_records_seen:
@@ -1826,6 +1825,9 @@ def _empty_skipped():
         "non_json_line": 0,
         "not_object": 0,
         "no_type": 0,
+        # issue #120: the collector's new suffix / non-transcript-json tallies (AC3/AC4).
+        "unrecognized_suffix": 0,
+        "non_transcript_json": 0,
         "unreadable_file": 0,
         "escaped_path": 0,
         "walk_error": 0,

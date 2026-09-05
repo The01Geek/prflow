@@ -32,6 +32,10 @@
 # devflow.yml derives HEAD_SHA at runtime and passes it as a command-prefix env — the other
 # five are step-env in both):
 #   PR_NUMBER  HEAD_SHA  REPO  VERDICT  APP_TOKEN_PRESENT  GH_TOKEN
+# Plus, for the shortened cause-bearing comment (issue #158): CAUSE (the one-line
+# clause from describe-dead-run-cause.sh, composed by the caller) and RUN_URL.
+# Both default to a safe placeholder / empty so an older caller that sets neither
+# still posts a well-formed comment.
 # Bundled-helper resolution is cwd-relative (vendored copy first), matching the workflows'
 # repo-root cwd — so a consumer's .prflow/vendor/prflow/scripts/ copy wins. (Not git-root
 # anchored: run from a subdirectory it would miss the vendored copy — the workflow steps
@@ -80,9 +84,16 @@ BODY_FILE="$(mktemp)" || {
   echo "::warning::review stall backstop: mktemp failed; cannot compose the re-trigger comment for PR #$PR_NUMBER (auto-resume did not fire; degrades to the dead-end flip)."
   exit 0
 }
+# Short comment (issue #158): marker, one bold headline, the cause line, the run
+# URL, and the /devflow:review trigger. The resume-or-fail decision is unchanged —
+# only the body shrank and gained the cause. The `PRFlow review stall backstop`
+# headline literal is pinned in lib/test/modules/review-stall-backstop.sh; the two
+# move together.
 {
   printf '%s\n\n' "$MARKER"
-  printf '**DevFlow review stall backstop** — this cloud review ended with no verdict for `%s`. Auto-resume attempt %s:\n\n' "$HEAD_SHA" "$ATTEMPT"
+  printf '**PRFlow review stall backstop** — no verdict for `%s` (attempt %s)\n' "$HEAD_SHA" "$ATTEMPT"
+  printf '%s\n' "${CAUSE:-cause unavailable}"
+  printf '%s\n' "${RUN_URL:-}"
   printf '/devflow:review\n'
 } > "$BODY_FILE"
 POST=.prflow/vendor/prflow/scripts/post-issue-comment.sh

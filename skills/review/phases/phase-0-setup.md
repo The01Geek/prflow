@@ -12,7 +12,7 @@ If there is output, warn: "You have uncommitted changes that will not be include
 
 displaced-path attribution. If the run's engine-ground-truth block lists displaced paths, attribute any such path's `git status --porcelain` output — content delta, mode-only delta (the `chmod +x` floor flips `100644`→`100755` on every closure member tracked non-executable, every run, even when the PR touches none of them), OR untracked delta (a protected prompt-extension name the checkout never carried is *created* empty by the workflow's truncation step, so the path is reported as `??` rather than ` M`) — to the **trusted-source displacement** the block describes: expected displacement, NOT a PR defect or an uncommitted change to flag. The published list has **two producers** — the Stop-hook trusted-source floor and the prompt-extension truncation — so key the attribution on membership in the published list, never on which producer displaced a path.
 
-**Match a porcelain path against the list by prefix, not by equality.** The list publishes **leaf file** paths, but `git status --porcelain` **collapses a wholly-untracked directory to the directory alone** — a consumer that tracks nothing under `.prflow/prompt-extensions/` reports `?? .prflow/prompt-extensions/`, and one tracking nothing under `.prflow/` reports `?? .prflow/`; neither leaf path appears. An equality-only predicate therefore matches nothing on exactly the consumer shape the untracked clause was added for, and the warning fires on every such review run. So attribute a porcelain path when it **is** a displaced path **or is a directory prefix of one**. All three delta kinds take that attribution, so an untracked displaced path draws no warning either. Remaining paths keep the warning sentence above verbatim. With no displaced list (local tier, manual `devflow.yml` path, consumer skip) all paths keep today's warning.
+**Match a porcelain path against the list by prefix, not by equality.** The list publishes **leaf file** paths, but `git status --porcelain` **collapses a wholly-untracked directory to the directory alone** — a consumer that tracks nothing under `.prflow/skill-extensions/` reports `?? .prflow/skill-extensions/`, and one tracking nothing under `.prflow/` reports `?? .prflow/`; neither leaf path appears. An equality-only predicate therefore matches nothing on exactly the consumer shape the untracked clause was added for, and the warning fires on every such review run. So attribute a porcelain path when it **is** a displaced path **or is a directory prefix of one**. All three delta kinds take that attribution, so an untracked displaced path draws no warning either. Remaining paths keep the warning sentence above verbatim. With no displaced list (local tier, manual `devflow.yml` path, consumer skip) all paths keep today's warning.
 
 ### 0.1.5 Persist the displaced-path list (compaction survival)
 
@@ -71,41 +71,36 @@ if git fetch origin "+refs/heads/$PR_BASE_BRANCH:refs/remotes/origin/$PR_BASE_BR
     if git fetch --unshallow origin "+refs/heads/$PR_BASE_BRANCH:refs/remotes/origin/$PR_BASE_BRANCH"; then
       :
     else
-      RETRY_RC=$?
-      echo "::warning::devflow review: base unshallow fetch returned rc=$RETRY_RC; probing merge-base once more because a complete repository can reject --unshallow" >&2
+      echo "::warning::devflow review: base unshallow fetch failed; probing merge-base once more because a complete repository can reject --unshallow" >&2
     fi
     if git merge-base "$HEAD_OVERRIDE_BASE" HEAD >/dev/null; then
       :
     else
-      MERGE_BASE_RC=$?
       rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
-      echo "::error::devflow review: base remains unreachable after unshallow retry (rc=$MERGE_BASE_RC); no review cache was published" >&2
-      exit "$MERGE_BASE_RC"
+      echo "::error::devflow review: base remains unreachable after unshallow retry; no review cache was published" >&2
+      exit 1
     fi
   fi
 else
-  FETCH_RC=$?
-  if git ls-remote --exit-code --heads origin "refs/heads/$PR_BASE_BRANCH" >/dev/null; then
-    rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
-    echo "::error::devflow review: PR base ref '$PR_BASE_BRANCH' still exists but its explicit-refspec fetch failed (rc=$FETCH_RC); refusing the stale retained-SHA fallback" >&2
-    exit "$FETCH_RC"
-  else
-    REF_PROBE_RC=$?
-    if [ "$REF_PROBE_RC" -ne 2 ]; then
+  if git ls-remote --heads origin "refs/heads/$PR_BASE_BRANCH" > .prflow/tmp/review/<slug>/<run-id>/base-ref-probe; then
+    if [ -s .prflow/tmp/review/<slug>/<run-id>/base-ref-probe ]; then
       rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
-      echo "::error::devflow review: could not confirm whether PR base ref '$PR_BASE_BRANCH' was deleted (git ls-remote rc=$REF_PROBE_RC; fetch rc=$FETCH_RC); refusing the stale retained-SHA fallback" >&2
-      exit "$FETCH_RC"
+      echo "::error::devflow review: PR base ref '$PR_BASE_BRANCH' still exists but its explicit-refspec fetch failed; refusing the stale retained-SHA fallback" >&2
+      exit 1
     fi
     HEAD_OVERRIDE_BASE=$(printf '%s' "$PR_BASE_SHA")
     echo "::warning::devflow review: PR base ref '$PR_BASE_BRANCH' is absent on origin; using retained base SHA '$HEAD_OVERRIDE_BASE'" >&2
     if git merge-base "$HEAD_OVERRIDE_BASE" HEAD >/dev/null; then
       :
     else
-      MERGE_BASE_RC=$?
       rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
-      echo "::error::devflow review: retained base SHA is unreachable (rc=$MERGE_BASE_RC); no review cache was published" >&2
-      exit "$MERGE_BASE_RC"
+      echo "::error::devflow review: retained base SHA is unreachable; no review cache was published" >&2
+      exit 1
     fi
+  else
+    rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
+    echo "::error::devflow review: could not confirm whether PR base ref '$PR_BASE_BRANCH' was deleted (ls-remote probe failed); refusing the stale retained-SHA fallback" >&2
+    exit 1
   fi
 fi
 if ! test "$PR_BASE_BRANCH" = "$BASE"; then
@@ -120,8 +115,16 @@ The deleted-base fallback is leak-equivalent to the pre-fix binding when the bas
 
 Caller run-id (run-scoped scratch). This run's scratch under `.prflow/tmp/review/<slug>/` nests one level deeper under a per-run `<run-id>`. Resolve `<run-id>` once at the start of Phase 0.2 and hold the literal for the whole run:
 
-- A wrapping skill (currently `/prflow:review-and-fix`) may pass `run_id = <value>` — its own loop-start `RUN_ID`. When provided, use it verbatim so the engine's `diff.patch` lands in the *same* run directory as the wrapper's `iter-*.json` / `deferrals.json`.
-- When absent (standalone `/prflow:review`), derive the scratch run key in its own right as `${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}` and reuse that held literal everywhere (never recompute).
+- A wrapping skill (currently `/prflow:review-and-fix`) may pass `run_id = <value>` — its own loop-start run key. When provided, use it verbatim so the engine's `diff.patch` lands in the *same* run directory as the wrapper's `iter-*.json` / `deferrals.json`.
+- When absent (standalone `/prflow:review`), obtain the scratch run key by invoking the composer as a leading token, the vendored literal first:
+  ```bash
+  .prflow/vendor/prflow/scripts/compose-run-key.sh
+  ```
+  On a not-found reading (`command not found` / `No such file` / exit 127), re-invoke with the `.prflow/vendor/prflow/` prefix removed; if that too is not found, fall back to the portable anchor:
+  ```bash
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/compose-run-key.sh
+  ```
+  Hold the observed one-line output and reuse that literal everywhere (never recompute); never assign a shell variable or expand a `$GITHUB_*` variable. When the call prints nothing — refused, exited non-zero, or both arms not found (report the last as the anchor-resolution arm) — compose the key by literal substitution: on the implement tier, `<run id>-<run attempt>` from the run-facts block when both lines read other than `unestablished`; otherwise `local-<output>-1` from a bare `date -u +%Y%m%dT%H%M%SZ`, and if that too prints nothing stop at **Blocked** naming the run key unestablished. If a compaction leaves the key unheld, re-invoke the helper (its cloud-arm output is a pure function of the environment, returning the identical key); a re-invocation printing nothing takes the run-facts fallback when that block is in context, else stops at **Blocked**.
 
 Note on `gh pr diff` path filtering. `gh pr diff <N>` does NOT support path arguments — `gh pr diff <N> -- <file>` errors with `accepts at most 1 arg(s)` (cli/cli#5398, unresolved). <!-- pruned-path-ok: cli/cli#5398 is a fully-qualified upstream gh bug reference, resolvable anywhere --> Phase 1.1 sidesteps this: it never re-fetches a per-file diff — it slices the cached `diff.patch` with an `awk` section-range over its `^diff --git` headers (see Phase 1.1).
 
@@ -323,23 +326,23 @@ When `$ISSUE_NUM` resolved, call it:
 
 The numeric guard now lives INSIDE `cmd_acs_resolve`: a non-numeric `$ISSUE_NUM` is a routed `resolver-unavailable` outcome with exit 0. The workpad-read routing is internal — an *unreadable* workpad comment is `workpad-read-failed`, while an *absent* one falls through to `issue-body`. So the invocation is a single bare statement whose leading token is the helper path, with no `case` and no `if` compound the cloud matcher would refuse. Resolve the skill-dir anchor INLINE at each call site (never captured into a shell variable a later statement reads).
 
-Two things are load-bearing about the shape below, and both are why it is NOT a capture. First, the helper's stdout is the payload you must read: assigning it to `ACS_OUT=$(…)` would swallow all three blocks into a shell variable that does not survive the command boundary, leaving you with nothing to consume on the *successful* path. Running the helper bare puts `criteria:` / `source:` / `divergence:` straight on stdout where you read them. Second, this is the narrowest shape available, not a measured-permitted one: it carries no redirect, and adds only a granted `echo` to a granted leading token, avoiding the `&&`/`||` list. This is the primary and only path here, so read its permitted-ness as unconfirmed and rely on the `acs-rc` token below to make a refusal observable.
+Two things are load-bearing about the shape below, and both are why it is NOT a capture. First, the helper's stdout is the payload you must read: assigning it to `ACS_OUT=$(…)` would swallow all three blocks into a shell variable that does not survive the command boundary, leaving you with nothing to consume on the *successful* path. Running the helper bare puts `criteria:` / `source:` / `divergence:` straight on stdout where you read them. Second, this is the narrowest shape available, not a measured-permitted one: it carries no redirect, and adds only a granted `echo` to a granted leading token, avoiding the `&&`/`||` list. This is the primary and only path here, so read its permitted-ness as unconfirmed and rely on the `acs-done` token below to make a refusal observable.
 
 The two modes are two separate fences, and you emit exactly one of them — the fence you do not select is not emitted at all.
 
 PR mode (a `$PR_NUMBER` resolved) — emit this fence and no other:
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" --pr "$PR_NUMBER" ; echo "acs-rc=$?"
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" --pr "$PR_NUMBER" ; echo "acs-done"
 ```
 
 Current-branch mode (no PR to bind to) — emit this fence and no other. It OMITS `--pr` entirely rather than passing an empty value:
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" ; echo "acs-rc=$?"
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" ; echo "acs-done"
 ```
 
-Read the emitted `acs-rc` token — it is the only mechanism that makes a refusal observable. The invocation's own exit status is what distinguishes "the helper ran and routed an outcome" from "the helper never ran". So: on `acs-rc=0`, consume the three blocks the helper printed above the token. On any non-zero `acs-rc` — including the 126/127 not-executable-or-not-found codes and the helper's own rc 3 — set `acceptance_criteria_source` to `resolver-unavailable` and quote, in the note, the stderr observed in that same invocation's own tool result. A missing `acs-rc` token is itself a refusal of the whole statement — likewise `resolver-unavailable`, never a success.
+Read the emitted `acs-done` token against the invocation's own tool result — that is the only mechanism that makes a refusal observable, distinguishing "the helper ran and routed an outcome" from "the helper never ran". So: when `acs-done` appeared with the three `criteria:`/`source:`/`divergence:` blocks above it and no stderr error text, the helper ran and routed an outcome — consume those blocks. When `acs-done` appeared beside stderr error text — the 126/127 not-executable-or-not-found codes or the helper's own rc 3 write to stderr — set `acceptance_criteria_source` to `resolver-unavailable` and quote, in the note, the stderr observed in that same invocation's own tool result. No output at all — no `acs-done` token — is a refusal of the whole statement, likewise `resolver-unavailable`, never a success.
 
 `acs-resolve` itself exits 0 on every resolvable state, including an absent or unreadable workpad, which it routes as an outcome carrying its own source token rather than as a run-ending error; a non-numeric `$ISSUE_NUM` is likewise routed (as `resolver-unavailable`, exit 0) by `cmd_acs_resolve`'s own guard rather than by a pre-call `case`.
 
@@ -351,7 +354,7 @@ Each `resolver-unavailable` case — a non-numeric `$ISSUE_NUM` (now routed by `
 
 On the local/interactive tier the permission classifier denies a helper invoked by path, so a desk run reaches a `resolver-unavailable` refusal arm above rather than any surface at all.
 
-If no issue number resolved at all, set `issue_context` and `acceptance_criteria` to empty, set `acceptance_criteria_source` to `none`, and note: "No related issue found — skipping issue compliance check." If an issue did resolve and the helper ran but returned no criteria (`acceptance_criteria_source` is `none` from the helper), keep `issue_context` and note instead: "Issue #$ISSUE_NUM resolved but no acceptance criteria were found on either surface — issue compliance is reported as a gap, not skipped." If instead the call was refused above (`resolver-unavailable`), keep `issue_context` and note: "Issue #$ISSUE_NUM resolved but the acceptance-criteria resolver did not establish either surface (state here which case applied — either the helper RAN and routed `resolver-unavailable` as its own `source:` token, or it NEVER RAN and the observed failure is the evidence: a denied or non-executable invocation, an rc 126/127, the helper's rc 3, or a missing `acs-rc` token; no shell variable carries this) — neither surface was examined, so nothing is known about whether criteria exist." That note never claims either surface was checked: an unestablished measurement is never collapsed onto the real value `none`. These two states are distinct and the second one never claims the compliance check was skipped, because criteria-less is a reportable gap while issue-less is an absent subject.
+If no issue number resolved at all, set `issue_context` and `acceptance_criteria` to empty, set `acceptance_criteria_source` to `none`, and note: "No related issue found — skipping issue compliance check." If an issue did resolve and the helper ran but returned no criteria (`acceptance_criteria_source` is `none` from the helper), keep `issue_context` and note instead: "Issue #$ISSUE_NUM resolved but no acceptance criteria were found on either surface — issue compliance is reported as a gap, not skipped." If instead the call was refused above (`resolver-unavailable`), keep `issue_context` and note: "Issue #$ISSUE_NUM resolved but the acceptance-criteria resolver did not establish either surface (state here which case applied — either the helper RAN and routed `resolver-unavailable` as its own `source:` token, or it NEVER RAN and the observed failure is the evidence: a denied or non-executable invocation, an rc 126/127, the helper's rc 3, or a missing `acs-done` token; no shell variable carries this) — neither surface was examined, so nothing is known about whether criteria exist." That note never claims either surface was checked: an unestablished measurement is never collapsed onto the real value `none`. These two states are distinct and the second one never claims the compliance check was skipped, because criteria-less is a reportable gap while issue-less is an absent subject.
 
 ### 0.5 Classify the diff and decide the engine profile
 
@@ -365,8 +368,8 @@ Compute five flags:
        Edit both in the same commit; decision record in `CLAUDE.md`. -->
 - `has_new_types` = the added-lines slice of the diff (lines starting with `+` but not `+++`) contains, in a code file (file extension NOT in the `config_only` set above), a line that matches `^\+\s*(?:(?:final|abstract|readonly|export(?:\s+default)?|public|pub)\s+)*(class|interface|type|enum|struct|trait)\s+\w+`.
 - `engine_self_modifying` = any changed file's path is in the engine-surface path set, which has three arms (the any-file quantifier is deliberate — it fires when *one* changed file matches, even alongside other config-extension files).
-  - **Arm 1 — DevFlow's own source (repository-relative to this repository).** The path matches `skills/**` OR `agents/**` OR `lib/**`. This arm names DevFlow's own source directories, so it is repository-relative to the DevFlow repository itself: on an adopter's repo these paths normally will not match the adopter's product code, and the adopter's own copy of this engine surface is the vendored plugin under `.prflow/vendor/prflow/`, which the adopter does not edit in an ordinary PR — arms 2 and 3 are what carry the engine-surface classification into a consumer's own tree.
-  - Arm 2 — a prompt extension under the DevFlow state directory (any depth). Match a changed path whose leading segment is a DevFlow state directory — the canonical `.prflow/` or, while `lib/resolve-state-dir.sh`'s transitional read-through still resolves it, the superseded `.devflow/` — and whose filename ends in `.md`, at any depth below that state directory. The extension filter is `.md` only: a scaffolded `<skill>.md.example` sibling ends in `.example`, not `.md`, so it is excluded here. The match is textual over the changed-file paths in the already-fetched diff — Phase 0.5 invokes no helper and consults no resolver. This arm does match on a consumer: `install.sh` creates `.prflow/prompt-extensions`, and the extension bytes there are appended to this reviewer's own prompt. The superseded `.devflow/` sub-arm is removed only on the confirmation-gated end criterion recorded in `lib/rename-map.json`, never on a date.
+  - **Arm 1 — PRFlow's own source (repository-relative to this repository).** The path matches `skills/**` OR `agents/**` OR `lib/**`. This arm names PRFlow's own source directories, so it is repository-relative to the PRFlow repository itself: on an adopter's repo these paths normally will not match the adopter's product code, and the adopter's own copy of this engine surface is the vendored plugin under `.prflow/vendor/prflow/`, which the adopter does not edit in an ordinary PR — arms 2 and 3 are what carry the engine-surface classification into a consumer's own tree.
+  - Arm 2 — a prompt extension under the PRFlow state directory (any depth). Match a changed path whose leading segment is a PRFlow state directory — the canonical `.prflow/` or, while `lib/resolve-state-dir.sh`'s transitional read-through still resolves it, the superseded `.devflow/` — and whose filename ends in `.md`, at any depth below that state directory. The extension filter is `.md` only: a scaffolded `<skill>.md.example` sibling ends in `.example`, not `.md`, so it is excluded here. The match is textual over the changed-file paths in the already-fetched diff — Phase 0.5 invokes no helper and consults no resolver. This arm does match on a consumer: `install.sh` creates `.prflow/skill-extensions`, and the extension bytes there are appended to this reviewer's own prompt. The superseded `.devflow/` sub-arm is removed only on the confirmation-gated end criterion recorded in `lib/rename-map.json`, never on a date.
   - Arm 3 — the root agent-instruction file (any depth). Match a changed path whose basename is `CLAUDE.md`, at any depth — so both the repository-root `CLAUDE.md` and a nested `sub/CLAUDE.md` match. This arm also matches on a consumer. Alternately-named root agent-instruction files (`AGENTS.md`, `GEMINI.md`, `CLAUDE.local.md`, and any other harness-specific spelling) are deliberately not in the set.
   This flag forces no part of the Phase 3 roster — it is a checklist-only override (see the profile table). No `prflow_review` configuration key and no read inside this section changes any of it; a consumer inherits the whole predicate with no configuration action.
 - `detect_all_audit` = the diff **adds or changes a "detect-all" scanner / audit / coverage-invariant**: a new or modified function, test, or review/skill step that (a) **enumerates a *population* of sites** (files, symbols, config keys, checklist items, agents, call sites, …) and (b) **asserts a completeness property over that whole population** — a count/coverage assertion, a superset/subset check, or an "every / all / none-remaining / no other" claim. The load-bearing signal is the **combination** of *enumerate-a-population* AND *assert-it-is-complete* — set the flag only when the added/changed lines do **both**. A single-target `grep`, a one-off equality assertion, or a check over a fixed hand-listed set is **not** this shape (it enumerates nothing, or asserts no completeness). Read the flag off the *audit being introduced or edited*, not whatever it matches. It is **independent of** the other four flags and can co-occur with any: a detect-all audit under `skills/**`/`lib/**` is also `engine_self_modifying`, but one added to product code sets `detect_all_audit` alone.
@@ -377,7 +380,7 @@ Apply the engine profile per the table below. The first row overrides all others
 
 | Combination | Engine behavior |
 |---|---|
-| `engine_self_modifying` (any combination of the other flags) | Override the other flags' **checklist** behavior only: run the **full Phase 1+2 checklist** (no skip — `checklist_skipped` stays `null`). The risk — every future review breaks if this is wrong — dwarfs the per-PR saving from a leaner checklist. This flag forces **no** Phase 3 agent on: the Phase 3 roster is decided by Phase 3.1's structural-applicability gates and the `iterations` exclusion on every profile, this one included. The four always-on agents (`code-reviewer`, `silent-failure-hunter`, `comment-analyzer`, `requesting-code-review`) are roster members on every profile regardless of this flag, and `type-design-analyzer` / `pr-test-analyzer` stay gated by `has_new_types` / the **test-relevance predicate** (defined in Phase 3.1). |
+| `engine_self_modifying` (any combination of the other flags) | Override the other flags' **checklist** behavior only: run the **full Phase 1+2 checklist** (no skip — `checklist_skipped` stays `null`). The risk — every future review breaks if this is wrong — dwarfs the per-PR saving from a leaner checklist. This flag forces **no** Phase 3 agent on: the Phase 3 roster is decided by Phase 3.1's structural-applicability gates and the `iterations` exclusion on every profile, this one included. The four always-on agents (`code-reviewer`, `silent-failure-hunter`, `comment-analyzer`, and the final-pass `requesting-code-review` — a skill dispatched as a `general-purpose` Task, not an agent type) are roster members on every profile regardless of this flag, and `type-design-analyzer` / `pr-test-analyzer` stay gated by `has_new_types` / the **test-relevance predicate** (defined in Phase 3.1). |
 | `small_diff` AND `config_only` | Skip Phase 1 + Phase 2 (checklist gen + verify) entirely. Set `checklist_skipped = "intentional"`. In Phase 3.1, skip `prflow:type-design-analyzer` (`has_new_types` is false on a config-only diff) and apply the unified `pr-test-analyzer` test-relevance predicate (which skips on a config-only diff). |
 | `config_only` (but not `small_diff`) | Run Phase 1+2 normally. In Phase 3.1, skip `prflow:type-design-analyzer` and apply the unified `pr-test-analyzer` test-relevance predicate (skips on a config-only diff). |
 | `small_diff` (but not `config_only`) | Run Phase 1+2 normally. In Phase 3.1, apply the `has_new_types` gate for `type-design-analyzer` and the unified `pr-test-analyzer` test-relevance predicate. |

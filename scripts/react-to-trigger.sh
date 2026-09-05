@@ -13,8 +13,8 @@
 # BEST-EFFORT: a failed/forbidden reaction must never block the run. By default,
 # every failure path warns to stderr and exits 0; the workflow step is additionally
 # `continue-on-error: true` as a second guard. Agent-side callers may pass
-# `--report-failure` to receive rc 1 after an API failure and record that failure
-# durably while still continuing.
+# `--report-failure` to receive rc 1 after a reaction/comment-list API failure or an
+# unusable paginated comment response, and record it durably while still continuing.
 #
 # Reactions are an issue/comment-only API — a submitted *review*
 # (pull_request_review) has no reactions endpoint, so that path is skipped
@@ -36,6 +36,13 @@
 #   REACTION      reaction content (default: rocket). One of the GitHub set:
 #                 +1 -1 laugh confused heart hooray rocket eyes.
 #   GH_TOKEN      token for `gh api`, set by the caller.
+#   GITHUB_EVENT_PATH  read only on the --outcome path (below): the event JSON whose
+#                 .comment.id resolves the triggering comment before the listing fallback.
+#
+# --outcome complete|blocked (agent-side CLI, issue #176): chooses the reaction itself
+# (complete->hooray, blocked->-1) and resolves the triggering comment itself (GITHUB_EVENT_PATH's
+# .comment.id, else the newest non-workpad implement-trigger comment on --issue N). Conflicts with
+# --reaction. Lets the implement root's fence be one leading-token call with no cloud-denied shape.
 #
 # No stdout contract (unlike the resolvers): this script's only effect is the
 # side-effecting POST. Tests assert the `gh api` endpoint it targets.
@@ -53,10 +60,12 @@ set -euo pipefail
 # the values as CLI args instead). They override the env vars the workflow `env:`
 # block sets; the workflow passes no args, so its env-var path is unchanged.
 report_failure=false
+outcome=""
+reaction_given=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --report-failure) report_failure=true; shift ;;
-    --repo|--event|--comment|--issue|--reaction)
+    --repo|--event|--comment|--issue|--reaction|--outcome)
       if [ $# -lt 2 ] || [ -z "${2-}" ] || [[ "${2-}" == --* ]]; then
         echo "::warning::react: missing value for '$1'; skipping acknowledgement." >&2
         exit 0
@@ -66,7 +75,8 @@ while [ $# -gt 0 ]; do
         --event) EVENT_NAME="$2" ;;
         --comment) COMMENT_ID="$2" ;;
         --issue) ISSUE_NUMBER="$2" ;;
-        --reaction) REACTION="$2" ;;
+        --reaction) REACTION="$2"; reaction_given=true ;;
+        --outcome) outcome="$2" ;;
       esac
       shift 2
       ;;
@@ -78,7 +88,6 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-reaction="${REACTION:-rocket}"
 # Fall back to GITHUB_REPOSITORY, read here in this helper's own process: the implement
 # skill's outcome-reaction fence cannot pass --repo "$GITHUB_REPOSITORY" because the cloud
 # matcher refuses that expansion (issue #40), so removing this fallback would leave that
@@ -88,6 +97,67 @@ repo="${REPO:-${GITHUB_REPOSITORY:-}}"
 # {owner}/{repo} placeholders, filled from the git remote, so the path never collapses to
 # repos//…/reactions (the issue #664 hazard) when the skill fence drops --repo.
 [ -n "$repo" ] || repo='{owner}/{repo}'
+
+# --outcome (agent-side, issue #176): choose the reaction AND resolve the triggering comment
+# here, so the implement root's fence is one leading-token call with none of the $(…)/VAR=/$VAR
+# shapes the cloud matcher refuses. complete→hooray, blocked→-1; --outcome and --reaction conflict.
+if [ -n "$outcome" ]; then
+  if [ "$reaction_given" = true ]; then
+    echo "::warning::react: --outcome cannot be combined with --reaction; skipping acknowledgement." >&2
+    exit 0
+  fi
+  case "$outcome" in
+    complete) REACTION=hooray ;;
+    blocked)  REACTION=-1 ;;
+    *) echo "::warning::react: unknown --outcome '$outcome' (expected complete|blocked); skipping acknowledgement." >&2; exit 0 ;;
+  esac
+  # jq resolver: sourced here (not top-level) so the hot non-outcome path never pays the probe.
+  # shellcheck source=../lib/resolve-jq.sh
+  . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-jq.sh"
+  # Prefer the event file GITHUB_EVENT_PATH names; else list the issue's comments and take the
+  # newest non-workpad /prflow:implement (or /devflow:implement) comment. Accept only an all-digits
+  # id both ways — a gh error body lands on stdout as a fake capture (issue #664).
+  cid=""
+  if [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
+    cid="$("$DEVFLOW_JQ" -r '.comment.id // empty' "$GITHUB_EVENT_PATH" 2>/dev/null || true)"
+    [ -n "$cid" ] && [ -z "${cid//[0-9]/}" ] || cid=""
+  fi
+  if [ -z "$cid" ]; then
+    outcome_err_file="$(mktemp 2>/dev/null)" || outcome_err_file=/dev/null
+    if ! comments_json="$("$DEVFLOW_GH" api --paginate "repos/$repo/issues/${ISSUE_NUMBER:-}/comments?per_page=100" 2>"$outcome_err_file")"; then
+      outcome_err="$(if [ -s "$outcome_err_file" ]; then printf '%s' "$(< "$outcome_err_file")"; else echo 'no error output captured'; fi)"
+      [ "$outcome_err_file" = /dev/null ] || rm -f "$outcome_err_file"
+      echo "::warning::react: could not list comments for issue '${ISSUE_NUMBER:-}'; skipping outcome acknowledgement: ${outcome_err//$'\n'/ }" >&2
+      if [ "$report_failure" = true ]; then
+        exit 1
+      fi
+      exit 0
+    fi
+    : > "$outcome_err_file"
+    if ! cid="$(printf '%s' "$comments_json" | "$DEVFLOW_JQ" -rs \
+      'if all(.[]; type == "array") then (add // []) else error("comment page is not an array") end
+       | map(select(((.body // "") | test("/(pr|dev)flow:implement")) and (((.body // "") | contains("flow:workpad")) | not))) | last | .id // empty' 2>"$outcome_err_file")"; then
+      outcome_err="$(if [ -s "$outcome_err_file" ]; then printf '%s' "$(< "$outcome_err_file")"; else echo 'no error output captured'; fi)"
+      [ "$outcome_err_file" = /dev/null ] || rm -f "$outcome_err_file"
+      echo "::warning::react: could not parse issue comment pages as arrays for issue '${ISSUE_NUMBER:-}'; skipping outcome acknowledgement: ${outcome_err//$'\n'/ }" >&2
+      if [ "$report_failure" = true ]; then
+        exit 1
+      fi
+      exit 0
+    fi
+    [ "$outcome_err_file" = /dev/null ] || rm -f "$outcome_err_file"
+    [ -n "$cid" ] && [ -z "${cid//[0-9]/}" ] || cid=""
+  fi
+  if [ -z "$cid" ]; then
+    echo "::notice::react: no triggering comment resolved for issue '${ISSUE_NUMBER:-}'; skipping outcome acknowledgement." >&2
+    exit 0
+  fi
+  EVENT_NAME=issue_comment
+  COMMENT_ID="$cid"
+fi
+
+# Resolved after the --outcome block so an outcome-chosen REACTION (hooray/-1) is honored.
+reaction="${REACTION:-rocket}"
 event="${EVENT_NAME:-}"
 
 # Resolve the reactions endpoint for this event. Comment events react on the

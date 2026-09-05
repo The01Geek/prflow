@@ -2,9 +2,9 @@
 
 Each arm below states the disposition of the artifacts it covers, and the working-file-listing arm routes every artifact Step 4 lists to its own arm above rather than supplying a default any arm can inherit. Filing is never blocked on any of them. Everything else is per-arm and stated where it applies: the failed delete is itself the signal you are in the read-only case only on the arms whose artifact has a delete-first step — the canonical-draft and dispatch-instruction writes have none, and the derivation-gate, presentation-gate and working-file-listing arms write and delete nothing of their own — and only the arms that say so report the reduced durability.
 
-## Step 1 — the evidence artifact and the run-slug pointer
+## Step 1 — the evidence artifact and the run registry
 
-Step 1's on-entry deletes and its writes of `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md` and the fixed pointer `.prflow/tmp/create-issue/issue-run-slug` all fail the same way. Post the returned (or reconciled, or degraded-arm) Step 1 evidence as a visible inline-in-chat block in the current turn — the actual findings, not a bare claim that the pass ran — and re-post it whenever a later turn reaches a check that reads it. Do not trust any on-disk `issue-step1-<slug>.md` or `issue-run-slug`; the visible block is the stand-in. With no readable pointer the slug is **unestablished**, which routes to the title-derived fallback in `references/step-4-present-create.md`; the run reports the reduced durability and continues.
+Step 1's on-entry delete and its write of `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`, and the helper's write of the run's `run-meta.json` registry entry, all fail the same way. Post the returned (or reconciled, or degraded-arm) Step 1 evidence as a visible inline-in-chat block in the current turn — the actual findings, not a bare claim that the pass ran — and re-post it whenever a later turn reaches a check that reads it. Do not trust any on-disk `issue-step1-<slug>.md` or `run-meta.json`; the visible block is the stand-in. With no readable registry the slug is **unestablished**, which routes to the title-derived fallback in `references/step-4-present-create.md`; the run reports the reduced durability and continues.
 
 ## Step 2 — the derivation artifact
 

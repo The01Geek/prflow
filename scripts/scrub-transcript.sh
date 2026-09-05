@@ -22,8 +22,10 @@
 #
 # The caveat header (a `#`-comment line) is prepended so a human reading the artifact
 # sees the incomplete-blocklist disclosure first; it deliberately makes the `.json`-named
-# artifact non-strict-JSON (the same accepted trade devflow-runner.yml's original inline
-# step documented — revisit only if an automated JSON consumer of this artifact appears).
+# artifact non-strict-JSON. The shared transcript reader in scripts/context_eval_shared.py
+# is the automated JSON consumer (used by the context-cost instruments,
+# scripts/implement-timeline.py and scripts/extract-execution-cost.py) and strips leading
+# `#` lines only, so the caveat must stay a `#`-prefixed FIRST line.
 
 set -uo pipefail
 

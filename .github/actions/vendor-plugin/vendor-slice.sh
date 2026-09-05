@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
 # ============================================================================
-# vendor-slice.sh — materialize the DevFlow plugin into the workspace
+# vendor-slice.sh — materialize the PRFlow plugin into the workspace
 # ============================================================================
 # The cloud-tier workflows reference plugin helpers at the literal workspace
 # path `.prflow/vendor/prflow/…`. This script puts the plugin there at RUNTIME
@@ -33,7 +33,7 @@ set -euo pipefail
 
 # The accepted-plugin-name discriminator, compiled from lib/plugin-identity.json +
 # .claude-plugin/plugin.json. BAKED (not read at runtime) on purpose: the `self`
-# branch below asks whether the CHECKOUT ROOT is the DevFlow plugin, so an accepted
+# branch below asks whether the CHECKOUT ROOT is the PRFlow plugin, so an accepted
 # set read out of that same tree would let any tree certify itself. A plain
 # assignment, never `${DEVFLOW_PLUGIN_NAME_ERE:-…}` — an inherited environment value
 # must not be able to widen or narrow a trust discriminator.
@@ -87,13 +87,13 @@ devflow_copy_slice() {
   find "$stage" -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
   # Prune subtrees no consumer run reaches (issue #677): the published GitHub
   # Pages HTML under docs/site and the Mintlify source under docs/external (both
-  # standalone published sites), all of DevFlow's maintainer documentation under
+  # standalone published sites), all of PRFlow's maintainer documentation under
   # docs/internal (issue #1188 — #1190 removed the last shipped skill-body link
   # into this same maintainer tree while it still lived directly under docs/, so
   # nothing a consumer executes references it; pruning it here stops
   # that reference tree shipping into every consumer and, because
   # lint-shipped-pruned-path.py derives its forbidden set from these rm arguments,
-  # arms that lint against reintroduction), and DevFlow's own test suite
+  # arms that lint against reintroduction), and PRFlow's own test suite
   # under lib/test (it asserts against install.sh and
   # .github/, which the slice does not copy, so it could only fail loudly in a
   # consumer tree). Placed after cp -R and before the sanity floor so the floor
@@ -139,11 +139,11 @@ devflow_vendor_main() {
 
   # 2. self branch — the plugin is in the checkout root (this source repo). The
   #    plugin.json name check is the strong discriminator: a consumer repo with
-  #    its own top-level scripts/ (common) won't carry a DevFlow plugin.json, so
+  #    its own top-level scripts/ (common) won't carry a PRFlow plugin.json, so
   #    it correctly falls through to fetch. The accepted-name set is the baked
   #    $DEVFLOW_PLUGIN_NAME_ERE above (canonical name + declared aliases).
   #    An EMPTY ERE would make `grep -Eq ""` match any plugin.json at all and
-  #    let a foreign checkout root self-certify as DevFlow, so the set being
+  #    let a foreign checkout root self-certify as PRFlow, so the set being
   #    established is a precondition of the branch, not an assumption.
   if [ -n "$DEVFLOW_PLUGIN_NAME_ERE" ] \
      && [ -d scripts ] && [ -d skills ] && [ -f .claude-plugin/plugin.json ] \

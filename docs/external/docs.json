@@ -100,7 +100,7 @@
               "docs/configuration/implementation",
               "docs/configuration/review",
               "docs/configuration/review-agents",
-              "docs/configuration/prompt-extensions",
+              "docs/configuration/skill-extensions",
               "docs/configuration/providers",
               "docs/configuration/runtime-setup",
               "docs/configuration/tool-permissions",

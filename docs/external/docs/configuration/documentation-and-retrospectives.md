@@ -21,7 +21,9 @@ Adapt PRFlow's documentation pass and local weekly retrospective to your reposit
 
 ## Weekly Retrospective
 
-These settings describe the locally run retrospective workflow, not the shipped GitHub Actions workflows. Every key below sits inside the `prflow_retrospective` object. The table identifies settings that are currently declarative rather than enforced.
+These settings tune the retrospective loop's behavior on every tier — the local `/prflow:retrospective-weekly` command and the shipped scheduled workflow alike. Every key below sits inside the `prflow_retrospective` object. The table identifies settings that are currently declarative rather than enforced.
+
+The shipped `devflow-retrospective.yml` workflow runs the same loop on a weekly schedule. It is a separate opt-in gated by its own key, `workflows["prflow-retrospective"]` (a JSON boolean, disabled by default) — **not** by `prflow_retrospective.enabled`, which stays declarative. See [Weekly Retrospective](/docs/workflows/retrospective-weekly) for the workflow, its triggers, and its state-PR guard.
 
 | **Setting** | **Type and accepted values** | **Fallback or scaffold** | **Security or cost note** | **Example** |
 | --- | --- | --- | --- | --- |
@@ -84,4 +86,4 @@ These settings describe the locally run retrospective workflow, not the shipped 
 
 Expected result: the documentation pass writes developer docs under `docs/internal/`, public docs under `docs/external/` and release notes into `docs/external/release-notes.md`, labels the issue `Documented` when it finishes, files deferred work as issues labeled `PRFlow` and `Deferred`, and a weekly retrospective run files at most three issues.
 
-To change how the documentation pass writes, rather than where it writes, use a [prompt extension](/docs/configuration/prompt-extensions) for `docs`.
+To change how the documentation pass writes, rather than where it writes, use a [prompt extension](/docs/configuration/skill-extensions) for `docs`.

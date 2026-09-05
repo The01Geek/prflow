@@ -315,7 +315,9 @@ ${ALLOWED_TOOLS}
 > | a heredoc write (a \`cat\`-headed \`<<'EOF'\` write to any target) | the Write tool, or a \`tee\` pipe |
 > | a fused \`A || B\` two-path helper fallback | two separate statements, the vendored literal first |
 > | a repo-relative \`scripts/…\` leading token | the \`.prflow/vendor/prflow/scripts/…\` vendored literal |
-> | a leading \`VAR=value\` assignment or env-prefix (\`M=x cmd\`; the harness reports this as \`simple_expansion\`) | capture with \`VAR=\$(cmd)\`, or pass the value as an argument |
+> | a leading \`VAR=value\` assignment or env-prefix (\`M=x cmd\`) | capture with \`VAR=\$(cmd)\`, or pass the value as an argument |
+> | a \`\$VAR\`/\`\${VAR}\`/\`\$?\` expansion in argument position (the harness reports this as \`Contains simple_expansion\`) | substitute the literal value; for \`\$?\`, drop the parameter and read the bare statement's exit code from the tool result (a statement ending in a trailer exits with the trailer's status, so its helper is routed on its own output) |
+> | a \`2>\` redirect to a file target | drop the redirect, stderr appears in the tool result |
 > | the Write tool outside \`.prflow/tmp/\` | the Write tool under \`.prflow/tmp/\` |
 > | a \`bash <path>\` wrapper | the helper path directly as the command's leading token |
 > | process substitution (\`<(…)\` / \`>(…)\`) | a temp file authored with the Write tool under \`.prflow/tmp/\`, read back by path |

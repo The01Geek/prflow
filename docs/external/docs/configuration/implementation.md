@@ -17,7 +17,7 @@ Tune `/prflow:implement` behavior and coordinate verification when multiple agen
 | `prflow_implement.stall_backstop.max_resume_attempts` | Integer zero or greater | `2`; invalid values use `2` | Cloud implementation. `0` detects and fails without resuming. Each resume can incur another run. | `"max_resume_attempts": 2` |
 | `prflow.attribute_commits_to_triggerer` | Boolean | Runtime and scaffold: `false` | Cloud writer jobs. Applies only to verified human users and changes Git metadata, not the push credential. Trigger-time and post-merge-only. | `"attribute_commits_to_triggerer": true` |
 | `verification_flight.enabled` | Boolean | `true` | Local implementation and inline review-and-fix. Disabling reuse does not turn a missing or stale record into a pass. | `"enabled": true` |
-| `status_labels.enabled` | Boolean | `true`; only the JSON boolean `false` or the string `"false"` disables | Local and cloud implementation. Mirrors the run's status onto one managed label — `PRFlow:Implementing`, `PRFlow:Stuck` or `PRFlow:Complete` — on the issue and its open pull request, so a running or stalled run is visible from the issue and pull-request lists. Best-effort: label errors never change a run's outcome, and unmanaged labels are left in place. | `"status_labels": { "enabled": true }` |
+| `status_labels.enabled` | Boolean | `true`; only the JSON boolean `false` or the string `"false"` disables | Local and cloud implementation. Mirrors the run's status onto one managed label — `PRFlow:Implementing`, `PRFlow:Stuck` or `PRFlow:Complete` — on the issue and its open pull request, so a running or stalled run is visible from the issue and pull-request lists. Each managed label gets a fixed brand color the first time PRFlow creates it (an already-existing label is never re-colored). Best-effort: label errors never change a run's outcome, and unmanaged labels are left in place. | `"status_labels": { "enabled": true }` |
 
 <Note>
   `prflow_implement.effort` has no default in the schema, so the scaffolded value and the fallback differ. `/prflow:init` writes `"effort": "low"`. When the key is absent, the shipped implementation workflow resolves it to `high`, the same fallback `prflow.effort` uses. Removing the key raises effort rather than lowering it.
@@ -34,7 +34,7 @@ Tune `/prflow:implement` behavior and coordinate verification when multiple agen
   | `verification_flight.wait_timeout_seconds` | Integer zero or greater | Scaffold: `600` | Reserved for future use. Changing this setting has no effect in the current release. | `"wait_timeout_seconds": 600` |
 </Accordion>
 
-Provider and model overrides for implementation are documented in [Model Providers](/docs/configuration/providers). Implementation tool grants are documented in [Tool Permissions](/docs/configuration/tool-permissions). To give implementation runs a repository-specific rule, such as the verification command they must use, write a [prompt extension](/docs/configuration/prompt-extensions).
+Provider and model overrides for implementation are documented in [Model Providers](/docs/configuration/providers). Implementation tool grants are documented in [Tool Permissions](/docs/configuration/tool-permissions). To give implementation runs a repository-specific rule, such as the verification command they must use, write a [prompt extension](/docs/configuration/skill-extensions).
 
 ## Valid Implementation Example
 

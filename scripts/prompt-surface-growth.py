@@ -15,7 +15,7 @@ third time a reader sees it; the running total beside it is what keeps the numbe
 meaningful as it repeats.
 
 Covered population: tracked files whose path ends in exactly `.md` under `skills/`,
-`agents/`, or `.prflow/prompt-extensions/`, enumerated from the committed tree at BOTH
+`agents/`, `.prflow/skill-extensions/`, or `.prflow/prompt-extensions/`, enumerated from the committed tree at BOTH
 endpoints (the merge-base commit and `HEAD`) so a file the branch deletes still produces
 a row (total 0, negative delta). Reading the two *trees* rather than the index is what
 makes both endpoints addressable — a merge-base commit has no index — and it means
@@ -56,11 +56,19 @@ def _force_utf8_streams():
             pass
 
 
-# The three covered prefixes. `skills/**` + `agents/**` mirrors the shipped-prompt
+# The covered prefixes. `skills/**` + `agents/**` mirrors the shipped-prompt
 # population `lib/test/lint-shipped-pruned-path.py` already audits as one set; the
-# prompt extensions are added because they load into the same context budget and
-# were the surface nothing measured at all.
-COVERED_PREFIXES = ("skills/", "agents/", ".prflow/prompt-extensions/")
+# skill extensions are added because they load into the same context budget and
+# were the surface nothing measured at all. Both the canonical
+# `.prflow/skill-extensions/` and the superseded `.prflow/prompt-extensions/` are
+# listed during the transition (issue #170), so coverage does not silently drop for a
+# consumer that has not yet migrated the directory.
+COVERED_PREFIXES = (
+    "skills/",
+    "agents/",
+    ".prflow/skill-extensions/",
+    ".prflow/prompt-extensions/",
+)
 
 # Merge-base candidates, tried in order (issue #1350 AC1): the remote's own recorded
 # default branch first, then the two literal fallbacks.
@@ -289,7 +297,7 @@ def render(head_sha, base_sha, ref, rows, surface_delta, surface_total):
         "",
         (f"Derived at `{head_sha}` against merge-base `{base_sha}` (`{ref}`). "
         "Covered: tracked `*.md` under `skills/`, `agents/`, "
-        "`.prflow/prompt-extensions/`."),
+        "`.prflow/skill-extensions/`, `.prflow/prompt-extensions/`."),
         "",
         "| Path | Before | After | Δ bytes | Δ % |",
         "| --- | ---: | ---: | ---: | ---: |",
@@ -384,7 +392,7 @@ def main():
     if not rows:
         return _emit([
             ("prompt-surface growth: no tracked `*.md` under `skills/`, `agents/`, "
-            f"or `.prflow/prompt-extensions/` changed between `{base_sha}` and "
+            f"or either `.prflow/*-extensions/` directory changed between `{base_sha}` and "
             f"`{head_sha}` — no table rendered.")
         ])
 

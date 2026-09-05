@@ -119,7 +119,7 @@ A name containing `<name>`, such as `providers.<name>.auth`, means you choose th
 
 ## Not on This Page
 
-Prompt extensions are files, not settings. They live under `.prflow/prompt-extensions/` and are documented on [Prompt Extensions](/docs/configuration/prompt-extensions).
+Skill extensions are files, not settings. They live under `.prflow/skill-extensions/` and are documented on [Skill Extensions](/docs/configuration/skill-extensions).
 
 Credentials are never settings. Store them as GitHub Actions secrets, described in [Cloud Setup](/docs/runs/cloud/setup).
 
@@ -135,6 +135,6 @@ Unknown top-level keys are tolerated so that an older config keeps working after
 
 Some behavior is not configurable by a value at all:
 
-- To make PRFlow follow a house rule, write a [prompt extension](/docs/configuration/prompt-extensions).
+- To make PRFlow follow a house rule, write a [prompt extension](/docs/configuration/skill-extensions).
 - To let a cloud agent run one of your commands, grant it under [Tool Permissions](/docs/configuration/tool-permissions).
 - To change who may start a run, see [Core Settings](/docs/configuration/core-settings) and [Human Control](/docs/concepts/human-control).

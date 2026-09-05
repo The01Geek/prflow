@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 # Print a consumer-owned prompt-extension file verbatim, if present.
 #
-# Usage: load-prompt-extension.sh SKILL_NAME [--section '<## heading>']
+# Usage: load-prompt-extension.sh SKILL_NAME [--section '<## heading>' | --digest]
 #   SKILL_NAME   the skill's directory name under skills/ (e.g. create-issue,
 #                implement, review). This is the only POSITIONAL argument.
 #   --section    optional; emit only the named section of the extension instead of
@@ -11,6 +11,13 @@
 #                At most one section per invocation; a repeated flag takes its LAST
 #                occurrence. Omitting the flag keeps the byte-identical full-file
 #                behavior every pre-existing caller depends on.
+#   --digest     optional; instead of the extension, print exactly one stdout line
+#                'PROMPT-EXTENSION-DIGEST: sha256=<64 lowercase hex> bytes=<n>' where the
+#                digest is the SHA-256 of the exact bytes a whole-file load would print
+#                and n is their count (an absent/empty extension yields the SHA-256 of
+#                zero bytes and bytes=0). Mutually exclusive with --section (exit 2). A
+#                repeated --digest is one --digest. An undeliverable extension, and a
+#                digest that cannot be computed, each exit 2 with empty stdout.
 #
 # The --section extraction rule (issue #611) is SPECIFIED in
 # skills/create-issue/references/step-2-clarify.md (the `## Evidence axes`
@@ -61,7 +68,7 @@
 #   * DEVFLOW_PROMPT_EXTENSION_ROOT, when set and non-empty (issue #874) — the
 #     variable names the extension directory outright, so the composed path is
 #     "${DEVFLOW_PROMPT_EXTENSION_ROOT}/<SKILL_NAME>.md" with no
-#     '.prflow/prompt-extensions/' segment appended. Top precedence, and inert both
+#     '.prflow/skill-extensions/' segment appended. Top precedence, and inert both
 #     when unset and when set to the empty string, per the DEVFLOW_GH / DEVFLOW_JQ /
 #     DEVFLOW_BASH convention. This branch writes a stderr breadcrumb naming the
 #     directory it resolved. The repo-root branch adds no stderr of its OWN beyond the
@@ -70,7 +77,8 @@
 #     byte-identical output. (Scoped to the BRANCH: the present-but-undeliverable and
 #     argument-validation diagnostics further down are shared by both branches and are
 #     likewise unchanged.)
-#   * otherwise, .prflow/prompt-extensions/ anchored to the git repo root
+#   * otherwise, .prflow/skill-extensions/ anchored to the git repo root (with a
+#     transitional fallback to a present superseded .prflow/prompt-extensions/; issue #170)
 #     (git rev-parse --show-toplevel, falling back to pwd when not in a git tree —
 #     mirroring lib/config-source.sh; issue #295). Anchoring to the root means a
 #     skill invoked from any subdirectory of the repo still loads the consumer's
@@ -208,6 +216,25 @@ _lpe_rstrip() {
     done
 }
 
+# Emit 'sha256=<hex> bytes=<n>' over $1's bytes ($1 empty = the absent/empty no-op → SHA-256
+# of zero bytes; a nonexistent path would OSError instead, so callers pass "" not the path).
+# python3 only — sha256sum/shasum are not preflight-guaranteed. Returns non-zero on failure.
+_lpe_compute_digest() {
+    python3 - "$1" <<'PYEOF'
+import hashlib, sys
+p = sys.argv[1]
+try:
+    if p:
+        with open(p, "rb") as fh:
+            data = fh.read()
+    else:
+        data = b""
+except OSError:
+    sys.exit(1)
+sys.stdout.write("sha256=%s bytes=%d" % (hashlib.sha256(data).hexdigest(), len(data)))
+PYEOF
+}
+
 skill="${1:-}"
 
 if [ -z "$skill" ]; then
@@ -239,9 +266,16 @@ esac
 # the pre-flag ignored behavior.
 section=""
 section_requested=0
+digest_requested=0
 shift || true
 while [ "$#" -gt 0 ]; do
     case "$1" in
+        --digest)
+            # A repeated --digest is one --digest (idempotent). Mutual exclusion with
+            # --section is enforced after the loop, so both flags are still parsed here.
+            digest_requested=1
+            shift
+            ;;
         --section)
             if [ "$#" -lt 2 ]; then
                 echo "load-prompt-extension.sh: --section requires a value (the exact '## '-prefixed heading line)" >&2
@@ -295,6 +329,14 @@ if [ "$section_requested" -eq 1 ]; then
     fi
 fi
 
+# --digest asks for a fixed one-line summary of the whole-file bytes, so combining it with
+# --section (a partial extraction) is contradictory: refuse it loudly (exit 2, empty stdout)
+# rather than silently honoring one and dropping the other.
+if [ "$digest_requested" -eq 1 ] && [ "$section_requested" -eq 1 ]; then
+    echo "load-prompt-extension.sh: --digest cannot be combined with --section" >&2
+    exit 2
+fi
+
 # Reject path-traversal vectors before touching the filesystem. '*/*' matches any
 # slash; '*..*' matches any '..' sequence (covering '..', '../x', 'x/../y').
 case "$skill" in
@@ -306,7 +348,7 @@ esac
 
 # Select the extension directory. DEVFLOW_PROMPT_EXTENSION_ROOT names that directory
 # OUTRIGHT — the composed path is "${DEVFLOW_PROMPT_EXTENSION_ROOT}/${skill}.md", with
-# no '.prflow/prompt-extensions/' segment appended — so a caller can point this reader
+# no '.prflow/skill-extensions/' segment appended — so a caller can point this reader
 # at a closure that lives nowhere near a repo (issue #874: the cloud review tier
 # materializes the base ref's extensions into $RUNNER_TEMP, because its own checkout is
 # the pull request's and those bytes become the reviewing agent's appended prompt).
@@ -317,6 +359,7 @@ esac
 # below, so containment holds relative to whichever directory is selected: the guard
 # already refuses a name carrying '/' or '..', which is what keeps the composed path
 # inside the selected root on both branches.
+_lpe_old_ext_dir=""
 if [ -n "${DEVFLOW_PROMPT_EXTENSION_ROOT:-}" ]; then
     ext_dir="$DEVFLOW_PROMPT_EXTENSION_ROOT"
     # Scoped to this branch alone. A caller that leaves the variable unset (every
@@ -350,12 +393,59 @@ else
         fi
     fi
 
-    ext_dir="$(prflow_state_dir "${_devflow_root}")/prompt-extensions"
+    _lpe_state="$(prflow_state_dir "${_devflow_root}")"
+    ext_dir="${_lpe_state}/skill-extensions"
+    # TRANSITIONAL DIRECTORY-RENAME READ-THROUGH (issue #170). Resolve each requested file
+    # canonical-first, then from the superseded directory — per-file because /prflow:init
+    # deliberately leaves both directories on conflicts. The DEVFLOW_PROMPT_EXTENSION_ROOT
+    # branch names a frozen directory outright and takes none. Confirmation-gated end
+    # criterion (removed once no consumer still carries .prflow/prompt-extensions/): lib/rename-map.json.
+    _lpe_old_ext_dir="${_lpe_state}/prompt-extensions"
 fi
 
-# Composed once, after the branch: each arm selects only the DIRECTORY, so the
-# "<skill>.md" filename convention lives in exactly one place.
+# Compose the canonical candidate before applying the per-file transition below.
 ext_file="${ext_dir}/${skill}.md"
+
+if [ ! -e "$ext_file" ] && [ ! -L "$ext_file" ] && [ -d "$_lpe_old_ext_dir" ]; then
+    _lpe_old_requested="${_lpe_old_ext_dir}/${skill}.md"
+    if [ -e "$_lpe_old_requested" ] || [ -L "$_lpe_old_requested" ]; then
+        echo "load-prompt-extension.sh: reading from the superseded extension directory '${_lpe_old_ext_dir}' — run /prflow:init to migrate it to '${ext_dir}' (transitional read-through; removed once no consumer still carries a .prflow/prompt-extensions/ directory)" >&2
+        ext_dir="$_lpe_old_ext_dir"
+        ext_file="$_lpe_old_requested"
+    fi
+fi
+
+# TRANSITIONAL SKILL-RENAME READ-THROUGH (issue #152). The skill formerly called
+# `receiving-code-review` is now `fix`, and a consumer who customized the old
+# extension file keeps it applying across the upgrade. When asked for `fix` and no
+# `fix.md` exists in the selected directory, fall through to a present
+# `receiving-code-review.md` there, emitting a stderr breadcrumb telling the consumer
+# to rename it. Canonical name first, superseded only when canonical is absent, a
+# breadcrumb on every fallback — the same shape as the `.devflow/` state-directory
+# read-through (lib/resolve-state-dir.sh). The selection is decided with file tests
+# and `case` only (never tr/sed/cut/head), per the repo's non-preflight-PATH-tool
+# rule, so a missing tool cannot silently empty it. Whatever shape the superseded
+# entry has (regular file, directory, broken symlink) is then judged by the SAME
+# deliverability guards below, so a directory old-name file takes the existing
+# undeliverable-shape exit rather than a bespoke path.
+# END CRITERION (confirmation-gated, not a timer): this read-through, the transitional
+# `receiving-code-review` entry in the .github/workflows/devflow.yml protected-extension
+# list, and its drift-guard allowance in lib/test/run.sh are removed together once no
+# consumer still carries a receiving-code-review.md.
+if [ "$skill" = fix ] && [ ! -e "$ext_file" ] && [ ! -L "$ext_file" ]; then
+    _lpe_superseded="${ext_dir}/receiving-code-review.md"
+    if [ ! -e "$_lpe_superseded" ] && [ ! -L "$_lpe_superseded" ] && [ -d "$_lpe_old_ext_dir" ] && [ "$ext_dir" != "$_lpe_old_ext_dir" ]; then
+        _lpe_superseded_legacy="${_lpe_old_ext_dir}/receiving-code-review.md"
+        if [ -e "$_lpe_superseded_legacy" ] || [ -L "$_lpe_superseded_legacy" ]; then
+            echo "load-prompt-extension.sh: reading from the superseded extension directory '${_lpe_old_ext_dir}' — run /prflow:init to migrate it to '${ext_dir}' (transitional read-through; removed once no consumer still carries a .prflow/prompt-extensions/ directory)" >&2
+            _lpe_superseded="$_lpe_superseded_legacy"
+        fi
+    fi
+    if [ -e "$_lpe_superseded" ] || [ -L "$_lpe_superseded" ]; then
+        echo "load-prompt-extension.sh: reading the superseded extension '${_lpe_superseded}' for the renamed 'fix' skill — rename it to 'fix.md' (transitional read-through; removed once no consumer still carries a receiving-code-review.md)" >&2
+        ext_file="$_lpe_superseded"
+    fi
+fi
 
 # Refuse every "present but undeliverable" shape loudly (exit 2 + a specific
 # breadcrumb) instead of letting it fall through to the silent empty no-op the
@@ -381,6 +471,27 @@ fi
 # a symlink resolving to one, is `-f` true and falls through to be read.
 if [ -e "$ext_file" ] && [ ! -f "$ext_file" ]; then
     echo "load-prompt-extension.sh: '$ext_file' exists but is not a regular file; refusing to silently skip a consumer extension (expected a Markdown file)" >&2
+    exit 2
+fi
+
+# --digest mode: emit one PROMPT-EXTENSION-DIGEST line and exit. The unreadable-regular-file
+# guard here mirrors the whole-file path below (do not drop it — a bare hash would leak content
+# or fail); a failed computation exits 2 with empty stdout, never a fabricated digest line.
+if [ "$digest_requested" -eq 1 ]; then
+    if [ -f "$ext_file" ] && [ ! -r "$ext_file" ]; then
+        echo "load-prompt-extension.sh: '$ext_file' exists but is not readable; cannot compute a digest" >&2
+        exit 2
+    fi
+    if [ -f "$ext_file" ]; then
+        _lpe_dtarget="$ext_file"
+    else
+        _lpe_dtarget=""
+    fi
+    if _lpe_dline="$(_lpe_compute_digest "$_lpe_dtarget")"; then
+        printf 'PROMPT-EXTENSION-DIGEST: %s\n' "$_lpe_dline"
+        exit 0
+    fi
+    echo "load-prompt-extension.sh: could not compute the extension digest (python3 unavailable or failed)" >&2
     exit 2
 fi
 
@@ -557,4 +668,17 @@ if [ "$section_requested" -eq 0 ]; then
         _wf_status=present-empty
     fi
     printf 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: %s\n' "$_wf_status" >&2
+    # Whole-file digest on STDERR only (stdout stays byte-verbatim). The `load-prompt-extension.sh: `
+    # prefix is load-bearing — phase-3 drops those lines when classifying, so keep it. Fail-soft: a
+    # failed digest prints 'unestablished (<reason>)' and must not touch stdout or the exit status.
+    if [ -f "$ext_file" ]; then
+        _lpe_wf_dtarget="$ext_file"
+    else
+        _lpe_wf_dtarget=""
+    fi
+    if _lpe_wf_dline="$(_lpe_compute_digest "$_lpe_wf_dtarget")"; then
+        printf 'load-prompt-extension.sh: PROMPT-EXTENSION-DIGEST: %s\n' "$_lpe_wf_dline" >&2
+    else
+        printf 'load-prompt-extension.sh: PROMPT-EXTENSION-DIGEST: unestablished (%s)\n' "python3 digest computation failed" >&2
+    fi
 fi

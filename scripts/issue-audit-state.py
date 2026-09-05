@@ -548,6 +548,7 @@ _PROTOCOL_TOKENS = (
     'basis', 'body_digest', 'bound', 'bound_path', 'bound_root', 'bound_tier', 'cap',
     'cap_reached', 'claim', 'claims', 'class', 'classification', 'command', 'completeness',
     'conflict', 'consumer_dimensions_appended', 'converged', 'convergence_basis', 'count',
+    'counts_round',
     'coverage', 'coverage_backing', 'coverage_reason', 'coverage_render',
     'degraded', 'digest', 'dispatch_regeneration', 'effective_unresolved', 'eligible',
     'epoch_round', 'evidence', 'finding', 'findings', 'findings_count', 'frozen', 'ground',
@@ -3667,6 +3668,33 @@ def _emit_stale_override_remedy(prefix, elig, state, current_digest):
         f'issue-audit-state.py {prefix}: {stale_override_remedy(state, current_digest)}\n')
 
 
+# issue #82: this remedy must never read as an instruction to record an override with no
+# user election — it points at the record of the user's OWN election, and the election
+# precondition below is load-bearing (the rationale is in the emitter docstring below).
+_UNAUDITED_REVISION_REMEDY = (
+    'this draft carries no clean audit verdict, so eligibility grounds only on the '
+    "user's own filing election: record it with `record-override --kind user-decline "
+    '--surface step4-offer --draft-file <canonical>` — recorded only after the user '
+    'elects *Create it as-is* or *File anyway* at sub-step 3a, never on this refusal '
+    'itself (a fresh clean audit round is the other eligibility ground)'
+)
+
+
+def _emit_unaudited_revision_remedy(prefix, elig):
+    """Write the `unaudited-revision` recovery to stderr beside that refusal (issue #82).
+
+    Sibling of `_emit_stale_override_remedy`: self-guarded on the reason and called
+    unconditionally at the two refusal surfaces (`cmd_query_eligibility`, `cmd_emit_body`),
+    never from the shared `evaluate_eligibility` — so `query-summary`, the rendering
+    surface, stays stderr-silent. Keeping the guard here (not at each call site) is what
+    lets a refusal surface added later get the remedy for free instead of shipping without
+    one, exactly as the stale-override twin does.
+    """
+    if elig.get('reason') != 'unaudited-revision':
+        return
+    sys.stderr.write(f'issue-audit-state.py {prefix}: {_UNAUDITED_REVISION_REMEDY}\n')
+
+
 def _clean_identity(state, clean, current_digest):
     """The `(ground, key)` a clean round supplies on IDENTITY alone, or None.
 
@@ -4812,6 +4840,9 @@ def _next_call_body(cmd_name, state, slug, nonce, **ctx):
         return _next_call_invocation(cmd_name, f'record-draft-binding {slug}', [
             ('--nonce', nonce), ('--path', None), ('--tier', None)])
     if cmd_name == 'record-draft-binding':
+        # Answers `draft-write`, not a state-owner call: the next mandated step writes the
+        # draft with a different tool. Rendering a `record-staged-write` invocation here
+        # would skip the staging step the sequence mandates before that call.
         return _unestablished('draft-write')
     if cmd_name == 'record-revision':
         return _next_call_invocation(cmd_name, f'record-resolution {slug}', [
@@ -4958,6 +4989,10 @@ _SUMMARY_FIELDS = (
     # adjudicated verdict, the per-class counts, and the unresolved-must-revise count.
     'adjudicated_verdict', 'must_revise', 'advisory', 'invalid',
     'unresolved_must_revise',
+    # issue #73: the round the verdict and every class-count field above are read from —
+    # the latest completed WHOLE-DRAFT round (None until one completes; scoped_round is the
+    # round they skip). A space-free token BEFORE `attestation`, the contractually-trailing field.
+    'counts_round',
     # issue #793: the round number of the newest completed `targeted` round, or None. The
     # verdict and class-count fields above are read from the latest WHOLE-DRAFT round, so
     # a scoped round would otherwise be invisible on this line — reported here rather than
@@ -5004,7 +5039,7 @@ _SUMMARY_BLOCK_FIELDS = (
     'state', 'findings_count', 'revisions_applied', 'verdict', 'rounds_run',
     'consumer_dimensions_appended', 'degraded', 'user_declined', 'cap_reached',
     'markers', 'adjudicated_verdict', 'must_revise', 'advisory', 'invalid',
-    'unresolved_must_revise', 'effective_unresolved', 'scoped_round',
+    'unresolved_must_revise', 'effective_unresolved', 'counts_round', 'scoped_round',
     'convergence_basis', 'steering', 'steering_reason', 'attestation',
 )
 _SUMMARY_BLOCK_BOOL_FIELDS = frozenset(
@@ -5072,7 +5107,7 @@ def summary_fields(state, current_digest=None, digest_failed=False):
                         markers=[], token=None, stale_token=False, reinit_forced=False,
                         attestation=None, adjudicated_verdict=None, must_revise=None,
                         advisory=None, invalid=None, unresolved_must_revise=None,
-                        scoped_round=None,
+                        counts_round=None, scoped_round=None,
                         bound_root=None, bound_tier=None,
                         effective_unresolved=None, convergence_basis='none',
                         coverage_backing='unestablished', coverage_render='none',
@@ -5083,9 +5118,13 @@ def summary_fields(state, current_digest=None, digest_failed=False):
                         final_byte_coverage='unestablished',
                         steering='unestablished', steering_reason=None)
     done = completed_rounds(state)
-    # Cumulative across every round this run: "how many things did the auditors
-    # collectively flag", not merely the last round's tally.
-    counts = [r['findings_count'] for r in done if r.get('findings_count') is not None]
+    # issue #86: none when ANY completed round lacks a tally (a pre-#86 round, or a
+    # no-verdict close record-return never tallies) — summing only the tallied rounds
+    # would present a partial sum as the run total. Empty `done` stays none, as before.
+    if done and all(r.get('findings_count') is not None for r in done):
+        _findings_count = sum(r['findings_count'] for r in done)
+    else:
+        _findings_count = None
     markers = []
     for r in state['rounds']:
         for mk in r.get('embed_markers', []):
@@ -5168,7 +5207,7 @@ def summary_fields(state, current_digest=None, digest_failed=False):
         stale = stale or override_staled
     return _summary(
         state='ok',
-        findings_count=sum(counts) if counts else None,
+        findings_count=_findings_count,
         revisions_applied=revision_ordinal(state),
         # issue #793: the verdict and the class counts below read the latest WHOLE-DRAFT
         # round, never `last` — a `targeted` round's scoped result is not the run's
@@ -5196,6 +5235,10 @@ def summary_fields(state, current_digest=None, digest_failed=False):
         advisory=(whole.get('advisory_count') if whole else None),
         invalid=(whole.get('invalid_count') if whole else None),
         unresolved_must_revise=(whole.get('unresolved_must_revise') if whole else None),
+        # issue #73: the round the verdict and class counts above are read from — the same
+        # `whole` round, named so the summary line can label its counts. None until a
+        # whole-draft round completes.
+        counts_round=(whole.get('round') if whole else None),
         # issue #793: the scoped round the fields above deliberately skip — named, not
         # dropped, so a reader sees that a targeted re-check ran.
         scoped_round=(_scoped.get('round') if _scoped else None),
@@ -6127,11 +6170,17 @@ def cmd_record_return(args):
             st_state, st_reason = ('not-established',
                                    'instructions-noncanonical-at-dispatch')
         rnd['steering'] = {'state': st_state, 'reason': st_reason}
-        if args.findings_count is not None:
-            if args.findings_count < 0:
-                _fail('record-return', f'--findings-count {args.findings_count} is '
-                                       'negative; a findings tally cannot be')
-            rnd['findings_count'] = args.findings_count
+        # issue #86: require the tally on an accepted return — without it adjudication cannot
+        # cross-check it and the summary drops the round from its sum. A refused completion
+        # never reaches this block, so it stays exempt.
+        if args.findings_count is None:
+            _fail('record-return', 'an accepted return records no findings tally; pass '
+                                   '--findings-count <n> counting every finding the auditor '
+                                   'returned (findings-count-required)')
+        if args.findings_count < 0:
+            _fail('record-return', f'--findings-count {args.findings_count} is '
+                                   'negative; a findings tally cannot be')
+        rnd['findings_count'] = args.findings_count
         if args.consumer_dimensions_appended:
             rnd['consumer_dimensions_appended'] = True
         if _round_kind(rnd) == 'targeted':
@@ -6320,6 +6369,23 @@ def cmd_record_adjudication(args):
             _fail('record-adjudication', f'unresolved must-revise count {unresolved} exceeds '
                                          f'the must-revise total {args.must_revise}: unresolved '
                                          f'findings are a subset of must-revise findings')
+    # ── Findings-count agreement (issue #86): the recorded tally must equal
+    # must-revise+advisory+invalid — refuse a mismatch before any write. No tally (a pre-#86
+    # round; only a FILE/REVISE round reaches here) → a stderr-only tally-unrecorded note.
+    _tally = rnd.get('findings_count')
+    if _tally is None:
+        sys.stderr.write(
+            f'issue-audit-state.py record-adjudication: round {args.round} carries no '
+            f'recorded findings tally (tally-unrecorded); adjudicating without the '
+            f'findings-count agreement check\n')
+    else:
+        _class_total = args.must_revise + args.advisory + args.invalid
+        if _tally != _class_total:
+            _fail('record-adjudication',
+                  f'recorded findings tally {_tally} disagrees with the adjudicated class '
+                  f'total {_class_total} (must_revise {args.must_revise} + advisory '
+                  f'{args.advisory} + invalid {args.invalid}) (findings-count-mismatch); '
+                  f'every returned finding lands in exactly one class')
     # ── The per-finding ledger (issue #603 AC1/AC20) ──────────────────────────────
     # A REVISE adjudication with a SETTLED count records one ledger entry per must-revise
     # finding. The flag gate mirrors record-revision's `--stdin-digest`: the tool never
@@ -8099,8 +8165,13 @@ def cmd_record_creation_epoch(args):
         if decline is not None:
             _record_decline_bound_epoch(doc, decline, args)
             return
-        _fail('record-creation-epoch', f'no round {args.round} is recorded to bind '
-                                       'creation to')
+        msg = f'no round {args.round} is recorded to bind creation to'
+        newest = last_completed(doc)
+        if newest is not None:
+            # issue #82/#795: name the newest completed round in the refusal — never bind
+            # it here. record-creation-epoch is _ROUND_IS_CALLER_INTENT; the caller re-issues.
+            msg += f'; a run with completed rounds binds --round {newest["round"]}'
+        _fail('record-creation-epoch', msg)
     if rnd.get('outcome') is None:
         _fail('record-creation-epoch', f'round {args.round} is still open; creation '
                                        'can only bind a completed round')
@@ -8629,6 +8700,7 @@ def cmd_emit_body(args):
         # so the remedy is emitted BEFORE _fail, which does not return. The helper
         # self-guards on the reason, so this call is unconditional.
         _emit_stale_override_remedy('emit-body', elig, doc, digest)
+        _emit_unaudited_revision_remedy('emit-body', elig)
         _fail('emit-body', 'refusing to emit an unaudited body: eligibility answered '
                            f'not-eligible ({elig["reason"]})')
     body = split_body(raw)
@@ -8890,6 +8962,7 @@ def cmd_query_eligibility(args):
         # existing breadcrumb idiom (the `query: could not hash draft file ...` line).
         # The helper self-guards on the reason, so this call is unconditional.
         _emit_stale_override_remedy('query-eligibility', r, state, digest)
+        _emit_unaudited_revision_remedy('query-eligibility', r)
 
 
 def cmd_query_summary(args):
@@ -8942,6 +9015,10 @@ def cmd_query_summary(args):
           # pins anchor on (`attestation=…$`).
           f'adjudicated_verdict={adj_v} must_revise={mr} advisory={adv} invalid={inv} '
           f'unresolved_must_revise={umr} '
+          # issue #73: the round the class-count fields above are read from — a
+          # space-free token before `attestation`, rendered next to `scoped_round` (the
+          # round they skip). `none` until a whole-draft round completes.
+          f'counts_round={f["counts_round"] if f["counts_round"] is not None else "none"} '
           # issue #793: the scoped round the five fields above deliberately skip. A
           # space-free token before `attestation`, which stays the trailing anchored
           # field. `none` when no targeted round completed — the common case.
@@ -9011,7 +9088,13 @@ def build_parser():
             'and that final '
             'next_call= line they print a summary-block line carrying a compact fixed subset '
             'of the query-summary fields (' + ', '.join(_SUMMARY_BLOCK_FIELDS) + '), so a '
-            'caller reads post-mutation state from the call it just made. next_call= is a '
+            'caller reads post-mutation state from the call it just made. The derived counts '
+            'differ in scope: verdict, adjudicated_verdict, must_revise, advisory, invalid '
+            'and unresolved_must_revise all describe the single round named by counts_round '
+            '(the latest completed whole-draft round, with a targeted round not selected); '
+            'findings_count is the sum over all completed rounds when every one carries a '
+            '--findings-count tally, and none when any completed round lacks one; and '
+            'effective_unresolved is run-wide. next_call= is a '
             'generated suggestion the caller reviews, never an instruction.'))
     sub = p.add_subparsers(dest='cmd', required=True)
 
@@ -9089,7 +9172,14 @@ def build_parser():
                    # recorded round uniquely names it; the command's own guards still bind.
     s.add_argument('--verdict', choices=_VERDICTS,
                    help='Omit when the return carried no parseable VERDICT line.')
-    s.add_argument('--findings-count', type=int)
+    s.add_argument('--findings-count', type=int,
+                   help='Required on an accepted return (issue #86): the number of findings '
+                        'the auditor returned — every numbered finding plus a qualifying '
+                        'Quiet Killer and every out-of-scope finding, but not the '
+                        '`Quiet Killer: none` form and not the COVERAGE block. Counted at '
+                        'record-return before adjudication; record-adjudication requires it '
+                        'to equal must-revise + advisory + invalid, since every returned '
+                        'finding lands in exactly one class.')
     s.add_argument('--consumer-dimensions-appended', action='store_true')
     s.add_argument('--carriage-object-id', help='The object ID the auditor quoted '
                                                 '(file arm).')
@@ -9452,8 +9542,12 @@ def build_parser():
     s.add_argument('--finding-id', type=_nonneg_int)
     s.set_defaults(func=cmd_query_finding_evidence)
 
-    s = sub.add_parser('emit-body', help='Emit the audited body bytes; refuses with '
-                                         'empty stdout when not eligible.')
+    s = sub.add_parser('emit-body', help='Emit the audited body bytes (which start after '
+                                         'the draft\'s single leading `# ` title heading); '
+                                         'refuses with empty stdout when not eligible.',
+                       description='Emit the audited body bytes, which start after the '
+                                   'draft\'s single leading `# ` title heading; refuses '
+                                   'with empty stdout when not eligible.')
     s.add_argument('slug')
     s.add_argument('--nonce', required=True)
     s.add_argument('--draft-file', required=True)

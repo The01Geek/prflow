@@ -79,7 +79,7 @@ Render the provenance line in its OWN fence, BEFORE composing the body. The bund
 .prflow/vendor/prflow/scripts/render-pr-provenance-line.py --command /prflow:implement
 ```
 
-Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127 — this repository's own local tier, where `.prflow/vendor/` is materialized only at runtime and so is absent from a working checkout), re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/render-pr-provenance-line.py`) as a single leading-token statement, then route on that invocation's outcome. If *that* is also not found (a non-Claude-Code runner — Copilot CLI, Cursor, Codex CLI, Gemini CLI — where neither repo-relative path exists), fall back to the portable anchor form below, which preserves the helper's portability on those runners (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
+Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127), re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/render-pr-provenance-line.py`) as a single leading-token statement, then route on that invocation's outcome. If *that* is also not found (a non-Claude-Code runner — Copilot CLI, Cursor, Codex CLI, Gemini CLI — where neither repo-relative path exists), fall back to the portable anchor form below, which preserves the helper's portability on those runners (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-pr-provenance-line.py --command /prflow:implement
@@ -138,7 +138,7 @@ Read the printed number (line 1) and URL (line 2) from the tool result, and subs
 echo "draft PR number: [<pr-number>]"
 ```
 
-Then stamp the reserved `PRFlow` provenance label on the PR (best-effort). `PRFlow` is a hardcoded provenance constant (no config key controls it; its superseded `DevFlow` spelling stays selectable on already-labelled history, but new runs stamp only `PRFlow`) — it is the branch-naming-independent signal the weekly retrospective uses to detect DevFlow-authored PRs. Apply it through the shared REST label-apply helper after creation (a PR is an issue, so the same `POST .../issues/{n}/labels` endpoint serves it) so a label hiccup can never block the run.
+Then stamp the reserved `PRFlow` provenance label on the PR (best-effort). `PRFlow` is a hardcoded provenance constant (no config key controls it; its superseded `DevFlow` spelling stays selectable on already-labelled history, but new runs stamp only `PRFlow`) — it is the branch-naming-independent signal the weekly retrospective uses to detect PRFlow-authored PRs. Apply it through the shared REST label-apply helper after creation (a PR is an issue, so the same `POST .../issues/{n}/labels` endpoint serves it) so a label hiccup can never block the run.
 
 **Cloud-emission discipline (label helpers): emit the call as a single leading-token statement, and substitute the PR number as a LITERAL — see the *Cloud command-shape discipline* section in `skills/implement/SKILL.md`.** The helper must never be wrapped in a shell loop or an output capture, and `$PR_NUM` — set in the *previous* fence — does not survive into this separate command, so pass the printed `draft PR number` digits as a literal, never a variable. Read the printed `draft PR number` and substitute the digits below.
 
@@ -171,7 +171,7 @@ The `apply-pr-triggerer.sh` helper resolves the triggerer by tier and best-effor
 .prflow/vendor/prflow/scripts/apply-pr-triggerer.sh <draft-pr-number>
 ```
 
-Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127 — this repository's own local tier, where `.prflow/vendor/` is materialized only at runtime and so is absent from a working checkout), re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/apply-pr-triggerer.sh <draft-pr-number>`) as a single leading-token statement, then route on that invocation's outcome. If *that* is also not found (a non-Claude-Code runner — Copilot CLI, Cursor, Codex CLI, Gemini CLI — where neither repo-relative path exists), fall back to the portable anchor form below, which preserves the helper's portability on those runners (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
+Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127), re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/apply-pr-triggerer.sh <draft-pr-number>`) as a single leading-token statement, then route on that invocation's outcome. If *that* is also not found (a non-Claude-Code runner — Copilot CLI, Cursor, Codex CLI, Gemini CLI — where neither repo-relative path exists), fall back to the portable anchor form below, which preserves the helper's portability on those runners (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/apply-pr-triggerer.sh <draft-pr-number>
@@ -192,7 +192,7 @@ Record the phase-boundary event (best-effort; the helper always exits 0 and neve
 .prflow/vendor/prflow/scripts/verification-flight.py event phase3-simplify-start
 ```
 
-Invoke the Skill tool with `skill: simplify` — this runs the built-in Claude Code `/simplify` slash-command, not a DevFlow plugin skill (so there's no `devflow:` prefix and nothing to install). It ships with Claude Code and is always present; do not treat it as a missing skill or skip this phase.
+Invoke the Skill tool with `skill: simplify` — this runs the built-in Claude Code `/simplify` slash-command, not a PRFlow plugin skill (so there's no `devflow:` prefix and nothing to install). When `/simplify` is unavailable — the Skill tool is absent, the `simplify` skill is reported not found, or the invocation is refused twice (at minimum these three) — skip the charter, triage, and commit fence below (do not commit or push), but still run the `phase3-simplify-end` event fence and the outcome-note call: leave the `/simplify` progress row unticked and record `simplify outcome: unavailable (<reason>)`.
 
 `/simplify` runs the code-review engine over the current diff in quality-only mode — the reuse / simplification / efficiency / altitude cleanup angles — and applies the fixes directly instead of stopping at a report (skipping any whose fix would change intended behavior). By its own charter it does not hunt for bugs; use `/code-review` for that.
 
@@ -201,13 +201,19 @@ Invoke the Skill tool with `skill: simplify` — this runs the built-in Claude C
 - `/simplify`'s cleanup agents are quality-only reviewers, never correctness reviewers — chartered for the reuse / simplification / efficiency / altitude angles only.
 - The orchestrator never solicits a correctness or guard-class verdict from a `/simplify` cleanup agent.
 - The orchestrator never records a cleanup agent's "clean" report as evidence toward any correctness class — a "clean" from an agent chartered not to examine correctness is not evidence that correctness holds.
-- Correctness is owned by the Phase 3.3 reviewers, whose dispatch prompts carry the repo's guard classes via `.prflow/prompt-extensions/review-and-fix.md` (a consumer prompt extension that `/simplify`, a built-in Claude Code skill, never loads).
+- Correctness is owned by the Phase 3.3 reviewers, whose dispatch prompts carry the repo's guard classes via `.prflow/skill-extensions/review-and-fix.md` (a consumer prompt extension that `/simplify`, a built-in Claude Code skill, never loads).
 
 Triage each `/simplify` finding against the issue's acceptance criteria before applying it (this `/prflow:implement` path only). The `/simplify` cleanup agents see only the diff — never the issue's `## Acceptance Criteria` or any Phase 2.2.5 scope decisions — so a cleanup that reads as correct against the diff alone can directly violate the issue's deliberate scope (e.g. move a rule out of the file an AC pinned it to, or trim an exclusion list or wording an AC mandated). Before applying each finding, evaluate it against the workpad's in-scope `## Acceptance Criteria` and Phase 2.2.5 scope-decision notes — **against both the *literal* AC text and the *generality / consumer-facing* ACs** (an AC that mandates a surface stay broad, work for all consumers, or not narrow an event/input/filter). A finding can satisfy every literal AC while breaking a generality one: any finding that narrows an event, input, or filter surface re-runs the consumer-boundary question before it lands — does this narrowing still serve every consumer the AC intends, or does it optimize for the literal cases only? If its fix would violate an acceptance criterion (literal or generality) or the decided scope, skip the finding and record the AC conflict as the skip rationale via `workpad.py update $ISSUE_NUMBER --note "skipped /simplify finding: {finding}; would violate AC: {which criterion}"`. Apply findings that do not conflict as normal. This triage exists only on the issue-context `/prflow:implement` path — it does not change standalone `/simplify` / `/code-review` behavior, which carry no issue/AC context. One carve-out: a finding that conflicts with a now-*stale* AC that a legitimate refactor superseded is not a silent skip — that is Phase 2.2.6 AC-rewrite territory (rewrite the AC text with a `--note` paper trail, then let the finding apply), never this guardrail.
 
-After the skill completes, commit any fixes and push:
+After the skill completes, stage any fixes:
 ```bash
-git add -A
+git add -A -- ':!.prflow/tmp'
+```
+
+Read the positive signal after `git add`: `git diff --cached --name-only` listing files means it staged. Never read output emptiness as refusal — `git add` is silent on success and on a clean tree alike. When that list is empty, run `git status --porcelain -- ':!.prflow/tmp'; echo status-done`: listed edits mean the add was refused, and a missing `status-done` token means the status read was itself refused — on either, stage the run's own edits by explicit path (`git add -- <each edited path>`) and record a `dropped-failed` reflection. `status-done` alone, over a clean product tree, owed no staging.
+
+When the staged list is non-empty, commit and push the common path after either staging arm:
+```bash
 git commit -m "refactor: address /simplify findings for issue #$ARGUMENTS"
 git push
 ```
@@ -221,7 +227,7 @@ If `/simplify` reported the code was already clean and made no changes, skip the
 
 No verification round is owed between §3.2 and §3.3. This commit ships without its own full-suite run: §3.3's `review-and-fix` loop runs a verification as its first act, and the `/simplify` edits just committed ride into that first verification. So do not launch a full suite here to verify the `/simplify` commit — a fresh commit does not, on its own, owe a verification round when the very next step verifies it.
 
-Then, in one call, tick the `/simplify` gate and record the step's outcome — written on **every** run, since §3.2 is unconditional:
+Then, in one call, tick the `/simplify` gate and record the step's outcome (the unavailable arm above records the note without the tick):
 
 `workpad.py update $ISSUE_NUMBER --tick-progress "simplify" --note "simplify outcome: findings generated=<N>, applied=<M>, skipped-as-AC-conflict=<K>"`
 

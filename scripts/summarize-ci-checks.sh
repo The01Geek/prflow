@@ -156,8 +156,9 @@ done
 
 # ── (2) External (non-Actions app) check runs. Actions job check-runs are already
 # ── counted once via the jobs API above, so excluding the `github-actions` app is
-# ── what stops them being counted twice. `Devflow Review` is excluded by name so
-# ── the reviewer never sees its own in-progress check reported as pending CI.
+# ── what stops them being counted twice. The review check-run is excluded by name
+# ── (`PRFlow Review`, plus the superseded `Devflow Review`) so the reviewer never
+# ── sees its own in-progress check reported as pending CI.
 # The `filter` parameter defaults to `latest`, so one paginated call returns the
 # latest run per check name.
 _checks_err=$(mktemp 2>/dev/null) || _checks_err=/dev/null
@@ -174,6 +175,7 @@ if ! printf '%s' "$CHECKS_JSON" | "$DEVFLOW_JQ" -rs '
       | add // []
       | map(select(type == "object"))
       | map(select((((.app.slug // "") | tostring) != "github-actions")
+                   and (((.name // "") | tostring) != "PRFlow Review")
                    and (((.name // "") | tostring) != "Devflow Review")))
       | .[] | ((((.name // "") | tostring) | gsub("[\\n\\r\\t]"; " ")) + "\t" + (((.conclusion // .status // "unknown") | tostring) | gsub("[\\n\\r\\t]"; " ")))' \
       >> "$SIGNALS_FILE" 2>/dev/null; then

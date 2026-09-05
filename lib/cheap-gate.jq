@@ -14,7 +14,7 @@
 # separate open decision (issue #1249 kept it explicitly out of scope) rather than
 # a consequence of that superseded coverage argument. The marker's runtime consumer
 # stays the shared review engine's non-blocking advisory
-# (.prflow/prompt-extensions/review.md and its byte-identical twin
+# (.prflow/skill-extensions/review.md and its byte-identical twin
 # review-and-fix.md), which reads it per-PR on both tiers.
 #
 # Invocation:
@@ -55,7 +55,7 @@
 #     ci_status_unknown         <bool>   — true if CI check-runs could not be read
 #                                          (fail-safe: such a PR is never "clean")
 #   plus two TOP-LEVEL fields (siblings of .signals):
-#     reflections               <array>  — the workpad's `## Devflow Reflection`
+#     reflections               <array>  — the workpad's `## PRFlow Reflections`
 #                                          bullets (flat string array; defaulted
 #                                          to [] when absent — older bundles).
 #     reflections_friction_count <int|absent> — how many of those bullets are

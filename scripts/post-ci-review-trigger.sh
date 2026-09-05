@@ -102,6 +102,12 @@ else
   DEVFLOW_GH="${DEVFLOW_GH:-gh}"
 fi
 
+# Shared login rule (issue #157): the author-suppression comparison runs through
+# lib/login_normalize.py, so no `[bot]`/`app/` strip lives inline here.
+# shellcheck source=../lib/login-match.sh
+. "$_PCRT_DIR/../lib/login-match.sh" 2>/dev/null \
+  || echo "devflow: login-match.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — the author-suppression check will fail closed" >&2
+
 PR="${PR:-}"
 HEAD_SHA="${HEAD_SHA:-}"
 MODE="${MODE:-post}"
@@ -242,18 +248,12 @@ case "$PR_STATE" in
     exit 0 ;;
 esac
 
-# Login match, mirroring authorize-actor.sh's actor_bare handling: the App comment
-# login is `<slug>[bot]` while the app-slug output is the bare `<slug>`, so compare
-# both exact and bare-stripped forms in BOTH directions. This rests on
+# Author match through the shared resolver (issue #157): it normalizes both the
+# comment login and the expected app-slug, so `<slug>[bot]` (the App comment login)
+# matches the bare `<slug>` app-slug output, case-insensitively. This rests on
 # create-github-app-token@v3's `app-slug` output being the slug portion of that
 # `<slug>[bot]` login; if that output form ever changed, the App would stop
 # recognizing its own comments and re-post — the coupling is deliberate, not implicit.
-_login_matches() {  # $1=comment login  $2=expected comparand
-  local login="$1" expect="$2"
-  local login_bare="${login%\[bot\]}"
-  local expect_bare="${expect%\[bot\]}"
-  [ "$login" = "$expect" ] || [ "$login_bare" = "$expect_bare" ]
-}
 
 # --- Idempotency read (fail-closed) -----------------------------------------
 # `{owner}/{repo}` placeholders, which gh fills from the git remote, NOT an
@@ -289,21 +289,34 @@ fi
 # review still posts — that is the quoting-suppression fix.
 ALREADY=false
 UNVERIFIABLE=false
+RESOLVER_UNAVAILABLE=false
 while IFS= read -r _login; do
   [ -z "$_login" ] && continue
   if [ "$_login" = "__prflow_no_author__" ]; then
     UNVERIFIABLE=true
     continue
   fi
-  if _login_matches "$_login" "$EXPECTED_AUTHOR"; then
+  # rc 0 match, rc 1 plain non-match, rc 2 the resolver could not run — the last
+  # fails closed (post nothing) in the same direction as the unresolvable-author arm.
+  if devflow_login_matches "$_login" "$EXPECTED_AUTHOR"; then
     ALREADY=true
+  else
+    _rc=$?
+    [ "$_rc" -eq 1 ] || RESOLVER_UNAVAILABLE=true
   fi
 done <<EOF
 $LIST_OUT
 EOF
 
+# Check the definitive App-authored match (ALREADY = already posted) before the
+# couldn't-verify arms: a match needs a working interpreter, so ALREADY and
+# RESOLVER_UNAVAILABLE are effectively mutually exclusive.
 if [ "$ALREADY" = true ]; then
   _note notice "ci auto-review trigger: PR #$PR already carries an App-authored trigger comment for $HEAD_SHA; nothing to post."
+  exit 0
+fi
+if [ "$RESOLVER_UNAVAILABLE" = true ]; then
+  _note warning "ci auto-review trigger: could not run lib/login_normalize.py to compare a marker comment's author against the expected app slug for PR #$PR; NOT posting (fail-closed — an unverifiable author comparand must not widen the trigger into duplicate-posting)."
   exit 0
 fi
 if [ "$UNVERIFIABLE" = true ]; then

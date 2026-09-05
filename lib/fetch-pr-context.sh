@@ -400,8 +400,9 @@ else
         echo "::warning::fetch-pr-context: workpad present for PR ${PR} but Status line did not parse; not treating as Complete" >&2
         WORKPAD_FINAL_STATUS="Unparsed"
     fi
-    # reflections[]: the bullet lines inside the workpad's `## Devflow Reflection`
-    # <details> block (excluding the <summary> scaffold). Parsed in python3 (a
+    # reflections[]: the bullet lines inside the workpad's `## PRFlow Reflections`
+    # section (or the superseded `## Devflow Reflection` heading, whose legacy
+    # <details>/<summary> scaffold lines are skipped). Parsed in python3 (a
     # hard dependency) over the env-passed body — no shell quoting traverses the
     # markdown, and metacharacters (backticks, $) in a bullet survive intact.
     #
@@ -427,7 +428,10 @@ NOTE_GLYPH = 'ℹ️'
 out, friction, in_section, cur_heading = [], 0, False, None
 for raw in body.split('\n'):
     line = raw.rstrip('\r')
-    if re.match(r'^##\s+Devflow Reflection\s*$', line):
+    # Accept both the current `PRFlow Reflections` heading and the superseded
+    # `Devflow Reflection` spelling a workpad created before the rename still
+    # carries (renamed-with-old-spelling-read-through — docs/internal/naming.md).
+    if re.match(r'^##\s+(?:PRFlow Reflections|Devflow Reflection)\s*$', line):
         in_section = True
         continue
     if not in_section:

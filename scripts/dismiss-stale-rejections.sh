@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# Dismiss Devflow Review's own still-outstanding CHANGES_REQUESTED reviews.
+# Dismiss PRFlow Review's own still-outstanding CHANGES_REQUESTED reviews.
 #
-# Called after a Devflow Review APPROVE verdict to clear a prior REJECT's
+# Called after a PRFlow Review APPROVE verdict to clear a prior REJECT's
 # `--request-changes` review. GitHub keeps that review the PR's effective
 # `reviewDecision` until it is *dismissed*: a later APPROVE-with-notes is a
 # `--comment` review (never supersedes) and the REJECT may be a different
@@ -11,7 +11,7 @@
 # so no later review clears it. Without an explicit dismissal the PR is
 # wedged at reviewDecision=CHANGES_REQUESTED despite a green required check.
 #
-# Scope: ONLY reviews whose body is a Devflow Review formal verdict are
+# Scope: ONLY reviews whose body is a PRFlow Review formal verdict are
 # dismissed. Three body shapes are matched:
 #   1. PRODUCER MARKER (issue #1030, the authoritative shape): the review
 #      body's LINE 1 is exactly
@@ -248,7 +248,7 @@ while read -r RID RCOMMIT RHEAD; do
   # the key the decision used AND which field it came from, so a reader can tell a
   # marker-driven dismissal from a commit_id-driven one.
   if ERR=$("$DEVFLOW_GH" api -X PUT "repos/$REPO/pulls/$PR/reviews/$RID/dismissals" \
-       -f message="Superseded by a later APPROVE verdict from Devflow Review (review $RID reviewed commit $CMP [$SRC], which is no longer this pull request's head $HEAD_SHA)." \
+       -f message="Superseded by a later APPROVE verdict from PRFlow Review (review $RID reviewed commit $CMP [$SRC], which is no longer this pull request's head $HEAD_SHA)." \
        -f event=DISMISS 2>&1 >/dev/null); then
     echo "Dismissed stale CHANGES_REQUESTED review $RID on PR #$PR (reviewed $CMP [$SRC]; head is now $HEAD_SHA)."
   else

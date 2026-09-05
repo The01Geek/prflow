@@ -53,13 +53,13 @@ Use this glossary to read PRFlow's own output without knowing how the product is
 
 **Progress comment**: The comment a review keeps up to date on the pull request while it works. It is edited in place, so a superseded verdict disappears from it. It is the review's equivalent of the workpad.
 
-**Prompt extension**: A markdown file under `.prflow/prompt-extensions/` that adds your repository's own policy to one skill's instructions. See [Prompt Extensions](/docs/configuration/prompt-extensions).
+**Skill extension**: A markdown file under `.prflow/skill-extensions/` that adds your repository's own policy to one skill's instructions. See [Skill Extensions](/docs/configuration/skill-extensions).
 
 **Provenance label**: The label `PRFlow`, applied to every issue and pull request PRFlow creates so later runs can recognize their own work. The older `DevFlow` spelling is still recognized.
 
 **Ready for review**: A pull request state that tells reviewers the authoring workflow is complete. It does not mean the pull request has been approved or merged.
 
-**Reflection**: A short durable note a run writes on the workpad about friction it hit, a stop it made or a problem with the issue itself. The workpad heading keeps the older `Devflow Reflection` spelling on purpose, so records written before the rename stay readable.
+**Reflection**: A short durable note a run writes on the workpad about friction it hit, a stop it made or a problem with the issue itself. The workpad heading is `PRFlow Reflections`; the section reader also still accepts the older `Devflow Reflection` spelling, so records written before the rename stay readable.
 
 **REJECT**: The blocking verdict. At least one checklist item failed or was inconclusive, or a finding reached the severity that blocks a merge, or the change's own diff added a line that is untrue.
 
