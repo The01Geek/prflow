@@ -70,7 +70,8 @@ FORBIDDEN_EXACT = frozenset({
 FORBIDDEN_PREFIXES = (
     ".git/", ".claude/", ".codex/", ".changeset/",
     "lib/test/", "docs/internal/", "docs/site/",
-    ".prflow/learnings/", ".prflow/logs/", ".prflow/prompt-extensions/",
+    ".prflow/learnings/", ".prflow/logs/",
+    ".prflow/skill-extensions/", ".prflow/prompt-extensions/",
 )
 # Development workflows that must never reach the distribution repo. The two
 # consumer workflows (devflow.yml, devflow-implement.yml) are distribution assets
@@ -79,7 +80,7 @@ FORBIDDEN_WORKFLOWS = frozenset({
     "ci.yml", "matcher-probe.yml", "version-consolidate.yml",
     "mintlify-check.yml", "agents-seam-probe.yml",
     "devflow-runner.yml", "telemetry-push.yml", "devflow-review.yml",
-    "internal-larger-runner-canary.yml",
+    "internal-larger-runner-canary.yml", "rotate-claude-token.yml",
 })
 
 # Windows reserved device names: a checkout carrying one of these cannot be
