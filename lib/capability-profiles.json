@@ -1,5 +1,5 @@
 {
-  "manifest_version": 34,
+  "manifest_version": 35,
   "readme": [
     "This manifest is the single source of truth for PRFlow's cloud capability policy:",
     "which tools/commands each execution tier (review, implement, command) may run.",
@@ -205,6 +205,7 @@
       "Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*)",
+      "Bash(.prflow/vendor/prflow/scripts/ac-verifier-artifacts.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/validate-issue-claim-audit.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/preflight.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*)",

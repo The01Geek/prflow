@@ -6,14 +6,23 @@
 # The run's identity is its run directory, not a session id (issue #198, supersedes
 # the session-keyed pointer of issue #153). Modes:
 #   --register-slug <slug> --topic <one line> --root <path>  write run-meta.json
-#   --resolve-slug --root <path>                              read back the run's slug
-#   --adopt-slug <slug> --root <path>                         touch a resolved run
-#   --slug <slug> --root <path> ...                           remove the run dir + legacy pointers
+#   --resolve-slug --root <path>                             read back the run's slug
+#   --adopt-slug <slug> --root <path>                        touch a resolved run
+#   --slug <slug> --root <path>|--resolve cwd|main-root …    remove the run dir + legacy pointers
+#   --ensure-run-dir --slug <slug> --resolve main-root       create the per-run scratch dir
 # The registry file lives inside the run directory —
 # `<root>/.prflow/tmp/create-issue/<slug>/run-meta.json` — so a continued session
 # resolves its own run on any harness with only bash, python3 and the filesystem,
 # and no mode reads an environment variable. Best-effort: cleanup runs after issue
 # creation and never blocks it.
+#
+# `--resolve cwd|main-root` resolves a root itself (cwd = git toplevel, pwd fallback;
+# main-root = the sibling resolve-main-root.sh) so a worktree-isolated caller need not
+# command-substitute the root into the fence. `--root <path>` keeps taking a literal path.
+# `--ensure-run-dir` creates <root>/.prflow/tmp/create-issue/<slug>/ under the MAIN-root
+# resolution only and prints `main_root=<abs>` and `run_dir=<abs>`; given `--resolve cwd`,
+# a `--root`, or no `--resolve` it prints `run_dir=none reason=unsupported-resolve` and
+# creates nothing. All modes stay best-effort and exit 0.
 set -u
 
 prog=cleanup-create-issue-run.sh
@@ -32,12 +41,29 @@ is_safe_topic() {
   return 0
 }
 
+# Own directory, so `--resolve main-root` reaches its sibling resolver without a
+# caller-supplied path. `${BASH_SOURCE[0]}` is the file even when sourced.
+self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Resolve one root by mode and echo it (empty on an unknown mode). `cwd` = the nearest
+# git toplevel with a pwd fallback (matching resolve-main-root.sh's own fallback); both
+# resolvers always exit 0, so a resolution hiccup never aborts the caller.
+resolve_root() {
+  case "$1" in
+    cwd) git rev-parse --show-toplevel 2>/dev/null || pwd ;;
+    main-root) "$self_dir/resolve-main-root.sh" 2>/dev/null ;;
+    *) : ;;
+  esac
+}
+
 mode=cleanup
 slug=""
 register_slug=""
 adopt_slug=""
 topic=""
 roots=()
+resolve_modes=()
+ensure_run_dir=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     # `shift; [ … ] && shift` consumes the value only when one is present. A bare
@@ -49,9 +75,37 @@ while [ "$#" -gt 0 ]; do
     --topic) topic="${2:-}"; shift; [ "$#" -gt 0 ] && shift ;;
     --resolve-slug) mode=resolve; shift ;;
     --root) roots+=("${2:-}"); shift; [ "$#" -gt 0 ] && shift ;;
+    --resolve) resolve_modes+=("${2:-}"); shift; [ "$#" -gt 0 ] && shift ;;
+    --ensure-run-dir) ensure_run_dir=1; shift ;;
     *) printf '%s: warning: ignoring unexpected argument %s\n' "$prog" "$1" >&2; shift ;;
   esac
 done
+
+# --ensure-run-dir: create the per-run scratch dir under the MAIN-root resolution only.
+# A --root, a `--resolve cwd`, or no `--resolve main-root` is unsupported here — the caller
+# routes run_dir=none onto its read-only-sandbox fallback exactly as a failed mkdir does.
+if [ "$ensure_run_dir" -eq 1 ]; then
+  has_cwd=0; has_main=0
+  for _m in "${resolve_modes[@]:-}"; do
+    case "$_m" in cwd) has_cwd=1 ;; main-root) has_main=1 ;; esac
+  done
+  if [ "${#roots[@]}" -gt 0 ] || [ "$has_cwd" -eq 1 ] || [ "$has_main" -ne 1 ]; then
+    printf 'run_dir=none reason=unsupported-resolve\n'; exit 0
+  fi
+  if [ -z "$slug" ] || ! [[ "$slug" =~ $safe_slug ]]; then
+    printf 'run_dir=none reason=unsafe-slug\n'; exit 0
+  fi
+  ens_root="$(resolve_root main-root)"
+  if [ -z "$ens_root" ]; then printf 'run_dir=none reason=no-root\n'; exit 0; fi
+  run_dir="$ens_root/.prflow/tmp/create-issue/$slug"
+  if mkdir -p -- "$run_dir" 2>/dev/null; then
+    printf 'main_root=%s\n' "$ens_root"
+    printf 'run_dir=%s\n' "$run_dir"
+  else
+    printf 'run_dir=none reason=mkdir-failed\n'
+  fi
+  exit 0
+fi
 
 # register/resolve/adopt act on the FIRST --root only; a further --root is ignored
 # with one stderr warning naming it, so the single stdout line count stays one.
@@ -183,9 +237,17 @@ PY
   exit 0
 fi
 
-# Cleanup mode. An empty or path-unsafe slug would make the run dir collapse to the
-# shared `create-issue/` namespace root; refusing it (delete nothing, exit 0) is what
-# makes the empty/unset-handle case non-destructive.
+# Cleanup mode. `--resolve cwd|main-root` adds resolved roots beside any `--root`, so a
+# worktree-isolated caller cleans both roots without command-substituting either itself.
+for _m in "${resolve_modes[@]:-}"; do
+  [ -n "$_m" ] || continue
+  _r="$(resolve_root "$_m")"
+  [ -n "$_r" ] && roots+=("$_r")
+done
+
+# An empty or path-unsafe slug would make the run dir collapse to the shared
+# `create-issue/` namespace root; refusing it (delete nothing, exit 0) is what makes the
+# empty/unset-handle case non-destructive.
 if [ -z "$slug" ]; then
   printf '%s: no slug (empty-handle); nothing removed\n' "$prog" >&2
   exit 0

@@ -11,10 +11,10 @@
 # have to the workpad.
 #
 # <state> is one of:
-#   reviewing         -> PRFlow:Reviewing        (1d76db)
-#   approved          -> PRFlow:Approved         (0e8c31)
-#   changes-requested -> PRFlow:ChangesRequested (e4a11b)
-#   review-failed     -> PRFlow:ReviewFailed     (c8201c)
+#   reviewing         -> PRFlow:Reviewing       (1d76db)
+#   approved          -> PRFlow:Approved        (0e8c31)
+#   changes-requested -> PRFlow:ReviewRejected  (e4a11b)
+#   review-failed     -> PRFlow:ReviewStuck     (c8201c)
 #
 # The reconcile is EXACT-MEMBERSHIP over just those four names (mirroring
 # scripts/workpad.py's _reconcile_managed_label): it removes whichever of the
@@ -67,10 +67,10 @@ STATE="${2:-}"
 # The four managed review labels and their pinned colours. `case`, not an
 # associative array, so the SELECTION never depends on anything but bash builtins.
 case "$STATE" in
-    reviewing)         TARGET="PRFlow:Reviewing";        TARGET_COLOR="1d76db" ;;
-    approved)          TARGET="PRFlow:Approved";         TARGET_COLOR="0e8c31" ;;
-    changes-requested) TARGET="PRFlow:ChangesRequested"; TARGET_COLOR="e4a11b" ;;
-    review-failed)     TARGET="PRFlow:ReviewFailed";     TARGET_COLOR="c8201c" ;;
+    reviewing)         TARGET="PRFlow:Reviewing";       TARGET_COLOR="1d76db" ;;
+    approved)          TARGET="PRFlow:Approved";        TARGET_COLOR="0e8c31" ;;
+    changes-requested) TARGET="PRFlow:ReviewRejected";  TARGET_COLOR="e4a11b" ;;
+    review-failed)     TARGET="PRFlow:ReviewStuck";     TARGET_COLOR="c8201c" ;;
     *)
         echo "arg-slip"
         echo "devflow: warning: mirror-review-status-label.sh got an unknown state '${STATE}' (args: $*); expected one of reviewing|approved|changes-requested|review-failed. No label written. This is NOT a harness denial — it is a caller arg-slip." >&2
@@ -87,7 +87,7 @@ esac
 # The complete managed set: the reconcile removes any of these that is not the
 # target, and touches nothing else (so the three implement labels and the PRFlow
 # provenance label are invisible to it — exactly workpad.py's exact-membership rule).
-_MRSL_MANAGED=("PRFlow:Reviewing" "PRFlow:Approved" "PRFlow:ChangesRequested" "PRFlow:ReviewFailed")
+_MRSL_MANAGED=("PRFlow:Reviewing" "PRFlow:Approved" "PRFlow:ReviewRejected" "PRFlow:ReviewStuck")
 _mrsl_is_managed() {  # <label-name> -> rc 0 when the name is one of the four review labels
     local n
     for n in "${_MRSL_MANAGED[@]}"; do

@@ -91,6 +91,14 @@ Nothing here is committed for you. Initialization creates no Git commit on any p
   This write happens immediately, with no separate confirmation. It lands in a committed project file, so anyone who clones the repository inherits it, and because the registration is unpinned a change on the marketplace's default branch changes what runs in the editor. Review it before you commit.
 </Accordion>
 
+<Accordion title="The user-scope task-tools opt-in">
+  On recent models Claude Code leaves its task-tracking tools off by default, so PRFlow's task-tracking skills fall back to a checklist the harness does not persist. To turn them on, initialization deep-merges `env.CLAUDE_CODE_ENABLE_TODO_TOOLS` set to `"1"` into your personal, user-scope `~/.claude/settings.json` — the scope Claude Code reads that setting from.
+
+  This write happens immediately, with no separate confirmation. Unlike the marketplace registration it targets your user-global file, not a committed project file, so your collaborators inherit nothing. It preserves every value you already set, and if the opt-in is already present in that file or already exported in your environment, it changes nothing.
+
+  A settings write cannot affect the session that performs it — Claude Code decides a session's tools at startup — so the tools arrive only in a session you launch after initialization. Start a new session with `claude`, or launch one-shot with `CLAUDE_CODE_ENABLE_TODO_TOOLS=1 claude`.
+</Accordion>
+
 <Accordion title="Other checks">
   - Runs the dependency preflight for Git, a runnable GitHub CLI, `jq`, Python 3.11 or newer and PyYAML. Authentication is a separate `gh auth status` check.
   - Creates the reserved `PRFlow` GitHub label, on a best-effort basis.

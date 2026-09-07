@@ -120,7 +120,7 @@ Caller run-id (run-scoped scratch). This run's scratch under `.prflow/tmp/review
   ```bash
   .prflow/vendor/prflow/scripts/compose-run-key.sh
   ```
-  On a not-found reading (`command not found` / `No such file` / exit 127), re-invoke with the `.prflow/vendor/prflow/` prefix removed; if that too is not found, fall back to the portable anchor:
+  On a not-found reading (`command not found` / `No such file` / exit 127), fall back to the portable anchor:
   ```bash
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/compose-run-key.sh
   ```

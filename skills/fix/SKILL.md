@@ -13,7 +13,7 @@ Consumer prompt extension (load first). Before doing this skill's work, load any
 .prflow/vendor/prflow/scripts/load-prompt-extension.sh fix
 ```
 
-On a `command not found` / `No such file` / exit-127 reading, re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/load-prompt-extension.sh fix`) and route on that outcome; if that too is not found, fall back to the portable anchor form:
+On a `command not found` / `No such file` / exit-127 reading, fall back to the portable anchor form:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh fix

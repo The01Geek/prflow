@@ -21,7 +21,7 @@ python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports 
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-pr-provenance-line.py --command /prflow:create-issue
 ```
 
-Write the current rendered draft title + body to the canonical draft file as part of the run bootstrap — before Step 4's pause and regardless of whether a round is elected (an elected round's audit input is this file, not a hand-condensed copy) — reusing this run's `<slug>` and the identical Step 4 sub-step 2 recipe (resolve `MAIN_ROOT` with `resolve-main-root.sh` via the portable anchor, `mkdir -p "$MAIN_ROOT/.prflow/tmp/create-issue/<slug>"`, title as a top `# ` heading above the body). It is normally the run's first landed canonical-draft write and so its draft-root binding site. Perform it through the Staged canonical-draft write shared procedure below; confirming the write landed is an observation you report — pass the procedure's `agree=` answer as `--write-landed yes|no` to `query-arm`, which decides the arm, never inferred from the absence of an error. Step 4 sub-step 2 keeps writing this same path.
+Write the current rendered draft title + body to the canonical draft file as part of the run bootstrap — before Step 4's pause and regardless of whether a round is elected (an elected round's audit input is this file, not a hand-condensed copy) — reusing this run's `<slug>` and the identical Step 4 sub-step 2 recipe (run sub-step 2's `--ensure-run-dir --resolve main-root` line and write under the printed `run_dir=`, title as a top `# ` heading above the body). It is normally the run's first landed canonical-draft write and so its draft-root binding site. Perform it through the Staged canonical-draft write shared procedure below; confirming the write landed is an observation you report — pass the procedure's `agree=` answer as `--write-landed yes|no` to `query-arm`, which decides the arm, never inferred from the absence of an error. Step 4 sub-step 2 keeps writing this same path.
 
 Run the Verified-premise handle check on the landed bytes (Step 3.5's obligation). Once the write is confirmed landed, run:
 
@@ -55,11 +55,19 @@ Bind the draft root here, once the write is confirmed landed — query first, bi
 - It answers the literal `bound=none` with no `reason=` — a legal unbound run. Run the fence below. That first write records its resolved root through the state owner, immutably for the rest of the run:
 - It answers `bound=none … reason=foreign-nonce` — take the *foreign-nonce arm* below, never the unbound arm. Do not run the fence.
 
+Immediately before the binding fence, in the same turn, re-run the `--ensure-run-dir` line (idempotent) so the main root reaches you as a printed value, not a captured command:
+
 ```bash
-python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py record-draft-binding "<slug>" --nonce "<nonce>" --path "$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/resolve-main-root.sh)" --tier main-root
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/cleanup-create-issue-run.sh --ensure-run-dir --slug <slug> --resolve main-root
 ```
 
-Re-resolve the root inline in that statement; never pass `$MAIN_ROOT` — each ```bash fence is a separate shell, so a variable from the write fence expands empty here and the bind fails closed (`binding-path-not-absolute`). Inline re-resolution is for the binding site only; later sites read the bound root back from `query-draft-binding`.
+Transcribe the printed `main_root=<absolute path>` into the binding fence's `--path` — never a captured variable, never a nested command substitution:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py record-draft-binding "<slug>" --nonce "<nonce>" --path <main_root> --tier main-root
+```
+
+Each ```bash fence is a separate shell, so an empty capture would fail the bind closed (`binding-path-not-absolute`). A `run_dir=none reason=<word>` line means the root did not resolve — take the legitimately-unbound arm below rather than binding.
 
 `binding-already-recorded` is a benign, expected outcome: if you ran the fence on an already-bound run, the tool refuses with that breadcrumb — re-read `query-draft-binding`, take the `bound=` root, and proceed as if you had skipped the fence, never retrying or reporting it.
 

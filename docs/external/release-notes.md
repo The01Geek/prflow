@@ -11,6 +11,34 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## September 6, 2026
+
+- **`/prflow:init` now turns on Claude Code's task-tracking tools for your future sessions.** Since Claude Code v2.1.233 the task tools (`TaskCreate`, `TaskGet`, `TaskUpdate`, `TaskList`, `TodoWrite`) are off by default on newer models unless you opt in, which silently degraded PRFlow's task-tracking skills to a non-persisted checklist. Init now deep-merges `env.CLAUDE_CODE_ENABLE_TODO_TOOLS = "1"` into your user-scope `~/.claude/settings.json` when the opt-in is set in neither the environment nor that file, preserving every value you already set, and prints a notice that the setting takes effect only in a newly launched session. A pre-existing value or an environment override is left untouched. (#207)
+- **Clearer review status-label names.** When the config-gated review status-label mirror (`review_status_labels.enabled`, off by default) is on, a completed review whose verdict is reject is now labelled `PRFlow:ReviewRejected`, and a review that did not complete (no verdict, dead run, evidence-gate failure, or finalizer catch) is now labelled `PRFlow:ReviewStuck`. `PRFlow:Reviewing` and `PRFlow:Approved` are unchanged, as are all four labels' colors. The two states remain distinct — this renames the labels for readability, and does not merge them. Any older-named label already applied to an issue or PR is left in place and can be deleted manually. (#214)
+- **`/prflow:review-and-fix` now finds the review engine that ships with the running
+  plugin.** On a thin install the fix loop's engine lookup previously checked only three
+  repository-root-anchored directories — none of which exists on a consumer's own machine —
+  and halted before reviewing anything, naming a `/prflow:init` remedy that creates no such
+  directory. The lookup now appends one last candidate, the running plugin's own `review`
+  sibling of the loop's skill directory, so a thin-install consumer regains the local fix
+  loop and the local `/prflow:implement` lifecycle. The three repository-anchored candidates
+  keep their order and win when present, so committed-vendor consumers, cloud runs, and this
+  repository's own runs are unchanged; a stale leftover vendored tree is now reported with a
+  version-mismatch note instead of being run silently. (#213)
+- **Code review now flags references a change breaks outside the PR diff.** When a diff removes or
+  renames a distinctive string literal or identifier, the `code-reviewer` agent searches the whole
+  checked-out repository for surviving references to the old value and reports the ones that live
+  outside the diff and stay keyed on it, so a rename that silently breaks an unmodified file is
+  caught at review time instead of shipping green. (#212)
+- **Acceptance-criteria verifier reports now reach reconciliation directly, guarded against
+  unrelated checkout changes.** During an implement run's acceptance-criteria gate, the two
+  verifiers now write their JSON reports straight to per-attempt destinations instead of having
+  the orchestrator copy them, so criterion statuses, evidence and reasons can no longer be lost
+  in transcription. A new checkout-fingerprint guard compares the checkout before and after the
+  verifiers run and blocks the gate if anything unrelated changed, naming the drifted fields and
+  offending paths so the change can be investigated. (#219)
+- **The final documentation pass now refuses Documentation Needed deliverables outside documentation locations.** `/prflow:implement`'s documentation step accepts a deliverable named in an issue's **Documentation Needed** block only when its path sits inside a documentation location — the configured internal or external documentation root, the release-notes file, the changelog file, or `README.md`. A deliverable naming any other path is skipped and recorded, and the run finishes normally, so the pass can no longer commit an unreviewed edit to a non-documentation file it was handed as a deliverable after code review has finished. `/prflow:create-issue` also stops writing such paths into that block. (#222)
+
 ## September 5, 2026
 
 Rename the consumer-facing per-skill extension directory from `.prflow/prompt-extensions/` to `.prflow/skill-extensions/`. `/prflow:init` migrates an existing `.prflow/prompt-extensions/` directory in place (renaming nothing when both directories already exist and reporting a conflict to reconcile by hand), and every reader resolves `.prflow/skill-extensions/` first and falls back to a present `.prflow/prompt-extensions/` with a migrate breadcrumb during the transition, so an un-migrated consumer keeps working. The `DEVFLOW_PROMPT_EXTENSION_ROOT` environment variable and the helper filenames are unchanged.
@@ -22,6 +50,8 @@ Rename the consumer-facing per-skill extension directory from `.prflow/prompt-ex
   start time. A new `scripts/check-draft-provenance.py` checker, run in the draft bootstrap
   beside the existing two, catches a provenance signature that landed mid-body before the draft
   is presented. (#198)
+- **An explicit empty `docs.labels` / `deferred.labels` value now applies no labels instead of falling back to the default.** Previously a present-but-empty value (`""`) was coerced to the caller's fallback, so `/prflow:implement` still labelled its PRs `Documented` (and its deferred follow-up issues `PRFlow,Deferred`) even when the config set the key to `""` to turn labels off; the only working off-switch was the non-obvious `","`. `scripts/apply-labels.sh` config mode now gates the fallback on a new opt-in `config-get.sh --presence` probe, so a key that is present-but-empty means "apply no labels" while the default applies only when the key is genuinely absent (a JSON `null` counts as absent). A whitespace- or separators-only value still applies none, and a non-empty value still applies exactly those labels — both unchanged. The shared `config-get.sh` resolver's default read is untouched for every other key. (#208)
+- **`/prflow:specs` now applies the same customization file as `/prflow:create-issue`, and create-issue's helper fences run in a worktree-isolated session.** The create-issue pipeline reads one prompt-extension file, `.prflow/skill-extensions/create-issue.md`, on both command names; the `/prflow:specs` alias no longer loads a separate `specs.md`, and `/prflow:init` no longer scaffolds a `specs.md.example` (removing a stale one on its next run). When a stray `specs.md` sits beside `create-issue.md`, the loader prints one line naming it and pointing at `create-issue.md`, and the create-issue run surfaces that line to you rather than silently ignoring the file. The create-issue skill's per-finding audit ledger now reaches the state owner from a file rather than a stdin heredoc, and the create-issue command fences no longer use the shell shapes a worktree-isolated Claude Code session refuses. (#200)
 
 ## September 4, 2026
 

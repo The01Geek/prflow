@@ -15,8 +15,8 @@ Adapt PRFlow's documentation pass and local weekly retrospective to your reposit
 | `docs.external_enabled` | Boolean | `true` | Combined docs pass. Direct invocation of the focused skill is unaffected. | `"external_enabled": true` |
 | `docs.release_notes_file` | String path | `docs/external/release-notes.md` | Release-note skill. This is customer-facing output. | `"release_notes_file": "docs/external/release-notes.md"` |
 | `docs.changelog_file` | String path | `CHANGELOG.md` | Release-note reconciliation. | `"changelog_file": "CHANGELOG.md"` |
-| `docs.labels` | Comma-separated string | `Documented` | Implementation applies labels best effort after the docs pass. | `"labels": "Documented,Shipped"` |
-| `deferred.labels` | Comma-separated string | `PRFlow,Deferred` | Follow-up issue filing. Labels are applied best effort. | `"labels": "PRFlow,Deferred"` |
+| `docs.labels` | Comma-separated string | `Documented` | Implementation applies labels best effort after the docs pass. Set an explicit empty string (or a whitespace/separators-only value) to apply no labels; the `Documented` default applies only when the key is absent (a JSON `null` counts as absent). | `"labels": "Documented,Shipped"` |
+| `deferred.labels` | Comma-separated string | `PRFlow,Deferred` | Follow-up issue filing. Labels are applied best effort. Set an explicit empty string (or a whitespace/separators-only value) to apply no labels; the `PRFlow,Deferred` default applies only when the key is absent (a JSON `null` counts as absent). | `"labels": "PRFlow,Deferred"` |
 | `create_issue.investigation_record_enabled` | Boolean | `true` | `/prflow:create-issue` publication gate. Publication is withheld only when the value reads as the literal `false`. Sorting the draft into the implementer brief (issue body) and the investigation record is unaffected either way; when `false`, the record comment is not posted. | `"investigation_record_enabled": true` |
 
 ## Weekly Retrospective

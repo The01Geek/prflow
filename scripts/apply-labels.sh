@@ -87,9 +87,16 @@ done
 # Resolve the label source. Config mode reads the list through config-get.sh (a preflight
 # tool: python3), so a hard config read failure (corrupt config.json, missing python3 →
 # config-get rc≠0) emits its own token rather than being misread as "no labels". A configured
-# EMPTY string resolves to the caller's fallback inside config-get; a configured
-# whitespace/separator-only value comes back verbatim and normalizes to nothing below.
+# present-but-empty string is an off-switch (issue #208): it applies no labels, and only an
+# absent or JSON-null key falls back to the caller's default; a whitespace/separator-only value
+# comes back verbatim and normalizes to nothing below.
 if [ "$_CONFIG_MODE" -eq 1 ]; then
+    # Gate the fallback on presence (issue #208): read a present key with an EMPTY fallback; an
+    # unreadable probe prints nothing → guard false → caller fallback kept (pre-#208), and the
+    # value read below reports the real failure.
+    if [ "$("$_APPLY_LABELS_DIR/config-get.sh" --presence "$_CONFIG_KEY" 2>/dev/null)" = "present" ]; then
+        _CONFIG_FALLBACK=""
+    fi
     if _CFG_RAW="$("$_APPLY_LABELS_DIR/config-get.sh" "$_CONFIG_KEY" "$_CONFIG_FALLBACK")"; then
         # Wrong-type guard (the six-shape config matrix's object/array row): config-get.sh
         # coerces a JSON OBJECT to the sentinel "[object Object]" and exits 0 — applied verbatim

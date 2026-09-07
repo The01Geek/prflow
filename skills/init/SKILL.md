@@ -223,6 +223,16 @@ With no argument it targets the current repo root and deep-merges the marketplac
 
 It is local/interactive-tier only — the cloud (CI) tier consumes no local marketplace install, so a cloud-only `install.sh` run writes no `.claude/settings.json`. It is idempotent (re-running after the keys exist changes nothing) and writes no `permissions.defaultMode`.
 
+## Then: enable the Claude Code task-tracking tools (user scope)
+
+On newer models Claude Code leaves its task-tracking tools off by default, so PRFlow's task-tracking skills silently drop to a non-persisted checklist unless the developer opts in. This step provisions that opt-in into the developer's user-scope `~/.claude/settings.json`:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/provision-user-settings.sh
+```
+
+Like the marketplace registration above this write is UNGATED — immediate, no separate confirmation — but the target is the developer's personal `~/.claude/settings.json`, not a committed project file, so collaborators inherit nothing. It deep-merges `env.CLAUDE_CODE_ENABLE_TODO_TOOLS: "1"` only when the opt-in is set in neither the environment nor that file, preserving every value already there; a value already present, or the variable already set in the environment, is left untouched. A settings write can never affect the session that performs it (Claude Code registers a session's tools at its start), so relay the helper's new-session notice: the tools arrive only in a session launched after the write.
+
 ## Then: enrich the `setup` block by exploring the repo
 
 The scaffolder's language detection is a deterministic floor (marker file → tool list + install line); it cannot infer service dependencies, runtime versions, or extensions. After it runs, read the repo and fill in the `setup` fields a marker→list table can't, editing `.prflow/config.json` directly (schema-validated; see `config.schema.json`). Add only what the project's tests actually need — each addition runs in the cloud tier.
@@ -293,6 +303,12 @@ Read the settings provisioner's `devflow-settings:` line and respond:
 - `provisioned <path>: … Review the change before committing.` (a success with no `(added: …)` list) or `provisioned <path> but could not summarize which keys changed (delta probe failed).` (exit 0) — the write succeeded but the change summary was empty or uncomputable, so tell the user the settings were provisioned and to review the change before committing.
 - `no usable jq (missing or not executable) …` (exit 2) — relay the gap (the breadcrumb names the `DEVFLOW_JQ` remedy); the marketplace settings were not provisioned. (The same `jq` the scaffolder needs.)
 - Any other `devflow-settings:` line not matched above — this is the fallback: relay it verbatim to the user, do not hand-edit the settings file, and if it names an exit-2 failure tell the user to re-run `/prflow:init` after addressing the cause it reports.
+
+Read the task-tools provisioner's `devflow-settings:` line and respond:
+
+- `enabled the Claude Code task tools …` — the opt-in was added to `~/.claude/settings.json`; relay the breadcrumb's new-session notice verbatim (the tools take effect only in a newly launched session — `claude`, or the one-shot `CLAUDE_CODE_ENABLE_TODO_TOOLS=1 claude`), since the current session is unaffected.
+- `… already sets env.CLAUDE_CODE_ENABLE_TODO_TOOLS …` or `… already set in the environment …` — the opt-in was already present; nothing to report.
+- any exit-2 `devflow-settings:` line (unreadable, NUL byte, not valid JSON, not a JSON object, non-object `env`, a directory at the path, or a write failure) — relay the specific breadcrumb and tell the user to fix or remove `~/.claude/settings.json`, then re-run `/prflow:init`; this never fails init.
 
 Then branch on the preflight result — the exit code plus, on exit 0, the stable token in its final line (exit 0 has two sub-cases the exit code alone can't tell apart; the wording around the tokens can change, the tokens won't):
 

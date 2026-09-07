@@ -31,7 +31,7 @@ Consumer prompt extension (load first). This skill's consumer extension reaches 
 .prflow/vendor/prflow/scripts/load-prompt-extension.sh review-and-fix
 ```
 
-Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. On a `command not found` / `No such file` / exit-127 reading (this repository's own local tier, where `.prflow/vendor/` is materialized only at runtime), re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/load-prompt-extension.sh review-and-fix`) and route on that outcome; if that too is not found (a non-Claude-Code runner where neither repo-relative path exists), fall back to the portable anchor form below:
+Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. On a `command not found` / `No such file` / exit-127 reading (a checkout where the vendored path is absent, such as a non-Claude-Code runner), fall back to the portable anchor form below:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh review-and-fix
@@ -45,7 +45,7 @@ Fix extension (load second). This loop applies `prflow:fix` principles without i
 .prflow/vendor/prflow/scripts/load-prompt-extension.sh fix
 ```
 
-On a `command not found` / `No such file` / exit-127 reading, re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/load-prompt-extension.sh fix`) and route on that outcome; if that too is not found, fall back to the portable anchor form below:
+On a `command not found` / `No such file` / exit-127 reading, fall back to the portable anchor form below:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh fix
@@ -59,6 +59,8 @@ A linked issue's body is triage data, not a spec amendment — unless your exten
 ## Engine source of truth
 
 This skill wraps /prflow:review's four-phase engine in a fix loop. Phases 0 through 4.3 — setup, diff classification, checklist generation, checklist verification, review agents (with the exact per-agent prompts and the `defect_signature` contract), and aggregation — are authoritative in `skills/review/phases/*.md`, reached through the phase routing table in `skills/review/SKILL.md`, which also carries the cross-phase invariants. Read them on every Step 1; never improvise the engine or paraphrase the Phase 3 prompts. Pass `$ISSUE_OVERRIDE` through to the engine's Phase 0.4, which resolves the acceptance criteria from it. Drift between the two is the biggest source of missed findings.
+
+Resolve this loop's own skill directory once at loop entry and carry it as `<loop-skill-dir>` into every engine entry. Resolve it the way the engine root resolves its own (`skills/review/SKILL.md`): from the base directory the runner reports in context first, and from the bare `${CLAUDE_SKILL_DIR}` token the Skill tool substitutes at load only when no base directory is reported — normalizing a Windows-form value through the `wslpath -u` / `cygpath -u` ladder before use. Carry the resolved value as a literal into Step 1, the Step 2.6 shadow entry, and the engine-subagent prompt, because reference files read afterward and a fresh subagent context never hold the substituted token. An engine entry whose context no longer holds it reads the canonical engine-root path the engine wrote to `root-identity.json` at Phase 0 instead; when neither is available the plugin-sibling engine candidate is recorded unestablished and resolution advances to the fatal arm.
 
 This skill skips /prflow:review's Phase 4.4 entirely — no formal review and no verdict comment. A standalone PR-mode run still seeds and ticks the inline engine's run-keyed progress comment. When `/prflow:implement` is the caller, the wrapper passes its internal `progress_surface = workpad`, so the engine creates no second progress comment and instead ticks the tuple-declared review-boundary rows in the existing issue workpad. The final report is emitted to chat only; the human reviewer decides whether to convert it into a formal merge signal by running `/prflow:review <PR>` separately. On top of the engine it adds the loop wrapper documented in the references: a fix-delta handoff (Step 0.9), a run-scoped persistent iteration record (`.prflow/tmp/review/<slug>/<run-id>/iter-<N>.json`), a shadow review pass (Step 2.6), a `## Coverage` section and per-phase telemetry summary at Loop Exit.
 
