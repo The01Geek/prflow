@@ -18,9 +18,13 @@
 #       enabledPlugins["prflow@devflow-marketplace"]=true, so Claude Code keeps
 #       the PRFlow plugin updated.
 #
-# NOTE — this provisioner writes no permission-gating env var. Claude Code honors
-# those only from user scope (~/.claude/settings.json) or managed settings, so
-# writing one into the project .claude/settings.json is a silent no-op.
+# NOTE — this PROJECT-scope provisioner writes no env var of its own: Claude Code
+# honors a permission-gating env var only from user scope (~/.claude/settings.json)
+# or managed settings, so writing one into the project .claude/settings.json is a
+# silent no-op. PRFlow's one env-var write lives in the sibling
+# provision-user-settings.sh, which /prflow:init runs to write the task-tools opt-in
+# (CLAUDE_CODE_ENABLE_TODO_TOOLS) to USER scope; keeping the two separate is what
+# guarantees the project file still gains no env block (issue #88 / #207).
 #
 # Mirrors scaffold-config.sh's contract: deterministic, idempotent, never
 # clobbers user values, prints a stable `devflow-settings:` breadcrumb per

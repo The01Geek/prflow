@@ -74,6 +74,16 @@ else
     prflow_state_dir() { printf '%s' "${1:-}/.prflow"; }
 fi
 
+# Opt-in --presence mode (issue #208): `--presence KEY [CONFIG_FILE]` reports whether KEY is
+# present, letting the label seam tell present-but-empty ("no labels") from absent ("fallback").
+# The reshape re-homes CONFIG_FILE to $3 (presence takes no DEFAULT); the default read is unchanged.
+_PRESENCE_MODE=0
+if [ "${1:-}" = "--presence" ]; then
+    _PRESENCE_MODE=1
+    shift
+    [ "$#" -ge 2 ] && set -- "$1" "" "$2"
+fi
+
 key="${1:-}"
 has_default=0
 if [ $# -ge 2 ]; then
@@ -124,6 +134,36 @@ fi
 if [ -z "$key" ]; then
     echo "config-get.sh: usage: config-get.sh KEY [DEFAULT] [CONFIG_FILE]" >&2
     exit 2
+fi
+
+# --presence probe (issue #208): print `present` when KEY resolves to a non-null value, else
+# `absent` — a missing file, a missing path segment, and an explicit JSON null all read `absent`.
+if [ "$_PRESENCE_MODE" -eq 1 ]; then
+    if [ ! -f "$config_file" ]; then
+        printf '%s\n' "absent"
+        exit 0
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "config-get.sh: 'python3' is required to read $config_file" >&2
+        exit 2
+    fi
+    DEVFLOW_KEY="${key#.}" DEVFLOW_CONFIG="$config_file" python3 -c '
+import json, os, sys
+try:
+    with open(os.environ["DEVFLOW_CONFIG"], encoding="utf-8") as f:
+        data = json.load(f)
+except Exception as e:
+    sys.stderr.write("config-get.sh: " + str(e) + "\n")
+    sys.exit(2)
+cur = data
+for part in os.environ["DEVFLOW_KEY"].split("."):
+    if not isinstance(cur, dict) or part not in cur:
+        print("absent")
+        sys.exit(0)
+    cur = cur[part]
+print("absent" if cur is None else "present")
+'
+    exit 0
 fi
 
 # Superseded-key probe (issues #988, #1002). Fires ONLY on the miss path, so the

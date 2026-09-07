@@ -47,7 +47,7 @@ The five arguments, in order:
 One invocation procedure, tier-agnostic — never classify your own tier. The command above is the granted form on every tier: emit the vendored literal as the leading token first, cloud and local alike. Then read the *observable result of that first attempt* to decide whether a second is needed — never a judgement about which tier the run is on:
 
 - It produced an outcome line (`POSTED …` / `FAILED …` / `SKIP …`), or no output at all — the helper resolved, or the harness refused it. Route on that result per the outcome vocabulary below; do not re-invoke at another path (a silent no-output reading is a harness refusal, which the vocabulary's *No output at all* arm already handles — it is never a not-found).
-- It reported the file was not found — a `command not found` / `No such file` / exit 127 reading, which is distinct from the silent no-output of a harness refusal. Re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (its repo-root path) as a single leading-token statement, then route on *that* invocation's outcome line.
+- It reported the file was not found — a `command not found` / `No such file` / exit 127 reading, which is distinct from the silent no-output of a harness refusal. Fall back to the portable anchor `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/post-review-verdict.sh` (same arguments) as a single leading-token statement, then route on *that* invocation's outcome line.
 
 Read the helper's FIRST stdout line — the outcome line — and route on it. The vocabulary is closed, names the durable channel that received the verdict, and has no silent path:
 
@@ -68,7 +68,7 @@ Then, on any APPROVE form only (APPROVE / APPROVE with notes / APPROVE WITH CAVE
 .prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh "$PR_NUMBER"
 ```
 
-Pass `"$PR_NUMBER"` here, never `"$ARGUMENTS"`. (The same tier-agnostic invocation procedure as the verdict post applies here: emit the vendored literal first, and only on a not-found / rc-127 reading of that attempt re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed — never on a tier judgement.)
+Pass `"$PR_NUMBER"` here, never `"$ARGUMENTS"`. (The same tier-agnostic invocation procedure as the verdict post applies here: emit the vendored literal first, and only on a not-found / rc-127 reading of that attempt fall back to the portable anchor `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/dismiss-stale-rejections.sh "$PR_NUMBER"` — never on a tier judgement.)
 
 Record the dismissal's exit code. On a `POSTED review` APPROVE, a non-zero exit is reported in chat output (token scope) and that the PR stays blocked until dismissed manually. On a `FAILED no-durable-channel` / `SKIP …` / silent APPROVE, the dismissal ran with no formal review at all, so write its outcome into the fallback comment's failure record (dismissed / non-zero exit and cause). On a `POSTED comment` APPROVE the helper already posted the only durable artifact and you add no second comment, so report the dismissal outcome in chat output alongside the failed-review-post note. A dismissal failure never downgrades the verdict — it stands; only merge-gate housekeeping failed.
 

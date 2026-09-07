@@ -18,7 +18,7 @@ Consumer prompt extension (load first). This skill's consumer extension reaches 
 .prflow/vendor/prflow/scripts/load-prompt-extension.sh pr-description
 ```
 
-On a `command not found` / `No such file` / exit-127 reading (this repository's own local tier, where `.prflow/vendor/` is materialized only at runtime), re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/load-prompt-extension.sh pr-description`) as a single leading-token statement. If that too is not found (a non-Claude-Code runner where neither repo-relative path exists), fall back to the portable anchor form:
+On a `command not found` / `No such file` / exit-127 reading (a checkout where the vendored path is absent, such as a non-Claude-Code runner), fall back to the portable anchor form:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh pr-description

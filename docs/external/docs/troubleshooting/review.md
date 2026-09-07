@@ -153,11 +153,13 @@ Fresh installations do not include the old automatic `Devflow Review` status wor
 
 **Symptom:** the run reports `engine-root: incomplete` together with the path it read, and applies no fixes.
 
-`/prflow:review-and-fix` reads PRFlow's review engine from your repository as a file, and confirms it received that file whole before acting on it. When it cannot confirm that, it stops rather than reviewing your pull request against a partly loaded engine. A run that stops this way has applied no fixes and reports no verdict, so nothing has been assessed.
+`/prflow:review-and-fix` reads PRFlow's review engine as a file, and confirms it received that file whole before acting on it. When it cannot confirm that, it stops rather than reviewing your pull request against a partly loaded engine. A run that stops this way has applied no fixes and reports no verdict, so nothing has been assessed.
+
+On a local-tier run the engine is read from the vendored tree in your repository when one exists, and otherwise from the plugin you have installed — so a repository with no committed `skills/` directory and no runtime-vendored `.prflow/vendor/` tree still finds the engine that ships with the running plugin. A cloud run always reads the vendored tree.
 
 Check these in order:
 
-- **The engine file cannot be read.** Confirm the run can read `.prflow/vendor/prflow/skills/review/SKILL.md` in your repository. Fix file permissions, or re-run the installer with your current tag if the vendored copy is missing or incomplete — see [Cloud Updates](/docs/runs/cloud/updates).
+- **The engine file cannot be read.** Confirm the run can read the engine's `SKILL.md` — `.prflow/vendor/prflow/skills/review/SKILL.md` when your repository has a vendored tree, otherwise the copy inside the installed plugin. Fix file permissions, or re-run the installer with your current tag if the vendored copy is missing or incomplete — see [Cloud Updates](/docs/runs/cloud/updates).
 - **Your client cannot read a file in parts.** PRFlow confirms it reached the end of the engine file by reading past what it already holds. A client whose file reader does not accept a starting position cannot answer that question, so the run stops even when the file is intact. Run the workflow from a client whose file reader accepts a starting position.
 
 The second, independent pass reads the engine the same way. When the condition occurs there, the run does not stop. It reports a coverage gap for that pass and continues.

@@ -79,7 +79,7 @@
     },
     "review_status_labels": {
       "type": "object",
-      "description": "Mirror a cloud /prflow:review run's status onto four managed GitHub labels on the pull request and each issue it closes (issue #104), so a maintainer sees whether a review is running, approved, requested changes, or died from the issue/PR LIST without opening the run's progress comment — beside the implement status labels (status_labels, #2117). The four managed labels are PRFlow:Reviewing (a review is running), PRFlow:Approved (a determined approve), PRFlow:ChangesRequested (a determined reject), PRFlow:ReviewFailed (no determined verdict, a dead run, an evidence-gate fail, or the finalizer catch). The labels are a derived mirror of the run's progress comment, which stays the source of truth, and are written best-effort by scripts/mirror-review-status-label.sh from the devflow.yml command/review_finalize jobs (never from the review skill, whose downscoped token cannot write issues). OFF by default: the key is absent from consumer configs, so a consumer run makes no label request; only a local interactive review and /prflow:review-and-fix are out of scope regardless.",
+      "description": "Mirror a cloud /prflow:review run's status onto four managed GitHub labels on the pull request and each issue it closes (issue #104), so a maintainer sees whether a review is running, approved, requested changes, or died from the issue/PR LIST without opening the run's progress comment — beside the implement status labels (status_labels, #2117). The four managed labels are PRFlow:Reviewing (a review is running), PRFlow:Approved (a determined approve), PRFlow:ReviewRejected (a determined reject), PRFlow:ReviewStuck (no determined verdict, a dead run, an evidence-gate fail, or the finalizer catch). The labels are a derived mirror of the run's progress comment, which stays the source of truth, and are written best-effort by scripts/mirror-review-status-label.sh from the devflow.yml command/review_finalize jobs (never from the review skill, whose downscoped token cannot write issues). OFF by default: the key is absent from consumer configs, so a consumer run makes no label request; only a local interactive review and /prflow:review-and-fix are out of scope regardless.",
       "additionalProperties": true,
       "properties": {
         "enabled": {
@@ -1069,7 +1069,7 @@
         },
         "labels": {
           "type": "string",
-          "description": "Comma-separated list of labels applied by /prflow:implement once its docs pass has run. Each entry is trimmed and empty entries are dropped, so \"Documented, Shipped\" applies both Documented and Shipped.",
+          "description": "Comma-separated list of labels applied by /prflow:implement once its docs pass has run. Each entry is trimmed and empty entries are dropped, so \"Documented, Shipped\" applies both Documented and Shipped. An explicit empty string applies no labels (the off-switch), as does a whitespace- or separators-only value (e.g. \",\"); the \"Documented\" default applies only when the key is absent from the config.",
           "default": "Documented"
         }
       }
@@ -1091,7 +1091,7 @@
       "properties": {
         "labels": {
           "type": "string",
-          "description": "Comma-separated list of labels applied to the follow-up issues /prflow:implement files for deferred work \u2014 both Phase 4.0 deferred-acceptance-criteria issues and Phase 4.0.5 deferred-review-finding issues. Each entry is trimmed and blank entries are dropped, so \"PRFlow, Deferred\" applies both PRFlow and Deferred, and a whitespace-only or all-separators value (e.g. \" , \") normalizes to none, applying no labels. (A literal empty string resolves to this default rather than meaning no-labels, matching how config defaults resolve; set a whitespace value to apply none.) Labels are ensured to exist and applied best-effort after the issue is created, so a label hiccup never blocks filing. This is separate from the hardcoded `PRFlow` provenance label that retrospective detection (lib/scan.sh, lib/classify-pr-kind.jq) matches literally (it also still accepts the superseded `DevFlow` spelling on pre-rename artifacts) \u2014 only deferred-issue labeling is configurable here.",
+          "description": "Comma-separated list of labels applied to the follow-up issues /prflow:implement files for deferred work \u2014 both Phase 4.0 deferred-acceptance-criteria issues and Phase 4.0.5 deferred-review-finding issues. Each entry is trimmed and blank entries are dropped, so \"PRFlow, Deferred\" applies both PRFlow and Deferred. An explicit empty string applies no labels (the off-switch), as does a whitespace-only or all-separators value (e.g. \" , \"); the \"PRFlow,Deferred\" default applies only when the key is absent from the config. Labels are ensured to exist and applied best-effort after the issue is created, so a label hiccup never blocks filing. This is separate from the hardcoded `PRFlow` provenance label that retrospective detection (lib/scan.sh, lib/classify-pr-kind.jq) matches literally (it also still accepts the superseded `DevFlow` spelling on pre-rename artifacts) \u2014 only deferred-issue labeling is configurable here.",
           "default": "PRFlow,Deferred"
         }
       }

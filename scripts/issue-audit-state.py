@@ -385,8 +385,8 @@ _CALLER_SUPPLIED_FLAGS = {
     '--instructions-object-id', '--extra-dispatch-content',
     # 4. A free-text reason or id list.
     '--reason', '--resolved-ids', '--ids',
-    # 5. A stdin-payload flag.
-    '--ledger-stdin', '--coverage-stdin', '--stdin-digest',
+    # 5. A caller-supplied payload flag (a stdin transport, or --ledger-file's path).
+    '--ledger-file', '--coverage-stdin', '--stdin-digest',
     # 6. A caller-INTENT operand whose value selects which operation runs. `--round` is
     #    that operand on exactly the two subcommands named in `_ROUND_IS_CALLER_INTENT`;
     #    it is state-derivable elsewhere, so it is keyed by subcommand rather than
@@ -464,7 +464,7 @@ _LEDGER_INGESTED_RESOLVED = 'resolved-at-adjudication'
 # before any revision was recorded. The staleness comparison counts it as 0.
 _PRE_REVISION = 'pre-revision'
 
-# The two statuses a `--ledger-stdin` line may ingest as. The line prefix IS the status
+# The two statuses a `--ledger-file` line may ingest as. The line prefix IS the status
 # followed by ": ", so the prefix is derived rather than stored beside it — one spelling,
 # no way for the two halves to disagree.
 _LEDGER_PREFIXES = ('unresolved', 'resolved')
@@ -2679,7 +2679,7 @@ def _effective_unresolved(state):
     NOT a migration artifact — do not read this as legacy-only:
       * a PRE-CHANGE earlier round, written before ledgers existed; and
       * a post-change round adjudicated `REVISE` with an `unestablished` count, which
-        `cmd_record_adjudication` accepts WITHOUT a ledger (the `--ledger-stdin`
+        `cmd_record_adjudication` accepts WITHOUT a ledger (the `--ledger-file`
         requirement is keyed on a SETTLED count), and which stops being the latest
         completed round as soon as a further round completes.
     So a run whose earlier round holds unestablished findings can report `converged=yes
@@ -6386,33 +6386,33 @@ def cmd_record_adjudication(args):
                   f'total {_class_total} (must_revise {args.must_revise} + advisory '
                   f'{args.advisory} + invalid {args.invalid}) (findings-count-mismatch); '
                   f'every returned finding lands in exactly one class')
-    # ── The per-finding ledger (issue #603 AC1/AC20) ──────────────────────────────
+    # ── The per-finding ledger (issue #603 AC1/AC20; #200 file transport) ─────────
     # A REVISE adjudication with a SETTLED count records one ledger entry per must-revise
-    # finding. The flag gate mirrors record-revision's `--stdin-digest`: the tool never
-    # performs a BARE stdin read, so a legacy caller that pipes nothing can never block.
-    # Recording is not skippable on that shape — its absence is a refusal — which is the
-    # property that makes the run-wide aggregate and the reconciliation discipline total
-    # over post-change rounds. A FILE verdict and a `REVISE … unestablished` adjudication
-    # take no flag, read no stdin, and record no ledger: their call shapes stay
-    # byte-compatible with the pre-#603 CLI.
+    # finding. The ledger reaches the tool from a file the skill authors with its file-write
+    # tool (issue #200), so a worktree-isolated session has one worktree-safe ledger location
+    # and no shell heredoc. Recording is not skippable on that shape — a missing --ledger-file
+    # is a refusal — which is the property that makes the run-wide aggregate and the
+    # reconciliation discipline total over post-change rounds. A FILE verdict and a
+    # `REVISE … unestablished` adjudication take no flag and record no ledger: their call
+    # shapes stay byte-compatible with the pre-#603 CLI.
     ledger_shape = args.verdict == 'REVISE' and isinstance(unresolved, int)
     ledger = None
-    if getattr(args, 'ledger_stdin', False):
+    if getattr(args, 'ledger_file', None) is not None:
         if not ledger_shape:
             _fail('record-adjudication',
-                  '--ledger-stdin is only accepted on a REVISE adjudication with a '
+                  '--ledger-file is only accepted on a REVISE adjudication with a '
                   'settled unresolved count (ledger-not-applicable); a FILE verdict and '
                   f'a REVISE + {_UNESTABLISHED!r} adjudication record no ledger')
         ledger = _ingest_ledger(args, args.must_revise, unresolved)
     elif ledger_shape:
         _fail('record-adjudication',
               f'a REVISE adjudication with a settled unresolved count requires '
-              f'--ledger-stdin carrying {args.must_revise} status-prefixed finding '
+              f'--ledger-file naming {args.must_revise} status-prefixed finding '
               f'summaries (ledger-required); the ledger is the durable identity record '
               f'the post-close resolution channels name entries from')
     # ── Per-finding advisory/invalid records (issue #743) ──────────────────────────
     # The deterministic recording floor: a non-zero --advisory/--invalid count REQUIRES a
-    # matching per-finding records file (like --ledger-stdin's ledger-required floor), so the
+    # matching per-finding records file (like --ledger-file's ledger-required floor), so the
     # floor is total over post-change rounds. A zero count with no file records nothing,
     # keeping the pre-#743 call shape byte-compatible for a round with no advisory/invalid
     # grade. A records file supplied against a zero count is refused by the count arm inside
@@ -6519,25 +6519,55 @@ def _read_stdin_lines(args, command, what, token):
     return [ln for ln in raw.split('\n') if ln.strip()]
 
 
-def _ingest_ledger(args, must_revise, unresolved):
-    """Read `--ledger-stdin` and build the round's ledger, or fail closed.
+def _read_ledger_file_lines(path):
+    """Read the finding ledger's non-blank lines from `--ledger-file`, or fail closed
+    (issue #200).
 
-    The transport is deliberately line-oriented text, not a structured payload: the
-    skill's fence pipes the lines through a QUOTED-delimiter heredoc (`<<'LEDGER-EOF'`),
-    so the shell never expands the `$(…)`, backticks, and quotes that auditor-derived
-    summaries routinely contain. A summary line byte-equal to the delimiter truncates the
-    stream, which is caught downstream (typically by the `ledger-line-count` refusal below,
-    though a truncation leaving the count intact trips a different arm); the decided
-    recovery for that and for a vocabulary refusal is the same — reword the summary and
-    re-issue the call.
-
-    The byte read and its two fail-closed checks mirror record-revision's — a closed fd
-    (CPython sets `sys.stdin` to None, so an attribute access would otherwise leak a raw
-    traceback) and a read error. The undecodable-payload and empty-payload arms are this
-    command's own: record-revision hashes the bytes and never decodes them, so it has no
-    decode step to mirror.
+    The ledger reaches record-adjudication from a file the skill authors with its
+    file-write tool, giving a worktree-isolated session one worktree-safe ledger location
+    and no shell heredoc. The read/decode arms mirror `_ingest_adjudication_records`
+    (read bytes → OSError → `ledger-unreadable`; decode utf-8 → UnicodeDecodeError →
+    `ledger-undecodable`); the empty arm and the non-blank line filtering match the stdin
+    transport this replaced, so the same breadcrumbs and line rules a caller saw before
+    still bind. Reading BYTES then decoding explicitly (rather than reading text) keeps a
+    UnicodeDecodeError from escaping as a raw traceback on routine input — text lifted from
+    a terminal transcript carrying a mangled smart quote or a truncated multibyte char.
     """
-    lines = _read_stdin_lines(args, 'record-adjudication', 'finding ledger', 'ledger')
+    try:
+        raw_bytes = Path(path).read_bytes()
+    except OSError as exc:
+        _fail('record-adjudication',
+              f'could not read the finding ledger file {path!r} (ledger-unreadable): {exc}')
+    try:
+        raw = raw_bytes.decode('utf-8')
+    except UnicodeDecodeError as exc:
+        _fail('record-adjudication',
+              f'the finding ledger file is not valid UTF-8 text (ledger-undecodable): {exc}; '
+              f'rewrite the ledger file as UTF-8 and re-issue the call')
+    if not raw.strip():
+        _fail('record-adjudication',
+              f'--ledger-file {path!r} carries no finding ledger lines (ledger-empty)')
+    return [ln for ln in raw.split('\n') if ln.strip()]
+
+
+def _ingest_ledger(args, must_revise, unresolved):
+    """Read `--ledger-file` and build the round's ledger, or fail closed.
+
+    The transport is deliberately line-oriented text, not a structured payload: the skill
+    authors the ledger lines to a file with its file-write tool (issue #200), so the shell
+    never touches the `$(…)`, backticks, and quotes that auditor-derived summaries routinely
+    contain, and a worktree-isolated session has one worktree-safe ledger location. A line
+    byte-equal to nothing special truncates nothing here (the file transport has no
+    delimiter to collide with); a miscount trips the `ledger-line-count` refusal below, and
+    the decided recovery for a count or vocabulary refusal is the same — reword the summary
+    and re-issue the call.
+
+    The read/decode fail-closed arms live in `_read_ledger_file_lines`
+    (`ledger-unreadable`/`ledger-undecodable`/`ledger-empty`), mirroring
+    `_ingest_adjudication_records`; the line-count and vocabulary checks below are this
+    command's own.
+    """
+    lines = _read_ledger_file_lines(args.ledger_file)
     if len(lines) != must_revise:
         _fail('record-adjudication',
               f'the ledger carries {len(lines)} finding summaries but the adjudication '
@@ -6627,10 +6657,11 @@ def _ingest_adjudication_records(cls, path, count):
 
     The deterministic recording floor (issue #743): every advisory and invalid grade a run
     records carries a durable per-finding record, so a self-grade is REVIEWABLE rather than
-    an integer no reader can re-examine. Deliberately a FILE, not stdin: record-adjudication
-    already reads stdin for `--ledger-stdin`, and a process has one stdin — the skill authors
-    the JSON with the Write tool (no shell quoting) exactly as it authors a `--reflection-file`
-    payload. Each record's orchestrator-authored fields (`summary`, `rationale`, `impact_class`,
+    an integer no reader can re-examine. Deliberately a FILE (issue #200 moved the ledger to
+    a file too): the skill authors the JSON with the Write tool (no shell quoting) exactly
+    as it authors the `--ledger-file` and `--reflection-file` payloads, giving a
+    worktree-isolated session one worktree-safe records location. Each record's
+    orchestrator-authored fields (`summary`, `rationale`, `impact_class`,
     optional `evidence`) follow the ledger refusal discipline; the auditor's returned finding
     block is stored VERBATIM under the evidence cap (the record-finding-evidence discipline) and neutralized at the
     print boundary, never reworded to satisfy a refusal — it is a comparand to preserve.
@@ -6839,9 +6870,10 @@ def _ingest_coverage(args, expected_keys):
     One line per required dimension: ``<key> <outcome> [anchor text...]`` — the key and
     outcome are the first two whitespace-delimited tokens; the anchor is the rest of the
     line (a quoted draft line plus one concern clause, for `exercised`; a one-line reason,
-    for `valid-N/A`). Mirrors `_ingest_ledger`'s byte-read + fail-closed decode/empty arms
-    and its quoted-heredoc transport, so auditor-derived anchor text never traverses shell
-    quoting. An `exercised`/`valid-N/A` line whose anchor FAILS the text-only floor is
+    for `valid-N/A`). Mirrors `_ingest_ledger`'s byte-read + fail-closed decode/empty arms;
+    its own `--coverage-stdin` quoted-heredoc transport keeps auditor-derived anchor text
+    from traversing shell quoting (the ledger moved to `--ledger-file` in issue #200; coverage
+    keeps the stdin transport). An `exercised`/`valid-N/A` line whose anchor FAILS the text-only floor is
     DOWNGRADED to `unestablished` with its anchor dropped — never rejected (unknown is not
     zero, and the coverage record must stay total over required dimensions).
     """
@@ -8410,7 +8442,7 @@ def _ingest_finding_evidence_records(path):
 def cmd_record_finding_evidence(args):
     """Record one finding's reproducible evidence on the dedicated per-finding channel.
 
-    Deliberately NOT `record-adjudication --ledger-stdin`: that transport carries a
+    Deliberately NOT `record-adjudication --ledger-file`: that transport carries a
     one-line summary and refuses newlines and `<field>=` tokens by contract, so multi-line
     observed output cannot ride on it. This channel is keyed by `<round>:<finding-id>`, caps
     each field, and stores the text VERBATIM as data — the print boundary, not a refusal, is
@@ -9218,14 +9250,16 @@ def build_parser():
     s.add_argument('--unresolved-must-revise', required=True,
                    help="A non-negative integer, or the literal 'unestablished' when the "
                         'count could not be established (unknown is not zero).')
-    s.add_argument('--ledger-stdin', action='store_true',
+    s.add_argument('--ledger-file',
                    help='Required on a REVISE adjudication with a settled unresolved '
-                        'count (#603): read exactly --must-revise status-prefixed '
-                        "one-line finding summaries on stdin (each 'unresolved: <text>' "
-                        "or 'resolved: <text>') and record them as the round's findings "
-                        'ledger. Flag-gated like --stdin-digest, so the tool never '
-                        'performs a bare stdin read. A FILE verdict and a REVISE + '
-                        "'unestablished' adjudication take no flag and record no ledger.")
+                        'count (#603): a path to a file (issue #200) holding exactly '
+                        '--must-revise status-prefixed one-line finding summaries (each '
+                        "'unresolved: <text>' or 'resolved: <text>'), recorded as the "
+                        "round's findings ledger. The skill authors the file with its "
+                        'file-write tool, so a worktree-isolated session has one '
+                        'worktree-safe ledger location and no shell heredoc. A FILE verdict '
+                        "and a REVISE + 'unestablished' adjudication take no flag and record "
+                        'no ledger.')
     s.add_argument('--advisory-records-file',
                    help='Path to a JSON array of per-finding ADVISORY records (issue #743), '
                         'required whenever --advisory > 0 (advisory-records-required) and '
@@ -9496,7 +9530,7 @@ def build_parser():
         'record-finding-evidence',
         help='Record one finding\'s reproducible evidence (locator, command, observed '
              'output, captured baseline) on the dedicated per-finding channel keyed by '
-             'finding id — never the one-line `record-adjudication --ledger-stdin` summary '
+             'finding id — never the one-line `record-adjudication --ledger-file` summary '
              'transport, which refuses newlines and `<field>=` tokens. The text is stored '
              'verbatim as DATA and is never executed; a missing required field records the '
              'item `incomplete`, never verified.')
@@ -9696,8 +9730,8 @@ def _selects_stdin(args):
         return not getattr(args, 'attestation_unavailable', False)
     if cmd == 'record-revision':
         return bool(getattr(args, 'stdin_digest', False))
-    if cmd == 'record-adjudication':
-        return bool(getattr(args, 'ledger_stdin', False))
+    # record-adjudication no longer selects stdin: its ledger reaches it via --ledger-file
+    # (issue #200), so it performs no hoisted stdin read at all.
     if cmd == 'record-coverage':
         return bool(getattr(args, 'coverage_stdin', False))
     if cmd == 'record-finding-evidence':
@@ -9731,7 +9765,7 @@ def _stdin_bytes_or_fail(args, command, phrase):
     """Return the hoisted stdin bytes, reproducing the guarded sites' fd-0-closed and
     read-error breadcrumbs verbatim (issue #1040). `phrase` is the exact wording each site
     used after `could not read ` (`draft bytes`, `revised bytes`, `the fetched body`, `the
-    finding ledger`, `the coverage list`).
+    coverage list`) — the finding ledger moved off stdin to `--ledger-file` in issue #200.
     """
     if args._stdin_missing:
         _fail(command, f'could not read {phrase} from stdin: no stdin is attached '

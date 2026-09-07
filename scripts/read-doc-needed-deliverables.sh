@@ -26,6 +26,14 @@
 #   0   deliverables       |  11  body-read-failed
 #   10  no-deliverables    |  12  extract-failed
 #
+# allowlist-unresolved (13) is a fifth outcome (issue #222): a configured
+# documentation-allowlist member could not be resolved to a path — config-get.sh
+# itself failed (a malformed config), or it resolved to a wrong-type value (an
+# object/array config-get.sh coerces to a non-path string at exit 0) — so the
+# deliverable set cannot be filtered against a trustworthy allowlist. 13 sits OUTSIDE the closed {0,10,11,12} set deliberately —
+# like the usage code 64, it is the caller's RESIDUAL arm, which Blocks rather than
+# proceeding on a widened or empty allowlist. It is never a widened/empty allowlist.
+#
 # A usage error (a missing or non-numeric issue number) prints NO token and exits
 # 64 (EX_USAGE), which is outside the closed set above and is the caller's residual
 # arm — as is any status this header does not pair with the token that was printed.
@@ -41,6 +49,12 @@
 #                                success token — the FIRST span the extractor
 #                                suppressed, with the breadcrumb's surrounding
 #                                backticks removed (issue #2129)
+#   docgate-refused: <path>      zero or more, one per Documentation Needed token
+#                                the extractor refused as outside the documentation
+#                                allowlist (issue #222), after the outcome line and
+#                                on either success token — a body naming only
+#                                out-of-allowlist paths reaches `no-deliverables`
+#                                carrying its refused lines
 #   docgate-path: <path>         zero or more, one per deliverable, after the
 #                                outcome line and only on `deliverables`
 #
@@ -62,10 +76,11 @@
 # stdout, so the read is judged by its own exit status, never by the capture being
 # non-empty.
 #
-# Test seams, both honoured verbatim with no probe: DEVFLOW_GH (the shared
-# resolver's own override) selects the `gh` binary, and
-# DEVFLOW_DOC_NEEDED_EXTRACTOR selects the extractor, so the suite can drive the
-# extractor-failure arm without a failing `gh`.
+# Test seams, honoured verbatim with no probe: DEVFLOW_GH (the shared resolver's
+# own override) selects the `gh` binary, DEVFLOW_DOC_NEEDED_EXTRACTOR selects the
+# extractor (so the suite can drive the extractor-failure arm without a failing
+# `gh`), and a pre-set DEVFLOW_DOC_NEEDED_ALLOWLIST is passed to the extractor
+# unchanged instead of resolved from config (issue #222).
 
 set -u
 
@@ -100,6 +115,43 @@ else
 fi
 
 EXTRACTOR="${DEVFLOW_DOC_NEEDED_EXTRACTOR:-$_RDND_DIR/extract-doc-needed-paths.sh}"
+
+# Documentation-location allowlist (issue #222): resolved here from config and handed to the extractor
+# as DEVFLOW_DOC_NEEDED_ALLOWLIST (one member per line) — internal + external docs roots (external only
+# while enabled, so a repo that disabled it is not blocked on it), release-notes, changelog, README.md.
+_rdnd_allowlist_unresolved() {
+  echo "devflow: a configured documentation-allowlist member could not be resolved (config-get.sh failed, or resolved to a non-path/wrong-type value) — not filtering deliverables against an untrusted allowlist" >&2
+  printf 'docgate-outcome: %s\n' allowlist-unresolved
+  exit 13
+}
+# _rdnd_valid_path_member — 0 iff a resolved config value is a plausible single documentation path.
+# Rejects only the wrong-type coercions config-get.sh emits at EXIT 0 (an array comma-joins; an object
+# becomes "[object Object]", carrying a space no path member has); a bare directory/filename is valid (issue #222).
+_rdnd_valid_path_member() {
+  case "$1" in '' | *,* | *' '*) return 1 ;; esac
+  return 0
+}
+if [ -z "${DEVFLOW_DOC_NEEDED_ALLOWLIST+set}" ]; then
+  CONFIG_GET="$_RDND_DIR/config-get.sh"
+  _alw_internal="$("$CONFIG_GET" .docs.internal docs/internal/)" || _rdnd_allowlist_unresolved
+  _rdnd_valid_path_member "$_alw_internal" || _rdnd_allowlist_unresolved
+  _alw_ext_enabled="$("$CONFIG_GET" .docs.external_enabled true)" || _rdnd_allowlist_unresolved
+  _alw_release="$("$CONFIG_GET" .docs.release_notes_file docs/external/release-notes.md)" || _rdnd_allowlist_unresolved
+  _rdnd_valid_path_member "$_alw_release" || _rdnd_allowlist_unresolved
+  _alw_changelog="$("$CONFIG_GET" .docs.changelog_file CHANGELOG.md)" || _rdnd_allowlist_unresolved
+  _rdnd_valid_path_member "$_alw_changelog" || _rdnd_allowlist_unresolved
+  _alw_list="$_alw_internal
+$_alw_release
+$_alw_changelog
+README.md"
+  if [ "$_alw_ext_enabled" != "false" ]; then
+    _alw_external="$("$CONFIG_GET" .docs.external docs/external/)" || _rdnd_allowlist_unresolved
+    _rdnd_valid_path_member "$_alw_external" || _rdnd_allowlist_unresolved
+    _alw_list="$_alw_list
+$_alw_external"
+  fi
+  export DEVFLOW_DOC_NEEDED_ALLOWLIST="$_alw_list"
+fi
 
 DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 SCRATCH="$DEVFLOW_ROOT/.prflow/tmp"
@@ -141,9 +193,10 @@ rm -f "$EXTRACTOR_ERR"
 # `${var%…}`): the value decides an emitted stdout line, so it must not depend on a
 # tool lib/preflight.sh does not guarantee.
 SUPPRESSED_SPAN=""
+REFUSED_PATHS=""
 _rdnd_relay_extractor_stderr() {
   [ -f "$EXTRACTOR_ERR" ] || return 0
-  local _line _span
+  local _line _span _refused
   while IFS= read -r _line; do
     printf '%s\n' "$_line" >&2
     case "$_line" in
@@ -156,8 +209,32 @@ _rdnd_relay_extractor_stderr() {
           SUPPRESSED_SPAN="$_span"
         fi
         ;;
+      *"refused-outside-allowlist: "*)
+        # Parses the extractor's per-refused-path breadcrumb (issue #222): the
+        # path is everything after the marker. Accumulate one per line so every
+        # refused path is relayed, not just the first.
+        _refused="${_line#*refused-outside-allowlist: }"
+        REFUSED_PATHS="${REFUSED_PATHS}${_refused}
+"
+        ;;
     esac
   done < "$EXTRACTOR_ERR"
+}
+
+# _rdnd_emit_refused — relay each refused path as a docgate-refused line (issue #222), on either
+# success token so a body naming only out-of-allowlist paths still carries them. A path refused
+# twice relays once (the `|`-delimited _seen dedup; `|` cannot appear in a token-class path).
+_rdnd_emit_refused() {
+  [ -n "$REFUSED_PATHS" ] || return 0
+  local _rp _seen=""
+  printf '%s\n' "$REFUSED_PATHS" | while IFS= read -r _rp; do
+    [ -n "$_rp" ] || continue
+    case "$_seen" in
+      *"|$_rp|"*) continue ;;
+    esac
+    _seen="$_seen|$_rp|"
+    printf 'docgate-refused: %s\n' "$_rp"
+  done
 }
 
 if ! DOC_NEEDED_PATHS="$("$EXTRACTOR" < "$BODY_FILE" 2>"$EXTRACTOR_ERR")" \
@@ -172,11 +249,13 @@ _rdnd_relay_extractor_stderr
 if [ -z "$DOC_NEEDED_PATHS" ]; then
   printf 'docgate-outcome: %s\n' no-deliverables
   [ -n "$SUPPRESSED_SPAN" ] && printf 'docgate-suppressed: %s\n' "$SUPPRESSED_SPAN"
+  _rdnd_emit_refused
   exit 10
 fi
 
 printf 'docgate-outcome: %s\n' deliverables
 [ -n "$SUPPRESSED_SPAN" ] && printf 'docgate-suppressed: %s\n' "$SUPPRESSED_SPAN"
+_rdnd_emit_refused
 # Read line-wise rather than word-splitting, so a path carrying whitespace stays
 # one deliverable instead of becoming several.
 printf '%s\n' "$DOC_NEEDED_PATHS" | while IFS= read -r _rdnd_path; do

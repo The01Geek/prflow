@@ -662,6 +662,20 @@ fi
 # stdout — stdout stays byte-verbatim). Undeliverable shapes exited 2 above. The
 # `load-prompt-extension.sh: ` prefix is load-bearing (phase-3 drops those lines when classifying).
 if [ "$section_requested" -eq 0 ]; then
+    # issue #200: on a WHOLE-FILE create-issue load (never --section or --digest, which
+    # keep the no-token contract), a stray specs.md beside the extension dir is a
+    # consumer's customization the create-issue pipeline never reads — the specs alias
+    # owns no extension file, so both command names read create-issue.md. Report it, in
+    # any present shape (regular file, symlink, or directory — file tests only, per the
+    # non-preflight-PATH-tool rule), so an exit-0 load stops being a silent proceed. This
+    # only reports: create-issue.md stays the sole file read, so ext_file is not reassigned
+    # and neither stdout nor the exit status changes.
+    if [ "$skill" = create-issue ]; then
+        _lpe_stray_specs="${ext_dir}/specs.md"
+        if [ -e "$_lpe_stray_specs" ] || [ -L "$_lpe_stray_specs" ]; then
+            echo "load-prompt-extension.sh: found '${_lpe_stray_specs}' beside the create-issue extension; the create-issue run (including the /prflow:specs alias) will NOT read it — move its content into '${ext_dir}/create-issue.md', the one file both command names read" >&2
+        fi
+    fi
     if [ -f "$ext_file" ] && [ -s "$ext_file" ]; then
         _wf_status=content-present
     else

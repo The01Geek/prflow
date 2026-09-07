@@ -6,11 +6,7 @@ When the runner exposes no task-tracking tool, or the exposed one is disabled or
 
 ## The state-file mirror
 
-Transcript prose is not harness-persisted state, so mirror the checklist state to `.prflow/tmp/create-issue/<slug>/issue-checklist-<slug>.md`, rewritten on each status change, under this skill's existing artifact conventions (delete any leftover first, then write fresh; cwd/worktree-anchored like the Step 2 derivation artifact). This fallback binds no slug of its own — Step 1 bound the run's kebab-case `<slug>` before it dispatched anything, and this write reuses it. Read the slug from turn-one context when you still hold it, and otherwise resolve it through the run-directory registry — a single-line fence that reads no environment variable:
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/cleanup-create-issue-run.sh --resolve-slug --root .
-```
-Adopt the slug on a `slug=<name>` line; on a `slug=unestablished reason=ambiguous candidates=…` line pick the candidate whose topic matches the story you hold and confirm it with `--adopt-slug <slug> --root .` before reusing it; on any other `slug=unestablished` line take the title-derived fallback `references/step-4-present-create.md` retains, never a guessed stem, naming the outcome line received.
+Transcript prose is not harness-persisted state, so mirror the checklist state to `.prflow/tmp/create-issue/<slug>/issue-checklist-<slug>.md`, rewritten on each status change, under this skill's existing artifact conventions (delete any leftover first, then write fresh; cwd/worktree-anchored like the Step 2 derivation artifact). This fallback binds no slug of its own — Step 1 bound the run's kebab-case `<slug>` before it dispatched anything, and this write reuses it. Read the slug from turn-one context when you still hold it, and otherwise resolve it through the run-directory-registry slug-resolve fence stated once in the skill root's *Runner setup* section, following that section's adopt / ambiguous-candidate (`--adopt-slug`) / derive-from-title handling.
 
 The first state-file write can only occur once the Prerequisites gate (Step 2) has produced a story; until then the block renders inline unbacked. Step 1's binding is scoped to the current invocation, so a second issue drafted later in the same conversation runs its own Step 1 and binds its own fresh slug. This state file is process-progress metadata and is deliberately NOT added to the Step 3.6 out-of-bounds reasoning-artifact enumerations.
 

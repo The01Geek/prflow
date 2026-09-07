@@ -25,7 +25,7 @@ A required-member load failure — an attributable per-member outcome (`denied`,
 
 **An illegal-transition rejection is NOT an unavailability signal.** When a mutation exits non-zero and its breadcrumb names an illegal transition — a nonce mismatch included — call `query-next-action` and obey that answer. Never route an illegal transition to the `state-owner unavailable` fallback below.
 
-Invoke the tool with `python3` plus the portable anchor, resolved inline in the statement that uses it (never captured into a variable a later statement reads), substituting the `<slug>` and the nonce you hold:
+Invoke the tool with the state-owner invocation form stated once in the skill root's *Runner setup* section, substituting the `<slug>` and the nonce you hold:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py query-eligibility "<slug>" --nonce "<nonce>" --mode approve --draft-file "<absolute issue-draft-<slug>.md path>"

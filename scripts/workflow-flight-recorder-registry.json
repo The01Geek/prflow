@@ -32,6 +32,11 @@
       "minimum_assertions": 68,
       "description": "Native inventory, explicit import, constrained analysis, and focused Python coverage"
     },
+    "skills-surface-lint": {
+      "path": "lib/test/modules/skills-surface-lint.sh",
+      "minimum_assertions": 20,
+      "description": "Focused #220 skills/ surface checks: the standalone pin-corpus wrapper (clean-tree pass, the PR #209 planted-defect ABSENT positive control, missing/empty/emptied-glob bundle members, the RESOLVED-COUNT floor arms) and the aggregator (exactly three members keyed on exit status, an unrunnable member named), plus the coverage-map routing of every skills/ path to the aggregator and the no-files-under-skills/ invariant"
+    },
     "retro-helper-wrapper": {
       "path": "lib/test/modules/retro-helper-wrapper.sh",
       "minimum_assertions": 60,
@@ -45,7 +50,7 @@
     },
     "create-issue-contract": {
       "path": "lib/test/modules/create-issue-contract.sh",
-      "minimum_assertions": 482,
+      "minimum_assertions": 446,
       "assertion_floor_policy": "exact",
       "description": "Focused create-issue Step 3.6 audit, state-owner cutover, authoring-discipline, and revision-delta contracts"
     },
@@ -80,7 +85,7 @@
     },
     "prompt-extension-reader": {
       "path": "lib/test/modules/prompt-extension-reader.sh",
-      "minimum_assertions": 373,
+      "minimum_assertions": 381,
       "assertion_floor_policy": "exact",
       "description": "Focused load-prompt-extension.sh consumer prompt-extension reader contract: the present/absent/empty extension arms, skill-name validation and the path-traversal refusal, unreadable/symlinked/locked fixture arms, the --section selector including its interaction with the pre-existing name guards, and the DEVFLOW_PROMPT_EXTENSION_ROOT trusted-root override — its presence-state matrix, its containment under the pre-existing name guards, and the branch-scoped stderr breadcrumb; plus the #1264 render-time injection wrapper scripts/render-prompt-extension.sh — its four input shapes (present-with-content, present-but-empty, absent, present-but-unreadable), the exact three-token status vocabulary, the neutralization of the loader's exit 2 on both its argument-validation and undeliverable families, the absent-trusted-closure arm that must not read as empty, the single-line collapse of the unestablished reason, and the unlocatable-sibling-loader arm — the one unestablished cause no loader exit status can report — with its positive control; plus the #1446 independent-channel arrival detector scripts/prompt-extension-arrival.py — classify's arrived-expected/absent/undeliverable-* per-shape tokens and exit codes over present/missing/empty/broken-symlink/non-regular/unreadable fixtures, its skill-name validation and DEVFLOW_PROMPT_EXTENSION_ROOT shared-root resolution recording the root, and reconcile's arrived/absent/unestablished derivation with the suppressed-delivery non-Complete backstop, its idempotency across a re-run, and the instruction-shaped-content-is-data adversarial arm; plus the #1971 job-level pair extracted from .github/workflows/devflow.yml \u2014 the Classify step's most-specific-first skill selection, second-extension fault promotion, state= parsing and detector-absent/skill-unresolved arms, and the Reconcile step's per-expectation fail-closed, already-non-green early-exit and no-PR-number record-unrecordable arms"
     },

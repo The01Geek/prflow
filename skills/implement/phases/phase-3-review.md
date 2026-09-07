@@ -79,7 +79,7 @@ Render the provenance line in its OWN fence, BEFORE composing the body. The bund
 .prflow/vendor/prflow/scripts/render-pr-provenance-line.py --command /prflow:implement
 ```
 
-Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127), re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/render-pr-provenance-line.py`) as a single leading-token statement, then route on that invocation's outcome. If *that* is also not found (a non-Claude-Code runner — Copilot CLI, Cursor, Codex CLI, Gemini CLI — where neither repo-relative path exists), fall back to the portable anchor form below, which preserves the helper's portability on those runners (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
+Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127 — a non-Claude-Code runner such as Copilot CLI, Cursor, Codex CLI, or Gemini CLI where the vendored path is absent), fall back to the portable anchor form below, which preserves the helper's portability on those runners (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-pr-provenance-line.py --command /prflow:implement
@@ -171,7 +171,7 @@ The `apply-pr-triggerer.sh` helper resolves the triggerer by tier and best-effor
 .prflow/vendor/prflow/scripts/apply-pr-triggerer.sh <draft-pr-number>
 ```
 
-Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127), re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/apply-pr-triggerer.sh <draft-pr-number>`) as a single leading-token statement, then route on that invocation's outcome. If *that* is also not found (a non-Claude-Code runner — Copilot CLI, Cursor, Codex CLI, Gemini CLI — where neither repo-relative path exists), fall back to the portable anchor form below, which preserves the helper's portability on those runners (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
+Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127 — a non-Claude-Code runner such as Copilot CLI, Cursor, Codex CLI, or Gemini CLI where the vendored path is absent), fall back to the portable anchor form below, which preserves the helper's portability on those runners (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/apply-pr-triggerer.sh <draft-pr-number>

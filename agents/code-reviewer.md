@@ -68,6 +68,14 @@ Rate each issue from 0-100:
 
 Before you report a finding that a specific phrase or behavioral claim in a file conflicts with the current implementation — a stale-wording or semantic-contradiction finding — you MUST first search the affected file for all occurrences of the flagged phrase, enumerate every matching line number, and include the complete location set in the finding body before submitting. Include any semantic equivalents of the phrase you can identify from context, not just verbatim matches. Do not report only the first instance you happened to notice: an identical stale claim that survives elsewhere in the same file forces an extra review round to catch. This applies whenever the same outdated phrase or claim could appear more than once — repeated behavioral claims in SKILL.md files, schema descriptions, or README-style docs are the common case.
 
+## Out-of-diff reference findings: search the whole repository for a removed or renamed value
+
+This is the repository-wide twin of the same-file rule above, for a distinct trigger. When the diff removes or renames a distinctive string literal or identifier — a workflow display-name, a job id, an env-var name, a config key, a sentinel constant — search the whole checked-out repository for surviving references to the OLD value, and report every reference OUTSIDE the diff that the diff does not itself update, naming the file, the line, and the value that broke it. Such a break is silent — nothing in the diff points at the file that still keys on the old value, so a missed one ships green. A reference the diff demonstrably leaves broken — an unmodified file that still keys on a value this diff removed or renamed — is a demonstrated defect, ≥ 80 confidence by definition, so the confidence filter never drops it.
+
+- Search the working tree with your Grep and Glob tools — not an absolute path. Search only distinctive values a reader matches exactly; a common, non-distinctive token would flag coincidental occurrences that are noise, not a break.
+- Before reporting a reference in a diff-touched path, read that path at the reviewed head via `git show <head>:<path>`, so a reference the same diff already updates is not flagged — only references the diff leaves keyed on the old value are findings; on a `git show` read error grade that reference INCONCLUSIVE, never falling back to the working-tree copy (base-ref bytes there would silently drop a real break in a diff-touched-but-unupdated file).
+- When the removed or renamed value is also one of the project's own shipped strings and recurs across the tree (its own workflow files, documentation, or a vendored plugin copy), do not let that expected recurrence suppress the one out-of-diff reference the diff leaves broken — report that true positive even though the same literal appears elsewhere as expected noise.
+
 ## Output Format
 
 Start by listing what you're reviewing. For each high-confidence issue provide:

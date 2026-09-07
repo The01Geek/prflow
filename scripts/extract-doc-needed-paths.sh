@@ -120,6 +120,36 @@ body="$(cat "${1:-/dev/stdin}")"
 # coupled invariant, kept in one place. Editing this list changes both callers.
 doc_ext_alt='md|markdown|sh|json|py|ya?ml|rst|txt|adoc|mdx|toml|cfg|ini'
 
+# Documentation-location allowlist operand (issue #222): read-doc-needed-deliverables.sh hands
+# the configured documentation locations here, one member per line; UNSET leaves the location
+# test inactive. An EMPTY member is skipped, never a match-all prefix (the fail-open guard).
+allowlist_active=0
+allow_members=()
+if [ -n "${DEVFLOW_DOC_NEEDED_ALLOWLIST+set}" ]; then
+  allowlist_active=1
+  while IFS= read -r _alw_member; do
+    _alw_member="${_alw_member%/}"        # a directory member's trailing slash is not part of the boundary test
+    [ -n "$_alw_member" ] || continue     # an empty member is absent, never a match-all prefix
+    allow_members+=("$_alw_member")
+  done <<< "$DEVFLOW_DOC_NEEDED_ALLOWLIST"
+fi
+
+# in_allowlist TOK — 0 iff TOK sits inside some allowlist member by CONTAINMENT (TOK equals the
+# member, or is beneath it via a "/" boundary), so a sibling like docs/internalX/foo.md does not
+# match member docs/internal — prefix comparison is not containment (issue #222). Pure-bash `case`.
+in_allowlist() {
+  local _t="$1" _m
+  # An all-empty allowlist has zero members: refuse (fail-closed), and avoid the
+  # `"${arr[@]}"`-on-empty-array unbound error `set -u` raises on bash 3.2 (BSD).
+  [ "${#allow_members[@]}" -eq 0 ] && return 1
+  for _m in "${allow_members[@]}"; do
+    case "$_t" in
+      "$_m" | "$_m"/*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
 # Stage A — isolate the **Documentation Needed** bullet block. Scope logic only,
 # with ONE minimal token-awareness point: the `emitted` proxy (see its arm below)
 # flips once a printed STRUCTURAL line (a list item or bold line) bears a
@@ -666,18 +696,29 @@ printf '%s\n' "$tokens" \
       # `[ -f ]`+git rescue below and the multi-token span in-tree rescue are
       # intentionally NOT mirrored — arms() cannot do a filesystem check, an
       # accepted leak-safe gap).
+      _emit=0
       if printf '%s\n' "$tok" | grep -qE ".+\.($doc_ext_alt)\$"; then
-        printf '%s\n' "$tok"
+        _emit=1
       elif [ -f "$tok" ]; then
         # Extensionless token naming a real on-disk regular file → rescue via git.
         if git ls-files --error-unmatch -- "$tok" >/dev/null 2>&1; then
-          printf '%s\n' "$tok"
+          _emit=1
         elif [ "$git_rescue_ok" -eq 0 ] && [ "$git_warned" -eq 0 ]; then
           # git is unavailable, so this real file was dropped for a tool-absence
           # reason, not because it is untracked — surface it once, per the repo's
           # guard-class-2 (tr-dependence) standard, instead of dropping silently.
           printf '%s\n' "extract-doc-needed-paths.sh: git unavailable (absent from PATH or cwd outside a work tree); the in-tree rescue for extensionless deliverables is degraded — such tokens may be dropped" >&2
           git_warned=1
+        fi
+      fi
+      # Location gate (issue #222): with the allowlist active, an otherwise-emittable token outside
+      # every member is dropped (not merely unstaged), so it never becomes a deliverable and the Phase
+      # 4.1 self-heal repair route never re-adds it. One breadcrumb per refused path; read boundary relays.
+      if [ "$_emit" -eq 1 ]; then
+        if [ "$allowlist_active" -eq 1 ] && ! in_allowlist "$tok"; then
+          printf '%s\n' "extract-doc-needed-paths.sh: refused-outside-allowlist: $tok" >&2
+        else
+          printf '%s\n' "$tok"
         fi
       fi
     done; } \

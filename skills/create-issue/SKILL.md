@@ -109,8 +109,10 @@ anchor-resolution failure described in `## Runner setup` below — fix the ancho
 missing extension. Otherwise, on a non-zero exit where the helper runs but fails,
 a consumer extension exists but could not be loaded: surface its stderr message, never silently
 proceed as if none existed. Exit 0 with text is consumer-owned customization under `.prflow/skill-extensions/` —
-treat it as instructions appended to the end of this skill's own prompt for this run. Exit 0, no
-output: proceed unchanged.
+treat it as instructions appended to the end of this skill's own prompt for this run. When an exit-0
+load's stderr carries a line naming a stray `specs.md` beside the extension, quote that line verbatim
+in this run's first message, before any Step 1 work, so the consumer who wrote that `specs.md` learns
+it is not read. Exit 0, no output: proceed unchanged.
 
 ## Reference routing
 
@@ -169,7 +171,7 @@ The helper reads no environment variable, writes the run's `run-meta.json`, and 
 sites lacking the slug resolve it via `--resolve-slug`; on a `slug=unestablished reason=ambiguous …`
 line they pick the candidate whose topic matches the story and confirm it with `--adopt-slug`, and
 on any other `slug=unestablished` line they take the title-derived fallback
-`references/step-4-present-create.md` retains — never a slug composed from a partial read.
+stated in the *Runner setup* section — never a slug composed from a partial read.
 
 Every dispatch starts with the shallow arm; the deep arm is reached only by the escalation below.
 Derive any value deciding a leg's pathspec with python3 or bash builtins, never `tr`, `sed`, `wc`,
@@ -333,17 +335,37 @@ Load `references/step-4-present-create.md` per the *Reference routing* rules abo
 
 The portable helper anchor is a single-statement rule. This skill invokes helpers bundled beside it
 — `load-prompt-extension.sh`, `issue-audit-state.py` (the audit-lifecycle state owner),
-`resolve-main-root.sh`, `ensure-label.sh`, `apply-labels.sh`.
+`cleanup-create-issue-run.sh`, `resolve-main-root.sh`, `ensure-label.sh`, `apply-labels.sh`.
 Resolve the skill directory inline, in the same statement that uses it, as
 `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`, whose `:-`
 form uses `$CLAUDE_SKILL_DIR` only when it is set and non-empty.
 Otherwise substitute the base directory this runner reports in context — e.g. a `Base directory for
 this skill:` line. Never capture the anchor into a shell variable that a later statement reads:
 some runners' inline-bash marshaling drops a variable assigned in an earlier statement of the same command.
+When the harness refuses a command carrying the inline anchor — as its leading token, or as an argument
+under a `python3` head — re-issue that one command with the runner-reported skill base directory written
+as a literal path where the anchor stood, in the same single statement and with no variable capture.
 
 Normalize a Windows-form base directory before substituting it: run one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2), in that order, and
 use its output only if the command succeeds and prints a non-empty path — otherwise substitute the
 runner-reported path unchanged. This `wslpath`/`cygpath` probe mirrors the tool-first tier of `lib/normalize-path.sh`.
+
+State-owner invocation form. Invoke the audit-lifecycle state owner as `python3` plus the inline
+anchor plus `scripts/issue-audit-state.py`, carrying the run nonce as a value — never captured into
+a shell variable a later statement reads, which some runners' inline-bash marshaling drops:
+```bash
+python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py <subcommand> "<slug>" --nonce "<nonce>" …
+```
+
+Run-slug resolve fence. A caller reads the run's kebab-case `<slug>` from turn-one context, else
+resolves it through the run-directory registry — this single-line fence, which reads no environment variable:
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/cleanup-create-issue-run.sh --resolve-slug --root .
+```
+Adopt the slug on a `slug=<name>` line; on a `slug=unestablished reason=ambiguous candidates=…` line
+pick the candidate whose topic matches the story you hold and confirm it with `--adopt-slug <slug> --root .`;
+on any other `slug=unestablished` line derive one from the issue title (e.g. "Add CSV export for
+survey results" → `add-csv-export-for-survey-results`).
 
 An unresolvable anchor degrades; it never stops the run — an anchor failure must never block issue creation.
 Proceed and let the underlying "No such file" error surface: a `/prflow:docs-verify` pass whose

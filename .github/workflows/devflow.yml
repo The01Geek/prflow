@@ -1114,7 +1114,7 @@ jobs:
           EXTRA: ${{ needs.config.outputs.allowed_tools_extra }}
         run: |
           set -euo pipefail
-          # devflow-capability-manifest: region=command manifest_version=34 sha256=e7adeffab0cef782acfe9570df05bae0f468ad8b85f4e2e87f9aa7cf52af27ea
+          # devflow-capability-manifest: region=command manifest_version=35 sha256=e7adeffab0cef782acfe9570df05bae0f468ad8b85f4e2e87f9aa7cf52af27ea
           TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git checkout:*), Bash(git cat-file:*), Bash(git hash-object:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh pr checkout:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-extension-arrival.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/retro-helper.sh:*), Bash(.prflow/vendor/prflow/lib/scan.sh:*), Bash(.prflow/vendor/prflow/lib/materialize-retrospectives.sh:*), Bash(.prflow/vendor/prflow/lib/pattern-state.sh:*), Bash(.prflow/vendor/prflow/lib/actionable-patterns.sh:*), Bash(.prflow/vendor/prflow/lib/open-state-pr.sh:*), Bash(.prflow/vendor/prflow/lib/recurring-targets.sh:*), Bash(.prflow/vendor/prflow/lib/post-status.sh:*), Bash(.prflow/vendor/prflow/lib/fetch-pr-context.sh:*), Bash(.prflow/vendor/prflow/lib/meta-issue.sh:*), Bash(.prflow/vendor/prflow/scripts/post-issue-comment.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/build-experiment-records.py:*), Bash(.prflow/vendor/prflow/scripts/implement-run-report.py:*), Bash(gh auth status:*), Bash(true:*), Bash(export:*), Bash(trap:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(mktemp:*), Bash(cmp:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(*/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(tee:*)'
           printf 'tools=%s\n' "${TOOLS}${EXTRA}" >> "$GITHUB_OUTPUT"
 
@@ -2037,6 +2037,36 @@ jobs:
             '{run_roots: $r, review_ids: $i, review_ids_established: $e}' > .prflow/tmp/pre-inventory.json
           echo "review-evidence pre-inventory: $(cat .prflow/tmp/pre-inventory.json)"
 
+      # Resolve the plugin root to the vendored subtree so this repository's own command
+      # tier runs the vendored engine, not the checkout (issue #225 / #1049). Coupled
+      # mirror of the implement tier's step — edit both together; run.sh #1049 pins the
+      # step body byte-identical between devflow.yml and devflow-implement.yml.
+      - name: Resolve plugin root to the vendored subtree (issue #1049)
+        id: vendor_marketplace
+        env:
+          COMPOSED_MK: ${{ steps.plugins.outputs.plugin_marketplaces }}
+        run: |
+          set -euo pipefail
+          VENDORMK=.prflow/vendor/prflow/scripts/compose-vendor-marketplace.sh
+          MKF="$(mktemp)"; printf '%s\n' "$COMPOSED_MK" > "$MKF"
+          if [ -f "$VENDORMK" ]; then
+            bash "$VENDORMK" "$MKF" .prflow/vendor \
+              || echo "::warning::devflow compose-vendor-marketplace.sh failed (rc≠0); the prflow plugin resolves from the repo-root marketplace (./)."
+          else
+            echo "::warning::devflow compose-vendor-marketplace.sh not found at $VENDORMK — a pinned prflow_version predating issue #1049 running an upgraded workflow; the prflow plugin resolves from the repo-root marketplace (./). Bump prflow_version in .prflow/config.json."
+          fi
+          # Re-read the (possibly transformed) list via bash builtins (guard-class 2 —
+          # no cat/tr/sed/wc/cut/head for the emitted marketplace list). Blank lines are
+          # dropped deliberately, so an empty entry never reaches plugin_marketplaces.
+          OUT=""
+          while IFS= read -r mkline || [ -n "$mkline" ]; do
+            [ -z "$mkline" ] && continue
+            OUT="${OUT:+$OUT$'\n'}$mkline"
+          done < "$MKF"
+          rm -f "$MKF"
+          vdelim="MKV_EOF_$(date +%s%N)_$$"
+          { printf 'plugin_marketplaces<<%s\n' "$vdelim"; printf '%s\n' "$OUT"; printf '%s\n' "$vdelim"; } >> "$GITHUB_OUTPUT"
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -2133,18 +2163,18 @@ jobs:
           # baked baseline (the official marketplace `./` checkout-root registration
           # plus the three baseline plugins — byte-identical across the three call
           # sites, run.sh-pinned) PLUS the entries .claude/settings.json declares.
-          # `./` resolves to the workflow's checkout root (where
-          # .claude-plugin/marketplace.json lives). Since issue #1163 this workflow
-          # runs only on `issue_comment` with every checkout pinned to the default
-          # branch, so `./` always resolves to the DEFAULT-BRANCH marketplace and
-          # vendored tree — a PR-branch change to either is NOT exercised by this
-          # workflow on the PR that introduces it (the self-exercising property held
-          # only on the removed review-event triggers, whose workspace was the PR
-          # head; its loss is an intended consequence of closing the accident class,
-          # not an incidental change). A git-URL entry would likewise resolve to the
-          # default branch. Local-path marketplaces are supported by claude-code-action
-          # since v1.0.28 (we pin @v1, the floating major).
-          plugin_marketplaces: ${{ steps.plugins.outputs.plugin_marketplaces }}
+          # The `vendor_marketplace` step above repoints the prflow plugin's `./`
+          # marketplace entry at the vendored subtree (.prflow/vendor), so this command
+          # tier runs the VENDORED engine — not the checkout's own skills/ — exactly as
+          # the implement tier does (issue #225). Since issue #1163 this workflow runs
+          # only on `issue_comment` with every checkout pinned to the default branch, so
+          # the vendored tree it resolves is the DEFAULT-BRANCH copy — a PR-branch change
+          # to the engine is NOT exercised by this workflow on the PR that introduces it
+          # (the self-exercising property held only on the removed review-event triggers,
+          # whose workspace was the PR head; its loss is an intended consequence of
+          # closing the accident class). Local-path marketplaces are supported by
+          # claude-code-action since v1.0.28 (we pin @v1, the floating major).
+          plugin_marketplaces: ${{ steps.vendor_marketplace.outputs.plugin_marketplaces }}
 
           # Install plugins so the ambient /code-review and /revise-claude-md commands
           # (and /devflow:*) are available in the runner. NOTE: code-review@ and
@@ -2504,7 +2534,7 @@ jobs:
             bash "$FLIP_HELPER" "$TARGET_NUMBER" "$FLIP_MARKER" "$CAUSE" || true
             # review status-label mirror (dead-run) BEGIN
             # This run reached the flip/create arm (no verdict was posted), so
-            # mirror PRFlow:ReviewFailed (issue #104). Review-ONLY trailing-space
+            # mirror PRFlow:ReviewStuck (issue #104). Review-ONLY trailing-space
             # screen; best-effort — the helper resolves enablement and no-ops off.
             case "${COMMAND:-}" in
               /prflow:review\ *|/devflow:review\ *)
@@ -2513,7 +2543,7 @@ jobs:
                 if [ -f "$MIRROR" ]; then
                   bash "$MIRROR" "$TARGET_NUMBER" review-failed || true
                 else
-                  echo "::warning::mirror review status label: mirror-review-status-label.sh absent at both the vendored and repo-root paths; PRFlow:ReviewFailed not written for #$TARGET_NUMBER (upgrade the vendored plugin pin)"
+                  echo "::warning::mirror review status label: mirror-review-status-label.sh absent at both the vendored and repo-root paths; PRFlow:ReviewStuck not written for #$TARGET_NUMBER (upgrade the vendored plugin pin)"
                 fi
                 ;;
             esac
@@ -2644,7 +2674,7 @@ jobs:
                 echo "::warning::review evidence gate: flip-review-progress-failed.sh absent; progress comment not flipped"
               fi
               # review status-label mirror (evidence-gate) BEGIN
-              # The evidence gate failed, so mirror PRFlow:ReviewFailed (issue #104).
+              # The evidence gate failed, so mirror PRFlow:ReviewStuck (issue #104).
               # This step's `if:` admits /prflow:review-and-fix (no trailing space),
               # so screen it out here; best-effort — the helper no-ops when off.
               case "${COMMAND:-}" in
@@ -2654,7 +2684,7 @@ jobs:
                   if [ -f "$MIRROR" ]; then
                     bash "$MIRROR" "$PR_NUMBER" review-failed || true
                   else
-                    echo "::warning::mirror review status label: mirror-review-status-label.sh absent at both the vendored and repo-root paths; PRFlow:ReviewFailed not written for #$PR_NUMBER (upgrade the vendored plugin pin)"
+                    echo "::warning::mirror review status label: mirror-review-status-label.sh absent at both the vendored and repo-root paths; PRFlow:ReviewStuck not written for #$PR_NUMBER (upgrade the vendored plugin pin)"
                   fi
                   ;;
               esac
@@ -3503,7 +3533,7 @@ jobs:
           fi
           # review status-label mirror (finalizer) BEGIN
           # This backstop reached the flip path (no verdict was posted; the
-          # suppress arm exited earlier), so mirror PRFlow:ReviewFailed (issue
+          # suppress arm exited earlier), so mirror PRFlow:ReviewStuck (issue
           # #104). This job's `if:` admits /prflow:review-and-fix (no trailing
           # space), so screen it out; best-effort — the helper no-ops when off.
           case "${COMMAND:-}" in
@@ -3513,7 +3543,7 @@ jobs:
               if [ -f "$MIRROR" ]; then
                 bash "$MIRROR" "$TARGET_NUMBER" review-failed || true
               else
-                echo "::warning::mirror review status label: mirror-review-status-label.sh absent at both the vendored and repo-root paths; PRFlow:ReviewFailed not written for #$TARGET_NUMBER (upgrade the vendored plugin pin)"
+                echo "::warning::mirror review status label: mirror-review-status-label.sh absent at both the vendored and repo-root paths; PRFlow:ReviewStuck not written for #$TARGET_NUMBER (upgrade the vendored plugin pin)"
               fi
               ;;
           esac

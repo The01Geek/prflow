@@ -4,19 +4,9 @@ description: Use when a rough user story, bug report, feature idea, piece of fee
 argument-hint: <user-story>
 ---
 
-## Consumer prompt extension (load first)
-
-Before doing this skill's work, load any consumer-supplied prompt extension for this skill and honor it. From the repo root, run:
-
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh specs
-```
-
-Exit 0 with text is consumer-owned customization under `.prflow/skill-extensions/` — treat it as instructions appended to the end of this skill's own prompt for this run. Exit 0 with no output: proceed unchanged. On a non-zero exit where the helper ran but failed, a consumer extension exists but could not be loaded: surface its stderr message, never silently proceed as if none existed. A missing helper path (`No such file`, exit 127, or the platform equivalent) is an anchor-resolution failure — resolve the `${CLAUDE_SKILL_DIR}` anchor to this skill's own base directory (the one this runner reports in context) rather than reporting a missing extension.
-
 ## Forward to create-issue
 
-`/prflow:specs` is a thin forwarding alias for `/prflow:create-issue`. Open `skills/create-issue/SKILL.md` with your file-read tool and follow it exactly, as if `/prflow:create-issue` had been invoked — but before you resolve any reference file create-issue names, read and apply the reference-base redirect below, because it governs where those references resolve and skipping it silently degrades the run.
+`/prflow:specs` is a thin forwarding alias for `/prflow:create-issue`. Open `skills/create-issue/SKILL.md` with your file-read tool and follow it exactly, as if `/prflow:create-issue` had been invoked — but before you resolve any reference file create-issue names, read and apply the reference-base redirect below, because it governs where those references resolve and skipping it silently degrades the run. The create-issue root you open performs the one prompt-extension load for both command names — it reads the `create-issue.md` extension file — and the specs alias loads none of its own.
 
 Reference-base redirect (load-bearing). The runner leaves the skill base directory (`${CLAUDE_SKILL_DIR}`) pointing at `skills/specs/` even after you open create-issue as a plain file, so create-issue's own reference paths would otherwise resolve to a nonexistent `skills/specs/references/` and silently degrade onto its reference-load-failure arms. Resolve create-issue's reference files from `skills/create-issue/references/`, and resolve any path create-issue derives from its own skill directory against `skills/create-issue/` — never the invoked `skills/specs/`. Helpers reached through the `../../scripts/` suffix, and prompt extensions named by a literal skill name, are unaffected.
 

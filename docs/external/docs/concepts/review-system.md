@@ -37,7 +37,7 @@ Four reviewers run on every review:
 
 | Reviewer | What it looks for |
 | --- | --- |
-| Code reviewer | Correctness problems, plus adherence to the project's own guidelines, conventions and patterns |
+| Code reviewer | Correctness problems, plus adherence to the project's own guidelines, conventions and patterns. It also searches the whole checked-out repository — not only the diff — for references to a distinctive name the change renames or removes, and flags any that live outside the diff and would break |
 | Silent-failure hunter | Swallowed errors, over-broad exception handling and fallbacks that mask a failure or fail open |
 | Comment analyzer | Comments and docstrings that do not accurately describe the code they sit beside |
 | Final-pass reviewer | A fresh independent read of the completed work against what it was supposed to do |
