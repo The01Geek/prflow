@@ -4,7 +4,7 @@
 # scrub-credentials.sh — the SINGLE shared credential-shape scrub (issue #1064 D4).
 # Reads text on stdin, writes the scrubbed text to stdout, and is the one
 # implementation BOTH durable channels that persist harness-side text use:
-#   1. the execution-transcript artifact (devflow-runner.yml + the live tiers), and
+#   1. the execution-transcript artifact (the live tiers), and
 #   2. the denied-command text a denial record persists (scripts/build-denial-record.sh).
 # Extracting it here means the blocklist is maintained in one place rather than
 # copied inline across three workflows (the coupled-mirror hazard CLAUDE.md warns of).

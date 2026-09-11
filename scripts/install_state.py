@@ -10,7 +10,7 @@ that must ship together — the lint manifest, its readers, the `setup-project-e
 composite action and its provisioning helper, and the shipped implement workflow. The
 lint manifest validated before publication is the installer's **source** copy, not the
 staged consumer-tree copy. That set is written twice — `COMPONENTS` in
-`lib/generate-install-state.py` governs this repository's committed marker and
+`tools/generators/generate-install-state.py` governs this repository's committed marker and
 `install.sh` section 4b's `--component` operands govern a consumer's; the suite
 reconciles the two, so neither is authoritative for the other's path.
 The composite action's provisioning phase consults this marker *before model

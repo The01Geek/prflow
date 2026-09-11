@@ -92,7 +92,7 @@ fi
 # resolves to `<workspace>/.prflow/vendor/prflow/skills/<name>` — byte-identical to a
 # consumer. Named `devflow-marketplace` so the baked `prflow@devflow-marketplace`
 # plugin spec resolves against it once the `./` entry is swapped out below. This path
-# is under the gitignored `.prflow/` tree (never staged by the agent's git add -A) and
+# is under the gitignored `.prflow/` tree (the agent stages only explicit paths, never the whole tree) and
 # is distinct from the vendor-slice-pruned `<vendor-root>/prflow/.claude-plugin/
 # marketplace.json`, so there is no collision.
 MK_DIR="$VENDOR_ROOT/.claude-plugin"

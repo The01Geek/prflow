@@ -67,7 +67,7 @@ jobs:
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request == null &&
       (contains(github.event.comment.body, '/prflow:implement') || contains(github.event.comment.body, '/devflow:implement')) && !contains(github.event.comment.body, '@claude')
-    runs-on: ${{ vars.DEVFLOW_LIGHT_RUNNER && (startsWith(vars.DEVFLOW_LIGHT_RUNNER, '[') && fromJSON(vars.DEVFLOW_LIGHT_RUNNER) || vars.DEVFLOW_LIGHT_RUNNER) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest') }}
+    runs-on: ${{ vars.DEVFLOW_LIGHT_RUNNER && (startsWith(vars.DEVFLOW_LIGHT_RUNNER, '[') && fromJSON(vars.DEVFLOW_LIGHT_RUNNER) || format(vars.DEVFLOW_LIGHT_RUNNER, github.run_id)) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || format(vars.DEVFLOW_RUNNER, github.run_id)) || 'ubuntu-latest') }}
     outputs:
       enabled: ${{ steps.extract.outputs.enabled }}
       base_branch: ${{ steps.extract.outputs.base_branch }}
@@ -77,6 +77,7 @@ jobs:
       effort: ${{ steps.extract.outputs.effort }}
       allowed_tools_extra: ${{ steps.extract.outputs.allowed_tools_extra }}
       prflow_version: ${{ steps.extract.outputs.prflow_version }}
+      prflow_repo: ${{ steps.extract.outputs.prflow_repo }}
       workpad_marker: ${{ steps.extract.outputs.workpad_marker }}
       # Optional path to a pre-installed Claude Code executable (issue #601),
       # sourced from setup.claude_code_executable. Passed to claude-code-action's
@@ -252,9 +253,18 @@ jobs:
             echo "allowed_tools_extra=$(echo "$CONFIG_JSON" | jq -r --arg ws "$GITHUB_WORKSPACE" '.prflow_implement.allowed_tools // [] | (if $ws == "" then . else map(if type == "string" then sub("^Bash\\(/home/runner/work/[^/]+/[^/]+/"; "Bash(" + $ws + "/") else . end) end) | if length > 0 then "," + join(",") else "" end')"
             # Pinned plugin ref for the vendor-plugin fetch branch (thin installs).
             echo "prflow_version=$(echo "$CONFIG_JSON" | jq -r '.prflow_version // empty')"
+            # Repository the fetch branch clones (issue #228). A missing key, empty
+            # string, null, boolean, number, array, or object all resolve to empty
+            # (the public repository); only a non-empty string passes through.
+            echo "prflow_repo=$(echo "$CONFIG_JSON" | jq -r 'try (.prflow_repo | strings | select(. != "")) catch empty')"
             # Effective workpad marker, passed to the resolver's self-trigger guard.
             echo "workpad_marker=$(echo "$CONFIG_JSON" | jq -r '.prflow.workpad_marker // "<!-- prflow:workpad -->"')"
           } >> "$GITHUB_OUTPUT"
+          # Warn on a non-string, non-null prflow_repo (null and missing are silent).
+          PRFLOW_REPO_TYPE=$(echo "$CONFIG_JSON" | jq -r 'if (.prflow_repo != null) and ((.prflow_repo | type) != "string") then (.prflow_repo | type) else empty end')
+          if [ -n "$PRFLOW_REPO_TYPE" ]; then
+            echo "::warning::prflow_repo has non-string JSON type '$PRFLOW_REPO_TYPE' in .prflow/config.json; treating it as empty (the public repository)"
+          fi
           # Optional pre-installed Claude Code executable path (issue #601). For
           # self-hosted runners (typically Windows) whose OS the action's Unix-only
           # bundled installer cannot serve. `// empty` emits an empty *stream* when the key
@@ -300,7 +310,7 @@ jobs:
   gate:
     needs: config
     if: ${{ needs.config.outputs.enabled == 'true' }}
-    runs-on: ${{ vars.DEVFLOW_LIGHT_RUNNER && (startsWith(vars.DEVFLOW_LIGHT_RUNNER, '[') && fromJSON(vars.DEVFLOW_LIGHT_RUNNER) || vars.DEVFLOW_LIGHT_RUNNER) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest') }}
+    runs-on: ${{ vars.DEVFLOW_LIGHT_RUNNER && (startsWith(vars.DEVFLOW_LIGHT_RUNNER, '[') && fromJSON(vars.DEVFLOW_LIGHT_RUNNER) || format(vars.DEVFLOW_LIGHT_RUNNER, github.run_id)) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || format(vars.DEVFLOW_RUNNER, github.run_id)) || 'ubuntu-latest') }}
     permissions:
       contents: read        # checkout the resolver script; collaborator check uses GITHUB_TOKEN
       issues: write         # react step + duplicate notice on issue comments
@@ -324,12 +334,14 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
       # Materialize the plugin into the workspace so the resolver/dedupe/react
-      # scripts exist at .prflow/vendor/prflow/scripts/ (committed → self →
-      # fetch). Without it a thin consumer — or this source repo — fails closed
+      # scripts exist at .prflow/vendor/prflow/scripts/ (committed → fetch).
+      # Without it a thin consumer — or this source repo — fails closed
       # at "resolver not found".
       - uses: ./.github/actions/vendor-plugin
         with:
           ref: ${{ needs.config.outputs.prflow_version }}
+          repo: ${{ needs.config.outputs.prflow_repo }}
+          token: ${{ secrets.PRFLOW_REPO_TOKEN || github.token }}
       - id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
@@ -599,7 +611,7 @@ jobs:
   claude:
     needs: [config, gate]
     if: needs.gate.outputs.should_run == 'true' && needs.gate.outputs.duplicate != 'true'
-    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || vars.DEVFLOW_RUNNER) || 'ubuntu-latest' }}
+    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || format(vars.DEVFLOW_RUNNER, github.run_id)) || 'ubuntu-latest' }}
     permissions:
       contents: write
       pull-requests: write
@@ -607,15 +619,11 @@ jobs:
       id-token: write
       actions: write # write scope so actions/cache can save the pip cache (read alone → "cache write denied: token has no writable scopes"); superset still lets Claude read CI results on PRs
     env:
-      # Authorize the Stop-hook `--persist` telemetry PUSH on this WRITABLE tier
-      # (issue #469 AC5). This job holds contents:write, so the branch push
-      # succeeds here; the read-only `review` tier (devflow-runner.yml) deliberately
-      # leaves this UNSET so `--persist` fails closed to staging-only. Set at JOB
-      # level so it reaches the Stop-hook subprocess claude-code-action spawns —
-      # the base-branch .claude/settings.json (restored in every claude-code-action
-      # job) cannot distinguish tiers, so the operand must come from the job env,
-      # not the hook command. (Platform premise — the job env propagates into the
-      # Stop-hook subprocess; see the workpad's unverified-boundary note.)
+      # Authorize the `--persist` telemetry PUSH on this WRITABLE tier (issue #469 AC5).
+      # This job holds contents:write, so the branch push succeeds here. `--persist` runs
+      # from the Loop-Exit fences and the post-agent backstop step (issue #274 deleted the
+      # Stop hook that once also ran it); this job-level env reaches those subprocesses.
+      # Kept in sync with devflow.yml's manual /devflow:review job.
       DEVFLOW_TELEMETRY_PUSH: '1'
     steps:
       # Optional, opt-in: mint a GitHub App installation token at full
@@ -690,12 +698,14 @@ jobs:
           # identical to checkout's own default.
           token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
 
-      # Materialize the plugin (committed → self → fetch) so claude-code-action
+      # Materialize the plugin (committed → fetch) so claude-code-action
       # loads it from .prflow/vendor/prflow/ and the agent's helper scripts
       # resolve at the literal workspace path the allowlist below grants.
       - uses: ./.github/actions/vendor-plugin
         with:
           ref: ${{ needs.config.outputs.prflow_version }}
+          repo: ${{ needs.config.outputs.prflow_repo }}
+          token: ${{ secrets.PRFLOW_REPO_TOKEN || github.token }}
 
       # Validate the vendored helpers this run cannot degrade around AND write the
       # ephemeral handoff record (issue #537). Runs AFTER vendor-materialization and
@@ -793,10 +803,9 @@ jobs:
           DEVFLOW_APP_PRIVATE_KEY: ${{ secrets.DEVFLOW_APP_PRIVATE_KEY }}
         run: |
           set -euo pipefail
-          # No scripts/… self-repo fallback here (unlike the always() Stop step): this
-          # step runs right after `vendor-plugin` on the same sequential job, so the
-          # vendored path is always present — a fallback would be dead code. Do NOT add
-          # one in a wrong-direction "reconcile" with the Stop step.
+          # No scripts/… self-repo fallback here (issue #228 removed all such fallbacks):
+          # this step runs right after `vendor-plugin` on the same sequential job, so the
+          # vendored path is always present — a fallback would be dead code. Do NOT add one.
           # Job-scoped state (issue #1882): so a later job on this runner never reads or
           # retires another job's token file/pidfile/log, and the loop retires itself
           # once its job is no longer the runner's current one (the pointer below).
@@ -861,8 +870,8 @@ jobs:
       # this installer has no such file, and the step fails LOUDLY (rc 127,
       # before the agent) until workflows and the pin are refreshed together
       # (see https://prflow.ai/docs/getting-started/installation's update section). The installer's own output-2
-      # wrapper-SOURCE lookup carries a vendored-or-repo fallback — that is a
-      # different path (the gh-fresh.sh bytes to copy), not this invocation.
+      # wrapper-SOURCE lookup resolves the vendored gh-fresh.sh (issue #228 removed its
+      # repo fallback) — a different path (the gh-fresh.sh bytes to copy), not this invocation.
       - name: Install fresh-gh wrapper (optional)
         if: ${{ vars.DEVFLOW_APP_ID != '' }}
         env:
@@ -1413,7 +1422,7 @@ jobs:
       #
       # The TOOLS='…' literal below is a GENERATED region — do NOT hand-edit it. It is
       # compiled from the `implement` profile in lib/capability-profiles.json by
-      # lib/generate-capability-profiles.py; change a grant there and regenerate. The
+      # tools/generators/generate-capability-profiles.py; change a grant there and regenerate. The
       # banner comment above the assignment carries the manifest_version + the region's
       # sha256, and lib/test/run.sh's --check turns any manifest↔literal drift RED. The
       # step appends `allowed_tools_extra` (`${TOOLS}${EXTRA}`) so the resolved output
@@ -1424,7 +1433,7 @@ jobs:
           EXTRA: ${{ needs.config.outputs.allowed_tools_extra }}
         run: |
           set -euo pipefail
-          # devflow-capability-manifest: region=implement manifest_version=35 sha256=ac604cf4fd33d6abdeab6d3ddb6a296460cc2719257e04ae9c4e9c910d9c1424
+          # devflow-capability-manifest: region=implement manifest_version=36 sha256=ac604cf4fd33d6abdeab6d3ddb6a296460cc2719257e04ae9c4e9c910d9c1424
           TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git hash-object:*), Bash(git checkout:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*), Bash(.prflow/vendor/prflow/scripts/ac-verifier-artifacts.py:*), Bash(.prflow/vendor/prflow/scripts/validate-issue-claim-audit.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/discover-deferral-manifests.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/ensure-label.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-pr-triggerer.sh:*), Bash(.prflow/vendor/prflow/scripts/render-pr-provenance-line.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/scripts/apply-issue-dependencies.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-existing-pr.sh:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/react-to-trigger.sh:*), Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*), Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(cmp:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(tee:*)'
           # Randomized-delimiter heredoc, not `tools=<value>`: EXTRA is config-derived
           # (`prflow_implement.allowed_tools`), so a newline anywhere in it would truncate
@@ -1454,8 +1463,8 @@ jobs:
       # and publish) lives in scripts/compose-implement-prompt.sh, NOT inline here, so the
       # suite can drive each arm and the arm ORDER — CLAUDE.md's inline-shell-extraction
       # convention: a grep-pin on any one of the ::error:: literals is not coverage of
-      # the selection that chooses between them. Vendored copy, repo-path fallback for a
-      # self-repo run, exactly like the Stop-refresher step below.
+      # the selection that chooses between them. Resolved at the vendored path only
+      # (issue #228 removed the repo-path fallback), exactly like the Stop-refresher step below.
       - name: Compose implement grounding block
         id: compose
         env:
@@ -1468,7 +1477,6 @@ jobs:
         run: |
           set -euo pipefail
           H=.prflow/vendor/prflow/scripts/compose-implement-prompt.sh
-          [ -f "$H" ] || H=scripts/compose-implement-prompt.sh
           # The helper is FAIL-LOUD by contract: it exits non-zero on every arm that
           # cannot publish a grounded prompt, and the runner's `-e` shell propagates that
           # here — so no `||` tail may absorb it. This check covers only the one case the
@@ -1476,7 +1484,7 @@ jobs:
           # slice); the guard step above already fails on it, so reaching this line means
           # the tree changed under the job.
           if [ ! -f "$H" ]; then
-            echo "::error::devflow: compose-implement-prompt.sh is absent from both .prflow/vendor/prflow/scripts/ and scripts/ — the implement prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. Repair the vendored .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
+            echo "::error::devflow: compose-implement-prompt.sh is absent from .prflow/vendor/prflow/scripts/ — the implement prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. Repair the vendored .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
             exit 1
           fi
           bash "$H"
@@ -1489,11 +1497,10 @@ jobs:
         run: |
           set -euo pipefail
           H=.prflow/vendor/prflow/scripts/prompt-extension-arrival.py
-          [ -f "$H" ] || H=scripts/prompt-extension-arrival.py
           if [ ! -f "$H" ]; then
             # Record detector-absent rather than exiting clean: skipping the check on
             # an older vendored prflow_version silently disables the whole surface.
-            echo "::warning::prompt-extension-arrival.py absent from both .prflow/vendor/prflow/scripts/ and scripts/ (older prflow_version); recording detector-absent"
+            echo "::warning::prompt-extension-arrival.py absent from .prflow/vendor/prflow/scripts/ (older prflow_version); recording detector-absent"
             echo "state=detector-absent" >> "$GITHUB_OUTPUT"
             echo "root=" >> "$GITHUB_OUTPUT"
             exit 0
@@ -1510,9 +1517,65 @@ jobs:
           echo "root=$ROOT" >> "$GITHUB_OUTPUT"
           echo "prompt-extension-arrival: implement extension classified state=${STATE:-detector-absent} root=$ROOT"
 
+      # ── Start the EC2 Spot-interruption watcher (issue #261, opt-in) ────────
+      # Opt-in via prflow_implement.spot_interruption_watcher.enabled — a
+      # type-preserving JSON boolean read by watcher-config-enabled.py, NOT
+      # config-get.sh, so a string "true" does not enable it. On a supported Linux
+      # EC2 IMDSv2 host it launches a background poller that, on a Spot
+      # interruption, posts a run-scoped reclaim marker and ends the Claude step so
+      # the always() post-run handlers get the remaining interruption window. A
+      # disabled gate, an absent helper, or an unsupported host is a logged no-op
+      # that leaves the Claude step running (started stays unset → the reap step
+      # below skips). Started BEFORE Run Claude Code; reaped immediately after it.
+      - name: Start Spot-interruption watcher (optional)
+        id: spot-watcher
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          ISSUE_NUMBER: ${{ needs.gate.outputs.number }}
+        run: |
+          set +e
+          V=.prflow/vendor/prflow/scripts
+          if [ ! -f "$V/watcher-config-enabled.py" ]; then
+            echo "::notice::spot-watcher: watcher-config-enabled.py absent (older vendored tree); not started"
+            exit 0
+          fi
+          if ! python3 "$V/watcher-config-enabled.py" | grep -qx true; then
+            echo "spot-watcher: spot_interruption_watcher.enabled is not the JSON boolean true; not started"
+            exit 0
+          fi
+          if ! bash "$V/detect-spot-runner.sh"; then
+            echo "spot-watcher: host is not a supported Linux EC2 IMDSv2 runner (see reason above); not started"
+            exit 0
+          fi
+          # Resolve THIS job's numeric id the same way the downstream recovery job
+          # will (name == claude), so the marker's job_id binding matches.
+          JOB_ID="$(gh api --paginate "repos/{owner}/{repo}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs" --jq '.jobs[] | select(.name=="claude") | .id' 2>/dev/null | head -1)"
+          # An empty JOB_ID silently disables reclaim recovery for this run (the marker's
+          # job_id binding cannot match), so surface it loudly rather than only as an info line.
+          [ -n "$JOB_ID" ] || echo "::warning::spot-watcher: could not resolve this claude job's id (jobs API read failed); the reclaim marker will carry no job_id binding, so a reclaim this run would reconcile as unclassifiable (no resume). Feature degraded, fail-safe."
+          PIDFILE="$RUNNER_TEMP/prflow-spot-watcher.pid"
+          nohup bash "$V/spot-interruption-watcher.sh" \
+            --pidfile "$PIDFILE" \
+            --marker-target-issue "$ISSUE_NUMBER" \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --job-id "$JOB_ID" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 &
+          disown
+          { echo "started=true"; echo "pidfile=$PIDFILE"; } >> "$GITHUB_OUTPUT"
+          echo "spot-watcher: started (pidfile=$PIDFILE, job_id=${JOB_ID:-unresolved})"
+
+      - name: Stamp the transcript store before the Claude step
+        if: always()
+        run: |
+          set -uo pipefail
+          # A cancelled/killed Claude step writes no execution file; this stamp's mtime is the
+          # cutoff the scrub step uses to select THIS run's own session files (issue #342).
+          STAMP="$RUNNER_TEMP/prflow-transcript-stamp"
+          : > "$STAMP"
+          echo "transcript store stamped at $STAMP"
+
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1.0.217 (CLI 2.1.263); @v1's 2.1.265 build breaks plugin install — anthropics/claude-code-action#1290
         env:
           # Surfaces the workflow-capable-token signal to the /devflow:implement
           # agent's Phase 1.6 execution-capability pass (Pass 5, issues #346/#350).
@@ -1587,8 +1650,8 @@ jobs:
           # the job budget. The wrong change it prevents: lowering that bound below the
           # measured whole-suite coordinator wall (lib/test/run-parallel.sh, #1086), which
           # would kill the coordinator mid-run with no output when a run chose the full
-          # suite. On the 8-core pool the coordinator ran 456s (7.6 min), measured
-          # 2026-08-30 in Actions run 33318418260, so 20 min keeps ample headroom.
+          # suite. The coordinator ran 592s (9.9 min), measured 2026-09-03 in Actions run
+          # 33709922152, so 20 min keeps ample headroom.
           # Rationale lives in docs/internal/claude-md-tiered-suite-rationale.md.
           #
           # MECHANISM — AND WHY THIS CANNOT DROP THE BASE `.claude/settings.json` HOOKS.
@@ -1600,18 +1663,14 @@ jobs:
           # base-action/src/setup-claude-code-settings.ts resolves that undefined homeDir
           # to os.homedir(), i.e. $HOME/.claude/settings.json, merging the input over
           # whatever that file already held with a shallow top-level spread. The repo's
-          # three `Stop` hooks — lib/efficiency-trace.sh --persist (whose PUSH this job
-          # authorizes via the job-level DEVFLOW_TELEMETRY_PUSH), lib/implement-stop-guard.sh
-          # (the #356/#498 stall/dead-run backstop) and scripts/stop-hook-probe.sh — live in
-          # the PROJECT settings file, $GITHUB_WORKSPACE/.claude/settings.json, which the
-          # action restores from the base branch and which this input never opens. And
-          # base-action/src/parse-sdk-options.ts passes
+          # project settings file, $GITHUB_WORKSPACE/.claude/settings.json, registers NO
+          # Stop hooks (issue #274 deleted them): the #356/#498 stall/dead-run backstop is the
+          # post-agent workflow step below, and the DEVFLOW_TELEMETRY_PUSH-authorized telemetry
+          # --persist runs from the Loop-Exit fences and that backstop step, not from a hook.
+          # base-action/src/parse-sdk-options.ts still passes
           # settingSources: ["user", "project", "local"] to the Agent SDK, so the user file
-          # this input writes and the project file carrying those hooks are loaded
-          # together. On that reading there is no merge-vs-overwrite exposure for those
-          # three hooks here, and a copy of them does not belong in this block — copying
-          # them in would register each of the three twice (once per settings source) and
-          # fire the stall backstop and the telemetry persist twice per stop.
+          # this input writes and the project file are loaded together; with no project-file
+          # hook present there is no merge-vs-overwrite exposure for this input to manage.
           #
           # REGISTER OF THE PARAGRAPH ABOVE (PR #1205 review round 2). It is a READ of
           # claude-code-action's source — not a measurement taken here, and not a documented
@@ -1622,10 +1681,7 @@ jobs:
           # action unpinned is the deliberate choice — a SHA pin would freeze the source
           # this paragraph reads, but it would also drop the automatic patch pickup `@v1`
           # gives every other input on this step, and which `uses:` form this repo wants is
-          # a repo-wide policy question rather than one for this block to settle. The open
-          # measurement tracked in #919 (matcher-probe.yml's `pretooluse-probe`) answers a
-          # DIFFERENT question — whether a settings-input hook fires — so it neither
-          # confirms nor refutes the scope read above, and this block does not wait on it.
+          # a repo-wide policy question rather than one for this block to settle.
           #
           # Two residuals for a future editor. (1) The merge is shallow, so a second
           # top-level key added here REPLACES (never deep-merges) a same-named key already
@@ -1662,19 +1718,23 @@ jobs:
           # model may request). #1179 raised only the ceiling, so an unparameterized command
           # still died at two minutes: Actions run 31424543691 spent 480 s — 9.2% of an
           # 87-minute run — on four commands killed at 120000 ms and then re-issued with an
-          # explicit longer timeout. All four succeeded on retry at <= 600000 ms.
+          # explicit longer timeout.
           #
-          # 600000 and not 1200000, for three reasons. (a) Every observed kill retried
-          # successfully within 600000 ms, so nothing measured needs more. (b) Keeping a gap
-          # between the free allowance and the ceiling means a genuinely hung UNPARAMETERIZED
-          # command costs ten minutes rather than twenty. (c) The effective per-command wall
-          # resolves to the LARGER of the two, so a default at or above the max would
-          # silently redefine the bound #1179 chose — which is why lib/test/run.sh asserts
-          # default < max per step rather than merely asserting the key is present.
+          # 900000 and not 1200000, for three reasons. (a) The whole-suite coordinator
+          # (lib/test/run-parallel.sh, #1086) is measured at 592 s on this tier (Actions run
+          # 33709922152, 2026-09-03) — only eight seconds under the old 600000 ms allowance, so
+          # ordinary run-to-run variance pushed a full suite launched without an explicit
+          # timeout past that wall and killed it; 900000 ms (15 min) clears the 592 s wall by
+          # about five minutes. (b) Keeping a gap between the free allowance
+          # and the ceiling means a genuinely hung UNPARAMETERIZED command costs fifteen
+          # minutes rather than twenty. (c) The effective per-command wall resolves to the
+          # LARGER of the two, so a default at or above the max would silently redefine the
+          # bound #1179 chose — which is why lib/test/run.sh asserts default < max per step
+          # rather than merely asserting the key is present.
           settings: |
             {
               "env": {
-                "BASH_DEFAULT_TIMEOUT_MS": "600000",
+                "BASH_DEFAULT_TIMEOUT_MS": "900000",
                 "BASH_MAX_TIMEOUT_MS": "1200000"
               }
             }
@@ -1721,11 +1781,42 @@ jobs:
             ${{ steps.cargs.outputs.args }}
             --allowed-tools "${{ steps.tools.outputs.tools }}"
 
+      # ── Reap the Spot-interruption watcher (issue #261, AC44) ───────────────
+      # The FIRST post-run step after Run Claude Code, ahead of every other always()
+      # handler (credential-refresher stop, diagnostics, transcript, stall backstop),
+      # so the watcher can neither publish a reclaim marker after the Claude-step
+      # boundary nor terminate a later cleanup phase. Stops the EXACT pid the watcher
+      # recorded — never a name/pattern that could match an unrelated process.
+      # Best-effort: always exits 0; a still-alive watcher after SIGKILL is surfaced
+      # as a ::warning:: rather than silently tolerated.
+      - name: Reap Spot-interruption watcher
+        if: ${{ always() && steps.spot-watcher.outputs.started == 'true' }}
+        env:
+          PIDFILE: ${{ steps.spot-watcher.outputs.pidfile }}
+        run: |
+          set +e
+          if [ -z "${PIDFILE:-}" ] || [ ! -f "$PIDFILE" ]; then
+            echo "reap spot-watcher: no pidfile recorded; nothing to reap"
+            exit 0
+          fi
+          PID="$(cat "$PIDFILE" 2>/dev/null)"
+          if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+            kill -TERM "$PID" 2>/dev/null
+            for _ in 1 2 3 4; do kill -0 "$PID" 2>/dev/null || break; sleep 0.5; done
+            kill -0 "$PID" 2>/dev/null && kill -KILL "$PID" 2>/dev/null
+          fi
+          rm -f "$PIDFILE"
+          if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+            echo "::warning::reap spot-watcher: PID $PID still alive after SIGKILL — the watcher could still fire; investigate"
+          else
+            echo "reap spot-watcher: watcher stopped (PID ${PID:-none})"
+          fi
+
       # Retire the detached credential refresher (issue #487). Best-effort,
       # always() so it runs on every exit path. The kill-by-pidfile, log-tail, and
       # defeated-refresher ::warning:: logic lives in scripts/stop-refresher.sh so
       # the branch/message selection is suite-drivable (CLAUDE.md inline-shell-
-      # extraction convention). Vendored copy, repo-path fallback for a self-repo run.
+      # extraction convention). Vendored copy, vendored path only (issue #228 removed the repo-path fallback).
       - name: Stop credential refresher (optional)
         if: ${{ always() && vars.DEVFLOW_APP_ID != '' }}
         env:
@@ -1745,7 +1836,6 @@ jobs:
           HANDLE="${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-0}-${GITHUB_JOB:-job}"
           export DEVFLOW_REFRESH_SELFTEST_FAILED="$RUNNER_TEMP/devflow-refresh-$HANDLE.selftest-failed"
           H=.prflow/vendor/prflow/scripts/stop-refresher.sh
-          [ -f "$H" ] || H=scripts/stop-refresher.sh
           bash "$H"
 
       # Surface the claude-code-action run's execution diagnostics (run summary +
@@ -1758,7 +1848,7 @@ jobs:
       # never changes the job's pass/fail. always() so it runs even when the
       # claude step errored — which is exactly when the diagnostics matter. Gated
       # on .prflow.execution_diagnostics_enabled (default true) via the vendored
-      # config-get.sh (repo-path fallback for a self-repo checkout); only the
+      # config-get.sh (vendored path only (issue #228 removed the repo-path fallback)); only the
       # exact string "false" disables it, and an empty read (config-get soft/hard
       # failure) falls safe to enabled.
       - name: Surface execution diagnostics
@@ -1773,7 +1863,6 @@ jobs:
         run: |
           set -euo pipefail
           CG=.prflow/vendor/prflow/scripts/config-get.sh
-          [ -f "$CG" ] || CG=scripts/config-get.sh
           # `|| true` so config-get's hard-fail exit (malformed config.json / missing
           # python3) can't abort this step under GitHub's default `-e` run shell — which
           # would fail the job and break the "never changes the job's pass/fail" contract
@@ -1786,7 +1875,6 @@ jobs:
             exit 0
           fi
           SED=.prflow/vendor/prflow/scripts/surface-execution-diagnostics.sh
-          [ -f "$SED" ] || SED=scripts/surface-execution-diagnostics.sh
           if [ -f "$SED" ]; then
             # `|| echo ::notice::` for the same reason as the config-get guard above:
             # the helper's always-exit-0 contract holds for the committed file, but a
@@ -1813,7 +1901,6 @@ jobs:
         run: |
           set -euo pipefail
           PEE=.prflow/vendor/prflow/scripts/parse-engine-error.sh
-          [ -f "$PEE" ] || PEE=scripts/parse-engine-error.sh
           if [ -f "$PEE" ]; then
             # Never 2>/dev/null the helper — a broken jq would otherwise report
             # is_error=false forever with zero trace.
@@ -1832,6 +1919,9 @@ jobs:
       #     with nothing to show; highest forensic value, previously had none.
       #   devflow.yml: INCLUDE — runs the same shared review engine on the surviving
       #     manual path; a denial there is the same no-verdict failure mode (symmetry).
+      #   devflow-retrospective.yml: INCLUDE — the scheduled self-improvement loop; a
+      #     silent denial there ends a whole weekly run reporting success while filing
+      #     nothing, and it previously had no transcript channel at all to diagnose that.
       #   devflow-runner.yml: KEEP AS-IS — already has it; retained per CLAUDE.md's
       #     withheld-tier reconstructability rule (a pre-#937 consumer still runs it).
       #   matcher-probe.yml: EXCLUDE — already uploads a STRUCTURALLY-REDACTED shape
@@ -1848,13 +1938,12 @@ jobs:
       # shared scripts/scrub-transcript.sh helper (D4), not inline here.
       - name: Scrub execution transcript for upload
         id: scrub_transcript
-        if: always() && steps.claude.outputs.execution_file != ''
+        if: always()
         env:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
         run: |
           set -uo pipefail
           CG=.prflow/vendor/prflow/scripts/config-get.sh
-          [ -f "$CG" ] || CG=scripts/config-get.sh
           # Default-OFF: only the exact string "true" enables (builtin comparison, not a
           # sed/grep pipeline); `|| true` guards config-get's hard-fail under set -e.
           TRANSCRIPT="$("$CG" .prflow.execution_transcript_artifact_enabled false || true)"
@@ -1863,10 +1952,23 @@ jobs:
             exit 0
           fi
           OUT="$RUNNER_TEMP/claude-execution-scrubbed.json"
+          STAMP="$RUNNER_TEMP/prflow-transcript-stamp"
+          if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+            STORE_ROOT="$CLAUDE_CONFIG_DIR/projects"
+          else
+            STORE_ROOT="$HOME/.claude/projects"
+          fi
           ST=.prflow/vendor/prflow/scripts/scrub-transcript.sh
-          [ -f "$ST" ] || ST=scripts/scrub-transcript.sh
           if [ -f "$ST" ]; then
-            bash "$ST" "$EXECUTION_FILE" "$OUT" | tee -a "$GITHUB_OUTPUT"
+            SCRUB_OUT="$RUNNER_TEMP/scrub-transcript-out.txt"
+            bash "$ST" "$EXECUTION_FILE" "$OUT" "$STORE_ROOT" "$STAMP" > "$SCRUB_OUT"
+            tee -a "$GITHUB_OUTPUT" < "$SCRUB_OUT"
+            # A helper predating the native-session fallback prints no source= line; warn but
+            # still upload any path= it advertised, so an old vendored tree is told apart from
+            # a new helper that found nothing (issue #342).
+            if ! grep -q '^source=' "$SCRUB_OUT"; then
+              echo "::warning::transcript scrub helper advertised no source= line (a vendored tree predating the native-session fallback); a newer prflow_version is needed to preserve a cancelled run's transcript."
+            fi
           else
             echo "::warning::transcript scrub inert: $ST missing (an older vendored tree); NOT uploading (fail-closed)."
           fi
@@ -1942,14 +2044,12 @@ jobs:
           # command text (shared blocklist) and fails closed; the count and tool_name
           # are always persisted regardless of this key.
           DENIAL_CG=.prflow/vendor/prflow/scripts/config-get.sh
-          [ -f "$DENIAL_CG" ] || DENIAL_CG=scripts/config-get.sh
           DENIAL_ENABLED_RAW="$("$DENIAL_CG" .prflow.execution_denial_commands_enabled true || true)"
           case "$DENIAL_ENABLED_RAW" in
             false) DENIAL_CMDS_ENABLED=false ;;
             *)     DENIAL_CMDS_ENABLED=true ;;
           esac
           DENIAL_BUILDER=.prflow/vendor/prflow/scripts/build-denial-record.sh
-          [ -f "$DENIAL_BUILDER" ] || DENIAL_BUILDER=scripts/build-denial-record.sh
           DEVFLOW_DENIAL_RECORD=""
           if [ -f "$DENIAL_BUILDER" ]; then
             DEVFLOW_DENIAL_RECORD="$(bash "$DENIAL_BUILDER" "${EXECUTION_FILE:-}" "$DENIAL_CMDS_ENABLED")"
@@ -2256,6 +2356,16 @@ jobs:
           # extra resume runs. `grep -cxF -e A -e B` counts LINES matching either,
           # so this is a union over comment lines, not a sum over spellings.
           MARKER_SUPERSEDED='<!-- devflow:stall-backstop-audit -->'
+          # Every comment this step posts goes through this one funnel variable; a
+          # second literal path here would escape the single-funnel pin.
+          PIC="$V/post-issue-comment.sh"
+          # Issue #305: pass the claude-step outcome to the decision helper ONLY when the
+          # opt-in is the JSON boolean true — read type-preservingly (config-get.sh folds
+          # the string "true" onto the boolean); a consumer without the key is unchanged.
+          DEFER_OUTCOME=""
+          if [ -f "$V/watcher-config-enabled.py" ] && [ "$(python3 "$V/watcher-config-enabled.py" --key prflow_implement.stall_backstop.defer_to_runner_retry 2>/dev/null)" = "true" ]; then
+            DEFER_OUTCOME="$CLAUDE_OUTCOME"
+          fi
           ATTEMPTS=0
           if [ "$CLASS" = "interim" ]; then
             GH_ERRF="$(mktemp 2>/dev/null || echo /dev/null)"
@@ -2272,8 +2382,8 @@ jobs:
             [ "$GH_ERRF" = /dev/null ] || rm -f "$GH_ERRF"
             [[ "$ATTEMPTS" =~ ^[0-9]+$ ]] || ATTEMPTS=0
           fi
-          DECISION="$(bash "$V/stall-backstop-decide.sh" "$ENABLED" "$CLASS" "$ATTEMPTS" "$MAX" "$JOB_STATUS")"
-          echo "stall backstop: status='${STATUS_OUT}' class=${CLASS} attempts=${ATTEMPTS} max=${MAX} decision=${DECISION} job_status=${JOB_STATUS}"
+          DECISION="$(bash "$V/stall-backstop-decide.sh" "$ENABLED" "$CLASS" "$ATTEMPTS" "$MAX" "$JOB_STATUS" "$DEFER_OUTCOME")"
+          echo "stall backstop: status='${STATUS_OUT}' class=${CLASS} attempts=${ATTEMPTS} max=${MAX} decision=${DECISION} job_status=${JOB_STATUS} claude_outcome=${CLAUDE_OUTCOME} defer_outcome=${DEFER_OUTCOME:-off}"
           # (The helper's 'skip' arm is unreachable here — the early exit above
           # already returned on ENABLED=false — so 'noop' is the only decision
           # that exits at THIS point; 'resume' also ends green, but lower down
@@ -2296,6 +2406,25 @@ jobs:
             exit 0
           fi
           if [ "$DECISION" = "noop" ]; then
+            exit 0
+          fi
+          # defer (issue #305): the runner retries this failed job itself, so a
+          # resume here would double-drive the issue. No flip (the retry's Phase 1.4
+          # resumes an interim workpad), and a body with no audit marker or trigger line.
+          DEFER_MARK="<!-- prflow:stall-backstop-deferred run_id=${GITHUB_RUN_ID} run_attempt=${GITHUB_RUN_ATTEMPT} -->"
+          if [ "$DECISION" = "defer" ]; then
+            if printf '%s\n' "$COMMENT_BODIES" | grep -qF "$DEFER_MARK"; then
+              echo "stall backstop: deferred informational comment already posted for this run attempt; not reposting (issue #305)"
+              exit 0
+            fi
+            DEFER_BODY="$(mktemp)" || { echo "::warning::stall backstop: mktemp failed; deferred informational comment not posted (best-effort; the run stays interim for the runner's on-demand retry)"; exit 0; }
+            {
+              printf '%s\n\n' "$DEFER_MARK"
+              printf '**PRFlow stall backstop** — the agent step ended `%s` with the workpad still in progress; deferring to the runner retry of the failed job (`stall_backstop.defer_to_runner_retry`) rather than posting a competing auto-resume.\n' "$CLAUDE_OUTCOME"
+              printf '%s\n' "$RUN_URL"
+            } > "$DEFER_BODY"
+            bash "$PIC" "$ISSUE_NUMBER" "$DEFER_BODY"
+            rm -f "$DEFER_BODY"
             exit 0
           fi
           # fail-blocked (issue #1025): the run ended at a terminal workpad
@@ -2380,7 +2509,7 @@ jobs:
           # never-posted resume as green. On the fail arms the job is already
           # exiting non-zero; a dropped comment there only loses the courtesy
           # notice, and the breadcrumb below still names it in the run log.
-          POST_ERR="$(bash "$V/post-issue-comment.sh" "$ISSUE_NUMBER" "$BODY" 2>&1)"
+          POST_ERR="$(bash "$PIC" "$ISSUE_NUMBER" "$BODY" 2>&1)"
           printf '%s\n' "$POST_ERR"
           if [ "$FAIL" -eq 0 ] && ! printf '%s' "$POST_ERR" | grep -qxF "devflow: posted comment on #${ISSUE_NUMBER}"; then
             flip_to_failed "resume re-dispatch comment did not land"
@@ -2425,7 +2554,7 @@ jobs:
             # whole check, and exiting clean would report an unverified run as verified.
             if [ "$AGENT_OUTCOME" = "success" ]; then
               echo "::error::prompt-extension-arrival: the pre-agent classify step recorded no expectation, so the post-agent arrival check could not run on a run the agent reported successful — refusing to treat it as clean. NOTE: permission_denials_count does NOT cover a lost skill-body load, so a low denial count is not evidence the body loaded."
-              W=.prflow/vendor/prflow/scripts/workpad.py; [ -f "$W" ] || W=scripts/workpad.py
+              W=.prflow/vendor/prflow/scripts/workpad.py
               if [ -f "$W" ]; then
                 python3 "$W" update "$ISSUE_NUMBER" --status Blocked --reflection-kind blocked \
                   --reflection "prompt-extension arrival unestablished (implement) — the pre-agent classify step recorded no expectation, so arrival could not be checked" \
@@ -2441,8 +2570,8 @@ jobs:
             exit 0
           fi
           V=.prflow/vendor/prflow/scripts
-          W="$V/workpad.py"; [ -f "$W" ] || W=scripts/workpad.py
-          H="$V/prompt-extension-arrival.py"; [ -f "$H" ] || H=scripts/prompt-extension-arrival.py
+          W="$V/workpad.py"
+          H="$V/prompt-extension-arrival.py"
           # Every ::error:: below must keep restating that permission_denials_count is
           # blind to a lost skill-body load, or a reader treats a low count as evidence.
           fail_closed() {
@@ -2523,4 +2652,251 @@ jobs:
             exit 1
           fi
           echo "prompt-extension-arrival: implement extension arrival reconciled: $FINAL"
+          exit 0
+
+  # ── Downstream Spot-reclaim recovery job (issue #261) ─────────────────────
+  # A reclaimed EC2 Spot runner never executes the claude job's own always()
+  # handlers (the stall backstop among them), so this SEPARATE job — on
+  # GitHub-hosted ubuntu-latest, never DEVFLOW_RUNNER/DEVFLOW_LIGHT_RUNNER —
+  # reconciles a terminal `claude` result. It gates on the upstream config+gate
+  # jobs having SUCCEEDED (a dead job emits no outputs, so every input it needs
+  # comes from config/gate or is re-derived from the API), evaluates only
+  # cancelled/failure results (success/skipped preserve current behavior), calls
+  # the merged recovery-classify.sh, and acts on reclaim/human-cancel/
+  # unclassifiable exactly as the acceptance criteria state. Every state-changing
+  # branch is idempotent and guarded by the exact run-attempt identity.
+  spot_recovery:
+    needs: [config, gate, claude]
+    if: >
+      always() &&
+      needs.config.result == 'success' &&
+      needs.gate.result == 'success' &&
+      needs.gate.outputs.should_run == 'true' &&
+      needs.gate.outputs.duplicate != 'true' &&
+      (needs.claude.result == 'cancelled' || needs.claude.result == 'failure')
+    runs-on: ubuntu-latest
+    # Least privilege, and EXACTLY these five (issue #261 AC46): reads for the
+    # jobs/check-runs APIs the evidence gatherer paginates, issues:write for the
+    # resume comment / workpad flip, pull-requests:read for the mirror. No
+    # contents:write, no id-token, no actions:write.
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      issues: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v6
+      # Materialize the vendored plugin so the helpers resolve at the literal
+      # workspace path, exactly as the other jobs do.
+      - uses: ./.github/actions/vendor-plugin
+        with:
+          ref: ${{ needs.config.outputs.prflow_version }}
+          repo: ${{ needs.config.outputs.prflow_repo }}
+          token: ${{ secrets.PRFLOW_REPO_TOKEN || github.token }}
+      # Best-effort fresh App-token mint (issue #287 pattern) — a resume comment
+      # must be App-authored to re-trigger the workflow (a GITHUB_TOKEN-authored
+      # comment never does). continue-on-error: a broken App degrades to
+      # fail-toward-no-resume rather than failing this recovery job.
+      - name: Mint recovery token (optional)
+        id: recovery-token
+        if: ${{ vars.DEVFLOW_APP_ID != '' }}
+        continue-on-error: true
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.DEVFLOW_APP_ID }}
+          private-key: ${{ secrets.DEVFLOW_APP_PRIVATE_KEY }}
+      - name: Reconcile reclaim vs human-cancel and act
+        env:
+          # Reads (jobs/checks/comments) use the job-scoped GITHUB_TOKEN; the
+          # resume comment uses the App token so it can re-trigger.
+          GH_TOKEN: ${{ github.token }}
+          APP_TOKEN: ${{ steps.recovery-token.outputs.token }}
+          APP_TOKEN_PRESENT: ${{ steps.recovery-token.outputs.token != '' }}
+          ISSUE_NUMBER: ${{ needs.gate.outputs.number }}
+          JOB_RESULT: ${{ needs.claude.result }}
+        run: |
+          set +e
+          V=.prflow/vendor/prflow/scripts
+          if [ ! -d "$V" ]; then
+            echo "::warning::spot-recovery: vendored scripts dir '$V' missing; no reclaim recovery performed (fail toward no resume)"
+            exit 0
+          fi
+          if [ -z "${ISSUE_NUMBER:-}" ]; then
+            echo "::warning::spot-recovery: no issue number resolved from the gate job; nothing to reconcile"
+            exit 0
+          fi
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          # ── Evidence → seven normalized flags → decision ──────────────────
+          EVID="$(bash "$V/gather-recovery-evidence.sh" --repo "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" --issue "$ISSUE_NUMBER")"
+          # Seven lines, fixed order; a short read fails toward unclassifiable.
+          mapfile -t F <<< "$EVID"
+          if [ "${#F[@]}" -lt 7 ]; then
+            echo "::warning::spot-recovery: evidence gatherer returned ${#F[@]} flags (<7); treating as unclassifiable"
+            F=(false false false false false false false)
+          fi
+          OUTCOME="$(bash "$V/recovery-classify.sh" "${F[0]}" "${F[1]}" "${F[2]}" "${F[3]}" "${F[4]}" "${F[5]}" "${F[6]}")"
+          echo "spot-recovery: job_result=${JOB_RESULT} classify=${OUTCOME} flags=[${F[*]}]"
+
+          # ── Workpad status class (issue #287 read contract) ───────────────
+          STATUS_OUT="$(python3 "$V/workpad.py" status "$ISSUE_NUMBER")"; STATUS_RC=$?
+          if [ "$STATUS_RC" -eq 0 ] && [ -n "$STATUS_OUT" ]; then
+            CLASS="${STATUS_OUT%% *}"
+          elif [ "$STATUS_RC" -eq 3 ]; then
+            CLASS=auth-failure
+          else
+            CLASS=unreadable
+          fi
+          echo "spot-recovery: workpad status='${STATUS_OUT:-}' class=${CLASS}"
+
+          # human-cancel: NEVER a resume, no state change (AC48/AC54).
+          if [ "$OUTCOME" = "human-cancel" ]; then
+            echo "spot-recovery: explicit human cancellation — no resume, no state change"
+            exit 0
+          fi
+
+          # Resume-comment poster, idempotent per run attempt (AC47/AC51/AC55).
+          # The audit marker (first line) is what dedupe-implement-run.sh's carve-out
+          # recognizes AND what the lifetime attempt cap counts; the spot-recovery
+          # binding line makes the post idempotent for THIS run attempt.
+          MARKER='<!-- prflow:stall-backstop-audit -->'
+          MARKER_SUPERSEDED='<!-- devflow:stall-backstop-audit -->'
+          ATTEMPT_MARK="<!-- prflow:spot-recovery-attempt run_id=${GITHUB_RUN_ID} run_attempt=${GITHUB_RUN_ATTEMPT} -->"
+          # Fetch the issue comments ONCE (full objects) and derive both the lifetime
+          # attempt count and the this-run idempotency check from the one buffer (no
+          # repeated pagination). A failed read leaves COMMENTS_OK false, which fails
+          # toward no resume: the count reads `unknown` and the guard reads as
+          # already-resumed.
+          COMMENTS_OK=true
+          COMMENTS_FILE="$(mktemp)" || COMMENTS_FILE=""
+          if [ -n "$COMMENTS_FILE" ]; then
+            gh api --paginate "repos/{owner}/{repo}/issues/${ISSUE_NUMBER}/comments?per_page=100" --jq '.[]' 2>/dev/null | jq -s '.' > "$COMMENTS_FILE" || COMMENTS_OK=false
+            [ -s "$COMMENTS_FILE" ] || COMMENTS_OK=false
+          else
+            COMMENTS_OK=false
+          fi
+          count_lifetime_attempts() {
+            [ "$COMMENTS_OK" = "true" ] || { echo unknown; return 0; }
+            # One per posted resume: a comment whose FIRST line is the audit marker
+            # (either spelling), in-job backstop and recovery alike — the shared cap input.
+            jq --arg m "$MARKER" --arg s "$MARKER_SUPERSEDED" \
+              '[.[] | ((.body // "") | gsub("\r";"") | split("\n")[0]) | select(. == $m or . == $s)] | length' "$COMMENTS_FILE"
+          }
+          already_resumed_this_attempt() {
+            # Delegate the per-run idempotency scan to the pure, suite-tested helper
+            # (AC51). It returns already-resumed when this run's own attempt marker is
+            # present OR the in-job stall backstop already posted a resume for THIS run
+            # (an audit-marker comment carrying this run's RUN_URL — the check that
+            # prevents a genuine-failure run from being resumed twice). An unreadable
+            # list fails toward already-resumed (no double-post).
+            [ "$COMMENTS_OK" = "true" ] || return 0
+            local r
+            r="$(bash "$V/recovery-resume-already.sh" "$COMMENTS_FILE" "$MARKER" "$MARKER_SUPERSEDED" "$ATTEMPT_MARK" "$RUN_URL")"
+            [ "$r" = "already-resumed" ] || [ "$r" = "unreadable" ]
+          }
+          # Post one capped, idempotent resume comment. The cap + idempotency +
+          # App-token gate is the pure recovery-resume-eligible.sh (AC53's existing
+          # lifetime cap: attempts >= max blocks, matching stall-backstop-decide, not
+          # the looser count > cap), so the decision is suite-drivable; only the
+          # I/O (count, comment body, post) lives here.
+          post_capped_resume() {
+            local attempts max already elig k body
+            attempts="$(count_lifetime_attempts)"
+            max="$("$V/config-get.sh" .prflow_implement.stall_backstop.max_resume_attempts 2)"
+            [ -n "$max" ] || max=2
+            if already_resumed_this_attempt; then already=true; else already=false; fi
+            elig="$(bash "$V/recovery-resume-eligible.sh" "$attempts" "$max" "$already" "${APP_TOKEN_PRESENT}")"
+            if [ "$elig" != "post" ]; then
+              echo "::warning::spot-recovery: not resuming — recovery-resume-eligible='${elig}' (attempts=${attempts} max=${max} already_resumed=${already} app_token_present=${APP_TOKEN_PRESENT})"
+              return 0
+            fi
+            k=$((attempts + 1))
+            body="$(mktemp)" || { echo "::warning::spot-recovery: mktemp failed; no resume posted"; return 0; }
+            {
+              printf '%s\n' "$MARKER"
+              printf '%s\n\n' "$ATTEMPT_MARK"
+              printf '**PRFlow Spot-reclaim recovery** — the `claude` job was reclaimed (EC2 Spot); auto-resume attempt %s of %s\n' "$k" "$max"
+              printf '%s\n' "$RUN_URL"
+              printf '/prflow:implement %s\n' "$ISSUE_NUMBER"
+            } > "$body"
+            GH_TOKEN="$APP_TOKEN" bash "$V/post-issue-comment.sh" "$ISSUE_NUMBER" "$body"
+            rm -f "$body"
+          }
+          # Issue #305: when the repo opted in AND the job ended `failure` (the one
+          # conclusion a runner retry re-runs), post an informational notice instead of
+          # a competing resume. A `cancelled` reclaim still takes the #261 resume path.
+          DEFER_OUTCOME=""
+          if [ -f "$V/watcher-config-enabled.py" ] && [ "$(python3 "$V/watcher-config-enabled.py" --key prflow_implement.stall_backstop.defer_to_runner_retry 2>/dev/null)" = "true" ] && [ "$JOB_RESULT" = "failure" ]; then
+            DEFER_OUTCOME=failure
+          fi
+          # Body carries neither the audit marker nor a trigger line; default GH_TOKEN.
+          DEFER_MARK="<!-- prflow:stall-backstop-deferred run_id=${GITHUB_RUN_ID} run_attempt=${GITHUB_RUN_ATTEMPT} -->"
+          post_deferred_notice() {
+            local body
+            # Skip when this run attempt's deferred marker is already present. When
+            # the comment list is unreadable the check cannot run — post anyway
+            # (a possible duplicate courtesy comment) but breadcrumb, never silent.
+            if [ "$COMMENTS_OK" != "true" ]; then
+              echo "::warning::spot-recovery: could not read the issue comments; the deferred-notice idempotency check could not run — posting the informational comment anyway (best-effort, a possible duplicate courtesy comment)"
+            elif jq -e --arg d "$DEFER_MARK" 'any(.[]; (.body // "") | contains($d))' "$COMMENTS_FILE" >/dev/null 2>&1; then
+              echo "spot-recovery: deferred informational comment already posted for this run attempt; not reposting (issue #305)"
+              return 0
+            fi
+            body="$(mktemp)" || { echo "::warning::spot-recovery: mktemp failed; deferred informational comment not posted"; return 0; }
+            {
+              printf '%s\n\n' "$DEFER_MARK"
+              printf '**PRFlow stall backstop** — the agent job ended `failure` with the workpad still in progress; deferring to the runner retry of the failed job (`stall_backstop.defer_to_runner_retry`) rather than posting a competing auto-resume.\n'
+              printf '%s\n' "$RUN_URL"
+            } > "$body"
+            bash "$V/post-issue-comment.sh" "$ISSUE_NUMBER" "$body"
+            rm -f "$body"
+          }
+
+          # Route the classify outcome × job status × workpad class through the pure
+          # recovery-resume-decide.sh (AC47/AC48/AC49/AC54), then act on its token.
+          ACTION="$(bash "$V/recovery-resume-decide.sh" "$OUTCOME" "$JOB_RESULT" "$CLASS")"
+          echo "spot-recovery: action=${ACTION}"
+          case "$ACTION" in
+            resume-reclaim)
+              # Issue #305: defer only on an opted-in `failure`; a `cancelled` reclaim
+              # gets no runner retry, so dropping its resume would strand the run.
+              if [ "$DEFER_OUTCOME" = "failure" ]; then post_deferred_notice; else post_capped_resume; fi
+              ;;
+            flip-cancelled)
+              # AC48/AC54: flip the interim workpad to Cancelled through the existing
+              # writer (issue labels + PR labels via issues:write land; the stopped-run
+              # PR-body note degrades best-effort under the AC46 pull-requests:read
+              # least-privilege grant — a documented, accepted degradation).
+              python3 "$V/workpad.py" update "$ISSUE_NUMBER" --status Cancelled \
+                --note "run cancelled (spot-recovery: no reclaim evidence, job.status=cancelled) — ${RUN_URL}" \
+                || echo "::warning::spot-recovery: could not flip workpad to Cancelled"
+              ;;
+            failure-stall-decide)
+              # AC49: a failed job preserves the existing stall-backstop decision table.
+              enabled="$("$V/config-get.sh" .prflow_implement.stall_backstop.enabled true)"
+              [ -n "$enabled" ] || enabled=true
+              attempts="$(count_lifetime_attempts)"
+              max="$("$V/config-get.sh" .prflow_implement.stall_backstop.max_resume_attempts 2)"
+              [ -n "$max" ] || max=2
+              # AC57: validate count/cap as non-negative integers before invoking the
+              # existing decision helper. A malformed count/cap posts no resume.
+              VAC="$(bash "$V/validate-attempt-count.sh" "$attempts" "$max")"
+              if [ "$VAC" = "malformed-count" ] || [ "$VAC" = "malformed-cap" ]; then
+                echo "::warning::spot-recovery: failed-job unclassifiable — attempt/cap malformed (${VAC}, attempts=${attempts} max=${max}); no resume"
+              else
+                DECISION="$(bash "$V/stall-backstop-decide.sh" "$enabled" "$CLASS" "$attempts" "$max" failure "$DEFER_OUTCOME")"
+                echo "spot-recovery: failed-job unclassifiable decision=${DECISION}"
+                case "$DECISION" in
+                  resume) post_capped_resume ;;
+                  defer) post_deferred_notice ;;
+                  *) echo "spot-recovery: no resume (decision=${DECISION}); the interim/terminal/unreadable arms leave state to the in-job backstop where it ran" ;;
+                esac
+              fi
+              ;;
+            *)
+              echo "spot-recovery: no resume, no state change (action=${ACTION})"
+              ;;
+          esac
           exit 0

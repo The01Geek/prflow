@@ -11,14 +11,14 @@ context* a `/prflow:implement` run accumulates from its session transcripts — 
 quantity from the static shipped byte count of the phase files on disk (see
 docs/internal/implement-context.md).
 
-It is the implement-side sibling of scripts/create-issue-context-eval.py (issue #767),
+It is the implement-side sibling of scripts/spec-context-eval.py (issue #767),
 and reuses that instrument's proven streaming / per-record degradation / symlink-escape
-/ determinism design. It deliberately drops the create-issue-only machinery (audit-round
+/ determinism design. It deliberately drops the spec-only machinery (audit-round
 attribution, redundant-Read / re-emission metrics, paired before/after mode); the four
 axes it measures are the ones the implement skill's cost shape is dominated by
 (issue #1209):
 
-  1. **Peak main-thread context per run** — the same per-turn sum the create-issue
+  1. **Peak main-thread context per run** — the same per-turn sum the spec
      instrument uses: `input_tokens + cache_read_input_tokens +
      cache_creation_input_tokens` over the main-thread attributed assistant records
      (subagent records — `isSidechain`, or a cloud `parent_tool_use_id` — excluded). This
@@ -135,7 +135,7 @@ from context_eval_shared import (  # noqa: F401
 # when they were written — so this must accept EVERY declared namespace, not one literal.
 # A single hardcoded id silently matches nothing after a rename (every new run rejected,
 # the eval reporting zero runs with no error). Derived from the same identity source the
-# rest of the repo single-sources (mirrors scripts/create-issue-context-eval.py).
+# rest of the repo single-sources (mirrors scripts/spec-context-eval.py).
 _IDENTITY_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib", "plugin_identity.py"
 )

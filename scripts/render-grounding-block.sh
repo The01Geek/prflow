@@ -4,8 +4,7 @@
 # render-grounding-block.sh — print the `> [!IMPORTANT]` engine-ground-truth block
 # prepended to a cloud engine's prompt (issue #363; the implement tier since #1170).
 #
-# THREE cloud prompt-composition sites call this renderer and prepend its output:
-#   - devflow-runner.yml's `Compose review prompt` (the automated review path)
+# The cloud prompt-composition sites call this renderer and prepend its output:
 #   - devflow.yml's `Compose engine grounding block` (the light command-listener
 #     tier, for EVERY command it dispatches: `/prflow:review` in the default `review`
 #     mode, `/prflow:review-and-fix` and `/prflow:pr-description` in `MODE=generic`,

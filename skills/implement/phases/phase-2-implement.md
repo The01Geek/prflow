@@ -59,12 +59,7 @@ Every checkpoint — and §2.5's own final commit — goes through the bundled h
 .prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh "feat: implement issue #$ARGUMENTS — {short description} (checkpoint)" {path} {path...}
 ```
 
-At each durability-checkpoint boundary also append a `phase2-checkpoint` event (best-effort; the helper always exits 0 and never blocks the run):
-```bash
-.prflow/vendor/prflow/scripts/verification-flight.py event phase2-checkpoint
-```
-
-- Explicit paths only. Name the files you produced since the last checkpoint; the helper stages exactly those (`git add -- …`) and refuses `git add -A`/`git add .`/intent-to-add. §2.5 goes through this same helper and is therefore explicitly scoped too — it is the run's *comprehensive-enumeration* point, not a sweep: a path you touch but never name at an earlier checkpoint stays non-durable until you name it there, and a path you never name at any checkpoint including §2.5 is never committed at all (the disclosed residual the Phase 4.3 clean-tree backstop surfaces) — a disclosed limit, not a defect.
+- Explicit paths only. Name the files you produced since the last checkpoint — including the old path of any rename and each deleted path — and the helper stages exactly those (`git add -- …`), refusing `git add -A`/`git add .`/intent-to-add; when you name only a rename's new path the helper pairs the old path into the commit, and it reports on stderr any tracked deletion you left uncommitted. §2.5 goes through this same helper and is therefore explicitly scoped too — it is the run's *comprehensive-enumeration* point, not a sweep: a path you touch but never name at an earlier checkpoint stays non-durable until you name it there, and a path you never name at any checkpoint including §2.5 is never committed at all (the disclosed residual the Phase 4.3 clean-tree backstop surfaces) — a disclosed limit, not a defect.
 - **Proof edits never enter history.** **Never checkpoint while an unreverted §2.1.5 temporary proof edit is in the working tree** — revert proof edits first, or simply never *name* a proof file. The helper rewrites no pushed history (no amend, no rebase, no force-push), so proof content kept out by ordering never has to be removed later.
 - The helper owns the §2.5 workflow-edit guard's detect-and-do-not-stage half. On a cloud run whose `DEVFLOW_APP_ID` is empty (the `GITHUB_TOKEN` fallback) it will not stage a repo-own `.github/workflows/` path named in the relative `.github/workflows/…` spelling, so an earlier checkpoint cannot commit a workflow file the fallback credential cannot push. The match is spelling-only (the helper's own disclosed limit): an absolute path, a `../`-reaching form, and the bare directory `.github/workflows` with no trailing slash are not matched. §2.5 owns the guard's other half — the revert-and-route: the coupled-file enumeration and the 2.2.5 scope-adjustment routing stay your responsibility there, and because the helper never reverts the workflow file, an unreverted one still sits in the tree for the Phase 4.3 clean-tree backstop.
 - A checkpoint that does not land is not success. The helper treats the push as landed only when `git rev-parse HEAD` equals `git rev-parse @{u}` after pushing (mirroring `skills/implement/references/doc-deliverable-self-heal.md` step 4), and exits non-zero when they differ — a rejected non-fast-forward is one example that leaves them unequal. Push output such as `Everything up-to-date` is not itself decisive; it is exit 3 only when the comparison still shows that the checkpoint commit did not reach the tracked branch. On a non-zero exit, resolve it (rebase/re-push, or defer a workflow edit) before continuing; a still-local commit is not durable.
@@ -116,7 +111,7 @@ If the recorded classification is bug-report, you must capture a *reproduction s
 - a quoted error log / stack trace from a real run, or
 - a recorded shell command (with output) that demonstrates the failure.
 
-Write the evidence with the **Write tool** to `.prflow/tmp/repro-${ISSUE_NUMBER}.md` (ensure the `.prflow/tmp` directory exists first — this is a prose directive with no fence to hold a `mkdir`), then: `workpad.py update $ISSUE_NUMBER --status Reproducing --set-reproduction-file .prflow/tmp/repro-${ISSUE_NUMBER}.md --tick-progress "reproduction captured" --note "captured reproduction signal"`. (The helper inserts `## Reproduction` after `## Acceptance Criteria` if it doesn't yet exist.)
+Write the evidence with the **Write tool** to `<run-scratch>/repro-${ISSUE_NUMBER}.md` (ensure the `<run-scratch>` directory exists first — this is a prose directive with no fence to hold a `mkdir`), then: `workpad.py update $ISSUE_NUMBER --status Reproducing --set-reproduction-file <run-scratch>/repro-${ISSUE_NUMBER}.md --tick-progress "reproduction captured" --note "captured reproduction signal"`. (The helper inserts `## Reproduction` after `## Acceptance Criteria` if it doesn't yet exist.)
 
 Temporary proof edits are allowed when they raise confidence in the reproduction (e.g. inserting a `console.log`, hardcoding a request payload, tweaking a build input). Every temporary proof edit MUST be reverted before the next durability checkpoint (§2.0.5) — at the latest, before the implementation commit in 2.5. A proof edit still present when an earlier checkpoint names its file enters pushed history that nothing later rewrites. The fact that you made a proof edit must also be recorded in the workpad's `Reproduction` section.
 
@@ -161,6 +156,7 @@ The architect returns a focused blueprint (files to create/modify, component des
 Re-derive a subagent's numbers before you rely on them. This applies to explorer analysis and architect blueprint alike, on Path A and Path B.
 
 - Scope. Independently re-derive any quantitative claim a Phase-2 subagent produced before that claim feeds a plan step, a gate, or a budget decision. A volunteered number that feeds no decision is treated as unverified, and the absence of an `(unverified estimate)` marker waives nothing for a decision-feeding claim.
+- Absence. A subagent's claim of absence — no match, no duplicate, nothing found — is unestablished the same way: re-run its cited command yourself before relying on it, since a fabricated or narrowed-search absence lets a missed coupled site through.
 - Channel. Re-derive through a preflight-guaranteed channel — `python3` (granted in the cloud implement profile; invoked helper-by-path on the local tier) — never an ad-hoc non-preflight PATH tool such as `wc`/`tr`/`cut`/`head`, whose host divergence is the measurement bug this obligation guards against.
 - Channel exception. Where the number's downstream consumer defines its own standalone-invocable counter, that counter is the channel and takes precedence over the ad-hoc never-list. But a counter embedded inside a larger artifact (a test-suite-internal function) is not mirrored inline — the claim resolves to unverified instead.
 - Unresolvable claims. A claim whose re-derivation channel is unavailable, or whose producer stated no operands and counting rule to re-derive against, resolves to unverified, never to confirmed.
@@ -182,7 +178,7 @@ Two of the cleanup lenses that the Phase 3.2 `/simplify` pass would otherwise fl
 
 Fold the result into the plan before the plan write below — this is a planning gate, not a code edit: name the helpers to reuse (with `file:line`) in the relevant plan steps, and pick the altitude before writing the steps.
 
-After planning (either path), write the plan steps as `- [ ]` checkboxes with the **Write tool** to `.prflow/tmp/plan-${ISSUE_NUMBER}.md` (ensure the `.prflow/tmp` directory exists first — a prose directive with no fence to hold a `mkdir`), then `workpad.py update $ISSUE_NUMBER --replace-plan-file .prflow/tmp/plan-${ISSUE_NUMBER}.md`.
+After planning (either path), write the plan steps as `- [ ]` checkboxes with the **Write tool** to `<run-scratch>/plan-${ISSUE_NUMBER}.md` (ensure the `<run-scratch>` directory exists first — a prose directive with no fence to hold a `mkdir`), then `workpad.py update $ISSUE_NUMBER --replace-plan-file <run-scratch>/plan-${ISSUE_NUMBER}.md`.
 
 #### 2.2.5 Scope-Adjustment Rule (multi-PR issues)
 
@@ -194,11 +190,11 @@ Empty pushable subset ⇒ take the Blocked path here, do not narrow-and-proceed.
 
 Steps when scoping down:
 
-1. Write the narrowed AC list (only in-scope checkboxes, verbatim) with the **Write tool** to `.prflow/tmp/narrowed-acs-${ISSUE_NUMBER}.md` (ensure the `.prflow/tmp` directory exists first — a prose directive with no fence to hold a `mkdir`).
+1. Write the narrowed AC list (only in-scope checkboxes, verbatim) with the **Write tool** to `<run-scratch>/narrowed-acs-${ISSUE_NUMBER}.md` (ensure the `<run-scratch>` directory exists first — a prose directive with no fence to hold a `mkdir`).
 2. Apply the change atomically:
    ```bash
    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
-       --replace-acs-file .prflow/tmp/narrowed-acs-${ISSUE_NUMBER}.md \
+       --replace-acs-file <run-scratch>/narrowed-acs-${ISSUE_NUMBER}.md \
        --scope-decision-deferred pending "{the deferred criterion's text, verbatim}" \
        --note "scope decision: {which subset this PR delivers}. Deferred (verbatim): {list}. Will be tracked in follow-up issue(s) filed in Phase 4.0."
    ```

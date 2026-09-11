@@ -75,21 +75,16 @@ The other `prflow_runner` settings — provider and allowed-tool — were remove
 
 ## Remove the Withdrawn Automatic-Review Tier
 
-If your repository installed PRFlow before this tier was withdrawn, the workflow files are still there and still run. The installer leaves them alone by default and prints a notice about them on every upgrade.
+This tier has been decommissioned and removed from PRFlow. A fresh install ships none of its workflow files. If your repository installed PRFlow long ago, your own tree may still carry those workflow files, and while they remain they still run.
 
 <Warning>
   While those files remain and the review toggle is true, the withdrawn tier keeps running. It triggers on pull-request events, calls a reusable workflow with inherited secrets, checks out the pull request's own code and applies no check on who started the run. Remove it unless you have a specific reason to keep it.
 </Warning>
 
-To remove it, re-run the installer with the opt-in flag. An upgrade run is a preview by default, so pass `--apply` as well:
+To remove it, delete the workflow files your tree still carries and set the review toggle to `false` under whichever spelling your config carries:
 
-```bash
-DEVFLOW_REF=<ref> bash devflow-install.sh --apply --remove-withheld-review-tier
-```
-
-For a `curl | bash` invocation that cannot pass arguments, set `DEVFLOW_REMOVE_WITHHELD_REVIEW_TIER=1` instead.
-
-Expected result: the installer deletes the withdrawn workflow files and sets the review toggle to `false` under whichever spelling your config carries.
+- Delete `.github/workflows/devflow-review.yml`, `.github/workflows/devflow-runner.yml` and `.github/workflows/telemetry-push.yml`.
+- Set `workflows["prflow-review"]` to `false` in `.prflow/config.json`.
 
 <Warning>
   One step is yours, and no installer can do it. Remove the `Devflow Review` context from every branch protection rule or ruleset that requires it. If you leave it required, every later pull request waits forever on a check that nothing will report.

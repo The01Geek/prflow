@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""State owner for the `/devflow:create-issue` fresh-context audit lifecycle.
+"""State owner for the `/prflow:spec` fresh-context audit lifecycle.
 
 The audit lifecycle — rounds, verdicts, revisions, bounded retries, user-chosen
 rounds, overrides and presentation eligibility — used to live as procedural prose
-in `skills/create-issue/SKILL.md`, re-derived by an LLM on every turn. Deterministic
+in `skills/spec/SKILL.md`, re-derived by an LLM on every turn. Deterministic
 transition logic does not belong on an instruction-following surface: this module
 owns it, and the skill records events through it and obeys its answers (issue #546).
 
@@ -350,7 +350,7 @@ _GROUNDS = ('file-identity', 'event-ordering', 'override')
 #     resolved number would decide an operation only the caller knows).
 #   * caller-selected-round   — `record-creation-epoch` (which audited round creation
 #     binds to) and `record-degraded` (whose required-ness is a shipped sentence in
-#     `skills/create-issue/references/step-3-6-audit.md`).
+#     `skills/spec/references/step-3-6-audit.md`).
 #   * per-round-id-selector   — the cross-round channels whose `--ids` are per-round
 #     `1..K`: `record-resolution`, `record-reopen`, `record-invalidate`,
 #     `record-finding-evidence`, `query-finding-evidence`, `query-adjudication-records`.
@@ -1013,7 +1013,7 @@ def _repo_root():
 
 
 def state_path(slug, root=None):
-    """`.prflow/tmp/create-issue/<slug>/issue-audit-state-<slug>.json`, anchored to the repo/worktree root.
+    """`.prflow/tmp/spec/<slug>/issue-audit-state-<slug>.json`, anchored to the repo/worktree root.
 
     Deliberately NOT the main-worktree root the draft file uses: sharing one record
     across concurrent worktree runs would let a foreign cold-start wipe this run's state.
@@ -1024,7 +1024,7 @@ def state_path(slug, root=None):
         raise StateError(f'slug {slug!r} is not a safe path segment '
                          f'([A-Za-z0-9][A-Za-z0-9._-]*)')
     base = root if root is not None else (_repo_root() or Path.cwd())
-    return Path(base) / '.prflow' / 'tmp' / 'create-issue' / slug / f'issue-audit-state-{slug}.json'
+    return Path(base) / '.prflow' / 'tmp' / 'spec' / slug / f'issue-audit-state-{slug}.json'
 
 
 def _host_abs_path(value, _pathmod=os.path):
@@ -2771,7 +2771,7 @@ def _bound_draft_file(state, slug):
     """The absolute bound canonical draft FILE, or None when unbound.
 
     The binding records the bound *root* (`_bound_path`); the canonical draft file is
-    that root joined with the fixed `.prflow/tmp/create-issue/<slug>/issue-draft-<slug>.md` subpath — the
+    that root joined with the fixed `.prflow/tmp/spec/<slug>/issue-draft-<slug>.md` subpath — the
     same path the skill writes and displays. The digest / eligibility / body-emitting
     readers resolve THIS from the recorded binding so a compacted context that hands a
     drifted `--draft-file` cannot redirect them; they fall back to the caller-supplied
@@ -2780,7 +2780,7 @@ def _bound_draft_file(state, slug):
     root = _bound_path(state)
     if root is None:
         return None
-    return str(Path(root) / '.prflow' / 'tmp' / 'create-issue' / slug / f'issue-draft-{slug}.md')
+    return str(Path(root) / '.prflow' / 'tmp' / 'spec' / slug / f'issue-draft-{slug}.md')
 
 
 def latest_revision_landed(state):
@@ -4218,7 +4218,7 @@ def _scope_draft_lines(after_bytes, changed_sections):
     canonical (after) draft. That deliberately over-approximates a disjoint changed set,
     which over-counts escapes rather than under-counting them — the safe direction.
 
-    Returns the two-element ordered-integer list `create-issue-context-eval.py` accepts, or
+    Returns the two-element ordered-integer list `spec-context-eval.py` accepts, or
     `None` when no changed section has an extent in the after draft (an all-deletion delta,
     or undecodable bytes). `None` keeps the reader's honest `unestablished` rather than
     fabricating a span — the unknown-is-not-zero rule.
@@ -5570,7 +5570,7 @@ def cmd_record_dispatch(args):
         # canonical-draft root (the first landed write records it via record-draft-binding)
         # and the skill reports where its write landed via --write-path, the reported path
         # MUST match the file the tool derives from the recorded binding
-        # (`<bound-root>/.prflow/tmp/create-issue/<slug>/issue-draft-<slug>.md`, via _bound_draft_file). A
+        # (`<bound-root>/.prflow/tmp/spec/<slug>/issue-draft-<slug>.md`, via _bound_draft_file). A
         # divergence is a strong signal that a compacted context drifted which file the
         # dispatch audits, so fail closed with the write-path-mismatch breadcrumb.
         #
@@ -5590,7 +5590,7 @@ def cmd_record_dispatch(args):
         # is unresolved — an *unestablished* report, which a truthiness test would silently
         # collapse onto "caller opted out" and disarm the check on exactly the drift it exists
         # to catch (the repo's unknown-is-not-zero rule). Refuse it by name instead. (This is
-        # defense in depth, not a description of the shipped skill: create-issue substitutes an
+        # defense in depth, not a description of the shipped skill: spec substitutes an
         # already-resolved literal path here, so it is a hazard for other callers and runners.)
         #
         # NOTE (issue #569 scope split): making the binding itself REQUIRED on every file-arm
@@ -5921,7 +5921,7 @@ def cmd_record_dispatch(args):
                # trail. `None` on a discovery round.
                # `draft_lines` (issue #1105) is the convex-hull draft-line span over the
                # changed sections, in the two-element ordered-integer shape
-               # `create-issue-context-eval.py`'s `_scope_draft_span` accepts. Frozen here
+               # `spec-context-eval.py`'s `_scope_draft_span` accepts. Frozen here
                # like the rest of the scope, so a post-dispatch ledger mutation cannot move
                # it. `None` (via `.get`) when the span could not be computed (e.g. an
                # all-deletion delta) or on a pre-#1105 recorded round, which keeps the
@@ -6035,7 +6035,7 @@ def cmd_record_return(args):
     # exit code are untouched: this writes only to stderr and changes no control flow.
     if (cls == 'no-parseable-verdict' and verdict in _VERDICTS
             and verdict != 'DRAFT-UNREADABLE' and not carriage_ok):
-        # The remedy names the file-arm object id specifically (the create-issue dispatch
+        # The remedy names the file-arm object id specifically (the spec dispatch
         # path); the embed arm's evidence is the sentinel pair, so its remedy names that.
         # Every caller-supplied value is rendered with `!r` so a newline or control byte
         # in it becomes an escaped literal INSIDE this one line and cannot forge a second
@@ -7612,7 +7612,7 @@ def cmd_record_draft_binding(args):
 
     The first landed canonical-draft write binds one absolute root for the rest of the
     run. Recorded two-rooted: the bound absolute ROOT (the readers join
-    `.prflow/tmp/create-issue/<slug>/issue-draft-<slug>.md` onto it — see `_bound_draft_file`), its tier
+    `.prflow/tmp/spec/<slug>/issue-draft-<slug>.md` onto it — see `_bound_draft_file`), its tier
     token, and the non-bound root (absolute when a resolver-answered tier-1 main root and
     a divergent tier-2 worktree root both exist; absent otherwise). Immutable — a second
     record is illegal, the forced-reinit path staying the only route to a fresh binding.
@@ -9112,7 +9112,7 @@ def build_parser():
     p = argparse.ArgumentParser(
         prog='issue-audit-state.py',
         description=(
-            'State owner for the /devflow:create-issue fresh-context audit lifecycle. '
+            'State owner for the /prflow:spec fresh-context audit lifecycle. '
             'Queries always exit 0 once the arguments parse and print a decided answer '
             'line; mutations exit non-zero with a named breadcrumb. Most subcommands then '
             'print, as their final stdout line, a next_call= line naming the next legal '
@@ -9165,7 +9165,7 @@ def build_parser():
                    'the dispatch proceeds unchanged; an empty value is refused '
                    '(write-path-empty) rather than read as an opt-out. Ignored on the '
                    'embed and inline arms. Two layers, deliberately distinct (issue '
-                   '#1695): optional here for compatibility, but the live create-issue '
+                   '#1695): optional here for compatibility, but the live spec '
                    'file-arm caller is required to forward the bound canonical path — '
                    'omission bypasses only the reported-path cross-check, it is not a '
                    'sanctioned opt-out for that workflow.')
@@ -9445,7 +9445,7 @@ def build_parser():
     s.add_argument('--nonce', required=True)
     s.add_argument('--path', required=True,
                    help='The absolute root directory under which the canonical draft '
-                        '.prflow/tmp/create-issue/<slug>/issue-draft-<slug>.md was written (the landed root).')
+                        '.prflow/tmp/spec/<slug>/issue-draft-<slug>.md was written (the landed root).')
     s.add_argument('--tier', help='The bound-tier token: main-root or worktree-root.')
     s.add_argument('--non-bound-root',
                    help='The divergent non-bound root, absolute, when both a '

@@ -65,9 +65,15 @@ Implementation pushes its progress at branch checkpoints, so a later run can ado
 - Work done after the last pushed checkpoint can still be lost.
 - A run interrupted before its first checkpoint may have left no branch changes at all.
 
+If the runner itself disappears mid-run — for example a self-hosted or cloud host that is reclaimed or shut down — the run cannot finish its own cleanup, so its workpad stays 🚀 Running rather than moving to a terminal glyph. Treat it exactly like any other stalled 🚀 run above: read the workpad, then post the original command again to resume from the last checkpoint.
+
+For one specific infrastructure case — an **EC2 Spot runner reclaim** — PRFlow can detect the interruption and resume for you, if you opt in. Set `prflow_implement.spot_interruption_watcher.enabled` to the JSON boolean `true` for a repository whose implementation job runs on a Linux EC2 Spot runner (the watcher is Linux-only and off by default). When enabled, a background watcher notices the Spot interruption notice while the runner is still alive, records a durable reclaim marker, and a downstream GitHub-hosted recovery job then takes the same bounded resume path a stall backstop would — subject to the same attempt cap. A cancellation you initiated is never mistaken for a reclaim, and anything PRFlow cannot positively identify as a reclaim falls back to the manual resume above.
+
 ## When PRFlow Retries by Itself
 
 A configured stall backstop can post a bounded resume request for a run still showing 🚀. It is limited on purpose, by `prflow_implement.stall_backstop.max_resume_attempts`, which defaults to `2`.
+
+If your runner retries a failed job on its own (for example RunsOn with `retry=when-interrupted`), set `prflow_implement.stall_backstop.defer_to_runner_retry` to the JSON boolean `true`. PRFlow then posts no resume of its own after a failed agent step: it leaves the workpad in progress, posts one short informational comment, and lets the runner's retry resume from the last checkpoint, so two recovery mechanisms never drive the same issue at once. Leave it at the default `false` on any runner without job-level retry, or a failed run is never resumed automatically.
 
 It stops rather than looping when the attempt cap is exhausted, when authentication is unavailable or when it cannot read the run's state. In each of those cases the workflow reports the failure.
 

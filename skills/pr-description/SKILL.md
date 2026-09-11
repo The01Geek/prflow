@@ -30,21 +30,29 @@ Classify the delivery from the ladder's own status line, not from whether any cl
 
 ## Step 1: Gather Context
 
-Run these commands to understand what changed:
+Resolve the configured base branch by printing it, then substituting the printed value as a literal:
 
 ```bash
-git fetch origin main
-git log origin/main...HEAD --oneline
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .base_branch main
+```
+
+Read the printed base branch from the tool result. On a non-zero exit or an empty value, fall back to `main` and log `pr-description: could not read .base_branch — falling back to main`. Substitute the printed value as a LITERAL into each git fence below (e.g. `git diff origin/<base>...HEAD`) — never through a shell-variable capture (`VAR=$(...)`) and never as an `origin/$VAR` expansion.
+
+Run these commands to understand what changed, with `<base>` the printed literal (default `main`):
+
+```bash
+git fetch origin <base>
+git log origin/<base>...HEAD --oneline
 ```
 
 ```bash
-git diff origin/main...HEAD --stat
+git diff origin/<base>...HEAD --stat
 ```
 
 Read the diff details for any files that need deeper understanding:
 
 ```bash
-git diff origin/main...HEAD
+git diff origin/<base>...HEAD
 ```
 
 If an issue number was provided, fetch the issue for context:
@@ -228,4 +236,5 @@ Rules:
   [full output including any pre/post-marker content]
   EOF
   ```
+  After the PATCH, read the body back (`gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER" --jq .body`) and confirm it matches what you sent — `gh api` can exit 0 while the body came through as a literal `@path` or truncated, which is a failed write to redo.
 - **If no existing PR (Mode A):** Output the description as plain text for the caller to use when creating the PR.

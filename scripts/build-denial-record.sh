@@ -54,8 +54,8 @@
 #
 # NO-RESULT-EVENT RECOVERY (issue #1064 B2). That extractor gates EVERY field on a
 # `type: "result"` event being present — a deliberate cross-field contract of its own,
-# pinned by run.sh #438, and NOT widened here (it is shared with matcher-probe.yml and
-# render-guard-visibility.sh). This record's COUNT, though, comes from the recursive
+# pinned by run.sh #438, and NOT widened here (it is shared with matcher-probe.yml).
+# This record's COUNT, though, comes from the recursive
 # descent below, which needs no result event, so on a file whose denials arrive in
 # streamed message events the halves disagreed: a positive count beside commands_state
 # "unavailable" while the text sat right there. Those are the runs the persist step's

@@ -122,7 +122,7 @@ Re-running is safe. The next run processes only pull requests it has not already
 
 ## Related Articles
 
-- [Create an Issue](/docs/workflows/create-issue)
+- [Create an Issue](/docs/workflows/spec)
 - [Implement an Issue](/docs/workflows/implement)
 - [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives)
 - [Glossary](/docs/reference/glossary)

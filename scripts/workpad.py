@@ -461,6 +461,36 @@ def _workpad_marker(explicit=None):
     return _DEFAULT_WORKPAD_MARKER
 
 
+_CRLF_RUN_RE = re.compile(r'\r+\n')
+
+
+def _canonicalize_body(text):
+    """Collapse every run of one or more '\\r' immediately before a '\\n' to that
+    '\\n' — the one canonical form of a workpad body (issue #349). A lone '\\r' not
+    before a '\\n' is left unchanged. Applied at every inbound seam so an accumulated
+    native-Windows CR run never reaches a parser or re-enters the next write."""
+    return _CRLF_RUN_RE.sub('\n', text)
+
+
+def _stage_body_bytes(text):
+    """Stage `text` as UTF-8 bytes in a BINARY temp file and return its Path; the
+    caller unlinks it. Binary mode is load-bearing (issue #349): a native-Windows
+    text-mode write translates every '\\n' to CR-LF, re-inflating the body past
+    GitHub's comment limit, whereas bytes take no newline translation on any host."""
+    # Encode BEFORE creating the temp file: a UnicodeEncodeError (a lone surrogate) must
+    # raise before the delete=False file exists, or it would leak that file uncaught.
+    data = text.encode('utf-8')
+    tf = tempfile.NamedTemporaryFile('wb', suffix='.md', delete=False)
+    staged = Path(tf.name)
+    try:
+        with tf:
+            tf.write(data)
+    except OSError:
+        staged.unlink(missing_ok=True)
+        raise
+    return staged
+
+
 def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1):
     """Scan an issue's comments (paginated) and return the first whose body
     starts with `marker`, or None when the scan completed and none matched.
@@ -505,7 +535,10 @@ def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1):
                 code=api_fail_code,
             )
         for c in items:
-            if (c.get('body') or '').startswith(_marker_variants(marker)):
+            # Canonicalize before the marker test AND before returning, so every
+            # consumer of the returned comment reads an LF-only body (issue #349).
+            c['body'] = _canonicalize_body(c.get('body') or '')
+            if c['body'].startswith(_marker_variants(marker)):
                 return c
         if len(items) < 100:
             return None
@@ -556,7 +589,7 @@ def _comment_body_established(repo, comment_id):
         return '', False
     if not isinstance(obj, dict) or not isinstance(obj.get('body'), str):
         return '', False
-    return obj['body'], True
+    return _canonicalize_body(obj['body']), True
 
 
 def cmd_body(args):
@@ -1304,15 +1337,7 @@ def _patch_comment_body(repo, comment_id, text=None, *, body_path=None):
         if text is None:
             raise ValueError('_patch_comment_body: pass text= or body_path=')
         _check_body_within_limit(_byte_len(text))
-        tf = tempfile.NamedTemporaryFile(
-            'w', suffix='.md', delete=False, encoding='utf-8')
-        staged = Path(tf.name)
-        try:
-            with tf:
-                tf.write(text)
-        except OSError:
-            staged.unlink(missing_ok=True)
-            raise
+        staged = _stage_body_bytes(text)
         body_path = staged
     else:
         # Measure the file `cmd_patch` PATCHes directly (never staged from
@@ -1334,6 +1359,26 @@ def _patch_comment_body(repo, comment_id, text=None, *, body_path=None):
                 pass
 
 
+def _read_canonical_body(body_path, cmd):
+    """Read a body file as BYTES and return (decoded, canonical): the decoded UTF-8
+    text and its LF-canonical form (issue #349). Bytes, never read_text — universal-
+    newline translation would turn a native-Windows \\r\\r\\n into \\n\\n before the
+    canonicalizer could collapse it. Exits(1) with a `<cmd>:` breadcrumb on an
+    unreadable file or invalid UTF-8, so cmd_patch and cmd_create cannot drift their
+    read/decode/canonicalize contract apart."""
+    try:
+        raw = body_path.read_bytes()
+    except OSError as e:
+        sys.stderr.write(f"workpad.py {cmd}: body file unreadable: {e}\n")
+        sys.exit(1)
+    try:
+        decoded = _decode_utf8(raw, cmd, str(body_path))
+    except _UpdateError as e:
+        sys.stderr.write(f"workpad.py {cmd}: {e}\n")
+        sys.exit(1)
+    return decoded, _canonicalize_body(decoded)
+
+
 def cmd_patch(args):
     repo = _repo_full()
     body_path = Path(args.body_file)
@@ -1342,11 +1387,7 @@ def cmd_patch(args):
             f"workpad.py patch: body file not found: {body_path}\n"
         )
         sys.exit(1)
-    try:
-        composed = body_path.read_text(encoding='utf-8')
-    except OSError as e:
-        sys.stderr.write(f"workpad.py patch: body file unreadable: {e}\n")
-        sys.exit(1)
+    decoded, composed = _read_canonical_body(body_path, 'patch')
     # A body the read could not establish is UNESTABLISHED, not "this comment has
     # no markers": `gh` can emit an error envelope carrying no `.body` key while
     # exiting 0, and reading that as an empty live body would silently restore
@@ -1395,9 +1436,14 @@ def cmd_patch(args):
         )
     try:
         if reinserted:
-            out = _patch_comment_body(repo, args.comment_id, merged)
+            _patch_comment_body(repo, args.comment_id, merged)
+        elif decoded == composed:
+            # The file is already canonical (canonicalization changed nothing): PATCH
+            # it directly with no temp staged, keeping the read-only-directory property
+            # (issue #349, #1508).
+            _patch_comment_body(repo, args.comment_id, body_path=body_path)
         else:
-            out = _patch_comment_body(repo, args.comment_id, body_path=body_path)
+            _patch_comment_body(repo, args.comment_id, composed)
     except _UpdateError as e:
         # A size refusal is pre-PATCH, not a transport error — so it is handled
         # here rather than by the CalledProcessError/OSError arm below.
@@ -1405,6 +1451,112 @@ def cmd_patch(args):
         sys.exit(1)
     except (subprocess.CalledProcessError, OSError) as e:
         _fail('patch', e)
+
+
+class _ProgressStructureError(Exception):
+    """The fetched review progress-comment body lacks structure a boundary write
+    requires (no ## Blueprint, no **Last updated:**, or — for an append — no
+    ## Findings (live) section or no lint-adjudications sentinel). Distinct from
+    _TickMatchError (a per-row tick miss) and _UpdateError (the size refusal)."""
+
+
+_REVIEW_FINDINGS_PLACEHOLDER = '_(Phase-3 findings appear here as each agent returns.)_'
+_REVIEW_FINDINGS_SECTION = 'Findings (live)'
+_REVIEW_BLUEPRINT_SECTION = 'Blueprint'
+_REVIEW_LINT_ADJ_SENTINEL_START = '<!-- prflow:lint-adjudications-start -->'
+
+
+def _insert_into_findings(section_content: str, payload: str) -> str:
+    """Append `payload` as the last line(s) of the ## Findings (live) section body,
+    replacing the placeholder on the first insert and demoting a payload line that
+    opens `## ` to `### ` so an inserted block never opens a new section. The
+    sentinel pair lives in a later section, so appending to this section body keeps
+    every insert above it by construction."""
+    # Demote any line `_SECTION_RE` would treat as a section opener (`##` + ANY
+    # whitespace, tab included); a bare `startswith('## ')` check misses `##\t`,
+    # letting an appended block open a new section on the next `_split_sections` read.
+    demoted = [
+        ('### ' + ln[3:]) if re.match(r'^##\s', ln) else ln
+        for ln in payload.split('\n')
+    ]
+    existing = section_content.split('\n')
+    while existing and existing[-1].strip() == '':
+        existing.pop()
+    if all(ln.strip() in ('', _REVIEW_FINDINGS_PLACEHOLDER) for ln in existing):
+        existing = []
+    return '\n'.join(existing + demoted) + '\n'
+
+
+def _progress_apply(live: str, tick, append_text) -> str:
+    """Return the mutated review-comment body for a boundary update. Raises
+    _ProgressStructureError when the Phase 0.5 template did not land, and
+    _TickMatchError on a per-row tick miss. Issues no PATCH — every raise here
+    precedes cmd_progress's PATCH call, so a structural refusal never writes."""
+    if not _LAST_UPDATED_RE.search(live):
+        raise _ProgressStructureError(
+            'no **Last updated:** line found; the Phase 0.5 template write did not '
+            'land — no PATCH was made')
+    preamble, sections = _split_sections(live)
+    bp_idx = _find_section(sections, _REVIEW_BLUEPRINT_SECTION)
+    if bp_idx is None:
+        raise _ProgressStructureError(
+            'no ## Blueprint section found; the Phase 0.5 template write did not '
+            'land — no PATCH was made')
+    if tick:
+        heading, bp_content = sections[bp_idx]
+        sections[bp_idx] = (
+            heading, _tick_checkbox(bp_content, tick, _REVIEW_BLUEPRINT_SECTION))
+    if append_text is not None:
+        fi_idx = _find_section(sections, _REVIEW_FINDINGS_SECTION)
+        if fi_idx is None:
+            raise _ProgressStructureError(
+                'no ## Findings (live) section found; the Phase 0.5 template write '
+                'did not land — no PATCH was made')
+        if _REVIEW_LINT_ADJ_SENTINEL_START not in live:
+            raise _ProgressStructureError(
+                'no prflow:lint-adjudications-start sentinel found; the Phase 0.5 '
+                'template write did not land — no PATCH was made')
+        heading, fi_content = sections[fi_idx]
+        sections[fi_idx] = (heading, _insert_into_findings(fi_content, append_text))
+    body = _join_sections(preamble, sections)
+    now = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+    body, _ = _LAST_UPDATED_RE.subn(f'**Last updated:** {now}', body, count=1)
+    return body
+
+
+def cmd_progress(args):
+    """Boundary-update a review progress comment BY COMMENT ID: tick one
+    ## Blueprint row and/or append to ## Findings (live), refresh Last updated,
+    PATCH once — no issue lookup and no marker lookup (distinct from cmd_update,
+    whose id cache/marker scan/note budget assume the issue-workpad shape)."""
+    append_text = args.append
+    if args.append_file is not None:
+        # Route through the shared read/decode/canonicalize helper (issue #349) so
+        # this seam cannot drift from cmd_patch/cmd_create and an invalid-UTF-8 file
+        # gets the helper's targeted breadcrumb, not a raw UnicodeDecodeError.
+        _, append_text = _read_canonical_body(Path(args.append_file), 'progress')
+    repo = _repo_full()
+    try:
+        live, established = _comment_body_established(repo, args.comment_id)
+    except (subprocess.CalledProcessError, OSError) as e:
+        _fail('progress', e)
+    if not established:
+        sys.stderr.write(
+            'workpad.py progress: could not establish the live body of comment '
+            f'{args.comment_id}; no PATCH was made\n')
+        sys.exit(1)
+    try:
+        content = _progress_apply(live, args.tick, append_text)
+    except (_TickMatchError, _ProgressStructureError) as e:
+        sys.stderr.write(f"workpad.py progress: {e}\n")
+        sys.exit(1)
+    try:
+        out = _patch_comment_body(repo, args.comment_id, content)
+    except _UpdateError as e:
+        sys.stderr.write(f"workpad.py progress: {e}\n")
+        sys.exit(1)
+    except (subprocess.CalledProcessError, OSError) as e:
+        _fail('progress', e)
     sys.stdout.write(out)
 
 
@@ -1418,13 +1570,19 @@ def cmd_create(args):
             f"workpad.py create: body file not found: {body_path}\n"
         )
         sys.exit(1)
+    # Bytes, then canonicalize (issue #349): post LF-only bytes so a body file a
+    # native-Windows new-body wrote as CRLF is stored canonical, not re-inflated.
+    _, composed = _read_canonical_body(body_path, 'create')
+    staged = _stage_body_bytes(composed)
     try:
         r = _run([
             GH, 'issue', 'comment', str(args.issue),
-            '--body-file', str(body_path),
+            '--body-file', str(staged),
         ])
     except (subprocess.CalledProcessError, OSError) as e:
         _fail('create', e)
+    finally:
+        staged.unlink(missing_ok=True)
     m = _COMMENT_URL_RE.search(r.stdout)
     if m:
         print(m.group(1))
@@ -2423,8 +2581,7 @@ def _status_glyph(status: str) -> str:
 # job `success`. The class now names WHICH terminal end it is, so the backstop
 # can conclude a non-complete terminal status non-`success` while keeping 🎉
 # Complete green and 🛑 Cancelled a cancel. An in-progress glyph is 'interim'.
-# `stall-backstop-decide.sh` and `lib/implement-stop-guard.sh` are the coupled
-# consumers of these tokens (edited together). Only the four TERMINAL glyphs are
+# `stall-backstop-decide.sh` is the coupled consumer of these tokens. Only the four TERMINAL glyphs are
 # enumerated — every in-progress glyph (🚀) and any unknown falls to 'interim'
 # via the default below.
 _TERMINAL_STATUS_CLASS_BY_GLYPH = {
@@ -2812,6 +2969,22 @@ def _rewrap_details(head: str, new_inner: str, tail: str) -> str:
     return head.rstrip('\n') + '\n\n' + new_inner.strip('\n') + '\n' + tail + '\n'
 
 
+def _render_note(note: str, leading_ws: str) -> tuple[str, list[str]]:
+    """Split a note into its bullet text and indented continuation lines.
+
+    Shared by the note renderer and the replay-dedup matcher so both agree on the
+    rendered form. Split with `str.splitlines()`; blank and whitespace-only lines
+    are dropped; the first surviving line is the bullet text and each further
+    surviving line is rendered at the bullet's content column (`leading_ws` plus
+    two spaces). A note with no line break (or only a trailing one) yields the
+    bullet text alone, matching the pre-change single-line rendering byte-for-byte.
+    """
+    parts = [ln for ln in note.splitlines() if ln.strip()]
+    if not parts:
+        parts = ['']
+    return parts[0], [f"{leading_ws}  {ln}" for ln in parts[1:]]
+
+
 def _append_progress_note(
     content: str, note: str, timestamp: str, phase_label: str | None,
     reserved_marker_ok: bool = False,
@@ -2829,24 +3002,27 @@ def _append_progress_note(
     through this function, so it precedes that checkbox rather than sitting at the
     block end. `timestamp` is the time-only `HH:MM:SS` string. When
     `phase_label` is None, or no row matches it, the note is appended flat at
-    the end of the section so it is never dropped.
+    the end of the section so it is never dropped. A note carrying line breaks
+    renders as one bullet with its non-blank continuation lines indented to the
+    bullet's content column (blank lines dropped) via `_render_note`, so the
+    nested list never breaks.
 
-    **Reserved-marker guard (issue #1453).** Every caller-supplied text that reaches
-    `## Progress` passes through here, so the screen for a reserved review-coverage
-    marker lives here rather than at each writing flag: the gate's readers locate
-    their marker inside a `## Progress` bullet, so any free-text channel — `--note`,
-    a `--checkpoint` TEXT, a `--record-classification` rationale, or a channel added
-    later — could otherwise write a record that passed none of the producer
-    validation and filed none of the accompanying evidence. The rows the producer
-    itself writes carry their marker and reach this function too, so they are
-    admitted by an explicit opt-in argument rather than by pattern."""
-    if not reserved_marker_ok and _REVIEW_COVERAGE_ANY_MARKER_RE.search(note or ''):
-        raise _UpdateError(
-            "the note text carries a reserved review-coverage checkpoint marker; "
-            "record coverage with `--record-review-coverage` and a gap with "
-            "`--review-coverage-disposition`, which validate the record and write "
-            "the accompanying evidence. No PATCH was made."
-        )
+    **Reserved-marker guard (issue #1453; widened to every reserved family by #321).**
+    Every caller-supplied text that reaches `## Progress` passes through here, so the
+    screen for a reserved checkpoint marker (any family on
+    `_RESERVED_CHECKPOINT_KEY_PREFIXES`, both marker namespaces) lives here rather than
+    at each writing flag: the gate's readers locate their marker inside a `## Progress`
+    bullet, so any free-text channel — `--note`, `--note-file`, a `--checkpoint` TEXT, a
+    `--record-classification` rationale, or a channel added later — could otherwise write
+    a record that passed none of the producer validation and filed none of the
+    accompanying evidence. The rows the producer itself writes carry their marker and
+    reach this function too, so they are admitted by an explicit opt-in argument rather
+    than by pattern; a caller-supplied operand a producer embeds verbatim is screened
+    before its row is composed (issue #321)."""
+    if not reserved_marker_ok:
+        _owner = _reserved_checkpoint_marker_owner(note)
+        if _owner:
+            raise _reserved_marker_error("the note text", _owner)
     lines = content.split('\n')
     start = None
     if phase_label:
@@ -2859,10 +3035,12 @@ def _append_progress_note(
         # No resolvable phase row → flat (un-nested) append at section end.
         stripped = content.rstrip('\n')
         prefix = stripped + '\n' if stripped.strip() else ''
-        return prefix + f"- {timestamp} — {note}\n"
-    # Block end: the next top-level phase row, else end of section. Nested
-    # sub-items carry leading whitespace and never match, so they stay inside
-    # the block.
+        bullet_text, cont = _render_note(note, '')
+        body = [f"- {timestamp} — {bullet_text}"] + cont
+        return prefix + '\n'.join(body) + '\n'
+    # Block end: the next top-level phase row, else end of section. Indented
+    # sub-items and indented note continuation lines never match, so a column-0
+    # checkbox-shaped note line no longer splits the block.
     end = next(
         (j for j in range(start + 1, len(lines))
          if _TOP_LEVEL_CHECKBOX_RE.match(lines[j])),
@@ -2870,7 +3048,10 @@ def _append_progress_note(
     )
     while end > start + 1 and not lines[end - 1].strip():
         end -= 1
-    new_lines = lines[:end] + [f"  - {timestamp} — {note}"] + lines[end:]
+    bullet_text, cont = _render_note(note, '  ')
+    new_lines = (
+        lines[:end] + [f"  - {timestamp} — {bullet_text}"] + cont + lines[end:]
+    )
     return _join_preserving_newline(new_lines, content)
 
 
@@ -3242,12 +3423,15 @@ def _read_section_file(path: str, flag: str) -> str:
     section content round-trips byte-identical on any host, and converts an
     OS-level error or a decode failure into a clean `_UpdateError` so the
     orchestrator gets a targeted message instead of a Python traceback, and the
-    surrounding `cmd_update` aborts before the PATCH (no partial update)."""
+    surrounding `cmd_update` aborts before the PATCH (no partial update). The
+    decoded text is canonicalized to LF (issue #349): this reader is an inbound
+    seam for the update PATCH body, so a native-Windows-authored replacement file
+    carrying `\\r\\n` would otherwise re-inject `\\r` into the sink."""
     try:
         raw = Path(path).read_bytes()
     except OSError as e:
         raise _UpdateError(f"{flag}: could not read {path!r}: {e}")
-    return _decode_utf8(raw, flag, path)
+    return _canonicalize_body(_decode_utf8(raw, flag, path))
 
 
 def _read_file_payload(path: str, flag: str, thing: str) -> str:
@@ -3260,7 +3444,10 @@ def _read_file_payload(path: str, flag: str, thing: str) -> str:
     so it aborts before any PATCH. All failure modes raise `_UpdateError`, so
     `_apply_mutations` aborts with no partial workpad write. Shared by both file
     channels so a future fix to the read/decode/empty-guard contract cannot drift
-    one behind the other."""
+    one behind the other. The payload is canonicalized to LF (issue #349): this
+    reader is an inbound seam for the update PATCH body, so a native-Windows note
+    or reflection file carrying `\\r\\n` would otherwise re-inject `\\r` into the
+    sink; the empty-guard then measures the canonical text."""
     try:
         if path == '-':
             raw = sys.stdin.buffer.read()
@@ -3268,7 +3455,7 @@ def _read_file_payload(path: str, flag: str, thing: str) -> str:
             raw = Path(path).read_bytes()
     except OSError as e:
         raise _UpdateError(f"{flag}: could not read {path!r}: {e}")
-    text = _decode_utf8(raw, flag, path)
+    text = _canonicalize_body(_decode_utf8(raw, flag, path))
     if not text.strip():
         raise _UpdateError(
             f"{flag}: payload is empty or whitespace-only; a "
@@ -3504,11 +3691,12 @@ def _buffer_failed_change(comment_id, notes, reflections, kind) -> "Path | None"
 # Both predicates below are therefore whole-LINE equality against the shapes the
 # two append helpers emit, scoped to the one section each writes into:
 #
-#   * a note      — `_append_progress_note` writes `{indent}- HH:MM:SS — {note}`
-#     into `## Progress`; the note text is the ENTIRE remainder of the line, so
-#     comparing that captured remainder for equality (plus, for a multi-line
-#     note, its continuation lines) cannot be satisfied by a line that merely
-#     contains the text.
+#   * a note      — `_append_progress_note` writes `{indent}- HH:MM:SS — {first}`
+#     into `## Progress`; the bullet text is the ENTIRE remainder of the line, so
+#     comparing that captured remainder for equality against the note's first
+#     non-blank line (plus, for a multi-line note, its continuation lines rendered
+#     under the matched bullet's own indent) cannot be satisfied by a line that
+#     merely contains the text.
 #   * a reflection — `_insert_reflection_bullet` writes `- {glyph} {label}{text}`
 #     into `## PRFlow Reflections`, with the text collapsed to one line; the
 #     candidate set is built from `_REFLECTION_KINDS` itself, so it is exactly
@@ -3523,19 +3711,24 @@ def _buffer_failed_change(comment_id, notes, reflections, kind) -> "Path | None"
 
 def _note_already_rendered(progress_content: "str | None", note: str) -> bool:
     """True when `note` is already present in the resolved `## Progress` content
-    as a rendered note bullet — `_PROGRESS_BULLET_RE`'s captured text equal to
-    the whole note, with a multi-line note's continuation lines matching verbatim
-    on the lines that follow. None content (section absent or duplicated) reads
-    as not-present."""
+    as a rendered note bullet — `_PROGRESS_BULLET_RE`'s captured text equal to the
+    note's first non-blank line, with a multi-line note's continuation lines
+    matching the rendered form (`_render_note`) under the matched bullet's own
+    leading whitespace, whether the bullet sits nested under a phase or flat at
+    the section end. None content (section absent or duplicated) reads as
+    not-present."""
     if progress_content is None:
         return False
-    want = note.split('\n')
     lines = progress_content.split('\n')
     for i, line in enumerate(lines):
         m = _PROGRESS_BULLET_RE.match(line)
-        if m is None or m.group(1) != want[0]:
+        if m is None:
             continue
-        if lines[i + 1:i + len(want)] == want[1:]:
+        leading_ws = line[:len(line) - len(line.lstrip())]
+        bullet_text, cont = _render_note(note, leading_ws)
+        if m.group(1) != bullet_text:
+            continue
+        if lines[i + 1:i + 1 + len(cont)] == cont:
             return True
     return False
 
@@ -3754,7 +3947,10 @@ def _verify_cached_comment(comment_id, issue, marker):
         return None
     if not isinstance(comment, dict):
         return None
-    if not (comment.get('body') or '').startswith(_marker_variants(marker)):
+    # Canonicalize before the marker test AND before returning, so the caller reads
+    # an LF-only body (issue #349).
+    comment['body'] = _canonicalize_body(comment.get('body') or '')
+    if not comment['body'].startswith(_marker_variants(marker)):
         return None
     if not _issue_url_names_issue(comment.get('issue_url'), issue):
         return None
@@ -3836,6 +4032,24 @@ def _resolve_open_pr_for_issue(issue):
     return closing[-1].get("number")
 
 
+_PR_LINK_URL_RE = re.compile(r'/pull/(\d+)')
+_PR_LINK_HASH_RE = re.compile(r'#(\d+)')
+
+
+def _pr_number_from_link(value):
+    """Return the PR number a `--pr-link` value names, or None (issue #252).
+
+    The `/pull/<digits>` URL segment is the PR's own identity, so it wins over a
+    `#<digits>` in the link text; None (neither present) makes the caller fall
+    back to `_resolve_open_pr_for_issue`."""
+    if not value:
+        return None
+    m = _PR_LINK_URL_RE.search(value)
+    if m is None:
+        m = _PR_LINK_HASH_RE.search(value)
+    return int(m.group(1)) if m else None
+
+
 def _mirror_stopped_note_to_pr(issue, note_text):
     """Best-effort: add a stopped-run note block to the issue's open PR body (issue #2060).
 
@@ -3857,10 +4071,7 @@ def _mirror_stopped_note_to_pr(issue, note_text):
                 f"stopped-run note not mirrored\n")
             return
         new_body = _add_stopped_note_block(body, note_text)
-        with tempfile.NamedTemporaryFile(
-                'w', suffix='.md', delete=False, encoding="utf-8") as tf:
-            tf.write(new_body)
-            tmp = tf.name
+        tmp = _stage_body_bytes(new_body)
         try:
             _run([GH, 'api', '-X', 'PATCH',
                   f'repos/{{owner}}/{{repo}}/pulls/{pr}',
@@ -4021,9 +4232,9 @@ def _reconcile_managed_label(number, target, label_defined):
     return label_defined
 
 
-def _mirror_status_labels(issue, status):
+def _mirror_status_labels(issue, status, *, pr_link=None, body=None):
     """Best-effort: mirror the workpad Status onto managed labels on the issue and
-    its open PR (issue #2117).
+    its open PR (issue #2117; the `--pr-link` trigger, issue #252).
 
     Modelled on `_mirror_stopped_note_to_pr`: it runs AFTER the workpad PATCH has
     landed and MUST never change that update's own outcome, so every failure is
@@ -4031,17 +4242,38 @@ def _mirror_status_labels(issue, status):
     disabled. The managed labels are a DERIVED mirror of the Status; the workpad
     comment stays the source of truth. The label REST calls are issued in-process
     here rather than via scripts/apply-labels.sh / ensure-label.sh, which
-    workpad.py must not exec on Windows ([WinError 193])."""
+    workpad.py must not exec on Windows ([WinError 193]).
+
+    Two triggers, one fire. A `--status` write passes `status` directly; a
+    `--pr-link`-only write passes `status=None` and the patched `body`, and the
+    Status word is read from it. `pr_link` names the PR (issue #252); when it
+    carries no number the existing open-PR lookup runs. The link parse and the
+    body read run INSIDE this absorber because the `_cmd_update_inner` call site
+    is unwrapped."""
     try:
         if not _status_labels_enabled():
+            return
+        # An empty word (a --pr-link write on a body with no Status line) must NOT
+        # reach the class map, which defaults an unknown word to 'interim' and
+        # would mislabel the PR: skip and breadcrumb instead.
+        word = status or _status_word_from_body(body or '')
+        if not word:
+            sys.stderr.write(
+                f"workpad.py update: no Status word read from the workpad body "
+                f"for issue #{issue}; status label not mirrored\n")
             return
         # Every class `_status_class` produces is a key here (it defaults to
         # 'interim'), so this subscript never misses in practice; a future
         # unmapped class raises KeyError into the absorber below rather than
         # silently mirroring no label.
-        target = _STATUS_CLASS_TO_LABEL[_status_class(_status_glyph(status))]
+        target = _STATUS_CLASS_TO_LABEL[_status_class(_status_glyph(word))]
         label_defined = _reconcile_managed_label(issue, target, False)
-        pr = _resolve_open_pr_for_issue(issue)
+        # A link-named PR wins over the lookup: GitHub's closing-issue data can lag
+        # right after PR creation, so `_resolve_open_pr_for_issue` can miss the PR
+        # this write just linked.
+        pr = _pr_number_from_link(pr_link)
+        if pr is None:
+            pr = _resolve_open_pr_for_issue(issue)
         if not pr:
             sys.stderr.write(
                 f"workpad.py update: no open PR resolved for issue #{issue}; "
@@ -4232,11 +4464,7 @@ def _cmd_update_inner(args):
     # requested tick was volatile. This path needs no leading-marker merge (the
     # one `cmd_patch` applies via `_merge_leading_markers`): `body` is mutated
     # from the live body re-fetched above, so a marker line it carries survives.
-    with tempfile.NamedTemporaryFile(
-        'w', suffix='.md', delete=False, encoding="utf-8",
-    ) as tf:
-        tf.write(body)
-        tmp_path = tf.name
+    tmp_path = _stage_body_bytes(body)
     global _UPDATE_PATCH_LANDED
     try:
         r = _run([
@@ -4275,7 +4503,7 @@ def _cmd_update_inner(args):
             )
         _fail('update patch', e)
     finally:
-        Path(tmp_path).unlink(missing_ok=True)
+        tmp_path.unlink(missing_ok=True)
     # The PATCH succeeded: drop the buffer file ONLY when `_plan_buffer_replay`
     # reported that every buffered item is now accounted for (folded into this
     # body or already present). When a buffered item could not be folded — its
@@ -4291,11 +4519,14 @@ def _cmd_update_inner(args):
     _mirror_text = _stopped_note_text_for_mirror(args, _own_notes, _own_reflections)
     if _mirror_text:
         _mirror_stopped_note_to_pr(args.issue, _mirror_text)
-    # Best-effort mirror of the workpad Status onto managed issue/PR labels
-    # (issue #2117), after the PATCH and gated on --status, so a label failure
-    # cannot change this update's own exit status, stdout, or body.
-    if args.status:
+    # Mirror Status onto managed labels after the PATCH (issue #2117; --pr-link
+    # trigger #252) so a label failure can't alter this update's outcome. Keep the
+    # --status-only branch's two-positional call — pre-#252 spies depend on it.
+    if args.status and not args.pr_link:
         _mirror_status_labels(args.issue, args.status)
+    elif args.status or args.pr_link:
+        _mirror_status_labels(
+            args.issue, args.status, pr_link=args.pr_link, body=body)
     # Issue #814: the patched body is echoed only under `--print-body`, or on the
     # volatile-tick-miss path below. This one statement is reached by BOTH the clean
     # return and the miss exit (the `failed_ticks` branch is evaluated after it), so
@@ -4600,8 +4831,8 @@ def _load_completion_validator():
     """Lazily import the sibling `check-completion-evidence.py` module, once.
 
     Returns the imported module, or None when the sibling is absent beside this
-    `workpad.py` copy (the standalone-deployment closure — `lib/implement-stop-guard.sh`
-    and the suite's guard sandboxes copy `workpad.py` without its evidence siblings).
+    `workpad.py` copy (the standalone-deployment closure — the suite's guard sandboxes
+    copy `workpad.py` without its evidence siblings).
     Imported by file path via importlib because the sibling's filename carries a
     hyphen and is not importable as a module name; the result is memoized so a
     combined record+Complete call does not re-exec the sibling twice. Tests exercise
@@ -4914,8 +5145,11 @@ def _reset_resume_status_inner(args, marker: str) -> str:
     if not _prior_status_marker_payloads(content):
         note = (f'resume reset: prior status {word} '
                 f'{_checkpoint_marker(_PRIOR_STATUS_MARKER_KEY_PREFIX + word)}')
+        # The tool composes this prior-status marker itself, so it is admitted by the
+        # explicit opt-in rather than refused by the widened note-text guard (issue #321).
         content = _append_progress_note(
-            content, note, now_dt.strftime('%H:%M:%S'), 'Setup')
+            content, note, now_dt.strftime('%H:%M:%S'), 'Setup',
+            reserved_marker_ok=True)
         sections[idx] = (heading, content)
     new_body = _join_sections(preamble, sections)
     # gh api -X PATCH can return success over an unchanged body, so verify the reset
@@ -5006,6 +5240,10 @@ def cmd_prior_status(args):
     # classification falls back to the live Status rather than trusting a bad marker.
     words = _prior_status_marker_payloads(content)
     if len(words) != 1:
+        sys.stderr.write(
+            f"workpad.py prior-status: found {len(words)} prior-status markers "
+            f"(expected exactly 1); the caller falls back to the live Status\n"
+        )
         sys.exit(1)
     print(words[0])
     sys.exit(0)
@@ -5232,6 +5470,18 @@ _SHADOW_ALWAYS_ON_MEMBERS = (
 _SHADOW_GATED_MEMBERS = ('type-design-analyzer', 'pr-test-analyzer')
 _SHADOW_ROSTER_MEMBERS = _SHADOW_ALWAYS_ON_MEMBERS + _SHADOW_GATED_MEMBERS
 _ROSTER_MEMBER_STATUSES = ('dispatched', 'gated-off', 'missing')
+# Issue #345: strip exactly one leading `prflow:` from a --record-roster-member operand
+# BEFORE validating/storing/dedup (never at read-back), so a prefixed spelling stores the
+# same short row while `prflow:x:y` / a foreign prefix / an empty name still fail unknown-member.
+_ROSTER_MEMBER_PREFIX = 'prflow:'
+
+
+def _normalize_roster_member(member: str) -> str:
+    if member.startswith(_ROSTER_MEMBER_PREFIX):
+        return member[len(_ROSTER_MEMBER_PREFIX):]
+    return member
+
+
 _REVIEW_ROSTER_KEY_PREFIX = 'review-roster:'
 # Composed from `_MARKER_NS_RE` like the coverage grammars, so the confirmation-gated
 # retirement of the superseded namespace reaches it too. The capture holds
@@ -5278,13 +5528,6 @@ _REVIEW_COVERAGE_BOILERPLATE = frozenset({
     'reason to be determined later',
     'nothing further to record here',
 })
-
-
-# Either family's marker, in either namespace — the pattern the free-text guard
-# below screens for, so no free-text field can smuggle one into `## Progress`.
-_REVIEW_COVERAGE_ANY_MARKER_RE = re.compile(
-    _MARKER_NS_RE + r'checkpoint (?:review-coverage(?:-disposition)?|review-roster):'
-)
 
 
 def _review_coverage_marker_rows(progress_content: str, pattern):
@@ -5501,20 +5744,12 @@ def _render_review_roster_member(member: str, status: str) -> str:
 
 # issue #1509: the diff-profile row that authorizes a `skipped-intentional` checklist
 # skip. These constants MIRROR skills/review/phases/phase-0-setup.md §0.5 (`small_diff`,
-# `config_only`, `engine_self_modifying`); the divergence test in
-# lib/test/test_python_scripts.py reads that file's arms and goes RED if they drift from
-# these. The four prose copies of the engine-source path set stay unrefactored — this is
-# the recomputation's comparand, not a new single source for them.
+# `config_only`); the divergence test in lib/test/test_python_scripts.py reads that file's
+# ceilings and config-only extension set and goes RED if they drift from these.
 _REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING = 100   # total changed lines strictly below this
 _REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING = 3     # changed-file count at most this
 _REVIEW_COVERAGE_CONFIG_ONLY_EXTS = frozenset(
     {'.yml', '.yaml', '.json', '.md', '.toml', '.ini', '.lock', '.txt'})
-# engine_self_modifying arm 1 — PRFlow's own source dirs (this repository's own tree).
-_REVIEW_COVERAGE_ENGINE_SOURCE_PREFIXES = ('skills/', 'agents/', 'lib/')
-# arm 2 — a prompt extension under the PRFlow state directory (any depth), `.md` only.
-_REVIEW_COVERAGE_ENGINE_STATE_DIRS = ('.prflow', '.devflow')
-# arm 3 — the root agent-instruction file (any depth), by basename.
-_REVIEW_COVERAGE_ENGINE_ROOT_AGENT_FILE = 'CLAUDE.md'
 
 
 def _parse_numstat_counts(numstat: str):
@@ -5585,47 +5820,13 @@ def _recompute_diff_facts(anchor_head, base_ref, repo_root):
             'lines': lines, 'files': files, 'paths': paths}
 
 
-def _is_engine_own_repo(repo_root) -> bool:
-    """Whether `repo_root` is THIS engine's own repository (issue #1509), decided by
-    repository identity rather than directory names: its `.claude-plugin/plugin.json`
-    names this plugin. A consumer's checkout — whose own `lib/` is unrelated product
-    code — returns False, so the engine-source refusal arm never fires undiagnosably
-    on it, while the classifier's own use of the arms is unchanged."""
-    if not repo_root:
-        return False
-    try:
-        with open(os.path.join(repo_root, '.claude-plugin', 'plugin.json'),
-                  encoding='utf-8') as f:
-            manifest = json.load(f)
-    except (OSError, ValueError):
-        return False
-    # `prflow` is the frozen canonical plugin name (CLAUDE.md rename Tier 1, single-
-    # sourced in lib/rename-map.json and the manifest `name`): do not rename it here in
-    # isolation, or this identity check silently stops recognizing the engine's own repo.
-    return isinstance(manifest, dict) and manifest.get('name') == 'prflow'
-
-
-def _review_coverage_engine_source_paths(paths):
-    """The subset of `paths` in the engine's own source set — the arms of
-    phase-0-setup.md's `engine_self_modifying` (issue #1509)."""
-    hits = []
-    for p in paths:
-        base = p.rsplit('/', 1)[-1]
-        first = p.split('/', 1)[0]
-        if (p.startswith(_REVIEW_COVERAGE_ENGINE_SOURCE_PREFIXES)
-                or (first in _REVIEW_COVERAGE_ENGINE_STATE_DIRS
-                    and base.endswith('.md'))
-                or base == _REVIEW_COVERAGE_ENGINE_ROOT_AGENT_FILE):
-            hits.append(p)
-    return hits
-
-
-def _review_coverage_profile_disproof(facts, repo_root) -> str | None:
+def _review_coverage_profile_disproof(facts) -> str | None:
     """Why the recomputed diff does NOT satisfy the profile row that authorizes a
     `skipped-intentional` skip, naming each failed condition and its measured value —
     or None when the profile row is confirmed (issue #1509). Assumes facts['resolved'].
-    The engine-source arm applies only in this engine's own repository (AC): on any
-    other repository it is excluded from the refusal predicate."""
+    Checks the two ceilings and the config-only extension set only, in every repository:
+    the profile row is repository-independent, so the reviewed diff's size and file types
+    are the whole predicate."""
     reasons = []
     if facts['lines'] >= _REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING:
         reasons.append(
@@ -5641,12 +5842,6 @@ def _review_coverage_profile_disproof(facts, repo_root) -> str | None:
         reasons.append(
             'these changed paths have a non-config-only extension: '
             + ', '.join(sorted(bad_ext)))
-    if _is_engine_own_repo(repo_root):
-        engine = _review_coverage_engine_source_paths(facts['paths'])
-        if engine:
-            reasons.append(
-                "these changed paths are in the engine's own source set (the "
-                'checklist is forced on for them): ' + ', '.join(sorted(engine)))
     return '; '.join(reasons) if reasons else None
 
 
@@ -5858,6 +6053,38 @@ _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_RESUME_POINT_MARKER_KEY_PREFIX, '`--record-resume-point`'),
     (_PRIOR_STATUS_MARKER_KEY_PREFIX, '`reset-resume-status` (issue #137)'),
 )
+
+
+# The free-text guard's per-family screens (issue #321): derived from
+# `_RESERVED_CHECKPOINT_KEY_PREFIXES` and `_MARKER_NS_RE` so both marker namespaces are
+# covered and a family added to that list is screened with no edit here. Each prefix ends
+# in `:`, so a family whose name is a prefix of another (`review-coverage:` vs.
+# `review-coverage-disposition:`) cannot cross-match — the colon is a boundary.
+_RESERVED_CHECKPOINT_MARKER_SCREENS = tuple(
+    (re.compile(_MARKER_NS_RE + 'checkpoint ' + re.escape(_prefix)), _owner)
+    for _prefix, _owner in _RESERVED_CHECKPOINT_KEY_PREFIXES
+)
+
+
+def _reserved_checkpoint_marker_owner(text: str | None) -> str | None:
+    """Return the owning flag of the first reserved checkpoint family whose marker
+    appears anywhere in `text` (either marker namespace), else None. The note-text
+    guard and the two exempted-producer operand screens all read this, so one list —
+    `_RESERVED_CHECKPOINT_KEY_PREFIXES` — drives both the key guard and the note-text
+    guard."""
+    for _screen, _owner in _RESERVED_CHECKPOINT_MARKER_SCREENS:
+        if _screen.search(text or ''):
+            return _owner
+    return None
+
+
+def _reserved_marker_error(source: str, owner: str) -> _UpdateError:
+    """The shared refusal a caller-supplied channel raises when its text carries a
+    reserved checkpoint marker (issue #321). `source` names the channel; `owner` is the
+    owning flag from `_RESERVED_CHECKPOINT_KEY_PREFIXES` the guard resolved."""
+    return _UpdateError(
+        f"{source} carries a reserved checkpoint marker; record it with {owner} "
+        "instead, the flag that owns that family. No PATCH was made.")
 
 
 def _validate_flight_key(args, flight_key: str) -> None:
@@ -6938,6 +7165,12 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             '--record-completion-evidence-ci', record_ci, 3,
             ('HEAD_SHA', 'TIER', 'RUN_URL'))
         _ci_head, _ci_tier, _ci_url = record_ci
+        # The run URL is caller-supplied and embedded verbatim in the CI producer row,
+        # so screen it for a reserved marker before that row is composed (issue #321).
+        _ci_owner = _reserved_checkpoint_marker_owner(_ci_url)
+        if _ci_owner:
+            raise _reserved_marker_error(
+                "the --record-completion-evidence-ci run URL", _ci_owner)
         # Each --completion-ci-check pair becomes a {name, conclusion} check object; the
         # validator refuses a record whose checks do not cover the required set or whose
         # tier is not `local` (issue #1898). argparse's nargs=2 guarantees the pair arity
@@ -7060,8 +7293,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                     'skipped-intentional diff could not be recomputed: '
                     + _rc_facts['reason'])
             else:
-                _rc_disproof = _review_coverage_profile_disproof(
-                    _rc_facts, _rc_repo_root)
+                _rc_disproof = _review_coverage_profile_disproof(_rc_facts)
                 if _rc_disproof:
                     raise _UpdateError(
                         "--record-review-coverage: a `skipped-intentional` "
@@ -7070,20 +7302,10 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                         f"line(s)): {_rc_disproof}. No PATCH was made."
                     )
                 # AC4: a confirmed write reports the measured values on success.
-                # The engine-source clause is honest per §2.3.6: it names the arm
-                # as verified only in this engine's own repo, where the arm was
-                # actually evaluated; on any other repo the arm is excluded from the
-                # predicate, so the breadcrumb says so rather than asserting a check
-                # that did not run.
-                _rc_engine_note = (
-                    'and non-engine-source: verified'
-                    if _is_engine_own_repo(_rc_repo_root)
-                    else '(engine-source arm not evaluated: not this engine\'s '
-                         'repository)')
                 sys.stderr.write(
                     'workpad.py: review-coverage skipped-intentional confirmed — '
                     f"{_rc_facts['files']} changed file(s), {_rc_facts['lines']} "
-                    f'changed line(s), path-set config-only {_rc_engine_note}\n')
+                    f'changed line(s), path-set config-only\n')
         _anchor_asof = _utc_now_compact()
         review_coverage_payload = ':'.join(
             list(review_coverage) + [_anchor_head, _anchor_asof])
@@ -7100,6 +7322,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     for _pair in roster_member_pairs:
         _require_arity('--record-roster-member', _pair, 2, ('member', 'status'))
     for member, status in roster_member_pairs:
+        member = _normalize_roster_member(member)
         if member not in _SHADOW_ROSTER_MEMBERS:
             raise _UpdateError(
                 f"--record-roster-member: unknown member {member!r}; expected one of "
@@ -7169,6 +7392,12 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         _require_arity('--review-coverage-disposition', _triple, 3,
                        ('gap', 'cause-class', 'reason'))
     for gap, cause_class, reason in review_dispositions:
+        # The reason is caller-supplied and embedded verbatim in the exempted producer
+        # row, so screen it for a reserved marker before that row is composed (issue #321).
+        _disp_owner = _reserved_checkpoint_marker_owner(reason)
+        if _disp_owner:
+            raise _reserved_marker_error(
+                "the --review-coverage-disposition reason", _disp_owner)
         if gap not in _REVIEW_COVERAGE_GAPS:
             raise _UpdateError(
                 f"--review-coverage-disposition: unknown gap {gap!r}; expected one "
@@ -7524,30 +7753,38 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # Completion-evidence marker (issue #1087): validated above; a later validated key
     # REPLACES the prior one (unlike a plain checkpoint replay), so any existing
     # completion-verification row is stripped before the new marker is appended.
+    # The tool-composed producer rows below carry a reserved marker themselves, so they
+    # are exempted from the note-text guard by provenance (issue #321); a caller operand
+    # one embeds verbatim is screened separately, before the row is composed.
+    _producer_reserved_rows: set[str] = set()
     if record_flight_key:
         _ck = _COMPLETION_MARKER_KEY_PREFIX + record_flight_key
-        progress_notes.append(
+        _cv_row = (
             f'completion verification recorded (flight {record_flight_key[:12]}…, '
             f'validated) {_checkpoint_marker(_ck)}'
         )
+        progress_notes.append(_cv_row)
+        _producer_reserved_rows.add(_cv_row)
     # CI-derived completion-evidence marker (issue #1611): validated above; a later
     # validated record REPLACES the prior one, so any existing completion-ci row is
     # stripped before this marker is appended (mirroring the flight family). The
     # visible row names the head SHA and conclusion the reading rests on.
     if ci_payload:
         _ci_ck = _COMPLETION_CI_MARKER_KEY_PREFIX + ci_payload
-        progress_notes.append(
+        _ci_row = (
             f'completion evidence recorded from CI reading '
             f'(head {record_ci[0][:12]}…, {record_ci[2]}, validated) '
             f'{_checkpoint_marker(_ci_ck)}'
         )
+        progress_notes.append(_ci_row)
+        _producer_reserved_rows.add(_ci_row)
     # Mid-phase resume-point marker (issue #1876): a later record REPLACES the prior
     # one, so any existing resume-point row is stripped below before this is appended.
     if resume_point_payload:
         _rp_ck = _RESUME_POINT_MARKER_KEY_PREFIX + resume_point_payload
-        progress_notes.append(
-            f'mid-phase resume point recorded {_checkpoint_marker(_rp_ck)}'
-        )
+        _rp_row = f'mid-phase resume point recorded {_checkpoint_marker(_rp_ck)}'
+        progress_notes.append(_rp_row)
+        _producer_reserved_rows.add(_rp_row)
     # Review-coverage record + dispositions (issue #1453): validated above; the prior
     # rows were stripped just before the append loop, mirroring the completion-evidence
     # marker's replace-rather-than-accumulate semantics.
@@ -7576,6 +7813,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             f'{_review_coverage_disposition_marker(_gap, _cause)}'
         )
     progress_notes.extend(sorted(_review_coverage_rows))
+    _producer_reserved_rows |= _review_coverage_rows
     # Inherited required-artifact strip (issue #1347). Runs on BOTH resume arms —
     # it rides its own flag rather than the cloud-only `--checkpoint`/`--expect-*`
     # set the local arm drops — and BEFORE the note append below, so a row this
@@ -7665,12 +7903,12 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 content, [g for g, _c, _r in review_dispositions])
         phase_label = _progress_phase_for_status(content, current_phase)
         for text in progress_notes:
-            # `_review_coverage_rows` holds exactly the rows the validated producer
+            # `_producer_reserved_rows` holds exactly the rows the validated producers
             # above composed, so the chokepoint guard admits those and refuses a
-            # marker arriving through any caller-supplied text.
+            # marker arriving through any caller-supplied text (issue #321).
             content = _append_progress_note(
                 content, text, now_time, phase_label,
-                reserved_marker_ok=text in _review_coverage_rows)
+                reserved_marker_ok=text in _producer_reserved_rows)
         sections[idx] = (heading, content)
 
     if args.reflection or args.reflection_file:
@@ -8018,10 +8256,25 @@ def main():
     s.add_argument('--marker', default=None, help=_marker_help)
     s.set_defaults(func=cmd_deferred_reflection_audit)
 
-    s = sub.add_parser('patch', help='PATCH a workpad comment from a body file; prints new body.')
+    s = sub.add_parser('patch', help='PATCH a workpad comment from a body file.')
     s.add_argument('comment_id', type=int)
     s.add_argument('body_file')
     s.set_defaults(func=cmd_patch)
+
+    s = sub.add_parser(
+        'progress',
+        help='Boundary-update a review progress comment by id: tick one '
+             '## Blueprint row and/or append to ## Findings (live) in one PATCH. '
+             'No issue lookup, no marker lookup.')
+    s.add_argument('comment_id', type=int)
+    s.add_argument('--tick', default=None,
+                   help='Substring naming the unticked ## Blueprint row to tick.')
+    g = s.add_mutually_exclusive_group()
+    g.add_argument('--append', default=None,
+                   help='Text to insert as the last line(s) of ## Findings (live).')
+    g.add_argument('--append-file', default=None,
+                   help='Path whose content is inserted the same way as --append.')
+    s.set_defaults(func=cmd_progress)
 
     s = sub.add_parser('create', help='Create the workpad comment for an issue; prints new ID.')
     s.add_argument('issue', type=int)
@@ -8182,9 +8435,11 @@ def main():
     u.add_argument('--note', metavar='TEXT', action='append', default=[],
                    help='Append a note bullet, prefixed with a time-only '
                         'HH:MM:SS UTC timestamp and nested under the current '
-                        'Status\'s phase inside ## Progress. May be passed '
-                        'multiple times to append several entries (sharing one '
-                        'timestamp) in one atomic update.')
+                        'Status\'s phase inside ## Progress. A note carrying line '
+                        'breaks renders as one bullet with its continuation lines '
+                        'indented under it and its blank lines dropped. May be '
+                        'passed multiple times to append several entries (sharing '
+                        'one timestamp) in one atomic update.')
     u.add_argument('--note-file', metavar='PATH', action='append', default=[],
                    help='Append a ## Progress note bullet whose text is read '
                         'verbatim as UTF-8 from PATH (or from stdin when PATH is '
@@ -8194,7 +8449,10 @@ def main():
                         'heredoc or redirect, or the interpolation hazard just '
                         'moves upstream. May be passed more than once to append '
                         'one bullet per payload, in order, each measured on its '
-                        'own against the per-note byte budget; the stdin form "-" '
+                        'own against the per-note byte budget. A payload carrying '
+                        'line breaks renders as one bullet with its continuation '
+                        'lines indented under it and its blank lines dropped; the '
+                        'stdin form "-" '
                         'may be used at most once per flag. Combines with --note; '
                         'the file bullets append after any inline --note bullets. '
                         'An unreadable path, an undecodable (non-UTF-8) payload, or '
@@ -8391,7 +8649,10 @@ def main():
                    help='Enumerate one shadow-review roster member and its dispatch '
                         'outcome (issue #1512), as a "<!-- prflow:checkpoint '
                         'review-roster:<member>:<status> -->" ## Progress row beside the '
-                        '--record-review-coverage record. MEMBER: '
+                        '--record-review-coverage record. MEMBER is the bare name or its '
+                        '`prflow:`-prefixed spelling (issue #345: the shadow record spells '
+                        'reviewers prflow:<name>; one leading prflow: is stripped to the '
+                        'stored bare name), one of: '
                         + '|'.join(_SHADOW_ROSTER_MEMBERS)
                         + '. STATUS: '
                         + '|'.join(_ROSTER_MEMBER_STATUSES)

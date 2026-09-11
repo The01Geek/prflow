@@ -25,7 +25,7 @@
 #
 # The arms, IN ORDER — the order is the contract, not an implementation detail:
 #
-#   1. renderer absent at BOTH the vendored and the repo-root path
+#   1. renderer absent at the vendored path
 #        -> ::error::, write NO `prompt` output, exit 1
 #   2. renderer resolved but produced no block (empty stdout, or a non-zero exit)
 #        -> ::error::, write NO `prompt` output, exit 1
@@ -49,8 +49,8 @@
 #
 # Renderer resolution is cwd-relative, matching every other bundled-helper call in the
 # workflow (the run begins at the actions/checkout workspace root and the working
-# directory persists): the vendored copy the `vendor-plugin` step materializes, then the
-# repo-root copy so a self-repo checkout still finds one. Verification is of the
+# directory persists): the vendored copy the `vendor-plugin` step materializes, which a
+# self-repo checkout fetches too. Verification is of the
 # renderer's OUTCOME (a non-empty block), never merely of the file's existence — a
 # truncated vendored copy that exits 0 printing nothing must take arm 2, not ship an
 # empty block into the prompt.
@@ -71,9 +71,8 @@ RUN_ATTEMPT="${GITHUB_RUN_ATTEMPT:-}"
 DEVFLOW_APP_ID="${DEVFLOW_APP_ID:-}"
 
 RGB=.prflow/vendor/prflow/scripts/render-grounding-block.sh
-[ -f "$RGB" ] || RGB=scripts/render-grounding-block.sh
 if [ ! -f "$RGB" ]; then
-  echo "::error::devflow: render-grounding-block.sh not found at either the vendored or repo path — the implement prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. Repair the vendored .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
+  echo "::error::devflow: render-grounding-block.sh not found at the vendored path — the implement prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. Repair the vendored .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
   exit 1
 fi
 

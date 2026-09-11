@@ -66,16 +66,14 @@ REAL_GH="$(command -v gh 2>/dev/null || true)"
 [ -n "$REAL_GH" ] && [ -x "$REAL_GH" ] \
   || fail "output 1/7 FAILED: no executable real gh resolved (real-gh-resolve)"
 
-# output 2/7 — a readable wrapper source. Vendored-or-repo fallback: a consumer
-# checkout carries only the vendored copy; the source repo carries scripts/.
+# output 2/7 — a readable wrapper source, resolved to the vendored copy only.
 SRC="${DEVFLOW_GH_SOURCE_SH:-}"
 if [ -z "$SRC" ]; then
   if [ -f .prflow/vendor/prflow/scripts/gh-fresh.sh ]; then SRC=.prflow/vendor/prflow/scripts/gh-fresh.sh
-  elif [ -f scripts/gh-fresh.sh ]; then SRC=scripts/gh-fresh.sh
   fi
 fi
 [ -n "$SRC" ] && [ -r "$SRC" ] \
-  || fail "output 2/7 FAILED: wrapper source gh-fresh.sh is not readable at the vendored or repo-relative path (wrapper-source-read)"
+  || fail "output 2/7 FAILED: wrapper source gh-fresh.sh is not readable at the vendored path (wrapper-source-read)"
 
 # output 3/7 — a creatable, writable wrapper directory.
 if [ -z "${DEVFLOW_GH_WRAPDIR:-}" ] && [ -z "${RUNNER_TEMP:-}" ]; then

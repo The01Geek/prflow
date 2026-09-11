@@ -5,7 +5,7 @@ description: "Grant a local PRFlow run only the repository, Git and GitHub acces
 
 Approve the tool access a local PRFlow run asks for, and keep each grant as narrow as the workflow allows.
 
-A local run has no allowlist of its own. It uses whatever Claude Code lets it use, so your answers to the permission prompts are the boundary. The exact prompt wording and the options for remembering an answer come from Claude Code, not from PRFlow.
+A local run has no allowlist of its own. It uses whatever Claude Code or Codex lets it use, so your answers to the permission prompts are the boundary. The exact prompt wording and the options for remembering an answer come from the coding client, not from PRFlow.
 
 ## Match the Grant to the Workflow
 
@@ -58,7 +58,7 @@ Cloud runs cannot ask a person anything, so they read their tool allowlist from 
 
 `prflow.allowed_tools` applies to the comment commands, and `prflow_implement.allowed_tools` applies to issue implementation. The two lists are independent. Adding an entry to one does not add it to the other.
 
-These lists never replace Claude Code's own prompts. A local run still asks you, whatever `.prflow/config.json` contains. Review both boundaries in a repository that supports local and cloud runs. See [Tool Permissions](/docs/configuration/tool-permissions).
+These lists never replace the coding client's own prompts. A local run still asks you, whatever `.prflow/config.json` contains. Review both boundaries in a repository that supports local and cloud runs. See [Tool Permissions](/docs/configuration/tool-permissions).
 
 ## Check What Actually Ran
 

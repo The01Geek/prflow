@@ -179,7 +179,7 @@ def _parse_checkboxes(section_lines: list[str]) -> list[dict]:
     """Parse checkbox items (shared module), then classify each post-merge.
 
     `section_parse.parse_checkboxes` owns the shared half: a criterion emitted
-    by /devflow:create-issue at ~80 columns wraps across several physical lines,
+    by /prflow:spec at ~80 columns wraps across several physical lines,
     and it joins each item's continuation lines so a wrapped criterion
     round-trips verbatim. Trigger-phrase classification stays HERE because it is
     a mirror-time-only rule — `workpad.py` reads a tag already present in the

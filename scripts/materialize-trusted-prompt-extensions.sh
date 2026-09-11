@@ -14,7 +14,7 @@
 # CONTRACT WITH THE CALLER. The caller fetches the base ref and invokes this ONLY
 # from inside that fetch's success branch, because FETCH_HEAD elsewhere (e.g. left
 # by actions/checkout) can point at the PR HEAD — the same trust rule every sibling
-# closure in .github/workflows/devflow-runner.yml carries. This script performs no
+# closure in the removed .github/workflows/devflow-runner.yml carried. This script performs no
 # fetch of its own and resolves no ref but FETCH_HEAD.
 #
 # Usage: materialize-trusted-prompt-extensions.sh --base-ref REF --target DIR NAME...
@@ -48,7 +48,7 @@
 #
 # THE BYTE-IDENTITY RULE — do not "clean this up" into the sibling pattern. Every
 # read is a DIRECT REDIRECT. The `_floor_raw=$(git show …)` + `printf '%s\n' "$VAR"`
-# shape used by every other trusted-closure materialization in devflow-runner.yml
+# shape used by every other trusted-closure materialization in the removed devflow-runner.yml
 # strips all trailing newlines and re-adds exactly one, which would silently corrupt
 # an extension carrying no trailing newline. lib/test/run.sh `cmp`s the materialized
 # file against the base-ref source over a no-trailing-newline fixture and a UTF-8-BOM

@@ -11,19 +11,23 @@ Match the symptom to an entry below, run its diagnostic command, then apply its 
 
 **Symptom:** the client answers that the command does not exist, or nothing happens when you send it.
 
-Claude Code is the documented client, and the only syntax PRFlow uses is `/prflow:<skill>`. For example:
+Use the syntax for the client that is running PRFlow:
 
-```
-/prflow:implement 123
+```text
+/prflow:implement 123      # Claude Code
+$prflow:implement 123      # Codex
 ```
 
-Check that the plugin is loaded:
+In Codex CLI, `/implement` and `/prflow:implement` do not select a plugin skill because `/` opens built-in commands. Enter `/skills` to select `prflow:implement`, or use the `$prflow:implement` mention directly. In a Codex chat in the ChatGPT desktop app, use the same `$prflow:implement` mention; `@prflow` selects the plugin rather than its skill name.
+
+Check that the plugin is loaded and enabled:
 
 ```bash
-claude plugin list
+claude plugin list # Claude Code
+codex plugin list --marketplace devflow-marketplace --json # Codex
 ```
 
-If `prflow` is missing or disabled, follow [Installation Problems](/docs/troubleshooting/installation). If it is loaded, run `/reload-plugins` and try again.
+If `prflow` is missing or disabled, follow [Installation Problems](/docs/troubleshooting/installation). If it is loaded, start a new session or chat and try again. Claude Code can also run `/reload-plugins`.
 
 The older `/devflow:<skill>` spellings are still accepted, so an old habit or an old comment still works. They are permanent aliases, not a sign that something is out of date.
 

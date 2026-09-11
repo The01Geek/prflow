@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Render the /devflow:create-issue Step 3.6 fresh-context audit prompt.
+"""Render the /prflow:spec Step 3.6 fresh-context audit prompt.
 
-This is the create-issue sibling of ``scripts/render-grounding-block.sh``: the
+This is the spec sibling of ``scripts/render-grounding-block.sh``: the
 single deterministic renderer of a load-bearing prompt surface, so the
 orchestrator stops hand-emitting the ~2,000-word audit-instruction block into
 every dispatch. The canonical prose lives in the committed template file
-``skills/create-issue/references/audit-prompt-template.md`` (resolved relative
+``skills/spec/references/audit-prompt-template.md`` (resolved relative
 to THIS file, never the cwd — the repo layout and the vendored-plugin layout
 both place ``scripts/`` and ``skills/`` as siblings under one root).
 
@@ -15,9 +15,10 @@ Contract (issue #600):
 
 - Reads no run *state* and writes no file, and takes no stdin. The reads are the
   committed template file; the consumer extension — for consumer-dimension
-  forwarding — ``.prflow/skill-extensions/create-issue.md`` (falling back to a
-  present superseded ``.prflow/prompt-extensions/create-issue.md`` during the
-  issue-#170 transition), resolved
+  forwarding — ``.prflow/skill-extensions/spec.md`` (falling back to a present
+  superseded ``.prflow/skill-extensions/create-issue.md`` for the create-issue ->
+  spec skill rename, and to ``.prflow/prompt-extensions/`` during the issue-#170
+  directory transition — the issue-#216 four-candidate order), resolved
   from the git repo root per the #295 SHARED REPO-ROOT CONFIG CONTRACT (a native
   ``git`` subprocess, cwd fallback; never a ``.sh`` exec — the #275 constraint);
   in ``dispatch-instructions`` mode only (issue #709) — the run's canonical
@@ -223,7 +224,7 @@ def default_template_path() -> Path:
     return (
         Path(__file__).resolve().parent.parent
         / "skills"
-        / "create-issue"
+        / "spec"
         / "references"
         / "audit-prompt-template.md"
     )
@@ -253,28 +254,56 @@ def _repo_root() -> str | None:
     return root or None
 
 
-def _resolve_extension_path(state_dir: str, filename: str) -> Path:
-    """Resolve one extension canonical-file-first, then from the superseded directory."""
+def _resolve_extension_path(
+    state_dir: str, filename: str, superseded_filename: str | None = None
+) -> Path:
+    """Resolve one extension, first-present-wins over an ordered candidate list.
+
+    Mirrors scripts/load-prompt-extension.sh's candidate order (issue #216). The
+    order is: skill-extensions/<filename>, prompt-extensions/<filename>, then —
+    when a superseded skill-rename filename is supplied — skill-extensions/
+    <superseded>, prompt-extensions/<superseded>. A selection from the superseded
+    prompt-extensions/ directory emits the directory read-through breadcrumb, and a
+    selection of the superseded FILENAME emits the skill-rename read-through
+    breadcrumb naming /prflow:init — both decided with path tests only.
+    """
     base = Path(state_dir)
-    new_path = base / "skill-extensions" / filename
-    old_path = base / "prompt-extensions" / filename
-    new_present = new_path.exists() or new_path.is_symlink()
-    old_present = old_path.exists() or old_path.is_symlink()
-    if not new_present and old_present:
+    canonical = base / "skill-extensions" / filename
+    candidates = [canonical, base / "prompt-extensions" / filename]
+    if superseded_filename is not None:
+        candidates += [
+            base / "skill-extensions" / superseded_filename,
+            base / "prompt-extensions" / superseded_filename,
+        ]
+    chosen = None
+    for cand in candidates:
+        if cand.exists() or cand.is_symlink():
+            chosen = cand
+            break
+    if chosen is None or chosen == canonical:
+        # No fallback taken: the canonical (present or the absent no-op path).
+        return canonical
+    if chosen.parent.name == "prompt-extensions":
         sys.stderr.write(
             f"render-audit-prompt.py: reading from the superseded extension directory "
-            f"{str(old_path.parent)!r} — run /prflow:init to migrate it to {str(new_path.parent)!r} "
-            f"(transitional read-through; removed once no consumer still carries a "
-            f".prflow/prompt-extensions/ directory)\n"
+            f"{str(chosen.parent)!r} — run /prflow:init to migrate it to "
+            f"{str(canonical.parent)!r} (transitional read-through; removed once no "
+            f"consumer still carries a .prflow/prompt-extensions/ directory)\n"
         )
-        return old_path
-    return new_path
+    if superseded_filename is not None and chosen.name == superseded_filename:
+        sys.stderr.write(
+            f"render-audit-prompt.py: reading the superseded extension {str(chosen)!r} "
+            f"for the renamed 'spec' skill — run /prflow:init to migrate it, or rename "
+            f"it to {filename!r} (transitional read-through; removed once no consumer "
+            f"still carries a {superseded_filename})\n"
+        )
+    return chosen
 
 
 def _default_extension_path() -> Path:
     root = _repo_root()
     if root is not None:
-        return _resolve_extension_path(_resolve_state_dir(root), "create-issue.md")
+        return _resolve_extension_path(_resolve_state_dir(root), "spec.md", "create-issue.md")
     cwd = Path.cwd()
     # Breadcrumb only when NEITHER a git root NOR a .prflow/ dir can be located —
     # the silent-drop class the #295 reader-set contract closes (mirrors
@@ -288,7 +317,7 @@ def _default_extension_path() -> Path:
             f".prflow/ at {str(cwd)!r}; falling back to a cwd-anchored default "
             f"prompt-extension path\n"
         )
-    return _resolve_extension_path(_resolve_state_dir(str(cwd)), "create-issue.md")
+    return _resolve_extension_path(_resolve_state_dir(str(cwd)), "spec.md", "create-issue.md")
 
 
 # --------------------------------------------------------------------------
@@ -1409,7 +1438,7 @@ def _abs_path(value: str, _pathmod=os.path) -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="render-audit-prompt.py",
-        description="Render the create-issue Step 3.6 fresh-context audit prompt.",
+        description="Render the spec Step 3.6 fresh-context audit prompt.",
     )
     parser.add_argument("mode", choices=_MODES)
     parser.add_argument("--slug", type=_kebab_slug)

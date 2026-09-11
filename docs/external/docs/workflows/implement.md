@@ -11,7 +11,7 @@ It creates a branch, commits and pushes changes and opens a pull request. The re
 
 <Steps>
   <Step title="Pick an open issue">
-    You need the issue number. The issue does not have to be perfect, but the more precisely it states the outcome you want, the closer the result lands. See [Create an Issue](/docs/workflows/create-issue) for how PRFlow writes one.
+    You need the issue number. The issue does not have to be perfect, but the more precisely it states the outcome you want, the closer the result lands. See [Create an Issue](/docs/workflows/spec) for how PRFlow writes one.
   </Step>
   <Step title="Start the run">
     In Claude Code:

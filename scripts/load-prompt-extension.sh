@@ -4,7 +4,7 @@
 # Print a consumer-owned prompt-extension file verbatim, if present.
 #
 # Usage: load-prompt-extension.sh SKILL_NAME [--section '<## heading>' | --digest]
-#   SKILL_NAME   the skill's directory name under skills/ (e.g. create-issue,
+#   SKILL_NAME   the skill's directory name under skills/ (e.g. spec,
 #                implement, review). This is the only POSITIONAL argument.
 #   --section    optional; emit only the named section of the extension instead of
 #                the whole file. Its value is the exact '## '-prefixed heading line.
@@ -20,7 +20,7 @@
 #                digest that cannot be computed, each exit 2 with empty stdout.
 #
 # The --section extraction rule (issue #611) is SPECIFIED in
-# skills/create-issue/references/step-2-clarify.md (the `## Evidence axes`
+# skills/spec/references/step-2-clarify.md (the `## Evidence axes`
 # forwarding paragraph, moved there at issue #614) and IMPLEMENTED here; that
 # reference sentence is the specification of record and this helper is its single
 # implementation — a coupled pair, edited together. The rule:
@@ -100,7 +100,7 @@
 # and it makes an absent/empty extension distinguishable from a harness refusal (which produces
 # no output at all). The `load-prompt-extension.sh: ` prefix is what lets the phase-3 reviewer's
 # stdout-classification discriminator, which drops `load-prompt-extension.sh: ` lines, still
-# neutralize this diagnostic. --section mode emits no token, so create-issue's byte-and-stderr
+# neutralize this diagnostic. --section mode emits no token, so spec's byte-and-stderr
 # contract is unchanged.
 #
 # When the file is absent — or present but empty — this prints nothing on stdout and exits
@@ -127,8 +127,8 @@
 # tiers the directory is the consumer's own checked-out repo, so the argument is the
 # only attacker-influenceable input (a skill could be coaxed to pass an unexpected
 # value) and the file's bytes are trusted. On the cloud REVIEW tier that premise does
-# not hold of the checkout: .github/workflows/devflow-runner.yml checks out the PULL
-# REQUEST's head, so a repo-root read there would append PR-author-editable bytes to
+# not hold of the checkout: the cloud review tier's workflow (devflow-runner.yml, since
+# removed) checked out the PULL REQUEST's head, so a repo-root read there would append PR-author-editable bytes to
 # the merge-gating reviewer's own prompt. That tier therefore materializes the
 # protected extensions from the TRUSTED BASE REF into a $RUNNER_TEMP closure, points
 # this helper at it through DEVFLOW_PROMPT_EXTENSION_ROOT, and truncates the
@@ -305,7 +305,7 @@ while [ "$#" -gt 0 ]; do
             # emits the WHOLE extension at exit 0 — the opposite of what the caller asked
             # for, and indistinguishable at the call site from a legitimate full-file
             # load. This is the likelier typo than the flag-shaped value refused above
-            # (the four create-issue re-load sites are model-transcribed commands), so it
+            # (the four spec re-load sites are model-transcribed commands), so it
             # gets the same loud refusal. A stray plain word keeps its ignored behavior.
             case "$1" in
                 '## '*)
@@ -415,12 +415,13 @@ if [ ! -e "$ext_file" ] && [ ! -L "$ext_file" ] && [ -d "$_lpe_old_ext_dir" ]; t
     fi
 fi
 
-# TRANSITIONAL SKILL-RENAME READ-THROUGH (issue #152). The skill formerly called
-# `receiving-code-review` is now `fix`, and a consumer who customized the old
-# extension file keeps it applying across the upgrade. When asked for `fix` and no
-# `fix.md` exists in the selected directory, fall through to a present
-# `receiving-code-review.md` there, emitting a stderr breadcrumb telling the consumer
-# to rename it. Canonical name first, superseded only when canonical is absent, a
+# TRANSITIONAL SKILL-RENAME READ-THROUGH (issues #152, #216). Two renamed skills keep
+# a consumer's old-named extension applying across the upgrade: `fix` was
+# `receiving-code-review`, and `spec` was `create-issue`. When asked for the new name
+# with no `<new>.md` in the selected directory, fall through to a present
+# `<old-name>.md` there (then the superseded prompt-extensions/ directory), emitting a
+# stderr breadcrumb telling the consumer to rename it and naming /prflow:init as the
+# migration. Canonical name first, superseded only when canonical is absent, a
 # breadcrumb on every fallback — the same shape as the `.devflow/` state-directory
 # read-through (lib/resolve-state-dir.sh). The selection is decided with file tests
 # and `case` only (never tr/sed/cut/head), per the repo's non-preflight-PATH-tool
@@ -428,21 +429,27 @@ fi
 # entry has (regular file, directory, broken symlink) is then judged by the SAME
 # deliverability guards below, so a directory old-name file takes the existing
 # undeliverable-shape exit rather than a bespoke path.
-# END CRITERION (confirmation-gated, not a timer): this read-through, the transitional
-# `receiving-code-review` entry in the .github/workflows/devflow.yml protected-extension
-# list, and its drift-guard allowance in lib/test/run.sh are removed together once no
-# consumer still carries a receiving-code-review.md.
-if [ "$skill" = fix ] && [ ! -e "$ext_file" ] && [ ! -L "$ext_file" ]; then
-    _lpe_superseded="${ext_dir}/receiving-code-review.md"
+# END CRITERION (confirmation-gated, not a timer): each pair's read-through — with its
+# transitional entry in the .github/workflows/devflow.yml protected-extension list and
+# its drift-guard allowance in lib/test/run.sh — is removed once no consumer still
+# carries that superseded extension file (a receiving-code-review.md, or a
+# create-issue.md), per lib/rename-map.json's end-criterion records.
+_lpe_superseded_name=""
+case "$skill" in
+    fix)  _lpe_superseded_name=receiving-code-review ;;
+    spec) _lpe_superseded_name=create-issue ;;
+esac
+if [ -n "$_lpe_superseded_name" ] && [ ! -e "$ext_file" ] && [ ! -L "$ext_file" ]; then
+    _lpe_superseded="${ext_dir}/${_lpe_superseded_name}.md"
     if [ ! -e "$_lpe_superseded" ] && [ ! -L "$_lpe_superseded" ] && [ -d "$_lpe_old_ext_dir" ] && [ "$ext_dir" != "$_lpe_old_ext_dir" ]; then
-        _lpe_superseded_legacy="${_lpe_old_ext_dir}/receiving-code-review.md"
+        _lpe_superseded_legacy="${_lpe_old_ext_dir}/${_lpe_superseded_name}.md"
         if [ -e "$_lpe_superseded_legacy" ] || [ -L "$_lpe_superseded_legacy" ]; then
             echo "load-prompt-extension.sh: reading from the superseded extension directory '${_lpe_old_ext_dir}' — run /prflow:init to migrate it to '${ext_dir}' (transitional read-through; removed once no consumer still carries a .prflow/prompt-extensions/ directory)" >&2
             _lpe_superseded="$_lpe_superseded_legacy"
         fi
     fi
     if [ -e "$_lpe_superseded" ] || [ -L "$_lpe_superseded" ]; then
-        echo "load-prompt-extension.sh: reading the superseded extension '${_lpe_superseded}' for the renamed 'fix' skill — rename it to 'fix.md' (transitional read-through; removed once no consumer still carries a receiving-code-review.md)" >&2
+        echo "load-prompt-extension.sh: reading the superseded extension '${_lpe_superseded}' for the renamed '${skill}' skill — run /prflow:init to migrate it, or rename it to '${skill}.md' (transitional read-through; removed once no consumer still carries a ${_lpe_superseded_name}.md)" >&2
         ext_file="$_lpe_superseded"
     fi
 fi
@@ -662,18 +669,24 @@ fi
 # stdout — stdout stays byte-verbatim). Undeliverable shapes exited 2 above. The
 # `load-prompt-extension.sh: ` prefix is load-bearing (phase-3 drops those lines when classifying).
 if [ "$section_requested" -eq 0 ]; then
-    # issue #200: on a WHOLE-FILE create-issue load (never --section or --digest, which
-    # keep the no-token contract), a stray specs.md beside the extension dir is a
-    # consumer's customization the create-issue pipeline never reads — the specs alias
-    # owns no extension file, so both command names read create-issue.md. Report it, in
-    # any present shape (regular file, symlink, or directory — file tests only, per the
+    # issues #200, #216: on a WHOLE-FILE spec load (never --section or --digest, which
+    # keep the no-token contract), a stray extension file beside the one the spec run
+    # reads is a consumer customization the pipeline never reads. Report it, in any
+    # present shape (regular file, symlink, or directory — file tests only, per the
     # non-preflight-PATH-tool rule), so an exit-0 load stops being a silent proceed. This
-    # only reports: create-issue.md stays the sole file read, so ext_file is not reassigned
-    # and neither stdout nor the exit status changes.
-    if [ "$skill" = create-issue ]; then
+    # only reports: ext_file is not reassigned and neither stdout nor the exit status
+    # changes. Two strays: specs.md is ALWAYS stray (the /prflow:specs alias owns no
+    # extension file); create-issue.md is stray ONLY when the canonical spec.md is the
+    # file read — a create-issue.md read via the transitional read-through above IS the
+    # file, so it is compared against ext_file and not reported then.
+    if [ "$skill" = spec ]; then
         _lpe_stray_specs="${ext_dir}/specs.md"
         if [ -e "$_lpe_stray_specs" ] || [ -L "$_lpe_stray_specs" ]; then
-            echo "load-prompt-extension.sh: found '${_lpe_stray_specs}' beside the create-issue extension; the create-issue run (including the /prflow:specs alias) will NOT read it — move its content into '${ext_dir}/create-issue.md', the one file both command names read" >&2
+            echo "load-prompt-extension.sh: found '${_lpe_stray_specs}' beside the spec extension; the spec run (including the /prflow:specs and /prflow:create-issue aliases) will NOT read it — move its content into '${ext_file}', the file the spec run reads" >&2
+        fi
+        _lpe_stray_ci="${ext_dir}/create-issue.md"
+        if { [ -e "$_lpe_stray_ci" ] || [ -L "$_lpe_stray_ci" ]; } && [ "$ext_file" != "$_lpe_stray_ci" ]; then
+            echo "load-prompt-extension.sh: found '${_lpe_stray_ci}' beside the spec extension; the spec run will NOT read it because '${ext_file}' is present — move its content into '${ext_file}', then remove the stray file (run /prflow:init to migrate a lone create-issue.md)" >&2
         fi
     fi
     if [ -f "$ext_file" ] && [ -s "$ext_file" ]; then

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -42,6 +43,41 @@ OVERRIDES_SCHEMA = 4
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
+
+
+def _repo_toplevel() -> Path:
+    # SHARED REPO-ROOT CONFIG CONTRACT (issue #295): the learnings stores live under the git
+    # toplevel's .prflow/, not this script's own tree, so a vendored copy resolves the consumer's
+    # stores rather than .prflow/vendor/prflow/.prflow/learnings. Native git subprocess
+    # (Windows-safe, unlike exec-ing a .sh — [WinError 193]); falls back to cwd off a git tree.
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, encoding="utf-8",
+        )
+    except OSError as e:
+        _breadcrumb_no_root(str(e))
+        return Path.cwd()
+    root = r.stdout.strip() if r.returncode == 0 else ""
+    if root:
+        return Path(root)
+    _breadcrumb_no_root((r.stderr or "").strip())
+    return Path.cwd()
+
+
+def _breadcrumb_no_root(git_err: str) -> None:
+    # The contract above (issue #295) requires a stderr breadcrumb on the silent-default fallback, as
+    # the sibling match-deferrals.py does; without it a safe.directory refusal inside the real repo
+    # yields a silent "migrated 0 records" success. Breadcrumb only when NEITHER a git root NOR a
+    # .prflow/ can be located, surfacing git's own stderr as the real cause.
+    cwd = Path.cwd()
+    if (cwd / ".prflow").is_dir() or (cwd / ".devflow").is_dir():
+        return
+    suffix = f" (git: {git_err})" if git_err else ""
+    sys.stderr.write(
+        f"migrate-record-repo.py: could not resolve a git repo root{suffix} and no .prflow/ at "
+        f"{str(cwd)!r}; falling back to a cwd-anchored learnings store\n"
+    )
 
 
 def _legacy_record_repo(identity_file: Path) -> str:
@@ -178,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     root = _repo_root()
-    learnings = Path(args.learnings_dir) if args.learnings_dir else root / ".prflow" / "learnings"
+    learnings = Path(args.learnings_dir) if args.learnings_dir else _repo_toplevel() / ".prflow" / "learnings"
     identity_file = Path(args.identity_file) if args.identity_file else root / "lib" / "repo-identity.json"
     legacy_repo = _legacy_record_repo(identity_file)
 

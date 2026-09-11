@@ -130,8 +130,7 @@ def agent_disposition($returned; $roster_established; $failed_established; $is_f
 def diff_profile_label($dp):
   if $dp == null then "not recorded"
   else
-    ([ (if ($dp.engine_self_modifying // false) then "engine_self_modifying" else empty end),
-       (if ($dp.small_diff // false)            then "small_diff"            else empty end),
+    ([ (if ($dp.small_diff // false)            then "small_diff"            else empty end),
        (if ($dp.config_only // false)           then "config_only"           else empty end),
        (if ($dp.has_new_types // false)         then "has_new_types"         else empty end) ]) as $flags
     | if ($flags | length) == 0 then "full engine (no flags)" else ($flags | join(" + ")) end
@@ -317,9 +316,9 @@ def iter_view:
       checklist_lite_count:  $lite_count,
       checklist_agent_count: $agent_count,
       # Phase 0.5 classification (small_diff / config_only / has_new_types /
-      # engine_self_modifying / checklist_skipped). Carried into the record so
-      # the cross-run analyzer can segment by diff shape — a `null` agent on a
-      # config-only diff is correctly silent, NOT a cut candidate.
+      # checklist_skipped). Carried into the record so the cross-run analyzer can
+      # segment by diff shape — a `null` agent on a config-only diff is correctly
+      # silent, NOT a cut candidate. A legacy record's extra keys are tolerated.
       diff_profile: $diff_profile,
       verification_posture: $verification_posture,
       fixes_applied: $fixes_applied,

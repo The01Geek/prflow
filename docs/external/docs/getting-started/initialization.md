@@ -7,6 +7,8 @@ Create repository-specific PRFlow configuration by running the `init` skill once
 
 Initialization is separate from plugin installation. Run it after you install PRFlow and again after each update, so new configuration keys and new prompt-extension examples reach the repository. Local runs work on built-in defaults without it, so treat it as recommended rather than required.
 
+Claude Code invokes initialization as `/prflow:init`. Codex CLI and Codex in the ChatGPT desktop app invoke the same skill as `$prflow:init`; Codex CLI can also select it through `/skills`.
+
 After it scaffolds the configuration, initialization also installs the cloud-tier GitHub Actions workflows, driven by the config's `workflows` block: when at least one tier is enabled — the shipped default enables `workflows.prflow` — it runs `install.sh --apply` for you; when none is enabled it asks first, and installs nothing on a decline or a non-interactive run. This replaces the old behavior where initialization scaffolded config but left the `.github/workflows/` files to a separate `install.sh` run, so a repository whose config claimed the cloud tier was on could end up with no workflows on disk.
 
 ## Run It

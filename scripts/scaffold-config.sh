@@ -161,13 +161,13 @@ fi
 # Skills load .prflow/skill-extensions/<skill-name>.md verbatim when present, so a
 # repo can append repo-specific instructions to any skill with no plugin edit.
 # Scaffold one COMMENTED, INERT <skill>.md.example PER SKILL so adopters discover
-# that EVERY skill is extensible, not just create-issue. The `.example` suffix keeps
+# that EVERY skill is extensible, not just spec. The `.example` suffix keeps
 # each file from matching `<skill-name>.md`, so it never injects itself into a real
 # run until a consumer deliberately renames it; and the whole body is an HTML
 # comment, so even a misrename that drops `.example` injects no actionable
 # instruction. mkdir -p is idempotent; the absence guard is PER FILE (not on the
 # directory), so an adopter who scaffolded before issue #95 — and so has only
-# create-issue.md.example — gets the remaining examples backfilled on re-run, while
+# spec.md.example — gets the remaining examples backfilled on re-run, while
 # any file they created or edited (an .example OR a live <skill>.md) is never
 # touched. The directory is intentionally NOT gitignored (the scoped
 # .prflow/.gitignore ignores only tmp/), so a team commits and shares its
@@ -244,6 +244,38 @@ else
       log "could not migrate prompt extension $PE_OLD_EXT to $PE_NEW_EXT${pe_ren_err:+ ($pe_ren_err)}; leaving the old file in place (rename it by hand)."
     fi
   fi
+  # TRANSITIONAL SKILL-RENAME MIGRATION (issue #216). The create-issue skill is now
+  # `spec`; a consumer's committed create-issue.md extension is renamed IN PLACE here —
+  # the create-issue -> spec twin of the fix migration above, with the same best-effort
+  # tracked/untracked selection and both-present conflict handling.
+  PE_CI_EXT="$EXTENSIONS_DIR/create-issue.md"
+  PE_SPEC_EXT="$EXTENSIONS_DIR/spec.md"
+  PE_CI_EXT_EXAMPLE="$EXTENSIONS_DIR/create-issue.md.example"
+  if [ -e "$PE_CI_EXT" ] && [ -e "$PE_SPEC_EXT" ]; then
+    log "prompt-extension rename conflict: both $PE_CI_EXT and $PE_SPEC_EXT exist; leaving both untouched — merge them by hand, then delete $PE_CI_EXT."
+  elif [ -e "$PE_CI_EXT" ]; then
+    if git -C "$TARGET_ROOT" ls-files --error-unmatch "$PE_CI_EXT" >/dev/null 2>&1; then
+      pe_ci_mover=(git -C "$TARGET_ROOT" mv)
+    else
+      pe_ci_mover=(mv)
+    fi
+    if pe_ci_ren_err="$("${pe_ci_mover[@]}" "$PE_CI_EXT" "$PE_SPEC_EXT" 2>&1)"; then
+      log "migrated prompt extension: renamed $PE_CI_EXT to $PE_SPEC_EXT (the create-issue skill is now spec)."
+    else
+      log "could not migrate prompt extension $PE_CI_EXT to $PE_SPEC_EXT${pe_ci_ren_err:+ ($pe_ci_ren_err)}; leaving the old file in place (rename it by hand)."
+    fi
+  fi
+  # Remove a stale create-issue.md.example the loop below supersedes with spec.md.example.
+  # Same best-effort git-rm-when-tracked / plain-rm arm as the receiving-code-review one.
+  if [ -e "$PE_CI_EXT_EXAMPLE" ]; then
+    if git -C "$TARGET_ROOT" ls-files --error-unmatch "$PE_CI_EXT_EXAMPLE" >/dev/null 2>&1; then
+      pe_ci_rm_err="$(git -C "$TARGET_ROOT" rm -q -f -- "$PE_CI_EXT_EXAMPLE" 2>&1)" \
+        || log "could not remove the stale $PE_CI_EXT_EXAMPLE${pe_ci_rm_err:+ ($pe_ci_rm_err)}; remove it by hand."
+    else
+      pe_ci_rm_err="$(rm -f "$PE_CI_EXT_EXAMPLE" 2>&1)" \
+        || log "could not remove the stale $PE_CI_EXT_EXAMPLE${pe_ci_rm_err:+ ($pe_ci_rm_err)}; remove it by hand."
+    fi
+  fi
   # Remove a stale receiving-code-review.md.example — the loop below backfills the
   # fix.md.example that supersedes it. A tracked copy goes through git rm, which keeps the
   # index and worktree in sync; never cascade a failed git rm into a plain rm, which would
@@ -259,7 +291,7 @@ else
     fi
   fi
   # Remove a stale specs.md.example an earlier scaffold minted (issue #200): the specs alias
-  # owns no extension file now, so both command names read create-issue.md. Same best-effort
+  # owns no extension file now, so every spec command name reads spec.md. Same best-effort
   # git-rm-when-tracked / plain-rm-otherwise arm as the receiving-code-review.md.example
   # removal above; a failure logs a breadcrumb and the scaffold continues.
   pe_specs_example="$EXTENSIONS_DIR/specs.md.example"
@@ -302,7 +334,7 @@ else
     # guarded path that the `[ -e ]` guard above would then treat as present and never
     # retry. On failure only the temp is removed; the guarded path is untouched.
     pe_tmp="$pe_target.tmp"
-    # The body is written in three grouped printf calls so the create-issue example can
+    # The body is written in three grouped printf calls so the spec example can
     # carry INERT `## Audit dimensions` (Step 3.6 audit forwarding) and `## Evidence axes`
     # (Step 2 evidence-bundle forwarding, issue #548) samples between the boilerplate and the
     # closing `-->`. The samples stay
@@ -330,9 +362,9 @@ else
            "Useful extension for $pe_skill: $pe_hint" \
            '' \
            'To activate, copy this file to the same name without the .example suffix' \
-           '(for example create-issue.md.example becomes create-issue.md) and replace' \
+           '(for example spec.md.example becomes spec.md) and replace' \
            'this comment with your own instructions.' &&
-         { [ "$pe_skill" != "create-issue" ] || printf '%s\n' \
+         { [ "$pe_skill" != "spec" ] || printf '%s\n' \
              '' \
              'Step 3.6 (the fresh-context audit) reads an optional "## Audit dimensions"' \
              'section from this extension and forwards it to the audit subagent. Example' \
@@ -359,15 +391,15 @@ else
       log "could not write $pe_target; skipping this prompt-extension example (scaffold continues)."
     fi
   done <<'PE_SKILLS'
-create-issue|extend the generated issue body with links to your house tracker or test-case system
+spec|extend the generated issue body with links to your house tracker or test-case system
 docs|point the docs pass at extra documentation roots specific to your repo
 docs-bootstrap-external|describe your public docs-site structure so the external bootstrap matches it
 docs-bootstrap-internal|name the internal doc conventions and directory layout your team follows
-docs-release-notes|match your release-notes house style, audience, and changelog format
+docs-release-notes|match your release-notes house style; declare a `## Release convention` section with `bump-commit-subject-prefix:` and `version-manifest:` lines so Step 4b can reconcile your CHANGELOG
 docs-sync-external|list which internal sections are confidential and must never reach external docs
 docs-sync-internal|flag the code areas whose internal docs your team keeps especially current
 docs-verify|name the topics whose internal docs your team treats as load-bearing
-implement|add repo-specific implementation constraints the orchestrator must honor
+implement|add repo-specific implementation constraints the orchestrator must honor, e.g. a `## Versioning policy` section naming the versioning artifact the issue-claim auditor and Phase 3 gate read
 init|add post-scaffold setup steps unique to your repo
 pr-description|enforce your PR-description template sections and required labels
 fix|add house rules for how review feedback is evaluated, verified, and pushed back on
@@ -525,11 +557,92 @@ for old_disp, new_disp in conflicts:
     sys.stdout.write("CONFLICT\t" + old_disp + "\t" + new_disp + "\n")
 '
 
+# The UNGATED skill-config-key migration (issue #216): create_issue -> spec. Same
+# both-present / example-default / conflict semantics as migrate_keys above, but read
+# from the map skill_config_keys block and run OUTSIDE the shipped-workflow freshness
+# gate — no workflow reads this key, so a consumer with stale workflows still gets it
+# renamed. Best-effort: an unreadable config or map writes nothing (exit 2).
+PRFLOW_MIGRATE_SKILL_PY='
+import json, sys
+
+cfg_path, out_path, map_path, example_path = sys.argv[1:5]
+try:
+    with open(cfg_path, encoding="utf-8") as fh:
+        cfg = json.load(fh)
+    with open(map_path, encoding="utf-8") as fh:
+        renames = json.load(fh).get("skill_config_keys") or {}
+    with open(example_path, encoding="utf-8") as fh:
+        example = json.load(fh)
+except Exception as exc:
+    sys.stderr.write(str(exc) + "\n")
+    sys.exit(2)
+if not isinstance(cfg, dict) or not isinstance(renames, dict):
+    sys.stderr.write("config or rename map is not an object\n")
+    sys.exit(2)
+ex = example if isinstance(example, dict) else {}
+changed = []
+conflicts = []
+result = {}
+for key, value in cfg.items():
+    new = renames.get(key)
+    if new is None:
+        result[key] = value
+        continue
+    if new not in cfg:
+        result[new] = value
+        changed.append(key + " -> " + new)
+        continue
+    if new in ex and cfg[new] == ex[new]:
+        changed.append(key + " -> " + new + " (the existing " + new
+                       + " block still held the shipped example default and was replaced)")
+        continue
+    conflicts.append((key, new))
+    result[key] = value
+for old, new in renames.items():
+    if old in cfg and new in cfg and new in ex and cfg[new] == ex[new]:
+        result[new] = cfg[old]
+with open(out_path, "w", encoding="utf-8") as fh:
+    json.dump(result, fh, indent=2)
+    fh.write("\n")
+for line in changed:
+    sys.stdout.write("CHANGED\t" + line + "\n")
+for old_disp, new_disp in conflicts:
+    sys.stdout.write("CONFLICT\t" + old_disp + "\t" + new_disp + "\n")
+'
+
 if [ ! -f "$RENAME_MAP" ]; then
   log "rename map not found at $RENAME_MAP; skipping the superseded config-key migration (is the plugin install complete?)."
 elif ! command -v python3 >/dev/null 2>&1; then
   log "no working python3; skipping the superseded config-key migration and leaving $CONFIG unchanged (the backfill guard below still refuses to graft a new-name key beside a superseded one)."
 else
+  # UNGATED create_issue -> spec skill-config-key migration (issue #216), run before the
+  # gate below because no workflow reads it. Shares the rename-map + python3 preconditions
+  # of this else branch; touches only the create_issue/spec key, disjoint from the gated
+  # brand-key migration that follows.
+  SKILL_MIG_TMP="$(mktemp)"; SKILL_MIG_ERR="$(mktemp)"
+  skill_mig_rc=0
+  skill_mig_out="$(python3 -c "$PRFLOW_MIGRATE_SKILL_PY" "$CONFIG" "$SKILL_MIG_TMP" "$RENAME_MAP" "$EXAMPLE" 2>"$SKILL_MIG_ERR")" || skill_mig_rc=$?
+  if [ "$skill_mig_rc" -ne 0 ]; then
+    skill_mig_err="$(cat "$SKILL_MIG_ERR")"
+    log "superseded skill-config-key migration could not read $CONFIG${skill_mig_err:+ ($skill_mig_err)}; leaving it unchanged."
+  else
+    while IFS="$(printf '\t')" read -r kind detail extra; do
+      [ -n "$kind" ] || continue
+      case "$kind" in
+        CHANGED)
+          log "migrated superseded config key in $CONFIG: $detail" ;;
+        CONFLICT)
+          log "NOT migrating $detail in $CONFIG: both it and $extra are present and $extra differs from the shipped example, so it is a deliberate edit this migration must not discard. Resolve it by hand — delete the $detail block to keep your $extra value, or delete the $extra block to have $detail migrated on the next run." ;;
+      esac
+    done <<PRFLOW_SKILL_MIG_REPORT
+$skill_mig_out
+PRFLOW_SKILL_MIG_REPORT
+    rewrite_config_if_changed "$CONFIG" "$SKILL_MIG_TMP" \
+      "renamed superseded skill config keys in $CONFIG (your values carried across unchanged)." \
+      "could not compare the skill-migrated config against $CONFIG; leaving it unchanged."
+  fi
+  rm -f "$SKILL_MIG_TMP" "$SKILL_MIG_ERR"
+
   # The gate. Exactly the two filenames install.sh ships.
   gate_out=""
   gate_rc=0
@@ -675,24 +788,20 @@ fi
 # and therefore cannot refresh. Reported on EVERY run — not only when the config
 # still carries superseded keys — so the warning does not fall silent on the run
 # after the one that made those files stale (issue #988).
-for _retained in devflow-review.yml devflow-runner.yml telemetry-push.yml; do
-  if [ -f "$TARGET_ROOT/.github/workflows/$_retained" ]; then
-    log "$_retained is present in .github/workflows/ but is NOT shipped by install.sh, so no installer run can refresh it. If it still names the superseded state directory or vendored path, its helper invocations will not resolve after the migration — update or remove it by hand."
-    # #1041: devflow-review.yml is the ONE retained reader of a MIGRATED config
-    # sub-key — it reads `.workflows["devflow-review"] // false`. The freshness gate
-    # scans only the two SHIPPED workflows (install.sh cannot refresh a withheld file,
-    # so gating on it would block the whole config-key migration forever), so the
-    # devflow-review -> prflow-review rename is NOT coordinated with this file the way
-    # the shipped workflows are. When the migration moves the key, this retained file
-    # reads the now-absent old key as `false` and the auto-review tier silently stops.
-    # That silent disable is the exact hazard #1041 exists to prevent, so surface it
-    # LOUDLY by name rather than letting it pass — the retained file's own review-key
-    # rename is the operator's to do by hand (or remove the withheld tier outright).
-    if [ "$_retained" = "devflow-review.yml" ]; then
-      log "  ALSO: devflow-review.yml reads the workflows.devflow-review config toggle, which #1041 renamed to workflows.prflow-review. The freshness gate cannot refuse on an unshipped file, so once your config migrates to workflows.prflow-review this retained workflow reads the now-absent old key as false and its auto-review silently stops. Update devflow-review.yml to read .workflows[\"prflow-review\"], or remove the withheld tier with install.sh --remove-withheld-review-tier."
-    fi
-  fi
-done
+if [ -f "$TARGET_ROOT/.github/workflows/devflow-review.yml" ]; then
+  log "devflow-review.yml is present in .github/workflows/ but is NOT shipped by install.sh, so no installer run can refresh it. If it still names the superseded state directory or vendored path, its helper invocations will not resolve after the migration — update or remove it by hand."
+  # #1041: devflow-review.yml is the ONE retained reader of a MIGRATED config
+  # sub-key — it reads `.workflows["devflow-review"] // false`. The freshness gate
+  # scans only the two SHIPPED workflows (install.sh cannot refresh a withheld file,
+  # so gating on it would block the whole config-key migration forever), so the
+  # devflow-review -> prflow-review rename is NOT coordinated with this file the way
+  # the shipped workflows are. When the migration moves the key, this retained file
+  # reads the now-absent old key as `false` and the auto-review tier silently stops.
+  # That silent disable is the exact hazard #1041 exists to prevent, so surface it
+  # LOUDLY by name rather than letting it pass — the retained file's own review-key
+  # rename is the operator's to do by hand.
+  log "  ALSO: devflow-review.yml reads the workflows.devflow-review config toggle, which #1041 renamed to workflows.prflow-review. The freshness gate cannot refuse on an unshipped file, so once your config migrates to workflows.prflow-review this retained workflow reads the now-absent old key as false and its auto-review silently stops. Update devflow-review.yml to read .workflows[\"prflow-review\"], or remove the retained file by hand."
+fi
 
 # Backfill newly-introduced keys into an EXISTING config.json. A recursive
 # deep-merge ($example * $config) adds any key present in the example but absent
@@ -725,7 +834,7 @@ else
         --argjson have_map "$([ -f "$RENAME_MAP" ] && echo true || echo false)" '
         ($cfg[0].prflow_review.agent_overrides? // {}) as $userao
         | ($cfg[0]) as $orig
-        | (if $have_map then ($ren[0].config_keys // {}) else {} end) as $renames
+        | (if $have_map then (($ren[0].config_keys // {}) + ($ren[0].skill_config_keys // {})) else {} end) as $renames
         | (if $have_map then ($ren[0].workflows_config_keys // {}) else {} end) as $wfrenames
         | ($ex[0] * $cfg[0])
         # SUPERSEDED-KEY ANTI-GRAFT GUARD (issues #988, #1002). The deep merge adds

@@ -39,7 +39,7 @@ Every PRFlow command reads its own file. These are the commands documented on th
 
 | Command | File it reads |
 | --- | --- |
-| [`/prflow:create-issue`](/docs/workflows/create-issue) | `.prflow/skill-extensions/create-issue.md` |
+| [`/prflow:spec`](/docs/workflows/spec) | `.prflow/skill-extensions/spec.md` |
 | [`/prflow:implement`](/docs/workflows/implement) | `.prflow/skill-extensions/implement.md` |
 | [`/prflow:review`](/docs/workflows/review) | `.prflow/skill-extensions/review.md` |
 | [`/prflow:review-and-fix`](/docs/workflows/review-and-fix) | `.prflow/skill-extensions/review-and-fix.md` and `.prflow/skill-extensions/fix.md` |
@@ -98,14 +98,14 @@ For a cloud run, also grant the command you named. Installing a tool or naming i
 
 Expected result on the next `/prflow:implement` run: the run reports that the extension loaded, uses `make verify` as its verification command, opens the pull request with a "Rollback" section and refuses to edit a shipped migration, proposing a new migration file instead. See [Tool Permissions](/docs/configuration/tool-permissions) for the grant format.
 
-<Accordion title="Two headings the create-issue extension treats specially">
-  `/prflow:create-issue` reads two headings in `.prflow/skill-extensions/create-issue.md` by name, in addition to using the whole file as instructions.
+<Accordion title="Two headings the spec extension treats specially">
+  `/prflow:spec` reads two headings in `.prflow/skill-extensions/spec.md` by name, in addition to using the whole file as instructions.
 
   A section headed exactly `## Audit dimensions` is passed to the pass that audits the draft issue, added to its standard checklist. Use it to teach the auditor the assumptions your issues must respect.
 
   A section headed exactly `## Evidence axes` is passed to the pass that gathers evidence before the draft is written. Use it to name the kinds of evidence a draft must cover for your repository.
 
-  A section runs from its heading line to the next line that starts with `## `. An extension without these headings changes nothing about those passes and still works as ordinary appended instructions. The scaffolded `create-issue.md.example` contains an inert sample of both headings.
+  A section runs from its heading line to the next line that starts with `## `. An extension without these headings changes nothing about those passes and still works as ordinary appended instructions. The scaffolded `spec.md.example` contains an inert sample of both headings.
 </Accordion>
 
 ## Check That It Was Applied

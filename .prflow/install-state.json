@@ -16,7 +16,7 @@
     },
     "install-state-reader": {
       "path": "scripts/install_state.py",
-      "digest": "sha256:f5cf870a728fc6664318f7de1600f172afa3238b6afc60c5d9d0315f07e2b5ad"
+      "digest": "sha256:33b300a3ac602ba48ff22eb92e8cded1965d47203842fab41366f6c632876c38"
     },
     "setup-action": {
       "path": ".github/actions/setup-project-env/action.yml",
@@ -28,7 +28,7 @@
     },
     "implement-workflow": {
       "path": ".github/workflows/devflow-implement.yml",
-      "digest": "sha256:aae7e8e91db2bf92125e5b19566ce1ec8d7286f1c4233c0d060511fdef607fac"
+      "digest": "sha256:fb90b15dfeb5a0ab9ea698055287c0ce18decd85ae7ed30d9bebe1dc2bd94517"
     }
   }
 }

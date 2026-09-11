@@ -32,7 +32,7 @@ WHAT IT MUST NOT TOUCH, and why each would break something:
     map). This ungated value pass leaves them exactly as it finds them.
   - the `DEVFLOW_*` ENVIRONMENT identifiers — they live in GitHub org/repo settings and
     shell profiles, so no config migration can reach them. The advisory POINTS at
-    `lib/generate-env-freeze-advisory.py`, which owns that inventory, and deliberately
+    `tools/generators/generate-env-freeze-advisory.py`, which owns that inventory, and deliberately
     does not restate a row of it.
   - `allowed_bots` entries such as a `devflow`-spelled bot login — those are real GitHub
     logins, and renaming one breaks authorization unless the account itself was renamed.
@@ -346,7 +346,7 @@ def residual_advisory(cfg: dict, renames: dict) -> list[str]:
         " shell overrides) are frozen too and must never be hand-renamed — nothing reads a"
         " `PRFLOW_*` equivalent, so renaming one removes the setting rather than moving it."
         " That is a separate inventory this notice does not restate:"
-        " `lib/generate-env-freeze-advisory.py` renders it."),
+        " `tools/generators/generate-env-freeze-advisory.py` renders it."),
     ]
 
 

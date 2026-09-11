@@ -101,6 +101,47 @@ if ! DEFAULTS="$(printf '%s' "$IDENTITY_JSON" | "$DEVFLOW_JQ" '
   exit 2
 fi
 
+# USER-SCOPE marketplace conflict guard (#317). Resolve via CLAUDE_CONFIG_DIR, never the sibling
+# provision-user-settings.sh's $HOME/.claude — Claude Code consults this file, and a project entry
+# written over a different registration here shadows it. Derive the source from $DEFAULTS, not a literal.
+USER_SETTINGS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+if [ -e "$USER_SETTINGS" ] && [ ! -d "$USER_SETTINGS" ]; then
+  if [ ! -r "$USER_SETTINGS" ]; then
+    warn "user-scope $USER_SETTINGS is present but not readable; skipped the marketplace conflict check and provisioned as usual."
+  else
+    user_content=""
+    if { IFS= read -r -d '' user_content < "$USER_SETTINGS"; } 2>/dev/null; then
+      warn "user-scope $USER_SETTINGS contains a NUL byte (not valid JSON text); skipped the marketplace conflict check and provisioned as usual."
+    elif [ ! -r "$USER_SETTINGS" ]; then
+      warn "user-scope $USER_SETTINGS could not be read; skipped the marketplace conflict check and provisioned as usual."
+    else
+      case "$user_content" in
+        *[![:space:]]*)
+          # `if !` fails CLOSED to no-conflict on the guard's OWN jq failure — a
+          # bare assignment would mask the exit status and read USER_VERDICT empty.
+          if ! USER_VERDICT="$(printf '%s' "$user_content" | "$DEVFLOW_JQ" -r \
+               --argjson defaults "$DEFAULTS" --argjson id "$IDENTITY_JSON" '
+               ($id.marketplace_canonical) as $mk
+               | (.extraKnownMarketplaces[$mk]) as $u
+               | ($defaults.extraKnownMarketplaces[$mk].source) as $want
+               | if ($u | type) == "object" and ($u | has("source"))
+                   then (if $u.source == $want then "match" else "conflict" end)
+                   elif $u == null then "absent"
+                   else "conflict" end' 2>/dev/null)"; then
+            warn "user-scope $USER_SETTINGS could not be classified (not valid JSON, or jq could not run); skipped the marketplace conflict check and provisioned as usual."
+          elif [ "$USER_VERDICT" = conflict ]; then
+            log "user-scope $USER_SETTINGS already registers the \"$(printf '%s' "$IDENTITY_JSON" | "$DEVFLOW_JQ" -r .marketplace_canonical)\" marketplace against a different source; NOT writing the project extraKnownMarketplaces entry (a project entry would shadow it), provisioning only enabledPlugins."
+            if ! DEFAULTS="$(printf '%s' "$DEFAULTS" | "$DEVFLOW_JQ" 'del(.extraKnownMarketplaces)')"; then
+              warn "could not drop the marketplace entry from the composed defaults after a user-scope conflict; left $SETTINGS unchanged and provisioned nothing."
+              exit 2
+            fi
+          fi
+          ;;
+      esac
+    fi
+  fi
+fi
+
 # SUPERSEDED identifiers — every accepted identifier that is not the canonical one.
 # A rename declares the previous id as an alias, and a repo provisioned under that
 # previous id would otherwise keep BOTH registrations forever: Claude Code would

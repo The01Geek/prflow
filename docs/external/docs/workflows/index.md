@@ -7,14 +7,14 @@ Pick the smallest PRFlow workflow that produces the outcome you need with the le
 
 PRFlow commands are Claude Code skills. You run them as `/prflow:<skill>` in Claude Code, and you run four of them by leaving a comment on a GitHub issue or pull request. See [Local Runs](/docs/runs/local/index) and [Cloud Runs](/docs/runs/cloud/index) for the difference.
 
-![A map of PRFlow skills grouped by outcome. The core delivery skills are prflow:create-issue, prflow:implement, prflow:review and prflow:review-and-fix. Supporting skills are prflow:pr-description, prflow:docs and prflow:retrospective-weekly.](/images/workflow-skill-map.svg)
+![A map of PRFlow skills grouped by outcome. The core delivery skills are prflow:spec, prflow:implement, prflow:review and prflow:review-and-fix. Supporting skills are prflow:pr-description, prflow:docs and prflow:retrospective-weekly.](/images/workflow-skill-map.svg)
 
 ## The Delivery Path
 
 These four workflows carry a piece of work from an idea to a pull request a human can merge.
 
 <CardGroup cols={2}>
-  <Card title="Create an Issue" icon="circle-plus" href="/docs/workflows/create-issue">
+  <Card title="Create an Issue" icon="circle-plus" href="/docs/workflows/spec">
     Turn a rough idea or bug report into one approved GitHub issue. Creates nothing until you approve the final draft.
   </Card>
   <Card title="Implement an Issue" icon="code" href="/docs/workflows/implement">
@@ -48,7 +48,7 @@ Read down the "Your goal" column until you find your case.
 
 | Your goal | Use | What it may change |
 | --- | --- | --- |
-| Record work instead of building it now | [Create an Issue](/docs/workflows/create-issue) | Creates one GitHub issue, after you approve the draft |
+| Record work instead of building it now | [Create an Issue](/docs/workflows/spec) | Creates one GitHub issue, after you approve the draft |
 | Complete an issue that already exists | [Implement](/docs/workflows/implement) | Branch, commits, push, one draft pull request |
 | Get an opinion on a pull request or branch | [Review](/docs/workflows/review) | Nothing in the reviewed tree |
 | Get the problems found and corrected | [Review and Fix](/docs/workflows/review-and-fix) | Commits on the active branch |

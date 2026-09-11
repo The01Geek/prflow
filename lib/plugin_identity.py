@@ -6,10 +6,8 @@
 Several PRFlow surfaces have to answer "is this identifier ours?":
 
   * the vendor trust ladder (`.github/actions/vendor-plugin/vendor-slice.sh`'s
-    `self` branch, and five FETCH_HEAD-gated trusted-source arms in
-    `.github/workflows/devflow-runner.yml`) -- SECURITY boundaries: a wrong
-    answer here silently executes, or silently declines to execute, trusted
-    helper code;
+    `self` branch) -- a SECURITY boundary: a wrong answer here silently executes,
+    or silently declines to execute, trusted helper code;
   * `install.sh`'s legacy prune (does this stale tree belong to us?);
   * `scripts/resolve-extra-plugins.sh`'s baked-baseline skip sets;
   * `scripts/resolve-review-overrides.py`'s closed `agent_overrides` allowlist;

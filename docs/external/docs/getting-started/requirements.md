@@ -7,11 +7,11 @@ Get your workstation ready for local PRFlow runs. Cloud runs use a separate [env
 
 ## Required Local Tools
 
-Install Claude Code, then make these tools available on `PATH`:
+Install Claude Code or Codex, then make these tools available on `PATH`:
 
 | **Requirement** | **Why PRFlow Needs It** |
 | --- | --- |
-| Claude Code | Loads and runs the PRFlow plugin skills. |
+| Claude Code or Codex | Loads and runs the PRFlow plugin skills. |
 | Git | Reads repository history and manages the feature branch. |
 | GitHub CLI (`gh`) | Reads and writes issues, pull requests and reviews. Authenticate it with `gh auth login`. |
 | `jq` | Processes the JSON that PRFlow's helpers pass between steps. |
@@ -19,7 +19,7 @@ Install Claude Code, then make these tools available on `PATH`:
 | POSIX bash | Runs PRFlow's shell helpers. `sh`, Dash and PowerShell alone are not substitutes. |
 
 <Note>
-  Claude Code is the client PRFlow documents. Other agent clients can load the plugin as well. See the compatibility note on the [installation page](/docs/getting-started/installation).
+  Claude Code and Codex use different skill syntax. Follow the client-specific steps on the [installation page](/docs/getting-started/installation) and [Commands and Arguments](/docs/runs/local/client-commands).
 </Note>
 
 The repository must be a Git repository connected to GitHub. Your GitHub identity needs enough access to read the issue and to create branches, issue comments and pull requests.

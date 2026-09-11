@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
 #
-# Report whether a /prflow:create-issue draft's provenance signature is the
+# Report whether a /prflow:spec draft's provenance signature is the
 # body's last non-blank line. The signature is appended as the draft's last
 # line before the canonical write, so a signature that landed mid-body (spliced
 # into a bullet) or a duplicate is a structural defect the criteria parser and
@@ -111,7 +111,7 @@ def _force_utf8_streams():
 def main(argv=None):
     _force_utf8_streams()
     parser = _ArgParser(
-        description="Report whether a create-issue draft's provenance line is "
+        description="Report whether a spec draft's provenance line is "
                     "the body's last non-blank line.")
     parser.add_argument('--body-file', required=True,
                         help='path to the draft body to check')

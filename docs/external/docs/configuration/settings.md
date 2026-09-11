@@ -32,7 +32,7 @@ A name containing `<name>`, such as `providers.<name>.auth`, means you choose th
 | `$schema` | [Core Settings](/docs/configuration/core-settings) | Editor validation only. Ignored at runtime. |
 | `base_branch` | [Core Settings](/docs/configuration/core-settings) | The branch reviews and implementation work from. |
 | `claude_model` | [Core Settings](/docs/configuration/core-settings) | The model every section uses unless it overrides it. |
-| `create_issue.investigation_record_enabled` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | Whether the investigation record is posted with a new issue. |
+| `spec.investigation_record_enabled` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | Whether the investigation record is posted with a new issue. |
 | `deferred.labels` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | Labels applied to follow-up issues for deferred work. |
 | `docs.changelog_file` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | The changelog the release-note pass reconciles against. |
 | `docs.external` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | Where public documentation lives. |
@@ -60,6 +60,8 @@ A name containing `<name>`, such as `providers.<name>.auth`, means you choose th
 | `prflow_implement.provider` | [Model Providers](/docs/configuration/providers) | Provider route for implementation runs. |
 | `prflow_implement.stall_backstop.enabled` | [Implementation](/docs/configuration/implementation) | Whether a stalled cloud run is detected after the agent step. |
 | `prflow_implement.stall_backstop.max_resume_attempts` | [Implementation](/docs/configuration/implementation) | How many times a stalled run may be resumed. |
+| `prflow_implement.stall_backstop.defer_to_runner_retry` | [Implementation](/docs/configuration/implementation) | Leave a failed run to a runner that retries it itself. |
+| `prflow_implement.spot_interruption_watcher.enabled` | [Implementation](/docs/configuration/implementation) | Opt-in EC2 Spot-reclaim detection and recovery for a Linux Spot runner. |
 | `prflow_implement.update_branch_checkpoints` | [Implementation](/docs/configuration/implementation) | Whether the base branch is merged in at checkpoints. |
 | `prflow_retrospective.audit_bundle_cap` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | How many pull request records inform one pattern. |
 | `prflow_retrospective.audit_model` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | The model used for the audit stage. |

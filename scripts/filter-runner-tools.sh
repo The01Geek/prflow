@@ -5,16 +5,17 @@
 #
 # This is the AUTHORITATIVE deny-list floor that runs at consume-time, on the
 # trusted base-ref `prflow_runner.allowed_tools` value, before those freeform
-# build/verify commands are appended to the read-only `review` profile in
-# .github/workflows/devflow-runner.yml. It strips the categorically-unrecoverable
+# build/verify commands were appended to the read-only `review` profile in the
+# review-runner workflow (devflow-runner.yml, since removed with that tier). It
+# strips the categorically-unrecoverable
 # tier no matter what /devflow:init's LLM enrichment or a later hand-edit wrote:
 # tree-mutation tools (Edit/Write/MultiEdit/NotebookEdit) and any Bash entry that
 # can reach a raw shell / eval / privilege binary. The fast-feedback `denylisted`
 # jq mirror in scripts/detect-project-tools.sh applies the same rules, but this
 # copy ENFORCES — a hand-edit to the CONFIG cannot get past it. A hand-edit to
-# THIS FILE is a different threat, and the enforcement point is the workflow,
-# not this header: devflow-runner.yml executes the floor only from a TRUSTED
-# copy — one materialized from the base ref by its baseprovision step, or the
+# THIS FILE is a different threat, and the enforcement point was the workflow,
+# not this header: devflow-runner.yml (since removed) executed the floor only from a
+# TRUSTED copy — one materialized from the base ref by its baseprovision step, or the
 # vendored copy when (and only when) vendor-plugin freshly fetched it at the
 # pinned prflow_version — never from the PR-head checkout. A PR that edits
 # this file therefore changes nothing about how that PR's own review is

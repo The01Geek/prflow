@@ -56,7 +56,7 @@ must not break that contract.
 
 ## § The context bundle
 
-Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
+Schema of the context bundle (`.prflow/tmp/pr-<n>.context.json`):
 
 | Key | Type | Description |
 |-----|------|-------------|
@@ -245,24 +245,7 @@ reasoning. Each object:
 `change_type` ∈ `rule-strengthen | rule-add | doc-update | skill-update |
 code-change | template-update | other`. `confidence` ∈ `low | medium | high`.
 
-Plugin self-audit first. Before picking a surface, ask whether this pattern
-reveals a flaw in the devflow plugin itself
-(the engine's own files — `skills/**`, `agents/**`, `lib/**`, `scripts/**`) — if so, set `categories` to
-include `tooling-gap` and point `suggested_interventions` at the plugin file:
-
-- Workpad blind spot? Did `workpad_body` contain clear root-cause evidence
-  that your classification missed? → `change_type: "skill-update"`,
-  `candidate_targets: ["skills/retrospective/SKILL.md"]`.
-- Clean-gate false negative? Did the PR nearly qualify as clean but the
-  workpad shows a major abandoned design? → points at `lib/cheap-gate.jq`.
-- Mis-categorized? Was the failure forced into `other` or into a category
-  that doesn't really fit? → points at this skill's `categories` vocabulary.
-- Cache miss? Was a primary source absent from the bundle that would have
-  changed your verdict? → points at `fetch-pr-context.sh`.
-
-If yes to any of the above, your intervention MUST target the plugin file
-directly. Do not silently downgrade to a smaller surface — that hides the
-blind spot that let the failure through.
+A pattern whose cause lies in the plugin itself rather than in this repository records `categories` including `tooling-gap`, `change_type` `other`, and an empty `candidate_targets`, with a `summary` naming the plugin behavior at fault — so the weekly orchestrator files an issue to forward upstream instead of an intervention naming a file this repository does not have.
 
 ---
 

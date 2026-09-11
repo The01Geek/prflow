@@ -3,7 +3,7 @@ title: "Runs"
 description: "Choose between an interactive local run and an optional GitHub Actions cloud run."
 ---
 
-Decide where PRFlow does the work: inside your own Claude Code session, or inside GitHub Actions after an authorized comment.
+Decide where PRFlow does the work: inside your own supported coding-client session, or inside GitHub Actions after an authorized comment.
 
 Both modes run the same workflows. They differ in who starts a run, which credentials it uses and how you approve what it does.
 
@@ -25,15 +25,15 @@ flowchart TD
 
 | **Run Type** | **Where It Runs** | **How It Starts** | **Best For** |
 | --- | --- | --- | --- |
-| [Local runs](/docs/runs/local/index) | Your Claude Code session on your own machine. | You type a `/prflow:` command. | First use, interactive decisions and access to a development environment you already trust. |
+| [Local runs](/docs/runs/local/index) | Your Claude Code or Codex session on your own machine. | You select a `prflow:` skill with the syntax your client uses. | First use, interactive decisions and access to a development environment you already trust. |
 | [Cloud runs](/docs/runs/cloud/index) | GitHub Actions, using repository secrets and variables. | An authorized person comments on an issue or a pull request. | Hands-off work started from GitHub, with credentials the repository owns. |
 
-Local runs inherit tools, authentication and permission prompts from your Claude Code session. They need no GitHub Actions workflow and no repository secret.
+Local runs inherit tools, authentication and permission prompts from your coding-client session. They need no GitHub Actions workflow and no repository secret.
 
 Cloud runs use committed workflow files, explicit GitHub permissions, repository secrets and a declared setup process. They need more maintenance than the local path.
 
 <Note>
-  PRFlow's documented command syntax describes Claude Code. The plugin has also been verified to work in GitHub Copilot CLI, Codex CLI, Codex Desktop and VS Code agent modes, but each of those clients names and invokes plugin commands its own way. Follow that client's own documentation for the exact prefix.
+  Claude Code uses `/prflow:<skill>`. Codex CLI and Codex in the ChatGPT desktop app use `$prflow:<skill>`; Codex CLI also provides a `/skills` picker. See [Commands and Arguments](/docs/runs/local/client-commands).
 </Note>
 
 ## What Each Mode Supports
@@ -59,7 +59,7 @@ Automatic pull-request-triggered review is not part of a fresh install. If you w
 
 <CardGroup cols={2}>
   <Card title="Local Runs" icon="terminal" href="/docs/runs/local/index">
-    Run PRFlow from a Claude Code session in your own checkout.
+    Run PRFlow from a Claude Code or Codex session in your own checkout.
   </Card>
   <Card title="Cloud Runs" icon="cloud" href="/docs/runs/cloud/index">
     Let authorized collaborators start PRFlow from a GitHub comment.

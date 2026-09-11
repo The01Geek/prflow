@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 """Shared transcript-walking helpers for the three context-cost instruments.
 
-scripts/create_issue_eval.py, scripts/implement-context-eval.py and
+scripts/spec_eval.py, scripts/implement-context-eval.py and
 scripts/review-context-eval.py each measure the runtime main-thread context a run
 accumulates by walking a Claude Code transcript directory. This module is the single
 definition of the five helpers all three share — `_iter_session_files`, `_median`,
@@ -175,7 +175,7 @@ def read_and_tally(text, skipped):
     """Parse a transcript file's text, fold the shared per-shape skip counts into the
     caller's `skipped` tally, and return the transcript records to iterate.
 
-    The three context-cost instruments (implement/review/create_issue eval) share this so
+    The three context-cost instruments (implement/review/spec eval) share this so
     the tally-mapping contract lives in one place; scripts/extract-execution-cost.py reads
     `read_transcript_records` directly instead, because it consumes even a non-transcript
     JSON file's dicts (a raw execution file whose rows carry usage but no `type`).

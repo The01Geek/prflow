@@ -39,5 +39,5 @@ PRFlow is an orchestrated delivery workflow. It turns a GitHub issue into a bran
 - **Review-ready:** The workflow finished and recorded its available verification and review evidence. It is not a guarantee of correctness and it is not permission to merge without review.
 
 <Note>
-  Claude Code is the documented client. Every command on this site is written as `/prflow:<skill>`, for example `/prflow:implement 123`.
+  Claude Code invokes a skill as `/prflow:<skill>`. Codex invokes the same skill as `$prflow:<skill>` or selects it from `/skills` in Codex CLI. See [Commands and Arguments](/docs/runs/local/client-commands).
 </Note>

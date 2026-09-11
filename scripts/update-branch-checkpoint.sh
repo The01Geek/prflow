@@ -317,24 +317,79 @@ _merge_and_dispatch() {
   fi
 }
 
-# (6.5) Register the coverage-map merge driver so an adjacent-key coverage-map.json insert
-# unions instead of CONFLICTing (issue #2025). Resolve via `git check-attr`, not a hand-rolled
-# scan, and guard on the declaration, not driver-file existence: either silently goes line-based.
+# (6.5) Register any git merge drivers this repository declares, so an adjacent-key insert
+# unions instead of CONFLICTing (issue #2025). The driver set is a consumer-generic config map
+# (prflow_implement.merge_drivers: {<git merge-driver name>: <repo-relative driver script>}); PRFlow
+# owns only the names in that map, so a declared merge=<name> attribute with no config entry is
+# left to git and never touched. Registering a mapped name every checkpoint is safe: the driver's
+# own --register overwrites, repairing a stale local value.
 _ubc_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [ -n "$_ubc_root" ]; then
-  # -C the root: check-attr resolves a relative pathspec against the CWD, so a call from a
-  # subdirectory would query a path that does not exist and read as undeclared.
-  _ubc_map_attr="$(git -C "$_ubc_root" check-attr merge -- lib/test/modules/coverage-map.json 2>/dev/null || true)"
-  case "$_ubc_map_attr" in
-    *': merge: coverage-map-json')
-      _ubc_driver="$_ubc_root/lib/test/coverage-map-merge-driver.py"
-      if [ ! -f "$_ubc_driver" ]; then
-        echo "update-branch-checkpoint: coverage-map merge driver declared in .gitattributes but $_ubc_driver is missing — skipping registration; the base merge falls back to git's line-based merge" >&2
-      elif ! python3 "$_ubc_driver" --register >/dev/null 2>&1; then
-        echo "update-branch-checkpoint: coverage-map merge driver registration ($_ubc_driver --register) exited non-zero — the base merge falls back to git's line-based merge" >&2
-      fi
-      ;;
+  _ubc_cfg="${CONFIG_FILE:-$_ubc_root/.prflow/config.json}"
+  # Type-check the parent value once with the python3 the --register call already needs: a JSON
+  # load printing object|missing|<offending type>. A non-object, non-missing value is a
+  # misconfiguration — breadcrumb and skip, never mis-read a scalar/array as a name map.
+  _ubc_md_type="$(python3 - "$_ubc_cfg" <<'PY' 2>/dev/null || true
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        raw = f.read()
+except OSError:
+    print("missing"); sys.exit(0)
+try:
+    cfg = json.loads(raw)
+except Exception:
+    print("broken"); sys.exit(0)
+sect = cfg.get("prflow_implement", {})
+if not isinstance(sect, dict) or "merge_drivers" not in sect:
+    print("missing"); sys.exit(0)
+md = sect["merge_drivers"]
+print("object" if isinstance(md, dict) else type(md).__name__)
+PY
+)"
+  _ubc_md_ok=""
+  case "$_ubc_md_type" in
+    object) _ubc_md_ok=1 ;;
+    missing) ;;
+    broken) echo "update-branch-checkpoint: .prflow/config.json is present but unparseable — skipping merge-driver registration" >&2 ;;
+    *) echo "update-branch-checkpoint: prflow_implement.merge_drivers is $_ubc_md_type, not an object — skipping merge-driver registration" >&2 ;;
   esac
+  if [ -n "$_ubc_md_ok" ]; then
+    # Walk every merge=<name> attribute declared over the tracked INDEX. check-attr --stdin -z
+    # reads NUL-delimited paths and prints NUL-delimited (path, attr, value) triples; skip the
+    # non-name attribute values (set/unset/unspecified). Register each mapped name once.
+    # Capture the walk to a temp file so a check-attr FAILURE surfaces a breadcrumb instead of
+    # silently skipping all registration (symmetric with the fetch arms' discipline); a shell
+    # variable cannot hold the NUL-delimited output.
+    _ubc_attr_tmp="$(mktemp 2>/dev/null || true)"
+    if [ -z "$_ubc_attr_tmp" ]; then
+      echo "update-branch-checkpoint: could not create a temp file for the merge-attribute walk — skipping merge-driver registration; the base merge falls back to git's line-based merge" >&2
+    elif ! git -C "$_ubc_root" ls-files -z | git -C "$_ubc_root" check-attr --stdin -z merge >"$_ubc_attr_tmp" 2>/dev/null; then
+      echo "update-branch-checkpoint: 'git check-attr' over the tracked index failed — skipping merge-driver registration; the base merge falls back to git's line-based merge" >&2
+      rm -f "$_ubc_attr_tmp"
+    else
+      _ubc_seen=" "
+      while IFS= read -r -d '' _ubc_path && IFS= read -r -d '' _ubc_attr && IFS= read -r -d '' _ubc_val; do
+        [ "$_ubc_attr" = merge ] || continue
+        case "$_ubc_val" in
+          set|unset|unspecified) continue ;;
+        esac
+        case "$_ubc_seen" in *" $_ubc_val "*) continue ;; esac
+        _ubc_seen="$_ubc_seen$_ubc_val "
+        _ubc_script="$("$CONFIG_GET" ".prflow_implement.merge_drivers.$_ubc_val" "" "$_ubc_cfg" 2>/dev/null || true)"
+        # A name PRFlow does not own (no config entry) is skipped silently, whether or not git
+        # resolves it to a built-in or configured driver.
+        [ -n "$_ubc_script" ] || continue
+        _ubc_driver="$_ubc_root/$_ubc_script"
+        if [ ! -f "$_ubc_driver" ]; then
+          echo "update-branch-checkpoint: merge driver '$_ubc_val' script $_ubc_script is missing — skipping registration; the base merge falls back to git's line-based merge" >&2
+        elif ! python3 "$_ubc_driver" --register >/dev/null 2>&1; then
+          echo "update-branch-checkpoint: merge driver '$_ubc_val' registration ($_ubc_script --register) exited non-zero — the base merge falls back to git's line-based merge" >&2
+        fi
+      done < "$_ubc_attr_tmp"
+      rm -f "$_ubc_attr_tmp"
+    fi
+  fi
 fi
 
 # (7) Merge the base.

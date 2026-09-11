@@ -25,7 +25,7 @@ flowchart TD
   <Step title="Issue">
     The GitHub issue is the contract for the change. PRFlow reads its description and its acceptance criteria.
 
-    The optional [create-issue workflow](/docs/workflows/create-issue) clarifies unresolved decisions and waits for explicit approval before it creates the issue.
+    The optional [spec workflow](/docs/workflows/spec) clarifies unresolved decisions and waits for explicit approval before it creates the issue.
   </Step>
 
   <Step title="Run">

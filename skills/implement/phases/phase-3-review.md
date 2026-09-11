@@ -187,12 +187,12 @@ The run continues regardless of the assignment outcome — assignment is best-ef
 
 ### 3.2 Self-Review with /simplify
 
-Record the phase-boundary event (best-effort; the helper always exits 0 and never blocks the run):
+Capture the pre-step status listing so the commit below stages only what `/simplify` changes — through `| tee`, never a `>` redirect:
 ```bash
-.prflow/vendor/prflow/scripts/verification-flight.py event phase3-simplify-start
+git status --porcelain -- ':!.prflow/tmp' | tee .prflow/tmp/p32-status-before-$ISSUE_NUMBER.txt ; echo status-capture-done
 ```
 
-Invoke the Skill tool with `skill: simplify` — this runs the built-in Claude Code `/simplify` slash-command, not a PRFlow plugin skill (so there's no `devflow:` prefix and nothing to install). When `/simplify` is unavailable — the Skill tool is absent, the `simplify` skill is reported not found, or the invocation is refused twice (at minimum these three) — skip the charter, triage, and commit fence below (do not commit or push), but still run the `phase3-simplify-end` event fence and the outcome-note call: leave the `/simplify` progress row unticked and record `simplify outcome: unavailable (<reason>)`.
+Invoke the Skill tool with `skill: simplify` — this runs the built-in Claude Code `/simplify` slash-command, not a PRFlow plugin skill (so there's no `devflow:` prefix and nothing to install). When `/simplify` is unavailable — the Skill tool is absent, the `simplify` skill is reported not found, or the invocation is refused twice (at minimum these three) — skip the charter, triage, and commit fence below (do not commit or push), but still run the outcome-note call: leave the `/simplify` progress row unticked and record `simplify outcome: unavailable (<reason>)`.
 
 `/simplify` runs the code-review engine over the current diff in quality-only mode — the reuse / simplification / efficiency / altitude cleanup angles — and applies the fixes directly instead of stopping at a report (skipping any whose fix would change intended behavior). By its own charter it does not hunt for bugs; use `/code-review` for that.
 
@@ -201,29 +201,22 @@ Invoke the Skill tool with `skill: simplify` — this runs the built-in Claude C
 - `/simplify`'s cleanup agents are quality-only reviewers, never correctness reviewers — chartered for the reuse / simplification / efficiency / altitude angles only.
 - The orchestrator never solicits a correctness or guard-class verdict from a `/simplify` cleanup agent.
 - The orchestrator never records a cleanup agent's "clean" report as evidence toward any correctness class — a "clean" from an agent chartered not to examine correctness is not evidence that correctness holds.
-- Correctness is owned by the Phase 3.3 reviewers, whose dispatch prompts carry the repo's guard classes via `.prflow/skill-extensions/review-and-fix.md` (a consumer prompt extension that `/simplify`, a built-in Claude Code skill, never loads).
+- Correctness is owned by the Phase 3.3 reviewers, whose dispatch prompts carry the repo's guard classes from the project's review prompt extension (a consumer prompt extension that `/simplify`, a built-in Claude Code skill, never loads).
 
 Triage each `/simplify` finding against the issue's acceptance criteria before applying it (this `/prflow:implement` path only). The `/simplify` cleanup agents see only the diff — never the issue's `## Acceptance Criteria` or any Phase 2.2.5 scope decisions — so a cleanup that reads as correct against the diff alone can directly violate the issue's deliberate scope (e.g. move a rule out of the file an AC pinned it to, or trim an exclusion list or wording an AC mandated). Before applying each finding, evaluate it against the workpad's in-scope `## Acceptance Criteria` and Phase 2.2.5 scope-decision notes — **against both the *literal* AC text and the *generality / consumer-facing* ACs** (an AC that mandates a surface stay broad, work for all consumers, or not narrow an event/input/filter). A finding can satisfy every literal AC while breaking a generality one: any finding that narrows an event, input, or filter surface re-runs the consumer-boundary question before it lands — does this narrowing still serve every consumer the AC intends, or does it optimize for the literal cases only? If its fix would violate an acceptance criterion (literal or generality) or the decided scope, skip the finding and record the AC conflict as the skip rationale via `workpad.py update $ISSUE_NUMBER --note "skipped /simplify finding: {finding}; would violate AC: {which criterion}"`. Apply findings that do not conflict as normal. This triage exists only on the issue-context `/prflow:implement` path — it does not change standalone `/simplify` / `/code-review` behavior, which carry no issue/AC context. One carve-out: a finding that conflicts with a now-*stale* AC that a legitimate refactor superseded is not a silent skip — that is Phase 2.2.6 AC-rewrite territory (rewrite the AC text with a `--note` paper trail, then let the finding apply), never this guardrail.
 
-After the skill completes, stage any fixes:
+After the skill completes, capture the status listing again and commit only what this step changed — through `| tee`, never a `>` redirect:
 ```bash
-git add -A -- ':!.prflow/tmp'
+git status --porcelain -- ':!.prflow/tmp' | tee .prflow/tmp/p32-status-after-$ISSUE_NUMBER.txt ; echo status-capture-done
+git diff --no-index --exit-code .prflow/tmp/p32-status-before-$ISSUE_NUMBER.txt .prflow/tmp/p32-status-after-$ISSUE_NUMBER.txt
 ```
 
-Read the positive signal after `git add`: `git diff --cached --name-only` listing files means it staged. Never read output emptiness as refusal — `git add` is silent on success and on a clean tree alike. When that list is empty, run `git status --porcelain -- ':!.prflow/tmp'; echo status-done`: listed edits mean the add was refused, and a missing `status-done` token means the status read was itself refused — on either, stage the run's own edits by explicit path (`git add -- <each edited path>`) and record a `dropped-failed` reflection. `status-done` alone, over a clean product tree, owed no staging.
-
-When the staged list is non-empty, commit and push the common path after either staging arm:
+`git diff --no-index --exit-code` exits 0 when the two listings match and 1 with a diff on stdout when rows differ — but `| tee` masks each `git status` exit, so that exit code decides nothing until both captures are known to have completed. Check that precondition FIRST, before reading the diff exit code at all: both captures completed only when each printed its `status-capture-done` sentinel and neither `git status` emitted an `error:`/`fatal:`. If either did not — a sentinel absent (a refused read) or a git error (a failed read leaves an empty capture file: it spuriously matches the other empty file at exit 0, or reads as wholly differing against a non-empty one at exit 1, either way naming paths this step never touched) — take the Phase 2.5 no-output arm (which records the `dropped-failed` reflection) regardless of the diff exit code, never the skip and never the rows-differ interpretation below. Only once both captures completed does the diff exit code decide: exit 0 authorizes the "`/simplify` changed nothing, skip the commit and continue" skip; exit 1 with a diff on stdout means rows differ; any other outcome — no diff on stdout, e.g. a missing capture file printing `error:` on stderr and exiting 1 with no stdout — takes the Phase 2.5 no-output arm. When rows differ, name to the durability-checkpoint helper every path whose status row differs (a rename row names both its paths); a path whose row is unchanged is left for the Phase 4.3 clean-tree check, including a file dirty before the step that the step edited again:
 ```bash
-git commit -m "refactor: address /simplify findings for issue #$ARGUMENTS"
-git push
+.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh "refactor: address /simplify findings for issue #$ARGUMENTS" {each path whose status row changed}
 ```
 
-Record the phase-boundary event (best-effort; the helper always exits 0 and never blocks the run):
-```bash
-.prflow/vendor/prflow/scripts/verification-flight.py event phase3-simplify-end
-```
-
-If `/simplify` reported the code was already clean and made no changes, skip the commit and continue.
+The helper stages exactly those paths, commits, pushes, and confirms the push landed — this step runs no `git add`, `git commit`, or `git push`. On a non-zero helper exit, or a call that printed nothing, follow the Phase 2.5 exit-routing paragraph in `phase-2-sweeps-quality.md` §2.5 (which records the `dropped-failed` reflection); if it stays unresolved the `/simplify` progress row is not ticked and this step records `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "Phase 3.2: /simplify checkpoint did not land — {helper stderr breadcrumb}"`, emits the 👎 outcome reaction, and stops.
 
 No verification round is owed between §3.2 and §3.3. This commit ships without its own full-suite run: §3.3's `review-and-fix` loop runs a verification as its first act, and the `/simplify` edits just committed ride into that first verification. So do not launch a full suite here to verify the `/simplify` commit — a fresh commit does not, on its own, owe a verification round when the very next step verifies it.
 

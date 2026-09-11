@@ -40,8 +40,8 @@ WHAT IT READS, AND WHY EACH INPUT IS SHAPED THIS WAY.
 
 CLASSIFICATION IS NOT RE-COPIED (AC4). The "does this diff owe the checklist phases?"
 decision is `scripts/workpad.py`'s own `_review_coverage_profile_disproof` over
-`_recompute_diff_facts`, imported here so the ceilings and engine-source arms live in one
-implementation. An unloadable workpad.py routes to the unestablished arm, never a crash.
+`_recompute_diff_facts`, imported here so the ceilings and config-only extension set live
+in one implementation. An unloadable workpad.py routes to the unestablished arm, never a crash.
 
 OUTPUT CONTRACT. One machine-readable verdict token as stdout line 1, from the closed
 vocabulary below, followed by human-readable detail lines (the durable-comment body). Once
@@ -537,10 +537,12 @@ def _is_verifier_dispatch(d):
 def _count_verifier_dispatches(execution_file_path):
     """(count, None) or (None, reason). The number of UNIQUE actual checklist-verifier
     dispatch events in the harness transcript (issue #193 AC6), counted over the tolerant
-    object/array/JSONL carriers. Unique is by `tool_use_id`/`id` when present. Quoted text
-    and tool_result payloads contribute nothing (only typed tool_use records are walked, never
-    a raw substring scan). Missing/corrupt/incomplete transcript data → (None, reason), never
-    a false 0."""
+    object/array/JSONL carriers. A record is counted only when it carries a string
+    `tool_use_id`/`id`, deduplicated by that key; a record with no string key is skipped, not
+    counted (issue #242) — the fail-closed direction, since with no key there is no dedup and
+    counting id-less records could inflate the count. Quoted text and tool_result payloads
+    contribute nothing (only typed tool_use records are walked, never a raw substring scan).
+    Missing/corrupt/incomplete transcript data → (None, reason), never a false 0."""
     try:
         with open(execution_file_path, encoding='utf-8', errors='replace') as fh:
             text = fh.read()
@@ -563,10 +565,11 @@ def _count_verifier_dispatches(execution_file_path):
         if not _is_verifier_dispatch(d):
             continue
         key = d.get('tool_use_id') or d.get('id')
-        if isinstance(key, str):
-            if key in seen:
-                continue
-            seen.add(key)
+        if not isinstance(key, str):
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
         count += 1
     return count, None
 
@@ -637,10 +640,12 @@ def _offline_diff_facts(run_root_dir):
     return _offline_numstat_facts(proc.stdout)
 
 
-def _decide_offline(run_root, repo_root):
+def _decide_offline(run_root):
     """Grade a run root offline from its own `diff.patch` (issue #193 AC1) — no GitHub, no ref
-    resolution, no reviews payload. Reuses workpad.py's checklist-owed classification and the
-    nonce-aware `_grade_run_root_detail`. Returns (token, [detail...])."""
+    resolution, no reviews payload, and no repo checkout: the checklist-owed classification is
+    the diff's own size and file extensions (issue #229), so this path reads no `repo_root`.
+    Reuses workpad.py's classification and the nonce-aware `_grade_run_root_detail`. Returns
+    (token, [detail...])."""
     facts, reason = _offline_diff_facts(run_root)
     if reason is not None:
         return f'unestablished {reason}', _detail(
@@ -651,7 +656,7 @@ def _decide_offline(run_root, repo_root):
         return 'unestablished workpad-import-failed', _detail(
             'review-evidence-gate: could not import scripts/workpad.py (', wp_err or '',
             ') — the checklist-owed classification is unavailable.')
-    disproof = workpad._review_coverage_profile_disproof(facts, repo_root)
+    disproof = workpad._review_coverage_profile_disproof(facts)
     if disproof is None:
         return 'pass legitimate-skip', _detail(
             'review-evidence-gate: offline grading — the run-root diff authorizes the ',
@@ -678,12 +683,12 @@ def _decide_offline(run_root, repo_root):
         '.')
 
 
-def grade_run_root_offline(run_root_dir, repo_root='.'):
+def grade_run_root_offline(run_root_dir):
     """Public offline grade for the producer helpers (post-review-verdict.sh via subprocess,
     loop-verdict-marker.py via install-relative import) — issue #193 AC3/AC5. Returns
     (token, [detail...]); the token's first field is `pass`/`fail`/`unestablished` exactly
     as the CLI emits, so a caller admits only an explicit `pass ` result."""
-    return _decide_offline(run_root_dir, repo_root)
+    return _decide_offline(run_root_dir)
 
 
 def _decide(args):
@@ -772,7 +777,7 @@ def _decide(args):
         return 'unestablished diff-classification-unresolved', _detail(
             'review-evidence-gate: the reviewed diff could not be recomputed: ',
             facts['reason'], '.')
-    disproof = workpad._review_coverage_profile_disproof(facts, args.repo_root)
+    disproof = workpad._review_coverage_profile_disproof(facts)
     if disproof is None:
         # The diff authorizes the intentional checklist skip — no checklist owed.
         return 'pass legitimate-skip', _detail(
@@ -926,7 +931,7 @@ def main(argv=None):
     # decision routes to an unestablished arm (a warning), never a traceback that would end
     # the step non-zero and fail the job on the gate's own bug.
     try:
-        token, detail = (_decide_offline(args.grade_run_root, args.repo_root)
+        token, detail = (_decide_offline(args.grade_run_root)
                          if args.grade_run_root else _decide(args))
     except Exception as e:  # a decision fault must never crash the step
         token = 'unestablished internal-error'

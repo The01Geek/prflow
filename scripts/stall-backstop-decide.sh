@@ -12,7 +12,7 @@
 # YAML so lib/test/run.sh can drive every branch deterministically with stubbed
 # inputs — it does NO I/O (no gh/jq/workpad.py), just maps inputs to a decision.
 #
-# Usage: stall-backstop-decide.sh ENABLED CLASS ATTEMPTS MAX [JOB_STATUS]
+# Usage: stall-backstop-decide.sh ENABLED CLASS ATTEMPTS MAX [JOB_STATUS] [CLAUDE_OUTCOME]
 #   ENABLED   The resolved `stall_backstop.enabled` config value. Only the exact
 #             string "false" disables the backstop; every other value (empty,
 #             "true", an unrecognized string) resolves to enabled — the safe,
@@ -58,6 +58,14 @@
 #             the decision table byte-identical to the pre-#498 behavior (fail
 #             toward resume, so an un-upgraded caller never suppresses a resume).
 #             Only `cancelled` selects the cancellation-exclusion path below.
+#   CLAUDE_OUTCOME The `steps.claude.outcome` value, passed ONLY when
+#             `stall_backstop.defer_to_runner_retry` is true (issue #305). The
+#             exact string `failure` defers an interim workpad to the runner's own
+#             retry of the failed job (RunsOn `retry=when-interrupted` re-runs a
+#             `failure`, so a PRFlow resume would double-drive the issue); every
+#             other value — absent, empty, `success`, `cancelled` (which no runner
+#             retries), `skipped`, any other token — keeps the resume/fail-exhausted
+#             table byte-identical, so a consumer without the key sees no change.
 #
 # Prints exactly one decision token to stdout and exits 0:
 #   skip             backstop disabled            → do nothing, job stays green
@@ -67,7 +75,12 @@
 #                    (issue #1025) so a run that produced no branch/PR is visible
 #                    in `gh run list`; NO resume, NO workpad re-flip (👎/💥 are
 #                    already truthful terminal statuses)
-#   resume           interim + ATTEMPTS < MAX     → audit comment + re-dispatch
+#   resume           interim + ATTEMPTS < MAX + CLAUDE_OUTCOME not `failure`
+#                    → audit comment + re-dispatch
+#   defer            interim + CLAUDE_OUTCOME `failure` (issue #305) → the runner
+#                    retries the failed job itself: NO auto-resume, no resume
+#                    attempt consumed, workpad left interim; the workflow posts one
+#                    informational comment and exits green
 #   fail-exhausted   interim + ATTEMPTS >= MAX     → comment + fail the job
 #                    (includes MAX=0: 0 >= 0)
 #   fail-unreadable  status unreadable/unknown    → diagnostic comment + fail
@@ -86,6 +99,7 @@ cls="${2-}"
 attempts="${3-}"
 max="${4-}"
 job_status="${5-}"
+claude_outcome="${6-}"
 
 # Disabled only on the exact literal "false"; anything else (missing key handed a
 # default by config-get, "true", or an unrecognized string) resolves to enabled.
@@ -155,7 +169,12 @@ case "$cls" in
     echo fail-blocked
     ;;
   interim)
-    if [ "$attempts" -ge "$max" ]; then
+    # Issue #305: only the exact `failure` defers — it is the one conclusion a
+    # runner retry re-runs; deferring on `cancelled` would strand the run the
+    # #261 reclaim path exists to resume. Precedes the cap: no attempt consumed.
+    if [ "$claude_outcome" = "failure" ]; then
+      echo defer
+    elif [ "$attempts" -ge "$max" ]; then
       echo fail-exhausted
     else
       echo resume

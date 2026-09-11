@@ -165,13 +165,21 @@ def _accumulate_tokens(dicts, wrong_type):
             usage = d.get("usage")
             if isinstance(usage, dict):
                 return _read_usage(usage, wrong_type, accumulate=False)
-    # Fallback: sum per-message usage across the non-result events.
+    # Fallback: sum per-message usage across non-result events, deduped by `message.id` — a
+    # native session file repeats one response's usage on each per-content-block record, so
+    # summing every record over-counts (the usage-bearing dict is the message, which has the id).
     sums = {k: None for k in _TOKEN_KEYS}
+    seen_ids = set()
     for d in dicts:
         if d.get("type") == "result":
             continue
         usage = d.get("usage")
         if isinstance(usage, dict):
+            mid = d.get("id")
+            if isinstance(mid, str) and mid:
+                if mid in seen_ids:
+                    continue
+                seen_ids.add(mid)
             _fold_usage(usage, sums, wrong_type, accumulate=True)
     return sums
 

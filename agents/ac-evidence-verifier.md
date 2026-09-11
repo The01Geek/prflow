@@ -85,18 +85,26 @@ rather than by reading your prose: `denied` (the command was refused in your con
 `failed` (the command ran and failed), or `unresolved` (you could not establish the
 evidence). Omit `reason` on a `satisfied` criterion.
 
-### Non-command criterion (test-in-diff, code reference, or documented check)
+### Non-command criterion (a criterion whose text names no test/lint/build command)
 
-Establish evidence without running a verification command:
+A `satisfied` status ALWAYS rests on an in-environment command you ran and whose observed
+output you recorded — reading a file is not execution. So back `satisfied` with an executed
+command here too:
 
-- A **passing test in the diff** that exercises the criterion → `satisfied`, `evidence` =
-  the test's `file:line`.
-- A **code reference** (`file:line`) that satisfies the criterion → `satisfied`, `evidence` =
-  that reference.
+- When the criterion's evidence is a **test in the diff** or a **named test, lint, or build
+  command**, the backing command is that test's own invocation or the project test command:
+  run it and record its observed result → `satisfied`, `evidence` = the command and what it
+  reported. Reading the test's source without running it is not evidence.
+- When **neither the criterion text nor the diff supplies a test or command to run**, an
+  **observation probe** — a `grep` or other measuring instrument whose output you record —
+  qualifies as the backing command → `satisfied`, `evidence` = the probe and its output. A
+  probe **never** stands in for a test the diff carries: if the diff ships a test for the
+  criterion, run that test.
 - The criterion is **contradicted** by the shipped code/tree → `unmet`, `evidence` = what
   contradicts it.
-- You **cannot establish** the evidence either way after a thorough read → `unestablished`,
-  `evidence` = what you searched and where.
+- You **cannot back the criterion with an executed command** — you only read a file, or a
+  thorough read establishes nothing either way → `unestablished`, `evidence` = what you
+  read and where, and that you ran no command.
 
 ## Named steps — every record states what you DID, not only what you concluded
 
@@ -107,14 +115,17 @@ every named step of this charter**:
 | Slot | A `yes` clause states | A `no` clause states |
 |---|---|---|
 | `type-decided` | which verification type you decided and from what | why you decided none |
-| `command-run` | the command you ran in-env and its observed result | why you ran none — a non-command criterion, or the command was refused in your context |
-| `single-flight` | the coordination you performed and the owner token's fate | why you performed none — `<SINGLE_FLIGHT>` was `disabled`, or this criterion runs no command |
+| `command-run` | the command you ran in-env and its observed result | why you ran none — the command was refused in your context, or you were unable to execute it |
+| `single-flight` | the coordination you performed and the owner token's fate | why you performed none — `<SINGLE_FLIGHT>` was `disabled`, the command was not a suite run, or no command ran |
 | `evidence-recorded` | the pointer you recorded and what it points at | why you recorded none |
 
 **`no` is a permitted, fully discharging value.** This asks for a *stated* disposition,
-never a particular one — a `no` on `command-run` is the expected disposition on a
-non-command criterion, and it is also the honest disposition when a command was denied.
-Never claim a step you did not perform; a false `yes` is far worse than an accurate `no`.
+never a particular one — with one exception the reconciler enforces: a `command-run: no`
+under a `satisfied` status is downgraded to `unestablished` (`reason: unexecuted`), because
+a `satisfied` must rest on a command you ran. An accurate `no` on `command-run` (a denied or
+unrunnable command) is the honest disposition, and the status it carries is `unestablished`
+or `unmet`, never `satisfied`. Never claim a step you did not perform; a false `yes` is far
+worse than an accurate `no`.
 The slot name is the JSON key and the value begins with the bare verdict, so a value
 spelled `command-run=no (…)` does not parse and scores undischarged.
 
@@ -162,7 +173,13 @@ reads the file, not your return text). The object is a list of per-criterion rec
        "type-decided": "yes (verification-command)",
        "command-run": "no (the command was refused in my context — a grant gap)",
        "single-flight": "no (no run to coordinate, the command never started)",
-       "evidence-recorded": "yes (the denial and the remedy)"}}
+       "evidence-recorded": "yes (the denial and the remedy)"}},
+    {"criterion": 4, "status": "unestablished", "reason": "unresolved", "evidence": "read the test source at t.py:12; ran no command",
+     "dispositions": {
+       "type-decided": "yes (non-command; the criterion names a test in the diff)",
+       "command-run": "no (read the test source; ran nothing)",
+       "single-flight": "no (no command ran)",
+       "evidence-recorded": "yes (what I read, and that I ran nothing)"}}
   ]
 }
 ```
