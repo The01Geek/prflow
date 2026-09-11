@@ -73,13 +73,13 @@ FORBIDDEN_PREFIXES = (
     ".prflow/learnings/", ".prflow/logs/",
     ".prflow/skill-extensions/", ".prflow/prompt-extensions/",
 )
-# Development workflows that must never reach the distribution repo. The two
-# consumer workflows (devflow.yml, devflow-implement.yml) are distribution assets
-# and are deliberately absent from this list.
+# Development workflows that must never reach the distribution repo. The three
+# consumer workflows (devflow.yml, devflow-implement.yml, devflow-retrospective.yml)
+# are distribution assets and are deliberately absent from this list.
 FORBIDDEN_WORKFLOWS = frozenset({
     "ci.yml", "matcher-probe.yml", "version-consolidate.yml",
     "mintlify-check.yml", "agents-seam-probe.yml",
-    "devflow-runner.yml", "telemetry-push.yml", "devflow-review.yml",
+    "devflow-review.yml",
     "internal-larger-runner-canary.yml", "rotate-claude-token.yml",
 })
 
