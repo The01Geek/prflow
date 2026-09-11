@@ -124,4 +124,10 @@ Write this combined results array with the Write tool to `.prflow/tmp/review/<sl
 Output: `Verified: {pass_count} passed, {fail_count} failed, {inconclusive_count} inconclusive ({lite_count} via lite probe, {agent_count} via agent).`
 
 Then append one separate line (never editing the tally line above): `Normalized (wording-only): {normalized_count}; ineligible-on-field-defect FAILs: {field_defect_fail_count}` (replaced by the warning line on the bad-input / everything-else arms).
+
+### 2.3 Update the progress comment (PR-comment surface)
+
+When this run holds a live progress comment (`$WP` set), tick the Phase 2 Blueprint row and append the verification tally to `## Findings (live)` in one PATCH; skip this step entirely when `$WP` is unset. Substitute the tally counts as literals. A refused or failed command gets a `::warning::` and never stops the review. Emit the vendored literal `.prflow/vendor/prflow/scripts/workpad.py progress <comment-id> --tick "Verify checklist" --append "{pass_count} passed, {fail_count} failed, {inconclusive_count} inconclusive"` as a single leading-token statement first; on a `command not found` / `No such file` / exit-127 reading, fall back to the portable anchor `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py progress <comment-id> --tick "Verify checklist" --append "{pass_count} passed, {fail_count} failed, {inconclusive_count} inconclusive"` as a single leading-token statement.
+
+Substitute `<comment-id>` with the held `$WP` value as a literal — never `$WP` in the command.
 <!-- prflow:review-ref phase=2 file=skills/review/phases/phase-2-verification.md end -->

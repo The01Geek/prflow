@@ -20,13 +20,13 @@
 # shared "Portable helper anchor" paragraph (canonical copy skills/docs/SKILL.md,
 # replicated 17-way and identity-pinned by lib/test/run.sh's P4 loop) now
 # instructs the agent to run one standalone wslpath/cygpath probe and then
-# VALIDATE the located directory against the filesystem; create-issue's variant
+# VALIDATE the located directory against the filesystem; spec's variant
 # runs the same probe (also without a drive-letter fallback) but keeps its
 # degrade-never-block carve-out instead of validating — so this helper's
 # tool-less drive-letter arithmetic is no longer mirrored in either and changing
 # it obliges no edit to those copies. The wslpath/cygpath tool-first tier stays
-# loosely mirrored (create-issue names it; run.sh's T5/T5c pin it), so a change
-# to THAT tier still touches create-issue.
+# loosely mirrored (spec names it; run.sh's T5/T5c pin it), so a change
+# to THAT tier still touches spec.
 #
 # Defines a function only; it deliberately does NOT set -e/-u so it is safe to
 # source into a caller with its own shell options.

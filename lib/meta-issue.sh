@@ -12,7 +12,7 @@
 # lasts exactly as long as the issue-closure lifecycle `lib/pattern-state.sh`
 # reconciles, not permanently. The overrides write is skipped entirely on
 # --dry-run, which observes only. The body is authored by Stage B
-# (retrospective-audit) to create-issue quality and is filed verbatim, so the
+# (retrospective-audit) to spec quality and is filed verbatim, so the
 # issue can later be executed through the normal /devflow:implement -> review
 # pipeline.
 #

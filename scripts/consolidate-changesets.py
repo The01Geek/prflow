@@ -41,6 +41,14 @@ tell ``scripts/publish-release.sh`` whether this bump warrants a *published* Git
 Release (``minor``/``major``) or only its annotated tag (``patch``) — it is reported from
 the value computed here rather than re-inferred downstream from a version diff.
 
+A ``--dry-run`` preview (issue #301) prints the computed bump kind, target version, and
+assembled CHANGELOG entry to stdout and writes **nothing** — no repository file, no consumed
+changeset removed, no ``--emit-*-to`` side channel, and (it sets ``sys.dont_write_bytecode``
+before the repository-local ``version_pins`` import) no ``__pycache__`` bytecode. It is
+rejected when combined with any ``--emit-*-to`` flag, and a malformed changeset or a failed
+release preparation still aborts with the same exit 2 as a real run rather than printing a
+successful preview.
+
 Fail-closed contract: a malformed changeset (no frontmatter, missing/invalid ``bump``, an
 unknown ``type``, or an empty prose body) aborts with exit 2 and a diagnostic naming the
 offending file. Everything is **validated before any file is modified** — all changesets are
@@ -68,12 +76,17 @@ import sys
 from datetime import datetime, timezone
 from typing import NamedTuple
 
-# version_pins owns the DERIVATION of the pinned-release-tag site set (no hardcoded file
-# list). Python already puts this script's directory on sys.path[0], but be explicit so an
-# invocation through a symlink or a wrapper still resolves the sibling module.
+# version_pins owns the DERIVATION of the pinned-release-tag site set (no hardcoded file list).
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
+
+# A --dry-run previews without writing anything, including this repository-local import's
+# bytecode: disable it BEFORE `import version_pins` so a preview leaves no
+# scripts/__pycache__/*.pyc. Read sys.argv directly (main() has not parsed yet), and keep the
+# import MODULE-LEVEL so version_pins is a module attribute callers and tests can patch (#953).
+if "--dry-run" in sys.argv[1:]:
+    sys.dont_write_bytecode = True
 import version_pins
 
 # Single source of the ordered bump domain: _BUMP_RANK is DERIVED from VALID_BUMPS (mirroring
@@ -459,6 +472,7 @@ def consolidate(
     entry_out: str | None = None,
     write_set_out: str | None = None,
     bump_out: str | None = None,
+    dry_run: bool = False,
 ) -> int:
     changeset_dir = os.path.join(root, ".changeset")
     manifest_path = os.path.join(root, ".claude-plugin", "plugin.json")
@@ -536,6 +550,15 @@ def consolidate(
         else None
     )
 
+    if dry_run:
+        # Branch BEFORE the first write below: everything above is pure read+assemble, so a
+        # preview mutates nothing (--emit-*-to is already rejected in main()). Moving this
+        # past _write_text would delete the consumed changesets a preview must leave in place.
+        print(f"[dry-run] would bump: {current} -> {new_version} (highest bump: {highest})")
+        print("[dry-run] would prepend CHANGELOG entry:")
+        print(entry, end="" if entry.endswith("\n") else "\n")
+        return 0
+
     _write_text(manifest_path, new_manifest)
     _write_text(changelog_path, new_changelog)
     if new_citation is not None:
@@ -596,7 +619,10 @@ def _force_utf8_streams():
 
 def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
-    parser = argparse.ArgumentParser(description=__doc__)
+    # allow_abbrev=False: with abbreviation on, `--dry` sets dry_run=True while the exact-literal
+    # import-time `"--dry-run" in sys.argv[1:]` guard above never fires, writing __pycache__ on a
+    # logically-dry run (violates AC2, #301). No caller uses an abbreviated flag.
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument(
         "--root",
         default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -636,7 +662,24 @@ def main(argv: list[str] | None = None) -> int:
             "Release or only its tag. Point it OUTSIDE the repository."
         ),
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Preview the computed bump kind, target version, and assembled CHANGELOG entry "
+            "on stdout WITHOUT writing any repository file, deleting any consumed changeset, "
+            "or writing a __pycache__ bytecode file. Cannot be combined with any --emit-*-to."
+        ),
+    )
     args = parser.parse_args(argv)
+    if args.dry_run and (
+        args.emit_entry_to or args.emit_write_set_to or args.emit_bump_to
+    ):
+        return _fatal(
+            "--dry-run cannot be combined with --emit-entry-to/--emit-write-set-to/"
+            "--emit-bump-to: a dry run previews without writing, so it has no output "
+            "destination to emit to"
+        )
     date = args.date or datetime.now(timezone.utc).date().isoformat()
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
         return _fatal(f"--date {date!r} is not YYYY-MM-DD")
@@ -658,6 +701,7 @@ def main(argv: list[str] | None = None) -> int:
             args.emit_entry_to,
             args.emit_write_set_to,
             args.emit_bump_to,
+            args.dry_run,
         )
     except ChangesetError as exc:
         return _fatal(str(exc))

@@ -78,6 +78,10 @@ Every line should read `ok`, and the version should be 3.11 or higher. Fix each 
   </Accordion>
 </AccordionGroup>
 
+## Interruptible (Spot) Capacity
+
+Self-hosted heavy runners on interruptible capacity (for example EC2 Spot) trade cost for the chance that the provider reclaims the instance mid-run. If that happens to a long `/prflow:implement` job, the runner disappears before the job finishes: the run ends without completing, and its workpad is left showing 🚀 Running. By default you resume it by re-posting the command. For a Linux EC2 Spot runner you can also opt in to automatic detection and recovery by setting `prflow_implement.spot_interruption_watcher.enabled` to `true`, so PRFlow notices the reclaim and takes the bounded resume path itself. See [Cloud Recovery](/docs/runs/cloud/recovery) for what survives an interruption, the opt-in Spot watcher, and how to pick the work back up.
+
 ## Use Claude Code on Windows
 
 The action's bundled Claude Code installer is Unix-only. On a self-hosted Windows runner, install Claude Code yourself and point `.prflow/config.json` at it:

@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "devflow-marketplace",
-  "description": "PRFlow makes agentic coding work on real codebases, a one-line request becomes a complete, tested, reviewed, documented pull request that's ready for your final review, and it improves itself weekly. Includes /prflow:implement orchestrator, /prflow:review + /prflow:review-and-fix engines (which audit their own approval), the /prflow:docs suite, /prflow:create-issue, plus a self-improving retrospective loop.",
+  "description": "PRFlow makes agentic coding work on real codebases, a one-line request becomes a complete, tested, reviewed, documented pull request that's ready for your final review, and it improves itself weekly. Includes /prflow:implement orchestrator, /prflow:review + /prflow:review-and-fix engines (which audit their own approval), the /prflow:docs suite, /prflow:spec, plus a self-improving retrospective loop.",
   "owner": { "name": "Daniel Radman", "email": "daniel@radman.ai", "url": "https://github.com/The01Geek" },
   "allowCrossMarketplaceDependenciesOn": [],
   "renames": { "devflow": "prflow" },
@@ -12,7 +12,7 @@
       "description": "Turn feature requests into review-ready pull requests: issue, implementation, tests, a review-and-fix loop, and docs. Runs locally or on GitHub Actions, and is built for complex brownfield repos. Each week its retrospective reads what you actually merged and proposes improvements to your skill extensions.",
       "author": { "name": "Daniel Radman", "email": "daniel@radman.ai" },
       "homepage": "https://github.com/The01Geek/prflow",
-      "version": "2.39.57",
+      "version": "2.42.11",
       "license": "MIT",
       "keywords": [
         "implement",

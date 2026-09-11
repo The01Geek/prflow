@@ -3,6 +3,7 @@
   "base_branch": "main",
   "claude_model": "claude-opus-5",
   "prflow_version": "",
+  "prflow_repo": "",
   "prflow": {
     "allowed_bots": "claude,dependabot",
     "allowed_users": "*",
@@ -20,9 +21,14 @@
     "implement_pr_state": "ready_for_review",
     "allowed_tools": [],
     "update_branch_checkpoints": true,
+    "merge_drivers": {},
     "stall_backstop": {
       "enabled": true,
-      "max_resume_attempts": 2
+      "max_resume_attempts": 2,
+      "defer_to_runner_retry": false
+    },
+    "spot_interruption_watcher": {
+      "enabled": false
     }
   },
   "prflow_review_and_fix": {
@@ -83,7 +89,7 @@
     "changelog_file": "CHANGELOG.md",
     "labels": "Documented"
   },
-  "create_issue": {
+  "spec": {
     "investigation_record_enabled": true
   },
   "deferred": {

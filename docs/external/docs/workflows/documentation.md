@@ -101,7 +101,7 @@ The report has a fixed shape:
   `ABSENT` means no internal document covers the topic. If the documentation location itself could not be read, the run says so instead — an absence it could not establish is not an established absence.
 </Tip>
 
-[Create an Issue](/docs/workflows/create-issue) uses this same report-only mode to understand a topic before drafting a ticket.
+[Create an Issue](/docs/workflows/spec) uses this same report-only mode to understand a topic before drafting a ticket.
 
 Drop `--report-only` and the same command fixes the internal documentation it found wrong.
 

@@ -15,7 +15,7 @@ literally unimplementable.
 This helper is the mechanical half of the fix (issue #868). It has two
 consumers, both of which read the same output:
 
-  * `/devflow:create-issue` (drafting side) — does every load-bearing bullet
+  * `/prflow:spec` (drafting side) — does every load-bearing bullet
     carry a self-contained *re-derivation handle*, so that re-checking is
     mechanical rather than a re-investigation? A `handle=none` bullet is the
     drafting defect.
@@ -199,11 +199,12 @@ _MIN_CODE_LITERAL = 8
 # The quotation-shape rule, single-sourced so the shape refusals that quote it
 # state one delimiter-and-floor rule a drafter reads the remedy from (#1866).
 _QUOTE_RULE = (
-    'a premise quotation is a double-quoted sentence anywhere outside a backtick '
-    'span (a matching pair of ASCII " or typographic “ ” enclosing at least eight '
-    'characters that contain no double-quote character), or — in a bullet that '
-    'cites a repository path and no double-quoted sentence — a backticked literal '
-    'of at least eight characters that is not path-shaped')
+    'a premise quotation is a double-quoted sentence that opens and closes in '
+    'plain text (a matching pair of ASCII " or typographic “ ” enclosing at least '
+    'eight characters); a backtick span inside the quotation is part of the quoted '
+    'sentence, and a double-quote inside such a span neither opens nor closes it, '
+    'or — in a bullet that cites a repository path and no double-quoted sentence — '
+    'a backticked literal of at least eight characters that is not path-shaped')
 
 # A file extension, used only as the WEAK arm of path detection — see
 # `_path_strength`.
@@ -467,8 +468,31 @@ def classify(span: str) -> tuple:
     quotes nothing, so the truncated-quotation guard keeps counting sentences
     alone.
     """
+    # Mask each backtick span with a SAME-LENGTH filler before the quotation scan
+    # (a length-changing filler would misalign the match offsets), then slice each
+    # match from the original span, so a span inside a quotation stays quoted (#326).
+    masked = _BACKTICKED.sub(lambda m: '\x00' * (m.end() - m.start()), span)
+    quotes, quote_ranges = [], []
+    for m in _QUOTED.finditer(masked):
+        raw = span[m.start(1):m.end(1)]
+        # A double-quoted span that is exactly one backtick span (whitespace
+        # ignored) opens no quotation: leave its span to the handle loop below.
+        if _BACKTICKED.fullmatch(raw.strip()):
+            continue
+        # A quotation carrying a backtick span beside other text but under the
+        # normalized floor is dropped, so its span falls to the handle loop below.
+        if '`' in raw and len(normalize(raw)) < _MIN_CODE_LITERAL:
+            continue
+        quotes.append(raw)
+        quote_ranges.append((m.start(1), m.end(1)))
+
     paths, commands, code_literals = [], [], []
-    for backticked in _BACKTICKED.findall(span):
+    for m in _BACKTICKED.finditer(span):
+        # A backtick span inside a matched quotation is quoted text, never a
+        # cited path, command, or code literal.
+        if any(lo <= m.start() and m.end() <= hi for lo, hi in quote_ranges):
+            continue
+        backticked = m.group(1)
         strength = _path_strength(backticked)
         if strength != 'no':
             bare, suffix = _split_locator(backticked)
@@ -482,10 +506,6 @@ def classify(span: str) -> tuple:
             commands.append(backticked)
         if len(backticked) >= _MIN_CODE_LITERAL:
             code_literals.append(backticked)
-    # Text inside a backtick span is not the premise quotation: a backticked
-    # command's double-quoted args would otherwise match. An unpaired backtick
-    # matches nothing, so the span survives the strip rather than detonating.
-    quotes = _QUOTED.findall(_BACKTICKED.sub(' ', span))
     if paths and (quotes or code_literals):
         handle = 'path-quote'
     elif paths:

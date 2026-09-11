@@ -24,6 +24,25 @@
 #     deliberate exclusions): an unscoped stage would defeat §2.2's sweep guidance
 #     and the fix loop's explicit-path scoping, and would carry unrelated
 #     untracked files into pushed history.
+#   - Staging is TOLERANT of already-staged deletions (issue #250). A named path
+#     git already holds a staged DELETION under — a `git mv` source or a `git rm`
+#     target that no longer exists in the worktree — is accepted rather than failing
+#     the batch `git add`. The acceptance is deletion-specific: a path whose add fails
+#     but whose only staged change is a non-deletion still fails closed (exit 4), so
+#     stale staged content can never ride into the commit while the checkpoint reports
+#     success.
+#   - Rename SOURCES are paired into the commit (issue #250). git records a rename as
+#     a staged deletion of the source plus a staged addition of the destination; when
+#     the caller names only the destination, the helper pairs the source (as the
+#     root-relative magic pathspec `:/<source>`) so the rename lands as ONE commit
+#     rather than leaving the source deletion behind. A guard-excluded workflow source
+#     is not paired.
+#   - Deletions LEFT BEHIND are reported (issue #250). After the commit — and on both
+#     exit-0 no-commit arms — each tracked deletion the checkpoint did not commit,
+#     staged in the index or unstaged in the working tree, is named once on stderr as
+#     `deletion left uncommitted: <path>`. The exit code is unchanged; the explicit-
+#     scoping rule is unchanged (an unnamed deletion that pairs with no named rename
+#     stays out of the commit and is reported, never swept in).
 #   - Cloud-tier workflow-edit guard (AC4). On a run whose credential cannot push
 #     `.github/workflows/` — cloud tier (GITHUB_ACTIONS=true) with DEVFLOW_APP_ID
 #     empty/unset, i.e. the GITHUB_TOKEN fallback — the helper DETECTS any named
@@ -134,6 +153,39 @@ if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ -z "${DEVFLOW_APP_ID:-}" ]; then
   GUARD_ACTIVE=yes
 fi
 
+# Returns 0 when the guard is active AND the path normalizes to a repo-own `.github/workflows/`
+# path (every leading `./` stripped — a single `${arg#./}` would leave `././…` prefixed and slip
+# the guard). A pure predicate reused by the named-arg filter and the rename-source pairing (#250).
+_guard_excludes() {  # <path>
+  [ "$GUARD_ACTIVE" = yes ] || return 1
+  local norm="$1"
+  while [ "$norm" != "${norm#./}" ]; do norm="${norm#./}"; done
+  case "$norm" in
+    .github/workflows/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# The workflow-edit guard's NOT-staging breadcrumb, emitted verbatim at both guard
+# sites (the named-argument filter and the rename-source pairing) — the module greps
+# this literal, so keep the two sites byte-identical by sourcing them from here.
+_guard_skip_msg() {  # <path>
+  _bc "workflow-edit guard: NOT staging '$1' (cloud tier, DEVFLOW_APP_ID empty — the GITHUB_TOKEN fallback cannot push .github/workflows/). Defer it via the Phase 2.2.5 scope-adjustment."
+}
+
+# Report each tracked deletion this checkpoint did not commit — staged or unstaged — one stderr
+# line per path (issue #250); exit code is the caller's, this only prints. `--no-renames` forces
+# every deletion to list as D so one that git would otherwise pair into a rename R is still reported.
+_report_residue() {
+  local p
+  while IFS= read -r p; do
+    [ -n "$p" ] && _bc "deletion left uncommitted: $p"
+  done < <(git diff --cached --no-renames --name-only --diff-filter=D)
+  while IFS= read -r p; do
+    [ -n "$p" ] && _bc "deletion left uncommitted: $p"
+  done < <(git diff --no-renames --name-only --diff-filter=D)
+}
+
 for arg in "$@"; do
   # Explicit paths only (AC6): every argument must name a concrete path, or it would
   # stage more than the caller named and defeat §2.2's sweep-scoping and the fix
@@ -144,19 +196,11 @@ for arg in "$@"; do
     exit 2
   fi
   # Cloud-tier workflow-edit guard: on a run whose GITHUB_TOKEN fallback cannot push
-  # .github/workflows/, do not stage a repo-own workflow path. Normalize EVERY leading
-  # `./` segment, not just one: a single `${arg#./}` strip leaves `././.github/…` still
-  # carrying a `./` prefix, so the match would be defeated by the second segment. A
-  # vendored .prflow/vendor/… path is not the repo's own and is not guarded.
-  if [ "$GUARD_ACTIVE" = yes ]; then
-    NORM="$arg"
-    while [ "$NORM" != "${NORM#./}" ]; do NORM="${NORM#./}"; done
-    case "$NORM" in
-      .github/workflows/*)
-        _bc "workflow-edit guard: NOT staging '$arg' (cloud tier, DEVFLOW_APP_ID empty — the GITHUB_TOKEN fallback cannot push .github/workflows/). Defer it via the Phase 2.2.5 scope-adjustment."
-        continue
-        ;;
-    esac
+  # .github/workflows/, do not stage a repo-own workflow path. A vendored
+  # .prflow/vendor/… path is not the repo's own and is not guarded.
+  if _guard_excludes "$arg"; then
+    _guard_skip_msg "$arg"
+    continue
   fi
   KEEP+=("$arg")
 done
@@ -201,35 +245,69 @@ _tip_is_on_remote() {  # <no-op description, for the breadcrumb>
 }
 
 if [ "${#KEEP[@]}" -eq 0 ]; then
+  _report_residue
   _tip_is_on_remote "nothing to checkpoint (no stageable paths after the workflow-edit guard); no commit made" || exit 3
   _bc "nothing to checkpoint (no stageable paths after the workflow-edit guard); no commit made, branch tip already on the remote"
   exit 0
 fi
 
-# Explicitly-scoped staging — never `git add -A`/`.`/intent-to-add.
-if ! git add -- "${KEEP[@]}"; then
-  _bc "git add failed for the named paths; no commit made"
-  exit 4
+# Explicitly-scoped staging (never `git add -A`/`.`). When the batch fails, retry per path add-first,
+# then accept an already-staged DELETION only (deletion-specific via --diff-filter=D, so stale
+# non-deletion staged content can't ride in while the checkpoint reports success); else exit 4 (#250).
+if ! git add -- "${KEEP[@]}" 2>/dev/null; then
+  for p in "${KEEP[@]}"; do
+    add_err="$(git add -- "$p" 2>&1)" && continue
+    if [ -n "$(git diff --cached --no-renames --name-only --diff-filter=D -- "$p")" ]; then
+      continue
+    fi
+    _bc "git add failed for path: $p: $add_err"
+    _bc "git add failed for the named paths; no commit made"
+    exit 4
+  done
 fi
 
-# No empty commit: if none of the NAMED paths has a staged change, this boundary
-# produced no new durable work — exit cleanly without committing (AC3/AC8). The
-# check is scoped to KEEP so unrelated pre-existing staged content neither forces a
-# commit nor is swept into one.
-if git diff --cached --quiet -- "${KEEP[@]}"; then
+# Pair rename sources (issue #250): git stages a rename as source-deletion + dest-addition, so a
+# commit naming only the destination drops the source deletion. Pair each source as root-relative
+# `:/<source>` (a bare source fails from a subdirectory). NAMED_DESTS uses a bash-3.2 read loop, not `mapfile`.
+PAIRED=()
+NAMED_DESTS=()
+while IFS= read -r _nd; do
+  NAMED_DESTS+=("$_nd")
+done < <(git diff --cached --name-only -- "${KEEP[@]}")
+while IFS=$'\t' read -r rstatus rsrc rdst; do
+  case "$rstatus" in R*) ;; *) continue ;; esac
+  paired=no
+  for d in ${NAMED_DESTS[@]+"${NAMED_DESTS[@]}"}; do
+    if [ "$d" = "$rdst" ]; then paired=yes; break; fi
+  done
+  [ "$paired" = yes ] || continue
+  if _guard_excludes "$rsrc"; then
+    _guard_skip_msg "$rsrc"
+    continue
+  fi
+  PAIRED+=(":/$rsrc")
+done < <(git diff --cached -M --name-status)
+
+# No empty commit (AC3/AC8): NAMED_DESTS holds the staged names under KEEP, so its emptiness is
+# the no-op signal. A deletion left behind is still reported (issue #250).
+if [ "${#NAMED_DESTS[@]}" -eq 0 ]; then
+  _report_residue
   _tip_is_on_remote "no staged changes at this boundary; no commit made (no empty commit)" || exit 3
   _bc "no staged changes at this boundary; no commit made (no empty commit), branch tip already on the remote"
   exit 0
 fi
 
-# Commit ONLY the named paths (a path-scoped commit), so the explicit-path scoping
-# (AC6) is enforced by the helper rather than left contingent on the caller having
-# entered with a clean index: any unrelated pre-staged content stays out of the
-# commit instead of riding in on a whole-index `git commit`.
-if ! git commit -q -m "$MESSAGE" -- "${KEEP[@]}"; then
+# Commit only the named paths and any paired rename source (path-scoped), so unrelated pre-staged
+# content stays out instead of riding in on a whole-index commit (AC6). PAIRED is expanded through
+# the `${arr[@]+…}` guard so an empty array does not abort under `set -u` on bash < 4.4.
+if ! git commit -q -m "$MESSAGE" -- "${KEEP[@]}" ${PAIRED[@]+"${PAIRED[@]}"}; then
   _bc "git commit failed"
   exit 4
 fi
+
+# Report any deletion this commit left behind (issue #250) — a `git rm`/plain-`rm`
+# deletion the caller did not name, or a guard-excluded rename source.
+_report_residue
 
 # Push, then verify the push actually landed. The push exit and output feed the
 # breadcrumb; the HEAD==@{u} comparison is the authoritative landing decision.

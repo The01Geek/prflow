@@ -18,6 +18,7 @@ Balance useful cloud-run diagnostics against the sensitivity of prompts, reposit
 
 - Execution diagnostics are enabled by default. They remain in Actions logs and the job summary.
 - Full transcript artifacts are disabled by default.
+- When a run is cancelled or interrupted before the model step writes its execution file, the transcript artifact instead holds the CLI's own session files for that run. Those files carry more than the action's message stream — tool results, attachments and file-history snapshots — so the artifact is larger and the incomplete-blocklist caveat below applies to it in full; treat it as sensitive.
 - Scrubbed denied-command text is enabled by default and can persist on the telemetry branch.
 - Denial count and tool identifiers are not controlled by the command-text toggle.
 - Effectiveness records are enabled by default.

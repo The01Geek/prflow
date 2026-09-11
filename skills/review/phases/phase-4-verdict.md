@@ -47,6 +47,8 @@ If the matcher itself errors out (exit code 2), log the failure (`Deferral match
 
 Read the shared writing standard before composing this report. The aggregated report is prose a human reads on a GitHub surface, so read `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it when you compose the verdict summary and the surrounding narrative. A failed load emits a breadcrumb naming the file and the failure kind, and you compose the report without it. This covers the report the engine composes here; the per-finding description inside each rendered finding line is authored upstream by the Phase-3 review agents, so it is not governed by this read.
 
+When re-authoring the report into the live progress comment, rebuild the `## Findings (live)` section from the per-agent block files under `.prflow/tmp/review/<slug>/<run-id>/`, never from held memory — a context compaction can lose the held copy while the on-disk block files persist.
+
 GitHub autolink hygiene (this report is posted as a PR comment/review): never put a bare `#` immediately before a number unless it is a real issue or PR reference — GitHub renders `#2` as a link to issue/PR 2, which misleads readers. For an ordinal, count, or list position, spell it out ("item 2", "step 3"), never `#2`. Genuine references like `#123` stay as-is. <!-- pruned-path-ok: illustrative autolink examples, not citations -->
 
 Construct the report in this format:

@@ -20,7 +20,35 @@ If the invocation fails because the helper path does not exist (`No such file`, 
 
 Independently of that exit code, any helper in this run may write a `prflow: reading the superseded .devflow/ state directory` line to stderr. It is not an error and it does not change which arm you take above. The next step is what acts on it; do not relay it separately, or the user reads the same fact several times in one run.
 
-## First: migrate a repository still on the superseded layout
+## First: refuse a self-install into PRFlow's own engine checkout
+
+`/prflow:init` scaffolds a *consumer* repo; running it against PRFlow's own engine tree would rewrite the tracked engine files it must never touch. Before any migrate, sweep, scaffold, install, or provisioning step below, run this guard from the repo root — it reads the running plugin's own accepted name through the skill anchor and the repo root's `.claude-plugin/plugin.json` `name` with a bash-builtin read, matching with `case`, prints the refusal only on an accepted-name match while `DEVFLOW_ALLOW_SELF_INSTALL` is empty, and always ends by printing `self-install-guard: checked` so a fence that never ran is distinguishable from one that found no match:
+
+```bash
+if [ -z "${DEVFLOW_ALLOW_SELF_INSTALL:-}" ]; then
+  _si_name() {  # $1 = plugin.json path → prints its "name", empty when absent/unparseable
+    [ -r "$1" ] || return 0
+    local _j _a; IFS= read -r -d '' _j < "$1" 2>/dev/null || :
+    case "$_j" in *'"name"'*) _a="${_j#*\"name\"}"; _a="${_a#*:}"; _a="${_a#"${_a%%[![:space:]]*}"}";
+      case "$_a" in '"'*) _a="${_a#\"}"; printf '%s' "${_a%%\"*}" ;; esac ;; esac
+  }
+  _si_accepted="$(_si_name "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../.claude-plugin/plugin.json)"
+  _si_root="$(git rev-parse --show-toplevel 2>/dev/null)" || _si_root=
+  _si_here="$([ -n "$_si_root" ] && _si_name "$_si_root/.claude-plugin/plugin.json")"
+  if [ -n "$_si_here" ]; then case "$_si_here" in "$_si_accepted"|prflow|devflow)
+    printf '%s\n' "refusing to install into PRFlow's own engine checkout (.claude-plugin/plugin.json name=\"$_si_here\"): running /prflow:init here would rewrite the tracked engine tree. Set DEVFLOW_ALLOW_SELF_INSTALL=1 for an intentional self-install (or a repo whose plugin is coincidentally named the same)." ;;
+  esac; fi
+fi
+printf '%s\n' 'self-install-guard: checked'
+```
+
+Route on the lines the fence printed, never on a captured variable, and treat silence as unestablished rather than as an answer:
+
+- Printed the `refusing to install …` line — STOP `/prflow:init` now and make no writes; this checkout is PRFlow's own engine (its `.claude-plugin/plugin.json` names an accepted plugin name — `prflow` or the superseded `devflow` — and `DEVFLOW_ALLOW_SELF_INSTALL` is empty). Relay that line and the `DEVFLOW_ALLOW_SELF_INSTALL=1` remedy it names.
+- Printed `self-install-guard: checked` and no refusal line — proceed; a repo with no `.claude-plugin/plugin.json`, a different `name`, an unparseable manifest, or a non-empty `DEVFLOW_ALLOW_SELF_INSTALL` (an intentional self-install, or a plugin coincidentally sharing the name) is not PRFlow's engine and is unaffected.
+- Any other outcome — neither line, a harness refusal, or an error — STOP and make no writes, reporting that the guard could not run. Some runners refuse a fence carrying command substitution outright and print nothing at all, so reading that silence as "not the engine" would install into the engine tree this guard exists to protect. Re-run on a runner that executes the fence, or set `DEVFLOW_ALLOW_SELF_INSTALL=1` once you have confirmed by hand that the repo root's `.claude-plugin/plugin.json` `name` is neither `prflow` nor `devflow`.
+
+## Then: migrate a repository still on the superseded layout
 
 Repositories set up before the PRFlow rename keep their state in `.devflow/`, with the vendored plugin at `.devflow/vendor/devflow/`, `devflow_*` config keys, workflow bodies naming those paths, and a marketplace `source` pointing at the old vendored directory. **Those four move as one unit or not at all** — the shipped workflows invoke bundled helpers at the vendored path as repo-relative leading tokens and the cloud allowlist grants are per-literal-path, so a half-moved tree is not merely broken, it is *silently denied*.
 
@@ -252,7 +280,7 @@ The preset floor (`detect-project-tools.sh` + `tool-presets.json`) is a conserva
 
 Attach a one-line justification to every entry you add, and **grant *enough* access for the automations to be effective** — an implement run that can't run the project's real `make test`/`cargo test`/`go build` is crippled and will punt build-dependent claims.
 
-**Never add a deny-listed tool to either allowlist.** File-mutation tools (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`) and raw-shell/eval/privilege Bash (`Bash(bash:*)`, `Bash(sh:*)`, `Bash(zsh:*)`, `Bash(eval:*)`, `Bash(exec:*)`, `Bash(source:*)`, `Bash(sudo:*)`) are stripped from a read-only review profile and warned on — proposing one there is pointless and dangerous everywhere else. Tell the maintainer to review `config.json` before committing.
+**Never add a raw-shell or privilege Bash head to either allowlist.** No shipped profile grants raw-shell/eval/privilege heads (`Bash(bash:*)`, `Bash(sh:*)`, `Bash(zsh:*)`, `Bash(eval:*)`, `Bash(exec:*)`, `Bash(source:*)`, `Bash(sudo:*)`), and nothing strips one a config adds — so adding one only widens the run's reach, it is not filtered back out. File-mutation tools (`Edit`/`Write`) *are* granted where a profile legitimately needs them (the implement and command paths write code); keep them off any read-only path. Tell the maintainer to review `config.json` before committing.
 
 ## After running
 

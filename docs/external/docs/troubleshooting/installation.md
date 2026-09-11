@@ -7,14 +7,15 @@ Match the message you see to an entry below, run its diagnostic command, then ap
 
 <AccordionGroup>
 
-<Accordion title="PRFlow commands do not appear in Claude Code">
+<Accordion title="PRFlow skills do not appear in the client">
 
-**Symptom:** typing `/prflow:` offers no PRFlow commands, or the client answers that the command is unknown.
+**Symptom:** entering `/prflow:` in Claude Code or `$prflow:` in Codex offers no PRFlow skills, or the client answers that the skill is unknown.
 
-Claude Code is the documented client. List what the client has loaded:
+List what the active client has loaded:
 
 ```bash
-claude plugin list
+claude plugin list # Claude Code
+codex plugin list --marketplace devflow-marketplace --json # Codex
 ```
 
 The plugin is `prflow`. The marketplace keeps the older name `devflow-marketplace` on purpose, so that name is not a sign of a stale install. If the plugin is absent, add the marketplace and install it:
@@ -22,14 +23,23 @@ The plugin is `prflow`. The marketplace keeps the older name `devflow-marketplac
 ```bash
 claude plugin marketplace add The01Geek/prflow
 claude plugin install prflow@devflow-marketplace
+
+codex plugin marketplace add The01Geek/prflow
+codex plugin add prflow@devflow-marketplace
 ```
 
-Then run `/reload-plugins` or restart Claude Code. If the plugin is present but out of date, refresh both the marketplace and the plugin:
+Use only the two commands for your client. In Codex's JSON output, the PRFlow entry must contain `"installed": true` and `"enabled": true`.
+
+Then start a new client session or chat. Claude Code can also run `/reload-plugins`. If the plugin is present but out of date, refresh its marketplace with the command for your client:
 
 ```bash
 claude plugin marketplace update devflow-marketplace
 claude plugin update prflow@devflow-marketplace
+
+codex plugin marketplace upgrade devflow-marketplace
 ```
+
+Codex CLI can also enter `/plugins`, open PRFlow and press Space to enable it. Enter `/skills` to confirm `prflow:implement` is available before retrying the request.
 
 </Accordion>
 

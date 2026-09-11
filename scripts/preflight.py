@@ -46,6 +46,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -748,17 +749,35 @@ def _payload_dir() -> str | None:
     return _fallback("could not resolve the git root for the payload dir")
 
 
-def _write_payload(verdict: str, reason: str, state: dict, derived: dict) -> str:
+def _write_payload(
+    verdict: str, reason: str, state: dict, derived: dict, *, state_file: "str | None" = None
+) -> str:
     """Write the stop-verdict payload file and return its path.
 
     Captures the gathered state, the internally-derived values, and the
     classification reason so the human deciding the AMBIGUOUS/DECISION_BLOCKED
     stop has the full picture. delete=False: the file outlives this process for
     the caller/human to read; the caller owns its lifetime.
+
+    When `state_file` is supplied and its parent directory is usable, the payload
+    is placed there (issue #240) so it lands in the caller's per-issue scratch
+    folder and is removed with it. On the degraded arms — no `state_file`, or its
+    parent cannot be created — it falls through to `_payload_dir()`, keeping that
+    helper's return value and system-temp-dir breadcrumb unchanged.
     """
+    payload_dir = None
+    if state_file:
+        candidate = os.path.dirname(os.path.abspath(state_file))
+        try:
+            os.makedirs(candidate, exist_ok=True)
+            payload_dir = candidate
+        except OSError:
+            payload_dir = None
+    if payload_dir is None:
+        payload_dir = _payload_dir()
     handle = tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", prefix="devflow-branch-state-", suffix=".json",
-        dir=_payload_dir(), delete=False,
+        dir=payload_dir, delete=False,
     )
     with handle:
         json.dump({"verdict": verdict, "reason": reason, "state": state, "derived": derived}, handle, indent=2)
@@ -1030,7 +1049,7 @@ def branch_state(args: argparse.Namespace) -> int:
     # the classification the caller acts on. Both are stops, so nothing fails
     # open — but the specific verdict survives, with the lost payload named.
     try:
-        payload = _write_payload(verdict, reason, state, derived)
+        payload = _write_payload(verdict, reason, state, derived, state_file=args.state_file)
     except OSError as exc:
         print(
             f"preflight.py: branch-state {verdict} ({reason}); payload could not be written: {exc}",
@@ -1047,7 +1066,7 @@ def branch_state(args: argparse.Namespace) -> int:
 # A precondition of the §1.1 issue-body cache write: the cache lives IN-TREE under
 # .prflow/tmp/, so an ignore rule covering it must already be in effect before it
 # is written (the run never creates one — a new dotfile would itself be an
-# untracked file the run's `git add -A` calls would stage). Resolving ignore state
+# untracked file an unscoped stage would sweep in). Resolving ignore state
 # through git itself — the scripts/reception-record.py `_check_ignored` shape —
 # means the precondition introduces NO new matcher command head and NO new
 # vendored-literal token: the `git check-ignore` call is an in-process subprocess
@@ -1161,6 +1180,192 @@ def ignore_precondition(args: argparse.Namespace) -> int:
     return BLOCKED_EXIT
 
 
+# ── scratch-issue (issue #240) ──────────────────────────────────────────────
+# Owns the implement run's per-issue scratch folder .prflow/tmp/implement/<issue>/:
+# prepare creates-and-sweeps it, remove deletes it on a successful terminal status.
+_ISSUE_OPERAND_RE = re.compile(r"[0-9]+")
+# A strict sanity bound (not a NAME_MAX tracker): refuse an implausibly long digit
+# run up front rather than let it fail deep inside a create/remove.
+_ISSUE_OPERAND_MAX_LEN = 40
+# devflow-issue-<issue>-title.txt carries the issue in the MIDDLE, so these are
+# literal templates, not a `{name}-{issue}.{ext}` loop.
+_SWEEP_EXACT_TEMPLATES = (
+    "acs-{issue}.md",
+    "repro-{issue}.md",
+    "plan-{issue}.md",
+    "narrowed-acs-{issue}.md",
+    "workpad-body-{issue}.md",
+    "ac-dispositions-{issue}.md",
+    "rf-verdict-{issue}.md",
+    "refl-{issue}.md",
+    "relocate-to-docs-{issue}.md",
+    "docgate-suppressed-note-{issue}.txt",
+    "branch-state-{issue}.json",
+    "devflow-issue-{issue}-title.txt",
+    "devflow-docgate-body-{issue}.txt",
+    "devflow-docgate-extractor-err-{issue}.txt",
+    "issue-claim-audit-record-{issue}.md",
+    "issue-claim-projection-{issue}.json",
+)
+# The 2 wildcard families. The captured digit run is `-`-delimited on both sides,
+# so a group(1) STRING equality against the run's issue is what stops 240 from
+# matching a leftover keyed to 2400 or 24 (a substring/prefix test would not).
+_SWEEP_DEFERRAL_DRAFT_RE = re.compile(r"^deferral-draft-(\d+)-[^/\\]+\.md$")
+_SWEEP_DEFERRAL_PROJECTION_RE = re.compile(r"^deferral-projection-(\d+)-[^/\\]+\.json$")
+
+
+def _validate_scratch_issue(raw: "str | None") -> "str | None":
+    """The clean issue string, or None when the operand is unusable.
+
+    One `[0-9]+` fullmatch rejects every unsafe shape uniformly — empty,
+    whitespace, non-numeric, a `/` or `\\` path separator, `..`, and an absolute
+    path — because none of those carry only ASCII digits; the `is None` check
+    catches the absent operand and the length cap catches an all-digit run too
+    long to be a safe path segment. Keeping the operand a plain optional string (not
+    `type=int`) is what routes the absent case here rather than to argparse's
+    stderr-only usage error, so it reaches the same stdout token as every other
+    invalid shape (issue #240).
+    """
+    if raw is None:
+        return None
+    if len(raw) > _ISSUE_OPERAND_MAX_LEN:
+        return None
+    if _ISSUE_OPERAND_RE.fullmatch(raw):
+        return raw
+    return None
+
+
+def _scratch_dir(top: str) -> str:
+    return os.path.join(top, ".prflow", "tmp")
+
+
+def _scratch_issue_folder(top: str, issue: str) -> str:
+    return os.path.join(_scratch_dir(top), "implement", issue)
+
+
+def _scratch_symlink_offender(top: str, folder: str) -> "str | None":
+    """The first symlinked intermediate directory between .prflow/tmp and folder's
+    parent, or None. A symlinked component (e.g. .prflow/tmp/implement) would let
+    makedirs/rmtree act on a location OUTSIDE the intended .prflow/tmp scope — a
+    fail-open out-of-scope deletion the mirror guard in ac-verifier-artifacts.py's
+    _reject_symlink_path closes for its own tree. The trusted boundary itself is not
+    checked; the leaf is not checked here because a symlinked leaf makes rmtree raise
+    (→ UNAVAILABLE create / REMOVE_FAILED), which is already safe.
+    """
+    boundary = _scratch_dir(top)
+    parts = [p for p in os.path.relpath(folder, boundary).split(os.sep) if p not in ("", os.curdir)]
+    prefix = boundary
+    for part in parts[:-1]:
+        prefix = os.path.join(prefix, part)
+        if os.path.islink(prefix):
+            return prefix
+    return None
+
+
+def _sweep_flat_leftovers(scratch_dir: str, issue: str) -> None:
+    """Remove this run's own flat pre-folder leftovers from the scratch root.
+
+    Best-effort and scoped: only the closed 18-name set carrying exactly `issue`
+    is removed (16 exact templates + the 2 wildcard families), top-level files
+    only. A sibling issue's leftovers, the fixed-name files, and every excluded
+    shared path carry a different name and are never candidates.
+    """
+    exact = {template.format(issue=issue) for template in _SWEEP_EXACT_TEMPLATES}
+    try:
+        entries = os.listdir(scratch_dir)
+    except OSError:
+        return
+    for name in entries:
+        target = os.path.join(scratch_dir, name)
+        if not os.path.isfile(target):
+            continue
+        remove = name in exact
+        if not remove:
+            match = _SWEEP_DEFERRAL_DRAFT_RE.match(name) or _SWEEP_DEFERRAL_PROJECTION_RE.match(name)
+            remove = match is not None and match.group(1) == issue
+        if remove:
+            try:
+                os.remove(target)
+            except OSError:
+                continue
+
+
+def _scratch_issue_resolve(args: argparse.Namespace) -> "tuple[str, str] | tuple[None, int]":
+    """Return (issue, top) on success, or (None, exit_code) after printing the token."""
+    issue = _validate_scratch_issue(args.issue)
+    if issue is None:
+        print(
+            "preflight.py: scratch-issue requires --issue to be a run of digits "
+            f"(got {args.issue!r})",
+            file=sys.stderr,
+        )
+        print("REFUSED", flush=True)
+        return None, UNAVAILABLE_EXIT
+    top = _repo_toplevel()
+    if top is None:
+        print(
+            "preflight.py: scratch-issue could not resolve the repository root; "
+            "not anchoring the per-issue folder to the process working directory",
+            file=sys.stderr,
+        )
+        print("UNAVAILABLE root", flush=True)
+        return None, UNAVAILABLE_EXIT
+    return issue, top
+
+
+def scratch_issue(args: argparse.Namespace) -> int:
+    issue, top = _scratch_issue_resolve(args)
+    if issue is None:
+        return top  # the exit code, with the token already printed
+    folder = _scratch_issue_folder(top, issue)
+    offender = _scratch_symlink_offender(top, folder)
+    if offender is not None:
+        print(
+            f"preflight.py: scratch-issue refuses a symlinked parent component "
+            f"{offender}; not acting outside the .prflow/tmp scope",
+            file=sys.stderr,
+        )
+        print("UNAVAILABLE create" if args.action == "prepare" else "REMOVE_FAILED", flush=True)
+        return UNAVAILABLE_EXIT
+    if args.action == "prepare":
+        try:
+            if os.path.lexists(folder):
+                shutil.rmtree(folder)
+            os.makedirs(folder)
+        except OSError as exc:
+            print(
+                f"preflight.py: scratch-issue could not create the per-issue folder "
+                f"{folder} ({exc})",
+                file=sys.stderr,
+            )
+            print("UNAVAILABLE create", flush=True)
+            return UNAVAILABLE_EXIT
+        # Sweep runs after the folder exists: a per-file sweep failure is cosmetic
+        # and never turns a created folder into an UNAVAILABLE create.
+        _sweep_flat_leftovers(_scratch_dir(top), issue)
+        print(f"PREPARED {folder}", flush=True)
+        return PROCEED_EXIT
+    # args.action == "remove": idempotent — an absent folder is a REMOVED success.
+    if not os.path.lexists(folder):
+        print(f"REMOVED {folder}", flush=True)
+        return PROCEED_EXIT
+    failures: list[str] = []
+    try:
+        shutil.rmtree(folder, onerror=lambda _func, path, _exc: failures.append(path))
+    except OSError:
+        failures.append(folder)
+    if failures or os.path.lexists(folder):
+        failing = failures[0] if failures else folder
+        print(
+            f"preflight.py: scratch-issue could not remove {failing}",
+            file=sys.stderr,
+        )
+        print("REMOVE_FAILED", flush=True)
+        return UNAVAILABLE_EXIT
+    print(f"REMOVED {folder}", flush=True)
+    return PROCEED_EXIT
+
+
 def lint_changed(args: argparse.Namespace) -> int:
     # Delegated to the lint_changed sibling module (issue #1389): the changed-file
     # advisory lint layer, kept out of this file so its git-enumeration, base64url,
@@ -1223,6 +1428,14 @@ def main() -> int:
         "so the enrolled fence need not compute the repository root itself.",
     )
     ignore_parser.set_defaults(func=ignore_precondition)
+    # ── scratch-issue (issue #240) ──────────────────────────────────────────
+    # --issue stays a bare optional string (NOT type=int): a type=int here would route
+    # an absent/non-digit operand through _Parser.error()'s stderr-only usage path
+    # instead of the subcommand's REFUSED stdout token (rationale: _validate_scratch_issue).
+    scratch_parser = subparsers.add_parser("scratch-issue")
+    scratch_parser.add_argument("--issue")
+    scratch_parser.add_argument("--action", choices=("prepare", "remove"), required=True)
+    scratch_parser.set_defaults(func=scratch_issue)
 
     # ── lint-changed / lint-full (issue #1389) ──────────────────────────────
     # Advisory changed-file and repository-wide lint, selected through the

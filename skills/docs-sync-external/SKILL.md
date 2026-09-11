@@ -55,9 +55,16 @@ Both are mandatory. Analysis without file edits is incomplete.
 Identify who this repository's product serves before writing a word, because register, examples, and depth all depend on it. Read the project memory file (e.g. `CLAUDE.md`), the README, and the product's own surface (commands, UI, API) and classify the reader: developers using a tool or library, employees using enterprise software, end users of a consumer application, or administrators operating a system. Record the determined audience in the Status Summary; every "user-appropriate" judgment below resolves against it, so for a developer tool "non-technical" wording is wrong, not safe.
 
 ### 1. Scope, Analyze and Compare
-Scope the comparison before analyzing, or the pass either re-litigates the whole site or works from guesses:
+Scope the comparison before analyzing, or the pass either re-litigates the whole site or works from guesses. Resolve the configured base branch by printing it, then substituting the printed value as a literal:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .base_branch main
+```
+
+Read the printed base branch from the tool result. On a non-zero exit or an empty value, fall back to `main` and log `docs-sync-external: could not read .base_branch — falling back to main`. Substitute the printed value as a LITERAL into the diff command below (e.g. `git diff origin/<base>...HEAD`) — never through a shell-variable capture (`VAR=$(...)`) and never as an `origin/$VAR` expansion.
+
 - When a caller (the combined docs pass) supplied a summary of internal-doc changes, those changes plus the branch diff define the topics in scope — the caller's summary takes precedence where the two disagree. Tolerate its absence: it is an optional handoff.
-- Standalone, scope by the branch diff (`git diff origin/main...HEAD`, THREE dots to exclude merged commits).
+- Standalone, scope by the branch diff (`git diff origin/<base>...HEAD`, `<base>` the printed literal default `main`, THREE dots to exclude merged commits).
 - Perform a full-tree alignment only when the request explicitly asks for one.
 
 Work on one topic/feature at a time.

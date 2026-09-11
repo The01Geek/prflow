@@ -25,6 +25,8 @@ Cloud command-shape discipline. A granted command *head* is not sufficient: the 
 - **Scratch writes target `.prflow/tmp/**`, never `/tmp`.** Author run-scoped scratch with the Write tool — or a `tee` heredoc where no Write tool exists — under `.prflow/tmp/**`; a `/tmp`-targeted redirect or heredoc is a denied shape.
 - **Hard rule: after a second permission denial of a shape, switch to a permitted alternative from this list — never iterate variants of the denied shape.** Iterating denied variants is what exhausts the run's budget and ends it with no verdict.
 
+Local-tier denial refuses the command *form*, never the work: re-form it — the direct leading-token form, then `python3 <path>` where interpreter heads aren't denied, else the second-denial switch rule above — but never reproduce the denied *effect* (an edit, a git state) through another tool, interpreter, or checkout; that is the boundary the denial drew, so record the step blocked. A denied verification is recorded as unestablished, never as passed, and never a reason to switch to a different evidence channel.
+
 Consumer prompt extension (load first). This skill's consumer extension reaches you through exactly one channel — the invocation ladder below — so load it yourself with that ladder, unconditionally, at the start of the run; nothing else delivers consumer policy into this skill. Read the ladder's output whole — no `>/dev/null`, no `| head -<n>`, no truncation of any kind — because an extension whose text you never observed governs nothing in this run, including the rules that say so. This load covers only this file: the review engine this skill loads by `Read`ing `skills/review/SKILL.md` as a file carries its own ladder, which the engine runs on the prose path inside the fix loop. From the repo root, run the granted vendored-literal leading token — the cloud matcher denies the unexpanded anchor as a leading token, so this is the form that executes on the cloud tiers:
 
 ```bash
@@ -124,7 +126,6 @@ This skill skips /prflow:review's Phase 4.4 entirely — no formal review and no
     "small_diff": false,
     "config_only": false,
     "has_new_types": true,
-    "engine_self_modifying": false,
     "checklist_skipped": null
   },
   "phase3_findings": [
@@ -322,7 +323,7 @@ Every loop step's authoritative procedure lives in a file under `skills/review-a
 | --- | --- | --- |
 | `loop-control` — Iteration setup + Steps 0.5–2 | `references/loop-control.md` | loop entry, and throughout config resolution, branch sync, fix-delta handoff, review-engine execution, and verdict routing |
 | `2.5` — Pre-fix verification gate + Parked-class sweep | `references/pre-fix-gates.md` | Step 2 routed to a fix path (REJECT, a REJECT-driver, or an at-or-above-`$FIX_THRESHOLD` finding), **or** a tentative non-REJECT verdict carries parked findings needing the pre-shadow parked-class sweep |
-| `2.6` — Shadow review | `references/shadow-review.md` | a tentative non-REJECT verdict at convergence time, **or** the `engine_self_modifying` early-shadow trigger after iteration 1 |
+| `2.6` — Shadow review | `references/shadow-review.md` | a tentative non-REJECT verdict at convergence time, plus any additional trigger a consumer prompt extension declares (evaluated at the iteration transition) |
 | `3` — Fix Findings | `references/fixing.md` | after the Step 2.5 gate resolves the effective fix set |
 | `3.5` — Fix-delta verification gate | `references/fix-delta-gate.md` | every iteration that committed a fix (unconditional; skipped only on a no-fix iteration) |
 | `4.5` — Convergence check | `references/convergence.md` | before looping back to Step 1, on iteration ≥ 2 |
@@ -344,7 +345,7 @@ Failure-map (per reference):
 | Unreadable reference | Outcome |
 | --- | --- |
 | `pre-fix-gates.md` | **STOP before any mutation.** No fix without gate coverage. Record a `blocked` reflection; report non-convergence. |
-| `shadow-review.md` | Record `shadow.coverage: "not_verified"` on the active iter (the existing outcome-3 shape) — **prohibits a clean approve**. Then branch on the **trigger context**: a **convergence-time** trigger proceeds to Loop Exit reported not-verified; an **early** `engine_self_modifying` trigger (after iteration 1) instead continues the loop as in the `convergence.md` row. An unreadable reference is a covered degradation cause, so both arms above are legal; what is prohibited is *electing* to skip the shadow to save budget — a run that never dispatched the shadow may not report its result as independently audited, nor present the shortfall as though the audit had happened to it, since that reports an unaudited PR as a reviewed one. The legal exit is the one `shadow-review.md`'s never-elective paragraph names: a workpad-holding caller stops at a non-terminal or `Blocked` status naming what prevented the fan-out, and a caller with no workpad reports non-convergence and posts no clean approve-family verdict (the `pre-fix-gates.md`/`fixing.md` terminal). |
+| `shadow-review.md` | Record `shadow.coverage: "not_verified"` on the active iter (the existing outcome-3 shape) — **prohibits a clean approve**. Then branch on the **trigger context**: a **convergence-time** trigger proceeds to Loop Exit reported not-verified; an **early** extension-declared trigger (fired at an iteration's Iteration Start) instead continues the loop as in the `convergence.md` row. An unreadable reference is a covered degradation cause, so both arms above are legal; what is prohibited is *electing* to skip the shadow to save budget — a run that never dispatched the shadow may not report its result as independently audited, nor present the shortfall as though the audit had happened to it, since that reports an unaudited PR as a reviewed one. The legal exit is the one `shadow-review.md`'s never-elective paragraph names: a workpad-holding caller stops at a non-terminal or `Blocked` status naming what prevented the fan-out, and a caller with no workpad reports non-convergence and posts no clean approve-family verdict (the `pre-fix-gates.md`/`fixing.md` terminal). |
 | `fixing.md` | **STOP before any mutation.** Never apply a fix blind. Record a `blocked` reflection; report non-convergence. |
 | `fix-delta-gate.md` | Record a not-verified fix-delta outcome (the existing gate-subagent-failure shape) in the formal `reference_reads.fix_delta` field, which **prohibits a clean APPROVE-family verdict** for this run. |
 | `convergence.md` | Treat as "a convergence condition failed" — never early-exit: loop back to Step 1 for iteration N+1, or at the cap proceed to Loop Exit reporting non-convergence. |

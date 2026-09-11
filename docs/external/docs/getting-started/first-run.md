@@ -5,6 +5,8 @@ description: "Walk through one PRFlow run, from a GitHub issue to a review-ready
 
 Follow one complete run and learn to read the progress workpad PRFlow writes while it works.
 
+The examples below use Claude Code's `/prflow:<skill>` spelling. In Codex CLI or a Codex chat in the ChatGPT desktop app, use `$prflow:<skill>` instead, or select the skill from `/skills` in Codex CLI. See [Commands and Arguments](/docs/runs/local/client-commands).
+
 ## Before You Start
 
 Confirm all of the following:
@@ -24,12 +26,12 @@ Confirm all of the following:
     Skip this step if a suitable issue already exists. Otherwise describe the change in one sentence:
 
     ```text
-    /prflow:create-issue Add an option to retain completed run logs for 30 days
+    /prflow:spec Add an option to retain completed run logs for 30 days
     ```
 
     PRFlow asks about anything the description leaves undecided, saves the issue draft to a file and shows you its path (printing the full draft in chat only on request), and creates the issue only after you approve that draft. Note the issue number it reports.
 
-    See [Create Issue](/docs/workflows/create-issue) for the full workflow.
+    See [Create Issue](/docs/workflows/spec) for the full workflow.
   </Step>
 
   <Step title="Run Implementation">

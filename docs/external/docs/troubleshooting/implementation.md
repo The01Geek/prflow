@@ -86,7 +86,7 @@ Write acceptance criteria into the issue before you run it. Each one is a testab
 - [ ] An existing config is left byte-identical
 ```
 
-Then start the run again. [Create an issue](/docs/workflows/create-issue) writes this section for you.
+Then start the run again. [Create an issue](/docs/workflows/spec) writes this section for you.
 
 </Accordion>
 

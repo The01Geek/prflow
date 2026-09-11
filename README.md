@@ -1,6 +1,6 @@
 # PRFlow — agentic coding that ships on real codebases
 
-[![PRFlow — Ship the PR, not the cleanup. A Claude Code plugin that turns one request into one merge-ready pull request across four phases: Setup (/prflow:create-issue), Implement (/prflow:implement), Review & fix (/prflow:review-and-fix), and Document (/prflow:docs).](docs/ship-pr.png)](https://prflow.ai/)
+[![PRFlow — Ship the PR, not the cleanup. A Claude Code plugin that turns one request into one merge-ready pull request across four phases: Setup (/prflow:spec), Implement (/prflow:implement), Review & fix (/prflow:review-and-fix), and Document (/prflow:docs).](docs/ship-pr.png)](https://prflow.ai/)
 
 [![Release verification](https://github.com/The01Geek/prflow/actions/workflows/distribution-verify.yml/badge.svg)](https://github.com/The01Geek/prflow/actions/workflows/distribution-verify.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -30,7 +30,7 @@ claude /prflow:init   # launches Claude Code and scaffolds your config
 **2. Ship a PR** — turn a feature request into a reviewed, documented pull request:
 
 ```text
-/prflow:create-issue <user_story>
+/prflow:spec <user_story>
 /prflow:implement <issue_number>
 ```
 
@@ -83,7 +83,7 @@ The intended way to drive PRFlow — from a feature request to a reviewed pull r
 ```text
    you: a feature request
        │
-/prflow:create-issue   →  explore codebase → implementation options → detailed GitHub issue
+/prflow:spec   →  explore codebase → implementation options → detailed GitHub issue
        │
 /prflow:implement      →  architect → code → build/test → /prflow:review-and-fix loop → /prflow:docs
        │
@@ -92,7 +92,7 @@ The intended way to drive PRFlow — from a feature request to a reviewed pull r
    you: final review & merge
 ```
 
-1. **Create the issue.** `/prflow:create-issue Add CSV export to the reports page` interviews you until the issue is unambiguous, shows you the draft, and files it **only after you confirm**. Say it lands as **#42**.
+1. **Create the issue.** `/prflow:spec Add CSV export to the reports page` interviews you until the issue is unambiguous, shows you the draft, and files it **only after you confirm**. Say it lands as **#42**.
 2. **Start implementation.** Run `/prflow:implement 42` in Claude Code — or, on the cloud tier, comment `/prflow:implement 42` on the issue (`gh issue comment 42 --body '/prflow:implement 42'`). Because *you* posted the comment, GitHub fires the workflow natively (no `@claude`, bot comment or PAT needed — see [cloud triggers](https://prflow.ai/docs/runs/cloud/triggers#implement-an-issue)).
 3. **PRFlow implements it.** It creates a branch, plans against your codebase, writes the code and tests, opens a **draft PR**, self-reviews with `/simplify`, runs `/prflow:review-and-fix`, files follow-up issues for deferred findings, updates the docs, and flips the PR to **ready**.
 4. **Review and merge.** On the cloud tier, `/prflow:review` runs as a gate and posts its verdict on the PR. You do the final human review and merge.
@@ -137,14 +137,13 @@ You can *additionally* configure an automatic `/prflow:review` request after CI 
 [Cloud triggers](https://prflow.ai/docs/runs/cloud/triggers). Automatic requests must exclude
 fork pull requests before any token is minted.
 
-**If you installed an earlier version that did ship the tier,** you still have the files
-and re-running the installer deliberately leaves them alone. To remove them, run
-`install.sh --apply --remove-withheld-review-tier`, which deletes
-`.github/workflows/devflow-review.yml`, `devflow-runner.yml` and `telemetry-push.yml` and
-sets `workflows["prflow-review"]` to `false` in `.prflow/config.json`. Then remove the
-`Devflow Review` context from any branch protection rule or ruleset that requires it —
-no installer can do that step for you, and skipping it wedges every later pull request
-behind a required check nothing will report. After removal, use the supported review commands
+The tier has been decommissioned and removed from the repository (issue #237). **If you installed
+an earlier version that did ship it,** your own tree may still carry
+`.github/workflows/devflow-review.yml`, `devflow-runner.yml` and `telemetry-push.yml`. To remove
+them, delete those workflow files and set `workflows["prflow-review"]` to `false` in
+`.prflow/config.json`. Then remove the `Devflow Review` context from any branch protection rule or
+ruleset that requires it — skipping it wedges every later pull request behind a required check
+nothing will report. After removal, use the supported review commands
 in [Cloud triggers](https://prflow.ai/docs/runs/cloud/triggers).
 
 ## Skills and agents
@@ -158,7 +157,7 @@ in [Cloud triggers](https://prflow.ai/docs/runs/cloud/triggers).
 | `/prflow:docs` | Orchestrate the three doc steps in one session |
 | `/prflow:docs-sync-internal` · `-sync-external` · `-release-notes` | Update internal docs, align external docs, generate release notes |
 | `/prflow:docs-verify <topic>` · `-bootstrap-internal` · `-bootstrap-external` | Verify one topic; stand up internal/external docs from scratch |
-| `/prflow:create-issue` | Rough idea → well-structured GitHub issue |
+| `/prflow:spec` | Rough idea → well-structured GitHub issue |
 | `/prflow:init` | One-time setup: scaffold `.prflow/config.json` + refresh the schema |
 | `/prflow:retrospective-weekly` | The weekly self-improvement loop ([details](#the-self-improving-loop)) |
 

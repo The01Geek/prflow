@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Durable staged-write transport for the `/devflow:create-issue` canonical draft (issue #705).
+"""Durable staged-write transport for the `/prflow:spec` canonical draft (issue #705).
 
-`/devflow:create-issue` mutates its canonical draft file at three sites. Before this
+`/prflow:spec` mutates its canonical draft file at three sites. Before this
 helper the write transport was unspecified prose, so a run landed anywhere between a
 single monolithic generated shell command (one interruption destroys the only copy of a
 pending mutation) and dozens of per-edit calls (each an interruption point that can leave
@@ -57,7 +57,7 @@ Digests come from ``git hash-object --stdin --no-filters`` — the one filter-fr
 every host regardless of ``core.autocrlf``. The helper names no non-preflight PATH tool:
 its only subprocess is native ``git`` (preflight-guaranteed), and it is invoked as a
 leading-token ``python3 <path>`` call behind the portable skill anchor, the shape every
-existing create-issue helper call already uses.
+existing spec helper call already uses.
 """
 
 import argparse
@@ -331,7 +331,7 @@ def cmd_apply(args):
 def build_parser():
     p = argparse.ArgumentParser(
         prog='stage-draft-write.py',
-        description='Durable staged-write transport for the create-issue canonical draft (#705).')
+        description='Durable staged-write transport for the spec canonical draft (#705).')
     sub = p.add_subparsers(dest='mode', required=True)
 
     s = sub.add_parser('stage', help='Read intended bytes on stdin; complete the staging base '

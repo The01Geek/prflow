@@ -154,7 +154,10 @@ $_alw_external"
 fi
 
 DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-SCRATCH="$DEVFLOW_ROOT/.prflow/tmp"
+# The captures live in the implement run's per-issue scratch folder (issue #240),
+# so they move and are removed with it. On the ignored arm Phase 1 already created
+# this folder; the mkdir -p below still fails closed if it cannot be resolved.
+SCRATCH="$DEVFLOW_ROOT/.prflow/tmp/implement/$ISSUE"
 BODY_FILE="$SCRATCH/devflow-docgate-body-$ISSUE.txt"
 
 # An unusable scratch leaf leaves the body unread, which is a read failure and

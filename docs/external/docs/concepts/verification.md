@@ -101,7 +101,7 @@ Verification evidence is recorded on the workpad, alongside the run's other prog
   - [ ] acceptance-criteria gate
 ```
 
-The acceptance-criteria gate is where verification evidence is actually spent. Every in-scope acceptance criterion must be supported by a passing check, a documented manual check or a code reference before the run may finish. A criterion that could not be established blocks exactly the same way a criterion that failed blocks.
+The acceptance-criteria gate is where verification evidence is actually spent. Every in-scope acceptance criterion must be supported before the run may finish by a check the run actually ran and observed — a passing test, lint or build command, a recorded probe of the code, or a documented manual check. Reading the code without running anything does not mark a criterion satisfied, so a run cannot report a pull request review-ready on evidence nobody observed. A criterion that could not be established blocks exactly the same way a criterion that failed blocks.
 
 A criterion that genuinely needs a real deployed environment is the one exception. It is tagged as post-merge work, left unticked and surfaced in the pull-request description for you to verify after merging. A criterion that is merely awkward to verify does not qualify.
 

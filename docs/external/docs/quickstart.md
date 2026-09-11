@@ -9,7 +9,7 @@ For the longer explanation behind each step, follow [Getting Started](/docs/gett
 
 ## Before You Start
 
-You need a GitHub repository you can push to, Claude Code and five tools on your `PATH`.
+You need a GitHub repository you can push to, Claude Code or Codex, and five tools on your `PATH`.
 
 ```bash
 git --version
@@ -30,14 +30,37 @@ Python must be 3.11 or newer, and `bash` must be a POSIX Bash. On macOS, `/usr/b
 
 ## 1. Install the Plugin
 
-```bash
-claude plugin marketplace add The01Geek/prflow
-claude plugin install prflow@devflow-marketplace
-```
+<Tabs>
+  <Tab title="Claude Code">
+    ```bash
+    claude plugin marketplace add The01Geek/prflow
+    claude plugin install prflow@devflow-marketplace
+    ```
+
+    Start a new Claude Code session, then enter `/prflow:`. Expected result: the completion menu offers PRFlow skills.
+  </Tab>
+  <Tab title="Codex CLI">
+    ```bash
+    codex plugin marketplace add The01Geek/prflow
+    codex plugin add prflow@devflow-marketplace
+    ```
+
+    Start a new Codex CLI session. Enter `/skills` or `$prflow:implement 123`. Expected result: Codex attaches the selected PRFlow skill.
+  </Tab>
+  <Tab title="ChatGPT Desktop App">
+    Add the marketplace from a terminal:
+
+    ```bash
+    codex plugin marketplace add The01Geek/prflow
+    ```
+
+    Restart the ChatGPT desktop app, open **Plugins**, select `devflow-marketplace`, then install **PRFlow**. Start a new Codex chat and enter `$prflow:implement 123`. Expected result: the composer attaches the selected PRFlow skill.
+  </Tab>
+</Tabs>
 
 The marketplace is named `devflow-marketplace` on purpose. The plugin is named `prflow`.
 
-Start a new Claude Code session, then confirm the commands are available by entering `/prflow:` in the prompt. You should see the PRFlow commands offered as completions.
+The walkthrough below uses Claude Code's `/prflow:<skill>` spelling. In Codex, replace it with `$prflow:<skill>`, or select the skill from `/skills` in Codex CLI.
 
 ## 2. Set Up Your Repository
 
@@ -62,7 +85,7 @@ Review the diff before you commit it. `/prflow:init` does not commit anything fo
 Skip this if you already have an issue with clear acceptance criteria.
 
 ```text
-/prflow:create-issue Add a --retain-days option so completed run logs can be kept for 30 days
+/prflow:spec Add a --retain-days option so completed run logs can be kept for 30 days
 ```
 
 PRFlow reads your repository, asks the questions it cannot answer from the code, then saves the issue draft to a file and shows you its path (print the full draft in chat on request). Nothing is created until you approve that exact draft.

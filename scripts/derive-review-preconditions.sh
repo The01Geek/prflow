@@ -68,8 +68,8 @@
 #   REQUIRE_CI_GREEN     same contract for the other-CI gate
 #   SELF_WORKFLOW_NAME   this workflow's name, excluded from the Actions-runs
 #                        set (default: "Devflow Review (auto-trigger)"; the
-#                        withheld auto-trigger workflow's Actions run name, which
-#                        this rename leaves frozen alongside telemetry-push.yml)
+#                        decommissioned auto-trigger workflow's former Actions run
+#                        name, kept frozen so an existing consumer copy still matches)
 #
 # Output (stdout, two lines, always emitted; always exits 0):
 #   should_run=<true|false>

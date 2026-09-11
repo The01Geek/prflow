@@ -42,7 +42,7 @@ Expected result: a cloud implementation run and a cloud command run may each inv
 
 The two shipped allowlists are independent. Neither inherits from the other. A command provisioned by `setup.install` can still be denied if it is absent from the active tier's list.
 
-Use the narrowest leading command that performs the needed check. PRFlow's built-in restrictions can deny compound shell wrappers and raw `bash`, `sh`, `zsh`, `eval`, `exec`, `source` or `sudo` commands even when a broader entry appears in the configuration.
+Use the narrowest leading command that performs the needed check. No generated profile grants raw `bash`, `sh`, `zsh`, `eval`, `exec`, `source` or `sudo`, and nothing strips one the configuration adds — so adding one only widens the run's reach, and a compound shell wrapper is not a supported invocation form.
 
 ## Plan Grants Before the Work
 

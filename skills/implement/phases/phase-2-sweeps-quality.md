@@ -39,7 +39,7 @@ This sweep targets a claim your diff *depends on* about something outside the li
 A boundary assumption is any factual claim the diff relies on about something the diff does not own. The recurring kinds:
 
 - Dependency-version behavior — a symbol, export, signature, or runtime behavior of a third-party package. Verify it against the pinned range's actual installed source/changelog, not the latest docs (e.g. importing a symbol that is only public in a version newer than your dependency pin permits, so an in-constraint install breaks at import).
-- Supported-runtime behavior — a behavior of the language, standard library, or interpreter. Verify it holds across the project's entire documented supported-runtime range, not just the version in your hands.
+- Supported-runtime behavior — a behavior of the language, standard library, or interpreter. Verify it holds across the project's entire documented supported-runtime range, not just the version in your hands. When you probe interpreter-dependent behavior, run the probe under the interpreter the artifact's own shebang or runner invocation names, and prefer mutation evidence over a hand probe when the two disagree — an assertion live under the artifact's real shell looks dead under whatever shell you typed into, so the executable test under that real interpreter is the authority, not the hand probe.
 - Sibling-producer output — the shape or content of data produced by another module your code consumes. Verify it by reading the production producer, not by assuming a field is populated (e.g. consuming a field that the producer hard-codes empty).
 - Real host/runtime environment — a path, base URL, network namespace, or sandbox constraint of where the code actually runs. Verify against the real host, not the local dev shell (e.g. relative asset paths that resolve locally but 404 under the deployed base URL).
 - External-tool output — a literal string, message, or exit code the diff matches against, or documents, as the output of an external tool (a `git`/`gh`/CLI error message, a `--help` phrase, an exit-code convention). A matcher keyed on a phrase the tool never emits is dead code, and a phrase attributed to the wrong subcommand is a documented falsehood. Verify against the tool's observed bytes, not its `--help` prose or your memory of the wording.
@@ -99,7 +99,7 @@ Record the reconciled surfaces — or an intentional verbatim carve-out, with th
 
 Perform this sweep on every diff that adds prose. It owns a claim type 2.3.4a's code-path trace never reaches: a coverage universal, a sentence asserting a universal about *this change's own coverage* ("every call site is updated", "all four arms are handled", "exactly these files", "complete by construction"). Reading the sentence back and finding it plausible does not discharge the obligation — only a failed attempt to falsify it does. Left unclosed, the claim reaches Phase 3.3 as a `documented_falsehood`, a non-demotable REJECT.
 
-Population. Every coverage universal the diff's added prose asserts, on whatever surface the diff touches — `skills/` and `phases/*.md` rule prose, `docs/`, `CLAUDE.md`, code comments and docstrings, and explicitly **`.changeset/*.md` and `CHANGELOG.md`**, which the helper's own header already declares in scope as *"human-authored prose about the current change, exactly the surface this lint exists to grade."* The operand is the §2.3 sweep operand (defined in the §2.3 preamble in phase-2-sweeps-contract.md — the merge base → working-tree branch delta), so a coverage universal authored in an earlier commit of the same branch is inside it and is graded here; `skills/review-and-fix/references/fixing.md` item 6a remains the fix loop's post-fix backstop for any such universal that a later fix reintroduces.
+Population. Every coverage universal the diff's added prose asserts, on whatever surface the diff touches — `skills/` and `phases/*.md` rule prose, `docs/`, `CLAUDE.md`, code comments and docstrings, and explicitly **the version/release prose the project's versioning convention governs (the artifact its implement prompt extension names)**, which the helper's own header already declares in scope as *"human-authored prose about the current change, exactly the surface this lint exists to grade."* The operand is the §2.3 sweep operand (defined in the §2.3 preamble in phase-2-sweeps-contract.md — the merge base → working-tree branch delta), so a coverage universal authored in an earlier commit of the same branch is inside it and is graded here; `skills/review-and-fix/references/fixing.md` item 6a remains the fix loop's post-fix backstop for any such universal that a later fix reintroduces.
 
 **Derive the population without staging.** Two legs, and **this sweep never mutates the index** — no `git add -A`, no `git add .`, no intent-to-add. An unscoped stage would land unrelated working-tree state on the branch that the fix loop's explicit-path staging exists to keep off.
 
@@ -111,7 +111,7 @@ git diff --merge-base origin/<base> -U0 | "${CLAUDE_SKILL_DIR:-<absolute skill b
 # Leg 2 — once per NEW file THIS CHANGE authored, named explicitly. A merge-base diff (like
 # git diff HEAD) lists NO untracked file, so this leg is the ONLY channel that reaches one — a
 # new docs page or phases/*.md reference needs its own invocation exactly as a changeset does:
-git diff --no-index -U0 /dev/null .changeset/issue-<N>-<slug>.md | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/stale-prose-lint.py --worktree
+git diff --no-index -U0 /dev/null path/to/new-file.md | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/stale-prose-lint.py --worktree
 ```
 
 `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/stale-prose-lint.py` documents itself — read its module header for the row tokens and the exit codes, and its `--help` output for the flags — so their definitions are not restated here.
@@ -220,15 +220,10 @@ Detect before staging, for any *modified/deleted* or newly-created file under th
 
 Enumerate the coupled files by grepping the reverted workflow's distinctive content (a step name, a job id, or the exact literal a pin asserts) across the test suite and revert them with the workflow; where the suite is runnable on the tier, run it and treat any RED as a further coupled-file signal. This grep is best-effort — it misses a pin on a structural or derived property (a line count, a file-exists check), for which the required CI test job on push is the final catch.
 
-§2.5 is the run's final durability checkpoint: it goes through the same helper (§2.0.5) as every earlier one, so the workflow-edit guard and the push-landing verification apply uniformly. Name every path this run created or modified (the set your earlier §2.0.5 checkpoints have been accumulating); the helper stages exactly those — refusing `git add -A`/`.` — commits, pushes, and confirms the push landed (`git rev-parse HEAD` == `@{u}`). Any path you never name to a checkpoint remains uncommitted for the Phase 4.3 clean-tree backstop to surface, so enumerate comprehensively here:
+§2.5 is the run's final durability checkpoint: it goes through the same helper (§2.0.5) as every earlier one, so the workflow-edit guard and the push-landing verification apply uniformly. Name every path this run created, modified, renamed (old and new), or deleted (the set your earlier §2.0.5 checkpoints have been accumulating); the helper stages exactly those — refusing `git add -A`/`.` — commits, pushes, and confirms the push landed (`git rev-parse HEAD` == `@{u}`). Any path you never name to a checkpoint remains uncommitted for the Phase 4.3 clean-tree backstop to surface, so enumerate comprehensively here:
 
 ```bash
-.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh "feat: implement issue #$ARGUMENTS — {short description from issue title}" {every path this run created or modified}
-```
-
-At this durability-checkpoint boundary also append a `phase2-checkpoint` event (best-effort; the helper always exits 0 and never blocks the run):
-```bash
-.prflow/vendor/prflow/scripts/verification-flight.py event phase2-checkpoint
+.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh "feat: implement issue #$ARGUMENTS — {short description from issue title}" {every path this run created, modified, renamed (old and new), or deleted}
 ```
 
 If the change includes test fixes, name those paths in this same final checkpoint (one commit combining implementation and fixes).

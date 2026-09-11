@@ -18,7 +18,7 @@ You are dispatched by `/prflow:implement`'s orchestrator during Phase 1, **after
 
 **You SHARE the orchestrator's checkout — you are NOT handed a worktree.** Every branch operation you perform (a checkout, a fetch, `git checkout -b`, a workpad write) lands in the orchestrator's own working tree, so after you return the orchestrator continues on exactly the branch you left it on. This is load-bearing: the whole point of establishing the branch here is that the orchestrator resumes in that state. Because you share the checkout, you never `git commit`/`git add` unrelated tree state — the orchestrator verified the tree clean before dispatching you.
 
-**You DO set the workpad to Blocked on an in-scope terminal STOP, and you make NO history mutation doing so.** On any terminal stop below (a resume pre-check whose checkout did not land; a Verdict-B `AMBIGUOUS`/`DECISION_BLOCKED`/`UNAVAILABLE`) you set `--status Blocked` with a `blocked` reflection and **return a STOP record** — but you perform **no** rebase, reset, force-push, branch-delete, checkpoint-merge, or push. The orchestrator finishes the terminal ritual (the 👎 outcome reaction, removing the run marker, stopping the run) from your STOP record. Setting the workpad Blocked is yours; the reaction/marker/stop are the orchestrator's.
+**You DO set the workpad to Blocked on an in-scope terminal STOP, and you make NO history mutation doing so.** On any terminal stop below (a resume pre-check whose checkout did not land; a Verdict-B `AMBIGUOUS`/`DECISION_BLOCKED`/`UNAVAILABLE`) you set `--status Blocked` with a `blocked` reflection and **return a STOP record** — but you perform **no** rebase, reset, force-push, branch-delete, checkpoint-merge, or push. The orchestrator finishes the terminal ritual (the 👎 outcome reaction, stopping the run) from your STOP record. Setting the workpad Blocked is yours; the reaction and stop are the orchestrator's.
 
 ## Operands the dispatch prompt gives you
 
@@ -27,6 +27,7 @@ The orchestrator's dispatch prompt provides, and you use verbatim:
 - `ISSUE_NUMBER` — the GitHub issue this run implements (`$ISSUE_NUMBER` below).
 - `WORKPAD` — the exact `workpad.py` helper path to invoke as a **leading token** for every workpad write (the vendored literal `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier; the resolved bundled path on the local tier). Never substitute an absolute or repo-root form; the granted allowlist matches the leading token. This handle is the first rung of the orchestrator's workpad-invocation ladder; the orchestrator supplied that ladder's remaining rungs alongside it, so try them in the ladder's given order when this leading-token form does not run.
 - `SCRIPTS` — the directory prefix for the other bundled helpers you invoke: `config-get.sh`, `branch-for-issue.py`, `preflight.py`, `run-jq.sh`, `pr-note-block.py`.
+- `RUN_SCRATCH` — the run's per-arm scratch home, already resolved by the orchestrator: the per-issue folder `.prflow/tmp/implement/$ISSUE_NUMBER` on the resolved-IGNORED Phase 1.1 arm, or flat `.prflow/tmp` on the not-ignored arm (where no per-issue folder is created). Write your branch-state and title files under it, so this agent creates no per-issue directory on the not-ignored arm.
 - `BASE` — the base branch (`$BASE`), read by the orchestrator from `.prflow/config.json`; `origin/$BASE` is the fetch/read target. It is passed to you, but you re-derive it below with the same fail-closed guard so a stale value cannot silently mistarget.
 - `WORKPAD_BODY` — the live workpad body the orchestrator read in §1.3/§1.4 (or a path to it). You read its `**Branch:**` line from this; do not re-fetch it.
 - `HANDOFF` — the cloud handoff provenance value (`created-current-run` / `adopted-existing` / `unknown`) the orchestrator resolved in §1.3, which decides `provenance_established` for Verdict B.
@@ -210,7 +211,7 @@ This classification runs on the **landed-resume** arm (`USE_CURRENT` set, after 
 
 `"$SCRIPTS"/preflight.py branch-state` owns the recognizer and derivation semantics (ahead-of-base count with shallow unshallow-once-then-rederive, recorded-branch existence, published-tip reachability); do not duplicate them. It is **read-only with respect to history** — it derives via `git rev-list` / `git rev-parse` / `git check-ref-format` / `git merge-base` and, on a shallow repository, a single `git fetch --unshallow`; it never resets, rebases, checks out, commits, merges, pushes, or deletes a branch, so **a stop verdict makes no history mutation**.
 
-Gather the state the helper classifies and write it as a JSON object to `.prflow/tmp/branch-state-$ISSUE_NUMBER.json` **with the Write tool** (never a heredoc or `>`-redirect — a denied cloud shape), composing it from values you already hold:
+Gather the state the helper classifies and write it as a JSON object to `$RUN_SCRATCH/branch-state-$ISSUE_NUMBER.json` **with the Write tool** (never a heredoc or `>`-redirect — a denied cloud shape), composing it from values you already hold:
 
 - `base` — `$BASE`.
 - `current_branch` — the working branch (`$CUR` on the landed-resume arm; `$HEAD_REF` on the PR-adopted arm).
@@ -224,10 +225,10 @@ Gather the state the helper classifies and write it as a JSON object to `.prflow
 Then invoke the helper as a single leading-token command and read its **one-token stdout verdict and matching exit code**:
 
 ```bash
-"$SCRIPTS"/preflight.py branch-state --state-file .prflow/tmp/branch-state-$ISSUE_NUMBER.json
+"$SCRIPTS"/preflight.py branch-state --state-file $RUN_SCRATCH/branch-state-$ISSUE_NUMBER.json
 ```
 
-On a local runner that refuses the direct helper path, use `python3 <resolved helper path> branch-state --state-file .prflow/tmp/branch-state-$ISSUE_NUMBER.json`. Route **every** outcome so the classification never silently no-ops:
+On a local runner that refuses the direct helper path, use `python3 <resolved helper path> branch-state --state-file $RUN_SCRATCH/branch-state-$ISSUE_NUMBER.json`. Route **every** outcome so the classification never silently no-ops:
 
 - `FRESH` / `VALIDATED_RESUME` exit 0 → **proceed**. Hold a `--note` that Verdict B classified the branch as `<verdict>` for the single proceed-path delivery write below, and carry the verdict in your record.
 - `AMBIGUOUS <payload-file>` exit 2 → the ahead history could not be validated as this run's own and needs a human decision. **Stop — make no history mutation.** Set the workpad Blocked with a `blocked` reflection naming the verdict, the payload-file path, and the remedy (confirm the ahead commits are the run's own and re-run, or start a clean branch), and return a STOP record.
@@ -239,14 +240,14 @@ The clean path holds a Progress `--note` for the single proceed-path delivery wr
 
 ## Feature-branch creation (create path only — `USE_CURRENT` unset and no adoption)
 
-Create a new branch. The canonical branch name is computed by the helper (handles slugification, unicode, length truncation, and collision suffixing deterministically). Write the issue title (`ISSUE_TITLE`) to a temp file with the **Write tool** — `.prflow/tmp/devflow-issue-$ISSUE_NUMBER-title.txt` — first ensuring `.prflow/tmp` exists, then derive the branch from it. Using `--title-file` avoids breakage when the title contains quotes, backticks, or `$`.
+Create a new branch. The canonical branch name is computed by the helper (handles slugification, unicode, length truncation, and collision suffixing deterministically). Write the issue title (`ISSUE_TITLE`) to a temp file with the **Write tool** — `$RUN_SCRATCH/devflow-issue-$ISSUE_NUMBER-title.txt` — first ensuring `$RUN_SCRATCH` exists (`mkdir -p "$RUN_SCRATCH"` — safe on both Phase 1.1 arms: the per-issue folder Phase 1 prepared on the ignored arm, or the flat `.prflow/tmp` on the not-ignored arm), then derive the branch from it. Using `--title-file` avoids breakage when the title contains quotes, backticks, or `$`.
 
 ```bash
 # Fetch the base explicitly with a breadcrumb so a bad/offline base is attributable here.
 # Same FORCED refspec as the adopted arm's freshness fetch and as update-branch-checkpoint.sh,
 # so the new branch is cut from a tip that was actually advanced.
 git fetch origin "+refs/heads/$BASE:refs/remotes/origin/$BASE" || { echo "prflow: could not fetch base branch 'origin/$BASE' — check network/auth, or set base_branch in .prflow/config.json to the repo's real trunk (master/develop/…)" >&2; exit 1; }
-BRANCH=$("$SCRIPTS"/branch-for-issue.py $ISSUE_NUMBER --title-file .prflow/tmp/devflow-issue-$ISSUE_NUMBER-title.txt) || { echo "prflow: branch-for-issue.py failed for issue #$ISSUE_NUMBER" >&2; exit 1; }
+BRANCH=$("$SCRIPTS"/branch-for-issue.py $ISSUE_NUMBER --title-file $RUN_SCRATCH/devflow-issue-$ISSUE_NUMBER-title.txt) || { echo "prflow: branch-for-issue.py failed for issue #$ISSUE_NUMBER" >&2; exit 1; }
 [ -n "$BRANCH" ] || { echo "prflow: branch-for-issue.py returned an empty branch name for issue #$ISSUE_NUMBER" >&2; exit 1; }
 git checkout -b "$BRANCH" "origin/$BASE"
 ```
@@ -288,4 +289,4 @@ blocked_reason: <verbatim reason when outcome is stop, else "n/a">
 notes: <one-line summary of the durable workpad records you wrote>
 ```
 
-On a **stop**, you have already set the workpad `--status Blocked` with the `blocked` reflection and made no history mutation; the orchestrator emits the 👎 outcome reaction, removes the run marker, and stops the run from your record. On **proceed**, the orchestrator confirms the landed branch itself, carries `freshness` forward, and continues to §1.4.1.
+On a **stop**, you have already set the workpad `--status Blocked` with the `blocked` reflection and made no history mutation; the orchestrator emits the 👎 outcome reaction and stops the run from your record. On **proceed**, the orchestrator confirms the landed branch itself, carries `freshness` forward, and continues to §1.4.1.

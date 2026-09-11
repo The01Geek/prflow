@@ -72,7 +72,7 @@ The documentation tree has a stated shape; every write this skill makes preserve
 ## Review Scope
 
 ### Code Documentation Analysis
-Analyze only code that was added or modified in this branch (use `git diff origin/main...HEAD` with THREE dots to exclude merged commits)
+Analyze only code that was added or modified in this branch (use a three-dot `git diff` against the configured base branch — resolved in Step 1 below — to exclude merged commits)
 
 For every code change, decide whether it changes behavior, and route each behavior change to its owning page via `index.md`:
 - New behavior → add documentation on the owning page (or a new page, registered in `index.md`)
@@ -155,7 +155,15 @@ Make output scannable using bullet points, numbered lists, and clear headings.
 ⚠️ ALWAYS perform all five steps. Step 5 (verify-against-code) is non-negotiable — skipping it is the single most common cause of inaccurate doc updates.
 
 Step 1: Run Git Diff
-Run `git diff origin/main...HEAD` (THREE dots) to get ONLY changes from this branch, excluding merged commits. Focus on code files: .cs, .js, .ts, .tsx, .py, .csproj, .sln, Dockerfile, .config, etc.
+Resolve the configured base branch by printing it, then substituting the printed value as a literal:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .base_branch main
+```
+
+Read the printed base branch from the tool result. On a non-zero exit or an empty value, fall back to `main` and log `docs-sync-internal: could not read .base_branch — falling back to main`. Substitute the printed value as a LITERAL into the diff command below (e.g. `git diff origin/<base>...HEAD`) — never through a shell-variable capture (`VAR=$(...)`) and never as an `origin/$VAR` expansion.
+
+Run `git diff origin/<base>...HEAD` (THREE dots, `<base>` the printed literal, default `main`) to get ONLY changes from this branch, excluding merged commits. Focus on code files: .cs, .js, .ts, .tsx, .py, .csproj, .sln, Dockerfile, .config, etc.
 
 Step 2: Read the Index, Then Analyze Each Code File
 Read `[[INTERNAL_DOC_LOCATION]]/index.md` first (creating it per the Structure Contract if absent). Then, for EACH code file that changed:
@@ -211,7 +219,7 @@ In the Step 3 analysis output, add a short "Claims verified" list: each non-triv
 
 Before completing, verify you have:
 
-- [ ] Run `git diff origin/main...HEAD` (THREE dots) to see ONLY this branch's changes
+- [ ] Ran the three-dot `git diff` against the configured base branch (Step 1) to see ONLY this branch's changes
 - [ ] Read `[[INTERNAL_DOC_LOCATION]]/index.md` first and routed every write through it (creating it if absent)
 - [ ] Examined EVERY code change and decided whether it changes behavior
 - [ ] Searched for related documentation using the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) for each behavior change

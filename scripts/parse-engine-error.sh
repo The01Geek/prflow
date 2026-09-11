@@ -5,10 +5,10 @@
 # indicates the review engine ended in error (is_error), else "false". Extracted
 # out of devflow-runner.yml's "Surface review-engine execution result" step (issue
 # #249) so this edge-case-prone parsing is unit-testable, exactly as the verdict
-# derivation was extracted into derive-review-verdict.sh. The runner's
-# engine_is_error output is this helper's stdout; finalize_check reads it as the
-# ENGINE_ERROR signal (a review that ended is_error but whose JOB still reported
-# success is treated as no-verdict-for-HEAD).
+# derivation was extracted into derive-review-verdict.sh. That runner (since removed
+# with its tier) exposed an engine_is_error output from this helper's stdout, which
+# finalize_check read as the ENGINE_ERROR signal (a review that ended is_error but whose
+# JOB still reported success is treated as no-verdict-for-HEAD).
 #
 # claude-code-action@v1 writes the execution log to the file named by
 # steps.claude.outputs.execution_file. The exact on-disk shape is not pinned by a

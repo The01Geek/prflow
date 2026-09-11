@@ -392,6 +392,11 @@ SHADOW_SYNTH_EXPECTED_FIELDS="shadow_synthesized promoted_to_iter_next"
 # and this selector in the SAME commit.
 FIX_COMMIT_SUBJECT_PREFIX="fix: address review findings (iteration"
 
+# Broadened reader (issue #301): select_fix_commits ALSO recovers two UNNUMBERED families —
+# the review-findings base above and the shadow-findings literal below — matched end-or-space
+# so issue-qualified/summary-suffixed subjects recover; narrowing to exact-match drops them.
+FIX_COMMIT_SHADOW_SUBJECT="fix: address shadow review findings"
+
 # Resolve the ref the fix-commit range diffs against. Prefer origin/<base> over
 # the local ref: in this repo's linked-worktree flow the local base branch is
 # routinely BEHIND origin (nobody pulls it in a worktree), and a stale local base
@@ -483,48 +488,57 @@ recorded_fix_shas() {
   return 0
 }
 
-# Reads `sha<TAB>subject` lines (oldest-first) on STDIN — the caller captures
-# `git log` output first so a failed log is routed to the rc-3 "never
-# established" arm instead of reading as an empty commit list — and emits
-# `N<TAB>sha` lines for subjects matching the fix-commit contract, excluding any
-# sha in $1 (space-separated already-recorded set). Deterministic, network-free.
-# Adversarial subjects each emit an exit-0 stderr breadcrumb and are skipped:
-# prefix present but the iteration clause never closed with `)`, a non-numeric
-# iteration token, an already-recorded sha, or a duplicate N (first unexcluded
-# occurrence wins). Two accepted leniences: `(iteration1)` (missing space) parses
-# as iteration 1 — the strip drops at most one optional space — and trailing text
-# after the closing `)` is ignored (issue #1946). The subject is authored per run
-# rather than emitted by a template, so a trailing summary is the common shape in
-# practice, and an ends-with match skipped every such commit.
-# Known limitation:
-# iteration numbers restart at 1 per review loop, so a branch carrying TWO
-# unrecorded loops keeps only the first loop's commit for each N (duplicate-N
-# breadcrumbs name the rest) — acceptable for a minimal floor. Always exits 0.
+# CONTRACT: reads `sha<TAB>subject` lines (oldest-first) on STDIN — the caller captures `git log`
+# first so a failed log routes to the rc-3 "never established" arm, not an empty list — and emits
+# `N<TAB>sha` for fix-commit subjects, excluding any sha in $1 (space-separated recorded set).
+# Deterministic, network-free, always exits 0. Recovers three subject shapes: the NUMBERED
+# `fix: address review findings (iteration N)` (parse N; adversarial forms skipped with a
+# breadcrumb, never reclassified) and the two UNNUMBERED families `fix: address review findings`
+# and `fix: address shadow review findings` (matched end-or-space, so `… for issue #N` recovers
+# but `…findingsX` does not). See docs/internal/efficiency-trace.md for the full taxonomy.
+# ORDER IS LOAD-BEARING: the numbered arm is tested FIRST, so a malformed `(iteration …)` or a
+# numbered-shaped shadow subject is rejected there and never falls through to unnumbered recovery
+# (#301 AC8). Unnumbered commits are buffered and assigned generated labels oldest-first ABOVE the
+# highest accepted explicit N (0 for an unnumbered-only population), so a generated label never
+# collides with an explicit N — it is a storage identity, NOT a measured review-round number.
 select_fix_commits() {
-  local excl="$1" base_subject sha subj n tab seen_ns=" "
+  local excl="$1" base_subject sha subj n tab seen_ns=" " is_unnumbered unnumbered_shas="" max_n=0 next_label usha
   tab="$(printf '\t')"
-  # The fix-loop subject family, derived from the coupled prefix constant (the
-  # strip pattern necessarily repeats the constant's ` (iteration` tail — keep
-  # the two in lockstep if the subject template is ever reworded): a commit in
-  # this family but WITHOUT the `(iteration N)` suffix is breadcrumbed, not
-  # silently dropped (issue #381 AC4).
+  # Base of BOTH the numbered family (stripping the constant's ` (iteration` tail — keep the two
+  # in lockstep if the subject template is reworded) AND the unnumbered review-findings family it
+  # matches verbatim in the case below (issue #301 gave it this second, direct use).
   base_subject="${FIX_COMMIT_SUBJECT_PREFIX% (iteration}"
-  # --reverse → oldest-first so a duplicate N keeps the EARLIEST commit.
+  # --reverse → oldest-first so a duplicate N keeps the EARLIEST commit and generated
+  # unnumbered labels are assigned in commit order.
   while IFS="$tab" read -r sha subj; do
     [ -n "$sha" ] || continue
+    is_unnumbered=""
     case "$subj" in
-      "$FIX_COMMIT_SUBJECT_PREFIX"*) ;;          # has the "(iteration" suffix — parse N below
-      "$base_subject"*)                           # fix-loop family but no "(iteration N)" suffix
-        echo "::warning::efficiency-trace.sh --persist: fix-commit ${sha} is in the fix-loop subject family but has no '(iteration N)' suffix; skipping" >&2; continue ;;
-      *) continue ;;                              # unrelated commit — silently skip
+      "$FIX_COMMIT_SUBJECT_PREFIX"*) ;;          # numbered "(iteration N)" — parse N below
+      "$FIX_COMMIT_SHADOW_SUBJECT (iteration"*)  # numbered-shaped shadow subject: the shadow family
+        # has no numbered producer, so reject rather than reclassify as unnumbered — else its
+        # "(iteration N)" clause is silently dropped into a generated label (issue #301 AC8).
+        echo "::warning::efficiency-trace.sh --persist: fix-commit ${sha} carries a shadow subject with an '(iteration …)' clause ('${subj}'); the shadow family has no numbered producer, so it is rejected rather than reclassified as unnumbered; skipping" >&2; continue ;;
+      "$base_subject"|"$base_subject "*) is_unnumbered=1 ;;                       # review-findings, unnumbered
+      "$FIX_COMMIT_SHADOW_SUBJECT"|"$FIX_COMMIT_SHADOW_SUBJECT "*) is_unnumbered=1 ;;  # shadow-findings, unnumbered
+      "$base_subject"*|"$FIX_COMMIT_SHADOW_SUBJECT"*)  # near-miss: a family base with no end-or-space
+        # boundary (e.g. "…findingsX") — warn-and-skip so a typo'd fix-commit subject stays visible in
+        # the run log rather than dropping silently (restores the #381 AC4 near-miss breadcrumb).
+        echo "::warning::efficiency-trace.sh --persist: fix-commit ${sha} nearly matches a recovered review-fix family but has no end-or-space boundary ('${subj}'); not a recovery candidate — skipping" >&2; continue ;;
+      *) continue ;;                             # unrelated commit — silently skip
     esac
-    # Already recorded by another run's workpad (real or previously synthesized,
-    # tmp or durable copy) — never re-attribute it to this run (the double-count
-    # guard; checked BEFORE duplicate-N dedupe so an excluded commit does not
-    # consume its iteration number and shadow this run's own commit with that N).
+    # Already recorded by another run's workpad — never re-attribute it (double-count guard).
+    # Checked BEFORE the numbered duplicate-N dedupe so an excluded commit never consumes its
+    # iteration number and shadows this run's own commit with that N; covers numbered + unnumbered.
     case " $excl " in
       *" $sha "*) echo "::warning::efficiency-trace.sh --persist: fix-commit ${sha} is already recorded by another run's iter-*.json workpad; skipping so it is not double-counted" >&2; continue ;;
     esac
+    if [ -n "$is_unnumbered" ]; then
+      # Buffer oldest-first; the generated label is allocated after the loop (it must
+      # sit above the highest accepted explicit N, unknown until every line is read).
+      unnumbered_shas="${unnumbered_shas}${sha} "
+      continue
+    fi
     n="${subj#"$FIX_COMMIT_SUBJECT_PREFIX"}"      # -> " N)"
     n="${n# }"                                    # drop one leading space
     # Read the token up to the FIRST ')' — do not require the subject to END there
@@ -548,7 +562,16 @@ select_fix_commits() {
       *" $n "*) echo "::warning::efficiency-trace.sh --persist: duplicate iteration ${n} (fix-commit ${sha}); keeping the first occurrence, skipping this one" >&2; continue ;;
     esac
     seen_ns="${seen_ns}${n} "
+    [ "$n" -gt "$max_n" ] && max_n="$n"           # track the highest accepted explicit N
     printf '%s\t%s\n' "$n" "$sha"
+  done
+  # Allocate generated storage labels to the buffered unnumbered commits: oldest-first,
+  # starting above the highest accepted explicit N (max_n stays 0 for an unnumbered-only
+  # population, so the first label is 1). Deterministic given the same input.
+  next_label=$((max_n + 1))
+  for usha in $unnumbered_shas; do
+    printf '%s\t%s\n' "$next_label" "$usha"
+    next_label=$((next_label + 1))
   done
   return 0
 }
@@ -622,6 +645,18 @@ synthesize_iter_workpads() {
   fi
   if ! base="$(synth_base_ref "$root")"; then
     echo "::warning::efficiency-trace.sh --persist: could not resolve a base branch ref (the warning above names the tried value); cannot select fix commits for synthesis" >&2
+    return 3
+  fi
+  # Shallow-repository guard (#301): base..HEAD recovery is untrustworthy in a shallow clone.
+  # Decline unless the probe is exactly `false`: `!= false` fails CLOSED (true/empty/unexpected
+  # decline, rc 3), whereas `== true` would fail OPEN on an empty/unexpected value. No auto-deepen.
+  local shallow_state
+  if ! shallow_state="$(git -C "$root" rev-parse --is-shallow-repository 2>/dev/null)"; then
+    echo "::warning::efficiency-trace.sh --persist: could not determine shallow state (git rev-parse --is-shallow-repository failed); whether matching fix commits exist was never established, so no synthesized iter-*.json is written this run" >&2
+    return 3
+  fi
+  if [ "$shallow_state" != false ]; then
+    echo "::warning::efficiency-trace.sh --persist: the repository is a SHALLOW clone (git rev-parse --is-shallow-repository='${shallow_state}'); history-based fix-commit synthesis cannot trust base..HEAD, so no synthesized iter-*.json is written this run (deepen the clone and retry — recovery remains available after full history)" >&2
     return 3
   fi
   # Capture the log BEFORE parsing, checking its own exit status: a failed
@@ -866,7 +901,7 @@ do_self_check() {
   root="$(devflow_repo_root)"
   # No iter-*.json workpad at all → per-iteration telemetry was never captured.
   if [ ! -d "$WORKPAD_DIR" ] || ! compgen -G "$WORKPAD_DIR"/iter-*.json >/dev/null 2>&1; then
-    echo "::warning::devflow review-and-fix self-check: NO iter-*.json workpad was written for run ${SLUG}/${run_id} — per-iteration effectiveness telemetry was not captured this run; recover a minimal floor with 'lib/efficiency-trace.sh --persist --workpad-dir ${WORKPAD_DIR} --slug ${SLUG}' (the targeted form — bare discovery-mode --persist can decline this dir on a multi-slug or not-latest skip), which synthesizes an iteration record from this branch's unrecorded 'fix: address review findings (iteration N)' commits when any exist." >&2
+    echo "::warning::devflow review-and-fix self-check: NO iter-*.json workpad was written for run ${SLUG}/${run_id} — per-iteration effectiveness telemetry was not captured this run; recover a minimal floor with 'lib/efficiency-trace.sh --persist --workpad-dir ${WORKPAD_DIR} --slug ${SLUG}' (the targeted form — bare discovery-mode --persist can decline this dir on a multi-slug or not-latest skip), which synthesizes an iteration record from this branch's unrecorded review-fix commits — the numbered 'fix: address review findings (iteration N)' family and the unnumbered 'fix: address review findings' / 'fix: address shadow review findings' families — when any exist." >&2
     # The dispatch-corroboration summary (issue #115) prints on every post-gate
     # exit path — checked=0 warnings=0 when the run held no iteration record — so a
     # clean pass is distinguishable from a refused fence on stdout.
@@ -1147,7 +1182,7 @@ persist_one() {
         echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json; matching fix commits were selected but every synthesized record write failed (see the per-commit warnings above, which carry the actual jq error text — disk/permissions, a malformed jq program, or on the cloud tier the sandbox's redirect-write denial into .prflow/tmp) — telemetry not synthesized" >&2
         return 0 ;;
       2)
-        echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json and no unrecorded 'fix: address review findings (iteration N)' commits were found — per-iteration effectiveness telemetry was not captured this run; nothing to synthesize" >&2
+        echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json and no unrecorded review-fix commit of any recovered family (numbered 'fix: address review findings (iteration N)', or unnumbered 'fix: address review findings' / 'fix: address shadow review findings') was found — per-iteration effectiveness telemetry was not captured this run; nothing to synthesize" >&2
         return 0 ;;
       *)
         # Unknown is not zero: an rc outside the 0/2/3/4 contract (a signal, a
@@ -2006,7 +2041,7 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
     elif [ "$_tel_rc" -ne 1 ]; then
       # Catch-all: an exit outside the predicate's {0,1,2} contract means the
       # interpreter itself broke. Announcing it is what stops this gate failing
-      # open in silence, as the sibling collect-staged-telemetry.sh already does.
+      # open in silence.
       echo "devflow: efficiency-trace.sh --persist: the telemetry.enabled predicate exited $_tel_rc, outside its {0,1,2} contract — the master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
     fi
   fi
@@ -2153,8 +2188,8 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
     # an expired credential, a contended refs/remotes/origin/<base>.lock from a sibling
     # worktree's concurrent --persist): none is distinguishable from the failure alone, and
     # the safe direction for a defect whose entire signature is a plausible-looking WRONG
-    # record is to write nothing. --persist fires from the Stop hook on every stop, so a
-    # transient failure's next re-attempt is seconds away; both are recorded residuals.
+    # record is to write nothing. --persist fires from the Loop-Exit fences and the cloud
+    # backstop step, so a transient failure's next re-attempt is close; both are recorded residuals.
     if _base_remote_line="$(GIT_TERMINAL_PROMPT=0 git -C "$root" ls-remote --heads origin "$_DEVFLOW_BASE_BRANCH" 2>/dev/null)"; then
       if [ -z "$_base_remote_line" ]; then
         # The remote AUTHORITATIVELY carries no such branch, so any lingering
@@ -2406,8 +2441,9 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
     0) rm -rf "$_TELEMETRY_STAGE" 2>/dev/null || true ;;   # clean (pushed / no-op / nothing staged): delete is gated to rc 0 ONLY so `git status`, HEAD, and the current branch stay byte-for-byte unchanged (#469 AC13, #441 AC2), and no non-clean result can reach it (#469 AC8, fail-closed)
     2)
       # Staging-only (AC5): the operand breadcrumb already fired in telemetry-branch.sh.
-      # RETAIN the staged tree (the trusted telemetry-push relay — telemetry-push.yml, issue
-      # #489 — uploads+pushes it); do not delete and do not emit a second warning — the
+      # RETAIN the staged tree for manual recovery (the trusted telemetry-push relay —
+      # telemetry-push.yml, issue #489 — that formerly uploaded+pushed it has been removed);
+      # do not delete and do not emit a second warning — the
       # intended read-only-review posture, not a degradation.
       : ;;
     *)
@@ -2419,10 +2455,10 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
       # retention for every value that is not an explicit clean 0). One ::warning:: names
       # the absolute path; bounded by the newest-N prune at the top of do_persist, so
       # retained roots cannot accumulate without limit. On an ephemeral CI runner the
-      # filesystem does not survive teardown, so on-disk retention is moot there — the
-      # trusted telemetry-push relay (telemetry-push.yml, issue #489) is the cloud recovery
-      # path, pushing the uploaded workflow artifact rather than any on-disk copy (see docs).
-      echo "::warning::efficiency-trace.sh --persist: the telemetry-branch write DEGRADED — RETAINING the staged records at '${_TELEMETRY_STAGE}' so they are recoverable (delete once recovered; a bounded newest-${_keep} prune runs each --persist). On an ephemeral CI runner the filesystem does not survive teardown, so recovery there is not on-disk — the trusted telemetry-push relay (telemetry-push.yml, issue #489) pushes the staged records from the uploaded workflow artifact." >&2 ;;
+      # filesystem does not survive teardown, so on-disk retention is moot there — and the
+      # trusted telemetry-push relay (telemetry-push.yml, issue #489) that formerly pushed the
+      # uploaded workflow artifact has been removed, so there is no cloud recovery path (see docs).
+      echo "::warning::efficiency-trace.sh --persist: the telemetry-branch write DEGRADED — RETAINING the staged records at '${_TELEMETRY_STAGE}' so they are recoverable (delete once recovered; a bounded newest-${_keep} prune runs each --persist). On an ephemeral CI runner the filesystem does not survive teardown, so recovery there is not on-disk, and the trusted telemetry-push relay that formerly pushed the uploaded workflow artifact has been removed." >&2 ;;
   esac
   return 0
 }

@@ -43,7 +43,7 @@ Use this glossary to read PRFlow's own output without knowing how the product is
 
 **Iteration**: One pass of the review-and-fix loop: review, fix what qualifies, then review again.
 
-**Local run**: A PRFlow skill executed in the user's active Claude Code session.
+**Local run**: A PRFlow skill executed in the user's active Claude Code or Codex session.
 
 **Post-merge verification**: An acceptance check that requires a deployed or otherwise genuinely live environment, and so must run after merge.
 

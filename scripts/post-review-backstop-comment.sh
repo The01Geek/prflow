@@ -46,7 +46,6 @@ PR_NUMBER="${PR_NUMBER:-}"
 HEAD_SHA="${HEAD_SHA:-}"
 
 RRB=.prflow/vendor/prflow/scripts/request-review-backstop.sh
-[ -f "$RRB" ] || RRB=scripts/request-review-backstop.sh
 if [ ! -f "$RRB" ]; then
   echo "::warning::review stall backstop: request-review-backstop.sh absent at $RRB; no auto-resume (degrades to the pre-existing dead-end flip)."
   exit 0
@@ -97,7 +96,6 @@ BODY_FILE="$(mktemp)" || {
   printf '/devflow:review\n'
 } > "$BODY_FILE"
 POST=.prflow/vendor/prflow/scripts/post-issue-comment.sh
-[ -f "$POST" ] || POST=scripts/post-issue-comment.sh
 if [ ! -f "$POST" ]; then
   echo "::warning::review stall backstop: post-issue-comment.sh absent at $POST; re-trigger comment not posted for PR #$PR_NUMBER (auto-resume did not fire; degrades to the dead-end flip)."
   rm -f "$BODY_FILE"

@@ -1,30 +1,31 @@
 ---
 title: "Local Runs"
-description: "Run PRFlow interactively from a Claude Code session in your own checkout."
+description: "Run PRFlow interactively from a Claude Code or Codex session in your own checkout."
 ---
 
-Run PRFlow directly from Claude Code. A local run is the fastest way to start, and it needs no GitHub Actions workflow and no repository secret.
+Run PRFlow directly from Claude Code or Codex. A local run is the fastest way to start, and it needs no GitHub Actions workflow and no repository secret.
 
 ## Run Your First Local Command
 
 <Steps>
-  <Step title="Open Claude Code Inside the Repository">
+  <Step title="Open Your Coding Client Inside the Repository">
     Start the session from anywhere inside the target Git checkout.
 
     ```bash
     cd ~/code/acme-api
-    claude
+    claude # or: codex
     ```
   </Step>
   <Step title="Enter a Namespaced Command">
-    Every PRFlow command starts with `/prflow:`.
+    Claude Code uses `/prflow:`. Codex uses `$prflow:` or its `/skills` picker.
 
     ```text
-    /prflow:implement 123
+    /prflow:implement 123      # Claude Code
+    $prflow:implement 123      # Codex
     ```
   </Step>
   <Step title="Answer the Permission Prompts">
-    Claude Code asks before it edits files, runs a command or calls `gh`. Approve only what the workflow needs. See [Local Permissions](/docs/runs/local/permissions).
+    Your coding client asks before it edits files, runs a command or calls `gh`. Approve only what the workflow needs. See [Local Permissions](/docs/runs/local/permissions).
   </Step>
   <Step title="Watch the Run Report Its Progress">
     An implementation run leaves three things behind:
@@ -46,7 +47,7 @@ Run PRFlow directly from Claude Code. A local run is the fastest way to start, a
 - The repository and Git root discovered from the current directory.
 - Your authenticated GitHub CLI identity.
 - The tests, linters and development tools already installed on the machine.
-- Claude Code's permission system and your answers to it.
+- Your coding client's permission system and your answers to it.
 - Built-in configuration defaults, plus `.prflow/config.json` overrides when the file is present.
 
 Repository initialization with `/prflow:init` is recommended so you can customize behavior, but a local run works without it.

@@ -42,7 +42,7 @@
             "group": "Workflows",
             "pages": [
               "docs/workflows/index",
-              "docs/workflows/create-issue",
+              "docs/workflows/spec",
               "docs/workflows/implement",
               "docs/workflows/review",
               "docs/workflows/review-and-fix",

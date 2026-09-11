@@ -26,7 +26,8 @@ Writes one JSON line per merged PR into `.prflow/learnings/experiment-records.js
     `git show <merge_sha>:.prflow/config.json` fallback, with the source marked).
 
 Design invariants:
-  * IDEMPOTENT — re-running replaces a PR's line, keyed by PR number (one line per PR).
+  * IDEMPOTENT — re-running replaces a record's line, keyed by the repository-qualified
+    `pr_key` (`repo#pr`), one line per PR.
   * INCREMENTAL — processes the scan window (`--prs`) plus any merged PR present in the
     retrospective store but absent from the experiment store; never a full-history
     sweep of already-stored PRs per invocation.
@@ -1620,11 +1621,11 @@ def main(argv=None):
 
     repo = _resolve_repo()
     if repo is None:
-        _warn("could not resolve owner/repo (DEVFLOW_REPO and GITHUB_REPOSITORY unset, "
-              "gh repo view failed). Every store key and every gh join is "
-              "repository-qualified, so an unresolved repository would write records "
-              "that silently collide with another repository's same-numbered work. "
-              "Set DEVFLOW_REPO or GITHUB_REPOSITORY, or authenticate gh.")
+        _warn("could not resolve owner/repo (GITHUB_REPOSITORY unset, gh repo view "
+              "failed). Every store key and every gh join is repository-qualified, so "
+              "an unresolved repository would write records that silently collide with "
+              "another repository's same-numbered work. Set GITHUB_REPOSITORY, or "
+              "authenticate gh.")
         return 2
     legacy_repo = _legacy_record_repo()
 

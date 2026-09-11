@@ -1,0 +1,620 @@
+name: PRFlow (retrospective)
+
+# PRFlow-owned WEEKLY SCHEDULED retrospective listener (issue #93). Runs
+# /prflow:retrospective-weekly headlessly every Sunday at 05:23 UTC and on manual
+# dispatch from the Actions tab. It mirrors devflow-implement.yml's job shape — a
+# `config` job that checks out the default branch and reads the enable toggle
+# fail-closed, an App token minted above the checkout and seeded as the checkout
+# credential, and `runs-on` resolved from the consumer's DEVFLOW_RUNNER variable —
+# so the scheduled path shares the two comment-triggered workflows' security shape.
+#
+# GATE: the sole gate on the scheduled path is the per-workflow config key
+# workflows["prflow-retrospective"], read boolean-typed from the DEFAULT BRANCH's
+# .prflow/config.json at trigger time. Only the JSON boolean `true` enables — the
+# key absent, `false`, or any other shape (a string "true" included) ends the run
+# with the retrospective skipped, so consumers are opted out by default and pay no
+# Actions or Claude cost until they opt in. prflow_retrospective.enabled is NOT
+# consulted here (it tunes the loop's behavior, on every tier); this key alone
+# gates the scheduled run.
+#
+# The `schedule` event has no triggering actor, so authorize-actor.sh has no input
+# to gate — the config key is the entire gate on the scheduled path.
+# workflow_dispatch is additionally governed by GitHub's own Actions-tab
+# repository-permission rules.
+
+on:
+  schedule:
+    # 23 5 * * 0 — Sundays 05:23 UTC. Do NOT convert this to a local time (cron is read as
+    # UTC), move it onto the hour (GitHub drops runs queued into the start-of-hour congestion
+    # window), or move it off Sunday (a mid-week fire splits the week of PRs the scan covers).
+    - cron: "23 5 * * 0"
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+# A single concurrency group covers BOTH triggers so a manual dispatch and a
+# scheduled fire of this workflow never run their retrospective jobs at the same
+# time. Not cancel-in-progress: a running weekly loop should finish rather than be
+# killed by an overlapping dispatch.
+concurrency:
+  group: devflow-retrospective
+  cancel-in-progress: false
+
+# Least-privilege floor. Jobs that need more declare it themselves and override this.
+permissions:
+  contents: read
+
+jobs:
+  config:
+    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || format(vars.DEVFLOW_RUNNER, github.run_id)) || 'ubuntu-latest' }}
+    outputs:
+      enabled: ${{ steps.extract.outputs.enabled }}
+      base_branch: ${{ steps.extract.outputs.base_branch }}
+      claude_model: ${{ steps.extract.outputs.claude_model }}
+      allowed_bots: ${{ steps.extract.outputs.allowed_bots }}
+      effort: ${{ steps.extract.outputs.effort }}
+      allowed_tools_extra: ${{ steps.extract.outputs.allowed_tools_extra }}
+      prflow_version: ${{ steps.extract.outputs.prflow_version }}
+      prflow_repo: ${{ steps.extract.outputs.prflow_repo }}
+      claude_code_executable: ${{ steps.extract.outputs.claude_code_executable }}
+      config_json: ${{ steps.cfg.outputs.json }}
+    steps:
+      # Per-trigger checkout ref (issue #93): do NOT collapse this to
+      # github.event.repository.default_branch — it is UNSET in a `schedule` payload,
+      # whose runs execute on the default branch that github.ref_name already names.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'schedule' && github.ref_name || github.event.repository.default_branch }}
+      - id: cfg
+        uses: ./.github/actions/read-project-config
+      - id: extract
+        env:
+          CONFIG_JSON: ${{ steps.cfg.outputs.json }}
+        run: |
+          set -euo pipefail
+          # Boolean-typed, fail-closed enable read (issue #93): ONLY the JSON boolean
+          # `true` enables. The sibling workflows' `// false` read is deliberately NOT
+          # mirrored — it resolves a string "true" to enabled and cannot satisfy the
+          # opt-in-by-default contract. A non-object `workflows` value reads disabled.
+          ENABLED=$(echo "$CONFIG_JSON" | jq -r 'if ((.workflows | type) == "object") and (.workflows["prflow-retrospective"] == true) then "true" else "false" end')
+          # STRAY SUPERSEDED FAMILY DETECTION (issue #1083) — advisory, deliberately NOT
+          # gated on the enable read. A stray superseded top-level devflow* family beside
+          # a canonical prflow* family is a half-migrated config whose stray keys resolve
+          # to their `// default` everywhere. Matched by SHAPE (`^devflow(_|$)`), never
+          # spelled out — the freshness gate in scaffold-config.sh marks a workflow stale
+          # on a superseded-key literal, and a guard must not defeat another guard.
+          # `keys` (not `//`) keeps a valid-falsy stray value visible (issue #312). The
+          # superseded-key `::error::` gate the two comment-triggered config jobs carry is
+          # deliberately NOT copied: workflows["prflow-retrospective"] is a new key with no
+          # superseded devflow-era ancestor for that probe to detect.
+          STRAY_FAMILIES=$(echo "$CONFIG_JSON" | jq -r '
+            if type != "object" then ""
+            else
+              (keys) as $k
+              | (any($k[]; test("^prflow(_|$)"))) as $has_canon
+              | if $has_canon then ($k | map(select(test("^devflow(_|$)"))) | join(" ")) else "" end
+            end')
+          # Bash builtin word-splitting selects the emitted arm — no non-preflight PATH
+          # tool decides the result. One warning per stray family, naming it and the remedy.
+          if [ -n "$STRAY_FAMILIES" ]; then
+            for fam in $STRAY_FAMILIES; do
+              echo "::warning::.prflow/config.json carries the superseded top-level config key '$fam' beside a canonical prflow* family. Its keys are ignored — they resolve to their built-in defaults, so any tool grant, allowlist narrowing, or provider selection written under '$fam' silently does nothing. Run /prflow:init to migrate the Tier 1 config keys, then delete the stray '$fam' object."
+            done
+          fi
+          {
+            echo "enabled=$ENABLED"
+            echo "base_branch=$(echo "$CONFIG_JSON" | jq -r '.base_branch')"
+            echo "claude_model=$(echo "$CONFIG_JSON" | jq -r '.claude_model')"
+            # allowed_bots is forwarded for parity with the sibling claude jobs' action
+            # input; the scheduled path has no triggering actor to authorize, so an empty
+            # value is not a fail-loud condition here.
+            echo "allowed_bots=$(echo "$CONFIG_JSON" | jq -r '.prflow.allowed_bots // empty')"
+            # Effort: the retrospective is heavy (per-PR and per-pattern subagents), so it
+            # defaults high, honoring a per-family override if a consumer sets one.
+            echo "effort=$(echo "$CONFIG_JSON" | jq -r '.prflow_retrospective.effort // .prflow.effort // "high"')"
+            # Repo-specific extra allowlist, appended after the generated base list in the
+            # claude job's claude_args. Emits a leading-comma string or "".
+            echo "allowed_tools_extra=$(echo "$CONFIG_JSON" | jq -r '.prflow.allowed_tools // [] | if length > 0 then "," + join(",") else "" end')"
+            echo "prflow_version=$(echo "$CONFIG_JSON" | jq -r '.prflow_version // empty')"
+            # Repository the fetch branch clones (issue #228). A missing key, empty
+            # string, null, boolean, number, array, or object all resolve to empty
+            # (the public repository); only a non-empty string passes through.
+            echo "prflow_repo=$(echo "$CONFIG_JSON" | jq -r 'try (.prflow_repo | strings | select(. != "")) catch empty')"
+          } >> "$GITHUB_OUTPUT"
+          # Warn on a non-string, non-null prflow_repo (null and missing are silent).
+          PRFLOW_REPO_TYPE=$(echo "$CONFIG_JSON" | jq -r 'if (.prflow_repo != null) and ((.prflow_repo | type) != "string") then (.prflow_repo | type) else empty end')
+          if [ -n "$PRFLOW_REPO_TYPE" ]; then
+            echo "::warning::prflow_repo has non-string JSON type '$PRFLOW_REPO_TYPE' in .prflow/config.json; treating it as empty (the public repository)"
+          fi
+          # Optional pre-installed Claude Code executable path (issue #601); rejected
+          # shapes fall back to empty (auto-install), with a ::warning:: on a non-empty
+          # raw value that resolved to empty. Mirrors the sibling config jobs.
+          CLAUDE_CODE_EXECUTABLE_RAW=$(echo "$CONFIG_JSON" | jq -r 'try (.setup.claude_code_executable | select(. != null) | tostring | select(. != "") | "set") catch "set"')
+          CLAUDE_CODE_EXECUTABLE=$(echo "$CONFIG_JSON" | jq -r 'try (.setup.claude_code_executable // empty | strings | select(test("[\n\r]") | not) | select(test("^[[:space:]]*$") | not)) catch empty')
+          if [ -n "$CLAUDE_CODE_EXECUTABLE_RAW" ] && [ -z "$CLAUDE_CODE_EXECUTABLE" ]; then
+            echo "::warning::setup.claude_code_executable is set but was rejected (non-string leaf, embedded newline/CR, or whitespace-only); falling back to the action's automatic Claude Code install."
+          fi
+          echo "claude_code_executable=$CLAUDE_CODE_EXECUTABLE" >> "$GITHUB_OUTPUT"
+
+  # State-PR guard (issue #93): the retrospective's processed-PR record advances only
+  # when a run's state PR (devflow/learnings-<date>) is merged into the default branch
+  # by a human. When an unmerged state PR is open, running the loop again re-processes
+  # the same week, so this guard skips the retrospective and instead ensures exactly
+  # one open reminder issue exists (filed once, not weekly). With no open state PR the
+  # guard proceeds and the retrospective job runs.
+  guard:
+    needs: config
+    if: ${{ needs.config.outputs.enabled == 'true' }}
+    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || format(vars.DEVFLOW_RUNNER, github.run_id)) || 'ubuntu-latest' }}
+    permissions:
+      contents: read   # checkout the vendored guard helper
+      issues: write     # ensure the single reminder issue
+      pull-requests: read  # detect an open devflow/learnings-* state PR
+    outputs:
+      proceed: ${{ steps.guard.outputs.proceed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'schedule' && github.ref_name || github.event.repository.default_branch }}
+      - uses: ./.github/actions/vendor-plugin
+        with:
+          ref: ${{ needs.config.outputs.prflow_version }}
+          repo: ${{ needs.config.outputs.prflow_repo }}
+          token: ${{ secrets.PRFLOW_REPO_TOKEN || github.token }}
+      - id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          GUARD=.prflow/vendor/prflow/scripts/retrospective-state-guard.sh
+          # Fail CLOSED (proceed=false) if the guard helper was not vendored: a run that
+          # cannot check for an open state PR must not re-process the week. An absent
+          # helper is a broken/old vendor tree, so it names prflow_version as the remedy.
+          if [ ! -f "$GUARD" ]; then
+            echo "::error::retrospective state guard not found at $GUARD — has install.sh vendored the plugin at the pinned prflow_version? Skipping the retrospective this run." >&2
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          bash "$GUARD" >> "$GITHUB_OUTPUT"
+
+  retrospective:
+    needs: [config, guard]
+    if: ${{ needs.config.outputs.enabled == 'true' && needs.guard.outputs.proceed == 'true' }}
+    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || format(vars.DEVFLOW_RUNNER, github.run_id)) || 'ubuntu-latest' }}
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: write # actions/cache save needs a writable scope
+      checks: read # fetch-pr-context.sh reads commits/*/check-runs (the retrospective scan's CI-context reads)
+    env:
+      # Authorize the Stop-hook --persist telemetry PUSH on this WRITABLE tier
+      # (issue #469). Job-level so it reaches the Stop-hook subprocess claude-code-action
+      # spawns. Kept in sync with the sibling claude jobs.
+      DEVFLOW_TELEMETRY_PUSH: '1'
+    steps:
+      # Mint a workflow-capable App installation token (Contents + Workflows write) so
+      # the loop's state-PR push and issue filing run under the App rather than
+      # github-actions[bot]. Gated on the DEVFLOW_APP_ID variable; unset → skipped and
+      # the checkout token + github_token fall back to GITHUB_TOKEN. MUST precede the
+      # checkout, whose token: it feeds (issue #357). Kept in sync with the sibling jobs.
+      - name: Mint workflow-capable token (optional)
+        id: app-token
+        if: ${{ vars.DEVFLOW_APP_ID != '' }}
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.DEVFLOW_APP_ID }}
+          private-key: ${{ secrets.DEVFLOW_APP_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'schedule' && github.ref_name || github.event.repository.default_branch }}
+          # LOAD-BEARING (issue #357): the credential actions/checkout persists here is
+          # what `git push` authenticates with — NOT the github_token handed to the
+          # action below. Seed the App token so a push touching .github/workflows/ (and
+          # every ordinary push) authenticates as the App. Skipped mint → GITHUB_TOKEN.
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/vendor-plugin
+        with:
+          ref: ${{ needs.config.outputs.prflow_version }}
+          repo: ${{ needs.config.outputs.prflow_repo }}
+          token: ${{ secrets.PRFLOW_REPO_TOKEN || github.token }}
+
+      # Incomplete-vendor guard for the grounding renderer — fail here rather than
+      # launching an agent whose prompt carries no engine-ground-truth block. Probed
+      # vendored-then-repo-root, exactly as the compose step resolves it.
+      - name: Validate vendored grounding renderer
+        run: |
+          set -euo pipefail
+          if [ ! -f .prflow/vendor/prflow/scripts/render-grounding-block.sh ]; then
+            echo "::error::incomplete vendor: render-grounding-block.sh is missing from .prflow/vendor/prflow/scripts/ after materialization — this run's prompt would carry no engine-ground-truth block, its only statement of the headless-run discipline and of the commands it may execute. Repair the committed .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Failing BEFORE Run Claude Code rather than launching an ungrounded agent." >&2
+            exit 1
+          fi
+
+      - id: cfg
+        uses: ./.github/actions/read-project-config
+      - uses: ./.github/actions/setup-project-env
+        with:
+          config_json: ${{ steps.cfg.outputs.json }}
+          lint_mode: none
+
+      # Resolve the model provider via the single-sourced inline jq RESOLVER, kept
+      # byte-identical across the shipped workflows (lib/test/run.sh pins its identity);
+      # only the --arg section value differs.
+      - name: Resolve model provider
+        id: provider
+        env:
+          CONFIG_JSON: ${{ steps.cfg.outputs.json }}
+          SECTION: prflow
+        run: |
+          set -euo pipefail
+          # devflow-provider-resolver BEGIN (single-sourced; keep byte-identical across the cloud workflows — lib/test/run.sh pins it)
+          RESOLVER='
+          (if (. | type) == "object" then . else {} end) as $cfg
+          | (if (($cfg[$section]) | type) == "object" then $cfg[$section] else {} end) as $sec
+          | ($sec.provider) as $praw
+          | (if (($sec.claude_model) | type) == "string" and ($sec.claude_model != "") then $sec.claude_model else ($cfg.claude_model // "") end) as $model
+          | if ($praw == null or $praw == "") then
+              {provider:"", base_url:"", auth:"", timeout_ms:"", effort_supported:true, model:$model, env:{}}
+            elif (($praw) | type) != "string" then
+              {error:"invalid_provider", section:$section, provider:"", detail:"section provider must be a string"}
+            else
+              (if (($cfg.providers) | type) == "object" then $cfg.providers else {} end) as $provs
+              | if (($provs[$praw]) | type) != "object" then
+                  {error:"undefined_provider", section:$section, provider:$praw, detail:"provider is not defined in the providers map"}
+                elif (($provs[$praw].auth) as $a | ($a != "bearer" and $a != "api_key" and $a != "bedrock_api_key")) then
+                  {error:"incomplete_provider", section:$section, provider:$praw, detail:"provider auth must be one of bearer, api_key, bedrock_api_key"}
+                elif (($provs[$praw].auth) as $a | (($a == "bearer" or $a == "api_key") and ((($provs[$praw].base_url) | type) != "string" or ($provs[$praw].base_url == "")))) then
+                  {error:"incomplete_provider", section:$section, provider:$praw, detail:"provider entry has no base_url"}
+                else
+                  ($provs[$praw]) as $p
+                  | {provider:$praw, base_url:(if (($p.base_url) | type) == "string" then $p.base_url else "" end), auth:$p.auth, timeout_ms:($p.timeout_ms // ""), effort_supported:(($p.effort_supported // false) == true), model:$model, env:(if (($p.env) | type) == "object" then $p.env else {} end)}
+                end
+            end
+          '
+          # devflow-provider-resolver END
+          DECISION=$(printf '%s' "$CONFIG_JSON" | jq -c --arg section "$SECTION" "$RESOLVER")
+          if [ -z "$DECISION" ]; then
+            echo "::error::provider resolver produced no decision for section '$SECTION' (empty config input?). Refusing to run."
+            exit 1
+          fi
+          if [ "$(printf '%s' "$DECISION" | jq -r '.error // ""')" != "" ]; then
+            PNAME=$(printf '%s' "$DECISION" | jq -r '.provider // ""')
+            DETAIL=$(printf '%s' "$DECISION" | jq -r '.detail // "provider configuration is invalid"')
+            echo "::error::.prflow/config.json section '$SECTION' provider '$PNAME': $DETAIL. Fix the providers.$PNAME entry or remove the section provider key. Refusing to run."
+            exit 1
+          fi
+          sdelim="OUT_EOF_$(date +%s%N)_$$"
+          printf '%s' "$DECISION" | jq -r --arg d "$sdelim" '
+            ["provider","model","auth","base_url","timeout_ms","effort_supported"][] as $k
+            | "\($k)<<\($d)", "\(.[$k])", $d' >> "$GITHUB_OUTPUT"
+          delim="DEC_EOF_$(date +%s%N)_$$"
+          {
+            printf 'decision<<%s\n' "$delim"
+            printf '%s\n' "$DECISION"
+            printf '%s\n' "$delim"
+          } >> "$GITHUB_OUTPUT"
+
+      # Inject the provider endpoint into the JOB env — ONLY when a provider is active.
+      # Byte-identical to the sibling workflows' inject step (lib/test/run.sh pins the
+      # security-guard shape); the SECTION operand matches the resolver above.
+      - name: Inject provider endpoint (provider-routed sections only)
+        if: ${{ steps.provider.outputs.provider != '' }}
+        env:
+          DECISION: ${{ steps.provider.outputs.decision }}
+          AUTH: ${{ steps.provider.outputs.auth }}
+          BASE_URL: ${{ steps.provider.outputs.base_url }}
+          TIMEOUT_MS: ${{ steps.provider.outputs.timeout_ms }}
+          PROVIDER: ${{ steps.provider.outputs.provider }}
+          PROVIDER_API_KEY: ${{ secrets.DEVFLOW_PROVIDER_API_KEY }}
+          SECTION: prflow
+        run: |
+          set -euo pipefail
+          if [ -z "$PROVIDER_API_KEY" ]; then
+            echo "::error::.prflow/config.json section '$SECTION' selects provider '$PROVIDER' but the DEVFLOW_PROVIDER_API_KEY repository secret is empty. Set that secret (the provider API key) before running a provider-routed job. Refusing to run."
+            exit 1
+          fi
+          if printf '%s' "$DECISION" | jq -e '.env | keys[] | select(test("^[A-Za-z_][A-Za-z0-9_]*$") | not)' >/dev/null 2>&1; then
+            echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' has an env-map key that is not a valid environment variable name ([A-Za-z_][A-Za-z0-9_]*). Fix the providers.$PROVIDER.env keys. Refusing to run."
+            exit 1
+          fi
+          denied_env_keys="$(printf '%s' "$DECISION" | jq -r '[.env // {} | keys[] | select(ascii_upcase | IN("PATH","GITHUB_TOKEN","GH_TOKEN","GITHUB_ENV","GITHUB_OUTPUT","GITHUB_PATH","ANTHROPIC_API_KEY","ANTHROPIC_AUTH_TOKEN","CLAUDE_CODE_OAUTH_TOKEN","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","AWS_SESSION_TOKEN","AWS_BEARER_TOKEN_BEDROCK","BASH_ENV","ENV","LD_PRELOAD","LD_LIBRARY_PATH","DYLD_INSERT_LIBRARIES","NODE_OPTIONS","PYTHONPATH","CLAUDE_CODE_SUBAGENT_MODEL"))] | join(" ")')"
+          if [ -n "$denied_env_keys" ]; then
+            echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' env map contains forbidden key(s): $denied_env_keys — a credential name, a variable that would shadow the job environment or its Actions plumbing, an interpreter/loader hook that can make every later step load code you did not intend, or the subagent-model override that flattens the review roster. Set credentials via the DEVFLOW_PROVIDER_API_KEY repository secret, and remove these keys from providers.$PROVIDER.env. Refusing to run."
+            exit 1
+          fi
+          warned_env_keys="$(printf '%s' "$DECISION" | jq -r '[.env // {} | keys[] | select(ascii_upcase | IN("ANTHROPIC_BASE_URL","API_TIMEOUT_MS","HOME","RUNNER_TEMP"))] | join(" ")')"
+          if [ -n "$warned_env_keys" ]; then
+            echo "::warning::.prflow/config.json section '$SECTION' provider '$PROVIDER' env map sets key(s): $warned_env_keys — the env map is written last, so its value overrides the dedicated provider field (base_url/timeout_ms) or the job's own HOME/RUNNER_TEMP for every later step. The env map's value takes effect; remove these keys from providers.$PROVIDER.env if that override was not intended."
+          fi
+          genv() { local d; d="ENV_EOF_$(date +%s%N)_$$"; { printf '%s<<%s\n' "$1" "$d"; printf '%s\n' "$2"; printf '%s\n' "$d"; } >> "$GITHUB_ENV"; }
+          if [ "$AUTH" = "bedrock_api_key" ]; then
+            if ! printf '%s' "$DECISION" | jq -e '.env.AWS_REGION | strings | select(. != "")' >/dev/null 2>&1; then
+              echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' uses bedrock_api_key auth but its env map sets no AWS_REGION. Add AWS_REGION to providers.$PROVIDER.env (the Bedrock client requires a region). Refusing to run."
+              exit 1
+            fi
+            if [ -n "$BASE_URL" ]; then
+              echo "::warning::.prflow/config.json section '$SECTION' provider '$PROVIDER' uses bedrock_api_key auth; its base_url is ignored (Bedrock is reached via AWS_REGION, not base_url). Remove base_url from providers.$PROVIDER."
+            fi
+            genv AWS_BEARER_TOKEN_BEDROCK "$PROVIDER_API_KEY"
+          else
+            genv ANTHROPIC_BASE_URL "$BASE_URL"
+            if [ "$AUTH" = "bearer" ]; then genv ANTHROPIC_AUTH_TOKEN "$PROVIDER_API_KEY"; fi
+          fi
+          if [ -n "$TIMEOUT_MS" ]; then genv API_TIMEOUT_MS "$TIMEOUT_MS"; fi
+          edelim="ENV_EOF_$(date +%s%N)_$$"
+          printf '%s' "$DECISION" | jq -r --arg d "$edelim" '.env | to_entries[] | "\(.key)<<\($d)", "\(.value)", $d' >> "$GITHUB_ENV"
+
+      - name: Export provider effort capability to job env
+        env:
+          EFFORT_SUPPORTED: ${{ steps.provider.outputs.effort_supported }}
+        run: |
+          set -euo pipefail
+          printf 'PRFLOW_EFFORT_SUPPORTED=%s\n' "$EFFORT_SUPPORTED" >> "$GITHUB_ENV"
+
+      - name: Build claude_args head (model + conditional effort)
+        id: cargs
+        env:
+          MODEL: ${{ steps.provider.outputs.model }}
+          EFFORT: ${{ needs.config.outputs.effort }}
+          EFFORT_SUPPORTED: ${{ steps.provider.outputs.effort_supported }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MODEL" ]; then
+            echo "::error::claude_model is missing from .prflow/config.json (set a top-level claude_model, or a per-section claude_model). Refusing to run."
+            exit 1
+          fi
+          case "$MODEL" in
+            -*)
+              echo "::error::claude_model value is flag-shaped (leading dash) — refusing to compose claude_args (flag-injection guard; the model must be a single non-dash-leading token)."
+              exit 1 ;;
+            *[!]A-Za-z0-9._/:@[-]*)
+              echo "::error::claude_model value contains a character outside the model-id allowlist (A-Za-z0-9 . _ / : @ [ ] -) — refusing to compose claude_args (flag-injection guard)."
+              exit 1 ;;
+          esac
+          case "$EFFORT" in
+            '' | low | medium | high | xhigh | max) : ;;
+            *)
+              echo "::error::effort value is not one of low/medium/high/xhigh/max — refusing to compose claude_args (flag-injection guard)."
+              exit 1 ;;
+          esac
+          ARGS="--model $MODEL"
+          if [ "$EFFORT_SUPPORTED" = "true" ] && [ -n "$EFFORT" ]; then
+            ARGS="$ARGS --effort $EFFORT"
+          fi
+          adelim="OUT_EOF_$(date +%s%N)_$$"
+          { printf 'args<<%s\n' "$adelim"; printf '%s\n' "$ARGS"; printf '%s\n' "$adelim"; } >> "$GITHUB_OUTPUT"
+
+      # Compose the plugins/plugin_marketplaces inputs (issue #505): the baked baseline
+      # (byte-identical across the shipped workflows — run.sh pins it) PLUS the entries
+      # the trusted default-branch .claude/settings.json declares.
+      - name: Compose plugin inputs (baseline + settings-declared)
+        id: plugins
+        run: |
+          set -euo pipefail
+          BAKED_PLUGINS="$(printf '%s\n' code-review@claude-plugins-official claude-md-management@claude-plugins-official prflow@devflow-marketplace)"
+          BAKED_MARKETPLACES="$(printf '%s\n' https://github.com/anthropics/claude-plugins-official.git ./)"
+          SETTINGS=.claude/settings.json
+          HELPER=.prflow/vendor/prflow/scripts/resolve-extra-plugins.sh
+          COMPOSE=.prflow/vendor/prflow/scripts/describe-plugin-compose.sh
+          EX_P="$(mktemp)"; EX_M="$(mktemp)"; ERR_P="$(mktemp)"; ERR_M="$(mktemp)"; ENTRIES="$(mktemp)"
+          trap 'rm -f "$EX_P" "$EX_M" "$ERR_P" "$ERR_M" "$ENTRIES"' EXIT
+          if [ ! -f "$HELPER" ]; then
+            echo "::warning::devflow resolve-extra-plugins.sh not found at $HELPER — a pinned prflow_version predating issue #505 running an upgraded workflow; proceeding with the baked plugin baseline. Bump prflow_version in .prflow/config.json to compose settings-declared plugins."
+            : > "$EX_P"; : > "$EX_M"; : > "$ERR_P"; : > "$ERR_M"
+          else
+            bash "$HELPER" plugins "$SETTINGS" > "$EX_P" 2>"$ERR_P" || true
+            bash "$HELPER" marketplaces "$SETTINGS" > "$EX_M" 2>"$ERR_M" || true
+          fi
+          DEFECT=""
+          for f in "$ERR_P" "$ERR_M"; do
+            while IFS= read -r line || [ -n "$line" ]; do
+              [ -z "$line" ] && continue
+              if [ -z "$DEFECT" ]; then DEFECT="$line"; else DEFECT="$DEFECT; $line"; fi
+            done < "$f"
+          done
+          : > "$ENTRIES"
+          for f in "$EX_P" "$EX_M"; do
+            while IFS= read -r line || [ -n "$line" ]; do
+              [ -z "$line" ] && continue
+              printf '%s\n' "$line" >> "$ENTRIES"
+            done < "$f"
+          done
+          dedupe() {
+            local baseline="$1" extras="$2" seen="" line out=""
+            while IFS= read -r line || [ -n "$line" ]; do
+              [ -z "$line" ] && continue
+              case "$seen" in *"|$line|"*) ;; *) seen="$seen|$line|"; out="${out:+$out$'\n'}$line" ;; esac
+            done <<< "$baseline"
+            if [ -f "$extras" ]; then
+              while IFS= read -r line || [ -n "$line" ]; do
+                [ -z "$line" ] && continue
+                case "$seen" in *"|$line|"*) ;; *) seen="$seen|$line|"; out="${out:+$out$'\n'}$line" ;; esac
+              done < "$extras"
+            fi
+            printf '%s\n' "$out"
+          }
+          COMBINED_PLUGINS="$(dedupe "$BAKED_PLUGINS" "$EX_P")"
+          COMBINED_MK="$(dedupe "$BAKED_MARKETPLACES" "$EX_M")"
+          pdelim="PLG_EOF_$(date +%s%N)_$$"
+          { printf 'plugins<<%s\n' "$pdelim"; printf '%s\n' "$COMBINED_PLUGINS"; printf '%s\n' "$pdelim"; } >> "$GITHUB_OUTPUT"
+          mdelim="MKT_EOF_$(date +%s%N)_$$"
+          { printf 'plugin_marketplaces<<%s\n' "$mdelim"; printf '%s\n' "$COMBINED_MK"; printf '%s\n' "$mdelim"; } >> "$GITHUB_OUTPUT"
+          if [ -f "$COMPOSE" ]; then
+            if ! bash "$COMPOSE" ok "$ENTRIES" "$DEFECT"; then
+              echo "::warning::describe-plugin-compose.sh failed (rc≠0); extras (if any) were composed but the audit annotation could not be rendered."
+            fi
+          else
+            _splice=""
+            if [ -s "$ENTRIES" ]; then
+              while IFS= read -r line || [ -n "$line" ]; do
+                [ -z "$line" ] && continue
+                if [ -z "$_splice" ]; then _splice="$line"; else _splice="$_splice, $line"; fi
+              done < "$ENTRIES"
+            fi
+            if [ -n "$DEFECT" ] && [ -n "$_splice" ]; then
+              echo "::warning::.claude/settings.json has degraded entries ($DEFECT); those are skipped, the valid extras below are composed."
+              echo "::notice::Composed plugin/marketplace entries beyond the baked baseline (describe-plugin-compose.sh unavailable): $_splice"
+            elif [ -n "$DEFECT" ]; then
+              echo "::warning::.claude/settings.json is degraded ($DEFECT); proceeding with the baked plugin baseline."
+            elif [ -n "$_splice" ]; then
+              echo "::notice::Composed plugin/marketplace entries beyond the baked baseline (describe-plugin-compose.sh unavailable): $_splice"
+            fi
+          fi
+
+      # Resolve the allowed-tools string ONCE, as a step output (issue #363), so the
+      # grounding block can quote the exact string this run resolved. The TOOLS='…'
+      # literal below is a GENERATED region — do NOT hand-edit it. It is compiled from
+      # the `command` profile in lib/capability-profiles.json by
+      # tools/generators/generate-capability-profiles.py (the retrospective runs the same command
+      # profile devflow.yml serves); the banner carries the manifest_version + region
+      # sha256, and lib/test/run.sh's --check turns any manifest↔literal drift RED.
+      - name: Resolve allowed-tools
+        id: tools
+        env:
+          EXTRA: ${{ needs.config.outputs.allowed_tools_extra }}
+        run: |
+          set -euo pipefail
+          # devflow-capability-manifest: region=retrospective manifest_version=36 sha256=e7adeffab0cef782acfe9570df05bae0f468ad8b85f4e2e87f9aa7cf52af27ea
+          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git checkout:*), Bash(git cat-file:*), Bash(git hash-object:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh pr checkout:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-extension-arrival.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/retro-helper.sh:*), Bash(.prflow/vendor/prflow/lib/scan.sh:*), Bash(.prflow/vendor/prflow/lib/materialize-retrospectives.sh:*), Bash(.prflow/vendor/prflow/lib/pattern-state.sh:*), Bash(.prflow/vendor/prflow/lib/actionable-patterns.sh:*), Bash(.prflow/vendor/prflow/lib/open-state-pr.sh:*), Bash(.prflow/vendor/prflow/lib/recurring-targets.sh:*), Bash(.prflow/vendor/prflow/lib/post-status.sh:*), Bash(.prflow/vendor/prflow/lib/fetch-pr-context.sh:*), Bash(.prflow/vendor/prflow/lib/meta-issue.sh:*), Bash(.prflow/vendor/prflow/scripts/post-issue-comment.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/build-experiment-records.py:*), Bash(.prflow/vendor/prflow/scripts/implement-run-report.py:*), Bash(gh auth status:*), Bash(true:*), Bash(export:*), Bash(trap:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(mktemp:*), Bash(cmp:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(*/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(tee:*)'
+          printf 'tools=%s\n' "${TOOLS}${EXTRA}" >> "$GITHUB_OUTPUT"
+
+      # Compose the engine-ground-truth block in `generic` mode (issue #93) — the
+      # tier-agnostic sections only (permitted commands, command shapes, headless-run
+      # discipline, independent-tool-call batching). The scheduled retrospective reviews
+      # no commit, so it never renders the review-only CI/publisher/displacement
+      # sections. There is exactly ONE copy of the block: it is rendered here by the
+      # shared render-grounding-block.sh and prepended to the /prflow:retrospective-weekly
+      # prompt, never hand-copied. A renderer that resolves but prints nothing FAILS the
+      # job rather than launching an ungrounded agent.
+      - name: Compose retrospective grounding block
+        id: compose
+        env:
+          ALLOWED_TOOLS: ${{ steps.tools.outputs.tools }}
+        run: |
+          set -euo pipefail
+          RGB=.prflow/vendor/prflow/scripts/render-grounding-block.sh
+          if [ ! -f "$RGB" ]; then
+            echo "::error::devflow: render-grounding-block.sh not found at the vendored path — this run's prompt would carry no engine-ground-truth block, its only statement of the headless-run discipline and of the commands it may execute. Repair the vendored .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
+            exit 1
+          fi
+          GROUNDING=$(ALLOWED_TOOLS="$ALLOWED_TOOLS" MODE=generic bash "$RGB") || GROUNDING=""
+          if [ -z "$GROUNDING" ]; then
+            echo "::error::devflow: render-grounding-block.sh produced no output — this run's prompt would carry no engine-ground-truth block, its only statement of the headless-run discipline and of the commands it may execute. The renderer resolved at '$RGB' but printed nothing or exited non-zero: repair that copy, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
+            exit 1
+          fi
+          PROMPT="${GROUNDING}
+
+          /prflow:retrospective-weekly"
+          delim="PROMPT_EOF_$(date +%s%N)_$$"
+          { printf 'prompt<<%s\n' "$delim"; printf '%s\n' "$PROMPT"; printf '%s\n' "$delim"; } >> "$GITHUB_OUTPUT"
+
+      - name: Stamp the transcript store before the Claude step
+        if: always()
+        run: |
+          set -uo pipefail
+          # A cancelled/killed Claude step writes no execution file; this stamp's mtime is the
+          # cutoff the scrub step uses to select THIS run's own session files (issue #342).
+          STAMP="$RUNNER_TEMP/prflow-transcript-stamp"
+          : > "$STAMP"
+          echo "transcript store stamped at $STAMP"
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1.0.217 (CLI 2.1.263); @v1's 2.1.265 build breaks plugin install — anthropics/claude-code-action#1290
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          claude_code_oauth_token: ${{ steps.provider.outputs.provider == '' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          use_bedrock: ${{ steps.provider.outputs.auth == 'bedrock_api_key' && 'true' || '' }}
+          anthropic_api_key: ${{ steps.provider.outputs.provider != '' && steps.provider.outputs.auth != 'bedrock_api_key' && secrets.DEVFLOW_PROVIDER_API_KEY || '' }}
+          github_token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          allowed_bots: ${{ needs.config.outputs.allowed_bots }}
+
+          # AGENT mode with a synthesised prompt: the grounding block prepended to
+          # /prflow:retrospective-weekly. The bare-prompt fallback is unreachable in
+          # practice (the compose step fails the job rather than publishing an empty
+          # prompt); it is kept as a last line of defense.
+          prompt: ${{ steps.compose.outputs.prompt || '/prflow:retrospective-weekly' }}
+
+          additional_permissions: |
+            actions: read
+
+          # Per-command Bash ceiling + free allowance, mirroring the sibling claude jobs
+          # (the mechanism is documented beside the settings: input in
+          # devflow-implement.yml). The retrospective's Stage A/B subagent fan-out and
+          # state-PR push benefit from the same headroom.
+          settings: |
+            {
+              "env": {
+                "BASH_DEFAULT_TIMEOUT_MS": "900000",
+                "BASH_MAX_TIMEOUT_MS": "1200000"
+              }
+            }
+
+          plugin_marketplaces: ${{ steps.plugins.outputs.plugin_marketplaces }}
+          plugins: ${{ steps.plugins.outputs.plugins }}
+          base_branch: ${{ needs.config.outputs.base_branch }}
+          path_to_claude_code_executable: ${{ needs.config.outputs.claude_code_executable }}
+          claude_args: >-
+            ${{ steps.cargs.outputs.args }}
+            --allowed-tools "${{ steps.tools.outputs.tools }}"
+
+      # ── Execution-transcript artifact channel (mirrors devflow-implement.yml) ──
+      # The scheduled retrospective is the tier where a silent command denial most
+      # often ends a whole weekly run reporting success while filing nothing, and it
+      # had no transcript to diagnose that from. This mirrors the implement tier's
+      # opt-in, DEFAULT-OFF channel byte-for-byte (gate + scrub + fail-closed live in
+      # the shared scripts/scrub-transcript.sh, not inline). The D3 per-workflow
+      # inclusion decision is recorded in devflow-implement.yml beside its own copy.
+      - name: Scrub execution transcript for upload
+        id: scrub_transcript
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          set -uo pipefail
+          CG=.prflow/vendor/prflow/scripts/config-get.sh
+          # Default-OFF: only the exact string "true" enables (builtin comparison, not a
+          # sed/grep pipeline); `|| true` guards config-get's hard-fail under set -e.
+          TRANSCRIPT="$("$CG" .prflow.execution_transcript_artifact_enabled false || true)"
+          if [ "$TRANSCRIPT" != "true" ]; then
+            echo "::notice::execution transcript artifact disabled (execution_transcript_artifact_enabled != true); nothing uploaded."
+            exit 0
+          fi
+          OUT="$RUNNER_TEMP/claude-execution-scrubbed.json"
+          STAMP="$RUNNER_TEMP/prflow-transcript-stamp"
+          if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+            STORE_ROOT="$CLAUDE_CONFIG_DIR/projects"
+          else
+            STORE_ROOT="$HOME/.claude/projects"
+          fi
+          ST=.prflow/vendor/prflow/scripts/scrub-transcript.sh
+          if [ -f "$ST" ]; then
+            SCRUB_OUT="$RUNNER_TEMP/scrub-transcript-out.txt"
+            bash "$ST" "$EXECUTION_FILE" "$OUT" "$STORE_ROOT" "$STAMP" > "$SCRUB_OUT"
+            tee -a "$GITHUB_OUTPUT" < "$SCRUB_OUT"
+            # A helper predating the native-session fallback prints no source= line; warn but
+            # still upload any path= it advertised, so an old vendored tree is told apart from
+            # a new helper that found nothing (issue #342).
+            if ! grep -q '^source=' "$SCRUB_OUT"; then
+              echo "::warning::transcript scrub helper advertised no source= line (a vendored tree predating the native-session fallback); a newer prflow_version is needed to preserve a cancelled run's transcript."
+            fi
+          else
+            echo "::warning::transcript scrub inert: $ST missing (an older vendored tree); NOT uploading (fail-closed)."
+          fi
+
+      - name: Upload execution transcript artifact
+        if: always() && steps.scrub_transcript.outputs.path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-execution-transcript-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.scrub_transcript.outputs.path }}
+          retention-days: 7
+          if-no-files-found: ignore

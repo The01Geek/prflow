@@ -17,6 +17,10 @@
     "devflow-review": "prflow-review"
   },
 
+  "skill_config_keys": {
+    "create_issue": "spec"
+  },
+
   "paths": {
     "state_dir": { "superseded": ".devflow", "current": ".prflow" },
     "vendor_dir": { "superseded": ".devflow/vendor/devflow", "current": ".prflow/vendor/prflow" },
@@ -28,11 +32,39 @@
     "renamed_subtrees": [
       { "superseded": "skills/receiving-code-review", "current": "skills/fix" },
       { "superseded": ".prflow/prompt-extensions/receiving-code-review", "current": ".prflow/skill-extensions/fix" },
-      { "superseded": ".prflow/prompt-extensions", "current": ".prflow/skill-extensions" }
+      { "superseded": "skills/create-issue", "current": "skills/spec" },
+      { "superseded": ".prflow/tmp/create-issue", "current": ".prflow/tmp/spec" },
+      { "superseded": ".prflow/skill-extensions/create-issue", "current": ".prflow/skill-extensions/spec" },
+      { "superseded": ".prflow/prompt-extensions", "current": ".prflow/skill-extensions" },
+      { "superseded": "lib/generate-install-state.py", "current": "tools/generators/generate-install-state.py" },
+      { "superseded": "lib/generate-capability-profiles.py", "current": "tools/generators/generate-capability-profiles.py" },
+      { "superseded": "lib/generate-env-freeze-advisory.py", "current": "tools/generators/generate-env-freeze-advisory.py" },
+      { "superseded": "lib/generate-plugin-identity.py", "current": "tools/generators/generate-plugin-identity.py" },
+      { "superseded": "scripts/workflow_flight_recorder.py", "current": "tools/flight-recorder/workflow_flight_recorder.py" },
+      { "superseded": "scripts/verification_baseline.py", "current": "tools/flight-recorder/verification_baseline.py" },
+      { "superseded": "scripts/capture-implement-session.py", "current": "tools/flight-recorder/capture-implement-session.py" },
+      { "superseded": "scripts/capture-workflow-manifest.py", "current": "tools/flight-recorder/capture-workflow-manifest.py" },
+      { "superseded": "scripts/import-workflow-transcript.py", "current": "tools/flight-recorder/import-workflow-transcript.py" },
+      { "superseded": "scripts/inventory-workflow-transcripts.py", "current": "tools/flight-recorder/inventory-workflow-transcripts.py" },
+      { "superseded": "scripts/analyze-workflow-runs.py", "current": "tools/flight-recorder/analyze-workflow-runs.py" },
+      { "superseded": "scripts/analyze-implement-runs.py", "current": "tools/flight-recorder/analyze-implement-runs.py" },
+      { "superseded": "scripts/implement-timeline.py", "current": "tools/flight-recorder/implement-timeline.py" },
+      { "superseded": "scripts/export-workflow-lifecycle-census.py", "current": "tools/flight-recorder/export-workflow-lifecycle-census.py" },
+      { "superseded": "scripts/prompts", "current": "tools/flight-recorder/prompts" },
+      { "superseded": "scripts/ruff-version-skew.py", "current": "lib/test/ruff-version-skew.py" },
+      { "superseded": "scripts/validate-cloud-writer-contract.py", "current": "lib/test/validate-cloud-writer-contract.py" },
+      { "superseded": "scripts/workflow-flight-recorder-registry.json", "current": "lib/test/workflow-flight-recorder-registry.json" }
     ]
   },
 
   "identifiers": [
+    {
+      "id": "spec-extension-invocation",
+      "superseded": "scripts/load-prompt-extension.sh create-issue",
+      "current": "scripts/load-prompt-extension.sh spec",
+      "match": "token",
+      "detail": "The spec pipeline loads its extension by the canonical skill name (issue #216); the create-issue alias forwards without loading an extension. `token` match keeps the rule to this exact invocation so the retained pin quoting it maps across the create-issue -> spec rename."
+    },
     {
       "id": "provenance-label",
       "superseded": "DevFlow",
@@ -89,9 +121,7 @@
     "workflow_filenames": [
       "devflow.yml",
       "devflow-implement.yml",
-      "devflow-runner.yml",
-      "devflow-review.yml",
-      "telemetry-push.yml"
+      "devflow-review.yml"
     ],
     "record_paths": ["learnings/", "logs/"],
 
@@ -99,7 +129,7 @@
       "freeze_version": 1,
       "policy": "AN INVENTORY OF NAMES NOT TO RENAME. This block is NOT a rename table and must never be rendered, summarised or quoted as one. The consumer-facing DEVFLOW_* variables, secrets and environment overrides below are FROZEN under their DEVFLOW_ spelling: no PRFLOW_* read side exists anywhere in the tree, so each name is read under that spelling and only under that spelling. Renaming one does not move a setting -- it deletes it, and most of these delete it SILENTLY (each row's failure_visibility is the answer for that row; do not restate a count here, it rots the moment a row is added or its visibility is re-judged). Only a later tier that ships an actual dual read (PRFLOW_* preferred, DEVFLOW_* still accepted) can unfreeze a row, and it unfreezes it HERE, in the same change that ships the read.",
       "criterion": {
-        "_comment": "An identifier is consumer-facing iff arm A1 or arm A2 selects it. Both arms are mechanical and are implemented by `lib/generate-env-freeze-advisory.py --derive`, which the tier1-rename-migration module runs against the live tree and reconciles with this block: a name the arms select that appears in neither `identifiers` nor `adjudicated_out` turns the suite RED, and so does a recorded name the arms no longer select. So a workflow that starts reading a new vars./secrets. name, or a doc that starts declaring a new operator override, cannot enter or leave the consumer surface without an adjudication recorded here.",
+        "_comment": "An identifier is consumer-facing iff arm A1 or arm A2 selects it. Both arms are mechanical and are implemented by `tools/generators/generate-env-freeze-advisory.py --derive`, which the tier1-rename-migration module runs against the live tree and reconciles with this block: a name the arms select that appears in neither `identifiers` nor `adjudicated_out` turns the suite RED, and so does a recorded name the arms no longer select. So a workflow that starts reading a new vars./secrets. name, or a doc that starts declaring a new operator override, cannot enter or leave the consumer surface without an adjudication recorded here.",
         "A1": "Cloud channel -- the name appears as `secrets.<NAME>` or `vars.<NAME>` in a workflow install.sh ships. The consumer sets it in GitHub repository/organization settings; the tree can only read it.",
         "A2": "Operator channel -- the name is read as an ambient environment variable (a `${NAME:-...}` / `${NAME:=...}` / `$NAME` / `os.environ` read) by a shipped `install.sh` / `scripts/` / `lib/` file AND is declared in a consumer-facing document. The consumer sets it in a shell profile or an install one-liner.",
         "A2_doc_declaration_rationale": "The doc-declaration clause is what makes A2 select the OPERATOR surface rather than the harness. The read-and-never-internally-assigned mechanics alone select 25 names, almost all of them internal tuning knobs no consumer has ever been told about (DEVFLOW_REFRESH_*, DEVFLOW_TELEMETRY_MAX_*, DEVFLOW_GH_WRAPDIR, DEVFLOW_RECORDER_*, ...). An advisory that raised those to the same salience as DEVFLOW_APP_ID would bury the six names that actually matter. A name a consumer was never told to set cannot be a name a consumer renames.",
@@ -223,6 +253,16 @@
           "failure_mode": "Silent un-pin. Unresolvable, install.sh takes its `:-main` default and clones mutable `main` instead of the tag you named. The install succeeds, reports a version, and stamps `prflow_version` -- with a ref you did not choose. A consumer pinning a known-good release to avoid an upgrade gets the upgrade, and the only evidence is the version the installer echoes."
         },
         {
+          "name": "DEVFLOW_REPO",
+          "arm": "A2",
+          "channel": "operator",
+          "kind": "environment variable (install-time)",
+          "set_where": "the install one-liner -- `DEVFLOW_REPO=<owner>/<repo> bash devflow-install.sh` -- to install from, and pin the consumer's `prflow_repo` to, a fork or private engine repository instead of the public one",
+          "read_as": "`REPO=\"${DEVFLOW_REPO:-The01Geek/prflow}\"` in install.sh, which also gates the `prflow_repo` config write on `[ -n \"${DEVFLOW_REPO:-}\" ]`",
+          "failure_visibility": "silent",
+          "failure_mode": "Silent reversion to the public upstream, twice over. Unresolvable, install.sh takes its `:-The01Geek/prflow` default and clones the public repository instead of the fork or private engine you named, and its `prflow_repo` writer -- which fires only when the name resolves non-empty -- leaves the key empty, so every later cloud run's vendor step fetches the public engine too. The install succeeds and reports a version, so a repository that must run its own engine silently runs someone else's."
+        },
+        {
           "name": "DEVFLOW_SRC",
           "arm": "A2",
           "channel": "operator",
@@ -262,6 +302,16 @@
           "read_as": "`[ \"${DEVFLOW_APPLY:-}\" = \"1\" ]` in install.sh, which forces the apply mode request",
           "failure_visibility": "silent",
           "failure_mode": "Silent no-write on an upgrade. An existing install defaults to preview, so the upgrade you believe you applied only previewed: the repository is unchanged and keeps running the previous workflows and the previous pin. The run exits 0 and its last line is the ordinary dry-run notice. The equivalent `--apply` flag is unaffected."
+        },
+        {
+          "name": "DEVFLOW_ALLOW_SELF_INSTALL",
+          "arm": "A2",
+          "channel": "operator",
+          "kind": "environment variable",
+          "set_where": "your shell profile, or the invocation that runs install.sh / /prflow:init",
+          "read_as": "`[ -z \"${DEVFLOW_ALLOW_SELF_INSTALL:-}\" ]` in install.sh's self-install apply-guard and skills/init/SKILL.md's top-of-flow guard; a non-empty value lifts the refusal",
+          "failure_visibility": "silent",
+          "failure_mode": "Silent loss of the self-install bypass (issue #317). Renamed, the guard reads the bypass as empty, so an intentional self-install into PRFlow's own engine checkout -- or a repository whose own plugin coincidentally carries the accepted name -- is refused again with no sign the bypass was set: install.sh writes nothing and /prflow:init refuses at the top, exactly as if the operator had never opted in. The guard is a no-op in an ordinary consumer repo, so the loss surfaces only for the maintainer or coincidental-name consumer who set the override."
         }
       ],
       "adjudicated_out": [
@@ -270,7 +320,7 @@
           "selected_by": "A2 (read by scripts/load-prompt-extension.sh; declared in the consumer-facing docs)",
           "decided_by": "A2's never-assigned-internally clause",
           "verdict": "OUT -- not consumer-facing",
-          "evidence": "Workflow-written and consumer-read-never: `.github/workflows/devflow.yml`, `devflow-runner.yml` (and `matcher-probe.yml`) ASSIGN it, and the sole shipped reader consults it only on the branch those workflows drive. A consumer never sets it, so there is nothing for a consumer to rename. It appears in the docs precisely to explain that the cloud workflows running the review engine set it -- which is the sentence a hand-drawn list mistakes for a declaration. Issue #1075 added the devflow.yml assignment; the verdict is unchanged, because it turns on a consumer never setting the variable rather than on how many workflows do."
+          "evidence": "Workflow-written and consumer-read-never: `.github/workflows/devflow.yml` (and `matcher-probe.yml`) ASSIGN it, and the sole shipped reader consults it only on the branch those workflows drive. A consumer never sets it, so there is nothing for a consumer to rename. It appears in the docs precisely to explain that the cloud workflows running the review engine set it -- which is the sentence a hand-drawn list mistakes for a declaration. Issue #1075 added the devflow.yml assignment; the verdict is unchanged, because it turns on a consumer never setting the variable rather than on how many workflows do."
         },
         {
           "name": "DEVFLOW_CONFIG_FILE",
@@ -307,19 +357,8 @@
   },
 
   "retained_unshipped_workflows": [
-    "devflow-review.yml",
-    "devflow-runner.yml",
-    "telemetry-push.yml"
+    "devflow-review.yml"
   ],
-
-  "retained_helpers_deletion_condition": {
-    "helpers": [
-      "scripts/derive-review-preconditions.sh",
-      "scripts/describe-skip-title.sh",
-      "scripts/derive-review-verdict.sh"
-    ],
-    "condition": "These helpers were called only by the withheld auto-review tier's workflows (devflow-review.yml -> devflow-runner.yml). Issue #936 withheld the tier and issue #2071 removed its dead config settings, but the helpers stay in the tree so an installed consumer copy that still carries devflow-review.yml keeps resolving them. They are deleted in the first release after the maintainer has confirmed no installed consumer still carries a devflow-review.yml/devflow-runner.yml that calls them -- for example by walking every known consumer through the --remove-withheld-review-tier removal. Until that is confirmed the helpers stay; this is a confirmation to be made, not a date to wait for."
-  },
 
   "transitional_read_through": {
     "applies_to": "state_dir",
@@ -327,5 +366,11 @@
     "not_applies_to": "config_keys",
     "not_applies_reason": "Issue #988 ruled out a read-through for the config keys: a silent key fallback makes the migration unobservable and therefore permanent. Key migration is detected instead -- scripts/config-get.sh's superseded-key breadcrumb and the workflow config jobs' per-family ::error:: guards.",
     "end_criterion": "The state-directory fallback is removed in the first release after the maintainer has walked every known consumer through /prflow:init and confirmed no repository still carries a .devflow/ directory. Until that is confirmed the fallback stays; it is not removed on a timer."
+  },
+
+  "skill_extension_read_through": {
+    "applies_to": "the spec skill's extension filename (issue #216)",
+    "rule": "scripts/load-prompt-extension.sh and scripts/render-audit-prompt.py prefer spec.md across both extension directories before falling back to create-issue.md, with a stderr breadcrumb naming /prflow:init as the migration to run.",
+    "end_criterion": "This extension-filename read-through is removed in the first release after the maintainer has confirmed no known consumer still carries a .prflow/skill-extensions/create-issue.md. Until that is confirmed the read-through stays; it is not removed on a timer."
   }
 }

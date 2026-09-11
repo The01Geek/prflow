@@ -44,9 +44,17 @@ If the PR has no customer-visible impact (e.g., refactors, CI changes, documenta
 
 ### Step 1: Understand the Changes
 
-Run:
+Resolve the configured base branch by printing it, then substituting the printed value as a literal into the git commands in this step and Step 4b:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .base_branch main
 ```
-git diff origin/main...HEAD
+
+Read the printed base branch from the tool result. On a non-zero exit or an empty value, fall back to `main` and log `docs-release-notes: could not read .base_branch — falling back to main`. Substitute the printed value as a LITERAL into each git fence below (e.g. `git diff origin/<base>...HEAD`) — never through a shell-variable capture (`VAR=$(...)`) and never as an `origin/$VAR` expansion. `<base>` below is that printed literal (default `main`).
+
+Run:
+```bash
+git diff origin/<base>...HEAD
 ```
 
 Also read any updated internal or external documentation in `[[INTERNAL_DOC_LOCATION]]` and `[[EXTERNAL_DOC_LOCATION]]` for additional context about what changed.
@@ -138,21 +146,34 @@ After appending, check the file's growth: when it holds more than roughly 50 ent
 
 This step runs regardless of the Step 2 customer-visibility decision — after appending a release note (Step 4) or after the non-customer-visible skip in Step 2, proceed here.
 
-Confirm a version bump happened, then read the version from the manifest — not the commit subject. Run:
-```
-git log --oneline origin/main..HEAD
-```
-Look for a commit whose message begins with `chore: bump version`. This commit's only role here is to confirm that this branch bumped the version — do not read the version string from its free-text subject. A rebase or version collision can re-version `.claude-plugin/plugin.json` in a *later* commit without re-wording the bump commit, so reconciling from that subject would correct the wrong, already-shipped entry and leave the entry this PR ships untouched. First confirm the scan itself succeeded: if `git log` exits non-zero, or `origin/main` will not resolve (not fetched, detached state), that is a failed determination (the fail-loud path below) — never read its empty output as "no bump commit". Only when the scan ran cleanly and shows no `chore: bump version` commit did this PR not bump the version — log "no version-bump commit found on branch" and proceed to Step 5.
+First read this repository's release convention from the prompt extension — the bump-commit subject prefix to scan for and the version-manifest path to read the version from are repository-specific, not hardcoded. Emit the granted vendored-literal leading token first (anchor fallback on a `command not found` / `No such file` / exit-127 reading, as in the load-first step at the top of this skill):
 
-Where the repository manages its version with changesets (a `.changeset/` directory whose README states the entry contract), the version bump and CHANGELOG entry are produced at merge time from the pending changeset files, so a branch normally carries no bump commit — the "no version-bump commit found" outcome is then the expected result of this step, not a smell. In that case, when Step 2 found customer-visible changes, verify the branch carries a changeset file and report its absence to the caller — do not author one yourself, since the implementing change owns its changeset.
-
-Read the authoritative shipped version from the manifest (the bump, and any later re-version, both update it):
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -r .version .claude-plugin/plugin.json
+.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs-release-notes --section "## Release convention"
+```
+
+The section, when declared, carries exactly two labeled lines — `bump-commit-subject-prefix: <prefix>` and `version-manifest: <path>`. Classify the read by what you observed:
+
+- **Exit 0 and it printed nothing** (no section declared): log "no release convention declared — Step 4b skipped", append the loader's stderr breadcrumb line verbatim when one was emitted, and proceed to Step 5. A repository that declares no convention opts out of CHANGELOG reconciliation.
+- **Neither stdout nor an exit status was observed** (a harness refusal — `--section` mode emits no status token, so a refused-by-path invocation is silent): log "Step 4b: release convention read unestablished — CHANGELOG reconciliation NOT performed" and surface it to the caller (fail-loud; *unknown is not zero*). Do not fold this into the "skipped" no-op above.
+- **Exactly one of the two labels is present, either label appears more than once, or either line's value is empty**: log "Step 4b: release convention half-declared — CHANGELOG reconciliation NOT performed" and surface it to the caller (fail-loud). A half-written convention never silently proceeds on a guessed operand.
+- **Both labels are present with non-empty values**: note the `bump-commit-subject-prefix` value and the `version-manifest` value, and continue below. Substitute those two printed values as **literals** into the fences below wherever a `<bump-commit-subject-prefix>` or `<version-manifest>` placeholder appears — never capture them into a shell variable and never write a `$VAR` expansion in a fence, since each fence is a separate invocation where such a variable is unset and, on the cloud tiers this skill runs on, a `$VAR` in a fence is silently denied.
+
+Confirm a version bump happened, then read the version from the manifest — not the commit subject. Run:
+```bash
+git log --oneline origin/<base>..HEAD
+```
+Look for a commit whose message begins with `<bump-commit-subject-prefix>` (the literal value read from the section). This commit's only role here is to confirm that this branch bumped the version — do not read the version string from its free-text subject. A rebase or version collision can re-version `<version-manifest>` in a *later* commit without re-wording the bump commit, so reconciling from that subject would correct the wrong, already-shipped entry and leave the entry this PR ships untouched. First confirm the scan itself succeeded: if `git log` exits non-zero, or `origin/<base>` will not resolve (not fetched, detached state), that is a failed determination (the fail-loud path below) — never read its empty output as "no bump commit". Only when the scan ran cleanly and shows no commit whose subject begins with `<bump-commit-subject-prefix>` did this PR not bump the version — log "no version-bump commit found on branch" and proceed to Step 5.
+
+Where the repository produces its version bump and CHANGELOG entry at merge time from pending release artifacts (rather than an in-PR bump), a branch normally carries no bump commit — the "no version-bump commit found" outcome is then the expected result of this step, not a smell. In that case, when Step 2 found customer-visible changes, verify the branch carries the release artifact the project's convention requires and report its absence to the caller — do not author one yourself, since the implementing change owns it.
+
+Read the authoritative shipped version from the manifest at `<version-manifest>` (the bump, and any later re-version, both update it) — fill the placeholder with the literal path read from the `version-manifest:` line of the `## Release convention` section you already read:
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -r .version <version-manifest>
 ```
 Inspect the result: a non-zero `jq` exit, empty output, or a value that is not an `N.N.N` version string (e.g. `null` from an absent key) — while a bump commit is present — is a failed determination (the fail-loud path below), not a clean version; only a well-formed `N.N.N` value continues. Then read `[[CHANGELOG_FILE]]` and search for the bracketed Keep-a-Changelog heading `## [<version>]` for that manifest version (e.g., `## [2.8.26]`). If `[[CHANGELOG_FILE]]` itself cannot be read (missing, permission, IO) while a bump commit and a valid manifest version are both present, that too is a failed determination, not "no matching section". If the file reads cleanly but has no section heading matching the manifest version, this step is a no-op — log "no CHANGELOG section found for version X" and proceed to Step 5.
 
-Distinguish a failed determination from a legitimate no-op. The two no-op logs above ("no version-bump commit found", "no CHANGELOG section found") are only for *legitimately empty* results. If the `jq` manifest read errors, prints empty, or prints `null` / a non-version string while a `chore: bump version` commit IS present, or if `git log` / `origin/main` cannot be resolved, do not fold that into a reassuring no-op log. Log a distinct error ("Step 4b: could not determine the shipped version / scan the branch — CHANGELOG reconciliation NOT performed") and surface it to the caller, so a swallowed failure is never indistinguishable from a clean no-op.
+Distinguish a failed determination from a legitimate no-op. The two no-op logs above ("no version-bump commit found", "no CHANGELOG section found") are only for *legitimately empty* results. If the `jq` manifest read errors, prints empty, or prints `null` / a non-version string while a bump commit IS present, or if `git log` / `origin/<base>` cannot be resolved, do not fold that into a reassuring no-op log. Log a distinct error ("Step 4b: could not determine the shipped version / scan the branch — CHANGELOG reconciliation NOT performed") and surface it to the caller, so a swallowed failure is never indistinguishable from a clean no-op.
 
 Enumerate every factual claim. Re-read the body of the located `## [version]` section. A factual claim is any concrete assertion: coverage counts, enumerated sites, completeness phrases ("all X were done", "Y and Z are now..."), named identifiers (file paths, key names, step or phase numbers, agent names), or specific behavioral guarantees. The entry may predate later review-and-fix corrections, so its assertions may be stale relative to the final shipped diff.
 

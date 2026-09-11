@@ -7,7 +7,7 @@
 # "already exists" outcome as success. This is a best-effort provenance step:
 # it ALWAYS exits 0 — whether it created the label, the label already existed,
 # or the underlying `gh` call failed (no auth, offline, rate-limited) — so a
-# label hiccup can never abort the caller (create-issue / implement / Stage B /
+# label hiccup can never abort the caller (spec / implement / Stage B /
 # init). It still leaves a specific stderr breadcrumb naming which of the three
 # happened, so a real failure is visible rather than silently swallowed.
 #

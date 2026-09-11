@@ -27,7 +27,10 @@ Reconciliation contract (one row per criterion, matched by 1-based `criterion`):
     to `unestablished` BEFORE the two statuses are paired (issue #1580), so an
     abbreviated check reconciles `unestablished` rather than riding the other
     verifier's agreement into `satisfied`. A stated `no` discharges its slot
-    fully and changes no status by itself.
+    fully and changes no status by itself — with one exception: an evidence-side
+    `command-run: no` under a `satisfied` status is forced to `unestablished` and
+    stamped `reason: unexecuted` (issue #350), because a `satisfied` that ran no
+    command rests on a read, not an executed and observed command.
 
 Blocking: `unmet` and `unestablished` both block; only `satisfied` does not.
 `unestablished` blocking exactly as `unmet` blocks is the structural point of the
@@ -121,6 +124,10 @@ def parse_disposition(value):
 
     `no` is a fully discharging verdict — the gate asks for a *stated* disposition,
     never a particular one, so treating `no` as a failure would produce false `yes`.
+    (`reconcile` applies one exception on top of this generic parse: an evidence-side
+    `command-run: no` under a `satisfied` status is forced to `unestablished` — see
+    `_side` and the module docstring — but that is a reconcile-level rule, not a
+    property of this parser.)
     A reason that is absent or carries no alphanumeric character is undischarged,
     `yes` / `yes ()` / `yes .` alike: a verdict with no clause behind it attests to
     nothing an after-the-fact reader can weigh.
@@ -191,7 +198,7 @@ def _dispositions_of(record, slots, side=""):
 
 
 def _side(record, slots, tag):
-    """Resolve one side into `(status, reported_status, dispositions, undischarged)`.
+    """Resolve one side into `(status, reported_status, dispositions, undischarged, forced_reason)`.
 
     `reported_status` is what the side itself concluded, retained even when the slot
     gate overrides `status`. Without it a verifier that reported `unmet` with a real
@@ -199,9 +206,17 @@ def _side(record, slots, tag):
     nothing, and the routing rule that fires only when a criterion blocks SOLELY on
     undischarged slots cannot decide its own precondition.
 
+    `forced_reason` is the reason the reconciler itself stamps when it overrides the
+    side's own status — currently only the issue #350 execution-backed downgrade's
+    `"unexecuted"`, else `None`. It is threaded out so `reconcile` can give a
+    reconciler-stamped reason precedence over any `reason` the record itself carried,
+    and so `unexecuted` can never reach the orchestrator except from this stamp.
+
     Applied symmetrically to both sides so the per-side rules — the fail-closed status
     read for an absent record, and the #1580 downgrade for an undispositioned charter
-    step — are stated once rather than mirrored in the caller's loop body.
+    step — are stated once rather than mirrored in the caller's loop body; the #350
+    execution-backed downgrade below is the one evidence-side-only rule, gated on
+    `tag == 'evidence'`, so the claim side never sets `forced_reason`.
 
     An ABSENT record — and equally a duplicate-poisoned one — reports no undischarged
     slots. Each is a vote the side never usably cast, already blocking on its own;
@@ -210,10 +225,11 @@ def _side(record, slots, tag):
     attestation gap in the one field that routes the remedy.
     """
     if not isinstance(record, dict) or record.get(_POISONED) is _POISON_TOKEN:
-        return "unestablished", "unestablished", {}, []
+        return "unestablished", "unestablished", {}, [], None
     dispositions, missing = _dispositions_of(record, slots, tag)
     reported = record.get("status")
     status = reported
+    forced_reason = None
     if missing:
         status = "unestablished"
         if _normalize_status(reported) != "unestablished":
@@ -221,7 +237,20 @@ def _side(record, slots, tag):
                   f"{_normalize_status(reported)!r} but left {len(missing)} slot(s) "
                   f"undischarged — forcing unestablished; the concluded status is "
                   f"retained as {tag}_status_reported", file=sys.stderr)
-    return status, reported, dispositions, [f"{tag}:{slot}" for slot in missing]
+    # Execution-backed evidence gate (issue #350): an evidence-side `satisfied` whose
+    # `command-run` verdict is `no` ran no command, so force `unestablished` here — before
+    # pairing, leaving `missing`/undischarged_slots untouched (re-parse: `stated` dropped it).
+    if tag == "evidence" and _normalize_status(reported) == "satisfied":
+        verdict, _reason = parse_disposition(dispositions.get("command-run"))
+        if verdict == "no":
+            status = "unestablished"
+            forced_reason = "unexecuted"
+            print("reconcile-ac-verifiers: the evidence report concluded 'satisfied' "
+                  "but its command-run slot is 'no' (ran no command) — forcing "
+                  "unestablished and stamping reason 'unexecuted'; the concluded status "
+                  "is retained as evidence_status_reported", file=sys.stderr)
+    return (status, reported, dispositions,
+            [f"{tag}:{slot}" for slot in missing], forced_reason)
 
 
 def _normalize_status(value):
@@ -249,18 +278,28 @@ def _evidence_of(record):
 # It is a CLOSED vocabulary validated like `status`: an unrecognized value normalizes
 # to "" (no reason) rather than passing through, so a consumer may rely on any non-empty
 # `reason` being one of these tokens. The criterion still blocks on its `status`;
-# `reason` only refines HOW the orchestrator routes the block.
-EVIDENCE_REASONS = ("denied", "failed", "unresolved")
+# `reason` only refines HOW the orchestrator routes the block. `unexecuted` is a member
+# of the set (so the orchestrator recognizes it), but it is RECONCILER-STAMPED ONLY: a
+# verifier-supplied `unexecuted` is normalized to `unresolved` by `_reason_of` (issue
+# #350), so `unexecuted` reaches the orchestrator only from `_side`'s own downgrade stamp.
+EVIDENCE_REASONS = ("denied", "failed", "unresolved", "unexecuted")
 
 
 def _reason_of(record):
-    """The record's `reason`, normalized to the closed `EVIDENCE_REASONS` set or ""."""
+    """The record's `reason`, normalized to the closed `EVIDENCE_REASONS` set or "".
+
+    `unexecuted` is reserved for the reconciler's own execution-backed downgrade stamp
+    (issue #350): a verifier that supplies it on its own record is normalized to
+    `unresolved`, so a forged `unexecuted` can never masquerade as the reconciler's.
+    """
     if not isinstance(record, dict):
         return ""
     reason = record.get("reason")
     if not isinstance(reason, str):
         return ""
     normalized = reason.strip().lower()
+    if normalized == "unexecuted":
+        return "unresolved"
     return normalized if normalized in EVIDENCE_REASONS else ""
 
 
@@ -342,9 +381,9 @@ def reconcile(evidence_records, claim_records):
         # has not established what it did. Resolving either after the pairing would let
         # an unattested or absent side ride the other verifier's agreement into
         # `satisfied` — the substitution issue #1580 exists to catch.
-        e_status, e_reported, e_disp, e_undischarged = _side(
+        e_status, e_reported, e_disp, e_undischarged, e_forced_reason = _side(
             e_rec, EVIDENCE_SLOTS, "evidence")
-        c_status, c_reported, c_disp, c_undischarged = _side(
+        c_status, c_reported, c_disp, c_undischarged, _c_forced_reason = _side(
             c_rec, CLAIM_SLOTS, "claim")
         undischarged = e_undischarged + c_undischarged
         status, evidence, evidence_source = reconcile_one(
@@ -353,10 +392,10 @@ def reconcile(evidence_records, claim_records):
         blocks = status in BLOCKING_STATUSES
         if blocks:
             blocking.append(num)
-        # `reason` comes from the evidence side only — it is the sole verifier that
-        # runs a command, so a `denied`/`failed` reason is its to report. It is carried
-        # only on a blocking criterion (a satisfied one needs no routing refinement).
-        reason = _reason_of(e_rec) if blocks else ""
+        # `reason` comes from the evidence side only (the sole command-runner), carried
+        # only on a blocking criterion; a reconciler stamp (`e_forced_reason`) wins over
+        # the record's own `reason` (issue #350).
+        reason = (e_forced_reason or _reason_of(e_rec)) if blocks else ""
         criteria_out.append(
             {
                 "criterion": num,

@@ -25,8 +25,11 @@
 #
 # Subcommands:
 #   cycle   run ONE mint-and-rewrite cycle, then exit 0 (best-effort; the suite
-#           drives this without sleeping). Emits a `::warning::` naming the arm
-#           on any failure and leaves the previous credential in place.
+#           drives this without sleeping). After a successful mint it rewrites the
+#           two credential surfaces INDEPENDENTLY (issue #332), emitting a
+#           `::warning::` naming each failing surface, writing whichever surface
+#           succeeds, and printing `cycle OK` only when both do. A failed mint
+#           leaves both surfaces on the previous credential.
 #   loop    run cycle on a 45-minute cadence, dropping to a 2-minute backoff
 #           after a failed cycle until one succeeds. Writes a pidfile, traps
 #           TERM to exit 0, and NEVER exits non-zero — the job's conclusion never
@@ -251,34 +254,29 @@ mint_token() {
 # hardcoded path). Honors the suite override. ──
 locate_extraheader_file() {
   if [ -n "$CONFIG_FILE_OVERRIDE" ]; then printf '%s' "$CONFIG_FILE_OVERRIDE"; return 0; fi
-  local key raw line file first="" multi=no
+  local key rec file first="" multi=no
   key="http.${SERVER_URL}/.extraheader"
-  # `--show-origin` prints `file:<path>\t<value>` per match. The path DECIDES which
-  # file gets rewritten, so it must be derived with bash builtins, never `head`/`sed`
-  # (non-preflight PATH tools — CLAUDE.md guard-class 2; and `sed`'s `\t` is a GNU
-  # extension BSD sed does not honor). Strip the `file:` prefix, then strip from the
-  # first TAB onward — all builtins. This is the external git-credentials-<UUID>.config
-  # checkout wrote.
-  raw="$(git config --show-origin --get-all "$key" 2>/dev/null)"
-  # Walk EVERY match, not just the first line (IMP-1 / PR #491 review). A single file
-  # holding MULTIPLE values is fine — run_cycle's `--replace-all` collapses them to the
-  # one fresh value (the #487 arm21 design). But matches spanning MORE THAN ONE distinct
-  # file break the single-file-rewrite assumption: `git push` reads the LAST/highest-
-  # precedence value, so rewriting only the first file would leave a stale credential
-  # winning in another and `run_cycle` would still print `cycle OK` — a silent-freshness
-  # path in an otherwise loud-degrade design. actions/checkout persists exactly one
-  # extraheader (the assumption this rests on), so a multi-file chain is anomalous:
-  # fail CLOSED with a `::warning::` rather than silently refresh just one file.
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    file="${line#file:}"      # strip the `file:` prefix
-    file="${file%%$'\t'*}"    # strip from the first TAB onward (no `sed`)
+  # Use `-z --show-origin` (raw NUL-separated origin/value records), never text-mode: without
+  # `-z` git C-quotes a backslashed path and the `git config --file` rewrite then fails on it
+  # (issue #332). The path decides which file is rewritten, so parse with bash builtins only —
+  # `read -r -d ''`, never `head`/`sed` (guard-class 2) — and feed the stream through a PROCESS
+  # SUBSTITUTION, not a command substitution or here-string, which drop the NUL bytes.
+  # Records arrive in origin/value PAIRS: read the origin (strip `file:`), consume the value into `_`.
+  #
+  # Walk EVERY match, not just the first (IMP-1 / PR #491 review). MULTIPLE values in ONE file
+  # is fine — run_cycle's `--replace-all` collapses them (the #487 arm21 design). But the key
+  # set in MORE THAN ONE file must fail CLOSED: rewriting only the first would leave a
+  # higher-precedence stale value winning for `git push` while `cycle OK` still printed — a
+  # silent-freshness path. actions/checkout persists exactly one extraheader, so this is anomalous.
+  while IFS= read -r -d '' rec; do
+    IFS= read -r -d '' _ || true    # consume the value half of the origin/value pair
+    file="${rec#file:}"             # strip the `file:` prefix (the raw path, unquoted under -z)
     if [ -z "$first" ]; then
       first="$file"
     elif [ "$file" != "$first" ]; then
       multi=yes
     fi
-  done <<<"$raw"
+  done < <(git config -z --show-origin --get-all "$key" 2>/dev/null)
   if [ "$multi" = yes ]; then
     warn "cycle: http.*/.extraheader is set in MORE THAN ONE config file — refusing to rewrite just one (git push would read a higher-precedence stale value); push credential NOT rewritten"
     return 1
@@ -295,32 +293,43 @@ locate_extraheader_file() {
   printf '%s' "$first"
 }
 
-# ── One mint-and-rewrite cycle. Returns 0 on success, 1 on failure (leaving the
-# previous credential untouched and emitting a ::warning:: naming the arm). ──
+# ── One mint-and-rewrite cycle. Returns 0 only when BOTH surfaces refresh; 1 if the
+# mint or either surface fails (a mint failure leaves both on the previous credential;
+# a single-surface failure still writes the other surface — issue #332). ──
 run_cycle() {
-  local token cfg header b64
+  local token cfg header b64 s1_ok=yes s2_ok=yes
   token="$(mint_token)" || { warn "cycle: mint arm failed — previous credential left in place"; return 1; }
   [ -n "$token" ] || { warn "cycle: mint returned an empty token — previous credential left in place"; return 1; }
+
+  # Surfaces 1 and 2 are attempted as two INDEPENDENT steps (issue #332): a failure of one no
+  # longer returns early and starves the other, and `cycle OK` prints only when BOTH succeed.
+  # Track each surface's outcome and decide the warnings/exit at the end.
 
   # Surface 1: the checkout-persisted extraheader (the git-push credential).
   # locate_extraheader_file emits the specific failure reason itself (not-found vs.
   # multi-file), so do NOT add a second breadcrumb here — a generic "could not locate"
   # contradicts the callee's accurate multi-file warning (PR #491 review).
-  cfg="$(locate_extraheader_file)" || return 1
-  b64="$(printf 'x-access-token:%s' "$token" | openssl base64 -A 2>/dev/null)" \
-    || { warn "cycle: base64 encode of the token failed — push credential NOT rewritten"; return 1; }
+  cfg="$(locate_extraheader_file)" || s1_ok=no
+  if [ "$s1_ok" = yes ]; then
+    b64="$(printf 'x-access-token:%s' "$token" | openssl base64 -A 2>/dev/null)" \
+      || { warn "cycle: base64 encode of the token failed — push credential NOT rewritten"; s1_ok=no; }
+  fi
   # Empty output with a zero exit is the same contract breach the interpreter rc routing
   # guards: writing it produces a well-formed header carrying no credential at all,
   # which pushes fail on far less legibly than keeping the previous one.
-  [ -n "$b64" ] || { warn "cycle: base64 encode produced no output — push credential NOT rewritten"; return 1; }
-  header="AUTHORIZATION: basic ${b64}"
-  # git config writes via a lockfile + atomic rename, so a concurrent push reading
-  # this credential sees the old-or-new value, never a torn/partial file.
-  # --replace-all: if the located config ever held MULTIPLE values for this key, a
-  # plain set fails ("multiple values") and the credential would go stale; collapse
-  # them to the one fresh value instead.
-  git config --file "$cfg" --replace-all "http.${SERVER_URL}/.extraheader" "$header" 2>/dev/null \
-    || { warn "cycle: rewriting the extraheader in '$cfg' failed — push credential NOT rewritten"; return 1; }
+  if [ "$s1_ok" = yes ] && [ -z "$b64" ]; then
+    warn "cycle: base64 encode produced no output — push credential NOT rewritten"; s1_ok=no
+  fi
+  if [ "$s1_ok" = yes ]; then
+    header="AUTHORIZATION: basic ${b64}"
+    # git config writes via a lockfile + atomic rename, so a concurrent push reading
+    # this credential sees the old-or-new value, never a torn/partial file.
+    # --replace-all: if the located config ever held MULTIPLE values for this key, a
+    # plain set fails ("multiple values") and the credential would go stale; collapse
+    # them to the one fresh value instead.
+    git config --file "$cfg" --replace-all "http.${SERVER_URL}/.extraheader" "$header" 2>/dev/null \
+      || { warn "cycle: rewriting the extraheader in '$cfg' failed — push credential NOT rewritten"; s1_ok=no; }
+  fi
 
   # Surface 2: the mode-0600 token file the gh wrapper reads at call time
   # (mode-0600 only where POSIX mode bits apply — see the header's item 2, #690).
@@ -329,26 +338,42 @@ run_cycle() {
   # atomic-rename guarantee git config gives surface 1). A plain `> "$TOKEN_FILE"`
   # would truncate-then-write, and a read landing in that window would see an empty
   # or partial token and silently degrade the wrapper to the ambient credential.
-  # NOTE: surface 1 (the extraheader) has already been rewritten to the fresh token by
-  # this point, so a surface-2 failure below leaves the two surfaces DIVERGED — the
-  # push credential is fresh while the gh token file is stale (the reverse of the mint/
-  # locate failures above, which leave BOTH surfaces on the previous credential). Both
-  # warnings name that divergence so the operator knows only the gh surface is at risk
-  # (both tokens are usually still valid — the stale one merely ages out sooner).
+  # The surface-2 failure warning is gated on surface 1's outcome (issue #332): emit the
+  # divergence phrase (which asserts surface 1 is fresh) ONLY when surface 1 succeeded; when
+  # surface 1 also failed, suppress it — the both-surfaces-stale line below is the last word.
   local dir tmp; dir="$(dirname "$TOKEN_FILE")"; tmp="$TOKEN_FILE.tmp.$$"
   mkdir -p "$dir" 2>/dev/null || true
-  ( umask 077; printf '%s' "$token" > "$tmp" ) \
-    || { warn "cycle: writing the token temp file '$tmp' failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale"; rm -f "$tmp" 2>/dev/null; return 1; }
-  chmod 600 "$tmp" 2>/dev/null || true
-  mv -f "$tmp" "$TOKEN_FILE" \
-    || { warn "cycle: renaming the token file into place ('$TOKEN_FILE') failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale"; rm -f "$tmp" 2>/dev/null; return 1; }
-  # Positive success breadcrumb (stdout → the same log the workflow redirects). The
-  # Stop step's scripts/stop-refresher.sh reads the LAST refresh-app-credentials:
-  # line to tell a recovered transient (last line = this OK) from a sustained failure
-  # (last line = a ::warning::) — so its job-level alert never over-fires on a
-  # transient that the backoff already recovered from.
-  printf 'refresh-app-credentials: cycle OK (credentials refreshed)\n'
-  return 0
+  if ! ( umask 077; printf '%s' "$token" > "$tmp" ); then
+    s2_ok=no
+    [ "$s1_ok" = yes ] && warn "cycle: writing the token temp file '$tmp' failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale"
+    rm -f "$tmp" 2>/dev/null
+  else
+    chmod 600 "$tmp" 2>/dev/null || true
+    if ! mv -f "$tmp" "$TOKEN_FILE"; then
+      s2_ok=no
+      [ "$s1_ok" = yes ] && warn "cycle: renaming the token file into place ('$TOKEN_FILE') failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale"
+      rm -f "$tmp" 2>/dev/null
+    fi
+  fi
+
+  # Both surfaces failed this cycle → one final ::warning:: naming that (the surface-1 arm's
+  # own warning already fired). It carries NEITHER the divergence phrase (which asserts
+  # surface 1 is fresh) NOR `cycle OK`, so stop-refresher.sh matches its generic ::warning::
+  # arm and reports the generic both-surfaces impact (issue #332).
+  if [ "$s1_ok" = no ] && [ "$s2_ok" = no ]; then
+    warn "cycle: BOTH credential surfaces are stale this cycle — the push credential (surface 1) was not rewritten and the gh token file (surface 2) was not written"
+  fi
+
+  if [ "$s1_ok" = yes ] && [ "$s2_ok" = yes ]; then
+    # Positive success breadcrumb (stdout → the same log the workflow redirects). The
+    # Stop step's scripts/stop-refresher.sh reads the LAST refresh-app-credentials:
+    # line to tell a recovered transient (last line = this OK) from a sustained failure
+    # (last line = a ::warning::) — so its job-level alert never over-fires on a
+    # transient that the backoff already recovered from.
+    printf 'refresh-app-credentials: cycle OK (credentials refreshed)\n'
+    return 0
+  fi
+  return 1
 }
 
 cmd_cycle() {

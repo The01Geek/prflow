@@ -30,9 +30,10 @@
 #   * api-failure       — the apply POST failed (no auth, offline, rate-limited).
 #   * config-unreadable — `--config-key` mode and config-get exited non-zero.
 # NONE of these values contains the text "already exists" (that is ensure-label.sh's
-# stderr breadcrumb, never a token). Detailed breadcrumbs still go to STDERR — every
-# message ensure-label.sh and this helper emit is preserved byte-for-byte, so a human
-# reading a log sees exactly what they see today.
+# stderr breadcrumb, never a token). Detailed breadcrumbs still go to STDERR. The empty-set
+# breadcrumb branches on mode: in `--config-key` mode it names the config key and says it
+# resolved to no labels; in positional mode it keeps the caller-arg-slip wording. Every other
+# message ensure-label.sh and this helper emit is unchanged.
 #
 # STDOUT carries ONLY the token; the API call's stdout and the internal ensure calls'
 # stdout both go to /dev/null. A harness refusal produces NO output at all — the only
@@ -91,10 +92,10 @@ done
 # absent or JSON-null key falls back to the caller's default; a whitespace/separator-only value
 # comes back verbatim and normalizes to nothing below.
 if [ "$_CONFIG_MODE" -eq 1 ]; then
-    # Gate the fallback on presence (issue #208): read a present key with an EMPTY fallback; an
-    # unreadable probe prints nothing → guard false → caller fallback kept (pre-#208), and the
-    # value read below reports the real failure.
-    if [ "$("$_APPLY_LABELS_DIR/config-get.sh" --presence "$_CONFIG_KEY" 2>/dev/null)" = "present" ]; then
+    # Presence gate (issue #208; hardened #286): keep the caller fallback ONLY on a definitive
+    # `absent`. A `present` or INDETERMINATE probe (e.g. a stale config-get.sh echoing the key back)
+    # blanks it, so a probe that failed to answer can't silently re-arm a present-empty off-switch.
+    if [ "$("$_APPLY_LABELS_DIR/config-get.sh" --presence "$_CONFIG_KEY" 2>/dev/null)" != "absent" ]; then
         _CONFIG_FALLBACK=""
     fi
     if _CFG_RAW="$("$_APPLY_LABELS_DIR/config-get.sh" "$_CONFIG_KEY" "$_CONFIG_FALLBACK")"; then
@@ -155,7 +156,14 @@ done
 # derivation above is BUILTIN-ONLY, so a missing PATH tool can no longer empty it.
 if [ "${#LABELS[@]}" -eq 0 ]; then
     echo "nothing-to-apply"
-    echo "devflow: warning: apply-labels.sh got no label content for #${NUMBER} (args: $*); nothing applied. This is NOT a harness denial — the caller passed an empty/whitespace-only label list." >&2
+    if [ "$_CONFIG_MODE" -eq 1 ]; then
+        # Config mode: the same arm also fires for an absent key whose fallback was blanked by an
+        # indeterminate presence probe, so the message names the KEY and says it resolved to no
+        # labels — it must NOT claim a present-but-empty value nor a caller-passed list.
+        echo "devflow: warning: apply-labels.sh: config key '${_CONFIG_KEY}' resolved to no labels for #${NUMBER}; nothing applied, and no substitute label is owed. This is NOT a harness denial." >&2
+    else
+        echo "devflow: warning: apply-labels.sh got no label content for #${NUMBER} (args: $*); nothing applied. This is NOT a harness denial — the caller passed an empty/whitespace-only label list." >&2
+    fi
     exit 0
 fi
 

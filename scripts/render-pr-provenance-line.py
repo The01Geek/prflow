@@ -8,10 +8,10 @@ plugin build that executed the run, and — when they can be established and the
 has not switched the clause off — the session model and reasoning effort:
 
     _Generated via /prflow:implement (v2.32.70, claude-opus-5, high)_
-    _Generated via /prflow:create-issue (v2.32.70)_
+    _Generated via /prflow:spec (v2.32.70)_
 
 The command name is supplied by the caller, so one renderer serves every command; both
-``/prflow:implement`` and ``/prflow:create-issue`` paste the finished italic line verbatim.
+``/prflow:implement`` and ``/prflow:spec`` paste the finished italic line verbatim.
 
 Three value-sources besides the command, each read soft:
 
@@ -293,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
         "--command",
         required=True,
         help="The command name to name in the line (e.g. /prflow:implement or "
-        "/prflow:create-issue). Required: a missing value is an argparse usage error "
+        "/prflow:spec). Required: a missing value is an argparse usage error "
         "(usage to stderr, nothing to stdout, non-zero exit). A value carrying a "
         "shell-active or control character drops the whole line (nothing to stdout, exit 0).",
     )

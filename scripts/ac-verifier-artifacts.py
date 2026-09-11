@@ -59,9 +59,11 @@ import sys
 import tempfile
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-# The single second under `.prflow/tmp/` every attempt directory is minted below, so a
-# consumer whose scaffolded `.prflow/.gitignore` ignores only `tmp/` still ignores it.
-_ATTEMPT_ROOT_PARTS = (".prflow", "tmp", "ac-verifier-artifacts")
+# The DEFAULT attempt root is `.prflow/tmp/implement/<issue>/ac-verifier-artifacts/`
+# (issue #240); --scratch-base overrides it (the not-ignored arm passes flat `.prflow/tmp`).
+# Kept under `.prflow/tmp/` either way, so a `.gitignore` ignoring only `tmp/` still covers it.
+_ATTEMPT_ROOT_PREFIX_PARTS = (".prflow", "tmp", "implement")
+_ATTEMPT_ROOT_LEAF = "ac-verifier-artifacts"
 _GIT = os.environ.get("DEVFLOW_GIT") or "git"
 
 
@@ -181,10 +183,18 @@ def _cmd_prepare(args) -> int:
         print(f"ac-verifier-artifacts: prepare: {exc}", file=sys.stderr)
         return 1
 
-    attempt_root = os.path.join(top, *_ATTEMPT_ROOT_PARTS)
+    # --scratch-base supplies the run's per-arm scratch home (flat `.prflow/tmp` on the
+    # not-ignored arm), so the attempt root is not minted inside a per-issue folder that arm
+    # never creates; absent, it keeps the per-issue default.
+    if getattr(args, "scratch_base", None):
+        attempt_root = os.path.join(top, args.scratch_base, _ATTEMPT_ROOT_LEAF)
+    else:
+        attempt_root = os.path.join(top, *_ATTEMPT_ROOT_PREFIX_PARTS, str(args.issue), _ATTEMPT_ROOT_LEAF)
     try:
-        os.makedirs(attempt_root, exist_ok=True)
+        # Guard the path BEFORE creating it, so a symlinked component (or a base escaping
+        # `.prflow/tmp`) is rejected rather than followed by makedirs.
         _reject_symlink_path(attempt_root, os.path.join(top, ".prflow", "tmp"))
+        os.makedirs(attempt_root, exist_ok=True)
         attempt_dir = tempfile.mkdtemp(prefix=f"{args.issue}-", dir=attempt_root)
         os.chmod(attempt_dir, 0o700)
         flight_state = os.path.join(attempt_dir, "flight", "state")
@@ -318,6 +328,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "prepare",
         help="Allocate a fresh per-attempt directory and print the report/flight paths.")
     p_prep.add_argument("--issue", required=True, help="the issue number (a naming prefix)")
+    p_prep.add_argument(
+        "--scratch-base", default=None,
+        help="repo-relative per-arm scratch home under .prflow/tmp (issue #240); "
+             "absent keeps the per-issue-folder default")
     p_prep.set_defaults(func=_cmd_prepare)
     p_check = sub.add_parser(
         "check",

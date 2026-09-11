@@ -3,7 +3,7 @@ title: "Introduction"
 description: "What PRFlow is, the problem it solves and how a request becomes a review-ready pull request."
 ---
 
-PRFlow is a [Claude Code](https://code.claude.com) plugin that takes one request and hands back a pull request that is ready for your review.
+PRFlow is an agent plugin for [Claude Code](https://code.claude.com) and Codex that takes one request and hands back a pull request that is ready for your review.
 
 Not a snippet. Not a first draft. A branch with the code, the tests the change needed, the documentation it affected, a record of what was verified and a review that already found and fixed its own problems. You do the final review and the merge.
 
@@ -33,7 +33,7 @@ Three commands cover the common path.
 
 <Steps>
   <Step title="Describe the work">
-    `/prflow:create-issue` turns a rough idea into a GitHub issue. It reads your repository first, asks the questions it genuinely cannot answer and creates nothing until you approve the exact draft.
+    `/prflow:spec` turns a rough idea into a GitHub issue. It reads your repository first, asks the questions it genuinely cannot answer and creates nothing until you approve the exact draft.
   </Step>
   <Step title="Let PRFlow build it">
     `/prflow:implement 123` creates a branch, plans the change against your existing code, implements it, runs your tests, reviews the diff, fixes what the review found, updates the documentation and opens a pull request. It writes its progress to a comment on the issue as it goes, so you can watch or walk away.

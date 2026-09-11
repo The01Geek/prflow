@@ -31,7 +31,7 @@
     <g>
       <rect x="48" y="150" width="385" height="142" rx="18" fill="#FFFFFF" stroke="#DDD3BC" stroke-width="2"/>
       <rect x="72" y="174" width="190" height="31" rx="15" fill="#E7DFC6"/>
-      <text x="167" y="195" fill="#4F5430" font-size="15" font-weight="700" text-anchor="middle">prflow:create-issue</text>
+      <text x="167" y="195" fill="#4F5430" font-size="15" font-weight="700" text-anchor="middle">prflow:spec</text>
       <text x="72" y="239" fill="#3B2A1E" font-size="20" font-weight="600">Create an approved issue</text>
       <text x="72" y="268" fill="#6E5D4C" font-size="16">Turns a rough request into a reviewed ticket.</text>
     </g>

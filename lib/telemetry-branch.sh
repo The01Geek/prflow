@@ -94,9 +94,9 @@ _devflow_telemetry_retention_note() {
 #     restored identically in every claude-code-action job, so a value baked into
 #     the hook command could not distinguish the read-only review tier from a
 #     writable one). The writable tiers set DEVFLOW_TELEMETRY_PUSH=1 at job level;
-#     the read-only review tier deliberately does not, so it stages, and the trusted
-#     telemetry-push relay (not this read-only job; telemetry-push.yml, issue #489)
-#     performs the branch push from the uploaded staged artifacts.
+#     the read-only review tier deliberately does not, so it stages only. The trusted
+#     telemetry-push relay that formerly pushed the staged artifacts (telemetry-push.yml,
+#     issue #489) has been removed, so staged records now await manual recovery.
 # rc 0 = push; rc 1 = stage-only.
 _devflow_telemetry_should_push() {
   [ -n "${GITHUB_ACTIONS:-}" ] || return 0
@@ -347,8 +347,8 @@ devflow_telemetry_persist_tree() {
   # bash 3.2 (stock macOS) aborts under `set -u` on "${arr[@]}" when arr is EMPTY
   # (`arr[@]: unbound variable`) — bash >= 4.4 does not. `lib/efficiency-trace.sh`
   # runs `set -euo pipefail`, so EVERY array expansion in this file uses the
-  # `${arr[@]+"${arr[@]}"}` guarded form (the same idiom lib/implement-stop-guard.sh
-  # already carries for MARKERS). This is not defensive noise: a bare expansion on
+  # `${arr[@]+"${arr[@]}"}` guarded form (the same guarded array-expansion idiom used
+  # across the shell helpers). This is not defensive noise: a bare expansion on
   # the empty `parent_arg` below made the ORPHAN-ROOT commit — i.e. the branch's
   # very first write — fatal on bash 3.2, so the telemetry branch could never be
   # created on the primary local tier, silently and with a misattributed breadcrumb
@@ -403,13 +403,14 @@ devflow_telemetry_persist_tree() {
 
   # Push-operand gate (issue #469 AC5). On CI without an affirmative
   # DEVFLOW_TELEMETRY_PUSH we do NO branch write and NO push: the staged files
-  # under staging_root are left in place for the trusted telemetry-push
-  # relay (telemetry-push.yml, issue #489) to upload and push
+  # under staging_root are left in place for manual recovery (the trusted
+  # telemetry-push relay that formerly uploaded and pushed them, telemetry-push.yml
+  # issue #489, has been removed)
   # (return 2 → the caller retains them, silently — this is the
   # intended read-only-review posture, not a degradation). Off CI, and on CI with
   # the operand set, fall through to the CAS+push below.
   if ! _devflow_telemetry_should_push; then
-    echo "::warning::telemetry-branch: GITHUB_ACTIONS is set but the push operand DEVFLOW_TELEMETRY_PUSH is unset/empty/non-affirmative — STAGING '${branch}' artifacts without a branch write or push (the trusted telemetry-push job telemetry-push.yml pushes them from the uploaded artifact); set DEVFLOW_TELEMETRY_PUSH=1 in a workflow holding contents:write to push directly" >&2
+    echo "::warning::telemetry-branch: GITHUB_ACTIONS is set but the push operand DEVFLOW_TELEMETRY_PUSH is unset/empty/non-affirmative — STAGING '${branch}' artifacts without a branch write or push (they await manual recovery now that the trusted telemetry-push relay has been removed); set DEVFLOW_TELEMETRY_PUSH=1 in a workflow holding contents:write to push directly" >&2
     return 2
   fi
 

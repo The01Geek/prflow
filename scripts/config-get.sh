@@ -196,7 +196,12 @@ def load(path):
 
 try:
     data = load(os.environ["PRFLOW_CONFIG"])
-    renames = load(os.environ["PRFLOW_MAP"])["config_keys"]
+    _map = load(os.environ["PRFLOW_MAP"])
+    # Read the brand config_keys block AND the skill_config_keys block (issue #216):
+    # both are old->new superseded-key rename tables the probe detects an un-migrated
+    # config from. skill_config_keys carries create_issue -> spec.
+    renames = dict(_map["config_keys"])
+    renames.update(_map.get("skill_config_keys", {}))
 except Exception:
     sys.exit(0)
 if not isinstance(data, dict) or not isinstance(renames, dict):
@@ -223,7 +228,15 @@ def present(root, path):
 if present(data, parts):
     sys.exit(0)
 old = [superseded_of[parts[0]]] + parts[1:]
-if not present(data, old):
+old_top = superseded_of[parts[0]]
+# Breadcrumb when the full nested superseded path is present (the migrated-key
+# case), OR the superseded FAMILY key is present holding a NON-object value — a
+# create_issue: <array|scalar|false|0|""> is an un-migrated config too (issue
+# #216) that the nested-path check alone would miss. A dict-valued family that
+# simply lacks the requested subkey keeps the original no-breadcrumb behavior.
+if not present(data, old) and not (
+    old_top in data and not isinstance(data[old_top], dict)
+):
     sys.exit(0)
 sys.stdout.write("." + ".".join(old))
 ' 2>/dev/null)" || return 0
@@ -244,7 +257,7 @@ telemetry_master_disables_for() {
         prflow.execution_diagnostics_enabled|\
         prflow.execution_denial_commands_enabled|\
         prflow_review.live_progress_comment_enabled|\
-        create_issue.investigation_record_enabled) ;;
+        spec.investigation_record_enabled) ;;
         *) return 1 ;;
     esac
     command -v python3 >/dev/null 2>&1 || return 1

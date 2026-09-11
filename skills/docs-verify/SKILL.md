@@ -27,7 +27,7 @@ Malformed invocations (all arms explicit). A `--`-prefixed token that is not one
 Grammar: `[--report-only] [--search-space <pathspec>] <topic…>`.
 
 - Default (no flag) — write mode: verify docs and make file changes to bring them into line with the code (the behavior described throughout this skill).
-- `--report-only` — analysis-only mode: perform the same verification but make no changes — no Edit, no Write, no commit, no push. Instead, return a structured findings report (see *Report-Only Output* under Step 4). Used by `/prflow:create-issue` to inform a new issue without writing to a protected branch.
+- `--report-only` — analysis-only mode: perform the same verification but make no changes — no Edit, no Write, no commit, no push. Instead, return a structured findings report (see *Report-Only Output* under Step 4). Used by `/prflow:spec` to inform a new issue without writing to a protected branch.
 - `--search-space <pathspec>` — the search-space operand (report-only mode): the population this run surveys, in place of this skill's defaults. Steps 1 and 2 both read it. When it is not supplied, behavior is unchanged: Step 1 searches `[[INTERNAL_DOC_LOCATION]]` and Step 2 searches the whole tracked tree.
 
 ### Who you are in report-only mode
@@ -179,7 +179,7 @@ Documentation files are located in `[[INTERNAL_DOC_LOCATION]]` and organized by 
 - Write mode (default): Create or Edit Documentation — make real file changes to add/update documentation files.
 - Report-only mode (`--report-only`): Make no changes — return the findings report described in *Report-Only Output* (under Step 4).
 
-Read the shared writing standard before composing in either mode. Both modes compose prose: write mode composes the documentation it edits, and `--report-only` composes the findings report that `/prflow:create-issue` builds an issue body from. So read `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it when composing either. A failed load emits a breadcrumb naming the file and the failure kind, and you compose without it.
+Read the shared writing standard before composing in either mode. Both modes compose prose: write mode composes the documentation it edits, and `--report-only` composes the findings report that `/prflow:spec` builds an issue body from. So read `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it when composing either. A failed load emits a breadcrumb naming the file and the failure kind, and you compose without it.
 
 ---
 
@@ -278,7 +278,7 @@ account of what you could not establish — returned as text, with the working t
 created or edited). A report that is accurate about the documentation but thin about the code has
 failed, however clean its doc-reliability signal.
 
-This mode is typically a sub-step of another skill (e.g. `/prflow:create-issue`) — when you
+This mode is typically a sub-step of another skill (e.g. `/prflow:spec`) — when you
 finish, hand the report back to the calling flow and let it continue. Do not announce overall task
 completion or stop the larger task.
 

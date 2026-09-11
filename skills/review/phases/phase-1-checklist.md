@@ -171,4 +171,10 @@ Output: `Deduped to {N_after} of {N_before} items.`
 ## Phase 1.6: Write the durable checklist artifact
 
 Once the final checklist array is ready to hand to Phase 2 — post-cap, post-dedup, the exact array Phase 2 will verify — Write it with the Write tool to `.prflow/tmp/review/<slug>/<run-id>/checklist-iter-<N>.json`, where `<slug>/<run-id>` is this run's run-scoped directory from Phase 0.2 and `<N>` is the engine iteration (`1` on a standalone `/prflow:review` run; the fix-loop-supplied iteration otherwise). Phase 2 reads this file, so a checklist-owing run that skips this write leaves Phase 2 with no checklist to verify. An empty array `[]` is a valid artifact — a generator that legitimately returns nothing still writes the file. Substitute the `<slug>/<run-id>/checklist-iter-<N>.json` path literally, never as a `$VAR` expansion (a `$VAR` in a write command is denied on the cloud matcher). This write happens on the single-batch, multi-batch, and all-lite paths alike. The `checklist_skipped = "failure"` double-failure arm (§1.3) writes NO artifact and keeps its existing `checklist-skip reason=failure` phase-log record instead.
+
+### 1.6.1 Update the progress comment (PR-comment surface)
+
+When this run holds a live progress comment (`$WP` set), tick the Phase 1 Blueprint row once the checklist artifact is written; skip this step entirely when `$WP` is unset. A refused or failed command gets a `::warning::` and never stops the review. Emit the vendored literal `.prflow/vendor/prflow/scripts/workpad.py progress <comment-id> --tick "Generate verification checklist"` as a single leading-token statement first; on a `command not found` / `No such file` / exit-127 reading, fall back to the portable anchor `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py progress <comment-id> --tick "Generate verification checklist"` as a single leading-token statement.
+
+Substitute `<comment-id>` with the held `$WP` value as a literal — never `$WP` in the command.
 <!-- prflow:review-ref phase=1 file=skills/review/phases/phase-1-checklist.md end -->
