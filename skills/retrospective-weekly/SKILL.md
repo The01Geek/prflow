@@ -1,11 +1,11 @@
 ---
 name: retrospective-weekly
 description: >
-  Run the weekly devflow self-improvement loop locally: scan freshly-merged
+  Run the weekly PRFlow self-improvement loop locally: scan freshly-merged
   watched-author PRs, write per-PR retrospective entries (LLM only for PRs
   that fail the mechanical clean-gate), derive recurring patterns, and file
   one human-reviewed GitHub issue per actionable pattern. Use when running
-  the weekly devflow retrospective + audit.
+  the weekly PRFlow retrospective + audit.
 ---
 
 # /prflow:retrospective-weekly — Weekly Orchestrator
@@ -486,7 +486,7 @@ STATE_PR=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner repor
 `open-state-pr.sh` (no required args; optional `--branch <name>`,
 `--base <ref>` — defaults to `main` —, and `--dry-run`):
 
-- Creates/reuses branch `devflow/learnings-<YYYY-MM-DD>` from `--base`
+- Creates/reuses branch `prflow/learnings-<YYYY-MM-DD>` from `--base`
   (`main` by default), so the PR diff is just the learnings files.
 - Stages any learnings files that exist (`.prflow/learnings/retrospectives.jsonl`
   and, if present, `.prflow/learnings/overrides.json`).
@@ -1121,16 +1121,16 @@ trap 'rm -rf "$_SUMMARY_TMP"' EXIT
 # an empty operand slurps to []→[0]=null (silent) where --argjson aborted loud. These
 # three are upstream producer output, valid JSON ([] at minimum) on success — an empty
 # string means that producer failed, so fail loud rather than emit analyzed/patterns:null.
-: "${ANALYZED_JSON:?devflow retrospective Step 9: ANALYZED_JSON is empty — upstream Stage-A analysis failed}"
-: "${PATTERNS_JSON:?devflow retrospective Step 9: PATTERNS_JSON is empty — devflow_annotate_patterns printed nothing over .prflow/tmp/patterns-full.json (missing, empty, or unreadable)}"
-: "${RECURRING_TARGETS_JSON:?devflow retrospective Step 9: RECURRING_TARGETS_JSON is empty — recurring-targets.sh failed}"
+: "${ANALYZED_JSON:?PRFlow retrospective Step 9: ANALYZED_JSON is empty — upstream Stage-A analysis failed}"
+: "${PATTERNS_JSON:?PRFlow retrospective Step 9: PATTERNS_JSON is empty — devflow_annotate_patterns printed nothing over .prflow/tmp/patterns-full.json (missing, empty, or unreadable)}"
+: "${RECURRING_TARGETS_JSON:?PRFlow retrospective Step 9: RECURRING_TARGETS_JSON is empty — recurring-targets.sh failed}"
 # Same fail-loud property for the two operands: both helpers print at
 # minimum `[]` on success, so an empty string is producer failure, not "nothing
 # to report". (LIVENESS_WARNING is deliberately NOT guarded — an empty string is
 # its normal no-warning value, and it is passed as --arg, never slurped.)
-: "${WITHHELD_JSON:?devflow retrospective Step 9: WITHHELD_JSON is empty — the Step 8c withheld producer failed}"
-: "${DECLINED_REFILED_JSON:?devflow retrospective Step 9: DECLINED_REFILED_JSON is empty — devflow_declined_refiled failed}"
-: "${TRUNCATIONS_JSON:?devflow retrospective Step 9: TRUNCATIONS_JSON is empty — the Step 8a truncation producer failed}"
+: "${WITHHELD_JSON:?PRFlow retrospective Step 9: WITHHELD_JSON is empty — the Step 8c withheld producer failed}"
+: "${DECLINED_REFILED_JSON:?PRFlow retrospective Step 9: DECLINED_REFILED_JSON is empty — devflow_declined_refiled failed}"
+: "${TRUNCATIONS_JSON:?PRFlow retrospective Step 9: TRUNCATIONS_JSON is empty — the Step 8a truncation producer failed}"
 printf '%s\n' "${skip_records[@]:-}"        | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -sRc 'split("\n") | map(select(. != ""))' > "$_SUMMARY_TMP/skips.json"
 printf '%s' "$ANALYZED_JSON"                > "$_SUMMARY_TMP/analyzed.json"
 printf '%s' "$PATTERNS_JSON"                > "$_SUMMARY_TMP/patterns.json"
@@ -1155,7 +1155,7 @@ printf '%s' "$TRUNCATIONS_JSON"             > "$_SUMMARY_TMP/truncations.json"
 # shell variable.
 for _op in skips intervention_issues cooldown_skipped blockers; do
   [ -s "$_SUMMARY_TMP/$_op.json" ] || {
-    echo "devflow retrospective Step 9: $_op.json is empty — its inline jq producer failed" >&2
+    echo "PRFlow retrospective Step 9: $_op.json is empty — its inline jq producer failed" >&2
     rm -rf "$_SUMMARY_TMP"; exit 1
   }
 done
@@ -1255,20 +1255,22 @@ after reviewing.
 
 - Overrides after Stage B. `meta-issue.sh` records each filed pattern's
   lifecycle entry in `.prflow/learnings/overrides.json` after the Step 7 state PR
-  was opened, so the change lands in next week's state PR. To include it in *this*
-  run's PR, after Step 8 push a follow-up commit onto the same
-  `devflow/learnings-<date>` branch:
+  was opened, so by default the change lands in next week's state PR. To include it
+  in *this* run's PR, run the helper's follow-up mode once with the Step 7 state
+  pull-request number: it reads that PR's own head branch, commits
+  `.prflow/learnings/overrides.json` onto it, pushes, and returns you to the branch
+  you started on — composing no branch name itself, so a run crossing UTC midnight
+  cannot target a branch that never existed, and refusing any head outside the two
+  state-branch prefixes. Substitute the state PR number as a literal:
 
   ```bash
-  if ! git diff --quiet HEAD -- .prflow/learnings/overrides.json 2>/dev/null; then
-      LB="devflow/learnings-$(date -u +%F)"
-      git fetch origin "$LB"
-      git checkout "$LB"
-      git add .prflow/learnings/overrides.json
-      git commit -m "chore(devflow): add overrides from Stage B filed issues"
-      git push --force-with-lease origin "$LB"
-      git checkout main
-  fi
+  .prflow/vendor/prflow/lib/open-state-pr.sh --follow-up <state-pr-number>
+  ```
+
+  On a checkout without the vendored tree, fall back to the portable anchor form:
+
+  ```bash
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/open-state-pr.sh --follow-up <state-pr-number>
   ```
 - Never auto-merge, never auto-implement. The maintainer merges the state PR
   manually after CI, and triages each filed issue manually — the loop never

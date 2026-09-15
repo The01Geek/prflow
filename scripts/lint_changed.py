@@ -71,7 +71,7 @@ RECORD_KINDS = frozenset(
 
 # language → the tool that lints it. The manifest selector carries the language;
 # this trusted mapping — not manifest text — names the executable.
-_LANGUAGE_TOOL = {"shell": "shellcheck", "python": "ruff"}
+_LANGUAGE_TOOL = {"shell": "shellcheck", "python": "ruff", "workflow": "actionlint"}
 
 # Broad-invocation base flags per tool, in trusted code (the manifest selector
 # carries globs + language, not flags). A special_invocation carries its own
@@ -80,6 +80,9 @@ _LANGUAGE_TOOL = {"shell": "shellcheck", "python": "ruff"}
 _BROAD_FLAGS = {
     "shellcheck": ["--severity=warning", "-e", "SC1091"],
     "ruff": ["check"],
+    # Do not add a flag here to make actionlint run shellcheck: it auto-detects shellcheck on
+    # PATH and lints each `run:` block without one (CI's actionlint@v2 step does the same).
+    "actionlint": [],
 }
 
 # git mode bits for the file shapes the eligibility rules distinguish.

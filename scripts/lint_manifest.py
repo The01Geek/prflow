@@ -39,12 +39,12 @@ SUPPORTED_SCHEMA_VERSIONS = frozenset({1})
 # tell an absent file from a present-but-invalid manifest compare EQUALITY with this
 # constant — a `missing:` prefix match also catches structural missing-key reasons.
 MISSING_FILE_REASON = "missing: manifest file does not exist"
-KNOWN_TOOLS = ("shellcheck", "ruff")
+KNOWN_TOOLS = ("shellcheck", "ruff", "actionlint")
 KNOWN_OS = frozenset({"linux", "macos", "windows"})
 KNOWN_ARCH = frozenset({"x86_64", "arm64"})
 KNOWN_ARCHIVE_TYPES = frozenset({"tar.gz", "tar.xz", "zip"})
 KNOWN_STRATEGIES = frozenset({"extract-tar", "extract-zip"})
-KNOWN_LANGUAGES = frozenset({"shell", "python"})
+KNOWN_LANGUAGES = frozenset({"shell", "python", "workflow"})
 
 # ── Typed-field shapes. These regexes are what make the manifest reject shell
 #    commands, package-manager snippets, arbitrary executable paths, URL

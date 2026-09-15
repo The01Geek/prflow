@@ -77,6 +77,16 @@ Two things this step must not do. Never invent a partial migration — do not mo
 
 Report each fact once. The apply re-prints the same plan the preview showed, and the scaffolder further down reports the same retained unshipped workflow this step already named. Relay each distinct fact once per run, in whichever step surfaced it first, and say nothing when a later step merely repeats it — a report that says the same thing three times reads as three problems.
 
+## Then: migrate a pre-rename telemetry branch
+
+The Tier-1 migration above moves the state directory but not the telemetry branch. A repository set up before the rename keeps its cost/effectiveness records on the superseded `devflow-telemetry` branch, where the weekly retrospective cannot see them. Run the bundled helper once, after the Tier-1 report arms above, to move those records onto the branch PRFlow now writes to. From the repo root:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/migrate-telemetry-branch.sh .
+```
+
+It is best-effort and exits 0. Relay each `migrate-telemetry-branch:` line it prints, once each — whether it migrated the records, found nothing to migrate, or skipped for a stated reason — then carry on; a skip is a report, not an init failure.
+
 ## Then: offer an opt-in PRFlow rename sweep (consent-gated)
 
 The atomic migration renames only the *mechanical* forms `lib/rename-map.json` enumerates, not prose. This step offers a repository-wide semantic sweep repairing stale `DevFlow` product-name mentions.

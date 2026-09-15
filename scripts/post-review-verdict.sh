@@ -20,7 +20,8 @@
 # permits, so lib/test/run.sh can drive every path as ordinary shell.
 #
 # WHY IT STAMPS A MARKER (issue #1030). The reviews API carries the verdict as `state` and
-# the reviewed head as `commit_id`, but it does NOT carry WHOSE review it is. Every consumer
+# a `commit_id` (the reviewed head at submission time, but GitHub may re-point it on a later
+# branch update — issue #433/#1247), but it does NOT carry WHOSE review it is. A consumer
 # that must tell this engine's verdict from a human reviewer's — `dismiss-stale-rejections.sh`
 # above all — was therefore forced to pattern-match prose the reviewing AGENT wrote at the top
 # of the body, and a census over 60 pull requests measured 6 of 9 real REJECT bodies not
@@ -255,12 +256,14 @@ case "$VERDICT" in
 esac
 
 # (3) The head must be a full 40-hex object name, because it is EMITTED verbatim into the
-# marker every consumer cross-checks against the reviews-API `commit_id`. An abbreviated,
+# marker as the record of the reviewed tree, which a consumer places the review by
+# comparing against the head under consideration (issue #433 — NOT against the reviews-API
+# `commit_id`, which GitHub re-points on a branch update). An abbreviated,
 # empty, or non-hex value would publish a marker that can never compare equal to a real
-# commit_id — a marker asserting a head it does not name is worse than no marker, so this
+# head — a marker asserting a head it does not name is worse than no marker, so this
 # refuses rather than stamping a lie. `[[ =~ ]]` is a bash builtin (no PATH tool).
 if [[ ! "$HEAD_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
-  echo "devflow post-verdict: head '$HEAD_SHA' is not a 40-character hex object name — refusing the post (the verdict marker's head= field must be comparable to the reviews-API commit_id; no request issued)" >&2
+  echo "devflow post-verdict: head '$HEAD_SHA' is not a 40-character hex object name — refusing the post (the verdict marker's head= field must be a full commit object name comparable to the head under consideration; no request issued)" >&2
   _prv_say "SKIP head-not-sha"
   exit 3
 fi

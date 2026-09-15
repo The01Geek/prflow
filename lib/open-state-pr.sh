@@ -5,6 +5,8 @@
 #
 # Usage:
 #   open-state-pr.sh [--branch <name>] [--base <ref>] [--dry-run]
+#   open-state-pr.sh --follow-up <state-pr-number>   # commit .prflow/learnings/overrides.json
+#                                                      onto that PR's head branch (no --dry-run)
 #
 # --base defaults to "main": the per-run branch is (re)created from that ref so
 # the resulting PR diff contains only the learnings files, never whatever the
@@ -17,16 +19,23 @@
 set -euo pipefail
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
-DEFAULT_BRANCH="devflow/learnings-$(date -u +%F)"
+# State-branch prefixes. The current spelling is produced; the superseded one is still
+# accepted by --follow-up (and by the two readers) until it is retired — see
+# lib/rename-map.json identifiers id "retrospective-state-branch".
+STATE_BRANCH_PREFIX='prflow/learnings-'
+STATE_BRANCH_PREFIX_SUPERSEDED='devflow/learnings-'
+DEFAULT_BRANCH="${STATE_BRANCH_PREFIX}$(date -u +%F)"
 BRANCH="$DEFAULT_BRANCH"
 BASE="main"
 DRY_RUN=0
+FOLLOWUP_PR=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --branch)  BRANCH="$2"; shift 2 ;;
-        --base)    BASE="$2";   shift 2 ;;
-        --dry-run) DRY_RUN=1;   shift   ;;
+        --branch)    BRANCH="$2";      shift 2 ;;
+        --base)      BASE="$2";        shift 2 ;;
+        --follow-up) FOLLOWUP_PR="$2"; shift 2 ;;
+        --dry-run)   DRY_RUN=1;        shift   ;;
         *) echo "open-state-pr: unknown argument: $1" >&2; exit 1 ;;
     esac
 done
@@ -41,6 +50,97 @@ done
 # shellcheck source=resolve-jq.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resolve-jq.sh" \
   || { echo "open-state-pr: resolve-jq.sh could not be sourced — using bare 'jq'" >&2; : "${DEVFLOW_JQ:=jq}"; }
+
+# ── --follow-up <state-pr-number> mode ────────────────────────────────────────
+# Stage B (retrospective-weekly) files issues after the Step 7 state PR is opened,
+# mutating .prflow/learnings/overrides.json in the working tree. This mode commits that
+# overrides.json onto the state PR's OWN head branch — read from the PR, never re-derived
+# from the date (so a run crossing UTC midnight still targets the branch the PR actually has).
+# An EXIT trap restores the starting branch as this mode returns; a head outside the two
+# state-branch prefixes is refused before commit, keeping unrelated branches untouched.
+if [ -n "$FOLLOWUP_PR" ]; then
+    FOLLOWUP_SUBJECT="chore(prflow): add overrides from Stage B filed issues"
+    # --follow-up performs real git mutations on the state branch and has no dry-run
+    # preview; accepting --dry-run here would mutate while every other mode honored it.
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo "open-state-pr: --follow-up does not support --dry-run (it performs real git mutations on the state branch); pass one, not both" >&2
+        exit 2
+    fi
+    _FU_START="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+    # Restore the starting branch however this mode exits, and REPORT a failed restoration
+    # rather than suppressing it: swallowing the checkout's status exits 0 while left on the
+    # state branch, silently stranding later work on the wrong branch. set -e aborts route
+    # through EXIT, so this runs as an EXIT trap — a RETURN-trap or explicit-only restore
+    # would miss them.
+    _fu_restore_cleanup() {
+        local _fu_status=$?
+        # Disable recursive EXIT handling before this function's own exit calls.
+        trap - EXIT
+        # Non-force restoration only — never add -f/reset/clean/delete/retry here: carried
+        # tracked, staged and untracked work must survive a failed restoration (AC5).
+        if git checkout -q "$_FU_START" >/dev/null 2>&1; then
+            exit "$_fu_status"
+        fi
+        # Restoration failed. Identify the branch left behind; an empty read is the read
+        # having failed — report it unestablished, never as a claimed-restored branch.
+        local _fu_remaining
+        _fu_remaining="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+        if [ -n "$_fu_remaining" ]; then
+            echo "open-state-pr: --follow-up: failed to restore the starting branch '${_FU_START}'; the checkout remains on '${_fu_remaining}'" >&2
+        else
+            echo "open-state-pr: --follow-up: failed to restore the starting branch '${_FU_START}'; the remaining branch is unestablished (git could not read HEAD)" >&2
+        fi
+        # An earlier operation failure stays the invocation's status (AC2); a restoration
+        # failure after an otherwise-successful run makes the invocation fail (AC1).
+        if [ "$_fu_status" -ne 0 ]; then
+            exit "$_fu_status"
+        fi
+        exit 1
+    }
+    trap _fu_restore_cleanup EXIT
+
+    _FU_HEAD="$("$DEVFLOW_GH" pr view "$FOLLOWUP_PR" --json headRefName --jq .headRefName 2>/dev/null || true)"
+    if [ -z "$_FU_HEAD" ]; then
+        echo "open-state-pr: --follow-up: could not resolve the head branch for PR #${FOLLOWUP_PR} (gh pr view returned nothing or failed)" >&2
+        exit 1
+    fi
+    case "$_FU_HEAD" in
+        "$STATE_BRANCH_PREFIX"*|"$STATE_BRANCH_PREFIX_SUPERSEDED"*) : ;;
+        *)
+            echo "open-state-pr: --follow-up: refusing to commit onto '${_FU_HEAD}' — not a ${STATE_BRANCH_PREFIX}* or ${STATE_BRANCH_PREFIX_SUPERSEDED}* state branch" >&2
+            exit 1 ;;
+    esac
+    if ! git fetch origin "$_FU_HEAD" 1>&2; then
+        echo "open-state-pr: --follow-up: git fetch of '${_FU_HEAD}' failed" >&2
+        exit 1
+    fi
+    if ! git checkout -q "$_FU_HEAD" 1>&2; then
+        echo "open-state-pr: --follow-up: git checkout of '${_FU_HEAD}' failed" >&2
+        exit 1
+    fi
+    # Distinguish an absent overrides.json (no Stage-B overrides were produced) from a
+    # present-but-identical one, so a missing-producer case is not laundered into the same
+    # "unchanged" breadcrumb as the legitimate no-op. Both are a genuine no-op (exit 0).
+    if [ ! -f .prflow/learnings/overrides.json ]; then
+        echo "open-state-pr: --follow-up: .prflow/learnings/overrides.json is absent (no Stage-B overrides produced); nothing to commit" >&2
+        exit 0
+    fi
+    git add .prflow/learnings/overrides.json
+    if git diff --cached --quiet; then
+        echo "open-state-pr: --follow-up: overrides.json is present but unchanged; nothing to commit" >&2
+        exit 0
+    fi
+    if ! git commit -m "$FOLLOWUP_SUBJECT" -- .prflow/learnings/overrides.json 1>&2; then
+        echo "open-state-pr: --follow-up: git commit of overrides.json onto '${_FU_HEAD}' failed" >&2
+        exit 1
+    fi
+    if ! git push origin "$_FU_HEAD" 1>&2; then
+        echo "open-state-pr: --follow-up: git push of '${_FU_HEAD}' failed — the overrides commit was made locally on '${_FU_HEAD}' but not pushed" >&2
+        exit 1
+    fi
+    echo "open-state-pr: --follow-up: committed overrides.json onto ${_FU_HEAD} and pushed." >&2
+    exit 0
+fi
 
 # ── Determine entry count ─────────────────────────────────────────────────────
 # Count retrospective ENTRIES only — #626 `skip` marker rows are processed-PR
@@ -69,7 +169,7 @@ fi
 
 # ── Commit metadata ───────────────────────────────────────────────────────────
 WEEK_LABEL="$(date -u +%G-W%V)"
-SUBJECT="chore(devflow): retrospectives for ${WEEK_LABEL} (${N} entries)"
+SUBJECT="chore(prflow): retrospectives for ${WEEK_LABEL} (${N} entries)"
 BODY="Retrospective entries from the $(date -u +%F) /prflow:retrospective-weekly run. Merge once CI passes."
 
 # ── Helper: run or dry-run a command ─────────────────────────────────────────

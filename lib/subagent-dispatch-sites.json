@@ -14,13 +14,13 @@
       "subagent_type": "unspecified"
     },
     {
-      "dispatcher": "skills/implement/phases/phase-4-documentation.md",
+      "dispatcher": "skills/implement/references/phase-4-finalization.md",
       "skill": "docs",
       "handoff": "by-path",
       "subagent_type": "unspecified"
     },
     {
-      "dispatcher": "skills/implement/phases/phase-4-documentation.md",
+      "dispatcher": "skills/implement/references/phase-4-finalization.md",
       "skill": "pr-description",
       "handoff": "by-path",
       "subagent_type": "unspecified"

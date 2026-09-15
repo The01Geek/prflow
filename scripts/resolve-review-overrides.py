@@ -27,9 +27,12 @@ Resolution rules (mirroring the schema):
     value (including an empty string) is dropped with a warning, mirroring the
     invalid-effort path — the run never aborts. Like model/effort it obeys
     entry-level precedence (a `default: {iterations: …}` supplies it only to
-    no-entry subagents). This resolver only READS the key; the fix-loop-iteration>=2
-    roster exclusion it drives is enforced engine-side (skills/review/SKILL.md
-    Phase 3.1), and `iterations` is NOT a dispatch-time model/effort parameter.
+    no-entry subagents). The ordinary resolve mode only READS the key and passes a
+    valid value through; the `--plan-phase3` roster-planning mode
+    (`plan_phase3_roster`) is the executable owner of the fix-loop-iteration>=2
+    exclusion the engine formerly applied in Phase-3 prose. `iterations` is NOT a
+    dispatch-time model/effort parameter, and the plan strips it from the
+    per-agent overrides it returns.
   - Entry-level precedence: a subagent with its own entry uses ONLY that entry;
     the `default` entry does NOT backfill its missing fields. The `default`
     entry supplies model/effort only for subagents with no entry of their own.
@@ -56,6 +59,10 @@ Resolution rules (mirroring the schema):
 
 Usage:
     resolve-review-overrides.py AGENT [AGENT ...] [--config FILE] [--config-get PATH]
+    resolve-review-overrides.py AGENT [AGENT ...] --plan-phase3 --entry-kind KIND [--iteration N]
+
+`--plan-phase3` (issue #425) prints the Phase-3 roster plan instead of the override
+map — see `plan_phase3_roster` and the `--plan-phase3` flag help.
 
 Prints the override map as JSON to stdout, e.g.
     {"devflow:code-reviewer": {"model": "opus", "effort": "high"}}
@@ -79,12 +86,9 @@ VALID_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 # (warn, fall back to the top-level claude_model) exactly as an out-of-enum effort.
 VALID_MODELS = ("sonnet", "opus", "haiku", "fable")
 
-# The only valid `iterations` value (issue #425). An agent whose resolved override
-# carries `iterations: "first-only"` is excluded from the Phase-3 review roster on
-# fix-loop iterations >= 2 — but that exclusion is enforced ENGINE-side
-# (skills/review/SKILL.md Phase 3.1); this resolver only reads the key and passes a
-# valid value through (dropping any other value with a warning, exactly like an
-# out-of-enum effort). Default absent = today's behavior, byte-identical.
+# The only valid `iterations` value (issue #425). A first-only agent is excluded
+# from the Phase-3 roster on primary fix-loop iterations >= 2 — a decision
+# `plan_phase3_roster` (the `--plan-phase3` mode) owns, not this read path.
 VALID_ITERATIONS = ("first-only",)
 
 # config-get.sh stringifies a non-array config value the way JS String() does (the
@@ -120,6 +124,19 @@ AGENT_LEAVES = (
 # re-edited. lib/ is a sibling of scripts/ in both the source repo and a vendored
 # .prflow/vendor/prflow/ tree, so the import path holds on every tier.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+# The one site resolving DEVFLOW_BASH and building a shell-readable script argument
+# (issue #430). Imported over the same lib/ path inserted above, so it resolves in a
+# vendored consumer tree exactly as plugin_identity does.
+try:
+    import bash_launch as _bl
+except Exception as _bl_exc:  # pragma: no cover - import-time arm
+    # Name the dependency rather than letting an ImportError surface as a raw traceback on
+    # the consumer-shipped review path, where this file runs under the read-only reviewer.
+    raise SystemExit(
+        "resolve-review-overrides: the shared launch helper lib/bash_launch.py could not be "
+        f"imported ({_bl_exc.__class__.__name__}: {_bl_exc}); refusing to resolve overrides"
+    ) from _bl_exc
+
 try:
     import plugin_identity as _plugin_identity
 
@@ -277,6 +294,108 @@ def resolve_overrides(raw, dispatched):
         if resolved:
             result[agent] = resolved
     return result, warnings
+
+
+# Phase-3 review-entry kinds (issue #425); plan_phase3_roster owns the exclusion semantics.
+VALID_ENTRY_KINDS = ("standalone", "primary", "shadow")
+
+
+def resolve_plan_iteration(raw_iteration):
+    """Resolve a caller-supplied fix-loop iteration -> (value, resolved, warning).
+
+    `raw_iteration` is the caller's iteration operand: an int, an int-shaped
+    string (the CLI passes a string), or None when the caller holds no iteration
+    context. Returns (iteration_value_or_None, resolved_bool, warning_or_None).
+    An absent or non-integer operand is recorded as UNRESOLVABLE (resolved False,
+    value None), never coerced to a later iteration — so a caller that cannot
+    positively establish its iteration never accidentally excludes an agent.
+    """
+    if raw_iteration is None:
+        return None, False, None
+    unresolvable = (
+        f"iteration {raw_iteration!r} is not an integer; treating the iteration "
+        "context as unresolvable (no first-only exclusion applied)"
+    )
+    # bool is an int subclass; a boolean iteration is a caller bug, never a round.
+    if isinstance(raw_iteration, bool):
+        return None, False, unresolvable
+    if isinstance(raw_iteration, int):
+        return raw_iteration, True, None
+    try:
+        return int(str(raw_iteration).strip()), True, None
+    except (TypeError, ValueError):
+        return None, False, unresolvable
+
+
+def plan_phase3_roster(raw, eligible, entry_kind, iteration):
+    """Plan the Phase-3 reviewer roster (issue #425) -> (plan, warnings).
+
+    The single executable owner of the `iterations: "first-only"` roster-exclusion
+    decision the review engine used to make in Phase-3 prose. `raw` is the config
+    map `resolve_overrides` reads; `eligible` is the applicability-selected Phase-3
+    roster (the caller's own Phase 3.1 gate output); `entry_kind` is one of
+    VALID_ENTRY_KINDS; `iteration` is the (value, resolved) pair from
+    `resolve_plan_iteration`.
+
+    Reuses `resolve_overrides` — the same config path, entry-level precedence,
+    validation and warn-and-ignore behavior — so it introduces no second config
+    loader and leaves the ordinary override-map output format untouched. A
+    first-only agent is excluded ONLY on a positively-established primary entry
+    with an integer iteration >= 2; iteration 1, standalone, shadow, and an
+    unresolvable iteration exclude nobody (shadow even when a numeric iteration is
+    present). An invalid `iterations` config value is dropped with a warning by
+    `resolve_overrides`, so it never marks an agent first-only and never excludes.
+
+    The returned plan accounts for the WHOLE eligible roster: every eligible agent
+    appears in exactly one of `selected` or `exclusions`, so a caller can confirm a
+    justified-empty selection (every eligible reviewer configured first-only on a
+    later primary iteration) rather than accept a self-narrowed roster as proof the
+    exclusion was applied.
+    """
+    override_map, warnings = resolve_overrides(raw, eligible)
+    iteration_value, iteration_resolved = iteration
+    exclusion_applies = (
+        entry_kind == "primary"
+        and iteration_resolved
+        and isinstance(iteration_value, int)
+        and iteration_value >= 2
+    )
+    selected = []
+    exclusions = []
+    for agent in eligible:
+        first_only = (override_map.get(agent) or {}).get("iterations") == "first-only"
+        if exclusion_applies and first_only:
+            exclusions.append({
+                "agent": agent,
+                "reason": (
+                    f"iterations=first-only: excluded on primary fix-loop "
+                    f"iteration {iteration_value} (>= 2)"
+                ),
+            })
+        else:
+            selected.append(agent)
+    # `iterations` governs roster membership only — never an Agent-tool
+    # model/effort dispatch parameter — so strip it from each selected agent's
+    # resolved override; an entry left empty after the strip emits no override.
+    overrides = {}
+    for agent in selected:
+        resolved = {
+            k: v for k, v in (override_map.get(agent) or {}).items()
+            if k != "iterations"
+        }
+        if resolved:
+            overrides[agent] = resolved
+    plan = {
+        "entry_kind": entry_kind,
+        "iteration": iteration_value,
+        "iteration_resolved": iteration_resolved,
+        "exclusion_applies": exclusion_applies,
+        "eligible": list(eligible),
+        "selected": selected,
+        "exclusions": exclusions,
+        "overrides": overrides,
+    }
+    return plan, warnings
 
 
 # The four effort application-point values (issue #554). Only two are reachable
@@ -490,7 +609,17 @@ def _config_get(config_get, config_file, dotted_key, warnings):
     silently collapsing to "absent" (a fat-fingered config would otherwise drop
     every override with no diagnostic). Appends to `warnings`; never raises.
     """
-    cmd = [config_get, dotted_key, ""]
+    # Run config-get.sh under the selected bash; script_argument spells its path for that
+    # interpreter (issues #365/#430 — native Python cannot exec a .sh shebang, and each bash
+    # family reads a drive-letter path differently). See bash_launch.py for the path rules.
+    # Give the subprocess NO cwd of its own: config-get.sh resolves config from
+    # `git rev-parse --show-toplevel` in ITS cwd, so a script-dir cwd would read the plugin's
+    # non-repo copy and drop every override silently.
+    # The `bash` head stays literal, not the shared helper: cloud_writer_deps.py verifies this
+    # file's declared exec edge from static bindings a helper call would leave nothing to read.
+    bash = os.environ.get("DEVFLOW_BASH") or "bash"
+    here = Path.cwd()
+    cmd = [bash, _bl.script_argument(Path(config_get), cwd=here, bash=bash), dotted_key, ""]
     if config_file:
         cmd.append(config_file)
     try:
@@ -498,7 +627,10 @@ def _config_get(config_get, config_file, dotted_key, warnings):
             cmd, capture_output=True, text=True, check=False
         )
     except OSError as exc:
-        warnings.append(f"cannot run {config_get}: {exc}")
+        # Name the interpreter, not just the script: after #365 the exec target that
+        # fails to spawn is `bash` (or $DEVFLOW_BASH), so a bogus DEVFLOW_BASH must not
+        # read as "cannot run config-get.sh".
+        warnings.append(f"cannot run {bash} {config_get}: {exc}")
         return ""
     if out.returncode != 0:
         # Cause-focused (no per-key detail): a parse error / missing-python3 /
@@ -694,6 +826,36 @@ def main(argv=None):
         ),
     )
     parser.add_argument(
+        "--plan-phase3",
+        action="store_true",
+        help=(
+            "print the Phase-3 roster PLAN (issue #425) as pure JSON on stdout, "
+            "INSTEAD of the override map: {entry_kind, iteration, iteration_resolved, "
+            "exclusion_applies, eligible, selected, exclusions[{agent,reason}], "
+            "overrides}. The positional agents are the applicability-selected Phase-3 "
+            "roster. Requires --entry-kind; --iteration supplies the fix-loop "
+            "iteration. A first-only agent is excluded only on a primary entry with "
+            "an integer iteration >= 2; standalone, shadow, iteration 1, and an "
+            "unresolvable iteration exclude nobody. Config-shape warnings still go to "
+            "stderr; the #554 effort report lines are not emitted in this mode."
+        ),
+    )
+    parser.add_argument(
+        "--entry-kind",
+        choices=VALID_ENTRY_KINDS,
+        default=None,
+        help="the caller's Phase-3 review-entry kind (required with --plan-phase3)",
+    )
+    parser.add_argument(
+        "--iteration",
+        default=None,
+        help=(
+            "the caller-held fix-loop iteration for --plan-phase3 (a positive "
+            "integer). Absent or non-integer is recorded as unresolvable, never "
+            "coerced to a later iteration."
+        ),
+    )
+    parser.add_argument(
         "--effort-json",
         action="store_true",
         help=(
@@ -726,13 +888,33 @@ def main(argv=None):
         unknown = list(dict.fromkeys(a for a in args.agents if a not in KNOWN_AGENTS))
 
     raw, read_warnings = read_raw(args.agents, args.config_get, args.config)
-    result, resolve_warnings = resolve_overrides(raw, args.agents)
+
+    # Emit the subagent-id drift warnings once, before the output-mode split, so
+    # every mode (plan, effort-json, ordinary) reports them identically.
     for a in unknown:
         sys.stderr.write(
             f"::warning::resolve-review-overrides: '{a}' is not a known "
             "review-engine subagent id (KNOWN_AGENTS); any override for it is "
             "resolved but it may indicate a typo or dispatch/roster drift.\n"
         )
+
+    # Roster-planning mode (issue #425): see plan_phase3_roster.
+    if args.plan_phase3:
+        if args.entry_kind is None:
+            parser.error(
+                "--plan-phase3 requires --entry-kind {standalone,primary,shadow}")
+        iteration_value, iteration_resolved, iteration_warning = \
+            resolve_plan_iteration(args.iteration)
+        plan, plan_warnings = plan_phase3_roster(
+            raw, args.agents, args.entry_kind,
+            (iteration_value, iteration_resolved))
+        iteration_extra = [iteration_warning] if iteration_warning else []
+        for w in dict.fromkeys(read_warnings + plan_warnings + iteration_extra):
+            sys.stderr.write(f"::warning::resolve-review-overrides: {w}\n")
+        sys.stdout.write(json.dumps(plan) + "\n")
+        return 0
+
+    result, resolve_warnings = resolve_overrides(raw, args.agents)
     # Dedupe across BOTH sources, preserving first-seen order: read_raw already
     # dedupes its own, but a malformed `default` makes resolve_overrides emit one
     # (now agent-agnostic) line that would otherwise repeat, and the two sources

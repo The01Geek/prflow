@@ -48,6 +48,7 @@ PHASE_FILES = {
     "phase-3-ac-gate.md": "phase3",
     "phase-4-documentation.md": "phase4",
 }
+WORKER_PHASE_FILES = {"phase-4-finalization.md": "phase4"}
 PHASE_READ_LABELS = tuple(sorted(set(PHASE_FILES.values())))
 SWEEP_REFERENCE_PREFIX = "sweep-"
 SWEEP_REFERENCE_SUFFIX = ".md"
@@ -55,6 +56,14 @@ SWEEP_REFERENCE_PHASE = "phase2"
 if SWEEP_REFERENCE_PHASE not in PHASE_READ_LABELS:
     raise AssertionError(
         f"SWEEP_REFERENCE_PHASE {SWEEP_REFERENCE_PHASE!r} must be a PHASE_READ_LABELS member")
+# _phase_read_label only counts a worker file whose label is already a PHASE_FILES value; a
+# worker label absent from that set would silently never count. Enforce the subset fail-fast at
+# import rather than leaving it to the runtime guard.
+_worker_orphan_labels = set(WORKER_PHASE_FILES.values()) - set(PHASE_FILES.values())
+if _worker_orphan_labels:
+    raise AssertionError(
+        "WORKER_PHASE_FILES values must be a subset of PHASE_FILES values "
+        f"(orphan labels: {sorted(_worker_orphan_labels)})")
 
 # The cloud execution file (scripts/scrub-transcript.sh's uploaded artifact, and the raw
 # execution file the harness writes) prepends one `# DEVFLOW SCRUB CAVEAT` line to a
@@ -205,22 +214,28 @@ def _is_main_thread_record(record):
 
 
 def _phase_read_label(file_path, phase_files, sweep_prefix="", sweep_suffix="",
-                      sweep_label=None):
+                      sweep_label=None, worker_phase_files=None):
     """The phase-read label a Read's `file_path` counts under, or None. Matches on the
     BASENAME because the same file resolves at a repo-relative path locally and a vendored
-    path on the cloud tier. Takes the label map as an argument rather than redefining it,
-    so PHASE_FILES stays the single test-pinned mirror."""
+    path on the cloud tier. Takes both label maps as arguments rather than redefining them,
+    so PHASE_FILES stays the single test-pinned mirror; `worker_phase_files` defaults to
+    WORKER_PHASE_FILES."""
+    if worker_phase_files is None:
+        worker_phase_files = WORKER_PHASE_FILES
     basename = os.path.basename(file_path)
     label = phase_files.get(basename)
     if label is not None:
         return label
+    worker_label = worker_phase_files.get(basename)
+    if worker_label is not None and worker_label in phase_files.values():
+        return worker_label
     if sweep_prefix and basename.startswith(sweep_prefix) and basename.endswith(sweep_suffix):
         return sweep_label
     return None
 
 
 def measure_context(records, phase_files, sweep_prefix="", sweep_suffix="",
-                    sweep_label=None):
+                    sweep_label=None, worker_phase_files=None):
     """Peak main-thread residency and per-phase Read counts over transcript records.
 
     The shared measuring core (issue #120): scripts/extract-execution-cost.py runs it over
@@ -264,7 +279,7 @@ def measure_context(records, phase_files, sweep_prefix="", sweep_suffix="",
             if not isinstance(file_path, str):
                 continue
             label = _phase_read_label(file_path, phase_files, sweep_prefix,
-                                      sweep_suffix, sweep_label)
+                                      sweep_suffix, sweep_label, worker_phase_files)
             if label is not None:
                 phase_reads[label] += 1
     if not saw_main_thread:

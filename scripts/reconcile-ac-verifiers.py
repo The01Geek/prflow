@@ -13,13 +13,28 @@ routes on. Making the reconciliation an executable helper — rather than
 agent-executed prose — is what lets it carry regression coverage for the
 3x3 status-pairing table below.
 
+The reconciliation takes a third input: the orchestrator's tagged criteria list, whose
+per-criterion `class` decides each criterion's *expected sides* — both verifiers for a
+`command` criterion, the evidence verifier alone for a `non-command` one. The per-side slot
+gate and the status pairing apply only to expected sides, and each record carries a
+`missing_sides` list (the expected sides that returned no record) plus a single `remedy`
+token the orchestrator routes on. Passing no criteria treats every reported criterion as
+`command`, reproducing the pre-#439 two-verifier behavior.
+
 Reconciliation contract (one row per criterion, matched by 1-based `criterion`):
 
-  - Both verifiers report the SAME status  -> that status is recorded.
-  - Any disagreement                        -> `unestablished` is recorded.
-  - A criterion present in only one report  -> the missing side is `unestablished`
-    (fail closed), so the pair disagrees unless the present side also read
-    `unestablished`.
+  - `command` criterion — both sides expected:
+    - Both verifiers report the SAME status  -> that status is recorded.
+    - Any disagreement                        -> `unestablished` is recorded.
+    - A criterion present in only one report  -> the missing side is `unestablished`
+      (fail closed), so the pair disagrees unless the present side also read
+      `unestablished`.
+  - `non-command` criterion — evidence side alone expected: the recorded status IS the
+    evidence side's status after its slot gate; a claim record present for it is ignored
+    (with a stderr breadcrumb) and no claim slot appears in `undischarged_slots`.
+  - A criterion in a report but ABSENT from the criteria file, or one poisoned by a duplicate
+    listing, has no expected sides -> `unestablished`, `remedy` `judge`, whatever the reports
+    say.
   - A reconciled `satisfied` with NO evidence pointer from either verifier is
     downgraded to `unestablished`: a satisfied record never lands without an
     evidence pointer (issue #1575 AC6).
@@ -55,10 +70,10 @@ to its Blocked-naming-`allowed_tools` path from a field, not by sniffing free te
 
 Output: one JSON object on stdout —
     {"criteria": [ {"criterion", "evidence_status", "claim_status", "status",
-                    "blocks", "reason", "evidence", "evidence_source",
+                    "blocks", "reason", "remedy", "evidence", "evidence_source",
                     "evidence_status_reported", "claim_status_reported",
                     "evidence_dispositions", "claim_dispositions",
-                    "undischarged_slots"} ... ],
+                    "missing_sides", "undischarged_slots"} ... ],
      "all_satisfied": <bool>, "blocking": [<criterion>, ...]}
 The two disposition maps and `undischarged_slots` (side-qualified `<side>:<slot>`)
 are carried out so the orchestrator records what each verifier did alongside the
@@ -69,7 +84,8 @@ one blocking only on an attestation gap.
 
 Exit codes:
     0 — reconciliation produced (whether or not any criterion blocks)
-    3 — a report file was unreadable, not valid JSON, or not a JSON list
+    3 — a report file, or the optional `--criteria-file`, was unreadable, not valid JSON, or
+        not a bare JSON list
 """
 
 import argparse
@@ -95,8 +111,24 @@ BLOCKING_STATUSES = ("unmet", "unestablished")
 # Do not rename or drop a slot without the matching edit to the `| Slot |` table AND the
 # worked example in agents/ac-evidence-verifier.md / agents/ac-claim-verifier.md: the
 # gate would then check a slot the charter never asks for, blocking every criterion.
-EVIDENCE_SLOTS = ("type-decided", "command-run", "single-flight", "evidence-recorded")
+EVIDENCE_SLOTS = ("type-decided", "command-run", "claim-traced", "evidence-recorded")
 CLAIM_SLOTS = ("claim-traced", "command-source-read", "evidence-recorded")
+
+# The criterion class decides the verifier roster: a `command` criterion is checked by both
+# verifiers (the merge script requires their agreement); a `non-command` criterion by the
+# evidence verifier alone. An absent, non-string, or out-of-vocabulary class reconciles as
+# `command` (the fail-safe default — doubt buys a second vote).
+CLASS_VALUES = ("command", "non-command")
+
+# The remedy vocabulary the reconciler emits per criterion, complete by construction; the
+# phase prose routes each criterion from its token alone. Do not widen or reorder without the
+# matching edit to `_remedy`'s ordered rule list and phase-3-ac-gate.md's routing lines.
+REMEDY_VALUES = ("tick", "fix", "restate-evidence", "restate-claim", "rerun-evidence",
+                 "rerun-claim", "redispatch-evidence", "blocked-grant", "judge")
+
+# Identity-checked like `_POISON_TOKEN`, never by truthiness: a class value shares the
+# criteria-file namespace, so a truthiness test would misclassify a real class or a forged marker.
+_POISON_CLASS = object()
 
 # Do not widen the lookahead to admit `-` (`no-op, …` would discharge a slot), nor
 # narrow it to whitespace-and-paren (`no, <reason>` would be rejected, hard-blocking a
@@ -366,36 +398,178 @@ def _index_by_criterion(records, side):
     return by_num
 
 
-def reconcile(evidence_records, claim_records):
-    """Reconcile two full verifier reports into the record the orchestrator routes on."""
+def parse_criteria(entries):
+    """Parse the orchestrator-authored tagged-criteria list into `{num: class | _POISON_CLASS}`.
+
+    Fail-closed exactly like `_index_by_criterion`: an entry that is not an object, or whose
+    `criterion` is absent/boolean/not-int, is DROPPED with a stderr breadcrumb and contributes
+    no expected sides (a report record for that number then reconciles `unestablished`/`judge`
+    under the absent-from-criteria-file rule). A `class` that is absent, not a string, or
+    outside `CLASS_VALUES` reconciles the criterion as `command` (the fail-safe default). A
+    criterion number listed twice is POISONED — it contributes no expected sides and reconciles
+    `unestablished`/`judge` whatever its reports say, so a malformed list can never buy a vote.
+    """
+    class_by_num = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            print("reconcile-ac-verifiers: dropping a non-object criteria entry",
+                  file=sys.stderr)
+            continue
+        num = entry.get("criterion")
+        if isinstance(num, bool) or not isinstance(num, int):
+            print(f"reconcile-ac-verifiers: dropping a criteria entry whose 'criterion' is "
+                  f"absent or not an integer ({num!r})", file=sys.stderr)
+            continue
+        if num in class_by_num:
+            print(f"reconcile-ac-verifiers: criterion {num} listed twice in the criteria "
+                  f"file — poisoning it (no expected sides)", file=sys.stderr)
+            class_by_num[num] = _POISON_CLASS
+            continue
+        cls = entry.get("class")
+        class_by_num[num] = cls if isinstance(cls, str) and cls in CLASS_VALUES else "command"
+    return class_by_num
+
+
+def _expected_sides(cls):
+    """The verifier sides a criterion of class `cls` is checked by.
+
+    A poisoned criterion (and, at the call site, one absent from the criteria file) has no
+    expected sides. `non-command` is the evidence verifier alone; `command` (and the fail-safe
+    default) is both. Returned in a fixed order so `missing_sides` never needs sorting.
+    """
+    if cls is _POISON_CLASS:
+        return ()
+    if cls == "non-command":
+        return ("evidence",)
+    return ("evidence", "claim")
+
+
+def _load_criteria(path):
+    """Load the orchestrator-authored tagged-criteria file — a BARE JSON list only.
+
+    Unlike `_load_report`, the `{"criteria": [...]}` envelope the verifier reports use is NOT
+    accepted here: the orchestrator authors this file, so a wrapped envelope is a malformed
+    input, not a faithful alternate shape. A non-list top-level value raises (the caller maps
+    it to exit 3), matching `_load_report`'s fail-closed unreadable-report arm.
+    """
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    if not isinstance(data, list):
+        raise ValueError(
+            f"{path}: expected a bare JSON list of tagged criteria (the wrapped "
+            f"'{{\"criteria\": [...]}}' envelope is not accepted here)")
+    return data
+
+
+def _remedy(status, reason, expected, e_reported, c_reported, missing_sides, undischarged):
+    """The single `remedy` token for one reconciled criterion.
+
+    Derived in this order, first matching rule winning — the ordered rule list of AC9.
+    `expected` scopes rules 3 and 6 to the criterion's own verifier roster, so a
+    non-command criterion is never routed on a claim side it never had. Rules 4 and 6 emit the
+    evidence-side token when both sides qualify; once that side is re-run, the next
+    reconciliation emits the claim-side token (the side has dropped out of the qualifying set).
+    """
+    reported = {"evidence": e_reported, "claim": c_reported}
+    if status == "satisfied":                                              # 1
+        return "tick"
+    if reason == "denied":                                                 # 2
+        return "blocked-grant"
+    if any(reported[s] == "unmet" for s in expected):                      # 3
+        return "fix"
+    if missing_sides:                                                      # 4
+        return "rerun-evidence" if "evidence" in missing_sides else "rerun-claim"
+    if reason == "unexecuted":                                             # 5
+        return "redispatch-evidence"
+    if undischarged and expected and all(                                  # 6
+            reported[s] == "satisfied" for s in expected):
+        return ("restate-evidence" if any(u.startswith("evidence:") for u in undischarged)
+                else "restate-claim")
+    return "judge"                                                         # 7
+
+
+def reconcile(evidence_records, claim_records, criteria=None):
+    """Reconcile two full verifier reports into the record the orchestrator routes on.
+
+    `criteria` is the tagged criteria list's parsed `{num: class | _POISON_CLASS}` map (from
+    `parse_criteria`). `None` is the back-compatible default: every criterion appearing in
+    either report is treated as `command` (both sides expected), reproducing the pre-#439
+    two-verifier reconciliation for callers that pass no criteria.
+    """
     e_by = _index_by_criterion(evidence_records, "evidence")
     c_by = _index_by_criterion(claim_records, "claim")
+    if criteria is None:
+        class_by_num = {num: "command" for num in set(e_by) | set(c_by)}
+    else:
+        class_by_num = criteria
 
     criteria_out = []
     blocking = []
-    for num in sorted(set(e_by) | set(c_by)):
+    for num in sorted(set(class_by_num) | set(e_by) | set(c_by)):
         e_rec = e_by.get(num)
         c_rec = c_by.get(num)
-        # Both per-side resolutions happen BEFORE the pairing: a criterion absent from
-        # one report never voted, and a side that left a charter step undispositioned
-        # has not established what it did. Resolving either after the pairing would let
-        # an unattested or absent side ride the other verifier's agreement into
-        # `satisfied` — the substitution issue #1580 exists to catch.
-        e_status, e_reported, e_disp, e_undischarged, e_forced_reason = _side(
-            e_rec, EVIDENCE_SLOTS, "evidence")
-        c_status, c_reported, c_disp, c_undischarged, _c_forced_reason = _side(
-            c_rec, CLAIM_SLOTS, "claim")
+        in_criteria = num in class_by_num
+        expected = _expected_sides(class_by_num.get(num)) if in_criteria else ()
+
+        # missing_sides comes from record PRESENCE (never disposition contents): an absent
+        # record and a present-but-empty one both reach `_side` with no slots, and only
+        # presence tells the orchestrator a side owes a re-run rather than a restatement.
+        missing_sides = [s for s in expected
+                         if (e_rec if s == "evidence" else c_rec) is None]
+
+        # Resolve only the EXPECTED sides through the slot gate; an unexpected side stays
+        # inert (contributes no status, no slots). A present claim record on a `non-command`
+        # criterion is ignored with a breadcrumb naming the criterion (AC6).
+        if "evidence" in expected:
+            e_status, e_reported, e_disp, e_undischarged, e_forced_reason = _side(
+                e_rec, EVIDENCE_SLOTS, "evidence")
+        else:
+            e_status, e_reported, e_disp, e_undischarged, e_forced_reason = (
+                "unestablished", "unestablished", {}, [], None)
+        if "claim" in expected:
+            c_status, c_reported, c_disp, c_undischarged, _c_forced_reason = _side(
+                c_rec, CLAIM_SLOTS, "claim")
+        else:
+            if class_by_num.get(num) == "non-command" and c_rec is not None:
+                print(f"reconcile-ac-verifiers: criterion {num} is non-command; ignoring "
+                      f"the claim report present for it", file=sys.stderr)
+            c_status, c_reported, c_disp, c_undischarged = (
+                "unestablished", "unestablished", {}, [])
         undischarged = e_undischarged + c_undischarged
-        status, evidence, evidence_source = reconcile_one(
-            e_status, c_status, _evidence_of(e_rec), _evidence_of(c_rec)
-        )
+
+        if not expected:
+            # Absent from the criteria file, or poisoned: no expected sides, so nothing is
+            # reconciled from the reports — force `unestablished`, and `_remedy` routes `judge`.
+            status, evidence, evidence_source = "unestablished", "", ""
+        elif "claim" not in expected:
+            # Single-side (`non-command`): the reconciled status IS the evidence side's status
+            # after its slot gate; the evidence pointer, if any, is carried through. The AC6
+            # no-evidence downgrade (docstring lines 38-40) is a GLOBAL invariant, not a
+            # command-only one: a satisfied non-command record with no evidence pointer would
+            # otherwise tick with no evidence, so it fails closed to `unestablished` here exactly
+            # as reconcile_one does for the command path.
+            status = e_status
+            evidence = _evidence_of(e_rec)
+            evidence_source = "evidence" if evidence else ""
+            if status == "satisfied" and not evidence:
+                status, evidence_source = "unestablished", ""
+        else:
+            # `command`: today's two-verifier pairing (agreement, disagreement→unestablished,
+            # satisfied-without-evidence→unestablished).
+            status, evidence, evidence_source = reconcile_one(
+                e_status, c_status, _evidence_of(e_rec), _evidence_of(c_rec))
+
         blocks = status in BLOCKING_STATUSES
         if blocks:
             blocking.append(num)
-        # `reason` comes from the evidence side only (the sole command-runner), carried
-        # only on a blocking criterion; a reconciler stamp (`e_forced_reason`) wins over
-        # the record's own `reason` (issue #350).
-        reason = (e_forced_reason or _reason_of(e_rec)) if blocks else ""
+        # `reason` comes from the evidence side only (the sole command-runner), and only when
+        # that side is expected and the criterion blocks; a reconciler stamp (`e_forced_reason`)
+        # wins over the record's own `reason` (issue #350).
+        reason = ((e_forced_reason or _reason_of(e_rec))
+                  if blocks and "evidence" in expected else "")
+        remedy = _remedy(status, reason, expected,
+                         _normalize_status(e_reported), _normalize_status(c_reported),
+                         missing_sides, undischarged)
         criteria_out.append(
             {
                 "criterion": num,
@@ -404,12 +578,14 @@ def reconcile(evidence_records, claim_records):
                 "status": status,
                 "blocks": blocks,
                 "reason": reason,
+                "remedy": remedy,
                 "evidence": evidence,
                 "evidence_source": evidence_source,
                 "evidence_status_reported": _normalize_status(e_reported),
                 "claim_status_reported": _normalize_status(c_reported),
                 "evidence_dispositions": e_disp,
                 "claim_dispositions": c_disp,
+                "missing_sides": missing_sides,
                 "undischarged_slots": undischarged,
             }
         )
@@ -448,20 +624,25 @@ def main(argv=None):
                         help="JSON report from the evidence verifier")
     parser.add_argument("--claim-file", required=True,
                         help="JSON report from the claim verifier")
+    parser.add_argument("--criteria-file", default=None,
+                        help="optional tagged-criteria list (a bare JSON list); absent means "
+                             "every reported criterion is treated as class 'command'")
     args = parser.parse_args(argv)
 
     try:
         evidence_records = _load_report(args.evidence_file)
         claim_records = _load_report(args.claim_file)
+        criteria = (parse_criteria(_load_criteria(args.criteria_file))
+                    if args.criteria_file is not None else None)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
-        # Fail closed and name the cause: an unreadable/malformed report is an
-        # unestablished measurement, never a silently-empty (and therefore
+        # Fail closed and name the cause: an unreadable/malformed report or criteria file is
+        # an unestablished measurement, never a silently-empty (and therefore
         # trivially-passing) reconciliation.
-        print(f"reconcile-ac-verifiers: could not read a verifier report: {exc}",
-              file=sys.stderr)
+        print(f"reconcile-ac-verifiers: could not read a verifier report or the criteria "
+              f"file: {exc}", file=sys.stderr)
         return 3
 
-    print(json.dumps(reconcile(evidence_records, claim_records), indent=2))
+    print(json.dumps(reconcile(evidence_records, claim_records, criteria), indent=2))
     return 0
 
 

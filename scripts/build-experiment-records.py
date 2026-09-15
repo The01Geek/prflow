@@ -99,7 +99,7 @@ VERDICT_LINE_RE = re.compile(r"^\s*##\s*Verdict:\s*(.+?)\s*$", re.MULTILINE)
 # one; that issue's dual-read rule governs the review-PROGRESS marker above, which is
 # unchanged.
 VERDICT_MARKER_RE = re.compile(
-    r"^<!-- prflow:review-verdict head=[0-9a-fA-F]{40} verdict=(APPROVE|REJECT) -->$"
+    r"^<!-- prflow:review-verdict head=(?P<head>[0-9a-fA-F]{40}) verdict=(?P<verdict>APPROVE|REJECT) -->$"
 )
 REVIEWED_HEAD_RE = re.compile(r"^\*\*Reviewed HEAD:\*\*\s*(\S+)", re.MULTILINE)
 # The Important-findings sub-heading in the engine's `## Code Review Findings`
@@ -791,31 +791,27 @@ def _index_efficiency(eff_dir, repo_root=None, branch=None):
             if sup_count:
                 plural = "" if sup_count == 1 else "s"
                 if rc_v == 1 and br == _TELEMETRY_BRANCH_DEFAULT:
-                    # Canonical absent: the one-push rename is a FAST-FORWARD (nothing to
-                    # overwrite), so it stays the remedy the absent-canonical case has always
-                    # emitted (a silent dual-read would entrench the superseded name — #988).
+                    # Canonical absent: the records are stranded and this run reads none of
+                    # them. scripts/migrate-telemetry-branch.sh (issue #336) restages each
+                    # record at its .prflow/ path and persists it onto the current branch, so
+                    # the remedy is to run /prflow:init rather than a manual branch-rename push.
                     _warn(f"telemetry branch {br} is absent but the superseded "
                           f"{_TELEMETRY_BRANCH_SUPERSEDED} branch is present with {sup_count} "
                           f"efficiency record{plural} under .devflow/logs/efficiency/: this "
                           f"repository's telemetry records have not been moved, so every cost "
-                          f"row on that branch is invisible to this run. Rename the branch once "
-                          f"(git push origin {_TELEMETRY_BRANCH_SUPERSEDED}:{br} && "
-                          f"git push origin --delete {_TELEMETRY_BRANCH_SUPERSEDED}), or set "
-                          f"telemetry.branch to keep the superseded name")
+                          f"row on that branch is invisible to this run. Run /prflow:init to "
+                          f"migrate them onto {br}")
                 else:
-                    # Canonical present (or unestablished): the two are independent orphan refs,
-                    # so force-pushing the superseded one onto the canonical one would DISCARD
-                    # every canonical record — name a copy-across remedy that mutates no ref.
+                    # Canonical present (or unestablished): the two are independent orphan refs.
+                    # scripts/migrate-telemetry-branch.sh (issue #336) merges the stranded
+                    # records onto the current branch without discarding any canonical record,
+                    # so the remedy is the same /prflow:init run.
                     _warn(f"the superseded {_TELEMETRY_BRANCH_SUPERSEDED} branch is present "
                           f"with {sup_count} efficiency record{plural} under "
                           f".devflow/logs/efficiency/ that this run does not read: the canonical "
                           f"{br} branch is present, so these are stranded on a divergent branch "
-                          f"and every cost row on it is invisible to this run. Do NOT force-push "
-                          f"{_TELEMETRY_BRANCH_SUPERSEDED} onto {br} — the branches are divergent "
-                          f"and that discards {br}'s records. Instead, on a checkout of {br}, copy "
-                          f"the record files from {_TELEMETRY_BRANCH_SUPERSEDED}:.devflow/logs/"
-                          f"efficiency/ into .prflow/logs/efficiency/, commit and push, then "
-                          f"delete the superseded branch")
+                          f"and every cost row on it is invisible to this run. Run /prflow:init "
+                          f"to migrate them onto {br}")
         if rc_v == 0:
             rc, out, err = _run([GIT, "-C", str(repo_root), "ls-tree", "-r", "--name-only",
                                  br, "--", ".prflow/logs/efficiency/"])
@@ -886,23 +882,42 @@ def _parse_verdict(body):
     return raw or None
 
 
-def _verdict_marker(body):
-    """The producer-emitted verdict from a body's first two lines, or None.
+def _verdict_marker_match(body):
+    """The single in-window producer verdict-marker `re.Match`, or None.
 
-    Returns `APPROVE`/`REJECT` when EXACTLY ONE line of that window is the exact marker
-    literal. Anything else — no marker, two markers, a shape that does not match, a
-    non-string body — returns None so the caller falls back to the transitional
-    `## Verdict:` line rather than guessing. See VERDICT_MARKER_RE for why the window is
-    two lines and why the `devflow:` spelling is not accepted.
+    Returns the sole match when EXACTLY ONE line of the first-two-line window is the
+    exact marker literal; anything else — no marker, two markers, a shape that does not
+    match, a non-string body — returns None. Both `_verdict_marker` and
+    `_verdict_marker_head` read their group off this one scan so they cannot disagree on
+    which line is THE marker. See VERDICT_MARKER_RE for why the window is two lines and
+    why the `devflow:` spelling is not accepted.
     """
     if not isinstance(body, str):
         return None
     hits = [
-        m.group(1)
+        m
         for m in (VERDICT_MARKER_RE.match(line) for line in body.split("\n", 2)[:2])
         if m
     ]
     return hits[0] if len(hits) == 1 else None
+
+
+def _verdict_marker(body):
+    """The producer-emitted `APPROVE`/`REJECT` from a body's first two lines, or None so
+    the caller falls back to the transitional `## Verdict:` line rather than guessing."""
+    m = _verdict_marker_match(body)
+    return m.group("verdict") if m else None
+
+
+def _verdict_marker_head(body):
+    """The producer marker's own `head=` from a body's first two lines, or None.
+
+    This is the reviewed-tree join key on the marker arm: GitHub re-points a review's
+    reviews-API `commit_id` to the current head on a branch update (issue #1247), so
+    `commit_id` names the reviewed tree only for a markerless review — the marker's
+    `head=` is stamped once at review time and never rewritten (issue #433)."""
+    m = _verdict_marker_match(body)
+    return m.group("head") if m else None
 
 
 def _reviewed_head(body):
@@ -945,7 +960,8 @@ def _resolve_verdict_and_important(repo, pr):
     Verdict by artifact shape: the first completed PR review (any bot) whose body
     matches `## Verdict:`; else the latest progress comment carrying `## Verdict:`;
     else null (#403). Important count from the progress comment joined to the review's
-    commit_id via the "Reviewed HEAD:" line.
+    reviewed head via the "Reviewed HEAD:" line — the marker's `head=` on the marker
+    arm, `commit_id` only on the markerless prose arm (issue #433).
 
     With no resolvable repo NOTHING is queryable, so both sources read `no-repo` rather
     than the measured-and-found-nothing `absent` (issue #431 review, convergence shadow):
@@ -986,10 +1002,13 @@ def _resolve_verdict_and_important(repo, pr):
             if marked is not None:
                 verdict = marked
                 verdict_source = "pr-review-marker"
-                review_commit = r0.get("commit_id")
+                # Marker arm: join on the marker's head=, NOT commit_id. GitHub re-points
+                # commit_id to the current head on a branch update (#1247), which would
+                # miss the reviewed-head progress comment and silently null the count.
+                review_commit = _verdict_marker_head(r0.get("body"))
             elif parsed is not None:
-                # Verdict parsed cleanly — attribute it and take the review's commit_id
-                # as the join key for the Important-count lookup below.
+                # Prose arm (markerless, transitional): commit_id is the only head key a
+                # markerless review carries, so it stays the join key here.
                 verdict = parsed
                 verdict_source = "pr-review"
                 review_commit = r0.get("commit_id")
@@ -1047,15 +1066,20 @@ def _resolve_verdict_and_important(repo, pr):
             else:
                 verdict_source = "unparseable"
 
-    # Important count — join the progress comment to the review's commit_id. The count
+    # Important count — join the progress comment to the review's reviewed head. The count
     # lives in the progress (issue) comments, so if that fetch failed we could not
     # establish it: "fetch-failed", not "absent" (issue #431).
     important = None
     important_source = "fetch-failed" if not comments_ok else "absent"
     target = None
+    # Normalize both sides of the head join to lowercase, matching the deriver's
+    # ascii_downcase normalization (issue #433): a hand-authored uppercase marker head must
+    # still join to the lowercase Reviewed HEAD line, or the count silently reads null.
+    review_commit_norm = review_commit.lower() if review_commit else review_commit
     if review_commit and progress:
         for c in progress:
-            if _reviewed_head(c.get("body")) == review_commit:
+            rh = _reviewed_head(c.get("body"))
+            if rh is not None and rh.lower() == review_commit_norm:
                 target = c
                 break
     if target is None and fallback_comment is not None:

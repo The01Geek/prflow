@@ -1562,6 +1562,13 @@ fi
 
 devflow_apply_all "$PWD" "$PIN" "$REF"
 
+# Migrate a consumer's pre-rename telemetry records onto the current branch (issue #336),
+# after devflow_apply_all returns. The dry-run branch exits before here — move this above
+# that exit and a dry run would push to the consumer's remote; `|| true` keeps our exit.
+if [ -x "$SRC/scripts/migrate-telemetry-branch.sh" ]; then
+  "$SRC/scripts/migrate-telemetry-branch.sh" "$PWD" || true
+fi
+
 # On a host with no `python3` (stock Windows / Git-Bash), offer the consent-gated shim
 # provisioner so the toolchain can resolve a Python 3 interpreter. No-op where python3
 # works, and never run under a dry run (it is an interactive offer, not a plan step).

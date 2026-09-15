@@ -4,4 +4,5 @@ def projection_eligible:
   and ((.unmatched_desired_behavior | type) == "array")
   and ((.unmatched_desired_behavior | length) == 0);
 
-projection_eligible
+[., inputs]
+| (length == 1) and (.[0] | projection_eligible)

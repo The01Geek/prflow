@@ -120,7 +120,6 @@ PRFlow creates a branch named `issue-123-<title-slug>`, then posts a single prog
 - [ ] **Implement**
   - [x] code + sweeps
 - [ ] **Review**
-  - [ ] `/simplify`
   - [ ] `review-and-fix`
   - [ ] acceptance-criteria gate
 - [ ] **Documentation**

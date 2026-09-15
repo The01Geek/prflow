@@ -472,15 +472,22 @@ def _canonicalize_body(text):
     return _CRLF_RUN_RE.sub('\n', text)
 
 
-def _stage_body_bytes(text):
+def _stage_body_bytes(text, into_dir=None):
     """Stage `text` as UTF-8 bytes in a BINARY temp file and return its Path; the
     caller unlinks it. Binary mode is load-bearing (issue #349): a native-Windows
     text-mode write translates every '\\n' to CR-LF, re-inflating the body past
-    GitHub's comment limit, whereas bytes take no newline translation on any host."""
+    GitHub's comment limit, whereas bytes take no newline translation on any host.
+
+    `into_dir` places the temp file in a specific directory (default: the system
+    temp dir). The snapshot export (issue #525) passes the destination's own
+    directory so its `os.replace` onto the destination is a same-filesystem atomic
+    rename rather than a cross-device `EXDEV` failure; the default keeps every other
+    caller (the PATCH-body stagers, whose temp is uploaded via `gh`, not renamed)
+    unchanged."""
     # Encode BEFORE creating the temp file: a UnicodeEncodeError (a lone surrogate) must
     # raise before the delete=False file exists, or it would leak that file uncaught.
     data = text.encode('utf-8')
-    tf = tempfile.NamedTemporaryFile('wb', suffix='.md', delete=False)
+    tf = tempfile.NamedTemporaryFile('wb', suffix='.md', delete=False, dir=into_dir)
     staged = Path(tf.name)
     try:
         with tf:
@@ -637,6 +644,167 @@ def cmd_body(args):
             "read a workpad by issue number use: body --issue <n>\n")
         _fail('body', e)
     sys.stdout.write(out)
+
+
+# --- Intake snapshot export (issue #525) ------------------------------------
+# A deterministic copy of the canonical workpad body into intake's fixed scratch
+# destination, replacing intake's model-authored Write, which could silently abridge
+# a large workpad despite an exact-copy instruction. The scratch-home / symlink
+# model deliberately MIRRORS preflight.py's `_scratch_*` helpers rather than
+# importing them: don't refactor this into an import of preflight.py — the two are
+# separate top-level scripts and adding cross-script coupling is the wrong change here.
+
+def _snapshot_scratch_dir(root):
+    return os.path.join(root, ".prflow", "tmp")
+
+
+def _snapshot_issue_folder(root, issue):
+    return os.path.join(_snapshot_scratch_dir(root), "implement", issue)
+
+
+def _snapshot_symlink_offender(root, folder):
+    """The first symlinked intermediate directory between .prflow/tmp and `folder`'s
+    own components, or None — a symlinked component would let the write land OUTSIDE
+    the .prflow/tmp scope. Mirrors preflight.py's `_scratch_symlink_offender`; the
+    trusted .prflow/tmp boundary itself is not checked."""
+    boundary = _snapshot_scratch_dir(root)
+    parts = [p for p in os.path.relpath(folder, boundary).split(os.sep)
+             if p not in ("", os.curdir)]
+    prefix = boundary
+    for part in parts:
+        prefix = os.path.join(prefix, part)
+        if os.path.islink(prefix):
+            return prefix
+    return None
+
+
+def _snapshot_place(staged, dest):
+    """Atomically move the staged temp file onto `dest` (same-filesystem rename, so a
+    killed process never leaves a partial file under the destination name). A seam so
+    a test can inject a placement failure."""
+    os.replace(staged, dest)
+
+
+def _snapshot_read_back(dest):
+    """Read the persisted bytes back for the equality check. A seam so a test can
+    simulate an on-disk / read divergence from the bytes just written."""
+    return Path(dest).read_bytes()
+
+
+def _snapshot_fail(msg, code):
+    # Delegate to the shared module-level exit helper so the two stderr-breadcrumb
+    # surfaces of workpad.py cannot drift in format; _fail renders a plain-string
+    # `msg` as `workpad.py export-snapshot: <msg>` and exits `code` identically.
+    _fail('export-snapshot', msg, code)
+
+
+def cmd_export_snapshot(args):
+    """Write the canonical workpad body to the fixed intake-scratch destination,
+    verify the persisted bytes, and print a compact JSON receipt (issue #525).
+
+    Exit vocabulary: 2 = no workpad comment (absent source), 3 = gh/parse read
+    failure (via `_repo_full` or `_find_workpad_comment`), 4 = destination/write refusal (bad --out,
+    symlink escape, missing parent dir, unresolved checkout root, UTF-8 encode
+    failure, os.replace error),
+    5 = --expect-comment-id identity mismatch, 6 = read-back verification failed. No
+    non-zero path emits the JSON receipt — the ordering (identity, then destination
+    validation, then write, then read-back, then print) is what guarantees it, so the
+    caller can treat any non-zero exit as an unavailable snapshot."""
+    issue = str(args.issue)
+    marker = _workpad_marker(args.marker)
+    repo = _repo_full(api_fail_code=3)
+    # Same marker scan `body --issue` runs; a gh/parse failure exits 3 from inside,
+    # and the returned body is already `_canonicalize_body`-normalized.
+    c = _find_workpad_comment('export-snapshot', repo, issue, marker, api_fail_code=3)
+    if c is None:
+        _snapshot_fail(
+            f"no workpad comment on issue #{issue} (marker scan clean-absent); "
+            f"nothing to snapshot", 2)
+    if 'id' not in c:
+        # Both the identity guard and the receipt read c['id']; a matched comment
+        # object with no 'id' is a malformed comments response, so refuse via the
+        # documented read-failure code rather than let KeyError escape as the
+        # undocumented exit-1 traceback the "any non-zero exit == unavailable
+        # snapshot" contract forbids.
+        _snapshot_fail(
+            f"workpad comment on issue #{issue} carries no id field (malformed "
+            f"comments response); cannot snapshot", 3)
+    # Identity guard BEFORE any write: refuse a comment the caller did not adopt.
+    if (args.expect_comment_id is not None
+            and str(c['id']) != str(args.expect_comment_id)):
+        _snapshot_fail(
+            f"resolved workpad comment id {c['id']} does not match "
+            f"--expect-comment-id {args.expect_comment_id}; refusing to snapshot a "
+            f"different comment", 5)
+    # Destination validation BEFORE any write.
+    root = _repo_root()
+    if not root:
+        _snapshot_fail("repository root unavailable; cannot bind the snapshot "
+                       "destination to the current checkout", 4)
+    dest = os.path.abspath(args.out)
+    candidates = (
+        os.path.normpath(os.path.join(
+            _snapshot_scratch_dir(root), f"intake-workpad-{issue}.md")),
+        os.path.normpath(os.path.join(
+            _snapshot_issue_folder(root, issue), f"intake-workpad-{issue}.md")),
+    )
+    if dest not in candidates:  # dest is os.path.abspath'd, already normalized
+        _snapshot_fail(
+            f"--out {args.out!r} is not the issue-owned intake-workpad-{issue}.md "
+            f"under the scratch home (.prflow/tmp/ or "
+            f".prflow/tmp/implement/{issue}/); refusing", 4)
+    offender = _snapshot_symlink_offender(root, os.path.dirname(dest))
+    if offender is not None:
+        _snapshot_fail(
+            f"refusing a symlinked scratch component {offender}; not writing outside "
+            f"the .prflow/tmp scope", 4)
+    dest_dir = os.path.dirname(dest)
+    if not os.path.isdir(dest_dir):
+        _snapshot_fail(
+            f"destination directory {dest_dir} does not exist; the caller owns scratch "
+            f"creation, export does not mkdir", 4)
+    # Stage in the destination's own directory so the replace is a same-filesystem
+    # atomic rename (a cross-device rename would raise EXDEV). Any staging failure —
+    # a lone surrogate in the body (UnicodeEncodeError at encode time) or a temp-file
+    # creation/write refusal (OSError: permissions, ENOSPC) — must exit 4 rather than
+    # escape as an undocumented exit-1 traceback that breaks the "any non-zero exit ==
+    # unavailable snapshot" contract this command promises.
+    try:
+        staged = _stage_body_bytes(c['body'], into_dir=dest_dir)
+    except (UnicodeError, OSError) as e:
+        _snapshot_fail(
+            f"could not stage the workpad snapshot for {dest}: {e}", 4)
+    try:
+        _snapshot_place(staged, dest)
+    except OSError as e:
+        Path(staged).unlink(missing_ok=True)
+        _snapshot_fail(f"could not place the staged snapshot at {dest}: {e}", 4)
+    # Remove the placed file on either read-back failure so a non-zero exit never
+    # leaves an unverified snapshot the caller could mistake for a verified one
+    # (the no-receipt-means-no-file invariant the write-failure arm already keeps).
+    try:
+        saved = _snapshot_read_back(dest)
+    except OSError as e:
+        Path(dest).unlink(missing_ok=True)
+        _snapshot_fail(
+            f"could not read the snapshot back from {dest} for verification: {e}", 6)
+    if saved != c['body'].encode('utf-8'):
+        Path(dest).unlink(missing_ok=True)
+        _snapshot_fail(
+            f"read-back verification failed: the persisted bytes at {dest} differ "
+            f"from the canonical workpad body; not reporting a snapshot", 6)
+    # Only after read-back equality: emit the compact receipt. `bytes`/`sha256`
+    # attest to the bytes actually on disk (read back), not the pre-write buffer.
+    receipt = {
+        "repo": repo,
+        "issue": args.issue,
+        "comment_id": c['id'],
+        "updated_at": c.get('updated_at'),
+        "path": dest,
+        "bytes": len(saved),
+        "sha256": hashlib.sha256(saved).hexdigest(),
+    }
+    sys.stdout.write(json.dumps(receipt) + "\n")
 
 
 def _is_recognized_status_word(word: str) -> bool:
@@ -1800,7 +1968,7 @@ def _bind_scope_decisions(body: str, pr: int) -> str:
 # ---------------------------------------------------------------------------
 # Issue #815 — the bounded deferred-AC presence predicate.
 #
-# Phase 4 gates the LOAD of `skills/implement/references/deferred-ac-followups.md`
+# Phase 4 gates the LOAD of `skills/implement/references/deferred-filing.md`
 # on `deferred-presence`'s exit code, so this reader decides whether a run that
 # deferred acceptance criteria ever files a follow-up issue for them. Two
 # properties follow from that, and both are load-bearing:
@@ -2381,7 +2549,6 @@ _REVIEW_PROGRESS_ROWS = (
 # The literal **Review** rows the run ticks around the managed rows. Each pairs
 # rendered text with the tick substring the phase files already emit — never
 # reword either half, or `_tick_checkbox`/`_reconcile_extension_rows` stop matching.
-_SIMPLIFY_ROW = ('`/simplify`', '/simplify')
 _REVIEW_AND_FIX_ROW = ('`review-and-fix`', 'review-and-fix')
 _AC_GATE_ROW = ('acceptance-criteria gate', 'acceptance-criteria gate')
 
@@ -2389,7 +2556,6 @@ _AC_GATE_ROW = ('acceptance-criteria gate', 'acceptance-criteria gate')
 # skeleton and the repair. Built by REFERENCE only: this ordered view must never become
 # `_REVIEW_PROGRESS_ROWS`' or `_EXTENSION_ROWS`' definition (each stays authoritative).
 _REVIEW_BLOCK_ROWS = (
-    _SIMPLIFY_ROW,
     *_REVIEW_PROGRESS_ROWS,
     _REVIEW_AND_FIX_ROW,
     *((text, substr) for phase, text, substr in _EXTENSION_ROWS
@@ -3138,8 +3304,8 @@ def _reconcile_extension_rows(content: str) -> str:
     predecessor is present in that block — so a fresh template and a repaired
     legacy workpad converge on the one declared order, while a workpad whose
     present rows already sit out of that order keeps them there. A declared
-    predecessor found OUTSIDE the phase block (e.g. a misplaced `/simplify` under
-    **Implement**) does not anchor the insert; the missing row then lands directly
+    predecessor found OUTSIDE the phase block (e.g. a misplaced `review-and-fix`
+    under **Implement**) does not anchor the insert; the missing row then lands directly
     under the phase anchor exactly as when no predecessor is present. A note is not
     a declared row, so it never anchors an insert.
 
@@ -3332,6 +3498,36 @@ def _render_reflection_blocks(blocks: list[list]) -> str:
     return '\n\n'.join(parts)
 
 
+def _place_bullet_in_blocks(blocks: list[list], target_heading: str,
+                            bullet: str) -> None:
+    """Append `bullet` (a fully-rendered `- …` line) under the `target_heading`
+    sub-section of `blocks`, mutating `blocks` in place. Reuses the existing
+    sub-section when present; otherwise inserts a new one in canonical order (a
+    None-heading preamble always stays first; an unknown `### ` heading sorts last,
+    so it is never reordered above a known one). Shared by `_insert_reflection_bullet`
+    (which composes the bullet from a kind) and `_resolve_doc_reflection` (which moves
+    an already-rendered bullet, glyph intact), so both place bullets identically."""
+    for blk in blocks:
+        if blk[0] == target_heading:
+            while blk[1] and not blk[1][-1].strip():
+                blk[1].pop()
+            blk[1].append(bullet)
+            return
+
+    def _rank(heading):
+        return (_SUBSECTION_HEADING_ORDER.index(heading)
+                if heading in _SUBSECTION_HEADING_ORDER
+                else len(_SUBSECTION_HEADING_ORDER))
+
+    new_rank = _rank(target_heading)
+    pos = len(blocks)
+    for i, blk in enumerate(blocks):
+        if blk[0] is not None and _rank(blk[0]) > new_rank:
+            pos = i
+            break
+    blocks.insert(pos, [target_heading, [bullet]])
+
+
 def _insert_reflection_bullet(inner: str, kind: str, text: str) -> str:
     """Insert one reflection bullet of `kind` into the reflection-section body
     (the `<details>` inner body on a legacy workpad, the un-wrapped section body on
@@ -3368,27 +3564,7 @@ def _insert_reflection_bullet(inner: str, kind: str, text: str) -> str:
     bullet = f'- {glyph} {label_part}{one_line}'
     target_heading = _SUBSECTION_HEADINGS[sub_key]
     blocks = _parse_reflection_blocks(inner)
-    for blk in blocks:
-        if blk[0] == target_heading:
-            while blk[1] and not blk[1][-1].strip():
-                blk[1].pop()
-            blk[1].append(bullet)
-            return _render_reflection_blocks(blocks)
-    # No existing sub-section for this kind: insert a new block, preserving the
-    # canonical order (a None-heading preamble always stays first; an unknown
-    # `### ` heading sorts last so it is never reordered above a known one).
-    def _rank(heading):
-        return (_SUBSECTION_HEADING_ORDER.index(heading)
-                if heading in _SUBSECTION_HEADING_ORDER
-                else len(_SUBSECTION_HEADING_ORDER))
-
-    new_rank = _rank(target_heading)
-    pos = len(blocks)
-    for i, blk in enumerate(blocks):
-        if blk[0] is not None and _rank(blk[0]) > new_rank:
-            pos = i
-            break
-    blocks.insert(pos, [target_heading, [bullet]])
+    _place_bullet_in_blocks(blocks, target_heading, bullet)
     return _render_reflection_blocks(blocks)
 
 
@@ -3400,6 +3576,82 @@ def _append_reflection(content: str, kind: str, text: str) -> str:
     that block (before `</details>`), keeping the collapsible region intact."""
     head, inner, tail = _split_details(content)
     new_inner = _insert_reflection_bullet(inner, kind, text)
+    if head is None:
+        return new_inner
+    return _rewrap_details(head, new_inner, tail)
+
+
+# issue #508 — the append boundary the idempotent-replay check reads a resolved
+# bullet's evidence back from: change it and the replay no-op stops recognizing an
+# already-resolved bullet and re-resolves (or duplicates) it. The move and
+# glyph-retention contract lives on `_resolve_doc_reflection` below.
+_DOC_RESOLUTION_MARKER = ' — ✅ resolved: '
+
+
+def _resolve_doc_reflection(content: str, target: str, evidence: str) -> str:
+    """Move the single actionable reflection bullet containing `target` out of
+    `### ⚠️ Action required` into `### ℹ️ Notes`, appending `evidence` and keeping the
+    bullet's original glyph/kind (issue #508).
+
+    Refuses — a structural `_UpdateError`, no PATCH, no other reflection changed — on
+    an empty/multiline operand, an absent or ambiguous target, a match that is not an
+    actionable bullet, or an already-resolved bullet whose evidence differs. An
+    already-resolved bullet under Notes whose evidence matches is an idempotent replay,
+    returned unchanged. Distinct from `_strip_review_coverage_reflection_bullets`, which DELETES
+    a narrow machine-generated bullet family — this one RETAINS history by moving."""
+    target = target.strip()
+    evidence = evidence.strip()
+    if not target:
+        raise _UpdateError(
+            "--resolve-doc-reflection: a non-empty target is required. No PATCH was made.")
+    if not evidence:
+        raise _UpdateError(
+            "--resolve-doc-reflection: a non-empty completion evidence is required (an "
+            "obligation with no checked completion evidence stays actionable). No PATCH "
+            "was made.")
+    if not _is_single_line(target) or not _is_single_line(evidence):
+        raise _UpdateError(
+            "--resolve-doc-reflection: target and evidence must each be a single line (a "
+            "line boundary would split the bullet). No PATCH was made.")
+    head, inner, tail = _split_details(content)
+    blocks = _parse_reflection_blocks(inner)
+    action_heading = _SUBSECTION_HEADINGS['action']
+    notes_heading = _SUBSECTION_HEADINGS['notes']
+    matches = [(bi, li)
+               for bi, (_heading, lines) in enumerate(blocks)
+               for li, ln in enumerate(lines)
+               if ln.lstrip().startswith(('- ', '* ')) and target in ln]
+    if len(matches) == 0:
+        raise _UpdateError(
+            f"--resolve-doc-reflection: no reflection bullet matched target {target!r}; no "
+            "resolution applied and no other reflection changed. No PATCH was made.")
+    if len(matches) > 1:
+        raise _UpdateError(
+            f"--resolve-doc-reflection: target {target!r} matched {len(matches)} reflection "
+            "bullets; refusing an ambiguous resolution rather than changing the wrong one. "
+            "No PATCH was made.")
+    bi, li = matches[0]
+    bullet = blocks[bi][1][li]
+    if _DOC_RESOLUTION_MARKER in bullet:
+        _base, _sep, existing = bullet.partition(_DOC_RESOLUTION_MARKER)
+        if existing == evidence and blocks[bi][0] == notes_heading:
+            return content  # idempotent replay of the same resolution
+        raise _UpdateError(
+            f"--resolve-doc-reflection: the bullet matching {target!r} already carries a "
+            "resolution marker; refusing to overwrite resolution history. No PATCH was "
+            "made.")
+    if blocks[bi][0] != action_heading:
+        raise _UpdateError(
+            f"--resolve-doc-reflection: the bullet matching {target!r} is not an actionable "
+            f"reflection under {action_heading!r}; only an unresolved obligation there can be "
+            "resolved. No PATCH was made.")
+    resolved = bullet + _DOC_RESOLUTION_MARKER + evidence
+    del blocks[bi][1][li]
+    if (blocks[bi][0] in _SUBSECTION_HEADING_ORDER
+            and not any(ln.strip() for ln in blocks[bi][1])):
+        del blocks[bi]
+    _place_bullet_in_blocks(blocks, notes_heading, resolved)
+    new_inner = _render_reflection_blocks(blocks)
     if head is None:
         return new_inner
     return _rewrap_details(head, new_inner, tail)
@@ -4942,6 +5194,49 @@ def _strip_completion_ci_marker_rows(content: str) -> str:
     return ''.join(kept)
 
 
+# ── Cloud-CI completion-evidence family (issue #403) ───────────────────────────
+#
+# A cloud implement run that verified through the existing CI suite records the THIRD
+# accepted completion family, distinct from the in-env flight (`completion-verification:`)
+# and the local-tier CI reading (`completion-ci:`). Its payload is the richer
+# `cloud_ci_evidence` record (kind + schema_version + shard population/tallies + required
+# checks), validated OFFLINE by the sibling module's `validate_implement_completion_cloud_ci`.
+# It rides the same base64url-unpadded keyed-checkpoint marker family; `_encode_ci_payload`
+# /`_decode_ci_payload` are shape-agnostic, so they are reused for this payload too.
+# Both the `prflow:` and superseded `devflow:` spellings are read per record (#1003).
+_COMPLETION_CLOUD_CI_MARKER_KEY_PREFIX = 'completion-cloud-ci:'
+_COMPLETION_CLOUD_CI_MARKER_RE = re.compile(
+    _MARKER_NS_RE + r'checkpoint completion-cloud-ci:([^\s]+?) -->'
+)
+
+
+def _completion_cloud_ci_marker_payloads(progress_content: str) -> list[str]:
+    """Every payload carried by a `completion-cloud-ci:` checkpoint marker in the
+    ## Progress content. A marker outside ## Progress is not found here, so it is
+    treated as absent — fail closed. Duplicates surface as a >1-length list."""
+    return _COMPLETION_CLOUD_CI_MARKER_RE.findall(progress_content or '')
+
+
+def _strip_completion_cloud_ci_marker_rows(content: str) -> str:
+    """Remove any ## Progress row carrying a `completion-cloud-ci:` marker, so a later
+    validated record replaces the prior one rather than accumulating."""
+    kept = [ln for ln in content.splitlines(keepends=True)
+            if not _COMPLETION_CLOUD_CI_MARKER_RE.search(ln)]
+    return ''.join(kept)
+
+
+def _strip_all_completion_marker_rows(content: str) -> str:
+    """Remove every ## Progress row carrying ANY completion-evidence marker family —
+    flight, CI-derived, or cloud-CI (issue #403). Recording one family, or an explicit
+    `--invalidate-completion-evidence`, clears the others so exactly one marker survives
+    (the terminal gate counts across all three families combined) and stale evidence from
+    another family can never block Complete or be read as current."""
+    content = _strip_completion_marker_rows(content)
+    content = _strip_completion_ci_marker_rows(content)
+    content = _strip_completion_cloud_ci_marker_rows(content)
+    return content
+
+
 # ── Verification-evidence record (issue #2131) ─────────────────────────────────
 # Each launch APPENDS one note-kind row: never replace a prior row, and never let a row
 # span lines — lib/fetch-pr-context.sh reads the workpad one line at a time.
@@ -5273,6 +5568,36 @@ def _validate_ci_evidence(args, payload: str) -> None:
     except Exception as e:
         raise _UpdateError(
             f"completion evidence: the CI validator raised an internal error "
+            f"({e.__class__.__name__}); treating as unestablished. No PATCH was made."
+        )
+    if token != 'pass':
+        raise _UpdateError(
+            f"completion evidence rejected [{token}]: {detail}. No PATCH was made."
+        )
+
+
+def _validate_cloud_ci_evidence(args, payload: str) -> None:
+    """Validate a specific cloud-CI completion-evidence marker payload (issue #403).
+
+    Raises a structural `_UpdateError` (no PATCH) on an absent validator sibling (or one
+    without the cloud-CI entry point), an internal validator failure, or a non-pass
+    verdict. Returns None on a clean pass. Mirrors `_validate_ci_evidence`'s shape."""
+    validator = _load_completion_validator()
+    if validator is None or not hasattr(
+            validator, 'validate_implement_completion_cloud_ci'):
+        raise _UpdateError(
+            "completion evidence [missing-evidence]: the completion-evidence "
+            "validator module (check-completion-evidence.py) with a cloud-CI entry "
+            "point is not available beside this workpad.py copy, so a --status "
+            "Complete write cannot be backed by cloud-CI evidence. No PATCH was made."
+        )
+    record = _decode_ci_payload(payload)
+    root = _devflow_repo_root(args)
+    try:
+        token, detail = validator.validate_implement_completion_cloud_ci(record, root)
+    except Exception as e:
+        raise _UpdateError(
+            f"completion evidence: the cloud-CI validator raised an internal error "
             f"({e.__class__.__name__}); treating as unestablished. No PATCH was made."
         )
     if token != 'pass':
@@ -5820,6 +6145,49 @@ def _recompute_diff_facts(anchor_head, base_ref, repo_root):
             'lines': lines, 'files': files, 'paths': paths}
 
 
+def _review_coverage_base_ref(repo_root):
+    """Resolve the base ref for the skipped-intentional review-coverage recompute
+    (issue #359). Returns (base_ref, error): base_ref is `origin/<base_branch>` to
+    measure against, error is None on success or a human-readable string the caller
+    writes to stderr before downgrading the checklist axis to `unestablished`.
+
+    Reads the top-level `base_branch` key from `.prflow/config.json` IN-PROCESS —
+    never by exec-ing config-get.sh, which Windows cannot run ([WinError 193]), the
+    same reason `_workpad_marker` reads config in-process — anchored to `repo_root`
+    (the recompute's own resolved root: the --repo-root arg when given, else the git
+    top-level), so the read matches the tree the diff is measured in. A non-empty
+    string yields `origin/<value>`; a missing file, missing key, JSON null, or empty
+    string yields `origin/main` (the value config-get.sh .base_branch main prints for
+    those). Unlike `_workpad_marker`'s silent fallbacks, a wrong-typed value (bool,
+    number, array, object), a non-object top level, or unparseable/undecodable content
+    yields (None, reason): the acceptance criteria require an `unestablished` downgrade
+    with a stderr breadcrumb there, never a silent default to main."""
+    base = repo_root if repo_root is not None else str(Path.cwd())
+    config_file = Path(_resolve_state_dir(base)) / 'config.json'
+    try:
+        with config_file.open(encoding='utf-8') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return 'origin/main', None
+    except (OSError, ValueError) as e:
+        # ValueError covers json.JSONDecodeError AND the UTF-16LE-BOM
+        # UnicodeDecodeError (the PowerShell 5.x `>` redirection shape).
+        return None, f"could not read {str(config_file)!r} ({e})"
+    if not isinstance(data, dict):
+        return None, (
+            f"the top level of {str(config_file)!r} is not a JSON object")
+    if 'base_branch' not in data:
+        return 'origin/main', None
+    value = data['base_branch']
+    if value is None or value == '':
+        return 'origin/main', None
+    if not isinstance(value, str):
+        return None, (
+            f"base_branch in {str(config_file)!r} is "
+            f"{type(value).__name__}, not a string")
+    return f'origin/{value}', None
+
+
 def _review_coverage_profile_disproof(facts) -> str | None:
     """Why the recomputed diff does NOT satisfy the profile row that authorizes a
     `skipped-intentional` skip, naming each failed condition and its measured value —
@@ -6050,6 +6418,8 @@ _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_REVIEW_COVERAGE_KEY_PREFIX, '`--record-review-coverage`'),
     (_COMPLETION_MARKER_KEY_PREFIX, '`--record-completion-evidence`'),
     (_COMPLETION_CI_MARKER_KEY_PREFIX, '`--record-completion-evidence-ci`'),
+    (_COMPLETION_CLOUD_CI_MARKER_KEY_PREFIX,
+     '`--record-completion-evidence-cloud-ci`'),
     (_RESUME_POINT_MARKER_KEY_PREFIX, '`--record-resume-point`'),
     (_PRIOR_STATUS_MARKER_KEY_PREFIX, '`reset-resume-status` (issue #137)'),
 )
@@ -6134,41 +6504,47 @@ def _completion_evidence_verdict(args, progress_content: str) -> None:
     pinned `--claim-identity` (loop/test override) is honored verbatim instead, so a
     caller that pins it deliberately opts out of the fresh re-derivation.
 
-    Two completion-evidence families are accepted (issue #1611): the in-environment
-    verification-flight family (`completion-verification:`) and the CI-derived family
-    (`completion-ci:`, a local/interactive tier's reading of a green required check).
-    Exactly one marker must be present COUNTED ACROSS BOTH FAMILIES TOGETHER; the
-    single marker is then dispatched to the validator its family owns — the flight
-    family to `_validate_flight_key` unchanged, the CI family to `_validate_ci_evidence`.
+    Three completion-evidence families are accepted: the in-environment
+    verification-flight family (`completion-verification:`, issue #1087), the local/
+    interactive CI-derived family (`completion-ci:`, issue #1611), and the cloud-CI
+    family (`completion-cloud-ci:`, issue #403 — a cloud implement run's reading of the
+    existing CI suite). Exactly one marker must be present COUNTED ACROSS ALL THREE
+    FAMILIES TOGETHER; the single marker is then dispatched to the validator its family
+    owns — the flight family to `_validate_flight_key`, the local CI family to
+    `_validate_ci_evidence`, the cloud CI family to `_validate_cloud_ci_evidence`.
 
-    Raises `_UpdateError` (structural — no PATCH) when no marker of either family is
+    Raises `_UpdateError` (structural — no PATCH) when no marker of any family is
     present or more than one is (combined), or when the single marker's record fails
     its validator. Returns None on a clean pass."""
     keys = _completion_marker_keys(progress_content)
     ci_payloads = _completion_ci_marker_payloads(progress_content)
-    total = len(keys) + len(ci_payloads)
+    cloud_ci_payloads = _completion_cloud_ci_marker_payloads(progress_content)
+    total = len(keys) + len(ci_payloads) + len(cloud_ci_payloads)
     if total == 0:
         raise _UpdateError(
             "refusing to finalize Status: Complete — no completion-evidence marker "
-            "of either family present [missing-evidence]. Record an in-env "
+            "of any family present [missing-evidence]. Record an in-env "
             "verification flight with `workpad.py update <issue> "
             "--record-completion-evidence <flight-key>`, or (local/interactive tier, "
             "issue #1611) a CI reading with `workpad.py update <issue> "
             "--record-completion-evidence-ci <head-sha> <tier> <run-url> "
-            "--completion-ci-check <name> <conclusion> ...`, after the run's "
-            "verification is established. No PATCH was made."
+            "--completion-ci-check <name> <conclusion> ...`, or (cloud CI mode, issue "
+            "#403) `workpad.py update <issue> --record-completion-evidence-cloud-ci "
+            "<record.json>`, after the run's verification is established. No PATCH was made."
         )
     if total > 1:
         raise _UpdateError(
             "refusing to finalize Status: Complete — "
             f"{total} completion-evidence markers present (counted across the "
-            "verification-flight and CI-derived families); exactly one is required "
-            "[missing-evidence]. No PATCH was made."
+            "verification-flight, CI-derived, and cloud-CI families); exactly one is "
+            "required [missing-evidence]. No PATCH was made."
         )
     if keys:
         _validate_flight_key(args, keys[0])
-    else:
+    elif ci_payloads:
         _validate_ci_evidence(args, ci_payloads[0])
+    else:
+        _validate_cloud_ci_evidence(args, cloud_ci_payloads[0])
 
 
 def _required_artifact_verdict(progress_content: str) -> None:
@@ -6684,6 +7060,8 @@ def _has_non_checkpoint_mutation(args) -> bool:
         getattr(args, 'mark_deferred_filed_file', None),
         getattr(args, 'record_completion_evidence', None),
         getattr(args, 'record_completion_evidence_ci', None),
+        getattr(args, 'record_completion_evidence_cloud_ci', None),
+        getattr(args, 'invalidate_completion_evidence', False),
         getattr(args, 'record_review_coverage', None),
         getattr(args, 'review_coverage_disposition', None),
         getattr(args, 'strip_inherited_checkpoints', False),
@@ -7197,6 +7575,33 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             run_roots=[_ci_url], tallies=None, elapsed=None, started_at=None,
             recorded_at=_ve_recorded_at, head=_ci_head))
 
+    # Cloud-CI completion evidence recording (issue #403). The record is read from a
+    # FILE (the collector emits a JSON object too large for a CLI operand), decoded,
+    # re-encoded into the marker payload, and validated BEFORE any body mutation — a
+    # non-pass record is a structural failure that changes nothing (all-or-nothing),
+    # exactly like the flight key and local-CI record above. The run is NEVER labelled
+    # local: this family is its own, and its validator binds the record to this tree
+    # and the declared CI contract, not to a tier string.
+    record_cloud_ci_file = getattr(args, 'record_completion_evidence_cloud_ci', None)
+    cloud_ci_payload = None
+    if record_cloud_ci_file:
+        try:
+            with open(record_cloud_ci_file, encoding='utf-8') as _fh:
+                _cloud_ci_record = json.load(_fh)
+        except (OSError, ValueError) as e:
+            raise _UpdateError(
+                f"--record-completion-evidence-cloud-ci: could not read a JSON record "
+                f"from {record_cloud_ci_file!r} ({e.__class__.__name__}). No PATCH was made."
+            )
+        cloud_ci_payload = _encode_ci_payload(_cloud_ci_record)
+        _validate_cloud_ci_evidence(args, cloud_ci_payload)
+
+    # Explicit invalidation of any recorded completion evidence (issue #403). A final
+    # edit, a base update that changes the candidate, or a repair must strip stale
+    # evidence before publication and Complete; this bare-strip-no-append flag does
+    # exactly that across all three families, needing no fresh record to carry it.
+    invalidate_completion = getattr(args, 'invalidate_completion_evidence', False)
+
     # Validate BEFORE any body mutation (no PATCH on refusal). The head is stamped here,
     # never caller-supplied: a passed-in head could name a commit the suite never ran on.
     if getattr(args, 'record_verification_evidence', False):
@@ -7282,10 +7687,18 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         _checklist_idx = _REVIEW_COVERAGE_AXES.index('checklist')
         if review_coverage[_checklist_idx] == 'skipped-intentional':
             _rc_repo_root = getattr(args, 'repo_root', None) or _repo_root()
-            # The recomputation always runs against its default base (the origin/HEAD
-            # symbolic ref): issue #181/6b removed the `--record-review-coverage-base`
-            # and `--record-review-coverage-override` flags no shipped flow ever passed.
-            _rc_facts = _recompute_diff_facts(_anchor_head, None, _rc_repo_root)
+            # issue #359: measure against the CONFIGURED base (origin/<base_branch>,
+            # origin/main when unset) — never origin/HEAD, which is the repo default
+            # branch locally and is absent on a cloud checkout. Malformed config → unestablished.
+            _rc_base, _rc_base_err = _review_coverage_base_ref(_rc_repo_root)
+            if _rc_base_err is not None:
+                sys.stderr.write(
+                    'workpad.py: review-coverage base branch could not be '
+                    f'resolved — {_rc_base_err}\n')
+                _rc_facts = {'resolved': False, 'reason': _rc_base_err}
+            else:
+                _rc_facts = _recompute_diff_facts(
+                    _anchor_head, _rc_base, _rc_repo_root)
             if not _rc_facts['resolved']:
                 review_coverage[_checklist_idx] = 'unestablished'
                 review_coverage_auto_notes.append(
@@ -7778,6 +8191,27 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         )
         progress_notes.append(_ci_row)
         _producer_reserved_rows.add(_ci_row)
+    # Cloud-CI completion-evidence marker (issue #403): validated above; a later
+    # validated record REPLACES the prior one and every other family's row (the
+    # combined strip below), so the terminal gate's exactly-one contract holds. The
+    # visible row names the head SHA and run URL the reading rests on.
+    if cloud_ci_payload:
+        _cc_ck = _COMPLETION_CLOUD_CI_MARKER_KEY_PREFIX + cloud_ci_payload
+        _cc_head = str(_cloud_ci_record.get('head_sha', ''))[:12]
+        _cc_url = str(_cloud_ci_record.get('run_url', ''))
+        # The run URL is record-supplied and embedded verbatim in this producer row,
+        # so screen it for a reserved marker before the row is composed (issue #321).
+        _cc_owner = _reserved_checkpoint_marker_owner(_cc_url)
+        if _cc_owner:
+            raise _reserved_marker_error(
+                "the --record-completion-evidence-cloud-ci run_url", _cc_owner)
+        _cc_row = (
+            f'completion evidence recorded from cloud CI '
+            f'(head {_cc_head}…, {_cc_url}, validated) '
+            f'{_checkpoint_marker(_cc_ck)}'
+        )
+        progress_notes.append(_cc_row)
+        _producer_reserved_rows.add(_cc_row)
     # Mid-phase resume-point marker (issue #1876): a later record REPLACES the prior
     # one, so any existing resume-point row is stripped below before this is appended.
     if resume_point_payload:
@@ -7882,15 +8316,23 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             heading, content = sections[idx]
             sections[idx] = (heading, _strip_prior_status_marker_rows(content))
 
+    # Cross-family completion-evidence strip (issue #403). Recording ANY completion
+    # family — or an explicit --invalidate-completion-evidence — strips every family's
+    # rows so exactly one marker survives (the incoming producer row is appended AFTER
+    # this strip, below, and so is never removed here). This runs on its own condition
+    # rather than inside the `if progress_notes` block, so `--invalidate-completion-
+    # evidence` with no other mutation still clears the body.
+    if record_flight_key or ci_payload or cloud_ci_payload or invalidate_completion:
+        idx = _find_section(sections, 'Progress')
+        if idx is not None:
+            heading, content = sections[idx]
+            sections[idx] = (heading, _strip_all_completion_marker_rows(content))
+
     if progress_notes:
         idx = _find_section(sections, 'Progress')
         if idx is None:
             raise _UpdateError("section '## Progress' not found")
         heading, content = sections[idx]
-        if record_flight_key:
-            content = _strip_completion_marker_rows(content)
-        if ci_payload:
-            content = _strip_completion_ci_marker_rows(content)
         if resume_point_payload:
             content = _strip_resume_point_marker_rows(content)
         if review_coverage_payload:
@@ -7934,6 +8376,20 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         # text without re-reading (and without re-consuming stdin on the `-` arm).
         for bullet in _reflection_file_payloads(args):
             content = _append_reflection(content, kind, bullet)
+        sections[idx] = (heading, content)
+
+    # Resolve a fulfilled documentation obligation (issue #508).
+    if getattr(args, 'resolve_doc_reflection', None):
+        idx = _find_reflection_section(sections)
+        if idx is None:
+            raise _UpdateError(
+                f"--resolve-doc-reflection: section '## {_REFLECTION_HEADING}' not found. "
+                "No PATCH was made.")
+        heading, content = sections[idx]
+        for pair in args.resolve_doc_reflection:
+            _require_arity('--resolve-doc-reflection', pair, 2, ('target', 'evidence'))
+            target, evidence = pair
+            content = _resolve_doc_reflection(content, target, evidence)
         sections[idx] = (heading, content)
 
     # Verification-evidence rows (issue #2131) are appended, never replacing a prior row.
@@ -8108,6 +8564,24 @@ def main():
                         'id (resolves via the same marker scan as `id`/`status`).')
     s.add_argument('--marker', default=None, help=_marker_help)
     s.set_defaults(func=cmd_body)
+
+    s = sub.add_parser(
+        'export-snapshot',
+        help='Write the canonical workpad body to the fixed intake-scratch '
+             'intake-workpad-<issue>.md, verify the persisted bytes, and print a '
+             'compact JSON receipt (exit 2 if no workpad, 3 on read failure, 4 on '
+             'destination/write refusal, 5 on --expect-comment-id mismatch, 6 on '
+             'read-back failure). Replaces intake\'s model-authored snapshot copy.')
+    s.add_argument('issue', type=int)
+    s.add_argument('--out', required=True,
+                   help='Destination path; must resolve to the issue-owned '
+                        'intake-workpad-<issue>.md under .prflow/tmp/ or '
+                        '.prflow/tmp/implement/<issue>/ in this checkout.')
+    s.add_argument('--expect-comment-id', default=None,
+                   help='When set, the resolved workpad comment id must equal this '
+                        'value or the export refuses (exit 5) before any write.')
+    s.add_argument('--marker', default=None, help=_marker_help)
+    s.set_defaults(func=cmd_export_snapshot)
 
     s = sub.add_parser(
         'status',
@@ -8490,6 +8964,19 @@ def main():
                         '(labeled) and note (the default when omitted, glyph-only) '
                         'under "### ℹ️ Notes". Applies to every bullet in the '
                         'call.')
+    u.add_argument('--resolve-doc-reflection', nargs=2, action='append', default=None,
+                   metavar=('TARGET', 'EVIDENCE'),
+                   help='Resolve a fulfilled documentation obligation (issue #508): '
+                        'move the single actionable PRFlow Reflections bullet '
+                        'containing TARGET out of "### ⚠️ Action required" into '
+                        '"### ℹ️ Notes", keeping its original glyph/kind and appending '
+                        'EVIDENCE (the checked completion evidence). The moved bullet '
+                        'keeps its non-note glyph, so it still counts as retrospective '
+                        'friction. Idempotent: replaying the same TARGET/EVIDENCE is a '
+                        'no-op. An absent or ambiguous TARGET, a non-actionable match, '
+                        'an empty/multiline operand, or an already-resolved bullet with '
+                        'different evidence aborts the call before any PATCH, changing '
+                        'no other reflection. May be passed more than once.')
     u.add_argument('--replace-plan-file', metavar='FILE',
                    help='Replace the Plan section content with FILE contents.')
     u.add_argument('--replace-acs-file', metavar='FILE',
@@ -8565,8 +9052,8 @@ def main():
                         '-->" ## Progress row written (replacing any prior completion-ci '
                         'row); a non-pass record aborts the whole call before any PATCH. '
                         'Like the flight marker, this satisfies a later "--status '
-                        'Complete" write — the two families are counted together and '
-                        'exactly one is required.')
+                        'Complete" write — the completion-evidence families are counted '
+                        'together and exactly one is required.')
     u.add_argument('--completion-ci-check', nargs=2, action='append', default=None,
                    metavar=('NAME', 'CONCLUSION'),
                    help='A required-check reading for --record-completion-evidence-ci '
@@ -8575,6 +9062,20 @@ def main():
                         'recorded set must cover the required-check set declared in '
                         '.github/workflows/ci.yml, and every CONCLUSION must be a '
                         'success, or the --status Complete write is refused.')
+    u.add_argument('--record-completion-evidence-cloud-ci', default=None, metavar='FILE',
+                   help='Record cloud-CI completion evidence (issue #403) read from '
+                        'FILE, a JSON `cloud_ci_evidence` record (kind + schema_version '
+                        '+ per-shard tallies + required checks + head_sha/run identity). '
+                        'The record is validated offline against this tree and the '
+                        'declared .github/workflows/ci.yml contract before any PATCH; a '
+                        'non-pass record is refused with no write. Recorded in its own '
+                        'completion family (the run is never labelled local) and '
+                        'replaces any prior evidence of any family.')
+    u.add_argument('--invalidate-completion-evidence', action='store_true',
+                   help='Strip every recorded completion-evidence marker (all families) '
+                        'from ## Progress without recording a new one (issue #403). Use '
+                        'after a final edit, a base update that changes the candidate, or '
+                        'a repair, so stale evidence cannot survive to Complete.')
     u.add_argument('--record-verification-evidence', action='store_true',
                    help='Record one `Verification evidence:` note-kind reflection row '
                         'for a whole-suite launch (issue #2131) — this option OWNS the '

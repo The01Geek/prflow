@@ -42,7 +42,9 @@
 # --outcome complete|blocked (agent-side CLI, issue #176): chooses the reaction itself
 # (complete->hooray, blocked->-1) and resolves the triggering comment itself (GITHUB_EVENT_PATH's
 # .comment.id, else the newest non-workpad implement-trigger comment on --issue N). Conflicts with
-# --reaction. Lets the implement root's fence be one leading-token call with no cloud-denied shape.
+# --reaction. Every value flag also accepts the `--flag=value` spelling: the implement fence uses
+# `--outcome=complete` so a worktree-isolated local Claude Code session — whose guard refuses the bare
+# word `complete` — runs it, while the fence stays one leading-token call with no cloud-denied shape.
 #
 # No stdout contract (unlike the resolvers): this script's only effect is the
 # side-effecting POST. Tests assert the `gh api` endpoint it targets.
@@ -60,6 +62,12 @@ set -euo pipefail
 # the values as CLI args instead). They override the env vars the workflow `env:`
 # block sets; the workflow passes no args, so its env-var path is unchanged.
 report_failure=false
+# Pre-scan for --report-failure so a malformed/missing-value arm exits non-zero even when
+# --report-failure trails the bad token — the shipped fence puts it last, so an in-order-only
+# read would leave report_failure false at the error and skip the fence's `||` fallback note.
+for _rt_arg in "$@"; do
+  [ "$_rt_arg" = "--report-failure" ] && report_failure=true
+done
 outcome=""
 reaction_given=false
 while [ $# -gt 0 ]; do
@@ -68,6 +76,7 @@ while [ $# -gt 0 ]; do
     --repo|--event|--comment|--issue|--reaction|--outcome)
       if [ $# -lt 2 ] || [ -z "${2-}" ] || [[ "${2-}" == --* ]]; then
         echo "::warning::react: missing value for '$1'; skipping acknowledgement." >&2
+        [ "$report_failure" = true ] && exit 1
         exit 0
       fi
       case "$1" in
@@ -80,9 +89,42 @@ while [ $# -gt 0 ]; do
       esac
       shift 2
       ;;
+    # `--flag=value` spelling: split on the FIRST `=` with parameter expansion (never
+    # sed/cut — they are not preflight-guaranteed), then re-dispatch to the same per-flag
+    # assignments. The fence uses this so a worktree-isolated session (which refuses the bare
+    # word `complete`) runs it; both spellings stay accepted. Missing/unknown honor report_failure
+    # exactly like the space-separated arms, so the fence's `||` fallback fires on a parse failure.
+    --*=*)
+      _rt_key="${1%%=*}"
+      _rt_val="${1#*=}"
+      case "$_rt_key" in
+        --repo|--event|--comment|--issue|--reaction|--outcome)
+          if [ -z "$_rt_val" ]; then
+            echo "::warning::react: missing value for '$_rt_key'; skipping acknowledgement." >&2
+            [ "$report_failure" = true ] && exit 1
+            exit 0
+          fi
+          case "$_rt_key" in
+            --repo) REPO="$_rt_val" ;;
+            --event) EVENT_NAME="$_rt_val" ;;
+            --comment) COMMENT_ID="$_rt_val" ;;
+            --issue) ISSUE_NUMBER="$_rt_val" ;;
+            --reaction) REACTION="$_rt_val"; reaction_given=true ;;
+            --outcome) outcome="$_rt_val" ;;
+          esac
+          shift
+          ;;
+        *)
+          echo "::warning::react: unknown argument '$1'; skipping acknowledgement." >&2
+          [ "$report_failure" = true ] && exit 1
+          exit 0
+          ;;
+      esac
+      ;;
     --) shift; break ;;
     *)
       echo "::warning::react: unknown argument '$1'; skipping acknowledgement." >&2
+      [ "$report_failure" = true ] && exit 1
       exit 0
       ;;
   esac

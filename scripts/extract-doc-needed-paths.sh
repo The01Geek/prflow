@@ -7,10 +7,11 @@
 #
 # Reads the issue body on stdin (or from a file path given as $1) and emits the
 # recognizable file paths declared in the Documentation Needed block of the
-# `## Implementation Notes` section. THREE scope-opening shapes are accepted, per
+# `## Implementation Notes` section. FOUR scope-opening shapes are accepted, per
 # the scope note below: (1) a `- **Documentation Needed**` list item (issue #185),
 # (2) a bare blank-line-preceded `**Documentation Needed**` bold paragraph (issue
-# #309), and (3) a `### Documentation Needed` level-3 heading (issue #380). The direct
+# #309), (3) a `### Documentation Needed` level-3 heading (issue #380), and
+# (4) a plain `- Documentation Needed —` list item (issue #506). The direct
 # consumer is scripts/read-doc-needed-deliverables.sh, which Phase 4.1 Stage 1
 # (pre-flight briefing) and Stage 2 (post-hoc diff gate) each invoke rather than
 # re-deriving paths by LLM prose interpretation — so the two passes can never disagree
@@ -20,9 +21,11 @@
 #   * scope — only the text between the Documentation Needed opener (a `- **…**`
 #     list item, a bare blank-line-preceded `**…**` bold paragraph — the shape an
 #     LLM-drafted `## Implementation Notes` section, and the real issue #304 body,
-#     uses; issue #309 — OR a `### Documentation Needed` level-3 heading, issue
-#     #380) and the next peer item: for a list-item opener, a same-indentation
-#     label-and-em-dash item closes even when its label is not bold. A top-level
+#     uses; issue #309 — a `### Documentation Needed` level-3 heading, issue
+#     #380 — OR a plain `- Documentation Needed —` list item, issue #506) and the
+#     next peer item: for a list-item opener (bold or plain), a same-indentation
+#     label-and-em-dash item closes even when its label is not bold — but the plain
+#     opener line itself never counts as that closing peer. A top-level
 #     bold peer, the next `## ` heading, or (for a
 #     heading-opened scope) the next level-3+ heading also closes (or EOF).
 #     A `### Documentation Needed` heading only opens inside `## Implementation
@@ -249,7 +252,11 @@ run_stage_a() {
   function decl_candidate(line,   s) {
     s = line
     gsub(/`/, "", s)
-    sub(/^(- )?\*\*Documentation Needed\*\*/, "", s)
+    # Strip the bold OR plain (issue #506) label so is_none_declaration() sees the
+    # first content token under either opener; the `\*{0,2}` bounds cover both —
+    # without them a `- Documentation Needed — none` block is not recognized as a
+    # standalone none declaration and runs on into the (empty) token scan.
+    sub(/^(- )?\*{0,2}Documentation Needed\*{0,2}/, "", s)
     sub(/^([[:space:]*:.-]|—)+/, "", s)
     return s
   }
@@ -372,10 +379,23 @@ run_stage_a() {
     entered_section = 1
     state = ns
   }
+  # A PLAIN (unbold) `- Documentation Needed —` list-item opener — a fourth
+  # scope-opening shape (issue #506). Anchored to the exact plain label + em-dash so
+  # a bullet that merely mentions the label never opens. list_scope is set so the
+  # same-level plain-peer arm below closes it; that arm excludes this exact spelling
+  # so the opener line does not self-close its own scope.
+  state >= 1 && /^- Documentation Needed —/ {
+    if (state != 2) emitted = 0
+    decl = 0; decl_examined = 0; list_scope = 1
+    state = 2
+    entered_scope = 1
+    entered_section = 1
+  }
   # A list-item scope ends at its next same-level plain peer: the label-and-em-dash
   # shape used by issue prose. Items with a backtick before the em dash, indented
-  # items, and wrapped lines remain inside the Documentation Needed scope.
-  state == 2 && list_scope && /^- [^`]* — / && $0 !~ /^- \*\*Documentation Needed\*\*/ {
+  # items, and wrapped lines remain inside the Documentation Needed scope. The plain
+  # Documentation Needed opener is excluded here so it does not close its own scope.
+  state == 2 && list_scope && /^- [^`]* — / && $0 !~ /^- \*\*Documentation Needed\*\*/ && $0 !~ /^- Documentation Needed —/ {
     state = 1
     list_scope = 0
   }

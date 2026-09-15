@@ -64,7 +64,7 @@ PRESENCE MODE (issue #1374). `--presence-for-pr N` answers a different question:
 is any deferred review finding present for PR N? Phase 4.0.5's filing procedure now
 lives in a gated reference the phase file reads only when this predicate says so, and
 this mode is that predicate. It derives BOTH candidate search directories itself —
-including the branch slug, in Python rather than through the fence's `tr` chain, so a
+including the branch slug, in Python rather than through prompt-level shell, so a
 host without `tr` resolves the same directories as a host with it — and answers over
 BOTH presence sources: the run-scoped manifests (which a re-entry after filing has
 already consumed) and the slug-level aggregate (which has no producer on a first
@@ -90,27 +90,29 @@ because a crashing interpreter also exits 1 and would otherwise route to the ski
 Usage:
     discover-deferral-manifests.py ROOT [ROOT ...]
     discover-deferral-manifests.py --presence-for-pr N
+    discover-deferral-manifests.py --aggregate --pr N
 """
 
+import json
 import os
+import shlex
 import subprocess
 import sys
+from pathlib import Path
 
 MANIFEST_NAME = "deferrals.json"
 
 # The presence-mode dispatch token. It is recognized ONLY as argv[0], so a root path
-# in any later position stays a root path: the filing fence passes `$SEARCH_DIRS`
-# unquoted for word-splitting, and a positional-anywhere flag would let a root that
-# happened to match it switch modes mid-list.
+# in any later position stays a root path, preserving positional discovery mode.
 PRESENCE_FLAG = "--presence-for-pr"
+AGGREGATE_FLAG = "--aggregate"
 
-# The review scratch root, cwd-relative — the identical literal the §4.0.5 filing
-# fence composes SLUG_DIR and BRANCH_DIR from. Anchoring this to the git toplevel
-# instead would search directories the fence never writes to.
+# The review scratch root is cwd-relative, matching the review producer and the
+# consumers that read the persisted PR aggregate.
 REVIEW_ROOT = ".prflow/tmp/review"
 
-# The character set the fence's `tr -cd 'a-z0-9._-'` keeps, spelled out so the port
-# and the shell chain cannot drift through an interpretation of a range expression.
+# The historical character set is now owned only here, spelled out so native
+# platforms cannot drift through locale-dependent range semantics.
 _SLUG_KEEP = frozenset("abcdefghijklmnopqrstuvwxyz0123456789._-")
 
 # The presence mode's `reason=` vocabulary. It is a CROSS-FILE contract — the §4.0.5 stub
@@ -126,9 +128,8 @@ REASON_UNREADABLE_DIRECTORY = "unreadable-directory"
 REASON_UNREADABLE_AGGREGATE = "unreadable-aggregate"
 REASON_INTERNAL_ERROR = "internal-error"
 
-# Aggregate discrimination markers. The §4.0.5 fence routes ok-vs-degraded on this helper's exit
-# code and then classifies partial-vs-failed from these strings, so keep the per-root failed
-# breadcrumb's fixed text free of both substrings or a per-root line misclassifies the run.
+# Aggregate discrimination markers remain part of positional discovery mode's
+# compatibility contract.
 MARKER_PARTIAL = "devflow: discovery partial:"
 MARKER_FAILED = "devflow: discovery failed:"
 
@@ -525,11 +526,150 @@ def _run_presence(rest):
         return 2
 
 
+def _aggregate_identity(entry):
+    """Return the existing unique-by identity for a deferral entry."""
+    return tuple(str(entry.get(field, "")) for field in ("file", "symbol", "kind")) + (
+        str(entry.get("summary", "")).strip(),
+    )
+
+
+def _merge_aggregate_documents(prior, documents):
+    """Merge whole objects, feeding a hydrated prior first so it wins ties."""
+    sources = [prior, *documents] if isinstance(prior, dict) else list(documents)
+    merged = []
+    seen = set()
+    for document in sources:
+        if not isinstance(document, dict):
+            continue
+        rows = document.get("deferrals")
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            identity = _aggregate_identity(row)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            merged.append(dict(row))
+    header = next((dict(item) for item in sources if isinstance(item, dict)), {})
+    header["schema_version"] = header.get("schema_version", 1)
+    header["deferrals"] = merged
+    return header
+
+
+def _read_aggregate_document(path):
+    try:
+        value = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return (None, str(exc))
+    if not isinstance(value, dict) or not isinstance(value.get("deferrals"), list):
+        return (None, "document-shape")
+    return (value, None)
+
+
+def _write_aggregate_atomic(path, document):
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(destination)
+
+
+def _aggregate_value(value):
+    text = str(value).translate(str.maketrans({
+        "\n": r"\n", "\r": r"\r", "\v": r"\v", "\f": r"\f",
+        "\x1c": r"\x1c", "\x1d": r"\x1d", "\x1e": r"\x1e",
+        "\x85": r"\x85", "\u2028": r"\u2028", "\u2029": r"\u2029",
+    }))
+    return shlex.quote(text)
+
+
+def _aggregate_record(discovery, path, *, cause=None, failed=None):
+    fields = ["aggregate", f"discovery={discovery}", f"path={_aggregate_value(path)}"]
+    if cause:
+        fields.append(f"cause={_aggregate_value(cause)}")
+    if failed:
+        fields.append(
+            f"failed={_aggregate_value(json.dumps(failed, separators=(',', ':')))}"
+        )
+    print(" ".join(fields))
+
+
+def cmd_aggregate(rest):
+    if len(rest) != 2 or rest[0] != "--pr" or not (
+        rest[1].isascii() and rest[1].isdigit()
+    ):
+        _aggregate_record("degraded", "n/a", cause="malformed-invocation")
+        return 2
+    pr_number = rest[1]
+    pr_root = f"{REVIEW_ROOT}/pr-{pr_number}"
+    aggregate_path = f"{pr_root}/{MANIFEST_NAME}"
+
+    branch = _resolve_current_branch()
+    if branch is BRANCH_UNRESOLVABLE:
+        _aggregate_record("degraded", aggregate_path, cause="branch-unresolvable")
+        return 2
+    branch_slug = _derive_branch_slug(branch)
+    if branch and (not branch_slug or _slug_escapes_review_root(REVIEW_ROOT, branch_slug)):
+        _aggregate_record("degraded", aggregate_path, cause="branch-slug-invalid")
+        return 2
+    roots = [pr_root]
+    branch_root = f"{REVIEW_ROOT}/{branch_slug}" if branch_slug else None
+    if branch_root and branch_root not in roots:
+        roots.append(branch_root)
+
+    prior = None
+    if os.path.exists(aggregate_path):
+        prior, prior_error = _read_aggregate_document(aggregate_path)
+        if prior_error:
+            _aggregate_record("degraded", aggregate_path, cause=f"prior-{prior_error}")
+            return 2
+
+    documents = []
+    failed = []
+    for root in roots:
+        status, matches = classify_root(root)
+        if status == "failed":
+            failed.append(root)
+        for match in sorted(matches):
+            document, error = _read_aggregate_document(match)
+            if error:
+                failed.append(match)
+            else:
+                documents.append(document)
+
+    if failed and not documents:
+        # A prior aggregate is trusted input, but not a successful discovery.
+        # Preserve its bytes exactly on the no-trusted-new-input degraded arm.
+        _aggregate_record("degraded", aggregate_path, cause="discovery-failed")
+        return 2
+
+    merged = _merge_aggregate_documents(prior, documents)
+    try:
+        _write_aggregate_atomic(aggregate_path, merged)
+    except OSError as exc:
+        _aggregate_record("degraded", aggregate_path, cause=f"write-failed:{exc}")
+        return 2
+    discovery = "partial" if failed else "complete"
+    _aggregate_record(discovery, aggregate_path, failed=failed)
+    return 1 if failed else 0
+
+
 def main(argv=None):
     _force_utf8_streams()
     args = list(sys.argv[1:] if argv is None else argv)
     if args and args[0] == PRESENCE_FLAG:
         return _run_presence(args[1:])
+    if args and args[0] == AGGREGATE_FLAG:
+        try:
+            return cmd_aggregate(args[1:])
+        except BaseException as exc:
+            try:
+                _aggregate_record("degraded", "n/a", cause=f"internal-error:{exc}")
+            except BaseException:
+                pass
+            return 2
     if not args:
         # Emit NO discovery marker here: a usage error is not a discovery outcome, and a marker
         # would make the fence's after-fence classification read it as a real partial run.

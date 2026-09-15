@@ -66,7 +66,6 @@ Confirm all of the following:
     - [x] **Implement**
       - [x] code + sweeps
     - [ ] **Review**
-      - [x] `/simplify`
       - [ ] `review-and-fix`
       - [ ] acceptance-criteria gate
     - [ ] **Documentation**

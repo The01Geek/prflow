@@ -93,6 +93,7 @@ if [ -z "${DEVFLOW_JQ:-}" ]; then
 fi
 
 ISSUE=""; BRANCH=""; BASE=""; BRANCH_SET=""
+OPEN=""; FORCE_CREATE=""; TITLE_FILE=""; BODY_FILE=""
 # EVERY value-taking flag checks that its operand is PRESENT before `shift 2`. This is not
 # defensive tidiness: with one positional left, bash's `shift 2` FAILS and shifts NOTHING, and
 # because this helper deliberately runs without `set -e` the loop then re-matches the same flag
@@ -107,7 +108,7 @@ ISSUE=""; BRANCH=""; BASE=""; BRANCH_SET=""
 # path here.
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --issue|--branch|--base)
+        --issue|--branch|--base|--title-file|--body-file)
             if [ "$#" -lt 2 ]; then
                 echo "devflow: resolve-existing-pr.sh: '$1' requires a value but none was given; refusing rather than looping on an unconsumable argument" >&2
                 printf '%s\n' REFUSED
@@ -117,8 +118,12 @@ while [ "$#" -gt 0 ]; do
                 --issue)  ISSUE="$2" ;;
                 --branch) BRANCH="$2"; BRANCH_SET=1 ;;
                 --base)   BASE="$2" ;;
+                --title-file) TITLE_FILE="$2" ;;
+                --body-file) BODY_FILE="$2" ;;
             esac
             shift 2 ;;
+        --open) OPEN=1; shift ;;
+        --force-create) FORCE_CREATE=1; shift ;;
         *)
             echo "devflow: resolve-existing-pr.sh: unrecognized argument '$1'; refusing to guess" >&2
             printf '%s\n' REFUSED
@@ -158,6 +163,129 @@ if [ -z "$BRANCH" ]; then
     echo "devflow: resolve-existing-pr.sh: the branch name is empty (detached HEAD, a broken worktree, or git < 2.22); NOT querying — an empty --head degrades to an unfiltered repo-wide listing" >&2
     printf '%s\n' REFUSED
     exit 3
+fi
+
+_pr_open_record() {
+    _outcome="$1"; shift
+    printf 'pr-open outcome=%q' "$_outcome"
+    while [ "$#" -ge 2 ]; do
+        printf ' %s=%q' "$1" "$2"
+        shift 2
+    done
+    printf '\n'
+}
+
+_open_mode() {
+    if [ -z "$TITLE_FILE" ] || [ -z "$BODY_FILE" ] || [ ! -r "$TITLE_FILE" ] || [ ! -r "$BODY_FILE" ]; then
+        echo "devflow: resolve-existing-pr.sh --open: the PR title/body files are unset or unreadable (TITLE_FILE=${TITLE_FILE:-<unset>}, BODY_FILE=${BODY_FILE:-<unset>}); refusing to open a PR" >&2
+        _pr_open_record refused cause title-or-body-file-unreadable
+        exit 3
+    fi
+
+    _resolution=CREATE
+    _resolve_rc=2
+    if [ -z "$FORCE_CREATE" ]; then
+        _resolve_cmd=("$0" --issue "$ISSUE" --branch "$BRANCH")
+        [ -z "$BASE" ] || _resolve_cmd+=(--base "$BASE")
+        _resolution="$("${_resolve_cmd[@]}")"
+        _resolve_rc=$?
+    fi
+
+    _mode=""
+    _number=""
+    _url=""
+    _checks=""
+    case "$_resolution|$_resolve_rc" in
+        ADOPT\ *\ OK\|0)
+            _mode=adopted
+            read -r _unused _number _checks <<<"$_resolution" ;;
+        ADOPT\ *\ WARN:*\|0)
+            _mode=adopted
+            read -r _unused _number _checks <<<"$_resolution" ;;
+        CREATE\|2)
+            _mode=created ;;
+        *)
+            echo "devflow: resolve-existing-pr.sh --open: the adopt-or-create resolver returned an unclassifiable result (resolution='${_resolution}', rc=${_resolve_rc}); refusing to open a PR" >&2
+            _pr_open_record refused cause "unresolved-adopt-or-create-rc-${_resolve_rc}"
+            exit 3 ;;
+    esac
+
+    if [ "$_mode" = created ]; then
+        if [ -z "$BASE" ]; then
+            BASE="$("$_DIR/config-get.sh" .base_branch main)" || BASE=""
+            if [ -z "$BASE" ]; then
+                echo "devflow: resolve-existing-pr.sh: base_branch read failed (a malformed config, a missing python3, or config-get.sh itself absent/non-executable beside this helper); falling back to 'main' as the created PR's base" >&2
+                BASE=main
+            fi
+        fi
+        if ! _push_out="$(git push origin "HEAD:refs/heads/$BRANCH" 2>&1)"; then
+            _pr_open_record push-failed cause "${_push_out:-git-push-failed}"
+            exit 1
+        fi
+        _title="$(<"$TITLE_FILE")"
+        _body="$(<"$BODY_FILE")"
+        _provenance="$("$_DIR/render-pr-provenance-line.py" --command /prflow:implement 2>/dev/null)" || _provenance=""
+        _run_link="$("$_DIR/compose-run-url.sh" 2>/dev/null)" || _run_link=""
+        _composed="$(mktemp 2>/dev/null)" || _composed=""
+        if [ -z "$_composed" ]; then
+            _pr_open_record create-failed cause body-temp-unavailable
+            exit 1
+        fi
+        printf '%s\n' "$_body" >"$_composed"
+        [ -z "$_run_link" ] || printf '\n%s\n' "$_run_link" >>"$_composed"
+        [ -z "$_provenance" ] || printf '\n%s\n' "$_provenance" >>"$_composed"
+        _create_out="$("$DEVFLOW_GH" pr create --base "$BASE" --draft --title "$_title" --body-file "$_composed" 2>&1)"
+        _create_rc=$?
+        rm -f "$_composed"
+        if [ "$_create_rc" -ne 0 ]; then
+            _pr_open_record create-failed cause "${_create_out:-gh-pr-create-failed}"
+            exit 1
+        fi
+        _url="$(printf '%s\n' "$_create_out" | while IFS= read -r _line; do case "$_line" in http*/*/pull/*) printf '%s\n' "$_line"; break ;; esac; done)"
+        _number="${_url##*/}"
+        case "$_number" in ''|*[!0-9]*)
+            _pr_open_record create-failed cause "gh-pr-create-returned-no-parseable-url:$_create_out"
+            exit 1 ;;
+        esac
+    else
+        # Capture gh's stderr (never discard it): a failed adopted-PR URL read is one of the
+        # REFUSED causes the file's NO-SILENT-PATH invariant requires a breadcrumb for.
+        _view_out="$("$DEVFLOW_GH" pr view "$_number" --json url --jq .url 2>&1)"; _view_rc=$?
+        _url=""
+        if [ "$_view_rc" -eq 0 ]; then
+            case "$_view_out" in http*) _url="$_view_out" ;; esac
+        fi
+        if [ -z "$_url" ]; then
+            echo "devflow: resolve-existing-pr.sh --open: could not resolve the adopted PR #${_number} URL (gh pr view rc=${_view_rc}): ${_view_out:-<no output>}" >&2
+            _pr_open_record refused cause "adopted-pr-url-unresolved-rc-${_view_rc}"
+            exit 3
+        fi
+    fi
+
+    _workpad_link="$("$_DIR/workpad.py" update "$ISSUE" --pr-link "[#$_number]($_url)" 2>&1)"; _link_rc=$?
+    _label="$("$_DIR/apply-labels.sh" "$_number" PRFlow 2>&1)"; _label_rc=$?
+    _workpad_bind="$("$_DIR/workpad.py" update "$ISSUE" --bind-scope-decisions "$_number" 2>&1)"; _bind_rc=$?
+    _assignment="n/a"
+    _assignment_rc="n/a"
+    if [ "$_mode" = created ]; then
+        _assignment="$("$_DIR/apply-pr-triggerer.sh" "$_number" 2>&1)"; _assignment_rc=$?
+    fi
+    _pr_open_record "$_mode" number "$_number" url "$_url" \
+        workpad_link "$_workpad_link" workpad_link_rc "$_link_rc" \
+        apply_labels "$_label" apply_labels_rc "$_label_rc" \
+        workpad_bind "$_workpad_bind" workpad_bind_rc "$_bind_rc" \
+        assignment "$_assignment" assignment_rc "$_assignment_rc" \
+        checks "${_checks:-n/a}"
+    exit 0
+}
+
+if [ -n "$FORCE_CREATE" ] && [ -z "$OPEN" ]; then
+    echo "devflow: resolve-existing-pr.sh: --force-create requires --open" >&2
+    printf '%s\n' REFUSED
+    exit 3
+fi
+if [ -n "$OPEN" ]; then
+    _open_mode
 fi
 
 # OPEN-SCOPED and branch-explicit, deliberately NOT `gh pr view`: that command takes no

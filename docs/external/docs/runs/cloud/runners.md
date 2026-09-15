@@ -24,7 +24,7 @@ Keep the `DEVFLOW_` prefix exactly as written. There is no `PRFLOW_RUNNER` alias
 
 A second optional variable, `DEVFLOW_LIGHT_RUNNER`, moves the *light* (mostly one-core) jobs onto a cheaper runner while the heavy jobs stay on `DEVFLOW_RUNNER`. It takes the same value shapes — a bare label or a JSON label array.
 
-The light jobs are, in `devflow.yml`: `config`, `review_dedupe`, `gate`, `review_finalize`, and the `command` job when the triggering comment is a standalone `/prflow:review`. In `devflow-implement.yml`: `config` and `gate`. Everything else keeps `DEVFLOW_RUNNER` — a `/prflow:review-and-fix` or `/prflow:pr-description` `command` job, the implement `claude` job (which runs the test suite), and every `devflow-retrospective.yml` job.
+The light jobs are, in `devflow.yml`: `config`, `review_dedupe`, `gate`, `review_finalize`, and the `command` job when the triggering comment is a standalone `/prflow:review`. In `devflow-implement.yml`: `config` and `gate`. Everything else keeps `DEVFLOW_RUNNER` — a `/prflow:review-and-fix` or `/prflow:pr-description` `command` job, the implement `claude` job (which runs the test suite, and since issue #402 prefers its own optional `DEVFLOW_IMPLEMENT_RUNNER`, falling back to `DEVFLOW_RUNNER`), and every `devflow-retrospective.yml` job.
 
 When `DEVFLOW_LIGHT_RUNNER` is unset or empty, each light job falls back to the `DEVFLOW_RUNNER` chain — `DEVFLOW_RUNNER`'s value, or `ubuntu-latest` when that is also unset. Set nothing new and no job moves.
 

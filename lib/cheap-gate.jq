@@ -1,4 +1,4 @@
-# cheap-gate.jq — mechanical "clean PR" predicate for the devflow retrospective.
+# cheap-gate.jq — mechanical "clean PR" predicate for the PRFlow retrospective.
 #
 # Decides whether a PR context bundle can be skipped by the LLM analysis
 # because all observable signals are clean. This is a pure filter with no

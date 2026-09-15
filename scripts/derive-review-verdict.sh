@@ -18,12 +18,15 @@
 #   - Only older-commit reviews / empty reviews for HEAD .... incomplete
 #   - No HEAD review and no run id to scope the comment
 #     fallback (unverifiable) ............................... incomplete
-#   - A producer marker on HEAD whose `head=` names another
-#     commit, or which cannot be parsed, or of which the body
-#     carries two (unestablished) ....................... incomplete
-#   - A producer marker on HEAD the reviews-API `state`
+#   - The SELECTED HEAD review's producer marker cannot be
+#     parsed, or its body carries two (unestablished) ....... incomplete
+#     (a marker naming ANOTHER commit is positively OFF head under
+#     the marker-first selection — issue #433 — so it is never the
+#     selected review; it is not resolved to incomplete by this arm,
+#     and an empty candidate set falls through to the comment fallback)
+#   - The selected review's producer marker the reviews-API `state`
 #     contradicts (unestablished) ...................... incomplete
-#   - A producer marker on HEAD ..................... reject/approve
+#   - The selected review's producer marker ......... reject/approve
 #   - A CHANGES_REQUESTED (or `## Verdict: REJECT`) ON HEAD .. reject
 #   - An APPROVED (or `## Verdict: APPROVE`) review ON HEAD .. approve
 #   - A DISMISSED or PENDING review ON HEAD is never the verdict (a dismissed
@@ -56,11 +59,15 @@
 #   - TWO marker-shaped lines within that window is `unestablished`, never a pick;
 #   - a marker that does not match the exact literal shape (no `verdict=`, an out-of-enum
 #     token, a marker split across lines) is `unestablished`, never a guess;
-#   - a marker whose `head=` is not the HEAD under consideration is `unestablished` — the
-#     marker head and the reviews-API `commit_id` can disagree as ordinary GitHub behavior
-#     (GitHub can change a review's `commit_id` after submission — issue #1247), so this
-#     deriver refuses to join on either key when they disagree and fails closed by decision,
-#     accepting a re-review round each time a branch is updated after review;
+#   - the HEAD review is SELECTED by the marker's `head=`, never the reviews-API
+#     `commit_id` (issue #433). GitHub moves a live review's `commit_id` to the current
+#     head on a branch update (issue #1247), so `commit_id` equal to HEAD_SHA is not
+#     evidence the review reviewed HEAD once a marker exists; the marker's `head=`, stamped
+#     once at review time, is. A marked review whose head is not HEAD_SHA is positively OFF
+#     the head and is not selected; a markerless review is placed by `commit_id` only when
+#     no non-dismissed review in the payload carries an off-head marker (its `commit_id`
+#     would otherwise be the re-pointed key). When that leaves no review on HEAD, a
+#     re-review round is accepted, exactly as before;
 #   - a marker the reviews-API `state` CONTRADICTS (marker REJECT on an APPROVED or
 #     COMMENTED review, marker APPROVE on a CHANGES_REQUESTED one) is `unestablished`.
 # Every one of those emits `incomplete`/`false` with its own breadcrumb.
@@ -196,11 +203,25 @@ drv_marker_verdict() {
     printf 'malformed'
     return 0
   fi
-  if [ "${BASH_REMATCH[1]}" != "$HEAD_SHA" ]; then
+  local mhead="${BASH_REMATCH[1]}" mverdict="${BASH_REMATCH[2]}"
+  # Normalize the head comparison to the jq selection's ascii_downcase (issue #433): a
+  # hand-authored uppercase marker head must compare equal to the lowercase HEAD_SHA the
+  # API returns, or a legitimately on-head review is wrongly refused. bash 3.2 has no
+  # ${x,,} and the preflight does not guarantee `tr`, so use the nocasematch builtin.
+  # This arm is now unreachable by any selected review — the jq DRV_STATE_FILTER admits a
+  # marked review only when its marker head already equals HEAD_SHA (case-insensitively) —
+  # but is retained as a fail-closed backstop, since the strict parser still yields a head
+  # token and an unmatched one would otherwise fall through to the state checks.
+  local _drv_ncm; _drv_ncm=$(shopt -p nocasematch)
+  shopt -s nocasematch
+  local _drv_head_ok=0
+  [[ "$mhead" == "$HEAD_SHA" ]] || _drv_head_ok=1
+  eval "$_drv_ncm"
+  if [ "$_drv_head_ok" -ne 0 ]; then
     printf 'head-mismatch'
     return 0
   fi
-  printf '%s' "${BASH_REMATCH[2]}"
+  printf '%s' "$mverdict"
 }
 
 # 1. Engine execution ended in error -> no verdict for HEAD, regardless of any
@@ -245,36 +266,80 @@ if ! REVIEWS_JSON=$("$DEVFLOW_GH" api --paginate "repos/$REPO/pulls/$PR_NUMBER/r
   emit incomplete false
 fi
 
-# 5. HEAD-scoped selection: the LAST review whose commit_id equals HEAD_SHA. A
-#    review on any earlier commit is never treated as the verdict (an empty
-#    match set yields empty STATE/RBODY and falls through to the comment
-#    fallback). Piped through jq (DEVFLOW_JQ) rather than gh --jq so the test
-#    stub only has to echo JSON. A jq FAILURE (missing/broken jq, or a
-#    200-but-non-array payload `map()` rejects) is NOT an empty match set: it
-#    fails closed here with its own breadcrumb — falling through to the comment
-#    fallback could emit a verdict without the reviews ever being consulted,
-#    and the step-7 breadcrumb would misdiagnose a parse failure as "no verdict".
-#    Only VERDICT-BEARING states are selected: a DISMISSED review is a human
-#    override whose body still carries its old `## Verdict:` line — reading it
-#    would resurrect a deliberately-dismissed verdict (the same Direction-1
-#    wedge this helper exists to remove); a PENDING (or other non-verdict)
-#    review interleaved on HEAD must not mask a real APPROVED/CHANGES_REQUESTED
-#    posted just before it; and a COMMENTED review counts as verdict-bearing
-#    ONLY when its body carries the `## Verdict:` marker (Phase 4.4's
-#    approve-with-notes shape) — a plain human comment-review on HEAD must not
-#    mask the bot verdict posted just before it. Excluded reviews fall through
-#    like an empty set.
-#    The leading `-s`/`add` normalizes the `--paginate` shape: slurp turns one
-#    array into [[...]] and concatenated pages into [[...],[...]], and `add`
-#    flattens both to one review list (a non-array payload with scalar values —
-#    the real gh error-object shape — still errors in `map()`, keeping the parse
-#    guard live; an all-empty input slurps to [] whose `add` yields null and
-#    `map` then errors — fail-closed either way).
-#    A COMMENTED review is admitted when its body carries EITHER the producer marker on
-#    line 1 (issue #1030's approve-with-notes channel, the shape post-review-verdict.sh
-#    emits) or the transitional `## Verdict:` heading — a plain human comment-review on
-#    HEAD carries neither and still must not mask the bot verdict posted just before it.
-DRV_STATE_FILTER='add | map(select(.commit_id == $h and (((.state // "") | IN("APPROVED","CHANGES_REQUESTED")) or (((.state // "") == "COMMENTED") and ((.body // "") | (test("(?:^|\\n)##[[:space:]]+Verdict:") or test("^<!-- prflow:review-verdict "))))))) | last'
+# 5. HEAD-scoped selection: the LAST verdict-bearing review PLACED ON HEAD, where a
+#    review is placed by the marker's `head=` first and its reviews-API `commit_id` only
+#    as a markerless fallback (issue #433). GitHub moves a live review's `commit_id` to
+#    the current head on a branch update (issue #1247), so `commit_id` equal to HEAD_SHA
+#    says nothing about the reviewed tree once a marker exists; the marker's `head=`,
+#    stamped once at review time (issue #1030), does. So:
+#      - a marked review whose marker head equals HEAD_SHA (ascii_downcase-normalized) is
+#        ON the head; a marked review whose marker head differs is positively OFF it;
+#      - a markerless review whose `commit_id` equals HEAD_SHA is admitted ON the head
+#        ONLY when no non-dismissed review in the payload carries a marker naming a head
+#        other than HEAD_SHA — such an off-head marked review means the markerless
+#        review's `commit_id` is exactly the re-pointed key this deriver distrusts, so the
+#        candidate set is left empty and a non-terminating breadcrumb (step 5a) names the
+#        off-head marked review before the run-keyed comment fallback runs.
+#    An empty candidate set yields empty STATE/RBODY and falls through to the comment
+#    fallback exactly as an empty match set did before. Piped through jq (DEVFLOW_JQ)
+#    rather than gh --jq so the test stub only has to echo JSON. A jq FAILURE
+#    (missing/broken jq, or a 200-but-non-array payload `map()` rejects) is NOT an empty
+#    match set: it fails closed here with its own breadcrumb.
+#    Only VERDICT-BEARING states are candidates: a DISMISSED review is a human override
+#    whose stale body must not resurrect; a PENDING (or other non-verdict) review must not
+#    mask a real APPROVED/CHANGES_REQUESTED; and a COMMENTED review counts only when its
+#    body carries the producer marker (Phase 4.4's approve-with-notes channel) or the
+#    transitional `## Verdict:` heading. Excluded reviews fall through like an empty set.
+#    The leading `-s`/`add` normalizes the `--paginate` shape: slurp turns one array into
+#    [[...]] and concatenated pages into [[...],[...]], and `add` flattens both to one
+#    review list (a non-array payload still errors in `map()`, keeping the parse guard
+#    live; an all-empty input slurps to [] whose `add` yields null and `map` then errors —
+#    fail-closed either way). marker_head/commit_key adapt scripts/classify-head-reviews.sh's
+#    idiom (that helper scans line 1; this one scans the deriver's two-line window),
+#    ascii_downcase-normalized so an uppercase marker head compares byte-exact.
+# The producer marker's own head=, ascii_downcase-normalized (or "" when the deriver's
+# two-line marker window carries no single well-formed marker). Hoisted to ONE definition so the marker-shape
+# regex lives once rather than once per filter; both filters below prepend it. Adapts
+# scripts/classify-head-reviews.sh's marker_head idiom — same capture+ascii_downcase, but
+# scans this deriver's two-line marker window where that helper scans line 1 only.
+DRV_MARKER_HEAD_JQDEF='
+  def marker_head:
+    (.body // "") as $b
+    | (($b | split("\n"))[0:2]
+       | map(select(test("^<!-- prflow:review-verdict head=[0-9a-fA-F]{40} verdict=(APPROVE|REJECT) -->$")))) as $hits
+    | if ($hits | length) == 1
+      then ($hits[0] | capture("head=(?<hh>[0-9a-fA-F]{40})") | .hh | ascii_downcase)
+      else "" end;
+  def off_head_markers($H):
+    [ .[] | select((.state // "") != "DISMISSED") | marker_head as $mh | select($mh != "" and $mh != $H) | $mh ];'
+DRV_STATE_FILTER="$DRV_MARKER_HEAD_JQDEF"'
+  def commit_key:
+    (.commit_id // "") as $c
+    | if ($c | type) == "string" then ($c | ascii_downcase) else "" end;
+  def verdict_bearing:
+    (((.state // "") | IN("APPROVED","CHANGES_REQUESTED"))
+     or (((.state // "") == "COMMENTED")
+         and ((.body // "") | (test("(?:^|\\n)##[[:space:]]+Verdict:") or test("^<!-- prflow:review-verdict ")))));
+  ($h | ascii_downcase) as $H
+  | add
+  | . as $all
+  | ($all | off_head_markers($H) | length > 0) as $off_head
+  | [ $all[]
+      | select(verdict_bearing)
+      | . as $r
+      | ($r | marker_head) as $mh
+      | if $mh != "" then (if $mh == $H then $r else empty end)
+        elif ($off_head | not) and (($r | commit_key) == $H) then $r
+        else empty end
+    ] | last'
+# The off-head marked heads (ascii_downcase-normalized, unique, space-joined), for step
+# 5a's non-terminating breadcrumb when nothing was selected. Reuses the shared off_head_markers
+# def; the heads are 40-hex by the strict regex, so they are safe to echo.
+DRV_OFF_HEAD_FILTER="$DRV_MARKER_HEAD_JQDEF"'
+  ($h | ascii_downcase) as $H
+  | add
+  | off_head_markers($H)
+  | unique | join(" ")'
 if ! STATE=$(printf '%s' "$REVIEWS_JSON" | "$DEVFLOW_JQ" -rs --arg h "$HEAD_SHA" \
           "$DRV_STATE_FILTER | (.state // \"\")" 2>/dev/null); then
   echo "derive-review-verdict: reviews JSON could not be parsed (jq failed or the reviews payload was not an array) — verdict unverifiable; failing closed (incomplete)." >&2
@@ -284,6 +349,21 @@ if ! RBODY=$(printf '%s' "$REVIEWS_JSON" | "$DEVFLOW_JQ" -rs --arg h "$HEAD_SHA"
           "$DRV_STATE_FILTER | (.body // \"\")" 2>/dev/null); then
   echo "derive-review-verdict: reviews JSON could not be parsed (jq failed or the reviews payload was not an array) — verdict unverifiable; failing closed (incomplete)." >&2
   emit incomplete false
+fi
+
+# 5a. #433: nothing was selected on HEAD, but the payload may still hold marked reviews
+#    that name OTHER heads. Distinguish that from "no review at all on HEAD": the only
+#    thing that would place a review on HEAD here is a markerless review's re-pointed
+#    commit_id, which this deriver distrusts, so name the off-head marked review(s) and
+#    continue to the run-keyed comment fallback rather than terminating. Best-effort: a jq
+#    failure here just skips the breadcrumb (the step-7 breadcrumb still fires); this is a
+#    diagnostic, not a decision. An empty STATE means the candidate set was empty (a
+#    verdict-bearing selected review always has a non-empty state).
+if [ -z "$STATE" ]; then
+  OFFHEADS=$(printf '%s' "$REVIEWS_JSON" | "$DEVFLOW_JQ" -rs --arg h "$HEAD_SHA" "$DRV_OFF_HEAD_FILTER" 2>/dev/null) || OFFHEADS=""
+  if [ -n "$OFFHEADS" ]; then
+    echo "derive-review-verdict: no marked review names HEAD ($HEAD_SHA) — the payload's marked review(s) name other heads ($OFFHEADS); a markerless review's reviews-API commit_id is the re-pointed key this ignores (GitHub moves it to the current head on a branch update); continuing to this run's progress-comment fallback." >&2
+  fi
 fi
 
 # 5b. THE PRODUCER MARKER IS THE FIRST SIGNAL on the HEAD review's body (issue #1030).
@@ -301,7 +381,7 @@ case "$RMARKER" in
     echo "derive-review-verdict: the HEAD review body carries a prflow:review-verdict marker that does not parse (no verdict= field, an out-of-enum verdict token, or a marker split across lines) — refusing to guess; failing closed (incomplete)." >&2
     emit incomplete false ;;
   head-mismatch)
-    echo "derive-review-verdict: the HEAD review's prflow:review-verdict marker names a different head than the review's own commit_id ($HEAD_SHA) — the two verdict keys disagree, so the join is unsafe; failing closed (incomplete)." >&2
+    echo "derive-review-verdict: the selected HEAD review's prflow:review-verdict marker head does not equal HEAD_SHA ($HEAD_SHA) after normalization — refusing to guess; failing closed (incomplete). (Retained backstop: the HEAD selection admits no marked review whose head differs from HEAD_SHA, so this is unreachable via the reviews payload.)" >&2
     emit incomplete false ;;
   REJECT)
     if [ "$STATE" = "APPROVED" ] || [ "$STATE" = "COMMENTED" ]; then

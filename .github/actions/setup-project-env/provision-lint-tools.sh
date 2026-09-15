@@ -29,7 +29,7 @@
 #                      derived from the marker after the readiness gate when unset
 #   TOOLS              space-separated tool list (default: the manifest's own tool set)
 #   LINTPROV_PYTHON    python3 interpreter (default python3)
-#   LINTPROV_CURL      downloader; called as "$LINTPROV_CURL" -fsSL -o OUT URL (default curl)
+#   LINTPROV_CURL      downloader; called as "$LINTPROV_CURL" -fsSL --retry N --retry-delay N -o OUT URL (default curl)
 #   LINTPROV_TAR       tar extractor (default tar)
 #   LINTPROV_UNZIP     zip extractor (default unzip)
 #   LINTPROV_SKIP_PATH_REUSE  set to 1 to skip the pre-provisioned-runner PATH
@@ -253,8 +253,12 @@ EOF
   extract_dir="$work/x"
   mkdir -p "$extract_dir"
 
-  # Download — a network failure fails closed naming the tool.
-  "$CURL" -fsSL -o "$archive" "$url" || _die "$tool" "network failure downloading $url"
+  # Download — bounded curl retry rides out a transient CDN 5xx or blip (the release
+  # host intermittently 500s) before failing closed naming the tool. --retry (curl
+  # 7.12+, so portable to old consumer runners; --retry-all-errors is not) already
+  # covers the transient set including HTTP 500; the pinned-digest check below still
+  # refuses any bytes a retry brought back.
+  "$CURL" -fsSL --retry 5 --retry-delay 2 -o "$archive" "$url" || _die "$tool" "network failure downloading $url"
   [ -s "$archive" ] || _die "$tool" "network failure: empty download from $url"
 
   # Verify the pinned digest BEFORE extracting — a checksum mismatch is a

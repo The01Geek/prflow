@@ -77,7 +77,7 @@
       "superseded": "devflow-telemetry",
       "current": "prflow-telemetry",
       "match": "prefix",
-      "detail": "The telemetry branch and the artifact names derived from it (issue #1003). `prefix` match, because the shipped names extend it with a hyphen -- `devflow-telemetry-stage-<run>` -- which a token rule would refuse."
+      "detail": "The telemetry branch and the artifact names derived from it (issue #1003). `prefix` match, because the shipped names extend it with a hyphen -- `devflow-telemetry-stage-<run>` -- which a token rule would refuse. A consumer's records still stranded on the superseded `devflow-telemetry` branch are migrated onto the current branch by `scripts/migrate-telemetry-branch.sh` (issue #336)."
     },
     {
       "id": "comment-marker-namespace",
@@ -85,6 +85,13 @@
       "current": "<!-- prflow:",
       "match": "prefix",
       "detail": "The `<!-- devflow:* -->` comment-marker namespace (issue #1003). `prefix` match, and it is deliberately NARROWER than the bare `devflow:` namespace: the plugin's subagent-override keys (`devflow:code-reviewer`) and the transitional command spellings (`/devflow:implement`) keep the old namespace as a permanent accepted alias, so only the marker form -- which always opens with the HTML comment token -- is renamed."
+    },
+    {
+      "id": "retrospective-state-branch",
+      "superseded": "devflow/learnings-",
+      "current": "prflow/learnings-",
+      "match": "prefix",
+      "detail": "The weekly retrospective's state branch (issue #496). `prefix` match, because the shipped branch names extend it with a date -- `prflow/learnings-2026-09-13`. Both readers (scripts/retrospective-state-guard.sh, lib/classify-pr-kind.jq) and the producer (lib/open-state-pr.sh --follow-up) accept the superseded prefix too until this end criterion: the superseded prefix is removed in the first release after the maintainer confirms no repository the retrospective runs in still has an open devflow/learnings-* pull request; it is never removed on a timer. The commit subject gets no map entry because nothing reads it."
     }
   ],
 
@@ -121,7 +128,8 @@
     "workflow_filenames": [
       "devflow.yml",
       "devflow-implement.yml",
-      "devflow-review.yml"
+      "devflow-review.yml",
+      "devflow-retrospective.yml"
     ],
     "record_paths": ["learnings/", "logs/"],
 
@@ -195,10 +203,21 @@
           "channel": "cloud",
           "kind": "repository or organization variable",
           "set_where": "GitHub -> Settings -> Secrets and variables -> Actions -> Variables",
-          "read_as": "runs-on: ${{ vars.DEVFLOW_RUNNER && (...) || 'ubuntu-latest' }} -- directly on devflow-implement.yml's claude job and every devflow-retrospective.yml job, and as the fallback tail of the DEVFLOW_LIGHT_RUNNER expression on the light jobs (devflow.yml config/review_dedupe/gate/review_finalize and the command job's non-review branch, devflow-implement.yml config/gate)",
+          "read_as": "runs-on: ${{ vars.DEVFLOW_RUNNER && (...) || 'ubuntu-latest' }} -- directly on every devflow-retrospective.yml job; as the fallback tail of the DEVFLOW_IMPLEMENT_RUNNER expression on devflow-implement.yml's claude job (since issue #402 that job prefers DEVFLOW_IMPLEMENT_RUNNER and reads DEVFLOW_RUNNER only when it is unset); and as the fallback tail of the DEVFLOW_LIGHT_RUNNER expression on the light jobs (devflow.yml config/review_dedupe/gate/review_finalize and the command job's non-review branch, devflow-implement.yml config/gate)",
           "failure_visibility": "silent",
           "severity": "highest",
           "failure_mode": "SILENT RUNNER RELOCATION, and the highest-severity outcome in this table. Unresolvable, the expression takes its `|| 'ubuntu-latest'` arm and EVERY job silently moves to a GitHub-hosted runner. That same job carries `secrets.DEVFLOW_APP_PRIVATE_KEY` and `secrets.DEVFLOW_PROVIDER_API_KEY` in its environment -- so a consumer who self-hosts for network isolation or compliance has their GitHub App private key and their model-provider API key executed OUTSIDE the boundary they chose self-hosting for. Nothing errors, no job fails, and no log line names the cause; the only visible difference is the runner label in a page nobody re-reads after setup. Note the contrast with a MIS-SET value: a `DEVFLOW_RUNNER` that begins `[` but is not valid JSON fails loud at evaluation time. It is the name going missing, not the value being wrong, that is silent."
+        },
+        {
+          "name": "DEVFLOW_IMPLEMENT_RUNNER",
+          "arm": "A1",
+          "channel": "cloud",
+          "kind": "repository or organization variable",
+          "set_where": "GitHub -> Settings -> Secrets and variables -> Actions -> Variables",
+          "read_as": "runs-on: ${{ vars.DEVFLOW_IMPLEMENT_RUNNER && (...) || (<DEVFLOW_RUNNER chain>) }} -- on devflow-implement.yml's claude job only (issue #402), preferred over DEVFLOW_RUNNER. Unset or empty, the expression falls back to the DEVFLOW_RUNNER chain (DEVFLOW_RUNNER's value, else ubuntu-latest), so a repository that never sets it runs the claude job exactly as before",
+          "failure_visibility": "silent",
+          "severity": "high",
+          "failure_mode": "SILENT RUNNER RELOCATION of the implement claude job only. The name going missing does not error: the expression takes its DEVFLOW_RUNNER-chain fallback arm, so the claude job reverts to wherever DEVFLOW_RUNNER points (or ubuntu-latest when that too is unset). That job carries secrets.DEVFLOW_APP_PRIVATE_KEY and secrets.DEVFLOW_PROVIDER_API_KEY in its environment, so a consumer who set DEVFLOW_IMPLEMENT_RUNNER to isolate the heaviest job loses that isolation silently -- the only visible symptom is the runner label, never a job failure or a log line. As for DEVFLOW_RUNNER, a MIS-SET value that begins `[` but is not valid JSON fails loud at evaluation time; it is the name going missing, not the value being wrong, that is silent."
         },
         {
           "name": "DEVFLOW_LIGHT_RUNNER",

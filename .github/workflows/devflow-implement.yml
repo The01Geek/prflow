@@ -611,7 +611,7 @@ jobs:
   claude:
     needs: [config, gate]
     if: needs.gate.outputs.should_run == 'true' && needs.gate.outputs.duplicate != 'true'
-    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || format(vars.DEVFLOW_RUNNER, github.run_id)) || 'ubuntu-latest' }}
+    runs-on: ${{ vars.DEVFLOW_IMPLEMENT_RUNNER && (startsWith(vars.DEVFLOW_IMPLEMENT_RUNNER, '[') && fromJSON(vars.DEVFLOW_IMPLEMENT_RUNNER) || format(vars.DEVFLOW_IMPLEMENT_RUNNER, github.run_id)) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || format(vars.DEVFLOW_RUNNER, github.run_id)) || 'ubuntu-latest') }}
     permissions:
       contents: write
       pull-requests: write
@@ -1433,8 +1433,26 @@ jobs:
           EXTRA: ${{ needs.config.outputs.allowed_tools_extra }}
         run: |
           set -euo pipefail
-          # devflow-capability-manifest: region=implement manifest_version=36 sha256=ac604cf4fd33d6abdeab6d3ddb6a296460cc2719257e04ae9c4e9c910d9c1424
-          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git hash-object:*), Bash(git checkout:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*), Bash(.prflow/vendor/prflow/scripts/ac-verifier-artifacts.py:*), Bash(.prflow/vendor/prflow/scripts/validate-issue-claim-audit.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/discover-deferral-manifests.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/ensure-label.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-pr-triggerer.sh:*), Bash(.prflow/vendor/prflow/scripts/render-pr-provenance-line.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/scripts/apply-issue-dependencies.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-existing-pr.sh:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/react-to-trigger.sh:*), Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*), Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(cmp:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(tee:*)'
+          # devflow-capability-manifest: region=implement manifest_version=39 sha256=2adcd4a9fbc2b93625664c4fe984412ed587f0e9c31237902b2f95623fc30a57
+          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git hash-object:*), Bash(git checkout:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh run download:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/ci-verification-request.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*), Bash(.prflow/vendor/prflow/scripts/ac-verifier-artifacts.py:*), Bash(.prflow/vendor/prflow/scripts/validate-issue-claim-audit.py:*), Bash(.prflow/vendor/prflow/scripts/validate-review-fix-handoff.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/discover-deferral-manifests.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/ensure-label.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-pr-triggerer.sh:*), Bash(.prflow/vendor/prflow/scripts/render-pr-provenance-line.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/scripts/apply-issue-dependencies.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-existing-pr.sh:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/react-to-trigger.sh:*), Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*), Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(cmp:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(tee:*)'
+          # Union the vendored plugin's own helper grants into the baked list (issue #352).
+          # Capture as RESOLVED, never a second TOOLS= (breaks the #1170 single-TOOLS pin and
+          # --check); baseline on STDIN and MANIFEST/PROFILE in env, never as args (MSYS rewrites path-shaped args).
+          BASELINE="${TOOLS}${EXTRA}"
+          RESOLVED="$BASELINE"
+          if [ ! -f .prflow/vendor/prflow/scripts/resolve-allowed-tools.py ]; then
+            printf '::warning::resolve-allowed-tools.py is absent from the vendored plugin — plugin-helper grants were not unioned into the allowlist; re-run install.sh and check prflow_version\n' >&2
+          else
+            RESOLVER_ERR="$(mktemp)"
+            if RESOLVED="$(printf '%s' "$BASELINE" | MANIFEST=.prflow/vendor/prflow/lib/capability-profiles.json PROFILE=implement python3 .prflow/vendor/prflow/scripts/resolve-allowed-tools.py 2>"$RESOLVER_ERR")"; then
+              cat "$RESOLVER_ERR" >&2
+            else
+              RESOLVER_RC=$?
+              RESOLVED="$BASELINE"
+              printf '::warning::resolve-allowed-tools.py failed (exit %s: %s) — plugin-helper grants were not unioned into the allowlist; re-run install.sh and check prflow_version\n' "$RESOLVER_RC" "$(tail -n1 "$RESOLVER_ERR")" >&2
+            fi
+            rm -f "$RESOLVER_ERR"
+          fi
           # Randomized-delimiter heredoc, not `tools=<value>`: EXTRA is config-derived
           # (`prflow_implement.allowed_tools`), so a newline anywhere in it would truncate
           # the appended value at that point and silently shorten the allowlist feeding
@@ -1442,7 +1460,7 @@ jobs:
           # `Compose implement grounding block` step's own append. Defense in depth — the
           # generated TOOLS region is newline-free by construction.
           tdelim="TOOLS_EOF_$(date +%s%N)_$$"
-          { printf 'tools<<%s\n' "$tdelim"; printf '%s\n' "${TOOLS}${EXTRA}"; printf '%s\n' "$tdelim"; } >> "$GITHUB_OUTPUT"
+          { printf 'tools<<%s\n' "$tdelim"; printf '%s\n' "$RESOLVED"; printf '%s\n' "$tdelim"; } >> "$GITHUB_OUTPUT"
 
       # Compose the implement-tier prompt (issue #1170): prepend the engine-ground-truth
       # block so the agent carries the exact resolved allowed-command list in its own
@@ -2853,6 +2871,32 @@ jobs:
             bash "$V/post-issue-comment.sh" "$ISSUE_NUMBER" "$body"
             rm -f "$body"
           }
+          # Cap-exhausted terminalize idempotency marker: cross-checked so a repeated
+          # spot_recovery run does not double-post a terminalize for the same attempt.
+          TERM_MARK="<!-- prflow:stall-backstop-terminalized run_id=${GITHUB_RUN_ID} run_attempt=${GITHUB_RUN_ATTEMPT} -->"
+          _term_already_posted() {
+            [ "$COMMENTS_OK" = "true" ] && jq -e --arg m "$TERM_MARK" 'any(.[]; (.body // "") | contains($m))' "$COMMENTS_FILE" >/dev/null 2>&1
+          }
+          # fail-exhausted terminalize: the auto-resume cap is reached and the workpad is
+          # still interim — i.e. the in-job backstop's own fail-exhausted flip did not land
+          # (the claude job was reclaimed before the in-job backstop step ran). Terminalize
+          # 💥 Failed here rather than leave the workpad indefinitely interim.
+          post_fail_exhausted() {
+            local body
+            if ! python3 "$V/workpad.py" update "$ISSUE_NUMBER" --status Failed \
+              --note "run terminalized: auto-resume cap exhausted (max ${max}, made ${attempts}); not left interim — ${RUN_URL}"; then
+              echo "::error::spot-recovery: could not flip the workpad to 💥 Failed for the cap-exhausted terminalize — the run may be left interim; investigate and re-run the implement command for this issue manually"
+            fi
+            if _term_already_posted; then echo "spot-recovery: cap-exhausted terminalize comment already posted for this run attempt; not reposting"; return 0; fi
+            body="$(mktemp)" || { echo "::warning::spot-recovery: mktemp failed; fail-exhausted comment not posted"; return 0; }
+            {
+              printf '%s\n\n' "$TERM_MARK"
+              printf '**PRFlow Spot-reclaim recovery** — the `claude` job failed and the auto-resume cap is exhausted (max %s, made %s). The run is terminalized 💥 Failed rather than left indefinitely interim. This comment carries NO auto-resume trigger line — re-run the implement command for this issue manually.\n' "${max}" "${attempts}"
+              printf '%s\n' "$RUN_URL"
+            } > "$body"
+            bash "$V/post-issue-comment.sh" "$ISSUE_NUMBER" "$body"
+            rm -f "$body"
+          }
 
           # Route the classify outcome × job status × workpad class through the pure
           # recovery-resume-decide.sh (AC47/AC48/AC49/AC54), then act on its token.
@@ -2886,11 +2930,14 @@ jobs:
               if [ "$VAC" = "malformed-count" ] || [ "$VAC" = "malformed-cap" ]; then
                 echo "::warning::spot-recovery: failed-job unclassifiable — attempt/cap malformed (${VAC}, attempts=${attempts} max=${max}); no resume"
               else
+                # The SAME decision helper the in-job backstop uses, so the two cannot
+                # disagree. JOB_RESULT is `failure` here (the failure-stall-decide arm).
                 DECISION="$(bash "$V/stall-backstop-decide.sh" "$enabled" "$CLASS" "$attempts" "$max" failure "$DEFER_OUTCOME")"
-                echo "spot-recovery: failed-job unclassifiable decision=${DECISION}"
+                echo "spot-recovery: failed-job decision=${DECISION}"
                 case "$DECISION" in
                   resume) post_capped_resume ;;
                   defer) post_deferred_notice ;;
+                  fail-exhausted) post_fail_exhausted ;;
                   *) echo "spot-recovery: no resume (decision=${DECISION}); the interim/terminal/unreadable arms leave state to the in-job backstop where it ran" ;;
                 esac
               fi

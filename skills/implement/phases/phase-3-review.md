@@ -11,219 +11,110 @@ Writing standard. Before composing this phase's first `--reflection` bullet, rea
 
 ### 3.0 Changed-file lint (advisory)
 
-Lint the branch's changed files by invoking `preflight.py lint-changed` as a direct leading token — never `python3 <path>` (the matcher denies that interpreter head), never a `bash` wrapper. It selects the changed population through the trigger-time validated lint manifest and runs the invocation the manifest selects for a changed file, so a file requiring a special invocation is linted with its own form rather than the broad one or not at all. Repository-wide advisory lint is `preflight.py lint-full`. These in-session lint results are advisory feedback, never terminal completion evidence, and a lint tool absent from PATH is a named non-success in the receipt, not an install to attempt.
+Invoke `preflight.py lint-changed` as a direct leading token. It selects changed files through the validated lint manifest and writes the advisory receipt; do not install a missing tool or treat this result as completion evidence.
 
-### 3.1 Create Draft PR
+### 3.1 Create or Adopt the Draft PR
 
-Base-branch update checkpoint 2 (pre-draft-PR) — run FIRST, before `gh pr create`. Immediately before the draft PR exists, bring the feature branch up to date with the configured base so the self-review (3.2) and the first review pass (3.3) see current base. Invoke the shared checkpoint helper — it derives the base branch *internally* (from `base_branch`, the same fail-closed fallback the draft-PR block re-derives below), so no `$BASE` needs to be in scope here:
+Run base-branch update checkpoint 2 before opening the PR:
+
+First Read `<skill-dir>/references/base-update-checkpoint.md` and validate its shared-reference markers under the root contract. This is an on-demand shared read, not permission to reload Phase 1.
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/update-branch-checkpoint.sh
 ```
 
-Handle the printed token per the implement-driven outcome-handling contract in phase-1-setup.md §1.4.1 (record on the issue workpad; `Blocked` on `MERGE_IN_PROGRESS` or a failed conflict resolution; resolve a `CONFLICT` and re-run the Phase 2.3.0 sweep before continuing; record-and-continue on `UNVERIFIED`/`PUSH_REJECTED`). Do not open the draft PR on a tree the run has hard-stopped on: `MERGE_IN_PROGRESS`, an unresolved (or suite-failed, aborted) `CONFLICT`, and a `PUSH_REJECTED` whose stderr carries the failed-restore `WARNING` (see §1.4.1's `PUSH_REJECTED` caveat) each stop the run instead. Every other token proceeds to open the draft PR — `UP_TO_DATE`, `UPDATED`, `DISABLED`, a *resolved* `CONFLICT`, and equally the record-and-continue outcomes `UNVERIFIED` and an ordinary (restore-succeeded) `PUSH_REJECTED`: those two are *degraded but non-fatal* by the §1.4.1 contract, and the branch is simply not vouched current (the read-target rules stay in force).
+Handle the printed token per that shared implement-driven contract. `CONFLICT` remains model-owned: resolve it, verify it, complete the merge, push, and re-run the Phase 2.3.0 changed-contract sweep. `MERGE_IN_PROGRESS`, unresolved or suite-failed `CONFLICT`, and a `PUSH_REJECTED` failed-restore warning stop the run; the other documented outcomes continue. Neither PR-opening helper mode resolves or aborts a merge.
 
-Resolve whether this run ADOPTS an already-open PR or CREATES one — through the extracted resolver, emitted as its own leading-token command. A §2.0 gate-fire resume — or any run whose §1.4 resume pre-check adopted an already-open PR — reaches §3.1 with the PR already created by a prior attempt, and a bare `gh pr create` would abort with "a pull request already exists". That decision is *branch-selecting* logic, so it is not inline shell here: it lives in a helper the suite drives arm-by-arm, whose comments state the full contract. Pass only the issue number — the helper re-derives the head branch and the base internally, because neither survives the shell boundary between this command and the next:
+Use the Write tool to create `<run-scratch>/pr-title.txt` from the issue title and `<run-scratch>/pr-body.md` with:
 
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/resolve-existing-pr.sh --issue $ISSUE_NUMBER
+```text
+Work in progress — automated review pending.
+
+Resolves #<issue-number>
 ```
 
-The helper prints exactly one token line, with a matching exit code:
-
-| Printed token | Exit | Meaning |
-|---|---|---|
-| `ADOPT <n> OK` | 0 | an open PR was resolved and both validations passed — adopt PR `<n>` |
-| `ADOPT <n> WARN:<checks>` | 0 | adopt PR `<n>`, but `<checks>` (a comma-separated subset of `closes-issue`, `base-ref`) did not hold |
-| `CREATE` | 2 | the query ran cleanly and found no open PR |
-| `REFUSED` | 3 | the answer could not be established |
-| *nothing at all* | — | the fence was **refused by the harness**, which answers nothing: route it exactly as `REFUSED` (the helper breadcrumbs on every path it can take, so silence is never one of its own outcomes) |
-
-Route the arms — the REFUSED arm is a terminal stop, not a breadcrumb. stderr is not a durable channel: on the cloud tier the workpad is the only record the stall backstop reads, so a REFUSED arm that merely printed would leave the workpad at an interim `🚀 Reviewing` with no `PR` link and let §3.2–§3.4 run with no PR. So:
-
-- REFUSED (the token printed, or the fence printed nothing at all). Route this by whether the run is a resume, because the risk is asymmetric and only a resume carries it. Both halves of that evidence are durable in the workpad, not merely in context, so no further network call is needed: §1.4's resume pre-check outcome (did it adopt an existing branch/PR?) is read back from its `resume-precheck: ` note in `## Progress`, and Phase 1.3's durable `resume-kind:` marker is the other half.
-  - On a resume (§1.4 adopted a PR or branch, or `resume-kind` is `in-flight`) a prior attempt's PR probably exists, so creating blind risks a duplicate: do not continue into the PR-link resolution, the label calls, or §3.2. Record the cause durably and stop — `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "Phase 3.1: could not resolve whether an open PR already exists for this branch (empty branch name, a gh pr list failure, or a refused fence) on a RESUME; refusing to create a PR that may duplicate a prior attempt's — resolve and re-run"` — then emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference) and end the run at that terminal status.
-  - On a fresh run there is no prior attempt to duplicate, so a transient failure must not end the run: fall through to the create fence below — which fails loudly and harmlessly with "a pull request already exists" in the vanishingly rare case the query was wrong — and record the degraded query with `--reflection-kind note`.
-- ADOPT (either form): continue below, treating `<n>` as the run's PR, and skip the create fence entirely. On the `WARN:<checks>` form adoption still proceeds — this is a visibility obligation, not a stop — but the named checks must not vanish into stderr: record them durably first with `workpad.py update $ISSUE_NUMBER --reflection-kind note --reflection "Phase 3.1 adopted open PR #<n> whose validation failed (<checks>): it may be an unrelated PR that merely shares this head branch."`
-- CREATE: run the create fence below and route on its tool result as documented there — the create can fail for an auth expiry, an API 5xx, a `--base` that no longer resolves, or a rate limit, and `gh pr create` writes both the new PR's URL and its own diagnostics to the tool result, so read that result directly; do not issue a further `gh` call to establish the outcome. On success (the PR URL is printed, exit 0) continue below. On a non-zero exit take the same terminal stop as REFUSED but name the cause from `gh`'s printed explanation (an expired login, an API 5xx, a `--base` that no longer resolves, a rate limit, or `gh`'s unpushed-branch refusal `aborted: you must first push …`) in the durable `blocked` reflection, then emit the 👎 outcome reaction and end the run. The separate case where the fence printed nothing at all (a harness refusal) routes exactly as REFUSED. In every stop case do not continue into the PR-link resolution, which would write a broken `[#]()` link and run §3.2–§3.4 with no PR.
-
-Ensure the branch is pushed to an explicitly-named destination — run this BEFORE the create fence. `gh pr create` (below) refuses when it cannot confirm the feature branch is pushed at the current commit, so make that condition true first by pushing `HEAD` to a destination named explicitly — never a bare `git push`, whose no-upstream and name-mismatch failure modes `scripts/update-branch-checkpoint.sh` documents at length under its *"Never a bare `git push` here"* comment. Name the remote and the full destination ref outright — `origin` + `refs/heads/<branch>` — which is that helper's own no-mismatch convention and byte-for-byte what Phase 1.5's `git push -u origin HEAD` already established as this branch's upstream, so a bare push's implicit `push.default` resolution (the failure mode the helper warns about) never enters into it. (`git config` is deliberately **not** read in this fence: it is granted on no cloud implement profile, so an in-fence `git config` read would be silently refused there — leaving the whole fence to fall through or be denied. A checkout whose upstream was deliberately renamed to a *different* remote/ref must set that upstream before this step, exactly the known-limitation the helper's own comment records.) Re-pushing an already-current branch is a safe no-op (`Everything up-to-date`). Guard a detached HEAD — where `git rev-parse --abbrev-ref HEAD` prints `HEAD` — rather than pushing to a ref literally named `HEAD`. This is two fences: first read the branch name, then push to it explicitly.
-
-First, print the branch name:
+The helper appends the run link and provenance line on the create arm. Invoke it as the only PR-opening boundary:
 
 ```bash
-git rev-parse --abbrev-ref HEAD
+.prflow/vendor/prflow/scripts/resolve-existing-pr.sh --open --issue <issue-number> --title-file <title-file> --body-file <body-file>
 ```
 
-Read the printed branch name from the tool result. If it is `HEAD` or empty, the checkout is a detached HEAD — there is no branch to push, which is unexpected on a feature-branch run: take the terminal stop — record a durable `blocked` reflection naming the detached HEAD, emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), and end the run. Otherwise substitute the printed name as a literal for `<branch>` and push it to the explicitly-named destination:
+On `command not found`, `No such file or directory`, or exit 127 from that vendored literal, retry once through the portable anchor:
 
 ```bash
-git push origin HEAD:refs/heads/<branch>
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/resolve-existing-pr.sh --open --issue <issue-number> --title-file <title-file> --body-file <body-file>
 ```
 
-Route on the tool result. On success (`Everything up-to-date`, or a pushed-ref summary, exit 0) continue to the create fence. On a non-zero exit the branch is not pushed — so `gh pr create` would refuse anyway — take the terminal stop: read `git`'s own explanation from the tool result and carry it into a durable `blocked` reflection (naming the cause instead of a bare failure), emit the 👎 outcome reaction, and end the run. On no output at all (a harness refusal, which answers nothing) on a resume, stop exactly as the REFUSED arm above; on a fresh run, fall through to the create fence, which fails loudly and names its own cause if the branch really is unpushed.
+Read the shell-token `pr-open` record from the tool result:
 
-The CREATE fence — read the base branch, then open the draft PR against it. Each phase's bash block runs as a separate shell and a value one fence computes does not survive into the next, so the base branch is read in its own fence below and substituted as a literal into `gh pr create` — behaviorally identical to Phase 1.4 (the `config-get.sh` read plus the fail-closed empty-read fallback to `main`), and it is what guarantees the create targets the configured `base_branch` rather than the repo default branch (an empty `--base ""` would mistarget silently). The create is a single-statement fence; read its tool result to answer "did it succeed?" without a second network call — `gh pr create` prints the new PR's URL on success and its own diagnostics on failure. Pass the resolved base as the `--base` flag; do not pass `--head`. `gh pr create` defaults `--head` to the checked-out feature branch, but that default is correct only when the branch is already pushed and its pushed copy is at the same commit as the local branch — `gh` resolves `--head` by comparing the local `HEAD` commit against the recorded server-side ref, and when it cannot confirm they match it refuses with `aborted: you must first push the current branch to a remote, or use the --head flag`. Passing `--head` does not satisfy that condition — it makes `gh` *skip* the check and assume the branch is already on the server, so on an unpushed or stale-pushed branch it either fails server-side (the named head ref does not exist) or opens a PR against a server-side ref that lacks the work; either way it is not the fix. The push step above makes the condition true instead.
+- `outcome=created` or `outcome=adopted` — continue with the returned `number` and `url`. The helper already pushed an explicitly named head destination when creating, opened the draft, preserved an adopted body, wrote the workpad link, applied PRFlow, bound scope decisions, and attempted create-only assignment. Record any non-zero companion `*_rc` field or non-success `apply_labels`, `workpad_link`, `workpad_bind`, or `assignment` field as `dropped-failed`; on adoption, also record non-OK `checks`.
+- `outcome=refused` — on a resume, set the workpad `Blocked`, emit 👎, and stop rather than risk a duplicate PR. On a fresh run only, retry once with the force-create mode below.
+- `outcome=push-failed` or `outcome=create-failed` — set the workpad `Blocked` with the returned `cause`, emit 👎, and stop.
+- silence, an unparseable record, or any unknown outcome — treat as `refused`.
 
-First read the base branch:
+Fresh-run refusal retry, and the only second call site:
 
+```bash
+.prflow/vendor/prflow/scripts/resolve-existing-pr.sh --open --force-create --issue <issue-number> --title-file <title-file> --body-file <body-file>
+```
+
+On `command not found`, `No such file or directory`, or exit 127 from that vendored literal, retry once through the portable anchor:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/resolve-existing-pr.sh --open --force-create --issue <issue-number> --title-file <title-file> --body-file <body-file>
+```
+
+Require `outcome=created`; route every other result through the terminal create-failure path above. Print `draft PR number: [<number>]` from the successful record for later phases.
+
+### 3.2 Self-Review cleanup pass
+
+Read the base branch in its own fence — §3.1's helper process does not export it. Emit the vendored literal first; on a `command not found` / `No such file` / rc-127 reading, fall back to the portable anchor form:
+```bash
+.prflow/vendor/prflow/scripts/config-get.sh .base_branch main
+```
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .base_branch main
 ```
+Read the printed base from the tool result; on an empty read fall back to the literal `main`. Substitute the resolved value for `<base>` below as a literal, since a `$VAR` expansion is denied on the cloud tier.
 
-Read the printed base from the tool result; on an empty read (malformed config or missing python3) fall back to the literal `main`. Substitute the resolved value for `<base>` below.
-
-Render the provenance line in its OWN fence, BEFORE composing the body. The bundled helper `scripts/render-pr-provenance-line.py` prints one provenance line on stdout (for example `_Generated via /prflow:implement (v2.32.70, claude-opus-5, low)_`, or `_Generated via /prflow:implement (v2.32.70)_` when the model/effort are unestablished); it exits 0 in every case except a missing required `--command` argument (an argparse usage error), and its line carries no backtick or other shell-active construct. Each phase fence is a separate shell, so read the printed line from THIS fence's tool result and substitute it as a literal for `<provenance-line>` in the body template below. Emit the granted vendored literal first — the bare anchor is denied as a leading token by the cloud matcher, so it is retained only as the fallback arm:
-
-```bash
-.prflow/vendor/prflow/scripts/render-pr-provenance-line.py --command /prflow:implement
-```
-
-Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127 — a non-Claude-Code runner such as Copilot CLI, Cursor, Codex CLI, or Gemini CLI where the vendored path is absent), fall back to the portable anchor form below, which preserves the helper's portability on those runners (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
-
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-pr-provenance-line.py --command /prflow:implement
-```
-
-Read the printed line from the tool result and substitute it as a literal for `<provenance-line>` below. If the helper produced NO readable output at all — a harness refusal, or an empty print — OMIT the provenance line entirely: the body then carries no provenance parenthetical, and never a placeholder, an empty parenthetical, or an unsubstituted `<provenance-line>` token.
-
-Then compose the PR body from this template. Compose the run link exactly the way Phase 1.3 §1.3 does — run `.prflow/vendor/prflow/scripts/compose-run-url.sh` and substitute its `[View run](…)` stdout as a literal into the body — so the draft PR links back to the run that created it. When the run-facts block reports run id `unestablished`, is absent (the older-workflow fallback), or on a local-tier run, the helper emits no link, so omit the entire `[View run]` line rather than rendering a broken `[View run]()` link:
-
-```
-Work in progress — automated review pending.
-
-Resolves #{issue_number}
-<[View run](…) line from compose-run-url.sh, omitted on local/fallback>
-
-<provenance-line>
-```
-
-The run-link line is an already-resolved literal from the helper (not a variable expansion), and the provenance line it renders carries no backtick, so nothing in the `--body` is shell-active.
-
-Open the draft PR, substituting the resolved `<base>` and the composed body for `<pr-body>`:
-
-```bash
-gh pr create --base <base> --draft --title "{issue title}" --body "<pr-body>"
-```
-
-Route on the tool result (model on phase-4-documentation.md §4.0): on success `gh pr create` prints the new PR's URL and exits 0 — continue below. On a non-zero exit or no output at all, take the terminal stop the CREATE routing bullet above documents (name the cause from `gh`'s printed explanation; route a silent refusal as REFUSED) — do not continue into the PR-link resolution.
-
-On the adopt arm, do NOT re-write the PR body — the prior attempt's body (and its §1.4-refreshed `[View run]` line) stands; re-creating or re-bodying it would clobber a human's edits.
-
-Then populate the workpad's `PR` link from the resolved draft PR — freshly created, or the one just adopted — and print the PR number — you need it as a literal in the label call below, and a shell variable does not survive into a later separate command on the cloud runner.
-
-On the ADOPT arm, use this fence instead of the one below, substituting the adopted digits for `<adopted-pr>`. Both values must come from one explicitly-addressed read:
-
-`<adopted-pr>` is the number from the resolver's `ADOPT <n>` token, substituted as a literal. The positional argument is what makes this read scoped — without it `gh pr view` resolves by branch across OPEN/CLOSED/MERGED (the unscoped form the resolver's contract rejects), which could bind the link to a different PR than the one just adopted. Print the URL:
-
-```bash
-gh pr view <adopted-pr> --json url --jq '.url'
-```
-
-Read the printed URL from the tool result — the guard's outcome is an observable, not an inference. If a URL printed, substitute it as a literal for `<pr-url>` and write the link. If the read was empty — or produced no output at all, a harness refusal — the workpad carries no `PR` link: record it durably with `--reflection-kind dropped-failed` and apply no label, exactly as the create arm's failures below are recorded, and do not run the write fence (writing a broken `[#<adopted-pr>]()` link first and remedying after would already have PATCHed a link the remedy cannot undo). The `draft PR number` is the adopted digits regardless of whether the URL resolved:
-
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --pr-link "[#<adopted-pr>](<pr-url>)"
-echo "draft PR number: [<adopted-pr>]"
-```
-
-On the CREATE arm, read the PR number and URL, then write the link:
-```bash
-gh pr view --json number,url --jq '.number, .url'
-```
-
-Read the printed number (line 1) and URL (line 2) from the tool result, and substitute them as literals below — the number is what §3.1's label, assignment, and scope-binding fences consume as the `draft PR number`. If either line read empty — or the read produced no output at all, a harness refusal — do not run the write fence, exactly as the adopt arm above: a `[#]()` link PATCHed now is a broken link no later remedy can undo. Record it durably instead and continue: `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1: the created draft PR's number/URL read was empty or produced no output at all (likely a harness denial); the workpad carries no PR link."`
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --pr-link "[#<pr-number>](<pr-url>)"
-echo "draft PR number: [<pr-number>]"
-```
-
-Then stamp the reserved `PRFlow` provenance label on the PR (best-effort). `PRFlow` is a hardcoded provenance constant (no config key controls it; its superseded `DevFlow` spelling stays selectable on already-labelled history, but new runs stamp only `PRFlow`) — it is the branch-naming-independent signal the weekly retrospective uses to detect PRFlow-authored PRs. Apply it through the shared REST label-apply helper after creation (a PR is an issue, so the same `POST .../issues/{n}/labels` endpoint serves it) so a label hiccup can never block the run.
-
-**Cloud-emission discipline (label helpers): emit the call as a single leading-token statement, and substitute the PR number as a LITERAL — see the *Cloud command-shape discipline* section in `skills/implement/SKILL.md`.** The helper must never be wrapped in a shell loop or an output capture, and `$PR_NUM` — set in the *previous* fence — does not survive into this separate command, so pass the printed `draft PR number` digits as a literal, never a variable. Read the printed `draft PR number` and substitute the digits below.
-
-Two exits before the apply. If no `draft PR number` line was printed at all, the fence was refused, not answered (a refused command produces no output at all) — do not read it as "empty": record it and apply nothing, noting the workpad `PR` link written in that same refused fence may also be unset — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1: the draft-PR-number fence produced no output at all (likely a harness denial); the PR carries no PRFlow label and the workpad PR link may be unset."` If the line printed but is empty, the PR number could not be resolved: record it durably and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1 could not resolve the draft PR number to apply the PRFlow provenance label; the PR carries no PRFlow label, so the retrospective's label-first detection will not see this run."`
-
-Apply the `PRFlow` label to the draft PR with one call — the helper creates the label itself if absent and applies it via REST `POST .../issues/{n}/labels` (not `gh pr edit --add-label`, which resolves the repo via org-scoped GraphQL and fails under a repo-scoped token). Substitute the digits of the `draft PR number` printed above for `<draft-pr-number>` (a literal, never `$PR_NUM`):
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/apply-labels.sh <draft-pr-number> PRFlow
-```
-
-`apply-labels.sh` always exits 0 and prints exactly one stdout outcome token — `applied | nothing-to-apply | arg-slip | api-failure | config-unreadable`. `applied` means the label landed; the run continues regardless. Any other token, or no output at all — a harness refusal, its only silent outcome — must not vanish: record it durably naming the token and continue — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1 could not apply the PRFlow provenance label to the draft PR — apply-labels.sh reported <token> (or produced no output at all, a harness denial); the PR carries no PRFlow label, so the retrospective's label-first detection will not see this run."` An invocation that failed because the helper path does not exist (`No such file`, exit 127) is an anchor-resolution failure, not a label outcome — resolve the path, not this routing.
-
-Bind the Phase-2 scope-decision records to this PR — here, at the first moment the PR number exists. §2.2.5 and §2.2.6 wrote their scope-decision records carrying the literal `pending`, because no PR existed when they ran, and a record still reading `pr=pending` at review time deliberately covers nothing — the review engine's membership check fails closed on it — so binding is not optional. Substitute the digits of the `draft PR number` printed above for `<draft-pr-number>` (a literal, never `$PR_NUM` — the discipline note above):
-
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --bind-scope-decisions <draft-pr-number>
-```
-
-The call is idempotent — it rewrites only records still reading `pr=pending` and leaves already-bound records untouched — so a resumed run re-entering §3.1 re-binds nothing. When a run wrote no scope-decision records, no record changes — but the call is still a real mutation (`--bind-scope-decisions` is one of the flags `workpad.py` counts as a non-checkpoint mutation), so it refreshes `Last updated` and issues one PATCH. That is harmless, so run this step unconditionally — do not try to detect first whether any records exist.
-
-#### 3.1.1 Assign the draft PR to the triggering user (CREATE arm ONLY)
-
-This step runs ONLY on the CREATE arm — never on ADOPT. Assignment is a create-time ownership action: a freshly-created draft PR has no assignee, so PRFlow assigns it to the developer who triggered the run. An adopted PR already belongs to its first attempt's assignees, so the ADOPT arm skips this step entirely and leaves the existing assignees untouched — do not invoke the helper on that arm.
-
-The `apply-pr-triggerer.sh` helper resolves the triggerer by tier and best-effort-assigns the PR: on a cloud run it reads the authorized comment sender the workflow propagates through `DEVFLOW_TRIGGERING_USER` (fail-closed — a missing value is a deployment-skew signal, never permission to substitute the token owner, the App identity, or `GITHUB_ACTOR`); on a local run it resolves the authenticated login through `gh api user --jq .login`. It always exits 0 and prints exactly one outcome token to stdout — `assignment: applied <login>` or `assignment: skipped <reason>` — so a hiccup never blocks the run.
-
-**Cloud-emission discipline (assignment helper): emit the call as a single leading-token statement, substituting the PR number as a LITERAL — see the *Cloud command-shape discipline* section in `skills/implement/SKILL.md`.** As with the label helpers, `$PR_NUM` — set in an earlier fence — does not survive into this separate command, so read the printed `draft PR number` and substitute the digits (never a variable, never a loop or output capture). Substitute the digits of the `draft PR number` printed above for `<draft-pr-number>`. Emit the granted vendored literal below first — the bare anchor is denied as a leading token by the cloud matcher, so it is retained only as the fallback arm:
-
-```bash
-.prflow/vendor/prflow/scripts/apply-pr-triggerer.sh <draft-pr-number>
-```
-
-Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127 — a non-Claude-Code runner such as Copilot CLI, Cursor, Codex CLI, or Gemini CLI where the vendored path is absent), fall back to the portable anchor form below, which preserves the helper's portability on those runners (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
-
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/apply-pr-triggerer.sh <draft-pr-number>
-```
-
-Route on the token this helper prints — all outcomes. The helper breadcrumbs to stderr on every path and prints exactly one `assignment:` line to stdout, so a harness refusal is its ONLY silent outcome:
-- `assignment: applied <login>` — the PR was assigned; continue (optionally note it).
-- `assignment: skipped <reason>` — for every `<reason>` EXCEPT `unconfirmed`, which the next bullet owns — a path on which no assignment was made (`invalid-input`, `no-triggering-user`, `identity-lookup-failed`, `empty-identity`, `api-failure`); the PR is preserved. Record it durably and continue, substituting the printed reason for `<reason>`: `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1.1 could not assign the draft PR to the triggering user (assignment: skipped <reason>); the PR is preserved and unassigned."`
-- `assignment: skipped unconfirmed` — not the same claim: here the add-assignee request itself *succeeded* and only the confirmation failed (GitHub silently ignoring an unassignable login, an empty or truncated response body, or a degraded `jq`), so the helper knows it could not confirm assignment — never that assignment did not happen. Record what was observed and do not write "unassigned": `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1.1 could not confirm the draft PR was assigned to the triggering user (assignment: skipped unconfirmed — the add-assignee request succeeded but its response did not confirm the login); the PR is preserved and its assignee state is unconfirmed."`
-- no `assignment:` line at all — a harness refusal, not an empty value; record it durably the same way, naming it a likely harness denial, and continue: `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1.1: the assignment helper produced no output at all (likely a harness denial); the draft PR is preserved and its assignee state is unconfirmed."` (A denial issues no request at all, but a helper killed between the POST and its outcome line would also print nothing — so this outcome establishes no assignee state either way.)
-
-The run continues regardless of the assignment outcome — assignment is best-effort and never gates the PR.
-
-### 3.2 Self-Review with /simplify
-
-Capture the pre-step status listing so the commit below stages only what `/simplify` changes — through `| tee`, never a `>` redirect:
+Capture the pre-step status listing so the commit below stages only what this pass changes — through `| tee`, never a `>` redirect:
 ```bash
 git status --porcelain -- ':!.prflow/tmp' | tee .prflow/tmp/p32-status-before-$ISSUE_NUMBER.txt ; echo status-capture-done
 ```
 
-Invoke the Skill tool with `skill: simplify` — this runs the built-in Claude Code `/simplify` slash-command, not a PRFlow plugin skill (so there's no `devflow:` prefix and nothing to install). When `/simplify` is unavailable — the Skill tool is absent, the `simplify` skill is reported not found, or the invocation is refused twice (at minimum these three) — skip the charter, triage, and commit fence below (do not commit or push), but still run the outcome-note call: leave the `/simplify` progress row unticked and record `simplify outcome: unavailable (<reason>)`.
+Write the diff the cleanup agent will review to a file (substitute the resolved base as a literal, not a `$VAR`):
+```bash
+git diff origin/<base>...HEAD | tee .prflow/tmp/p32-diff-$ISSUE_NUMBER.patch ; echo diff-capture-done
+```
 
-`/simplify` runs the code-review engine over the current diff in quality-only mode — the reuse / simplification / efficiency / altitude cleanup angles — and applies the fixes directly instead of stopping at a report (skipping any whose fix would change intended behavior). By its own charter it does not hunt for bugs; use `/code-review` for that.
+Unreadable-diff case — NO dispatch runs. The diff was captured only when its `diff-capture-done` sentinel is present (`| tee` masks the exit code, so the sentinel — not the exit status — signals the capture completed; its absence means the fence was refused or the git process died). An absent sentinel, an empty diff file, or a `fatal:` line is the unreadable-diff case: record it ONCE and continue to §3.3 without dispatching or applying anything — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.2 cleanup pass: the diff was unreadable (empty/error), so no cleanup ran."`.
 
-**Cleanup agents are quality-only; they never own correctness.** These operative rules follow from that charter:
+Otherwise dispatch exactly ONE `prflow:code-reviewer` via the Agent tool with `run_in_background: false` — the step is discharged only by the completed return, never the tool call's return. This is an Agent-tool dispatch, not a Skill invocation, so it triggers no nested-skill re-anchor. The dispatch prompt names the diff file `.prflow/tmp/p32-diff-$ISSUE_NUMBER.patch` for the agent's Read tool and selects cleanup mode: review the reuse / simplification / efficiency / altitude angles and return plain text per finding (file, line, one-line summary, concrete cost) plus an explicit clean statement for each angle with nothing to report. The per-angle text is the sole return contract — the agent has no ReportFindings tool (its `tools: Read, Grep, Glob, Bash` frontmatter is the closed tool set).
 
-- `/simplify`'s cleanup agents are quality-only reviewers, never correctness reviewers — chartered for the reuse / simplification / efficiency / altitude angles only.
-- The orchestrator never solicits a correctness or guard-class verdict from a `/simplify` cleanup agent.
-- The orchestrator never records a cleanup agent's "clean" report as evidence toward any correctness class — a "clean" from an agent chartered not to examine correctness is not evidence that correctness holds.
-- Correctness is owned by the Phase 3.3 reviewers, whose dispatch prompts carry the repo's guard classes from the project's review prompt extension (a consumer prompt extension that `/simplify`, a built-in Claude Code skill, never loads).
+Classify the return (the Phase 3.2 application of the root's Subagent-failures rule): a return carrying NEITHER a finding entry NOR per-angle clean statements, OR one that reports a failed submission, is recorded ONCE and then §3.3 continues without applying anything and without re-dispatching — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.2 cleanup pass: the code-reviewer return carried no findings and no per-angle clean statements (or reported a failed submission); nothing was applied."`.
 
-Triage each `/simplify` finding against the issue's acceptance criteria before applying it (this `/prflow:implement` path only). The `/simplify` cleanup agents see only the diff — never the issue's `## Acceptance Criteria` or any Phase 2.2.5 scope decisions — so a cleanup that reads as correct against the diff alone can directly violate the issue's deliberate scope (e.g. move a rule out of the file an AC pinned it to, or trim an exclusion list or wording an AC mandated). Before applying each finding, evaluate it against the workpad's in-scope `## Acceptance Criteria` and Phase 2.2.5 scope-decision notes — **against both the *literal* AC text and the *generality / consumer-facing* ACs** (an AC that mandates a surface stay broad, work for all consumers, or not narrow an event/input/filter). A finding can satisfy every literal AC while breaking a generality one: any finding that narrows an event, input, or filter surface re-runs the consumer-boundary question before it lands — does this narrowing still serve every consumer the AC intends, or does it optimize for the literal cases only? If its fix would violate an acceptance criterion (literal or generality) or the decided scope, skip the finding and record the AC conflict as the skip rationale via `workpad.py update $ISSUE_NUMBER --note "skipped /simplify finding: {finding}; would violate AC: {which criterion}"`. Apply findings that do not conflict as normal. This triage exists only on the issue-context `/prflow:implement` path — it does not change standalone `/simplify` / `/code-review` behavior, which carry no issue/AC context. One carve-out: a finding that conflicts with a now-*stale* AC that a legitimate refactor superseded is not a silent skip — that is Phase 2.2.6 AC-rewrite territory (rewrite the AC text with a `--note` paper trail, then let the finding apply), never this guardrail.
+**The cleanup dispatch is quality-only; it never owns correctness.** These operative rules follow from that charter:
 
-After the skill completes, capture the status listing again and commit only what this step changed — through `| tee`, never a `>` redirect:
+- The cleanup dispatch is a quality-only reviewer, never a correctness reviewer — chartered for the reuse / simplification / efficiency / altitude angles only.
+- The orchestrator never solicits a correctness or guard-class verdict from the cleanup dispatch.
+- The orchestrator never records a cleanup "clean" statement as evidence toward any correctness class — a "clean" from an angle chartered not to examine correctness is not evidence that correctness holds.
+- Correctness is owned by the Phase 3.3 reviewers, whose dispatch prompts carry the repo's guard classes from the project's review prompt extension.
+
+Triage each cleanup finding against the issue's acceptance criteria before applying it (this `/prflow:implement` path only). The cleanup agent sees only the diff — never the issue's `## Acceptance Criteria` or any Phase 2.2.5 scope decisions — so a cleanup that reads as correct against the diff alone can directly violate the issue's deliberate scope (e.g. move a rule out of the file an AC pinned it to, or trim an exclusion list or wording an AC mandated). Before applying each finding, evaluate it against the workpad's in-scope `## Acceptance Criteria` and Phase 2.2.5 scope-decision notes — **against both the *literal* AC text and the *generality / consumer-facing* ACs** (an AC that mandates a surface stay broad, work for all consumers, or not narrow an event/input/filter). A finding can satisfy every literal AC while breaking a generality one: any finding that narrows an event, input, or filter surface re-runs the consumer-boundary question before it lands — does this narrowing still serve every consumer the AC intends, or does it optimize for the literal cases only? If its fix would violate an acceptance criterion (literal or generality) or the decided scope, skip the finding and record the AC conflict as the skip rationale via `workpad.py update $ISSUE_NUMBER --note "skipped cleanup finding: {finding}; would violate AC: {which criterion}"`. Apply findings that do not conflict as normal. One carve-out: a finding that conflicts with a now-*stale* AC that a legitimate refactor superseded is not a silent skip — that is Phase 2.2.6 AC-rewrite territory (rewrite the AC text with a `--note` paper trail, then let the finding apply), never this guardrail.
+
+After applying the findings, capture the status listing again and commit only what this step changed — through `| tee`, never a `>` redirect:
 ```bash
 git status --porcelain -- ':!.prflow/tmp' | tee .prflow/tmp/p32-status-after-$ISSUE_NUMBER.txt ; echo status-capture-done
 git diff --no-index --exit-code .prflow/tmp/p32-status-before-$ISSUE_NUMBER.txt .prflow/tmp/p32-status-after-$ISSUE_NUMBER.txt
 ```
 
-`git diff --no-index --exit-code` exits 0 when the two listings match and 1 with a diff on stdout when rows differ — but `| tee` masks each `git status` exit, so that exit code decides nothing until both captures are known to have completed. Check that precondition FIRST, before reading the diff exit code at all: both captures completed only when each printed its `status-capture-done` sentinel and neither `git status` emitted an `error:`/`fatal:`. If either did not — a sentinel absent (a refused read) or a git error (a failed read leaves an empty capture file: it spuriously matches the other empty file at exit 0, or reads as wholly differing against a non-empty one at exit 1, either way naming paths this step never touched) — take the Phase 2.5 no-output arm (which records the `dropped-failed` reflection) regardless of the diff exit code, never the skip and never the rows-differ interpretation below. Only once both captures completed does the diff exit code decide: exit 0 authorizes the "`/simplify` changed nothing, skip the commit and continue" skip; exit 1 with a diff on stdout means rows differ; any other outcome — no diff on stdout, e.g. a missing capture file printing `error:` on stderr and exiting 1 with no stdout — takes the Phase 2.5 no-output arm. When rows differ, name to the durability-checkpoint helper every path whose status row differs (a rename row names both its paths); a path whose row is unchanged is left for the Phase 4.3 clean-tree check, including a file dirty before the step that the step edited again:
+`git diff --no-index --exit-code` exits 0 when the two listings match and 1 with a diff on stdout when rows differ — but `| tee` masks each `git status` exit, so that exit code decides nothing until both captures are known to have completed. Check that precondition FIRST, before reading the diff exit code at all: both captures completed only when each printed its `status-capture-done` sentinel and neither `git status` emitted an `error:`/`fatal:`. If either did not — a sentinel absent (a refused read) or a git error (a failed read leaves an empty capture file: it spuriously matches the other empty file at exit 0, or reads as wholly differing against a non-empty one at exit 1, either way naming paths this step never touched) — take the Phase 2.5 no-output arm (which records the `dropped-failed` reflection) regardless of the diff exit code, never the skip and never the rows-differ interpretation below. Only once both captures completed does the diff exit code decide: exit 0 authorizes the "cleanup changed nothing, skip the commit and continue" skip; exit 1 with a diff on stdout means rows differ; any other outcome — no diff on stdout, e.g. a missing capture file printing `error:` on stderr and exiting 1 with no stdout — takes the Phase 2.5 no-output arm. When rows differ, name to the durability-checkpoint helper every path whose status row differs (a rename row names both its paths); a path whose row is unchanged is left for the Phase 4.3 clean-tree check, including a file dirty before the step that the step edited again:
 ```bash
-.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh "refactor: address /simplify findings for issue #$ARGUMENTS" {each path whose status row changed}
+.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh "refactor: address cleanup findings for issue #$ARGUMENTS" {each path whose status row changed}
 ```
 
-The helper stages exactly those paths, commits, pushes, and confirms the push landed — this step runs no `git add`, `git commit`, or `git push`. On a non-zero helper exit, or a call that printed nothing, follow the Phase 2.5 exit-routing paragraph in `phase-2-sweeps-quality.md` §2.5 (which records the `dropped-failed` reflection); if it stays unresolved the `/simplify` progress row is not ticked and this step records `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "Phase 3.2: /simplify checkpoint did not land — {helper stderr breadcrumb}"`, emits the 👎 outcome reaction, and stops.
+The helper stages exactly those paths, commits, pushes, and confirms the push landed — this step runs no `git add`, `git commit`, or `git push`. On a non-zero helper exit, or a call that printed nothing, follow the Phase 2.5 exit-routing paragraph in `phase-2-sweeps-quality.md` §2.5 (which records the `dropped-failed` reflection); if it stays unresolved this step records `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "Phase 3.2: cleanup checkpoint did not land — {helper stderr breadcrumb}"`, emits the 👎 outcome reaction, and stops.
 
-No verification round is owed between §3.2 and §3.3. This commit ships without its own full-suite run: §3.3's `review-and-fix` loop runs a verification as its first act, and the `/simplify` edits just committed ride into that first verification. So do not launch a full suite here to verify the `/simplify` commit — a fresh commit does not, on its own, owe a verification round when the very next step verifies it.
-
-Then, in one call, tick the `/simplify` gate and record the step's outcome (the unavailable arm above records the note without the tick):
-
-`workpad.py update $ISSUE_NUMBER --tick-progress "simplify" --note "simplify outcome: findings generated=<N>, applied=<M>, skipped-as-AC-conflict=<K>"`
-
-`<N>` is the findings `/simplify` produced this run, `<M>` how many you applied, `<K>` how many you skipped as AC conflicts above. When `/simplify` reported the diff already clean, record the same `simplify outcome:` lead phrase with all three tallies zero.
+No verification round is owed between §3.2 and §3.3. This commit ships without its own full-suite run: §3.3's `review-and-fix` loop runs a verification as its first act, and the cleanup edits just committed ride into that first verification. So do not launch a full suite here to verify the cleanup commit — a fresh commit does not, on its own, owe a verification round when the very next step verifies it.
 
 <!-- prflow:implement-ref phase=3 file=skills/implement/phases/phase-3-review.md end -->

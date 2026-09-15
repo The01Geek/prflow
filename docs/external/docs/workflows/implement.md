@@ -55,7 +55,6 @@ The freshly created workpad is a checklist of the whole run. For example:
 - [ ] **Implement**
   - [ ] code + sweeps
 - [ ] **Review**
-  - [ ] `/simplify`
   - [ ] `review-and-fix`
   - [ ] acceptance-criteria gate
 - [ ] **Documentation**
@@ -89,7 +88,7 @@ The run has four phases:
 
 1. Fetch the issue, parse its acceptance criteria and create or resume its workpad.
 2. Create or adopt the issue branch, explore the affected code, plan the change, write it and test it.
-3. Open a draft pull request, simplify the change and run the review-and-fix loop.
+3. Open a draft pull request, run the code-reviewer cleanup pass and the review-and-fix loop.
 4. File any required follow-up issues, update documentation, refresh the pull request description and finish.
 
 The issue defines the intended outcome. Before implementation starts, PRFlow checks the issue's own claims about the repository against the current tree rather than trusting them, and it checks that the acceptance criteria cover every independently testable outcome the issue's Desired Behavior section states. An outcome no criterion covers stops the run for issue refinement. PRFlow never invents a criterion to fill the gap.
@@ -146,7 +145,7 @@ Continuous integration is a post-pull-request merge gate. It never stands in for
 
 ## Draft Pull Request and Review
 
-The pull request is opened as a draft, titled with the issue title, before the review phase begins. PRFlow runs a simplification pass and then the review-and-fix loop while the pull request is still a draft, so your reviewers see the converged state rather than every intermediate one.
+The pull request is opened as a draft, titled with the issue title, before the review phase begins. PRFlow runs a cleanup pass and then the review-and-fix loop while the pull request is still a draft, so your reviewers see the converged state rather than every intermediate one.
 
 Non-Critical findings that survive bounded re-review are surfaced for human judgment. A genuine unresolved Critical finding blocks the run.
 

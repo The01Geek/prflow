@@ -1,5 +1,5 @@
 {
-  "manifest_version": 36,
+  "manifest_version": 39,
   "readme": [
     "This manifest is the single source of truth for PRFlow's cloud capability policy:",
     "which tools/commands each execution tier (review, implement, command) may run.",
@@ -187,6 +187,7 @@
       "Bash(gh repo view:*)",
       "Bash(gh run view:*)",
       "Bash(gh run list:*)",
+      "Bash(gh run download:*)",
       "Bash(gh workflow view:*)",
       "Bash(gh workflow list:*)",
       "Bash(gh api:*)",
@@ -202,11 +203,13 @@
       "Bash(.prflow/vendor/prflow/scripts/reception-record.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*)",
+      "Bash(.prflow/vendor/prflow/scripts/ci-verification-request.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/ac-verifier-artifacts.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/validate-issue-claim-audit.py:*)",
+      "Bash(.prflow/vendor/prflow/scripts/validate-review-fix-handoff.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/preflight.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*)",
